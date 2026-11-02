@@ -1,81 +1,61 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/INVENTAIRE-CAISSE-RENFORT-20261102/decision-2.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/INVENTAIRE-CAISSE-RENFORT-20261102/decision-3.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
 lot_id: INVENTAIRE-CAISSE-RENFORT-20261102
-seq: 2
+seq: 3
 author: ChatGPT
 branch: handoff-continuite-20260920
 decision: APPROVED_WITH_CONDITIONS
 closes: false
-in_reply_to: request-2.md
+in_reply_to: request-3.md
 provenance:
   niveau: 2
   mode: github_actions_relay
-  reference: https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6581454825
+  reference: https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6582331750
 ---
-# Décision sur request-2.md — APPROVED_WITH_CONDITIONS
+# Décision sur request-3.md — APPROVED_WITH_CONDITIONS
 
-_Provenance : verdict rendu par ChatGPT via l'API OpenAI (run 41474513264), posté sur https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6581454825. Matérialisé par la CI (stade (a), autorisé par Frédéric Bragance le 09/10/2026), sans session Claude ni recopie humaine. Le verdict est reproduit tel quel ; seul le contrat a été contrôlé._
+_Provenance : verdict rendu par ChatGPT via l'API OpenAI (run 41480909925), posté sur https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6582331750. Matérialisé par la CI (stade (a), autorisé par Frédéric Bragance le 09/10/2026), sans session Claude ni recopie humaine. Le verdict est reproduit tel quel ; seul le contrat a été contrôlé._
 
 ## Ce que la CI a contrôlé
 
 - `NEXT_ACTION_CONTRACT` conforme (mêmes règles que le relais : vocabulaire, palier Frédéric, aucune mention qui relance Claude).
-- `LOT` = `INVENTAIRE-CAISSE-RENFORT-20261102`, `REQUEST` = `request-2.md` : c'est la demande en attente au registre (`ATTENTE_DECISION`).
+- `LOT` = `INVENTAIRE-CAISSE-RENFORT-20261102`, `REQUEST` = `request-3.md` : c'est la demande en attente au registre (`ATTENTE_DECISION`).
 - Rail `handoff-continuite-20260920` : celui du lot au registre, de forme `handoff-*` ; ni `main` ni `production`.
-- Lecture du rail : `RAIL_LU` = `9d9dca4d9b571fd958d80f5db6a931cc6ff4aa8a`, `HEAD` = `9d9dca4d9b571fd958d80f5db6a931cc6ff4aa8a`, SHA du run `9d9dca4d9b571fd958d80f5db6a931cc6ff4aa8a`, tête du rail `9d9dca4d9b571fd958d80f5db6a931cc6ff4aa8a`. Un SHA doit être celui du run ; `INACCESSIBLE` (relais intégral) n'est admis que si le run est la tête du rail.
+- Lecture du rail : `RAIL_LU` = `179c7ac681a39d1508934d1f42e9d44ab54b269b`, `HEAD` = `179c7ac681a39d1508934d1f42e9d44ab54b269b`, SHA du run `179c7ac681a39d1508934d1f42e9d44ab54b269b`, tête du rail `179c7ac681a39d1508934d1f42e9d44ab54b269b`. Un SHA doit être celui du run ; `INACCESSIBLE` (relais intégral) n'est admis que si le run est la tête du rail.
 - Aucun palier humain : ni `DECISION: BLOCKED`, ni `OWNER_NEXT: Frédéric`, ni `STOP_REQUIRED` renseigné.
 
 ## Ce que la CI n'a PAS contrôlé
 
-- Les conditions du verdict (« L1 limité à une pilote caisse sur Test; activation individuelle refusée par défaut, côté serveur et isolée par site_id; non-pilotes inchangés; cycles non bornés non calculables; pilote mesuré 7 jours et au moins 10 missions, prolongeable jusqu’à 14 jours; toute table, colonne, migration, policy ou grant passe par SECURITE_RLS_SITE_ID; toute permission nouvelle ou surface élargie passe par SECRET_PERMISSION_SURFACE_SECURITE; aucun renfort, élargissement, Production ou communication terrain autorisé. »). Elles lient l'exécutant suivant (`github-actions-claude`), qui les vérifie avant d'agir.
+- Les conditions du verdict (« Le contrôle côté page reste un mécanisme de déploiement pilote et non une autorisation de sécurité ; absence de clé, valeur mal formée, liste vide ou identifiant absent doivent conserver le fil actuel ; pilotesRenfort ne doit être lu par aucun écran avant L3 ; les épreuves sur Test doivent couvrir pilote caisse, non-pilote, refus par défaut et isolation intersite ; aucune migration, policy, grant, mutation Production, fusion ou déploiement Production. »). Elles lient l'exécutant suivant (`github-actions-claude`), qui les vérifie avant d'agir.
 - Ce dépôt est poussé avec le jeton du workflow : il ne relance ni la CI ni Claude. La reprise reste celle du prochain réveil.
 
 ## Texte de l'arbitre
 
-## Décision
+La conception est approuvée sous conditions. La clé additive et les deux listes sont compatibles avec le refus par défaut et l’isolation par site. `pilotesRenfort` peut être créée dès L1, mais doit rester sans lecteur fonctionnel jusqu’à L3.
 
-**APPROVED_WITH_CONDITIONS — closes: false.**
+Le contrôle côté page est suffisant uniquement comme mécanisme de déploiement pilote, pas comme frontière d’autorisation. Cette conclusion repose sur le fait établi qu’il n’accorde aucun droit de lecture ou d’écriture supplémentaire. Toute nouvelle capacité imposerait une nouvelle frontière serveur et un arbitrage `SECURITE_RLS_SITE_ID`.
 
-1. La décision de Frédéric « plus de feuille » remplace bien `decision-1 §4` : pour chaque famille, le papier cesse à sa bascule effective dans NEXUS. Pour le pilote, cela s’applique uniquement à l’employée basculée ; les autres continuent la feuille jusqu’à leur propre bascule. La date, la communication terrain et toute mise en Production restent hors de cette autorisation.
-2. L1 est autorisé en conception puis en code sur Test pour **une seule employée pilote en caisse**. L’ambiguïté « même personne pour caisse et renfort ou une personne par rôle » ne bloque pas L1 caisse, mais aucune conclusion ne doit en être tirée pour le renfort.
-3. L’activation doit être individuelle, refusée par défaut, lue côté serveur et limitée par `site_id` et identifiant d’employée. Les non-pilotes doivent conserver exactement leur comportement actuel.
-4. Ordre imposé :
-   - inventorier les mécanismes existants de réglage et d’autorisation manager ;
-   - concevoir l’activation individuelle ;
-   - coder sur Test avec les mécanismes existants ;
-   - éprouver pilote, non-pilote et isolation intersite.
-   
-   Toute table, colonne, policy, migration ou grant franchit la porte `SECURITE_RLS_SITE_ID` avant modification. Toute permission nouvelle ou surface manager élargie franchit `SECRET_PERMISSION_SURFACE_SECURITE`.
-5. Un cycle non borné par deux comptages NEXUS reste **non calculable** : il ne produit ni anomalie ni imputation à l’employée pilote.
-6. Le pilote est observé pendant **7 jours calendaires** à compter de sa bascule effective, avec au moins 10 missions éligibles. Si ce volume n’est pas atteint, l’observation continue jusqu’à 14 jours maximum. Le bilan doit mesurer :
-   - taux de missions réalisées dans leur fenêtre, cible ≥ 90 % ;
-   - temps médian et percentile 90 de comptage, consignés sans seuil éliminatoire faute de référence initiale ;
-   - nombre d’écarts confirmés après recomptage à l’aveugle ;
-   - nombre d’erreurs de saisie ;
-   - 100 % des écarts classés ou explicitement laissés en investigation ;
-   - zéro perte, doublon ou exposition à une autre employée ou à un autre site.
-7. Aucun élargissement à d’autres employées, aucune migration, aucune modification de sécurité et aucune opération Production ne sont autorisés par cette décision. L’élargissement devra s’appuyer sur le bilan du pilote et sur la réponse déjà attendue concernant caisse/renfort.
+Les étapes 3 et 4 sur Test sont autorisées conformément à `PREAUTORISATIONS_CLAUDE` et `PALIER_HUMAIN_RESTREINT`. Aucune autorité sur Production, `main`, une migration, une policy ou un grant n’en découle.
 
-Les acquis `DELEGATION_ARBITRE`, `PALIER_HUMAIN_RESTREINT` et `COMMIT_PUSH_RAIL_SANS_GO` s’appliquent : L1 sur Test et les commits du rail n’exigent aucun GO humain supplémentaire.
-
-RAIL_LU: 9d9dca4d9b571fd958d80f5db6a931cc6ff4aa8a
+RAIL_LU: 179c7ac681a39d1508934d1f42e9d44ab54b269b
 
 NEXT_ACTION_CONTRACT
 DECISION: APPROVED_WITH_CONDITIONS
 CLOSES: false
 LOT: INVENTAIRE-CAISSE-RENFORT-20261102
-REQUEST: request-2.md
+REQUEST: request-3.md
 BRANCHE_DU_LOT: handoff-continuite-20260920
-HEAD: 9d9dca4d9b571fd958d80f5db6a931cc6ff4aa8a
+HEAD: 179c7ac681a39d1508934d1f42e9d44ab54b269b
 LEASE: aucun
-GATE_STATE: G0, CI verte
+GATE_STATE: G1, CI non exécutée pour cette conception
 PROOF_STATE: PROOF_VALID
-CONDITIONS: L1 limité à une pilote caisse sur Test; activation individuelle refusée par défaut, côté serveur et isolée par site_id; non-pilotes inchangés; cycles non bornés non calculables; pilote mesuré 7 jours et au moins 10 missions, prolongeable jusqu’à 14 jours; toute table, colonne, migration, policy ou grant passe par SECURITE_RLS_SITE_ID; toute permission nouvelle ou surface élargie passe par SECRET_PERMISSION_SURFACE_SECURITE; aucun renfort, élargissement, Production ou communication terrain autorisé.
+CONDITIONS: Le contrôle côté page reste un mécanisme de déploiement pilote et non une autorisation de sécurité ; absence de clé, valeur mal formée, liste vide ou identifiant absent doivent conserver le fil actuel ; pilotesRenfort ne doit être lu par aucun écran avant L3 ; les épreuves sur Test doivent couvrir pilote caisse, non-pilote, refus par défaut et isolation intersite ; aucune migration, policy, grant, mutation Production, fusion ou déploiement Production.
 BLOCKER: aucun
 STOP_REQUIRED: non
 CAPACITE_REQUISE: DEPOT_ECRITURE_RAIL
 OWNER_NEXT: Claude
 EXECUTANT_NEXT: github-actions-claude
-ACTION_NEXT: Matérialiser cette décision sur le rail avec outils/handoff.js decision --auteur ChatGPT.
+ACTION_NEXT: Implémenter sur la branche du lot le contrôle fail-closed de pilotesCaisse et ses tests automatisés, sans activer pilotesRenfort.
