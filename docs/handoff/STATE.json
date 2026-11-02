@@ -990,14 +990,15 @@
       "arret": "request-2.md"
     },
     "INVENTAIRE-CAISSE-RENFORT-20261102": {
-      "statut": "ATTENTE_CONSOMMATION_DECISION",
-      "derniere_demande": "request-1.md",
+      "statut": "ATTENTE_DECISION",
+      "derniere_demande": "request-2.md",
       "rail": "handoff-continuite-20260920",
       "derniere_decision": "decision-1.md",
       "source_decision": "registre",
       "commit_decision": "3c4fbcbe0281fe075049162878166e9d21c43939",
-      "pris_en_charge_le": "2026-11-02T15:20:05.993Z",
-      "pris_en_charge_par": "session-locale"
+      "pris_en_charge_par": "session-locale",
+      "consomme_le": "2026-11-02T15:44:02.931Z",
+      "arret": "request-2.md"
     }
   },
   "artefacts_hors_registre": [

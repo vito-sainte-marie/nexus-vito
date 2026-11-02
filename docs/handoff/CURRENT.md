@@ -1,15 +1,14 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/INVENTAIRE-CAISSE-RENFORT-20261102/request-1.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/INVENTAIRE-CAISSE-RENFORT-20261102/request-2.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
 lot_id: INVENTAIRE-CAISSE-RENFORT-20261102
-seq: 1
+seq: 2
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
 token_mode: STANDARD
-wake_to: https://github.com/vito-sainte-marie/nexus-vito/issues/28
 preuves:
   - id: refs-protegees
     classe: VERIFIED
@@ -21,7 +20,7 @@ preuves:
     classe: VERIFIED
     valeur: 172-fichiers
 ---
-# INVENTAIRE-CAISSE-RENFORT-20261102 : request-1 — conception de l'inventaire et du contrôle de la caisse et du renfort
+# INVENTAIRE-CAISSE-RENFORT-20261102 : request-2 — décisions de Frédéric du 02/11 (plus de feuille, démarrage en pilote) et cadrage de L1
 
 ## Branche du lot
 
@@ -29,49 +28,43 @@ BRANCHE_DU_LOT: handoff-continuite-20260920
 
 ## Objet
 
-Lot de **conception** ouvert sur cadrage de Guardian (#160, 6580639504), mandat de Frédéric (chat, 02/11) : trouver avec l'arbitre la formule d'inventaire et surtout de contrôle fiable de la caisse et du renfort. Aucun code dans ce lot ; les lots d'implémentation suivront, chacun arbitré. Le lot MODE-JOUR-POMPISTE-20261102 est clos (decision-2 `closes: true`, consommée, 80290c27).
+La decision-1 (APPROVED_WITH_CONDITIONS, `closes: false`, 3c4fbcbe) est prise en charge (33db955d). Deux décisions de Frédéric, relayées par Guardian sur #160, la modifient ; elles sont portées ici pour arbitrage avant d'ouvrir L1.
 
-Base : audit du 31/10 (https://claude.ai/artifact/Q5BqiJ3BkrAs1u3SpLNsGR) : 0 comptage caisse/renfort depuis le 15/09, papier 232 saisies/jour, Photo Decenium jamais utilisée (dernières ventes importées le 03/08).
+## Décisions de Frédéric rendues (citées)
 
-## Délégation de Frédéric
+1. **Plus de feuille** (#160, 6581332505, chat 02/11 11:41) : elle **remplace** la décision 1 du cadrage 6580639504. Papier : arrêt dès la bascule de chaque famille dans NEXUS, pas de 7 jours en parallèle. La porte (b) « NEXUS d'abord, papier ensuite » de decision-1 §4 devient sans objet. La consigne « à partir de la date de bascule d'une famille, on ne la compte plus que dans NEXUS » est décidée par Frédéric ; sa communication se fait à la mise en Production de chaque lot, la date de bascule étant fixée avec lui à ce moment-là.
+2. **Démarrage en pilote** (#160, 6581363357, chat 02/11 11:43) : la tâche est confiée à **une seule employée** en caisse et en renfort, pas à tout le personnel. Guardian demande à Frédéric si c'est une personne pour les deux rôles ou une par rôle ; la réponse sera postée sur #160.
 
-L'arbitre et Guardian tranchent tout ce qui n'est pas une porte : horaires des créneaux, nombre de références, délais maximaux sans comptage, écrans, découpage. Frédéric n'est sollicité que pour : Production, sécurité / RLS (SECURITE_RLS_SITE_ID), secrets, toute nouvelle règle imposée aux employés.
+Le reste de decision-1 est inchangé (matrice, N = 7 jours puis 3, fenêtres, 8 et 6 références, tolérance nulle, recomptage à l'aveugle, ordre des lots, portes SECURITE_RLS_SITE_ID et PRODUCTION_*).
 
-## Décisions de Frédéric (définitives pour ce lot)
+## Preuve des conditions de decision-1
 
-1. **Papier** : en parallèle 7 jours par famille après sa bascule dans NEXUS, puis arrêt.
-2. **Changement de quart caisse** : l'entrante compte seule ; ce comptage unique clôt Q1 et ouvre Q2.
-3. **Photo Decenium** : le manager exporte ventes + stock chaque soir à la fermeture.
-4. **Règles du 31/10** : contrôle par cycle (ventes sur le cycle → attendu = comptage précédent − ventes + entrées ; aucune vente prouvée par un export couvrant tout le cycle → comparaison directe au stock Decenium) ; cigarettes : seulement le stock en caisse ; boissons : dépôt puis frigo ; le manager ne voit que les anomalies confirmées et corrige le stock de départ (correction tracée).
+Aucune condition n'est encore mise à l'épreuve : le lot n'a produit que de la conception, aucun code.
 
-## Proposition de Guardian, à contester
+- Matrice, N = 7 puis 3, fenêtres 9 h 30–11 h 30 et 14 h 30–16 h 30, 8 références renfort et 6 en repli : reprises sans changement ci-dessus (« Le reste de decision-1 est inchangé »).
+- Import Decenium éprouvé sur Test avant L2b : non commencé ; L2a précède L2b dans l'ordre retenu, rien n'est livré en L2b.
+- Alertes héritées classées avant la vue manager : non commencé ; L4b n'est pas ouvert.
+- Ordre « NEXUS d'abord » et nouvelles consignes terrain : l'ordre est abandonné par Frédéric (6581332505) ; la consigne « on ne compte plus que dans NEXUS après la bascule » est une décision de Frédéric, non communiquée aux employés par l'exécutant.
+- Défaut A sous SECURITE_RLS_SITE_ID : aucune policy touchée ; L4a non ouvert.
+- Aucune opération Production : aucune lecture ni écriture Production par l'exécutant depuis decision-1 (commits du rail 33db955d seulement, CI verte).
 
-| Moment | Qui | Quoi | Contrôle |
-| --- | --- | --- | --- |
-| Début Q1 (5 h 45) | Caissière Q1 | Cigarettes (28) à l'aveugle + réception des produits du jour livrés | Continuité nuit avec la fin Q2 de la veille |
-| Changement de quart | Entrante seule | Cigarettes + CBD + produits du jour, un seul comptage | Frontière Q1 / Q2 |
-| Fermeture Q2 | Caissière Q2 | Cigarettes + CBD + produits du jour | Puis Photo Decenium du soir → contrôle par cycle de la journée |
-| Créneaux calmes | Renfort (repli : caissière Q2, 6 réf.) | Roulement boissons (dépôt puis frigo), huiles, lave-glace / liquide de refroidissement, petits articles : 6–10 réf. + 1–2 surprises, chaque réf. au moins tous les N jours | Cas « sans vente » contre le stock Decenium du soir |
+## Conséquences à faire arbitrer (L1)
 
-## Prérequis connus
-
-- La caissière n'est presque jamais inscrite au quart d'inventaire : ses missions ne lui arrivent pas (fil caisse).
-- Défaut A (UPDATE du cycle d'observation refusé à l'employé) : bloquant pour le contrôle ; implémentation sous SECURITE_RLS_SITE_ID (GO Frédéric).
-- Import Photo Decenium à éprouver avec de vrais fichiers sur Test.
-- Alertes héritées ouvertes (278 écarts d'ouverture, 89 anomalies répétées d'août, 61 clôtures en retard) à classer avant la vue manager.
-
-## Découpage proposé (à arbitrer)
-
-L1 fil caisse (inscription au quart, ouverture / changement / fermeture, cigarettes à l'aveugle) · L2 Photo Decenium du soir + contrôle par cycle (avec et sans vente) · L3 roulement du renfort aux heures calmes · L4 défaut A + vue manager « anomalies confirmées seulement » + classement des alertes héritées · L5 détection de la recopie.
+1. **Activation par employée**, pas pour tout le site : les missions caisse / renfort et le fil caisse ne s'ouvrent que pour l'employée pilote ; les autres ne voient rien de nouveau. Proposition de l'exécutant : un réglage par employée dans Paramètres, posé par le manager, lu côté serveur ; l'employée non pilote garde exactement l'écran actuel. Si ce réglage exige une table, une colonne, une policy ou un grant, la partie base de données passe par SECURITE_RLS_SITE_ID avant toute migration.
+2. **Papier** : l'arrêt dès la bascule vaut pour l'employée pilote ; les autres continuent la feuille jusqu'à leur bascule.
+3. **Contrôle pendant le pilote** : les frontières de quart ne sont pas toutes comptées dans NEXUS. Le contrôle par cycle ne vaut que pour les cycles bornés par deux comptages NEXUS ; les autres restent « non calculable » (règle 3 de decision-1), jamais une anomalie imputée à la pilote.
+4. **Mesure de réussite du pilote**, à proposer par l'arbitre : par exemple taux de missions faites, temps de comptage, écarts confirmés contre erreurs de saisie, sur 7 à 14 jours, avant d'élargir.
 
 ## Demande
 
-Arbitrage APPROVED ou APPROVED_WITH_CONDITIONS, `closes: false` (la conception précède les lots d'implémentation), qui fixe :
+Arbitrage APPROVED ou APPROVED_WITH_CONDITIONS, `closes: false`, qui :
 
-1. la formule retenue : matrice moments / acteurs / contenus, règles de contrôle, valeurs de N, créneaux et nombre de références ;
-2. le traitement des limites : (a) contestation de Q1 quand l'entrante compte seule (ex. recomptage ciblé de la sortante sur demande du manager) ; (b) ordre « NEXUS d'abord, papier ensuite » pendant les 7 jours de papier, qui est une consigne aux employés donc une porte (validation de Frédéric dans le message d'équipe) ; (c) N, créneaux et nombre de références, à partir des données disponibles ;
-3. le découpage et l'ordre des lots L1 à L5, en marquant lesquels franchissent une porte.
+1. acte que decision-1 §4 (papier 7 jours, porte (b)) est remplacée par la décision 1 ci-dessus ;
+2. fixe la forme de l'activation par employée, l'ordre de ses sous-étapes et laquelle franchit une porte ;
+3. confirme la règle « cycle non borné par deux comptages NEXUS = non calculable » ;
+4. fixe la mesure de réussite et la durée du pilote ;
+5. autorise L1 (fil caisse, pour l'employée pilote seulement) à démarrer en conception puis code sur Test.
 
 ## Limites
 
-Aucun code, aucune migration, aucune policy, aucun grant. Aucune lecture ni écriture Production par l'exécutant ; les mesures Production nécessaires sont faites par Guardian sous le GO de lecture de Frédéric.
+Aucun code, aucune migration, aucune policy, aucun grant dans cette request. Aucune lecture ni écriture Production par l'exécutant. La communication de la consigne aux équipes et toute mise en Production restent à Frédéric.
