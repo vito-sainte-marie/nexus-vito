@@ -2290,6 +2290,9 @@
     { value: 'autre', label: 'Autre raison' },
   ];
   function libelleMotifEcart(value) {
+    // La valeur vide est le placeholder « Choisir un motif… » : aucun motif
+    // déclaré, donc rien à afficher ni à enregistrer (02/11/2026).
+    if (!value) return null;
     const m = MOTIFS_ECART.find(x => x.value === value);
     return m ? m.label : null;
   }
