@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/INVENTAIRE-CYCLE-ALERTES-LIBELLE-20261102/request-2.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/MODE-JOUR-POMPISTE-20261102/request-1.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
-lot_id: INVENTAIRE-CYCLE-ALERTES-LIBELLE-20261102
-seq: 2
+lot_id: MODE-JOUR-POMPISTE-20261102
+seq: 1
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
@@ -21,38 +21,50 @@ preuves:
     classe: VERIFIED
     valeur: 170-fichiers
 ---
-# INVENTAIRE-CYCLE-ALERTES-LIBELLE-20261102 : request-2 — B livré, libellé livré en PR, diagnostic de A rendu ; demande de clôture du lot
+# MODE-JOUR-POMPISTE-20261102 : request-1 — thème Jour (Sombre / Jour / Auto) pour le parcours pompiste
 
 ## Branche du lot
 
 BRANCHE_DU_LOT: handoff-continuite-20260920
 
+Branche du rail, déclarée une seule fois. Le code sera porté par une branche de travail distincte, ouverte après la décision de l'arbitre, puis par une PR vers `production` (fusion et déploiement par Frédéric).
+
 ## Objet
 
-Sur ordre de Frédéric (chat, 02/11), clôture du lot. Les trois points de la request-1 (decision-1, APPROVED_WITH_CONDITIONS, `closes: false`) sont traités chacun dans son périmètre.
+Le lot INVENTAIRE-CYCLE-ALERTES-LIBELLE-20261102 est clos (decision-2 APPROVED `closes: true`, consommée le 02/11). Ce lot ouvre le **mode Jour** du parcours pompiste, sur décision de Frédéric relayée par Guardian (#160, commentaire 6577633047). L'harmonisation graphique est en pause : seul le mode Jour est demandé.
 
-## État des trois points
+Dossier de conception : https://claude.ai/artifact/QAvBh6qmsyJQzsd3674pmW, section « Thème Jour ».
 
-- **B (motif fantôme)** : PR #170 fusionnée (b56b0fc4, 02/11 12:20 UTC), déployée et servie. Épreuve propre `test_inventaire_motif_vide_20261102.js` (7 contrôles, mutation prouvée). Recette Guardian sur `nexus-station-test` conforme (#160).
-- **Libellé d'ouverture** : PR #171 ouverte vers `production`, tous contrôles verts, état `CLEAN`. Épreuve propre `test_inventaire_libelle_ouverture_20261102.js` (2 contrôles, mutation prouvée). **Elle n'est pas encore fusionnée** et la recette Guardian n'est pas faite : la fusion est de Frédéric.
-- **A (RLS du cycle d'observation)** : diagnostic et conception rendus en lecture seule (#160, 6577248563). Cause : la policy `update_inventaire_alertes` est réservée aux manager et gérant, et l'UPDATE du cycle émis par `validerOuverture` touche 0 ligne pour un employé, sans erreur. Option recommandée : fonction `SECURITY DEFINER` bornée aux transitions du cycle, policy inchangée. Aucune migration, policy, fonction, grant ni permission n'a été modifié.
+## Périmètre
+
+Parcours pompiste uniquement : `NEXUS-Login-v1.html`, `NEXUS-Prise-De-Poste-v1.html` + `nexus-prise-de-poste.js`, `NEXUS-App-v1.html` + `nexus-accueil-piste.js` + `nexus-menu-accueil.js`, `NEXUS-Inventaire-v1.html`, `NEXUS-Releves-Piste-v1.html`, `NEXUS-Carburant-Reception-v1.html`. Pages manager hors périmètre.
+
+## Décisions de Frédéric (reprises de Guardian)
+
+- Trois réglages dans le menu ☰ : Sombre, Jour, Auto. Mémorisés sur l'appareil (`localStorage` dans un try/catch, rendu correct sans lui).
+- Auto : Jour de 6 h 00 à 18 h 00, heure de la station (fuseau de `nexus-station.js`), Sombre sinon, réévalué sans recharger la page. Défaut : Auto.
+- Palette Jour (contrastes mesurés ≥ 4,5:1 pour le texte) : `--bg` #F4F6F8, `--panel` #FFFFFF, `--panel-raised` #EEF2F5, `--hairline` #D5DCE3, `--text` #0F172A, `--text-mid` #475569, `--text-dim` #64748B, `--cyan` #0B7285 (texte du bouton cyan #FFFFFF), `--green` #047857, `--green-dim` #D1FAE5, `--amber` #B45309. Rouges d'alerte à proposer avec leur contraste mesuré.
+- Constat à traiter : le thème n'agit que sur les tokens. Les couleurs en dur du périmètre (`nexus-prise-de-poste.js`, styles `.ap-*` de `NEXUS-App-v1.html`, `rgba(79,195,217,…)`) passent sur les tokens, sans aucun changement visible en Sombre. Aucune taille, police, marge ni texte ne change.
+
+## Contraintes
+
+- Aucune logique métier touchée (quart, transmission, aveugle, repère de cage, écarts, fil de début et de fin).
+- Pas de flash au chargement : thème posé sur `<html>` avant le premier rendu.
+- Bandeau MODE TEST inchangé et lisible dans les deux thèmes. Photos de poste : fondu adapté au thème Jour.
+
+## Preuves prévues
+
+1. Épreuve du calcul du thème (Auto à 5:59, 6:00, 17:59, 18:00 ; réglage absent → Auto ; `localStorage` inaccessible → Auto sans erreur), mutation prouvée.
+2. Épreuve de contraste : chaque paire texte / fond des deux palettes ≥ 4,5:1.
+3. Non-régression Sombre : captures avant / après à 375 px, identiques en Sombre.
+4. Suite complète : les 7 échecs connus et aucun autre.
+5. Recette Guardian sur `nexus-station-test` (Employé Test B), puis sur un vrai téléphone en extérieur par Frédéric.
 
 ## Demande
 
-1. Arbitrage APPROVED avec `closes: true` : clôture du lot, avec A reporté dans un lot distinct.
-2. Si l'arbitre juge que le libellé doit être servi avant clôture, APPROVED_WITH_CONDITIONS `closes: false` avec cette condition, et la clôture sera redemandée après la fusion de #171.
-3. L'implémentation de A n'est pas demandée ici. Elle fera l'objet d'un lot et d'une request distincts, arbitrés sous SECURITE_RLS_SITE_ID.
-
-## Preuve des conditions de decision-1
-
-1. **Épreuve de mutation propre à B et au libellé** : établie (voir ci-dessus).
-2. **B : valeur vide ni affichée ni enregistrée** : prouvée par `test_inventaire_motif_vide_20261102.js`.
-3. **Libellé : aucune quantité préremplie promise** : prouvée par `test_inventaire_libelle_ouverture_20261102.js`.
-4. **A limité à la lecture seule** : tenue ; aucune migration, policy, fonction, grant ni permission modifiés.
-5. **Toute implémentation de A arbitrée séparément sous SECURITE_RLS_SITE_ID** : tenue ; rien n'est déposé.
-6. **Recette uniquement sur `nexus-station-test`** (Guardian, Employé Test B) : tenue pour B ; à faire pour le libellé.
-7. **Aucune lecture, écriture, migration, fusion ou promotion Production par l'exécutant** : tenue ; seules deux lectures SELECT sur Test pour le diagnostic de A.
+1. Arbitrage APPROVED ou APPROVED_WITH_CONDITIONS, `closes: false`, pour ouvrir l'exécution (code et épreuves en branche de travail, PR vers `production`).
+2. Aucune migration, aucune policy, aucun grant : lot purement front. Aucune lecture ni écriture Production par l'exécutant ; fusion et déploiement par Frédéric.
 
 ## Limites
 
-A reste un défaut ouvert : le cycle d'observation ne se referme pas côté employé tant que le chemin d'écriture borné n'est pas livré. Les alertes de Production ne sont pas touchées. Un lot « mode Jour » attend (cadrage Guardian, #160 6577633047) et ne peut s'ouvrir qu'après cette clôture.
+Rien n'est codé par cette request. Le rouge d'alerte Jour reste à proposer avec son contraste mesuré. La PR #171 (libellé du lot précédent) reste à fusionner par Frédéric, indépendamment de ce lot.
