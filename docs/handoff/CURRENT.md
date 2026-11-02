@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/INVENTAIRE-GAZ-CAGE-20261031/request-3.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/INVENTAIRE-GAZ-CAGE-20261031/request-4.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
 lot_id: INVENTAIRE-GAZ-CAGE-20261031
-seq: 3
+seq: 4
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
@@ -20,52 +20,78 @@ preuves:
   - id: diff-applicatif-production
     classe: VERIFIED
     valeur: 170-fichiers
-  - id: merge-pr168
+  - id: branche-correctif
     classe: VERIFIED
-    valeur: bd7c2dbf
-  - id: deploiement-production
-    classe: VERIFIED
-    valeur: run-7467319695
-  - id: contenu-servi
-    classe: VERIFIED
-    valeur: 160-6552326114
+    valeur: f11b845e
   - id: recette-guardian
     classe: VERIFIED
-    valeur: 160-6551457282
-  - id: verification-production
-    classe: VERIFIED
-    valeur: 160-6552053882
-  - id: go-ecritures-production
+    valeur: 160-6566620915
+  - id: ci-verte
     classe: HUMAN
-    valeur: 160-6551475182
+    valeur: 160-6566620915
+  - id: decision-alertes-production
+    classe: HUMAN
+    valeur: chat-frederic-fermeture-manuelle-a-la-fusion
 ---
-# INVENTAIRE-GAZ-CAGE-20261031 : request-3 — demande de clôture, #168 fusionnée et servie, deux écritures Production vérifiées
+# INVENTAIRE-GAZ-CAGE-20261031 : request-4 — correctif de la régression de l'écart d'ouverture introduite par #168, recette Test conforme
 
-## Ce qui est fait
+## Statut de cette request par rapport à la request-3
 
-- **#168 fusionnée** (`bd7c2dbf`, 01/11 02:06 UTC), déploiement Production `github-pages` 7467319695 en succès. Guardian a vérifié le contenu servi sur app.nexusconseil.net (`calculerRepereCage`, `comptageAveugleImpose`, `repere_cage`, message « votre collègue était à la cage » présents ; aucune référence à Test) : commentaire 6552326114.
-- **Comptage à l'aveugle pour l'employé** : aucune valeur transmise dans le DOM ni préremplie, les chemins qui écrivaient `ouverture = valeurTransmise` sont retirés ou gardés (request-2). Épreuve de 32 contrôles.
-- **Repère de cage calculé** à la clôture (cage = nb_cages − ceil(q/capacité) + 1), jamais saisi, avec abstentions (comptage de plus de 24 h, mouvement ou correction depuis, réglage absent ou invalide, quantité hors 0–150, lecture en échec). Épreuve de 19 contrôles.
-- **Recette Guardian sur Test** conforme (comptage aveugle et repère) : commentaire 6551457282.
-- **Deux écritures Production**, sous le GO écrit de Frédéric (6551475182) puis son instruction dans le chat de la session : migration `20261031190000` (colonne `repere_cage jsonb` nullable) et réglage `{"nb_cages":5,"capacite":30}` sur l'unique Gaz 12,5KG de Sainte-Marie (`29cd4d36-…`, 1 ligne). Compte rendu 6551949510, recontrôle de Guardian en lecture seule 6552053882 : conforme, 1 réglage sur 244 lignes.
+**Cette request-4 remplace la demande de clôture de la request-3.** Le lot ne se clôt pas sur la request-3 : #168, qu'il a livrée, a introduit une régression (fausses alertes `ecart_ouverture` en Production le 01/11). Le lot ne doit se clore qu'après ce correctif. Le contenu de la request-3 (ce qui est fait, les limites consignées, les conditions de decision-1) reste valable ; seule sa demande de clôture est retirée.
 
-## Limites consignées
+## Le défaut
 
-1. **Option (b), limite assumée** : le repère est calculé côté client. La quantité du dernier comptage n'apparaît jamais dans le DOM de l'employé, mais elle transite dans la réponse réseau et en mémoire. Une RPC serveur qui ne renverrait que l'état et la cage (option a) reste possible dans un lot ultérieur.
-2. **H1 non prouvée** : la seconde `ouverture` à 0 n'a pas été reproduite (décision de Frédéric du 31/10, 18 h 42). La correction supprime les chemins d'écriture de `valeurTransmise` pour l'employé, sans dépendre d'une lecture de données.
-3. **Historique des zéros laissé en l'état** : les ouvertures à 0 en double déjà en Production (30/10 et 31/10) ne sont ni filtrées ni corrigées. Aucun filtrage des zéros à la lecture (condition de decision-1).
-4. **Estampille Production** : la migration est enregistrée sous `20261101014700 inventaire_zone_produit_repere_cage`, pas `20261031190000`. Non bloquant (la garde lit la fiche de qualification, blob `d71c75f1`, et la migration est idempotente). Aucune correction de `schema_migrations` sans GO de Frédéric.
-5. **Trois limites de la recette Guardian**, à traiter dans le lot suivant : (i) une livraison saisie pendant la clôture n'est pas prise en compte par le repère (le masquer dès qu'une livraison du produit est ajoutée) ; (ii) « Écarts de passage de quart : 2 » reste visible de l'employé (à retirer) ; (iii) l'accès direct à Inventaire choisit le quart par l'heure.
+Depuis #168 (`bd7c2dbf`), le comptage est aveugle pour l'employé : `dernierStock` est purgé pour les produits du plan afin qu'aucune valeur ne soit rendue. La validation d'ouverture calculait pourtant l'écart contre cette référence purgée, donc contre 0. Résultat en Production le 01/11 : 5 fausses alertes `ecart_ouverture` (Gaz 12,5KG, « attendu 0 » au lieu de 81, et quatre autres produits), dont une `critique`.
 
-## Suite
+## Le correctif
 
-Clôture du lot sur decision APPROVED. Lot suivant : INVENTAIRE-CAISSE-RENFORT-20261031 (y compris le faux « Réassort potentiel +N »).
+Branche `inventaire-ecart-aveugle-20261101`, commit `f11b845e` (base `production` `bd7c2dbf`), trois fichiers :
+
+- `NEXUS-Inventaire-v1.html` : la purge est conservée (aucune valeur dans le DOM). La référence purgée est copiée dans `referenceEcartAveugle`, jamais rendue. À la validation d'ouverture, l'écart des produits du plan se calcule contre cette copie (`referenceEcartPourProduit`). Sans référence : aucun écart, jamais contre 0. Les produits hors plan gardent le comportement actuel.
+- `test_inventaire_ecart_aveugle_reference_20261101.js` (nouveau, 7 contrôles) : référence 81 / compte 48 → −33 contre 81 ; compte 81 → aucun écart ; aucune référence → aucune alerte ; la purge subsiste ; la copie n'est écrite dans aucun gabarit. Une mutation qui retire la copie fait échouer l'épreuve.
+- `test_inventaire_seuil_ecart_branchement_v2306.js` : elle repérait le bloc par `if (saisie.ecartNonNul) {`, remplacé par `if (ecartNonNulReel) {`. Seule l'ancre change ; les assertions sur `ecartQuantiteSignificatif`, sur l'affectation conditionnelle de `ecartPourCycle` et sur `contexteSeuil` (categorieId, produitId) sont intactes.
+
+Suite complète en local : 311/318, les 7 échecs connus et aucun autre. CI de `f11b845e` verte (lue par Guardian).
+
+## Recette Test
+
+Guardian, Employé Test B, 01/11 21:03, ouverture du quart soir par l'accès direct (commentaire 6566620915). Références 98 / 10 / 30 / aucune, comptés 90 / 10 / 30 / 5.
+- « Écarts de passage de quart : 1 » (le seul vrai écart, Gaz 12,5KG 90 contre 98) ; l'ancien comportement en aurait compté 4.
+- Glaçons recette, sans référence : aucune alerte.
+- Aucune référence dans le DOM.
+
+## Comportement à confirmer
+
+Avec le correctif, l'ouverture du 01/11 aurait produit une alerte réelle sur le Gaz 12,5KG (48 contre 81, −33, `critique`). C'est voulu : il n'y a pas eu de clôture l'après-midi.
+
+## Les 5 alertes de Production du 01/11
+
+Elles ne sont pas touchées par ce lot : aucune lecture ni écriture Production. **Décision de Frédéric (chat de la session) : il les ferme lui-même, comme manager, au moment de la fusion.** Condition de fusion à garder en tête : tant qu'elles sont ouvertes, elles absorbent les vrais écarts suivants sur ces 5 produits (voir ci-dessous).
+
+## Hors lot, request distincte
+
+Deux défauts préexistants relevés par Guardian, à traiter dans une autre request :
+- **A. RLS du cycle d'observation** : la policy `update_inventaire_alertes` réserve l'UPDATE à `manager`/`gerant`. Lancé par un employé, l'update touche 0 ligne sans erreur : le cycle ne progresse jamais ni ne se résout, et une alerte ouverte empêche d'en créer une nouvelle.
+- **B. Motif fantôme** : `libelleMotifEcart('')` renvoie le libellé du placeholder, d'où « Motif déclaré par l'employé : Choisir un motif…. » sur les 5 alertes alors que l'employé n'a rien déclaré.
+- Pour le lot de libellés : en accès direct, l'écran d'ouverture dit encore « Vérifiez les quantités transmises. Corrigez uniquement les différences. », en contradiction avec le comptage aveugle.
+
+## Demande
+
+1. Constater que la request-3 ne vaut plus demande de clôture.
+2. Arbitrage APPROVED du correctif en l'état (`f11b845e`), sa fusion dans `production` restant à Frédéric (PR base `production`, pas encore ouverte), avec la fermeture manuelle des 5 alertes par lui au moment de la fusion.
+3. Clôture du lot seulement après ce correctif (fusionné et servi), sur une demande de clôture ultérieure.
 
 ## Preuve des conditions de decision-1
 
-1. **Lecture Production en SELECT, filtrée par site, résultats consignés** : aucune lecture de données pour départager H1 et H2 ; H1 et H2 ne sont pas départagées (request-2, décision de Frédéric du 31/10, 18 h 42). Les seules lectures Production de ce lot portent sur le catalogue et sur la ligne du Gaz 12,5KG (id, désignation, réglage), faites par Guardian et par cette session pour vérifier les deux écritures du GO ; aucune donnée de comptage lue.
-2. **Corriger à la source seulement si H1 est confirmée** : H1 n'est pas confirmée. La correction (retrait pour l'employé des chemins d'écriture de `valeurTransmise`, comptage aveugle) est faite sur décision de Frédéric, sans dépendre d'une lecture de données. Écart assumé, déjà porté par request-2.
-3. **Aucune heuristique de filtrage des zéros** : tenue. Le repère lit le dernier comptage `ouverture` ou `cloture` validé et manuel, sans écarter de ligne à 0 ; l'historique des zéros est laissé en l'état.
-4. **Option A, `jsonb` nullable sur `inventaire_zone_produit`, `site_id` et RLS préservés** : tenue (colonne ajoutée seule, RLS et droits inchangés, vérifié sur Test puis sur Production). « Sur Test uniquement » a été dépassé par le GO de Frédéric, voir 6.
-5. **Repère affiché à la clôture uniquement** : tenue (recette Guardian 6551457282 ; rien à l'ouverture).
-6. **Aucune mutation, migration, fusion ou promotion Production** : NON tenue au sens littéral de decision-1, qui laissait ces gestes « hors de cette décision ». Ils ont eu lieu sous GO distincts de Frédéric : migration et réglage (GO écrit 6551475182, confirmé par Frédéric dans le chat de la session ; compte rendu 6551949510, recontrôle Guardian 6552053882), fusion de #168 par Frédéric (`bd7c2dbf`). L'arbitre est invité à le constater et non à le ratifier : la décision humaine n'est pas la sienne.
+Les six conditions sont établies par la request-3 (section du même nom, commit 787d3f87), qui reste en vigueur sauf sa demande de clôture. Ce que cette request-4 ajoute :
+
+1. **Lecture Production en SELECT, filtrée par site** : aucune lecture Production pour ce correctif. Le défaut a été établi par Guardian sur les 5 alertes (commentaire 6566318696) et la recette s'est faite sur Test, Employé Test B.
+2. **Corriger à la source seulement si H1 est confirmée** : sans objet pour ce correctif. Il porte sur le calcul de l'écart d'ouverture, pas sur l'écriture de `valeurTransmise` ; la position de la request-3 sur H1 est inchangée.
+3. **Aucune heuristique de filtrage des zéros** : tenue. Sans référence, aucun écart n'est calculé ; aucun zéro n'est écarté ni réinterprété.
+4. **Option A, `site_id` et RLS préservés** : tenue. Aucune migration, aucune policy touchée ; le défaut RLS du cycle d'observation (A) est laissé hors lot.
+5. **Repère affiché à la clôture uniquement** : tenue. La référence conservée pour l'écart n'est jamais rendue (vérifié dans le DOM à la recette, aucune référence).
+6. **Aucune mutation, migration, fusion ou promotion Production** : tenue pour ce correctif, qui n'a fait aucune écriture Production et dont la fusion reste à Frédéric. Le dépassement de la request-3 (GO distincts de Frédéric) n'est pas aggravé. Les 5 alertes de Production ne sont pas touchées par cette session.
+
+## Limites
+
+Ce correctif n'agit sur Production qu'après fusion et déploiement. Il ne corrige pas l'historique des alertes, ni A, ni B (hors lot, request distincte).
