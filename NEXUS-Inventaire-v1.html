@@ -385,6 +385,7 @@
   let quartRow = null;           // ligne inventaire_quarts
   let quartEmployeRow = null;    // ligne inventaire_quart_employes de CET employé
   let produitsZone = [];         // catalogue inventaire_zone_produit filtré
+  let referenceEcartAveugle = {}; // copie NON rendue des références purgées de dernierStock : sert au seul calcul de l'écart à la validation
   let dernierStock = {};         // produit_id -> { quantite, comptage_id } | null
   let modesAveugle = [];         // règles inventaire_modes_controle actives (mode='aveugle')
   let modeJaugeageActif = false; // inventaire_modes_controle actif (mode='jaugeage_actif') — voir chargerModeJaugeageActif()
@@ -2194,8 +2195,15 @@
     // estMasquePourProduit continue de piloter l'affichage (calcBarreHtml,
     // bouton "Identique") mais n'a plus de valeur réelle à révéler par erreur
     // pour ces produits-là.
+    // 01/11/2026 : la purge ne doit pas fausser le calcul d'écart (la référence
+    // tombait à 0 et chaque comptage non nul devenait « critique »). On garde une
+    // copie hors DOM, lue uniquement par referenceEcartPourProduit().
+    referenceEcartAveugle = {};
     Object.keys(dernierStock).forEach(produitId => {
-      if (produitsPlanIds.has(produitId)) delete dernierStock[produitId];
+      if (produitsPlanIds.has(produitId)) {
+        if (dernierStock[produitId]) referenceEcartAveugle[produitId] = dernierStock[produitId];
+        delete dernierStock[produitId];
+      }
     });
     modesAveugle = modesLus;
     modeJaugeageActif = jaugeageLu;
@@ -3259,6 +3267,12 @@
     `;
   }
 
+  // Référence réelle pour calculer l'écart à la validation : jamais affichée.
+  // Absence de référence = null, jamais 0.
+  function referenceEcartPourProduit(produitId) {
+    return dernierStock[produitId] || referenceEcartAveugle[produitId] || null;
+  }
+
   function renderLigneOuverture(p) {
     if (quartActuel === 'matin' && profilParProduit[p.id] === 'production_journaliere') return renderLigneProductionOuverture(p);
     const transmis = dernierStock[p.id];
@@ -3423,13 +3437,19 @@
       // passage de quart pensé pour un stock physique.
       if (quartActuel === 'matin' && profilParProduit[p.id] === 'production_journaliere') continue;
 
-      const transmis = dernierStock[p.id];
+      const transmis = referenceEcartPourProduit(p.id);
       const valeurTransmise = transmis ? transmis.quantite : 0;
+      // Produit du plan (aveugle) : l'écart se calcule contre la vraie référence ;
+      // sans référence, aucun écart (jamais contre 0).
+      const planAveugle = produitsPlanIds.has(p.id);
+      const ecartNonNulReel = planAveugle
+        ? (transmis ? Math.abs(saisie.compte - valeurTransmise) > 0.001 : false)
+        : saisie.ecartNonNul;
       const alerteExistante = alertesCycleParProduit[p.id] || null;
       let ecartPourCycle = null;
       let resolution = null;
 
-      if (saisie.ecartNonNul) {
+      if (ecartNonNulReel) {
         nbEcarts++;
         const ecartVal = saisie.compte - valeurTransmise;
         // Une livraison déclarée en un geste sur ce produit prévaut comme
