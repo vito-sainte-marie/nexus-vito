@@ -10,14 +10,13 @@ function lum(hex) {
 }
 function ratio(a, b) { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); }
 
-// Écarts connus, non corrigés par ce lot :
+// Écart connu, non corrigé par ce lot :
 //  - Sombre : --text-dim (#57626F) est sous 4,5:1 en production ; le lot ne change rien en Sombre.
-//  - Jour : --text-dim (#64748B, valeur de Frédéric) fait 4,76:1 sur --panel mais 4,39 sur --bg et 4,23 sur
-//    --panel-raised. À arbitrer : foncer --text-dim en Jour ou réserver ce jeton aux cartes blanches.
+//  Jour : --text-dim passé de #64748B (4,39 sur --bg, 4,23 sur --panel-raised) à #56657A, proposé par Guardian
+//  (#160, 6578724451) : plus aucune exception en Jour.
 const EXCEPTIONS = {
   'Sombre|--text-dim|--panel': '2.80', 'Sombre|--text-dim|--bg': '3.10',
-  'Jour|--text-dim|--bg': '4.39', 'Jour|--text-dim|--panel-raised': '4.23',
-  'Sombre|--text-dim|--panel-raised': '2.58',
+    'Sombre|--text-dim|--panel-raised': '2.58',
 };
 
 // [texte, fond] : les paires réellement utilisées par les écrans du parcours.

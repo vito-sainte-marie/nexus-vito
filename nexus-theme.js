@@ -37,7 +37,7 @@
   // test_theme_jour_contrastes_20261102.js (texte ≥ 4,5:1 sur chaque fond d'usage).
   const JOUR = {
     '--bg': '#F4F6F8', '--panel': '#FFFFFF', '--panel-raised': '#EEF2F5', '--hairline': '#D5DCE3',
-    '--text': '#0F172A', '--text-mid': '#475569', '--text-dim': '#64748B',
+    '--text': '#0F172A', '--text-mid': '#475569', '--text-dim': '#56657A',
     '--cyan': '#0B7285', '--green': '#047857', '--green-dim': '#D1FAE5',
     '--amber': '#B45309', '--amber-dim': '#FEF3C7', '--red': '#B91C1C', '--red-dim': '#FEE2E2',
     '--gold': '#8A6A00', '--gold-dim': '#FEF3C7', '--on-cyan': '#FFFFFF',
@@ -62,7 +62,7 @@
     '--poste-fondu': '255,255,255',
     '--ap-text': '#0F172A', '--ap-mid': '#475569', '--ap-dim': '#475569', '--cyan-hi': '#2AA3BB', '--rec-bord-fort': '#92400E',
     // Alias de NEXUS-Releves-Piste-v1.html (noms courts).
-    '--raised': '#EEF2F5', '--hair': '#D5DCE3', '--mid': '#475569', '--dim': '#64748B',
+    '--raised': '#EEF2F5', '--hair': '#D5DCE3', '--mid': '#475569', '--dim': '#56657A',
   };
 
   // ── Calcul pur ──────────────────────────────────────────────────────

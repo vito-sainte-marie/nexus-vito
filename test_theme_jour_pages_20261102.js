@@ -23,7 +23,7 @@ const hors = (src) => src.replace(/:root\s*\{[^}]*\}/g, '').replace(/var\(\s*--[
 for (const f of PAGES) {
   const src = fs.readFileSync(path.join(__dirname, f), 'utf8'); const R = racine(src);
   cas(f + ' : charge nexus-theme.js avant les styles', () => {
-    const i = src.indexOf('<script src="nexus-theme.js"></script>'); assert.ok(i > 0, 'script absent');
+    const i = src.search(/<script src="nexus-theme\.js(\?v=[0-9A-Za-z_-]+)?"><\/script>/); assert.ok(i > 0, 'script absent');
     assert.ok(i < src.indexOf('<style'), 'chargé après les styles');
   });
   cas(f + ' : jetons utilisés définis dans :root', () => {
