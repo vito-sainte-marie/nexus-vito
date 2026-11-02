@@ -2545,7 +2545,7 @@
 
     const testPendant = modeTestInventaireActif() && typeof window !== 'undefined' && window.NexusInventaireModeTest && window.NexusInventaireModeTest.moment() === 'pendant';
     document.getElementById('titre').textContent = testPendant ? 'Contrôle ciblé Renfort' : "Inventaire d'ouverture";
-    document.getElementById('sousTitre').textContent = 'Vérifiez les quantités transmises. Corrigez uniquement les différences.';
+    document.getElementById('sousTitre').textContent = 'Comptez chaque produit et saisissez la quantité réellement présente.';
 
     const groupes = groupesPourParcours;
     const nbCatTerminees = groupesRequis.filter(g => categorieEstTerminee(g.items)).length;
