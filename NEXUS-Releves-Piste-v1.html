@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#0B0F14">
+<script src="nexus-theme.js"></script>
 <title>NEXUS : Relevés piste</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -21,14 +22,14 @@
 <script src="nexus-capture-guidee.js?v=20261022-0003"></script>
 <script src="nexus-camera-page.js?v=20261022-0002"></script>
 <style>
-  :root{--bg:#0B0F14;--panel:#141B22;--raised:#1A222C;--hair:#242E38;--text:#EDF1F5;--mid:#8A96A5;--dim:#57626F;--green:#34D399;--amber:#F5A623;--red:#F0575A;--cyan:#4FC3D9}
+  :root{--bg:#0B0F14;--panel:#141B22;--raised:#1A222C;--hair:#242E38;--text:#EDF1F5;--mid:#8A96A5;--dim:#57626F;--green:#34D399;--amber:#F5A623;--red:#F0575A;--cyan:#4FC3D9;--red-dim:#3A1D1F;--amber-dim:#3A2E14;--green-dim:#153629;--red-text:#FFD3D4;--amber-text:#FFE2A8;--green-text:#CFF5E3;--on-green:#06281B;--gnr:#B5452F;--muted-ecran:#8b93a1}
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',system-ui,sans-serif;-webkit-text-size-adjust:100%}
   .phone{max-width:460px;margin:0 auto;padding:16px 16px 96px}
   .npompe{color:var(--red)}
   .p-go{color:var(--amber)}
   .p-sp{color:var(--green)}
-  .p-gnr{color:#B5452F}
+  .p-gnr{color:var(--gnr)}
   h1{font-size:20px;margin:4px 0 2px} h2{font-size:17px;margin:0 0 8px}
   .sub{color:var(--mid);font-size:13px;margin-bottom:14px}
   .card{background:var(--panel);border:1px solid var(--hair);border-radius:14px;padding:14px;margin-bottom:12px}
@@ -40,15 +41,15 @@
   input.idx::placeholder{font:400 14px 'IBM Plex Sans',sans-serif;letter-spacing:0;color:var(--dim)}
   .conv{font:13px 'IBM Plex Mono',monospace;color:var(--mid);margin-top:6px}
   .alerte{border-radius:10px;padding:10px 12px;font-size:13px;margin-top:8px}
-  .fort{background:#3A1D1F;border:1px solid var(--red);color:#FFD3D4}
-  .indic{background:#3A2E14;border:1px solid var(--amber);color:#FFE2A8}
-  .ok{background:#153629;border:1px solid var(--green);color:#CFF5E3}
+  .fort{background:var(--red-dim);border:1px solid var(--red);color:var(--red-text)}
+  .indic{background:var(--amber-dim);border:1px solid var(--amber);color:var(--amber-text)}
+  .ok{background:var(--green-dim);border:1px solid var(--green);color:var(--green-text)}
   textarea,input.txt{width:100%;background:var(--bg);color:var(--text);border:1px solid var(--hair);border-radius:10px;padding:10px;font:14px 'IBM Plex Sans',sans-serif;margin-top:6px}
   button{font:600 16px 'IBM Plex Sans',sans-serif;border-radius:12px;border:0;padding:14px 16px;min-height:48px;cursor:pointer}
-  .btn{background:var(--green);color:#06281B;width:100%} .btn[disabled]{opacity:.4;cursor:not-allowed}
+  .btn{background:var(--green);color:var(--on-green);width:100%} .btn[disabled]{opacity:.4;cursor:not-allowed}
   .cadre-vr{position:relative;aspect-ratio:4/3;max-width:320px;margin:4px auto 0;padding:14px;display:flex}
-  .cadre-vr .cadre-ecran{flex:1;border:1px dashed var(--hair);border-radius:6px;display:flex;flex-direction:column;justify-content:space-around;padding:8px 10px;font-size:11px;letter-spacing:.04em;color:var(--muted,#8b93a1)}
-  .cadre-vr .cc{position:absolute;width:26px;height:26px;border:3px solid #34D399}
+  .cadre-vr .cadre-ecran{flex:1;border:1px dashed var(--hair);border-radius:6px;display:flex;flex-direction:column;justify-content:space-around;padding:8px 10px;font-size:11px;letter-spacing:.04em;color:var(--muted,var(--muted-ecran))}
+  .cadre-vr .cc{position:absolute;width:26px;height:26px;border:3px solid var(--green)}
   .cadre-vr .cc1{top:0;left:0;border-right:0;border-bottom:0;border-top-left-radius:8px}
   .cadre-vr .cc2{top:0;right:0;border-left:0;border-bottom:0;border-top-right-radius:8px}
   .cadre-vr .cc3{bottom:0;left:0;border-right:0;border-top:0;border-bottom-left-radius:8px}
@@ -283,7 +284,7 @@
     const avert = (ex && jauge.enregistre) ? `<div class="card"><h2>Jaugeage enregistré</h2><div class="sub">Jaugeage enregistré : SP ${esc(ex.stock_reel_sp95 ?? '–')}, GO cuve 1 ${esc(ex.stock_reel_go_cuve1 ?? '–')}, GO cuve 2 ${esc(ex.stock_reel_go_cuve2 ?? '–')}, GNR ${esc(ex.stock_reel_gnr ?? '–')}.</div></div>`
       : ex ? `<div class="card"><h2>Un jaugeage existe déjà pour aujourd'hui</h2><div class="sub">Enregistré : SP ${esc(ex.stock_reel_sp95 ?? '–')}, GO cuve 1 ${esc(ex.stock_reel_go_cuve1 ?? '–')}, GO cuve 2 ${esc(ex.stock_reel_go_cuve2 ?? '–')}, GNR ${esc(ex.stock_reel_gnr ?? '–')}. Il ne sera pas écrasé : votre saisie s'ajoute comme une version de correction tracée.</div></div>` : '';
     const photo = jauge.photoLe ? `<div class="sub">Photo prise le ${esc(new Date(jauge.photoLe).toLocaleString('fr-FR'))} : ces volumes sont ceux de cet instant.</div>` : '';
-    const conf = pret ? `${total}<div class="card"><label style="display:flex;gap:10px;align-items:flex-start"><input type="checkbox" id="jConf" style="width:26px;height:26px;accent-color:#34D399" ${jauge.confirme ? 'checked' : ''}><span>Je confirme que ces quatre volumes correspondent à l'écran du Veeder-Root.</span></label></div>
+    const conf = pret ? `${total}<div class="card"><label style="display:flex;gap:10px;align-items:flex-start"><input type="checkbox" id="jConf" style="width:26px;height:26px;accent-color:var(--green)" ${jauge.confirme ? 'checked' : ''}><span>Je confirme que ces quatre volumes correspondent à l'écran du Veeder-Root.</span></label></div>
       <button class="btn" data-act="jenregistrer" ${jauge.confirme && !jauge.enregistre ? '' : 'disabled'}>${jauge.enregistre ? 'Jaugeage enregistré' : 'Enregistrer le jaugeage'}</button>` : '';
     return `<h1>Jaugeage Veeder-Root</h1><div class="sub">Cadrez uniquement l'écran du Veeder-Root, rien d'autre.</div>
       <div class="card"><div class="cadre-vr" aria-label="Guide de cadrage : l'écran du Veeder-Root doit remplir le cadre"><span class="cc cc1"></span><span class="cc cc2"></span><span class="cc cc3"></span><span class="cc cc4"></span><div class="cadre-ecran"><div>SUPER SANS PLOMB · VOLUME</div><div>GASOIL CUVE 1 · VOLUME</div><div>GASOIL CUVE 2 · VOLUME</div><div>GNR · VOLUME</div></div></div><div class="sub" style="margin:6px 0 10px">Placez l'écran dans le cadre : les quatre volumes lisibles, sans reflet, sans visage ni autre document.</div><button class="btn2" data-act="jcamera">Prendre la photo de l'écran</button><input type="file" accept="image/*" capture="environment" id="jPhoto" tabindex="-1" aria-hidden="true" style="position:absolute;width:1px;height:1px;overflow:hidden;opacity:0;clip:rect(0,0,0,0)">
@@ -513,7 +514,7 @@
     const reculsSansMotif = R.ORDRE_PHYSIQUE[pompe].some(pr => reculBloquant(`${pompe}-${pr}`));
     const rapides = R.estDebut(moment) && R.ORDRE_PHYSIQUE[pompe].some(pr => refStatut[`${pompe}-${pr}`] === 'confirmee_deux_chiffres');
     const visuelOk = !rapides || visuel[pompe];
-    const visuelBloc = rapides ? `<div class="card"><label style="display:flex;gap:10px;align-items:flex-start"><input type="checkbox" id="visuel" style="width:26px;height:26px;accent-color:#34D399" ${visuel[pompe] ? 'checked' : ''}><span>J'ai vérifié visuellement les 7 chiffres de chaque compteur de cette pompe.</span></label></div>` : '';
+    const visuelBloc = rapides ? `<div class="card"><label style="display:flex;gap:10px;align-items:flex-start"><input type="checkbox" id="visuel" style="width:26px;height:26px;accent-color:var(--green)" ${visuel[pompe] ? 'checked' : ''}><span>J'ai vérifié visuellement les 7 chiffres de chaque compteur de cette pompe.</span></label></div>` : '';
     return `<div class="progres">${esc(MOMENTS_LIBELLE[moment])} · Pompe ${pompe} sur 4 · de gauche à droite</div><h1>Pompe <span class="npompe">${pompe}</span></h1>
       <div class="sub">${R.estDebut(moment) ? 'Début de quart : la référence est celle du dernier relevé validé, pas une nouvelle mesure. Aucune recopie dans Decenium.' : 'Lisez les 7 chiffres du totalisateur mécanique. Rien n\'est prérempli.'}</div>
       ${R.ORDRE_PHYSIQUE[pompe].map(pr => champ(pompe, pr)).join('')}${visuelBloc}
@@ -554,7 +555,7 @@
     }).join('');
     return `<h1>Recopie dans Decenium</h1><div class="sub">Ordre Decenium : pour chaque pompe, SP puis GO, puis GNR. La coche est une aide de progression.</div><div class="card">${corps}</div>
       ${toutesCochees ? '' : '<button class="btn2" data-act="toutcocher">Tout sélectionner</button>'}
-      <div class="card"><label style="display:flex;gap:10px;align-items:flex-start"><input type="checkbox" id="confRecopie" style="width:26px;height:26px;accent-color:#34D399" ${tous ? '' : 'disabled'}><span>${esc(R.TEXTE_CONFIRMATION_RECOPIE)}</span></label></div>
+      <div class="card"><label style="display:flex;gap:10px;align-items:flex-start"><input type="checkbox" id="confRecopie" style="width:26px;height:26px;accent-color:var(--green)" ${tous ? '' : 'disabled'}><span>${esc(R.TEXTE_CONFIRMATION_RECOPIE)}</span></label></div>
       <button class="btn" data-act="fin" disabled id="btnFin">Terminer</button>
       ${enFil() ? '' : '<button class="btn2" data-act="choix">Plus tard : retour à l\'accueil</button>'}`;
   }
@@ -688,7 +689,9 @@
     if (!employee) return;
     emp = employee;
     // Le jour métier suit le fuseau du site (nexus-auth.js) ; sans fuseau, pas de jour et pas d'écran qui affirme.
-    date = nexusJourDansFuseau(new Date(), await nexusFuseauSite(employee.site_id));
+    const fuseauSite = await nexusFuseauSite(employee.site_id);
+    if (fuseauSite && typeof NexusTheme !== 'undefined') NexusTheme.definirFuseau(fuseauSite);
+    date = nexusJourDansFuseau(new Date(), fuseauSite);
     if (!date) { document.getElementById('app').innerHTML = '<div class="card">Le fuseau de la station est introuvable : le jour ne peut pas être déterminé. Réessayez ou prévenez le manager.</div>'; return; }
     if (enFil()) FIL.atteindre(localStorage, emp.id, date, filEtape); // reprise : le fil rouvre cette étape
     await chargerHabilitations();

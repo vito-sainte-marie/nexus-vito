@@ -13,6 +13,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="NEXUS">
 <meta name="theme-color" content="#0B0F14">
+<script src="nexus-theme.js"></script>
 <title>NEXUS — Réception carburant</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -39,6 +40,9 @@
     --amber:#F5A623; --amber-dim:#3A2E14;
     --red:#F0575A; --red-dim:#3A1D1F;
     --cyan:#4FC3D9; --gold:#D4AF37;
+    --on-cyan:#04141a; --on-red:#2a0708; --cyan-hover:#3cb3c9;
+    --cyan-rgb:79,195,217; --red-rgb:240,87,90; --green-rgb:52,211,153; --amber-rgb:245,166,35; --gold-rgb:212,175,55;
+    --shadow-rgb:0,0,0; --panel-rgb:20,27,34; --ghost:rgba(255,255,255,.025); --ghost-line:rgba(255,255,255,.07);
     --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
     --sp95:#34D399; --go:#F5A623; --gnr:#F0575A;
   }
@@ -51,10 +55,10 @@
   .menu-btn{
     position:absolute; top:18px; right:18px; display:flex; align-items:center; gap:6px;
     font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase;
-    color:var(--cyan); background:rgba(79,195,217,0.1); border:1px solid rgba(79,195,217,0.3);
+    color:var(--cyan); background:var(--cyan-tint,rgba(var(--cyan-rgb),0.1)); border:1px solid rgba(var(--cyan-rgb),0.3);
     border-radius:20px; padding:7px 12px; text-decoration:none; white-space:nowrap; z-index:5;
   }
-  .menu-btn:active{background:rgba(79,195,217,0.2);}
+  .menu-btn:active{background:rgba(var(--cyan-rgb),0.2);}
   .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--cyan);}
   .title{font-size:22px; font-weight:600; margin-top:4px;}
   .horodateur-discret{font-family:var(--mono); font-size:12px; color:var(--text-dim); margin-top:8px;}
@@ -81,13 +85,13 @@
   select.champ-input{appearance:none; -webkit-appearance:none; background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M0 0L5 6L10 0Z' fill='%238A96A5'/></svg>"); background-repeat:no-repeat; background-position:right 14px center;}
 
   /* ---- Coach NEXUS ---- */
-  .nexus-dit{background:rgba(79,195,217,0.08); border:1px solid rgba(79,195,217,0.25); border-radius:12px; padding:14px 16px; margin-bottom:14px; font-size:12.5px; line-height:1.55; color:var(--text-mid);}
+  .nexus-dit{background:rgba(var(--cyan-rgb),0.08); border:1px solid rgba(var(--cyan-rgb),0.25); border-radius:12px; padding:14px 16px; margin-bottom:14px; font-size:12.5px; line-height:1.55; color:var(--text-mid);}
   .nexus-dit b{color:var(--text);}
   .nexus-dit .coach-tete{display:flex; align-items:center; gap:8px; margin-bottom:8px; font-family:var(--mono); font-size:10.5px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; color:var(--cyan);}
 
   /* ---- Accueil ---- */
   .accueil-hero{text-align:center; padding:6px 4px 4px;}
-  .accueil-icone{width:64px; height:64px; border-radius:20px; margin:0 auto 16px; display:flex; align-items:center; justify-content:center; font-size:30px; background:radial-gradient(circle at 32% 28%, rgba(79,195,217,0.30), var(--panel-raised) 72%); box-shadow:inset 0 0 0 1px rgba(79,195,217,0.25);}
+  .accueil-icone{width:64px; height:64px; border-radius:20px; margin:0 auto 16px; display:flex; align-items:center; justify-content:center; font-size:30px; background:radial-gradient(circle at 32% 28%, rgba(var(--cyan-rgb),0.30), var(--panel-raised) 72%); box-shadow:inset 0 0 0 1px rgba(var(--cyan-rgb),0.25);}
   .consignes-liste{display:flex; flex-direction:column; gap:8px; margin:10px 0 4px;}
   .consigne-item{display:flex; gap:10px; align-items:flex-start; font-size:12.5px; line-height:1.5; color:var(--text-mid);}
   .consigne-puce{flex-shrink:0; width:18px; height:18px; border-radius:50%; background:var(--panel-raised); color:var(--cyan); font-size:10px; display:flex; align-items:center; justify-content:center; margin-top:1px;}
@@ -100,7 +104,7 @@
   .carburant-attendu-nom{display:flex; align-items:center; gap:8px; font-size:14.5px; font-weight:700;}
   .carburant-pastille{width:10px; height:10px; border-radius:50%; background:var(--cc, var(--text-dim));}
   .toggle-switch{position:relative; width:42px; height:24px; border-radius:14px; background:var(--panel-raised); border:1px solid var(--hairline); cursor:pointer; flex-shrink:0;}
-  .toggle-switch.on{background:rgba(79,195,217,0.25); border-color:var(--cyan);}
+  .toggle-switch.on{background:rgba(var(--cyan-rgb),0.25); border-color:var(--cyan);}
   .toggle-knob{position:absolute; top:2px; left:2px; width:18px; height:18px; border-radius:50%; background:var(--text-dim); transition:left .15s, background .15s;}
   .toggle-switch.on .toggle-knob{left:20px; background:var(--cyan);}
   .carburant-attendu-corps{margin-top:12px;}
@@ -130,14 +134,14 @@
   .compartiment-numero{font-size:11px; color:var(--text-dim); font-weight:700;}
   .compartiment-carburant{font-size:10px; font-weight:700;}
   .compartiment-qte{font-size:9px; color:var(--text-dim);}
-  .compartiment-check{position:absolute; top:-6px; right:-6px; width:18px; height:18px; border-radius:50%; background:var(--green); color:#04141a; font-size:11px; font-weight:900; display:flex; align-items:center; justify-content:center; border:2px solid var(--panel);}
-  .compartiment-bloc.carb-sp95{border-color:var(--sp95); background:rgba(52,211,153,0.10);}
-  .compartiment-bloc.carb-go{border-color:var(--go); background:rgba(245,166,35,0.10);}
-  .compartiment-bloc.carb-gnr{border-color:var(--gnr); background:rgba(240,87,90,0.10);}
+  .compartiment-check{position:absolute; top:-6px; right:-6px; width:18px; height:18px; border-radius:50%; background:var(--green); color:var(--on-cyan); font-size:11px; font-weight:900; display:flex; align-items:center; justify-content:center; border:2px solid var(--panel);}
+  .compartiment-bloc.carb-sp95{border-color:var(--sp95); background:rgba(var(--green-rgb),0.10);}
+  .compartiment-bloc.carb-go{border-color:var(--go); background:rgba(var(--amber-rgb),0.10);}
+  .compartiment-bloc.carb-gnr{border-color:var(--gnr); background:rgba(var(--red-rgb),0.10);}
   .compartiment-bloc.non-receptionne{border-color:var(--red); background:var(--red-dim); animation:pulseAlerte 1.6s infinite;}
   .compartiment-bloc.compartiment-vide{border-color:var(--hairline); background:repeating-linear-gradient(45deg, var(--panel-raised), var(--panel-raised) 6px, var(--panel) 6px, var(--panel) 12px); opacity:0.7;}
   .compartiment-bloc.compartiment-vide .compartiment-carburant{color:var(--text-dim);}
-  @keyframes pulseAlerte{0%,100%{box-shadow:0 0 0 0 rgba(240,87,90,0.35);} 50%{box-shadow:0 0 0 6px rgba(240,87,90,0);}}
+  @keyframes pulseAlerte{0%,100%{box-shadow:0 0 0 0 rgba(var(--red-rgb),0.35);} 50%{box-shadow:0 0 0 6px rgba(var(--red-rgb),0);}}
   .camion-legende{display:flex; justify-content:center; gap:14px; margin-top:12px; font-size:10.5px; color:var(--text-mid);}
   .camion-legende span{display:inline-flex; align-items:center; gap:5px;}
   .camion-legende i{width:9px; height:9px; border-radius:50%; display:inline-block;}
@@ -166,13 +170,13 @@
   .fiche-titre{font-size:13.5px; font-weight:700; margin-bottom:12px;}
   .carburant-chip-row{display:flex; gap:8px; margin-bottom:14px;}
   .carburant-chip{flex:1; text-align:center; padding:12px 6px; border-radius:10px; border:1.5px solid var(--hairline); background:var(--panel); font-size:13px; font-weight:700; color:var(--text-dim); cursor:pointer;}
-  .carburant-chip.actif{border-color:var(--cc, var(--cyan)); background:rgba(79,195,217,0.14); color:var(--cc, var(--cyan));}
+  .carburant-chip.actif{border-color:var(--cc, var(--cyan)); background:rgba(var(--cyan-rgb),0.14); color:var(--cc, var(--cyan));}
 
   .compartiment-total{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:12px 14px; margin-bottom:10px; font-size:13px; display:flex; justify-content:space-between; align-items:center;}
   .compartiment-total .valeur{font-family:var(--mono); font-weight:700;}
-  .compartiment-total.ok{border-color:rgba(52,211,153,0.35); background:var(--green-dim);}
+  .compartiment-total.ok{border-color:rgba(var(--green-rgb),0.35); background:var(--green-dim);}
   .compartiment-total.ok .valeur{color:var(--green);}
-  .compartiment-total.ecart{border-color:rgba(240,87,90,0.35); background:var(--red-dim);}
+  .compartiment-total.ecart{border-color:rgba(var(--red-rgb),0.35); background:var(--red-dim);}
   .compartiment-total.ecart .valeur{color:var(--red);}
 
   /* ---- Blocage / anomalie ---- */
@@ -181,17 +185,17 @@
      des cuves du carburant concerné. Ton amber (avertissement avant coup),
      pas rouge (pas un blocage — le pompiste peut décider d'appeler son
      manager ou de répartir autrement). */
-  .capacite-alerte{background:var(--amber-dim); border:1.5px solid rgba(245,166,35,0.4); border-radius:12px; padding:12px 14px; margin-bottom:14px;}
+  .capacite-alerte{background:var(--amber-dim); border:1.5px solid rgba(var(--amber-rgb),0.4); border-radius:12px; padding:12px 14px; margin-bottom:14px;}
   .capacite-alerte-titre{font-size:12.5px; font-weight:700; color:var(--amber); margin-bottom:4px;}
   .capacite-alerte-ligne{font-size:12px; color:var(--text-mid); line-height:1.5;}
-  .blocage-card{background:var(--red-dim); border:1.5px solid rgba(240,87,90,0.4); border-radius:16px; padding:18px; margin-bottom:14px;}
+  .blocage-card{background:var(--red-dim); border:1.5px solid rgba(var(--red-rgb),0.4); border-radius:16px; padding:18px; margin-bottom:14px;}
   .blocage-tete{display:flex; align-items:center; gap:10px; margin-bottom:12px;}
   .blocage-icone{font-size:22px;}
   .blocage-titre{font-size:15px; font-weight:700; color:var(--red);}
   .blocage-section{margin-bottom:10px;}
   .blocage-label{font-family:var(--mono); font-size:10px; color:var(--text-mid); text-transform:uppercase; letter-spacing:0.03em; margin-bottom:4px;}
   .blocage-valeur{font-size:13px; line-height:1.5;}
-  .blocage-consigne{font-size:13px; font-weight:600; color:var(--text); margin-top:12px; padding-top:12px; border-top:1px solid rgba(240,87,90,0.25);}
+  .blocage-consigne{font-size:13px; font-weight:600; color:var(--text); margin-top:12px; padding-top:12px; border-top:1px solid rgba(var(--red-rgb),0.25);}
   .contact-manager-card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:14px; margin-bottom:14px; display:flex; align-items:center; gap:12px;}
   .contact-manager-icone{font-size:20px;}
   .contact-manager-nom{font-size:13.5px; font-weight:700;}
@@ -228,9 +232,9 @@
   .badge-statut.alerte{background:var(--red-dim); color:var(--red);}
   .badge-statut.attente{background:var(--panel-raised); color:var(--text-mid);}
 
-  .btn-primary{width:100%; padding:14px; border:none; border-radius:10px; font-size:14px; font-weight:600; background:var(--cyan); color:#04141a; cursor:pointer; margin-top:6px;}
+  .btn-primary{width:100%; padding:14px; border:none; border-radius:10px; font-size:14px; font-weight:600; background:var(--cyan); color:var(--on-cyan); cursor:pointer; margin-top:6px;}
   .btn-primary:disabled{opacity:0.35; cursor:not-allowed;}
-  .btn-primary.danger{background:var(--red); color:#2a0708;}
+  .btn-primary.danger{background:var(--red); color:var(--on-red);}
   .btn-ghost{width:100%; padding:12px; border:1px solid var(--hairline); border-radius:10px; background:transparent; color:var(--text-mid); font-size:13px; cursor:pointer; margin-top:8px;}
   .btn-loading-dots{display:inline-flex; gap:3px; margin-left:6px; vertical-align:middle;}
   .btn-loading-dots i{width:4px; height:4px; border-radius:50%; background:currentColor; display:inline-block; font-style:normal; animation:btnDotsBounce 1.2s infinite ease-in-out;}
@@ -242,7 +246,7 @@
      17/08/2026) — même structure bottom-sheet que .cloture-overlay/
      .cloture-modal (NEXUS-FDJ-v1.html) : jamais un confirm() natif du
      navigateur pour verrouiller une réception. */
-  .recep-overlay{position:fixed; inset:0; background:rgba(0,0,0,0.6); display:flex; align-items:flex-end; justify-content:center; z-index:300;}
+  .recep-overlay{position:fixed; inset:0; background:rgba(var(--shadow-rgb),0.6); display:flex; align-items:flex-end; justify-content:center; z-index:300;}
   .recep-modal{width:100%; max-width:460px; background:var(--panel); border:1px solid var(--hairline); border-top-left-radius:18px; border-top-right-radius:18px; padding:22px 20px calc(22px + env(safe-area-inset-bottom)); max-height:85vh; overflow-y:auto;}
   .recep-titre{font-size:16.5px; font-weight:700; margin-bottom:14px;}
   .recep-ligne{display:flex; justify-content:space-between; align-items:center; gap:10px; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:10px; padding:11px 13px; margin-bottom:10px; font-size:12.5px;}
@@ -250,7 +254,7 @@
   .recep-valeur.green{color:var(--green);}
   .recep-valeur.amber{color:var(--amber);}
   .recep-texte{font-size:13px; color:var(--text-mid); line-height:1.6; margin-bottom:14px;}
-  .recep-avertissement{font-size:12.5px; color:var(--amber); background:var(--amber-dim); border:1px solid rgba(245,166,35,0.3); border-radius:10px; padding:10px 12px; margin-bottom:14px; line-height:1.5;}
+  .recep-avertissement{font-size:12.5px; color:var(--amber); background:var(--amber-dim); border:1px solid rgba(var(--amber-rgb),0.3); border-radius:10px; padding:10px 12px; margin-bottom:14px; line-height:1.5;}
   .recep-actions .btn-ghost, .recep-actions .btn-primary{margin-top:8px;}
 
   .checkmark{width:64px; height:64px; border-radius:50%; background:var(--green-dim); color:var(--green); font-size:30px; display:flex; align-items:center; justify-content:center; margin:8px auto 18px;}
