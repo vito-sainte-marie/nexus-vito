@@ -102,7 +102,9 @@ testSync('NEXUS-Inventaire-v1.html — chargerEtAppliquerPlanQuart charge seuils
 });
 
 testSync('NEXUS-Inventaire-v1.html — le point de création d\'écart (boucle de validation d\'ouverture) conditionne ecartPourCycle sur ecartQuantiteSignificatif', () => {
-  const debut = srcEmploye.indexOf("if (saisie.ecartNonNul) {");
+  // 01/11/2026 : le bloc est gardé par ecartNonNulReel (écart calculé contre la référence
+  // purgée en comptage aveugle, cf. test_inventaire_ecart_aveugle_reference_20261101.js).
+  const debut = srcEmploye.indexOf("if (ecartNonNulReel) {");
   const fin = srcEmploye.indexOf('const decision = NexusInventaireMoteur.qualifierObservationEcart', debut);
   assert.ok(debut !== -1 && fin !== -1, 'bloc de création écart introuvable');
   const bloc = srcEmploye.slice(debut, fin);
