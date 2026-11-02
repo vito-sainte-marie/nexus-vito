@@ -1,66 +1,63 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/INVENTAIRE-GAZ-CAGE-20261031/request-5.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/INVENTAIRE-GAZ-CAGE-20261031/request-6.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
 lot_id: INVENTAIRE-GAZ-CAGE-20261031
-seq: 5
+seq: 6
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
 token_mode: STANDARD
-wake_to: https://github.com/vito-sainte-marie/nexus-vito/issues/28
 preuves:
   - id: refs-protegees
     classe: VERIFIED
-    valeur: main=659af077 production=bd7c2dbf
+    valeur: main=659af077 production=ef6861f2
   - id: merge-base-production
     classe: VERIFIED
     valeur: 501c0c744c3327dd5693a2bddc45d064045ca474
   - id: diff-applicatif-production
     classe: VERIFIED
     valeur: 170-fichiers
-  - id: branche-correctif
+  - id: merge-pr169
     classe: VERIFIED
-    valeur: f11b845e
-  - id: recette-guardian
+    valeur: ef6861f2
+  - id: ci-deploiement-production
     classe: VERIFIED
-    valeur: 160-6566620915
-  - id: ci-verte
-    classe: HUMAN
-    valeur: 160-6566620915
-  - id: decision-alertes-production
-    classe: HUMAN
-    valeur: chat-frederic-fermeture-manuelle-a-la-fusion
+    valeur: 41373861458
 ---
-# INVENTAIRE-GAZ-CAGE-20261031 : request-5 — rectificative de la request-4 (branche du lot non déclarée)
+# INVENTAIRE-GAZ-CAGE-20261031 : request-6 — arrêt sur decision-2 (prise en charge), correctif fusionné et déployé, deux vérifications hors de portée de cette session
 
-## Objet
+## Prise en charge de decision-2
 
-La décision rendue sur la request-4 (APPROVED, `closes: false`, commentaire 6567010705 de #28, run 41373252432) n'a pas pu être matérialisée par la CI : la request-4 ne déclare pas de branche du lot, et la CI ne prend jamais le rail par défaut. Le même défaut bloque le rail depuis la request-2. Cette request-5 le rectifie et n'ajoute rien d'autre : le fond de la request-4 est inchangé.
+decision-2 (réponse à request-5, APPROVED, `closes: false`) est prise en charge par cette session (`outils/handoff.js consommer INVENTAIRE-GAZ-CAGE-20261031 --prise-en-charge`, commit de décision `493b521c`). Son seul contenu était procédural — approuver la déclaration de `BRANCHE_DU_LOT` pour que la CI puisse matérialiser l'arbitrage déjà rendu sur request-4 — et ne prescrit aucune action de code : `CONDITIONS: aucune`, `BLOCKER: aucun`, `STOP_REQUIRED: non`. Son `ACTION_NEXT` (« Matérialiser cette décision sur la branche déclarée via `handoff.js decision --auteur ChatGPT` ») est déjà accompli par le commit `493b521c` lui-même.
 
-## Branche du lot
+## Fait nouveau, vérifié depuis le dépôt de request-5
 
-Le correctif vit sur `inventaire-ecart-aveugle-20261101`, commit `f11b845e` (base `production` `bd7c2dbf`, CI verte, recette Guardian 6566620915 conforme). La branche du lot est déclarée ici, une seule fois :
+Au moment de request-5, `production` était à `bd7c2dbf`. Un `git fetch origin main production inventaire-ecart-aveugle-20261101` pendant cette session montre que `production` a avancé :
 
-BRANCHE_DU_LOT: inventaire-ecart-aveugle-20261101
+- `origin/production` = `ef6861f2`, merge de la PR #169 (`inventaire-ecart-aveugle-20261101` → `production`), qui contient `f11b845e`. Fusion faite par Frédéric, comme prévu par request-4/request-5 (« la fusion reste à Frédéric »).
+- `gh run list --branch production` : deux runs déclenchés par ce merge, tous deux `completed success` — `Tests` (41373861524) et `Déploiement Production (GitHub Pages)` (41373861458), 2026-11-02T01:42:17Z.
 
-## Ce qui reste valable
+Le correctif de la régression #168 (écart d'ouverture aveugle, request-4) est donc **fusionné** et sa CI de déploiement est **verte**.
 
-- La request-4 (correctif de la régression de l'écart d'ouverture introduite par #168, qui remplace la demande de clôture de la request-3) et la décision de l'arbitre qui lui répond : APPROVED du correctif en l'état, `closes: false`. Le lot reste ouvert jusqu'à une demande ultérieure établissant que le correctif est fusionné et servi.
-- Les 5 alertes `ecart_ouverture` de Production : non touchées par cette session ; Frédéric les ferme lui-même, comme manager, au moment de la fusion.
-- A (RLS du cycle d'observation), B (motif fantôme) et le libellé contradictoire : hors lot, request distincte.
-- La PR de `f11b845e` vers `production` est ouverte sur instruction de Frédéric, non fusionnée. La fusion reste à Frédéric.
+## Ce que cette session ne peut pas vérifier
+
+Deux conditions que request-4 posait avant toute clôture (« fusionné et servi », fermeture des 5 alertes par Frédéric) restent non prouvées par cette session, pour deux raisons distinctes, aucune ne relevant d'un choix :
+
+1. **Contenu réellement servi sur `app.nexusconseil.net`** : request-3 avait fait vérifier ce point par Guardian (lecture littérale du HTML servi). Cette session a tenté la même vérification (`WebFetch` sur la page de Production) ; l'outil a demandé une autorisation que personne n'a accordée dans ce réveil automatique, sans opérateur humain présent pour répondre. La CI de déploiement est verte (ci-dessus), mais « le déploiement a réussi » n'est pas « le contenu attendu est servi » — ce sont deux preuves différentes, et je ne tiens que la première.
+2. **Fermeture des 5 alertes `ecart_ouverture`** : Frédéric avait dit les fermer lui-même, comme manager, au moment de la fusion (request-4/request-5). Vérifier qu'elles sont closes exigerait une lecture Supabase Production, qui est une gate humaine (`CLAUDE.md`, « Gates humaines — jamais pré-autorisées ») et n'entre pas dans les pré-autorisations de cette session.
 
 ## Demande
 
-1. Arbitrage APPROVED de cette rectification, avec `closes: false` : aucune clôture, aucune fusion, aucun déploiement, aucune écriture Production.
-2. Que la CI puisse alors matérialiser la décision sur la branche du lot déclarée, pour que la consommation suivante soit possible.
+1. Constater que decision-2 est prise en charge et consommée par cette request (arrêt), sans action de code supplémentaire : aucune fusion, aucun déploiement, aucune écriture ni lecture Production n'ont été faits par cette session.
+2. Ne pas clore le lot sur cette base : il reste ouvert jusqu'à ce que les deux points ci-dessus soient établis — par Guardian (contenu servi) et par Frédéric ou Guardian (fermeture des 5 alertes), selon le mécanisme déjà en place pour ce lot.
+3. Si un arbitrage juge la preuve de déploiement CI suffisante pour clore sans attendre ces deux points, le dire explicitement : cette session ne se l'arroge pas.
 
-## Preuve des conditions de decision-1
+## Preuve des conditions de decision-2
 
-Inchangée par rapport à la request-4 (elle-même renvoyant à la request-3, commit 787d3f87). Cette rectification est purement procédurale : aucune lecture ni écriture Production, aucun code, aucune migration, aucune policy. Les conditions 1 à 5 sont tenues comme dans la request-4. La condition 6 (aucune mutation, migration, fusion ou promotion Production) est tenue pour cette request ; le dépassement de la request-3, sous GO distincts de Frédéric, n'est pas aggravé.
+`CONDITIONS: aucune` sur decision-2 : rien à prouver pour cette rectification elle-même. Les conditions encore ouvertes sont celles de decision-1 (request-1), déjà traitées par request-2, request-3 et request-4, inchangées par ce qui précède : aucune lecture ni écriture Production n'a été faite par cette session, aucune mutation, migration, fusion ou promotion Production n'a été faite ou demandée par elle.
 
 ## Limites
 
-Elle ne corrige pas le fond de la régression : seule la fusion de la PR, par Frédéric, le fait en Production.
+Ne corrige rien, ne lit ni n'écrit Production, ne décide pas de la clôture. Consigne un fait vérifié (fusion + CI de déploiement verte) et deux limites de capacité nommées, pour que la suite ne les redécouvre pas à l'aveugle.
