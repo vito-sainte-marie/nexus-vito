@@ -95,6 +95,7 @@
   async function resoudreContexteQuart(employee) {
     const fuseau = await NexusStation.fuseauDeLaStation(employee.site_id);
     FUSEAU_STATION_PDP = fuseau.timezone || null;
+    if (FUSEAU_STATION_PDP && typeof NexusTheme !== 'undefined') NexusTheme.definirFuseau(FUSEAU_STATION_PDP);
     const seuil = await NexusStation.seuilDeBascule(employee.site_id, undefined, FUSEAU_STATION_PDP);
     BASCULE_QUART2_PDP = seuil.indetermine ? null : seuil.minutes;
     // Le quart planifié est lu UNE fois. Son absence n'est pas une erreur : une
@@ -153,33 +154,33 @@
   // #34D399 est réservé aux confirmations. Aucune @media : la colonne est
   // bornée (max-width) et lisible en 375×812 comme en bureau.
   const CSS = `
-.pdp{max-width:460px;margin:0 auto;color:#EDF1F5;font-family:'IBM Plex Sans',sans-serif;}
+.pdp{max-width:460px;margin:0 auto;color:var(--text);font-family:'IBM Plex Sans',sans-serif;}
 .pdp-titre{font-size:22px;font-weight:600;margin:0;}
-.pdp-sous{font-size:14px;color:#8A96A5;margin:6px 0 14px;line-height:1.5;}
+.pdp-sous{font-size:14px;color:var(--text-mid);margin:6px 0 14px;line-height:1.5;}
 .pdp-cartes{display:flex;flex-direction:column;gap:12px;}
-.pdp-carte{display:flex;align-items:stretch;width:100%;min-height:112px;text-align:left;font:inherit;color:inherit;background:#141B22;border:1px solid #242E38;border-radius:16px;padding:0;overflow:hidden;cursor:pointer;-webkit-tap-highlight-color:transparent;}
-.pdp-carte:active{border-color:#4FC3D9;}
-.pdp-carte:focus-visible{outline:2px solid #4FC3D9;outline-offset:2px;}
+.pdp-carte{display:flex;align-items:stretch;width:100%;min-height:112px;text-align:left;font:inherit;color:inherit;background:var(--panel);border:1px solid var(--hairline);border-radius:16px;padding:0;overflow:hidden;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+.pdp-carte:active{border-color:var(--cyan);}
+.pdp-carte:focus-visible{outline:2px solid var(--cyan);outline-offset:2px;}
 .pdp-carte[disabled]{opacity:.55;cursor:default;}
-.pdp-bouton{display:block;width:100%;min-height:44px;padding:14px;margin-top:18px;border:none;border-radius:10px;font:inherit;font-size:14px;font-weight:600;text-align:center;background:#4FC3D9;color:#04141a;cursor:pointer;-webkit-tap-highlight-color:transparent;}
-.pdp-bouton:focus-visible{outline:2px solid #EDF1F5;outline-offset:2px;}
-.pdp-carte.pdp-avant{border:2px solid #4FC3D9;}
-.pdp-visuel{position:relative;display:block;order:2;flex:0 0 44%;background:#141B22;}
-.pdp-visuel::after{content:'';position:absolute;inset:0;background:linear-gradient(to right,#141B22 0%,rgba(20,27,34,0) 50%);pointer-events:none;}
+.pdp-bouton{display:block;width:100%;min-height:44px;padding:14px;margin-top:18px;border:none;border-radius:10px;font:inherit;font-size:14px;font-weight:600;text-align:center;background:var(--cyan);color:var(--on-cyan);cursor:pointer;-webkit-tap-highlight-color:transparent;}
+.pdp-bouton:focus-visible{outline:2px solid var(--text);outline-offset:2px;}
+.pdp-carte.pdp-avant{border:2px solid var(--cyan);}
+.pdp-visuel{position:relative;display:block;order:2;flex:0 0 44%;background:var(--panel);}
+.pdp-visuel::after{content:'';position:absolute;inset:0;background:linear-gradient(to right,var(--panel) 0%,rgba(var(--panel-rgb),0) 50%);pointer-events:none;}
 .pdp-image{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;}
 .pdp-corps{flex:1;align-self:center;padding:14px 16px;}
 .pdp-nom{font-size:24px;font-weight:700;letter-spacing:.01em;}
-.pdp-badge{font-family:'IBM Plex Mono',monospace;font-size:11px;color:#4FC3D9;margin-top:4px;}
-.pdp-tag{font-size:12.5px;color:#8A96A5;margin-top:4px;line-height:1.45;}
-.pdp-securite{background:#3A1D1F;border:1px solid rgba(240,87,90,.4);color:#EDF1F5;border-radius:12px;padding:10px 14px;font-size:12px;line-height:1.45;margin:0 0 12px;}
+.pdp-badge{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--cyan);margin-top:4px;}
+.pdp-tag{font-size:12.5px;color:var(--text-mid);margin-top:4px;line-height:1.45;}
+.pdp-securite{background:var(--red-dim);border:1px solid rgba(var(--red-rgb),.4);color:var(--text);border-radius:12px;padding:10px 14px;font-size:12px;line-height:1.45;margin:0 0 12px;}
 .pdp-erreur{padding:12px 0;line-height:1.55;font-size:14px;}
-.pdp-resume{background:#141B22;border:1px solid #242E38;border-radius:14px;padding:14px 16px;}
+.pdp-resume{background:var(--panel);border:1px solid var(--hairline);border-radius:14px;padding:14px 16px;}
 .pdp-resume-role{font-size:17px;font-weight:600;}
-.pdp-resume-quart{font-size:12.5px;color:#8A96A5;margin-top:2px;}
-.pdp-ligne{display:flex;justify-content:space-between;font-size:13.5px;color:#8A96A5;margin-top:10px;}
-.pdp-ligne b{color:#EDF1F5;font-weight:600;}
-.pdp-btn{width:100%;margin-top:10px;padding:14px;border-radius:12px;border:1px solid #4FC3D9;background:#4FC3D9;color:#0B0F14;font:inherit;font-weight:600;font-size:15px;cursor:pointer;}
-.pdp-btn.pdp-texte{background:none;border:none;color:#4FC3D9;}
+.pdp-resume-quart{font-size:12.5px;color:var(--text-mid);margin-top:2px;}
+.pdp-ligne{display:flex;justify-content:space-between;font-size:13.5px;color:var(--text-mid);margin-top:10px;}
+.pdp-ligne b{color:var(--text);font-weight:600;}
+.pdp-btn{width:100%;margin-top:10px;padding:14px;border-radius:12px;border:1px solid var(--cyan);background:var(--cyan);color:var(--on-cyan-alt);font:inherit;font-weight:600;font-size:15px;cursor:pointer;}
+.pdp-btn.pdp-texte{background:none;border:none;color:var(--cyan);}
 .pdp-btn[disabled]{opacity:.55;}
 `;
 

@@ -51,7 +51,7 @@ garde('aucune carte présélectionnée',
 
 garde('« Continuer » (#pdpSuite) a sa classe de bouton, pas celle des cartes photo',
   m => /class="pdp-bouton" id="pdpSuite"/.test(m) && !/class="pdp-carte"[^>]*id="pdpSuite"/.test(m)
-    && /\.pdp-bouton\{[^}]*min-height:44px[^}]*background:#4FC3D9/.test(m),
+    && /\.pdp-bouton\{[^}]*min-height:44px[^}]*background:var\(--cyan\)/.test(m),
   m => m.replace('class="pdp-bouton" id="pdpSuite"', 'class="pdp-carte" id="pdpSuite"'));
 
 // 2. Un seul appui.
@@ -88,9 +88,9 @@ garde('le badge n\'est jamais une présélection',
   m => !/pdp-avant/.test(corps(m, 'function renderChoixPoste()')),
   m => m.replace('class="pdp-carte" data-role', 'class="pdp-carte pdp-avant" data-role'));
 garde('dégradé CSS du fond de carte sur la photo, sans image retouchée',
-  m => /\.pdp-visuel::after\{[^}]*linear-gradient\(to right,#141B22 0%,rgba\(20,27,34,0\) (4\d|50)%\)/.test(m)
-    && /<span class="pdp-visuel"><img class="pdp-image"/.test(m) && /\.pdp-carte\.pdp-avant\{border:2px solid #4FC3D9/.test(m),
-  m => m.replace('rgba(20,27,34,0) 50%', 'rgba(20,27,34,0) 80%'));
+  m => /\.pdp-visuel::after\{[^}]*linear-gradient\(to right,var\(--panel\) 0%,rgba\(var\(--panel-rgb\),0\) (4\d|50)%\)/.test(m)
+    && /<span class="pdp-visuel"><img class="pdp-image"/.test(m) && /\.pdp-carte\.pdp-avant\{border:2px solid var\(--cyan\)/.test(m),
+  m => m.replace('rgba(var(--panel-rgb),0) 50%', 'rgba(var(--panel-rgb),0) 80%'));
 garde('cartes basses : texte à gauche, photo à droite',
   m => /\.pdp-carte\{display:flex/.test(m) && /\.pdp-visuel\{[^}]*order:2/.test(m) && !/\.pdp-carte\{[^}]*min-height:(1[5-9]|[2-9])\d\dpx/.test(m),
   m => m.replace('.pdp-visuel{position:relative;display:block;order:2;', '.pdp-visuel{position:relative;display:block;'));

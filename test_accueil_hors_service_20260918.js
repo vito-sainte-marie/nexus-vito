@@ -926,7 +926,7 @@ async function cas(nom, entree, controles) {
   verifierQue('G1 · relevés', 'la page Relevés n’appelle plus la fonction supprimée nexusDateLocaleISO',
     !/nexusDateLocaleISO\s*\(/.test(SRC_RELEVES), 'appel d’une fonction qui n’existe plus (page bloquée sur « Chargement… »)');
   verifierQue('G2 · relevés', 'le jour de la page Relevés vient du fuseau du site',
-    /nexusJourDansFuseau\(new Date\(\), await nexusFuseauSite\(/.test(SRC_RELEVES), 'jour non calculé dans le fuseau du site');
+    /const fuseauSite = await nexusFuseauSite\(/.test(SRC_RELEVES) && /nexusJourDansFuseau\(new Date\(\), fuseauSite\)/.test(SRC_RELEVES), 'jour non calculé dans le fuseau du site');
 
   console.log(`${ok} contrôles verts, ${echecs.length} rouges`);
   if (echecs.length) {

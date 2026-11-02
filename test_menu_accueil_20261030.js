@@ -76,7 +76,7 @@ const EPREUVES = {
   },
   'bouton ☰ blanc, à l\'extrême gauche de l\'en-tête, Pointage branché sur pointage_actif': () => {
     const css = (APP.match(/\.menu-accueil-bouton\{[^}]*\}/) || [''])[0];
-    assert(/color:#E8EDF2/.test(css) && !/color:var\(--cyan\)/.test(css), 'bouton blanc');
+    assert(/color:var\(--ap-text\)/.test(css) && !/color:var\(--cyan\)/.test(css), 'bouton blanc');
     assert(/position:absolute/.test(css) && /left:12px/.test(css), 'bouton à gauche');
     assert(/pointageActif: pointageActifSite === true/.test(APP) && /pointageActif: pointageActifManager === true/.test(APP));
   },
