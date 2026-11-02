@@ -968,9 +968,14 @@
       "consomme_le": "2026-11-02T11:50:16.068Z"
     },
     "INVENTAIRE-CYCLE-ALERTES-LIBELLE-20261102": {
-      "statut": "ATTENTE_DECISION",
+      "statut": "ATTENTE_CONSOMMATION_DECISION",
       "derniere_demande": "request-1.md",
-      "rail": "handoff-continuite-20260920"
+      "rail": "handoff-continuite-20260920",
+      "derniere_decision": "decision-1.md",
+      "source_decision": "registre",
+      "commit_decision": "9a3bd8fd8288409397c53667c2eafb64730560cc",
+      "pris_en_charge_le": "2026-11-02T12:06:49.017Z",
+      "pris_en_charge_par": "session-locale"
     }
   },
   "artefacts_hors_registre": [
