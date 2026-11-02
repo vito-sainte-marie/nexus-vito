@@ -1,59 +1,59 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/MODE-JOUR-POMPISTE-20261102/decision-1.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/MODE-JOUR-POMPISTE-20261102/decision-2.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
 lot_id: MODE-JOUR-POMPISTE-20261102
-seq: 1
+seq: 2
 author: ChatGPT
 branch: handoff-continuite-20260920
-decision: APPROVED_WITH_CONDITIONS
-closes: false
-in_reply_to: request-1.md
+decision: APPROVED
+closes: true
+in_reply_to: request-2.md
 provenance:
   niveau: 2
   mode: github_actions_relay
-  reference: https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6578130703
+  reference: https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6579980513
 ---
-# Décision sur request-1.md — APPROVED_WITH_CONDITIONS
+# Décision sur request-2.md — APPROVED, lot clos
 
-_Provenance : verdict rendu par ChatGPT via l'API OpenAI (run 41451412097), posté sur https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6578130703. Matérialisé par la CI (stade (a), autorisé par Frédéric Bragance le 09/10/2026), sans session Claude ni recopie humaine. Le verdict est reproduit tel quel ; seul le contrat a été contrôlé._
+_Provenance : verdict rendu par ChatGPT via l'API OpenAI (run 41464116641), posté sur https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6579980513. Matérialisé par la CI (stade (a), autorisé par Frédéric Bragance le 09/10/2026), sans session Claude ni recopie humaine. Le verdict est reproduit tel quel ; seul le contrat a été contrôlé._
 
 ## Ce que la CI a contrôlé
 
 - `NEXT_ACTION_CONTRACT` conforme (mêmes règles que le relais : vocabulaire, palier Frédéric, aucune mention qui relance Claude).
-- `LOT` = `MODE-JOUR-POMPISTE-20261102`, `REQUEST` = `request-1.md` : c'est la demande en attente au registre (`ATTENTE_DECISION`).
+- `LOT` = `MODE-JOUR-POMPISTE-20261102`, `REQUEST` = `request-2.md` : c'est la demande en attente au registre (`ATTENTE_DECISION`).
 - Rail `handoff-continuite-20260920` : celui du lot au registre, de forme `handoff-*` ; ni `main` ni `production`.
-- Lecture du rail : `RAIL_LU` = `c3f006430e45a96f763dae6c68808035512dcb52`, `HEAD` = `c3f006430e45a96f763dae6c68808035512dcb52`, SHA du run `c3f006430e45a96f763dae6c68808035512dcb52`, tête du rail `c3f006430e45a96f763dae6c68808035512dcb52`. Un SHA doit être celui du run ; `INACCESSIBLE` (relais intégral) n'est admis que si le run est la tête du rail.
+- Lecture du rail : `RAIL_LU` = `8af018c5a5457ce1166988156dbe0f034b33a0bd`, `HEAD` = `8af018c5a5457ce1166988156dbe0f034b33a0bd`, SHA du run `8af018c5a5457ce1166988156dbe0f034b33a0bd`, tête du rail `8af018c5a5457ce1166988156dbe0f034b33a0bd`. Un SHA doit être celui du run ; `INACCESSIBLE` (relais intégral) n'est admis que si le run est la tête du rail.
 - Aucun palier humain : ni `DECISION: BLOCKED`, ni `OWNER_NEXT: Frédéric`, ni `STOP_REQUIRED` renseigné.
 
 ## Ce que la CI n'a PAS contrôlé
 
-- Les conditions du verdict (« Limiter les modifications au parcours pompiste et aux tokens/couleurs prévus, sans logique métier, page manager, migration ni accès Production ; conserver un rendu Sombre visuellement identique à 375 px ; choisir les rouges Jour uniquement avec mesure documentée d’un contraste texte/fond ≥ 4,5:1 ; avant présentation de la PR, fournir les épreuves Auto aux quatre bornes horaires, défaut et localStorage inaccessible, les contrastes des deux palettes, la non-régression Sombre, la mutation prouvée et la suite complète avec exactement les 7 échecs connus et aucun nouveau ; toute fusion ou tout déploiement vers Production reste exclu de cette décision. »). Elles lient l'exécutant suivant (`github-actions-claude`), qui les vérifie avant d'agir.
+- Les conditions du verdict. Elles lient l'exécutant suivant (`github-actions-claude`), qui les vérifie avant d'agir.
 - Ce dépôt est poussé avec le jeton du workflow : il ne relance ni la CI ni Claude. La reprise reste celle du prochain réveil.
 
 ## Texte de l'arbitre
 
-Verdict : **APPROVED_WITH_CONDITIONS**. Le périmètre front est suffisamment défini et les choix métier ont déjà été rendus par Frédéric. Le choix technique des rouges d’alerte peut être proposé sous preuve de contraste ; il ne constitue pas un nouveau choix métier.
+La livraison, la recette et les conditions de `decision-1.md` sont établies. La fusion et le déploiement Production ont déjà été réalisés par Frédéric et ne sont pas autorisés rétroactivement par cette décision. Le mouvement de la ref est attribué conformément à `MOUVEMENT_REF_ATTRIBUE`. Les sujets RLS et harmonisation, explicitement hors lot, ne bloquent pas sa clôture selon `SUJET_ETRANGER_NE_BLOQUE_PAS`.
 
-Les acquis `DELEGATION_ARBITRE` et `COMMIT_PUSH_RAIL_SANS_GO` autorisent l’ouverture de la branche de travail sans nouveau GO humain. La PR #171, indépendante, ne bloque pas ce lot conformément à `SUJET_ETRANGER_NE_BLOQUE_PAS`. La fusion ou le déploiement vers Production demeure hors de cette approbation.
+Verdict : **APPROVED**, avec clôture du lot.
 
-RAIL_LU: c3f006430e45a96f763dae6c68808035512dcb52
+RAIL_LU: 8af018c5a5457ce1166988156dbe0f034b33a0bd
 
 NEXT_ACTION_CONTRACT
-DECISION: APPROVED_WITH_CONDITIONS
-CLOSES: false
+DECISION: APPROVED
+CLOSES: true
 LOT: MODE-JOUR-POMPISTE-20261102
-REQUEST: request-1.md
+REQUEST: request-2.md
 BRANCHE_DU_LOT: handoff-continuite-20260920
-HEAD: c3f006430e45a96f763dae6c68808035512dcb52
+HEAD: 8af018c5a5457ce1166988156dbe0f034b33a0bd
 LEASE: aucun
-GATE_STATE: G0, CI non exécutée pour l’implémentation
+GATE_STATE: G3, CI success (run 41459865458)
 PROOF_STATE: PROOF_VALID
-CONDITIONS: Limiter les modifications au parcours pompiste et aux tokens/couleurs prévus, sans logique métier, page manager, migration ni accès Production ; conserver un rendu Sombre visuellement identique à 375 px ; choisir les rouges Jour uniquement avec mesure documentée d’un contraste texte/fond ≥ 4,5:1 ; avant présentation de la PR, fournir les épreuves Auto aux quatre bornes horaires, défaut et localStorage inaccessible, les contrastes des deux palettes, la non-régression Sombre, la mutation prouvée et la suite complète avec exactement les 7 échecs connus et aucun nouveau ; toute fusion ou tout déploiement vers Production reste exclu de cette décision.
+CONDITIONS: aucune
 BLOCKER: aucun
 STOP_REQUIRED: non
 CAPACITE_REQUISE: DEPOT_ECRITURE_RAIL
 OWNER_NEXT: Claude
 EXECUTANT_NEXT: github-actions-claude
-ACTION_NEXT: Matérialiser cette décision avec `outils/handoff.js decision --auteur ChatGPT`.
+ACTION_NEXT: Matérialiser cette décision APPROVED de clôture sur le rail avec `outils/handoff.js decision --auteur ChatGPT`.
