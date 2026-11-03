@@ -27,6 +27,7 @@
 <script src="nexus-inventaire-moteur.js?v=20260904-0104"></script>
 <script src="nexus-inventaire-plan-donnees.js?v=20260904-0104"></script>
 <script src="nexus-inventaire-mission-rules-donnees.js?v=20260904-0104"></script>
+<script src="nexus-pilotes-inventaire.js?v=20261102-1"></script>
 <script src="nexus-inventaire-missions-donnees.js?v=20260904-0104"></script>
 <script src="nexus-tempo.js?v=20260904-0104"></script>
 <script src="nexus-inventaire-production-donnees.js?v=20260904-0104"></script>
@@ -1379,6 +1380,10 @@
   // station_config pour ces 2 champs). Défaut 1/null si absent, identique
   // au défaut déjà en vigueur dans DEFAULTS_PARAMETRES_INVENTAIRE (Manager/
   // Paramètres) — jamais un 0 fabriqué qui bloquerait tout écart.
+  // Pilote caisse (lot INVENTAIRE-CAISSE-RENFORT) : refus par défaut, posé par chargerReglagesPlanComptage
+  // (même requête station_config) ; aucun consommateur tant que le fil caisse n'existe pas.
+  let piloteCaisseCourant = false;
+  function poserPiloteCaisse(p) { piloteCaisseCourant = NexusPilotesInventaire.estPiloteCaisse(p, employeeCourant.id); }
   async function chargerReglagesPlanComptage() {
     const site = employeeCourant.site_id;
     const { data, error } = await nexusClient
@@ -1389,6 +1394,7 @@
     const surprisesCible = Number.isFinite(p.planSurprisesCible) ? p.planSurprisesCible : undefined;
     const quantityAlertThreshold = Number.isFinite(p.quantityAlertThreshold) ? p.quantityAlertThreshold : 1;
     const valueAlertThreshold = Number.isFinite(p.valueAlertThreshold) ? p.valueAlertThreshold : null;
+    poserPiloteCaisse(p);
     return { socleCible, surprisesCible, quantityAlertThreshold, valueAlertThreshold };
   }
 

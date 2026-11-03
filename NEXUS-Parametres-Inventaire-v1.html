@@ -26,6 +26,7 @@
 <script src="nexus-inventaire-plan-donnees.js?v=20260904-0104"></script>
 <script src="nexus-inventaire-production-donnees.js?v=20260904-0104"></script>
 <script src="nexus-inventaire-mission-rules-donnees.js?v=20260904-0104"></script>
+<script src="nexus-pilotes-inventaire.js?v=20261102-1"></script>
 <style>
   :root{
     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
@@ -285,6 +286,9 @@
     // — aucune migration nécessaire pour ceux-là.
     seuilDemarquePct: null, seuilCasseUnites: null, seuilPeremptionJours: 2, rappelRetourFournisseurActif: true,
     sensComptage: 'piste_boutique',
+    // Pilotes de l'inventaire caisse (02/11/2026, lot INVENTAIRE-CAISSE-RENFORT) : listes d'employee_id,
+    // vides par défaut, additives (aucune migration). pilotesRenfort n'a aucun lecteur avant L3.
+    pilotesCaisse: [], pilotesRenfort: [],
     // Snapshot Decenium (30/08/2026, Étape 1 puis champ Étape 2) — seuil
     // configurable de délai entre les deux exports (Ventes/Stock actuel)
     // au-delà duquel NEXUS avertit le manager avant d'utiliser la Photo
@@ -2031,6 +2035,14 @@
   function renderEmployeToggle(e, actif) {
     return `<div class="employe-toggle-row"><div><div style="font-size:13px;">${e.nom}</div><div class="employe-role">${e.role}</div></div><div class="toggle-switch ${actif ? 'on' : ''}" data-employe="${e.id}" data-actif="${actif ? '1' : '0'}"><div class="toggle-knob"></div></div></div>`;
   }
+  async function togglePiloteCaisse(employeeId, activer) {
+    const liste = NexusPilotesInventaire.baserPilote(parametresInventaire.pilotesCaisse, employeeId, activer);
+    await sauvegarderParametresInventaire({ pilotesCaisse: liste });
+    render();
+  }
+  function renderPiloteCaisseToggle(e, actif) {
+    return `<div class="employe-toggle-row"><div><div style="font-size:13px;">${e.nom}</div><div class="employe-role">${e.role}</div></div><div class="toggle-switch ${actif ? 'on' : ''}" data-pilote-caisse="${e.id}" data-actif="${actif ? '1' : '0'}"><div class="toggle-knob"></div></div></div>`;
+  }
   function renderToggleJaugeage(actif) {
     return `<div class="employe-toggle-row"><div><div style="font-size:13px;">Jaugeage carburant</div><div class="employe-role" style="text-transform:none;">Grisé et non requis par défaut, sur les deux quarts</div></div><div class="toggle-switch ${actif ? 'on' : ''}" data-mode="jaugeage" data-actif="${actif ? '1' : '0'}"><div class="toggle-knob"></div></div></div>`;
   }
@@ -2126,6 +2138,10 @@
       <div class="section-titre">Mode de comptage à l'aveugle</div>
       <div class="card" style="margin-bottom:16px;">
         ${employesSite.length === 0 ? '<div class="empty">Aucun employé actif trouvé pour ce site.</div>' : employesSite.map(e => renderEmployeToggle(e, !!modesAveugleActifs.find(m => m.employee_id === e.id))).join('')}
+      </div>
+      <div class="section-titre">Pilote inventaire caisse</div>
+      <div class="card" style="margin-bottom:16px;">
+        ${employesSite.length === 0 ? '<div class="empty">Aucun employé actif trouvé pour ce site.</div>' : employesSite.map(e => renderPiloteCaisseToggle(e, NexusPilotesInventaire.estPiloteCaisse(parametresInventaire, e.id))).join('')}
       </div>
       <div class="section-titre">Jaugeage carburant</div>
       <div class="card">${renderToggleJaugeage(jaugeageActif)}</div>
@@ -2812,6 +2828,7 @@
       else if (el.dataset.mode === 'rappel-retour') { await sauvegarderParametresInventaire({ rappelRetourFournisseurActif: !actif }); render(); }
       else if (el.dataset.missionToggle) await basculerActiveMission(el.dataset.missionToggle, actif);
       else if (el.dataset.employe) await toggleModeAveugle(el.dataset.employe, !actif);
+      else if (el.dataset.piloteCaisse) await togglePiloteCaisse(el.dataset.piloteCaisse, !actif);
     }));
 
     // --- Missions de contrôle (Inventaire V2 Sprint 1, 29/08/2026) ---
