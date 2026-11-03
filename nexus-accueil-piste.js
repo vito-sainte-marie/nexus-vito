@@ -93,8 +93,31 @@
     return l.length ? l.join(' → ') : null;
   }
 
+  // Variante caissière pilote (lot INVENTAIRE-CAISSE-RENFORT) : même carte de poste, même habillage, un seul fil « Ma caisse ».
+  // Refus par défaut : sans `piloteCaisse === true` (fait déjà lu par l'Accueil), aucun modèle. Le lien vient de l'Accueil
+  // (NexusFilCaisse.lienEntree), jamais recalculé ici ; aucun bloc piste (réception, index, jaugeage).
+  function modeleCaisse(f) {
+    const fait = !!(f.inventaireOuvertureFaite || f.inventaireFait);
+    const m = f.missions || { total: 0, faites: 0 };
+    return {
+      variante: 'caisse',
+      mode: 'ouverture',
+      prenom: f.prenom || '',
+      poste: { libelle: 'Caisse', quart: libelleQuart(f.quart), depuis: heureLocale(f.heureDebut, f.fuseau), fin: f.finMinutes != null ? heureDeMinutes(Number(f.finMinutes)) : null, image: IMAGES_POSTE.caissiere },
+      etapes: [{ code: 'comptage', libelle: 'Comptage d’entrée', etat: fait ? 'fait' : 'a_faire' }],
+      faites: fait ? 1 : 0, total: 1, filTermine: fait,
+      bouton: f.filCaisseLien ? { libelle: 'Continuer vers ma caisse →', href: f.filCaisseLien } : null,
+      reception: null, finQuart: null, fermeture: null, termine: null,
+      incoherent: !fait && !f.filCaisseLien,
+      missions: null,
+      raccourcis: { missions: { restantes: Math.max(0, m.total - m.faites), total: m.total }, fdj: f.fdjApplicable === true },
+      points: Number(f.points) || 0,
+    };
+  }
+
   // f : faits de l'Accueil. Rend null quand le mode ne s'applique pas.
   function modele(f) {
+    if (f && f.enService && !f.consultationExterne && f.roleDuJour === 'caissiere' && f.piloteCaisse === true) return modeleCaisse(f);
     if (!f || !f.enService || f.consultationExterne || f.roleDuJour !== 'pompiste') return null;
     const etapes = etapesOuverture(f);
     const faites = etapes.filter((e) => e.etat !== 'a_faire').length;
@@ -170,6 +193,21 @@
     }).join('');
     const segments = v.etapes.map((e) => '<i class="' + (e.etat === 'a_faire' ? '' : 'ap-plein') + '"></i>').join('');
     let out = '';
+    if (v.variante === 'caisse') {
+      out += '<div class="ap-salut"><h1 class="ap-h1">Bonjour ' + esc(v.prenom) + '</h1></div>' + carte;
+      out += '<section class="ap-fil" id="apFil"><div class="ap-fil-titre">Ma caisse</div>'
+        + '<div class="ap-fil-compte">' + v.faites + ' sur ' + v.total + '</div><div class="ap-segments">' + segments + '</div><ul class="ap-etapes">' + lignes + '</ul>'
+        + (v.bouton ? '<a class="ap-bouton ap-bouton-caisse" id="apBoutonPrincipal" href="' + esc(v.bouton.href) + '">' + esc(v.bouton.libelle) + '</a>' : '')
+        + '</section>';
+      const r = v.raccourcis.missions.restantes;
+      out += '<section class="ap-missions" id="apMissions"><div class="ap-fil-titre">Missions du jour</div><div class="ap-missions-sous">'
+        + (r > 0 ? r + ' mission' + (r > 1 ? 's' : '') + ' à faire · <a href="' + URL_MISSIONS + '" id="apVoirMissions">Voir</a>' : (v.raccourcis.missions.total ? 'Toutes les missions sont faites' : 'Aucune mission aujourd’hui'))
+        + '</div></section>';
+      if (v.raccourcis.fdj) out += '<a class="ap-lien-discret" id="apFdj" href="NEXUS-FDJ-v1.html">FDJ</a>';
+      out += '<a class="ap-progression" id="apProgression" href="' + URL_PROGRESSION + '"><span>Ma progression · +' + v.points + ' point' + (v.points > 1 ? 's' : '') + ' aujourd’hui</span><span>Mes séries ›</span></a>';
+      out += '<div class="ap-pied"><a href="' + URL_PRISE_DE_POSTE + '" id="apChangerPoste">Changer de poste</a><a href="#" id="apLogout">Se déconnecter</a></div>';
+      return out;
+    }
     if (v.mode === 'termine') {
       const t = v.termine;
       // Une coche n'est posée que sur ce qui est fait : « 0 sur N » et zéro point restent sans coche.
