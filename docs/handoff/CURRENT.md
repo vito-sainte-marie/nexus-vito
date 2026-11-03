@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/INVENTAIRE-CAISSE-RENFORT-20261102/request-13.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/INVENTAIRE-CAISSE-RENFORT-20261102/request-14.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
 lot_id: INVENTAIRE-CAISSE-RENFORT-20261102
-seq: 13
+seq: 14
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
@@ -20,7 +20,7 @@ preuves:
     classe: VERIFIED
     valeur: 174-fichiers
 ---
-# INVENTAIRE-CAISSE-RENFORT-20261102 : request-13 — clôture serveur : la correspondance shifts↔quarts sur Test contredit la condition C telle qu'écrite
+# INVENTAIRE-CAISSE-RENFORT-20261102 : request-14 — clôture serveur : population C1, `shifts.quart` fait foi, traitement des 5 lignes divergentes
 
 ## Branche du lot
 
@@ -28,29 +28,43 @@ BRANCHE_DU_LOT: handoff-continuite-20260920
 
 ## Objet
 
-Exécution de l'ACTION_NEXT de l'arbitrage de request-11 (APPROVED_WITH_CONDITIONS) : correspondance exacte shifts↔quarts, établie en lecture seule sur Test (`udljdqxerrbbbajxubfn`), capacité SUPABASE_TEST_LECTURE. Aucune écriture, aucune migration, rien en Production. Je m'arrête avant d'écrire la migration parce que la population de la condition C, appliquée à la lettre, ne peut jamais déclencher de clôture anticipée. `closes: false`.
+Levée du blocage `DECISION_METIER_NON_ARBITREE` de request-13 (run 41705565737). Frédéric a tranché le 03/11 à 18:13 (commentaire Guardian 6616736762 sur #160). Cette request reprend sa décision, fixe la règle qui en découle et montre, sur Test en lecture seule, comment les 5 lignes divergentes sont traitées. Aucune écriture, aucune migration à ce stade, rien en Production. `closes: false`.
 
-## Ce que la lecture établit
+## Décision de Frédéric, citée telle quelle
 
-Clé de rattachement testée : même site, même `quart` (matin/soir), même date locale de `heure_debut` (fuseau du site). Contrainte d'unicité `inventaire_quarts(site, date, quart)` : un seul quart par clé, donc la clé désigne bien un quart. Aucun shift sans `quart`, sans site ou avec un `quart` hors matin/soir.
+> « Je confirme le choix 1. Normalement ils sont en droit de clôturer ; pour l'instant ce n'est pas le cas car ils utilisent le papier et l'inventaire n'est pas encore au point. »
 
-1. **Population rattachée = presque tout du bruit sans ligne employé.** Sur les shifts rattachés à un quart : caissière `clos_sans_pointage` 86, dont 1 seul avec une ligne `inventaire_quart_employes` ; caissière `en_cours` 2 (1 ligne) ; pompiste `clos_sans_pointage` 14 (11 lignes) ; pompiste `termine` 3 (0 ligne) ; pompiste `en_cours` 1 (1 ligne). Ex. le 02/11 matin : 17 shifts rattachés, 1 ligne employé. Selon la condition C (« une ligne employé manquante bloque la clôture anticipée »), ces quarts ne se clôtureraient jamais avant l'heure de repli. La règle ne mord donc jamais : elle revient au repli horaire seul.
-2. **Le `quart` du shift et celui de la ligne employé divergent** : 5 lignes (21/10, 18/09, 31/10, 01/11, 02/11) rattachent un shift pompiste `quart = matin` à un quart `soir`. Dans ces cas la clé (site, date, quart du shift) et la ligne employé donnent deux réponses opposées. Il faut dire laquelle fait foi.
-3. **Renfort** : 2 shifts renfort (soir), aucune ligne employé, donc aucun rattachement à un quart par `inventaire_quart_employes`. Ils tombent dans le cas « sans quart attribuable » (à exclure) alors que la condition C les voulait inclus « s'ils sont rattachés à ce quart ». Par le seul `shifts.quart`, ils seraient rattachés au soir. Les deux lectures ne coïncident pas.
-4. **Manager** : 7 shifts `clos_sans_pointage`, aucune ligne employé. À exclure explicitement de la population si on la prend par `shifts`.
-5. **Quarts sans ligne employé** : 1 (30/10 ouverture_en_cours). Population vide → aucune clôture anticipée, conformément à la condition C.
+Le choix 1 est C1 de request-13. Frédéric n'a exprimé aucune préférence sur le rattachement en cas de divergence. Guardian retient `shifts.quart` (la prise de poste), en cohérence avec sa décision du 03/11 à 12:49 : « la caissière ou le pompiste clôture soit le quart 1 ou 2 en fonction de leurs prises de poste ».
 
-## Propositions soumises à l'arbitre (A–F inchangées)
+## Règle proposée (A–F de request-11 inchangées)
 
-C1 (recommandée). **Population = les lignes `inventaire_quart_employes` du quart** (donc les personnes réellement entrées dans l'inventaire), pas les shifts de la journée. Chaque ligne doit avoir `a_valide_cloture = true` et `heure_depart` non nul. Un renfort inscrit à ce quart a une ligne : il est inclus. Un shift sans ligne (clos sans pointage, manager, renfort jamais entré) n'est pas dans la population : il n'a pas participé à l'inventaire. Population vide → pas de clôture anticipée.
-C2. Si l'arbitre tient à partir des `shifts` : restreindre aux statuts `en_cours` et `termine` et aux rôles pompiste, caissière, renfort ; chaque shift ainsi retenu doit avoir sa ligne. Les 3 pompistes `termine` sans ligne bloqueraient alors leur quart.
+1. **Population = C1.** Les personnes qui ont compté sur le quart : les lignes `inventaire_quart_employes` du quart. Le quart se clôture dès que toutes ont `a_valide_cloture = true` ; `cloture_le` = la dernière `heure_depart`. Manager, renfort ou caissière sans ligne ne bloquent rien et n'ont rien à clôturer. Population vide : pas de clôture anticipée.
+2. **Repli horaire.** Si une personne qui a compté ne clôture pas : clôture automatique à la fin prévue + `closureDelayMinutes` (30 par défaut), `cloture_le` = fin prévue + délai exactement (condition F), avec l'alerte existante pour ses produits non comptés.
+3. **Rattachement.** `shifts.quart` fait foi. Une ligne n'entre dans la population d'un quart que si le `quart` de son shift est celui du quart d'inventaire. Aucune donnée n'est déplacée ni modifiée : la règle est une condition de lecture dans la fonction.
+4. Le cron ignore tout quart déjà clôturé (B) ; filtrage par site sur chaque lecture et mutation (D) ; garde de statut et unicité de l'alerte conservées (E). Aucune policy, aucun grant, aucune fonction employé.
 
-Dans les deux cas, trancher le point 2 : la ligne employé fait foi pour le rattachement, le `quart` du shift est ignoré.
+## Les 5 lignes divergentes sur Test (lecture seule)
+
+Toutes concernent un shift pompiste `quart = matin` rattaché à un quart d'inventaire `soir`. Aucune n'a `a_valide_cloture` ni `heure_depart`.
+
+| Date | Quart `soir` (statut) | Lignes dans ce quart | Shift (statut) | Quart `matin` du jour |
+|---|---|---|---|---|
+| 18/09 | ouverture_en_cours | 1 | termine | aucun |
+| 21/10 | ouvert | 3 | clos_sans_pointage | ouvert |
+| 31/10 | ouverture_en_cours | 1 | clos_sans_pointage | ouvert |
+| 01/11 | ouvert | 1 | clos_sans_pointage | cloture |
+| 02/11 | ouvert | 1 | clos_sans_pointage | cloture |
+
+Effet de la règle `shifts.quart` fait foi :
+- **Quart `soir`.** La ligne divergente sort de la population. 21/10 : 2 lignes restent. 18/09, 31/10, 01/11, 02/11 : population vide, donc aucune clôture anticipée, seul le repli horaire joue. Sans la règle, la ligne non validée de ces quarts les aurait bloqués jusqu'au repli, ce qui revient au même résultat ; la différence est qu'elle ne peut pas empêcher la clôture anticipée du 21/10.
+- **Quart `matin`.** La ligne n'est pas comptée non plus (le shift est `matin` mais sa ligne pointe sur un autre quart : la règle ne lit que les lignes du quart considéré). Les quarts matin du 01/11 et du 02/11 sont déjà clôturés, donc ignorés par le cron ; ceux du 21/10 et du 31/10 sont `ouvert` et ne sont pas bloqués par ces lignes.
+- **Visibilité.** La fonction compte les lignes divergentes et les consigne dans le résultat de la tâche, sans alerte employé ni écran, pour que la donnée ne reste pas invisible.
+- Les 5 shifts sont d'anciens pointages (4 `clos_sans_pointage`, 1 `termine`) : aucune personne n'est en service sur ces quarts.
 
 ## Ce que je ne fais pas
 
-Aucune migration écrite ni appliquée, aucun changement de policy, grant ou fonction employé, aucune lecture Production. La fonction `run_scheduled_inventory_reviews()` de Test n'est pas touchée (lue seulement).
+Aucune lecture Production, aucune donnée corrigée, aucun grant ou policy, aucune fonction employé. La correction des 5 lignes en base (réaffecter le `quart_id`) reste hors périmètre : elle relèverait d'une mutation de données à arbitrer séparément.
 
 ## Demande
 
-Arbitrer C1 ou C2 et le point 2 (qui fait foi pour le rattachement). Après quoi j'écris la migration (Test seulement), les épreuves SQL/JS, les mutations de garde et la recette GOV-012.
+Arbitrer la règle ci-dessus (C1, `shifts.quart` fait foi, traitement des 5 lignes). Si elle est approuvée, j'écris sur Test seulement : la migration de `run_scheduled_inventory_reviews()`, les épreuves SQL/JS, les mutations de garde, puis la recette GOV-012 avant toute demande de clôture. Les conditions A à F de request-11 s'appliquent sans changement, y compris le retour avec preuve si les droits de réouverture du manager manquent.
