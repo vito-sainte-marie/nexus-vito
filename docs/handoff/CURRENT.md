@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/INVENTAIRE-CAISSE-RENFORT-20261102/request-6.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/INVENTAIRE-CAISSE-RENFORT-20261102/request-7.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
 lot_id: INVENTAIRE-CAISSE-RENFORT-20261102
-seq: 6
+seq: 7
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
@@ -20,7 +20,7 @@ preuves:
     classe: VERIFIED
     valeur: 172-fichiers
 ---
-# INVENTAIRE-CAISSE-RENFORT-20261102 : request-6 — L1 incrément 2 : corrections de la relecture Guardian (6599962667)
+# INVENTAIRE-CAISSE-RENFORT-20261102 : request-7 — L1 incrément 2 : recette validée, retouches, C4, demande d'arbitrage en vue de la fusion de #173 puis #174
 
 ## Branche du lot
 
@@ -28,44 +28,44 @@ BRANCHE_DU_LOT: handoff-continuite-20260920
 
 ## Objet
 
-Guardian a relevé trois points bloquant la recette de l'incrément 2 (PR #174, branche `claude/fil-caisse-l1-20261102`, commits f8ba85fa puis 2f8dd751). Cette request les traite et répond aux deux questions posées.
+PR #174 (branche `claude/fil-caisse-l1-20261102`), tête ac934e7d, CI verte (non-regression, Cloudflare Pages). Cette request réunit ce qui s'est passé depuis request-6 et demande l'arbitrage de l'incrément 2 en vue d'une fusion de #173 puis #174 par Frédéric.
 
 ## Preuve des conditions de decision-4
 
-Inchangées par ce correctif : activation pilote + `caissiere` seulement, aucune catégorie ni produit créé par le code, comptage à l'aveugle, écritures existantes seules, aucune migration, policy, grant ni règle d'alerte, défaut A non contourné, changement de quart non câblé, lectures existantes seules. Les épreuves passent de 16 à 20 contrôles (test_fil_caisse_20261102.js), pilotes 13 contrôles verts.
+Inchangées : fil affiché seulement si pilote + `caissiere` ; aucune catégorie ni produit créé par le code ; comptage à l'aveugle ; écritures existantes seules ; aucune migration, policy, grant ni règle d'alerte ; défaut A (RLS update_inventaire_alertes, L4a) non contourné ; changement de quart non câblé ; lectures existantes seules. Les retouches ci-dessous ne touchent que des libellés et la visibilité de deux boutons.
 
-## Point 1 — request-5 absente du rail
+## 1. Décision de Frédéric (citée telle quelle, ce n'est pas une décision de l'arbitre)
 
-Elle y est : tête du rail 58e2a90c porte request-5 du lot INVENTAIRE-CAISSE-RENFORT-20261102 (écart de délai de lecture, pas d'absence).
+Source : commentaire Guardian 6607822451 sur #160, « Décision métier de Frédéric (03/11, réponse dans la session Guardian) », qui lève le blocage `DECISION_METIER_NON_ARBITREE` de l'arbitrage de request-5 (run 41610982481) :
 
-## Point 2 — recette sans catégorie caisse sur `nexus-station-test`
+> « Produits du jour » = **Journaux, Pains / Sandwichs, Viennoiserie**, c'est-à-dire les catégories nommées actuelles. On n'ajoute pas « Petits articles caisse » et on ne passe pas par le profil `production_journaliere`.
 
-Seed posé sur **Test uniquement** (projet nexus-test, DML idempotent, aucune lecture ni écriture Production), copie des noms de Sainte-Marie, zone boutique du site :
-- Cigarettes : Marlboro Gold, Marlboro Rouge, Benson (paquet, sensibles, comptage deux lieux)
-- CBD : CBD Amnesia 5G, CBD Devil 5G (unité, sensibles)
-- Journaux : Courses Paris Turf (unité)
-Vérifié par SELECT : ces 6 produits exactement, 3 catégories. Les familles Pains / Sandwichs et Viennoiserie ne sont pas semées.
+`CATEGORIES_CAISSE` reste tel quel : Cigarettes, CBD, Journaux, Pains / Sandwichs, Viennoiserie. Rien n'est câblé de plus. Le filtrage par nom reste la réserve L1 acceptée à request-6 ; les identifiants stables sont cadrés en L2b.
 
-## Point 3 — liste vide
+## 2. Recette Test validée
 
-`demarrerOuvertureComptage` : si le fil est actif et la liste restreinte est vide, écran « Aucun produit caisse à compter, prévenez votre responsable. » avec retour à l'Accueil, sans aucune écriture, avant `chargerDerniersStocks`. Épreuve dédiée + mutation rouge (mut-page4).
+Guardian a fait la recette sur l'aperçu Test avec Employé Test B (commentaire 6607162957) et l'a validée fonctionnellement, avec quatre retouches d'interface.
 
-## Réponses aux deux questions
+## 3. Retouches (9af5b3d5)
 
-a. **Intersection avec le plan de quart** : périmètre caisse complet, pas d'intersection avec `planQuartActif` (decision-1 : les 28 cigarettes à compter à l'aveugle). `restreindreAuPlanQuart` rend le filtre caisse avant le plan ; la purge de `dernierStock` couvre tous les produits caisse (référence d'écart conservée). Épreuves + mutations rouges (mut-page5 purge sans le fil, mut-page6 plan réappliqué).
+1. Bouton final : « Terminer ma caisse » (étape 3 non câblée).
+2. Titre de catégorie : « Cigarettes · 3 sur 3 catégories », sans double numérotation.
+3. Étiquette « 📍 Caisse uniquement » aux 3 endroits (+ assertion de `test_inventaire_fluidite_caissiere_20260902.js`).
+4. « ‹ Précédent » et « ← Retour » masqués dans le fil caisse ; sortie par « Quitter et revenir à l'Accueil ».
 
-b. **Ouverture partielle** : `validerOuverture` ne boucle que sur la liste restreinte et ignore les produits sans saisie ; il pose `a_valide_ouverture` et le statut du quart. Lu dans le code : aucune alerte « non compté » n'est créée à l'ouverture pour les produits hors caisse. Le décompte des manquants et l'alerte `cloture_incomplete` n'existent qu'à la clôture (flux existant, liste de zone du quart, non touché par le fil) ; le fil ne change pas la clôture. Lecture du code, pas encore observée en recette.
+`test_fil_caisse_20261102.js` : 24 contrôles ; 4 mutations (une par retouche) rougissent.
 
-## Suite complète
+## 4. Correctif C4 (ac934e7d)
 
-317/325 avant correctif ; deux échecs hors les 7 connus : `ecart_aveugle_reference_20261101` (régression de mon fait, harnais corrigé en 2f8dd751, 7 contrôles verts) et `categorie_mixte_deux_lieux` (échoue aussi sur 64f97ff9, antérieur, non lié). Reste : les 7 connus + `categorie_mixte_deux_lieux`.
+La CI de 9af5b3d5 était rouge : `test_correctifs_recette_pompiste_20261022.js`, épreuve C4, ancrait une regex sur la forme exacte `(idx === -1 || enFil()) ? ''`. La condition étant élargie par `|| filCaisseEnCours`, seul le test a été modifié (regex et ancre de mutation) ; le code de page est intact, le comportement pompiste inchangé, la mutation « compteur doublé » rougit toujours. CI de ac934e7d verte.
 
 ## Demande
 
-1. Arbitrage de l'incrément 2 corrigé, `closes: false`, puis recette Employé Test B par Guardian.
-2. Décision sur « produits du jour » par nom de catégorie (réserve acceptée pour le pilote, à cadrer en L2b).
-3. Cadrage du changement de quart avant tout câblage.
+1. Arbitrage de l'incrément 2 (L1) en vue d'une fusion de #173 puis #174 par Frédéric, `closes: false`.
+2. Prise en compte de la décision de Frédéric ci-dessus pour request-5.
+
+Hors demande : pas de clôture du lot ; l'entrée au fil depuis l'Accueil ou Missions (incrément 3) et le changement de quart restent à cadrer.
 
 ## Limites
 
-Rien en Production. Aucune migration, policy, grant, secret.
+Rien en Production. Aucune migration, policy, grant, secret. Suite complète : seuls les 7 échecs connus (règle `REGRESSION_PRODUIT_VS_BANC`) plus `categorie_mixte_deux_lieux` (échoue aussi sur la base 64f97ff9) ; la CI de la PR est verte.
