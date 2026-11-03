@@ -63,20 +63,36 @@ const ETAPE2 = 'NEXUS-Inventaire-v1.html?fil=caisse&etape=2&plan=2';
     assert.strictEqual(await L.lienEntree(ctx(client({ erreurConfig: true })), G), null);
     assert.strictEqual(await L.lienEntree(ctx(client({ erreurRows: true })), G), null);
   });
-  await cas('comptage fait : rien avant l\'heure, étape 3 quand la fermeture est due', async () => {
+  await cas('étape 3 MASQUÉE (quart partagé non arbitré) : même à l\'heure de fermeture, aucun lien de fermeture', async () => {
+    assert.strictEqual(C.FERMETURE_OUVERTE, false);
     S.maintenant = 600;
     assert.strictEqual(await L.lienEntree(ctx(client({ rows: ouverte })), G), null);
     S.maintenant = 1280;
-    assert.strictEqual(await L.lienEntree(ctx(client({ rows: ouverte })), G), 'NEXUS-Inventaire-v1.html?fil=caisse&etape=3&plan=3');
+    assert.strictEqual(await L.lienEntree(ctx(client({ rows: ouverte })), G), null);
+    assert.strictEqual(await L.lienEntree(ctx(client()), G), 'NEXUS-Inventaire-v1.html?fil=caisse&etape=2&plan=2');
+    S.maintenant = 600;
+  });
+  await cas('quart partagé (preuve de la relecture) : le quart clos par le pompiste rend clotureFaite vrai pour la caissière, et inversement', async () => {
+    const closParAutre = [{ a_valide_ouverture: true, inventaire_quarts: { date: '2026-11-03', quart: 'soir', statut: 'cloture', cloture_le: '2026-11-03T22:00:00Z', is_simulation: false } }];
+    const f = C.faitsInventaire(closParAutre, '2026-11-03', 'soir');
+    assert.strictEqual(f.clotureFaite, true);
+    assert.strictEqual(f.ouvertureFaite, false);
     S.maintenant = 1280;
-    assert.strictEqual(await L.lienEntree(ctx(client()), G), 'NEXUS-Inventaire-v1.html?fil=caisse&etape=2&plan=2.3');
+    assert.strictEqual(C.lienEntree(true, 'caissiere', true, { ouvertureFaite: f.ouvertureFaite, clotureFaite: f.clotureFaite, fermetureDue: true }), null);
+    S.maintenant = 600;
+  });
+  await cas('logique de l\'étape 3 conservée à l\'état dormant (ouverte:true) : due à l\'heure, ouverture faite → plan [3]', async () => {
+    S.maintenant = 1280;
+    const due = C.fermetureDueEnService({ station: S, horaires: {}, quartDuJour: 'soir', fuseau: FUSEAU, ouverte: true });
+    assert.strictEqual(due, true);
+    assert.strictEqual(C.lienEntree(true, 'caissiere', true, { ouvertureFaite: true, clotureFaite: false, fermetureDue: due }), 'NEXUS-Inventaire-v1.html?fil=caisse&etape=3&plan=3');
     S.maintenant = 600;
   });
   await cas('fermeture : quart du soir seulement (le matin ne compte pas à sa sortie), même fonction pour l\'Accueil et Missions', async () => {
     S.maintenant = 1280;
-    assert.strictEqual(C.fermetureDueEnService({ station: S, horaires: {}, quartDuJour: 'matin', fuseau: FUSEAU }), false);
-    assert.strictEqual(C.fermetureDueEnService({ station: S, horaires: {}, quartDuJour: 'soir', fuseau: FUSEAU }), true);
-    assert.strictEqual(C.fermetureDueEnService({ station: S, horaires: null, quartDuJour: 'soir', fuseau: FUSEAU }), false);
+    assert.strictEqual(C.fermetureDueEnService({ station: S, horaires: {}, quartDuJour: 'matin', fuseau: FUSEAU, ouverte: true }), false);
+    assert.strictEqual(C.fermetureDueEnService({ station: S, horaires: {}, quartDuJour: 'soir', fuseau: FUSEAU, ouverte: true }), true);
+    assert.strictEqual(C.fermetureDueEnService({ station: S, horaires: null, quartDuJour: 'soir', fuseau: FUSEAU, ouverte: true }), false);
     const matin = [{ a_valide_ouverture: true, inventaire_quarts: { date: '2026-11-03', quart: 'matin', statut: 'ouvert', cloture_le: null, is_simulation: false } }];
     assert.strictEqual(await L.lienEntree(ctx(client({ rows: matin }), { quartDuJour: 'matin' }), G), null);
     S.maintenant = 600;

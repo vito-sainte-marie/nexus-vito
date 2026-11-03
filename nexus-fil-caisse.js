@@ -99,8 +99,11 @@
   // Condition unique de la fermeture, partagée par l'Accueil et Missions : quart du soir (quart2) seulement, car la caissière du matin
   // ne compte pas à sa sortie (c'est l'entrante qui compte, decision-2). `station` = NexusStation ; même calcul de fin de quart que le pompiste.
   const quartConcerneParFermeture = (quartDuJour) => quartDuJour === 'soir';
-  function fermetureDueEnService({ station, horaires, quartDuJour, fuseau, maintenant }) {
-    if (!quartConcerneParFermeture(quartDuJour) || !horaires || !fuseau || !station) return false;
+  // Étape 3 MASQUÉE tant que la clôture d'un quart partagé n'est pas arbitrée (#160, relecture de 62671bee) : validerCloture() clôt le
+  // quart de la STATION, pas la ligne de l'employée ; le lien de l'un ou de l'autre disparaîtrait selon l'ordre. Aucun lien de fermeture.
+  const FERMETURE_OUVERTE = false;
+  function fermetureDueEnService({ station, horaires, quartDuJour, fuseau, maintenant, ouverte = FERMETURE_OUVERTE }) {
+    if (ouverte !== true || !quartConcerneParFermeture(quartDuJour) || !horaires || !fuseau || !station) return false;
     const now = maintenant || new Date();
     return fermetureDue(station.finDuQuartMinutes(horaires, 'quart2', fuseau, now), station.minutesLocalesStation(fuseau, now));
   }
@@ -113,5 +116,5 @@
     return plan.length ? urlEtape(plan[0], plan, pilote, roleDuJour) : null;
   }
 
-  return { NOMBRE_ETAPES, lienEntree, faitsInventaire, fermetureDue, fermetureDueEnService, quartConcerneParFermeture, DELAI_FERMETURE_MIN, PAGE, ACCUEIL, ROLE, MESSAGE_AUCUN_PRODUIT, LIBELLE_SORTIE, LIBELLE_TERMINER, autorise, estActif, etapeDe, planDe, planPour, natureComptage, CATEGORIES_CAISSE, estProduitCaisse, restreindre, libelleProgression, libelleContinuer, urlEtape, urlApres };
+  return { NOMBRE_ETAPES, lienEntree, faitsInventaire, fermetureDue, fermetureDueEnService, FERMETURE_OUVERTE, quartConcerneParFermeture, DELAI_FERMETURE_MIN, PAGE, ACCUEIL, ROLE, MESSAGE_AUCUN_PRODUIT, LIBELLE_SORTIE, LIBELLE_TERMINER, autorise, estActif, etapeDe, planDe, planPour, natureComptage, CATEGORIES_CAISSE, estProduitCaisse, restreindre, libelleProgression, libelleContinuer, urlEtape, urlApres };
 });
