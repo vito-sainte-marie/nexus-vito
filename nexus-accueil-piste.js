@@ -101,8 +101,8 @@
     const fait = !!(f.inventaireOuvertureFaite || f.inventaireFait);
     const pilote = f.piloteCaisse === true;
     const bouton = pilote
-      ? (f.filCaisseLien ? { libelle: 'Continuer vers ma caisse →', href: f.filCaisseLien } : null)
-      : (!fait && f.inventaireLien ? { libelle: 'Faire l’inventaire →', href: f.inventaireLien } : null);
+      ? (f.filCaisseLien ? { libelle: 'Commencer l’inventaire →', href: f.filCaisseLien } : null)
+      : (!fait && f.inventaireLien ? { libelle: 'Commencer l’inventaire →', href: f.inventaireLien } : null);
     const m = f.missions || { total: 0, faites: 0 };
     return {
       variante: 'caisse',
@@ -200,7 +200,7 @@
     let out = '';
     if (v.variante === 'caisse') {
       out += '<div class="ap-salut"><h1 class="ap-h1">Bonjour ' + esc(v.prenom) + '</h1></div>' + carte;
-      out += '<section class="ap-fil" id="apFil"><div class="ap-fil-titre">Ma caisse</div>'
+      out += '<section class="ap-fil" id="apFil"><div class="ap-fil-titre">Comptage Boutique</div>'
         + '<div class="ap-fil-compte">' + v.faites + ' sur ' + v.total + '</div><div class="ap-segments">' + segments + '</div><ul class="ap-etapes">' + lignes + '</ul>'
         + (v.bouton ? '<a class="ap-bouton ap-bouton-caisse" id="apBoutonPrincipal" href="' + esc(v.bouton.href) + '">' + esc(v.bouton.libelle) + '</a>' : '')
         + '</section>';

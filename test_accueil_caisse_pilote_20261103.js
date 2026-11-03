@@ -13,12 +13,12 @@ const EPREUVES = {
   'pilote en service : bandeau Caisse, photo, quart, fin, étape 1 sur 1': (M) => {
     const h = M.html(M.modele(base));
     assert(h.includes('>Caisse<') && h.includes('poste-caissiere.webp') && h.includes('Quart du soir') && h.includes('fin à 20 h 00'));
-    assert(h.includes('Ma caisse') && h.includes('Comptage d’entrée') && h.includes('0 sur 1'));
+    assert(h.includes('Comptage Boutique') && h.includes('Comptage d’entrée') && h.includes('0 sur 1'));
   },
-  'bouton unique « Continuer vers ma caisse → » vers filCaisseLien': (M) => {
+  'bouton unique « Commencer l’inventaire → » vers filCaisseLien': (M) => {
     const h = M.html(M.modele(base));
     assert.strictEqual((h.match(/class="ap-bouton ap-bouton-caisse"/g) || []).length, 1);
-    assert(h.includes('href="NEXUS-Inventaire-v1.html?fil=caisse&amp;etape=2&amp;plan=2.3"') && h.includes('Continuer vers ma caisse →'));
+    assert(h.includes('href="NEXUS-Inventaire-v1.html?fil=caisse&amp;etape=2&amp;plan=2.3"') && h.includes('Commencer l’inventaire →'));
   },
   'raccourcis Missions, FDJ (si applicable), Progression ; aucun bloc piste': (M) => {
     const v = M.modele(base); const h = M.html(v);
@@ -31,13 +31,13 @@ const EPREUVES = {
     for (const p of [false, undefined]) {
       const v = M.modele(Object.assign({}, base, { piloteCaisse: p, filCaisseLien: null })); const h = M.html(v);
       assert(v && v.variante === 'caisse' && v.poste.libelle === 'Caisse');
-      assert(h.includes('Ma caisse') && h.includes('Faire l’inventaire →') && h.includes('href="NEXUS-Inventaire-v1.html"'));
-      assert(!h.includes('fil=caisse') && !h.includes('Continuer vers ma caisse'));
+      assert(h.includes('Comptage Boutique') && h.includes('Commencer l’inventaire →') && h.includes('href="NEXUS-Inventaire-v1.html"'));
+      assert(!h.includes('fil=caisse'));
     }
   },
   'non pilote : jamais le lien du fil, même si le fait en est donné': (M) => {
     const h = M.html(M.modele(Object.assign({}, base, { piloteCaisse: false })));
-    assert(!h.includes('fil=caisse') && !h.includes('Continuer vers ma caisse'));
+    assert(!h.includes('fil=caisse'));
   },
   'non pilote, comptage fait : étape cochée, pas de bouton': (M) => {
     const v = M.modele(Object.assign({}, base, { piloteCaisse: false, inventaireFait: true }));
@@ -67,7 +67,7 @@ const MUTATIONS = [
   ['non pilote sans lien classique', (s) => s.replace("href: f.inventaireLien }", "href: f.filCaisseLien }")],
   ['hors service admis', (s) => s.replace("if (f && f.enService && !f.consultationExterne && f.roleDuJour === 'caissiere'", "if (f && !f.consultationExterne && f.roleDuJour === 'caissiere'")],
   ['bouton hors filCaisseLien', (s) => s.replace('href: f.filCaisseLien }', "href: 'NEXUS-Missions-v1.html' }")],
-  ['libellé du bouton', (s) => s.replace("'Continuer vers ma caisse →'", "'Reprendre mon début de quart →'")],
+  ['libellé du bouton', (s) => s.replace("'Commencer l’inventaire →'", "'Reprendre mon début de quart →'")],
   ['photo pompiste', (s) => s.replace('image: IMAGES_POSTE.caissiere', 'image: IMAGES_POSTE.pompiste')],
   ['réception en caisse', (s) => s.replace('reception: null, finQuart', "reception: { href: URL_RECEPTION, livraison: null }, finQuart")],
   ['FDJ toujours', (s) => s.replace('fdj: f.fdjApplicable === true', 'fdj: true')],
@@ -80,5 +80,5 @@ for (const [nom, mut] of MUTATIONS) {
 }
 // Câblage : l'Accueil donne les faits déjà chargés, sans nouvelle lecture ; le libellé du fil caisse remplace celui du pompiste.
 assert(/piloteCaisse: piloteCaisse === true, filCaisseLien, fdjApplicable,\s*\n\s*inventaireLien: inventaireApplicable \? 'NEXUS-Inventaire-v1.html' : null/.test(APP), 'App ne câble pas la variante');
-assert(APP.includes("const FIL_CAISSE_LIEN_TEXTE = 'Continuer vers ma caisse →'") && /ctx\.filLien \? FIL_LIEN_TEXTE : ctx\.filCaisseLien \? FIL_CAISSE_LIEN_TEXTE/.test(APP));
+assert(APP.includes("const FIL_CAISSE_LIEN_TEXTE = 'Commencer l’inventaire →'") && /ctx\.filLien \? FIL_LIEN_TEXTE : ctx\.filCaisseLien \? FIL_CAISSE_LIEN_TEXTE/.test(APP));
 console.log('OK — ' + Object.keys(EPREUVES).length + ' épreuves, ' + MUTATIONS.length + ' mutations tuées, câblage vérifié');
