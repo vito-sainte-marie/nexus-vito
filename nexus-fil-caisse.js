@@ -20,6 +20,7 @@
   const CATEGORIES_CAISSE = ['cigarettes', 'cbd', 'journaux', 'pains / sandwichs', 'viennoiserie'];
   const LIBELLES_VERS = { 2: 'Continuer vers mon comptage', 3: 'Continuer vers ma fermeture' };
   const LIBELLE_TERMINER = 'Terminer ma caisse';
+  const MESSAGE_AUCUN_PRODUIT = 'Aucun produit caisse à compter, prévenez votre responsable.';
   const LIBELLE_SORTIE = 'Quitter et revenir à l\'Accueil';
 
   const parametres = (search) => new URLSearchParams(search || '');
@@ -79,5 +80,5 @@
     return s ? urlEtape(s, planOuComplet(plan), pilote, roleDuJour) : ACCUEIL;
   }
 
-  return { NOMBRE_ETAPES, PAGE, ACCUEIL, ROLE, LIBELLE_SORTIE, LIBELLE_TERMINER, autorise, estActif, etapeDe, planDe, planPour, natureComptage, CATEGORIES_CAISSE, estProduitCaisse, restreindre, libelleProgression, libelleContinuer, urlEtape, urlApres };
+  return { NOMBRE_ETAPES, PAGE, ACCUEIL, ROLE, MESSAGE_AUCUN_PRODUIT, LIBELLE_SORTIE, LIBELLE_TERMINER, autorise, estActif, etapeDe, planDe, planPour, natureComptage, CATEGORIES_CAISSE, estProduitCaisse, restreindre, libelleProgression, libelleContinuer, urlEtape, urlApres };
 });

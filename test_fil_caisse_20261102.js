@@ -94,8 +94,29 @@ cas('page : le fil caisse n\'allume pas enFil() (le flux de catégories reste ce
   assert.ok(!/filEtape\s*=|enFil\s*=/.test(bloc));
   assert.ok(/const enFil = \(\) => filEtape != null;/.test(HTML));
 });
-cas('page : restreindreAuPlanQuart ne filtre par la caisse que si le fil est en cours', () => {
-  assert.ok(/if \(filCaisseEnCours\) liste = window\.NexusFilCaisse\.restreindre\(liste, piloteCaisseCourant, roleDuJour\);/.test(HTML));
+cas('page : restreindreAuPlanQuart ne filtre par la caisse que si le fil est en cours, et le plan du quart ne s\'y applique pas', () => {
+  const i = HTML.indexOf('function restreindreAuPlanQuart');
+  const f = HTML.slice(i, HTML.indexOf('\n  }', i));
+  assert.ok(/if \(filCaisseEnCours\) return window\.NexusFilCaisse\.restreindre\(liste, piloteCaisseCourant, roleDuJour\);/.test(f));
+  assert.ok(f.indexOf('filCaisseEnCours') < f.indexOf('planQuartActif'));
+});
+cas('module : le message de liste vide est exposé', () => {
+  assert.ok(/Aucun produit caisse à compter, prévenez votre responsable/.test(C.MESSAGE_AUCUN_PRODUIT));
+});
+cas('restreindre : catégorie renommée ou site sans ces familles → liste vide', () => {
+  assert.deepStrictEqual(C.restreindre([P('Boissons'), P('Gaz')], true, 'caissiere'), []);
+  assert.deepStrictEqual(C.restreindre([], true, 'caissiere'), []);
+});
+cas('page : liste caisse vide → message, aucune écriture, avant tout chargement de stock', () => {
+  const i = HTML.indexOf('filCaisseEnCours && produitsZone.length === 0');
+  assert.ok(i > 0);
+  const bloc = HTML.slice(i, HTML.indexOf('return;', i) + 7);
+  assert.ok(/MESSAGE_AUCUN_PRODUIT/.test(bloc) && /filCaisseTerminer/.test(bloc));
+  assert.ok(!/\.(insert|upsert|update|delete|rpc)\(|from\('/.test(bloc));
+  assert.ok(i < HTML.indexOf('chargerDerniersStocks(ids)', i));
+});
+cas('page : la référence d\'écart aveugle couvre tout le périmètre caisse', () => {
+  assert.ok(/produitsPlanIds\.has\(produitId\) \|\| filCaisseEnCours/.test(HTML));
 });
 cas('page : aucune écriture ni droit nouveau dans le bloc du fil caisse', () => {
   const bloc = HTML.slice(HTML.indexOf('function filCaisseActiver'), HTML.indexOf('const filFermeture'));

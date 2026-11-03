@@ -1617,7 +1617,8 @@
   // empêcher l'employé de travailler, quitte à perdre le bénéfice du plan
   // pour ce passage-là.
   function restreindreAuPlanQuart(liste) {
-    if (filCaisseEnCours) liste = window.NexusFilCaisse.restreindre(liste, piloteCaisseCourant, roleDuJour);
+    // Fil caisse : le périmètre caisse complet l'emporte sur le plan du quart (decision-1 : toutes les cigarettes à l'aveugle).
+    if (filCaisseEnCours) return window.NexusFilCaisse.restreindre(liste, piloteCaisseCourant, roleDuJour);
     if (!planQuartActif) return liste;
     return liste.filter(p => produitsPlanIds.has(p.id) || (p.inventaire_categories && p.inventaire_categories.nom === JAUGEAGE_NOM));
   }
@@ -2219,6 +2220,14 @@
       chargerModeJaugeageActif(),
     ]);
     produitsZone = restreindreAuPlanQuart(produitsBruts);
+    // Périmètre caisse vide (catégorie renommée, site sans ces familles) : rien n'est écrit, retour à l'Accueil.
+    if (filCaisseEnCours && produitsZone.length === 0) {
+      document.getElementById('content').innerHTML = `
+        <div class="resume-card"><div class="final-greet">${window.NexusFilCaisse.MESSAGE_AUCUN_PRODUIT}</div></div>
+        <button class="btn-primary" id="btnFilVide">Retour à l'Accueil</button>`;
+      document.getElementById('btnFilVide').addEventListener('click', filCaisseTerminer);
+      return;
+    }
     const ids = produitsZone.map(p => p.id);
     dernierStock = await chargerDerniersStocks(ids);
     // Masquage réel, pas seulement visuel (17/08/2026, Sprint 1 — point de
@@ -2234,7 +2243,7 @@
     // copie hors DOM, lue uniquement par referenceEcartPourProduit().
     referenceEcartAveugle = {};
     Object.keys(dernierStock).forEach(produitId => {
-      if (produitsPlanIds.has(produitId)) {
+      if (produitsPlanIds.has(produitId) || filCaisseEnCours) {
         if (dernierStock[produitId]) referenceEcartAveugle[produitId] = dernierStock[produitId];
         delete dernierStock[produitId];
       }
