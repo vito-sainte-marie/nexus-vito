@@ -82,7 +82,8 @@ cas('aucune nouvelle catégorie : la casse ne compte pas, une catégorie inconnu
 const HTML = fs.readFileSync(path.join(__dirname, process.env.PAGE_MUTE || 'NEXUS-Inventaire-v1.html'), 'utf8');
 cas('page : le module est chargé et le fil n\'est activé que par etapeDe(pilote, rôle du jour)', () => {
   assert.ok(/<script src="nexus-fil-caisse\.js/.test(HTML));
-  assert.ok(/NexusFilCaisse\.etapeDe\(location\.search, piloteCaisseCourant, roleDuJour\) === 2/.test(HTML));
+  assert.ok(/NexusFilCaisse\.etapeDe\(location\.search, piloteCaisseCourant, roleDuJour\)/.test(HTML));
+  assert.ok(/const filCaisse = etapeCaisse === 2 \|\| \(etapeCaisse === 3 && window\.NexusFilCaisse\.FERMETURE_OUVERTE\)/.test(HTML));
 });
 cas('page : le rôle passé au module est roleDuJour, jamais la fiche employé', () => {
   const appels = HTML.match(/NexusFilCaisse\.(?:etapeDe|restreindre|autorise)\([^)]*\)/g) || [];
@@ -123,9 +124,9 @@ cas('page : aucune écriture ni droit nouveau dans le bloc du fil caisse', () =>
   assert.ok(!/\.(insert|upsert|update|delete|rpc)\(/.test(bloc));
   assert.ok(!/inventaire_quart_employes|from\('/.test(bloc));
 });
-cas('page : bouton final « Terminer ma caisse » tant que l\'étape 3 n\'est pas câblée', () => {
+cas('page : bouton final « Terminer ma caisse » à la fin de chaque étape (comptage, fermeture, déjà validé)', () => {
   assert.ok(!/NexusFilCaisse\.libelleContinuer\(/.test(HTML));
-  assert.strictEqual((HTML.match(/NexusFilCaisse\.LIBELLE_TERMINER/g) || []).length, 2);
+  assert.strictEqual((HTML.match(/NexusFilCaisse\.LIBELLE_TERMINER/g) || []).length, 3);
 });
 cas('page : titre de catégorie sans « Étape » dans le fil caisse (une seule numérotation)', () => {
   const i = HTML.indexOf('function libelleEtapeParcours');
@@ -140,5 +141,24 @@ cas('page : en fil caisse, « Précédent » et « Retour » sont masqués (sort
 cas('page : étiquette cigarettes courte, sans « bureau géré par le manager »', () => {
   assert.ok(!/bureau géré par le manager/.test(HTML));
   assert.strictEqual((HTML.match(/📍 Caisse uniquement</g) || []).length, 3);
+});
+cas('étape 3 ouverte : FERMETURE_OUVERTE vrai ; fermée, le plan ne contient plus 3', () => {
+  assert.strictEqual(C.FERMETURE_OUVERTE, true);
+  const b = { pilote: true, roleDuJour: 'caissiere', inscrit: true, comptageFait: true };
+  assert.deepStrictEqual(C.planPour({ ...b, fermetureDue: true, fermetureFaite: false }), [3]);
+  assert.deepStrictEqual(C.planPour({ ...b, fermetureDue: true, fermetureFaite: true }), []);
+  assert.ok(/FERMETURE_OUVERTE && fermetureDue && !fermetureFaite/.test(fs.readFileSync(path.join(__dirname, 'nexus-fil-caisse.js'), 'utf8')));
+});
+cas('page : validerCloture écrit la seule ligne de l\'employée, le quart est clos par le serveur', () => {
+  const i = HTML.indexOf('async function validerCloture');
+  const bloc = HTML.slice(i, HTML.indexOf('function renderFinalCloture', i));
+  assert.ok(/from\('inventaire_quart_employes'\)\.update\(\{ a_valide_cloture: true, heure_depart:/.test(bloc));
+  assert.ok(!/from\('inventaire_quarts'\)\.update\(/.test(bloc), 'le client ne clôt plus le quart');
+  assert.ok(!/statut: 'cloture'/.test(bloc));
+});
+cas('accueil : la clôture se juge aussi sur a_valide_cloture de l\'employé', () => {
+  const app = fs.readFileSync(path.join(__dirname, 'NEXUS-App-v1.html'), 'utf8');
+  assert.ok(/select\('responsable_comptage, a_valide_ouverture, a_valide_cloture, heure_depart, inventaire_quarts\(/.test(app));
+  assert.ok(/\(!!r\.inventaire_quarts\.cloture_le \|\| r\.a_valide_cloture === true\)/.test(app));
 });
 console.log(`\n${ok} contrôles OK`);

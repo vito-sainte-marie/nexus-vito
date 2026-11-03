@@ -1334,8 +1334,9 @@
   // et l'écran est celui d'avant. Aucune écriture nouvelle : c'est le comptage d'ouverture existant, restreint au périmètre de la caisse.
   let filCaisseEnCours = false;
   const filCaissePlan = () => window.NexusFilCaisse.planDe(location.search);
-  function filCaisseActiver() {
+  function filCaisseActiver(etape) {
     const C = window.NexusFilCaisse;
+    const typeBrouillon = etape === 3 ? 'cloture' : 'ouverture';
     filCaisseEnCours = true;
     document.body.classList.add('fil-actif', 'fil-caisse');
     const menu = document.querySelector('.header .menu-btn');
@@ -1343,11 +1344,11 @@
     const barre = document.createElement('div');
     barre.id = 'filBarre';
     barre.style.cssText = 'display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 14px;font-size:13px;';
-    barre.innerHTML = `<span id="filProgres" class="progres" style="font-weight:600;">${C.libelleProgression(2, filCaissePlan())}</span>`
+    barre.innerHTML = `<span id="filProgres" class="progres" style="font-weight:600;">${C.libelleProgression(etape, filCaissePlan())}</span>`
       + `<a id="filSortie" href="${C.ACCUEIL}" style="color:var(--cyan);text-decoration:none;">← ${C.LIBELLE_SORTIE}</a>`;
     const phone = document.querySelector('.phone');
     phone.insertBefore(barre, phone.firstChild);
-    document.getElementById('filSortie').addEventListener('click', () => { try { if (quartRow) sauvegarderDraft('ouverture'); } catch (e) { /* brouillon déjà écrit à chaque saisie */ } });
+    document.getElementById('filSortie').addEventListener('click', () => { try { if (quartRow) sauvegarderDraft(typeBrouillon); } catch (e) { /* brouillon déjà écrit à chaque saisie */ } });
   }
   function filCaisseTerminer() { window.location.href = window.NexusFilCaisse.ACCUEIL; }
   const filFermeture = window.NexusFilFinQuart.estActif(location.search);
@@ -4067,7 +4068,8 @@
     }
 
     await nexusClient.from('inventaire_quart_employes').update({ a_valide_cloture: true, heure_depart: new Date().toISOString() }).eq('id', quartEmployeRow.id);
-    await nexusClient.from('inventaire_quarts').update({ statut: 'cloture', cloture_le: new Date().toISOString() }).eq('id', quartRow.id);
+    // Le quart n'est plus clos ici : seule la ligne de l'employé(e) est écrite. Le serveur clôt le quart quand toute la population a validé,
+    // ou à la fin planifiée + délai (run_scheduled_inventory_reviews).
     // Flush final des mesures d'adoption (18/08/2026, Sprint 8, INV2-19) —
     // même logique que validerOuverture ci-dessus.
     await flusherMesuresAdoption();
@@ -4100,9 +4102,9 @@
         <div class="stat-row"><span class="stat-label">Mouvements déclarés</span><span class="stat-value">${mouvementsSaisie.length}</span></div>
         <div class="ecoulement-note">Votre stock final devient le stock transmis du prochain quart. Le manager pourra rapprocher ces chiffres avec les ventes de caisse dès que l'export sera importé — ce n'est pas encore fait automatiquement.</div>
       </div>
-      <button class="btn-primary" id="btnRetourAccueil">${enFil() ? FIL.libelleContinuer(filEtape, filPlan) : 'Retour'}</button>
+      <button class="btn-primary" id="btnRetourAccueil">${filCaisseEnCours ? window.NexusFilCaisse.LIBELLE_TERMINER : enFil() ? FIL.libelleContinuer(filEtape, filPlan) : 'Retour'}</button>
     `;
-    document.getElementById('btnRetourAccueil').addEventListener('click', enFil() ? filTerminer : renderAccueil);
+    document.getElementById('btnRetourAccueil').addEventListener('click', filCaisseEnCours ? filCaisseTerminer : enFil() ? filTerminer : renderAccueil);
   }
 
   // ------------------------------------------------------------
@@ -4425,18 +4427,21 @@
       if (codeConnu) zoneActive = codeConnu;
     }
 
-    const filCaisse = window.NexusFilCaisse.etapeDe(location.search, piloteCaisseCourant, roleDuJour) === 2;
+    const etapeCaisse = window.NexusFilCaisse.etapeDe(location.search, piloteCaisseCourant, roleDuJour);
+    const filCaisse = etapeCaisse === 2 || (etapeCaisse === 3 && window.NexusFilCaisse.FERMETURE_OUVERTE);
     if (filCaisse) {
-      filCaisseActiver();
+      filCaisseActiver(etapeCaisse);
       zoneActive = 'boutique';
-      if (quartEmployeRow && quartEmployeRow.a_valide_ouverture) {
-        document.getElementById('titre').textContent = 'Inventaire d\'ouverture validé';
+      const dejaValide = etapeCaisse === 3 ? (quartEmployeRow && quartEmployeRow.a_valide_cloture) : (quartEmployeRow && quartEmployeRow.a_valide_ouverture);
+      if (dejaValide) {
+        document.getElementById('titre').textContent = etapeCaisse === 3 ? 'Inventaire de clôture validé' : 'Inventaire d\'ouverture validé';
         document.getElementById('sousTitre').textContent = '';
         document.getElementById('content').innerHTML = `
           <div class="resume-card"><div class="checkmark">✓</div><div class="final-greet">Merci ${employeeCourant.nom}</div></div>
           <button class="btn-primary" id="btnFilTerminer">${window.NexusFilCaisse.LIBELLE_TERMINER}</button>`;
         document.getElementById('btnFilTerminer').addEventListener('click', filCaisseTerminer);
-      } else demarrerOuvertureComptage();
+      } else if (etapeCaisse === 3) demarrerCloture();
+      else demarrerOuvertureComptage();
     } else if (enFil()) {
       // Quart déjà choisi à la prise de poste (fixé plus haut, avant toute création) ; zone piste, sans choix ni Accueil.
       if (zonesAutorisees.includes('piste')) zoneActive = 'piste';

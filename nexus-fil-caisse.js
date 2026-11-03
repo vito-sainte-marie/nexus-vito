@@ -11,6 +11,9 @@
   else root.NexusFilCaisse = factory();
 })(typeof self !== 'undefined' ? self : this, function () {
   const NOMBRE_ETAPES = 3;
+  // Étape 3 (fermeture individuelle) ouverte : la validation écrit la seule ligne de l'employée (a_valide_cloture) ; la clôture du quart
+  // est faite par le serveur (run_scheduled_inventory_reviews, PR #176). Repasser à false referme l'étape sans autre effet.
+  const FERMETURE_OUVERTE = true;
   const PAGE = 'NEXUS-Inventaire-v1.html';
   const ACCUEIL = 'NEXUS-App-v1.html';
   const ROLE = 'caissiere';
@@ -49,7 +52,7 @@
   // Étapes restantes d'après les faits ; vide si l'on n'est pas pilote caissière (aucun fil).
   function planPour({ pilote, roleDuJour, inscrit, comptageFait, fermetureDue, fermetureFaite }) {
     if (!autorise(pilote, roleDuJour)) return [];
-    return [!inscrit && 1, !comptageFait && 2, fermetureDue && !fermetureFaite && 3].filter(Boolean);
+    return [!inscrit && 1, !comptageFait && 2, FERMETURE_OUVERTE && fermetureDue && !fermetureFaite && 3].filter(Boolean);
   }
   // Nature du comptage de l'étape 2 : à l'arrivée sur un quart déjà compté par une collègue, c'est un changement
   // (un seul comptage de la caissière entrante ferme Q1 et ouvre Q2, decision-2) ; sinon une ouverture.
@@ -80,5 +83,5 @@
     return s ? urlEtape(s, planOuComplet(plan), pilote, roleDuJour) : ACCUEIL;
   }
 
-  return { NOMBRE_ETAPES, PAGE, ACCUEIL, ROLE, MESSAGE_AUCUN_PRODUIT, LIBELLE_SORTIE, LIBELLE_TERMINER, autorise, estActif, etapeDe, planDe, planPour, natureComptage, CATEGORIES_CAISSE, estProduitCaisse, restreindre, libelleProgression, libelleContinuer, urlEtape, urlApres };
+  return { NOMBRE_ETAPES, FERMETURE_OUVERTE, PAGE, ACCUEIL, ROLE, MESSAGE_AUCUN_PRODUIT, LIBELLE_SORTIE, LIBELLE_TERMINER, autorise, estActif, etapeDe, planDe, planPour, natureComptage, CATEGORIES_CAISSE, estProduitCaisse, restreindre, libelleProgression, libelleContinuer, urlEtape, urlApres };
 });

@@ -218,7 +218,7 @@ function epreuves(S) {
     assert.ok(/id="filSortie" href="\$\{FIL\.ACCUEIL\}"[^`]*\$\{FIL\.LIBELLE_SORTIE\}/.test(I), 'sortie absente');
     assert.ok(/document\.getElementById\('filSortie'\)\.addEventListener\('click', filSauverAvantSortie\)/.test(I), 'la sortie ne range pas le brouillon');
     assert.ok(/FIL\.terminer\(localStorage[^}]*?window\.location\.href = FIL\.ACCUEIL/.test(I), 'la fin ne rend pas à l\'Accueil');
-    assert.ok(/addEventListener\('click', enFil\(\) \? filTerminer : renderAccueil\)/.test(I), 'bouton final non branché sur la fin du fil');
+    assert.ok(/addEventListener\('click', (?:filCaisseEnCours \? filCaisseTerminer : )?enFil\(\) \? filTerminer : renderAccueil\)/.test(I), 'bouton final non branché sur la fin du fil');
     assert.ok(/sauvegarderDraft\(filFermeture \? 'cloture' : 'ouverture'\)/.test(/function filSauverAvantSortie[\s\S]*?\n  \}/.exec(I)[0]), 'brouillon non rangé');
   });
 
@@ -322,7 +322,7 @@ muter('quart du soir ignoré', 'inv', "if (enFil() && quartDuShift) quartActuel 
 muter('liste de noms réintroduite à l\'étape 3', 'inv', "const base = produitsZone;", "const base = produitsZone.filter(p => /gaz|gla[cç]ons|[ée]cailles/i.test(p.designation));", 'I3');
 muter('progression absente de l\'inventaire', 'inv', 'id="filProgres"', 'id="x"', 'I4');
 muter('la fin ne rend pas à l\'Accueil', 'inv', "window.location.href = FIL.ACCUEIL;", "", 'I4');
-muter('bouton final de l\'inventaire', 'inv', "addEventListener('click', enFil() ? filTerminer : renderAccueil)", "addEventListener('click', renderAccueil)", 'I4');
+muter('bouton final de l\'inventaire', 'inv', "filCaisseEnCours ? filCaisseTerminer : enFil() ? filTerminer : renderAccueil)", "filCaisseEnCours ? filCaisseTerminer : renderAccueil)", 'I4');
 muter('pointage ignoré à l\'entrée', 'app', "if (filLien && !(pointageActifSite && prochainPointageEffectif === 'arrivee') && NexusFilDebutQuart", "if (filLien && NexusFilDebutQuart", 'A3');
 muter('tous les rôles dans le fil', 'pdp', "if (roleChoisi !== 'pompiste') return 'NEXUS-Missions-v1.html';", "", 'P3');
 muter('bouton intermédiaire revenu', 'pdp', "const aller = () => {", "const btnDashboard = 1; const aller = () => {", 'P3');
