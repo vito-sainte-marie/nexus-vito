@@ -18,7 +18,7 @@ cas('refus par défaut : ni pilote ni rôle → aucun fil', () => {
     assert.strictEqual(C.etapeDe('?fil=caisse&etape=1', p, r), null);
     assert.strictEqual(C.urlEtape(1, [1, 2], p, r), null);
     assert.strictEqual(C.urlApres(1, [1, 2], p, r), null);
-    assert.deepStrictEqual(C.planPour({ pilote: p, roleDuJour: r, inscrit: false, comptageFait: false, fermetureDue: true, fermetureFaite: false }), []);
+    assert.deepStrictEqual(C.planPour({ pilote: p, roleDuJour: r, comptageFait: false, fermetureDue: true, fermetureFaite: false }), []);
   }
 });
 cas('pilote caissière : fil actif et étape lue', () => {
@@ -29,9 +29,9 @@ cas('pilote caissière : fil actif et étape lue', () => {
 });
 cas('plan : seules les étapes restantes', () => {
   const b = { pilote: true, roleDuJour: 'caissiere' };
-  assert.deepStrictEqual(C.planPour({ ...b, inscrit: false, comptageFait: false, fermetureDue: true, fermetureFaite: false }), [1, 2, 3]);
-  assert.deepStrictEqual(C.planPour({ ...b, inscrit: true, comptageFait: false, fermetureDue: false, fermetureFaite: false }), [2]);
-  assert.deepStrictEqual(C.planPour({ ...b, inscrit: true, comptageFait: true, fermetureDue: true, fermetureFaite: true }), []);
+  assert.deepStrictEqual(C.planPour({ ...b, comptageFait: false, fermetureDue: true, fermetureFaite: false }), [2, 3]);
+  assert.deepStrictEqual(C.planPour({ ...b, comptageFait: false, fermetureDue: false, fermetureFaite: false }), [2]);
+  assert.deepStrictEqual(C.planPour({ ...b, comptageFait: true, fermetureDue: true, fermetureFaite: true }), []);
 });
 cas('changement de quart : un comptage de l\'entrante, sinon ouverture', () => {
   assert.strictEqual(C.natureComptage({ quartPrecedentCompte: true }), 'changement');
@@ -44,12 +44,12 @@ cas('adresses et libellés', () => {
   assert.strictEqual(C.urlEtape(0, [2], true, 'caissiere'), null);
   assert.strictEqual(C.libelleProgression(2, [2, 3]), 'Étape 1 sur 2');
   assert.strictEqual(C.libelleContinuer(3, [2, 3]), 'Terminer ma caisse');
-  assert.deepStrictEqual(C.planDe('?plan=3.2'), [1, 2, 3]);
+  assert.deepStrictEqual(C.planDe('?plan=3.2'), [2, 3]);
 });
 cas('vocabulaire des rôles : seul le rôle du jour `caissiere` (shifts.role) ouvre le fil', () => {
   // employees.role dit « caissier » (sans e) : le passer au module ne montrerait jamais le fil, sans erreur visible.
   assert.strictEqual(C.autorise(true, 'caissier'), false);
-  assert.strictEqual(C.planPour({ pilote: true, roleDuJour: 'caissier', inscrit: false, comptageFait: false, fermetureDue: true, fermetureFaite: false }).length, 0);
+  assert.strictEqual(C.planPour({ pilote: true, roleDuJour: 'caissier', comptageFait: false, fermetureDue: true, fermetureFaite: false }).length, 0);
   assert.strictEqual(C.urlEtape(1, [1], true, 'caissier'), null);
   // polyvalent : refusé par défaut, la pilote doit être planifiée en `caissiere` pendant le pilote.
   for (const r of ['polyvalent', 'pompiste', 'renfort', 'manager', 'gerant', 'Caissiere', null, undefined]) assert.strictEqual(C.autorise(true, r), false, String(r));
@@ -82,7 +82,7 @@ cas('aucune nouvelle catégorie : la casse ne compte pas, une catégorie inconnu
 const HTML = fs.readFileSync(path.join(__dirname, process.env.PAGE_MUTE || 'NEXUS-Inventaire-v1.html'), 'utf8');
 cas('page : le module est chargé et le fil n\'est activé que par etapeDe(pilote, rôle du jour)', () => {
   assert.ok(/<script src="nexus-fil-caisse\.js/.test(HTML));
-  assert.ok(/NexusFilCaisse\.etapeDe\(location\.search, piloteCaisseCourant, roleDuJour\) === 2/.test(HTML));
+  assert.ok(/NexusFilCaisse\.etapeDe\(location\.search, piloteCaisseCourant, roleDuJour\)/.test(HTML));
 });
 cas('page : le rôle passé au module est roleDuJour, jamais la fiche employé', () => {
   const appels = HTML.match(/NexusFilCaisse\.(?:etapeDe|restreindre|autorise)\([^)]*\)/g) || [];
@@ -123,9 +123,9 @@ cas('page : aucune écriture ni droit nouveau dans le bloc du fil caisse', () =>
   assert.ok(!/\.(insert|upsert|update|delete|rpc)\(/.test(bloc));
   assert.ok(!/inventaire_quart_employes|from\('/.test(bloc));
 });
-cas('page : bouton final « Terminer ma caisse » tant que l\'étape 3 n\'est pas câblée', () => {
+cas('page : bouton final « Terminer ma caisse » (étapes 2 et 3 : validé + fin de clôture)', () => {
   assert.ok(!/NexusFilCaisse\.libelleContinuer\(/.test(HTML));
-  assert.strictEqual((HTML.match(/NexusFilCaisse\.LIBELLE_TERMINER/g) || []).length, 2);
+  assert.strictEqual((HTML.match(/NexusFilCaisse\.LIBELLE_TERMINER/g) || []).length, 4);
 });
 cas('page : titre de catégorie sans « Étape » dans le fil caisse (une seule numérotation)', () => {
   const i = HTML.indexOf('function libelleEtapeParcours');

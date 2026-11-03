@@ -2317,6 +2317,9 @@
     if (ctx.inventaireApplicable && !ctx.inventaireFait && !ctx.inventaireOuvertureFaite) {
       return { couleur: 'inventaire', titre: 'Le comptage d’ouverture/clôture de votre quart n’a pas encore été fait.', lienTexte: (ctx.filLien || ctx.filCaisseLien) ? FIL_LIEN_TEXTE : 'Faire l’inventaire →', lien: ctx.filLien || ctx.filCaisseLien || 'NEXUS-Inventaire-v1.html' };
     }
+    if (ctx.inventaireApplicable && !ctx.inventaireFait && ctx.inventaireOuvertureFaite && ctx.filCaisseLien) {
+      return { couleur: 'inventaire', titre: 'La fermeture de votre caisse est à faire avant la fin du quart.', lienTexte: FIL_LIEN_TEXTE, lien: ctx.filCaisseLien };
+    }
     if (ctx.fdjApplicable && !ctx.fdjFait) {
       return { couleur: 'fdj', titre: 'Le contrôle FDJ de votre quart n’a pas encore été fait.', lienTexte: 'Compter le FDJ →', lien: 'NEXUS-FDJ-v1.html' };
     }
@@ -2780,9 +2783,13 @@
         || (NexusFilFinQuart.planSelonFaits(faitsFermeture).length ? NexusFilFinQuart.urlEtape(NexusFilFinQuart.planSelonFaits(faitsFermeture)[0], momentIndexFin, NexusFilFinQuart.planSelonFaits(faitsFermeture)) : null);
     }
 
-    // Entrée du fil « Ma caisse » (L1, incrément 3a) : pilote + caissière du jour en service, comptage ni fait ni ouvert.
+    // Entrée du fil « Ma caisse » (L1, incrément 3) : pilote + caissière du jour en service ; étape 2 (comptage) puis 3 (fermeture, 45 min avant la fin).
     const piloteCaisse = (enService && roleDuJour === NexusFilCaisse.ROLE) ? await chargerPiloteCaisse(employee.site_id, employee.id) : false;
-    const filCaisseLien = NexusFilCaisse.lienAccueil(piloteCaisse, roleDuJour, enService, inventaireApplicable && !inventaireFait && !inventaireOuvertureFaite);
+    let fermetureCaisseDue = false;
+    if (piloteCaisse && fuseauStation && NexusFilCaisse.quartConcerneParFermeture(quartDuJour)) {
+      fermetureCaisseDue = NexusFilCaisse.fermetureDueEnService({ station: NexusStation, horaires: await chargerHorairesStation(employee.site_id), quartDuJour, fuseau: fuseauStation });
+    }
+    const filCaisseLien = NexusFilCaisse.lienEntree(piloteCaisse, roleDuJour, enService && inventaireApplicable, { ouvertureFaite: inventaireOuvertureFaite, clotureFaite: inventaireFait, fermetureDue: fermetureCaisseDue });
 
     const missionsInfo = calculerMissionsObligatoiresJour(catalogueRows, completionsRows, roleDuJour, maintenant);
     const controlesInfo = calculerControlesQuartJour(inventaireApplicable, inventaireFait, fdjApplicable, fdjFait, jaugeageApplicable, jaugeageFait, indexApplicable, indexFait);
