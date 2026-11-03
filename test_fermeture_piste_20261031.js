@@ -155,7 +155,10 @@ const EPREUVES = {
     assert.strictEqual(M.modele(apres({ roleDuJour: 'manager' })), null);
     // Depuis la décision du 03/11 (PR #175) la caissière en service a sa carte « Caisse », jamais le mode fermeture de la piste.
     const caisse = M.modele(apres({ roleDuJour: 'caissiere' }));
-    assert(caisse && caisse.variante === 'caisse' && caisse.fermeture === null);
+    assert(caisse && caisse.variante === 'caisse');
+    assert(caisse.fermeture === null && caisse.finQuart === null && caisse.reception === null, 'aucune fermeture piste, ni index, ni réception pour la caissière');
+    assert.strictEqual(M.modele(apres({ roleDuJour: 'renfort' })), null);
+    assert.strictEqual(M.modele(apres({ roleDuJour: 'polyvalent' })), null);
     assert.strictEqual(M.modele(apres({ enService: false })), null);
   },
   'fermeture non commencée tant que l\'ouverture n\'est pas faite': (M) => {
@@ -263,6 +266,7 @@ const MUTATIONS = [
   ['heure estimée sans donnée', SRC, (s) => s.replace('heureLocale(rc.ouvertureDe, f.fuseau)', 'heureLocale(rc.ouvertureDe || f.heureDebut, f.fuseau)'), (s) => { const M = charger(s); jouer(M, MENU0, ST0); }],
   ['missions 0 sur 0 affichées', SRC, (s) => s.replace('m.total > 0', 'true'), (s) => { const M = charger(s); jouer(M, MENU0, ST0); }],
   ['fermeture avant la fin de l\'ouverture', SRC, (s) => s.replace('filTermine && fermetureOuverte', 'fermetureOuverte'), (s) => { const M = charger(s); jouer(M, MENU0, ST0); }],
+  ['la caissière reçoit une fermeture piste', SRC, (s) => s.replace('reception: null, finQuart: null, fermeture: null', 'reception: null, finQuart: null, fermeture: { ouverte: true }'), (s) => { const M = charger(s); jouer(M, MENU0, ST0); }],
   ['horaire indéterminé deviné', SRC, (s) => s.replace('const avecFermeture = f.finMinutes != null', 'const avecFermeture = true'), (s) => { const M = charger(s); jouer(M, MENU0, ST0); }],
   ['régime toujours normal', SRC_STATION, (s) => s.replace("const regime = cleHoraireDuJour(timezone, instant);", "const regime = 'normal';"), (s) => { const M = charger(SRC); jouer(M, MENU0, chargerStation(s)); }],
   ['pas de repli en bloc sur normal', SRC_STATION, (s) => s.replace("|| q['fin_normal']", ''), (s) => { jouer(M0, MENU0, chargerStation(s)); }],
