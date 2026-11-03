@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/INVENTAIRE-CAISSE-RENFORT-20261102/request-12.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/INVENTAIRE-CAISSE-RENFORT-20261102/request-13.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
 lot_id: INVENTAIRE-CAISSE-RENFORT-20261102
-seq: 12
+seq: 13
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
@@ -20,7 +20,7 @@ preuves:
     classe: VERIFIED
     valeur: 174-fichiers
 ---
-# INVENTAIRE-CAISSE-RENFORT-20261102 : request-12 — L1 incrément 3 : PR #175, CI verte, demande de fusion
+# INVENTAIRE-CAISSE-RENFORT-20261102 : request-13 — clôture serveur : la correspondance shifts↔quarts sur Test contredit la condition C telle qu'écrite
 
 ## Branche du lot
 
@@ -28,29 +28,29 @@ BRANCHE_DU_LOT: handoff-continuite-20260920
 
 ## Objet
 
-PR #175 (branche `claude/fil-caisse-l1-inc3-20261103`, base `production` 5751a9b0), tête 76fc58f7, CI verte : Construire et éprouver l'artefact, Cloudflare Pages, non-regression (deux exécutions). GitHub signale la PR sans conflit. Elle est encore en brouillon. Cette request demande l'arbitrage de l'incrément 3 en vue de sa fusion par Frédéric, `closes: false`.
+Exécution de l'ACTION_NEXT de l'arbitrage de request-11 (APPROVED_WITH_CONDITIONS) : correspondance exacte shifts↔quarts, établie en lecture seule sur Test (`udljdqxerrbbbajxubfn`), capacité SUPABASE_TEST_LECTURE. Aucune écriture, aucune migration, rien en Production. Je m'arrête avant d'écrire la migration parce que la population de la condition C, appliquée à la lettre, ne peut jamais déclencher de clôture anticipée. `closes: false`.
 
-## Ce que porte la PR
+## Ce que la lecture établit
 
-1. Accueil caisse pour toutes les caissières en service (décision de Frédéric du 03/11 13:44). Le fil reste réservé aux pilotes.
-2. Libellés (décision de Frédéric du 03/11 14:24, relayée par Guardian 6612092079) : carte « Comptage Boutique », bouton « Commencer l'inventaire → » pour pilote et non-pilote, seule la destination diffère ; « Comptage d'entrée » reste le nom de l'étape. Même lien sur la page Missions.
-3. Heure de fin du quart dans le bandeau de la caissière (matin et soir), lue par `NexusStation.finDuQuartMinutes` ; aucune heure en dur, aucune heure devinée.
-4. Fil caisse à deux étapes, fermeture du soir, étape 3 masquée en attendant l'arbitrage du quart partagé (request-11).
+Clé de rattachement testée : même site, même `quart` (matin/soir), même date locale de `heure_debut` (fuseau du site). Contrainte d'unicité `inventaire_quarts(site, date, quart)` : un seul quart par clé, donc la clé désigne bien un quart. Aucun shift sans `quart`, sans site ou avec un `quart` hors matin/soir.
 
-## Correctif de la CI (Guardian 6613023596)
+1. **Population rattachée = presque tout du bruit sans ligne employé.** Sur les shifts rattachés à un quart : caissière `clos_sans_pointage` 86, dont 1 seul avec une ligne `inventaire_quart_employes` ; caissière `en_cours` 2 (1 ligne) ; pompiste `clos_sans_pointage` 14 (11 lignes) ; pompiste `termine` 3 (0 ligne) ; pompiste `en_cours` 1 (1 ligne). Ex. le 02/11 matin : 17 shifts rattachés, 1 ligne employé. Selon la condition C (« une ligne employé manquante bloque la clôture anticipée »), ces quarts ne se clôtureraient jamais avant l'heure de repli. La règle ne mord donc jamais : elle revient au repli horaire seul.
+2. **Le `quart` du shift et celui de la ligne employé divergent** : 5 lignes (21/10, 18/09, 31/10, 01/11, 02/11) rattachent un shift pompiste `quart = matin` à un quart `soir`. Dans ces cas la clé (site, date, quart du shift) et la ligne employé donnent deux réponses opposées. Il faut dire laquelle fait foi.
+3. **Renfort** : 2 shifts renfort (soir), aucune ligne employé, donc aucun rattachement à un quart par `inventaire_quart_employes`. Ils tombent dans le cas « sans quart attribuable » (à exclure) alors que la condition C les voulait inclus « s'ils sont rattachés à ce quart ». Par le seul `shifts.quart`, ils seraient rattachés au soir. Les deux lectures ne coïncident pas.
+4. **Manager** : 7 shifts `clos_sans_pointage`, aucune ligne employé. À exclure explicitement de la population si on la prend par `shifts`.
+5. **Quarts sans ligne employé** : 1 (30/10 ouverture_en_cours). Population vide → aucune clôture anticipée, conformément à la condition C.
 
-`test_fermeture_piste_20261031.js` était rouge depuis 2adf35a3 : l'épreuve « le manager et un autre rôle n'entrent pas dans le mode » attendait `null` pour la caissière, ce que la décision du 03/11 a rendu faux volontairement. Corrigé dans le test seulement, la page n'est pas touchée :
+## Propositions soumises à l'arbitre (A–F inchangées)
 
-- la caissière entre dans le mode avec `fermeture`, `finQuart` et `reception` à `null` ;
-- manager, renfort, polyvalent et hors service rendent toujours `null` ;
-- mutation ajoutée « la caissière reçoit une fermeture piste » ; la mutation « horaire indéterminé deviné » est ciblée sur la ligne de la piste, la première occurrence étant devenue celle de la carte Caisse.
+C1 (recommandée). **Population = les lignes `inventaire_quart_employes` du quart** (donc les personnes réellement entrées dans l'inventaire), pas les shifts de la journée. Chaque ligne doit avoir `a_valide_cloture = true` et `heure_depart` non nul. Un renfort inscrit à ce quart a une ligne : il est inclus. Un shift sans ligne (clos sans pointage, manager, renfort jamais entré) n'est pas dans la population : il n'a pas participé à l'inventaire. Population vide → pas de clôture anticipée.
+C2. Si l'arbitre tient à partir des `shifts` : restreindre aux statuts `en_cours` et `termine` et aux rôles pompiste, caissière, renfort ; chaque shift ainsi retenu doit avoir sa ligne. Les 3 pompistes `termine` sans ligne bloqueraient alors leur quart.
 
-Résultat : 21 épreuves, 33 mutations tuées. Les tests voisins (accueil caisse pilote, entrée accueil, Missions, accueil piste, garde de page) sont verts.
+Dans les deux cas, trancher le point 2 : la ligne employé fait foi pour le rattachement, le `quart` du shift est ignoré.
 
-## Limites
+## Ce que je ne fais pas
 
-Rien en Production. Aucune migration, policy, grant, secret. Aucune nouvelle règle pour les employés au-delà des décisions de Frédéric citées. La clôture serveur du quart partagé reste l'objet de request-11, en attente d'arbitrage. Suite complète : seuls les échecs connus.
+Aucune migration écrite ni appliquée, aucun changement de policy, grant ou fonction employé, aucune lecture Production. La fonction `run_scheduled_inventory_reviews()` de Test n'est pas touchée (lue seulement).
 
 ## Demande
 
-Arbitrage de l'incrément 3 (L1) en vue de la fusion de #175 par Frédéric. Hors demande : clôture du lot, étape 3 du fil, changement de quart.
+Arbitrer C1 ou C2 et le point 2 (qui fait foi pour le rattachement). Après quoi j'écris la migration (Test seulement), les épreuves SQL/JS, les mutations de garde et la recette GOV-012.
