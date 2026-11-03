@@ -46,5 +46,14 @@ cas('adresses et libellés', () => {
   assert.strictEqual(C.libelleContinuer(3, [2, 3]), 'Terminer ma caisse');
   assert.deepStrictEqual(C.planDe('?plan=3.2'), [1, 2, 3]);
 });
+cas('vocabulaire des rôles : seul le rôle du jour `caissiere` (shifts.role) ouvre le fil', () => {
+  // employees.role dit « caissier » (sans e) : le passer au module ne montrerait jamais le fil, sans erreur visible.
+  assert.strictEqual(C.autorise(true, 'caissier'), false);
+  assert.strictEqual(C.planPour({ pilote: true, roleDuJour: 'caissier', inscrit: false, comptageFait: false, fermetureDue: true, fermetureFaite: false }).length, 0);
+  assert.strictEqual(C.urlEtape(1, [1], true, 'caissier'), null);
+  // polyvalent : refusé par défaut, la pilote doit être planifiée en `caissiere` pendant le pilote.
+  for (const r of ['polyvalent', 'pompiste', 'renfort', 'manager', 'gerant', 'Caissiere', null, undefined]) assert.strictEqual(C.autorise(true, r), false, String(r));
+  assert.strictEqual(C.autorise(true, 'caissiere'), true);
+});
 cas('aucun accès à pilotesRenfort dans le module', () => assert.ok(!/pilotesRenfort/.test(fs.readFileSync(F, 'utf8').replace(/\/\/.*$/gm, ''))));
 console.log(`\n${ok} contrôles OK`);
