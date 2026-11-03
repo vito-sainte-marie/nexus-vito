@@ -1,61 +1,60 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/INVENTAIRE-CAISSE-RENFORT-20261102/decision-4.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/INVENTAIRE-CAISSE-RENFORT-20261102/decision-5.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: decision
 lot_id: INVENTAIRE-CAISSE-RENFORT-20261102
-seq: 4
+seq: 5
 author: ChatGPT
 branch: handoff-continuite-20260920
-decision: APPROVED_WITH_CONDITIONS
+decision: APPROVED
 closes: false
-in_reply_to: request-4.md
+in_reply_to: request-7.md
 provenance:
   niveau: 2
   mode: github_actions_relay
-  reference: https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6592098055
+  reference: https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6607988687
 ---
-# Décision sur request-4.md — APPROVED_WITH_CONDITIONS
+# Décision sur request-7.md — APPROVED
 
-_Provenance : verdict rendu par ChatGPT via l'API OpenAI (run 41552904481), posté sur https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6592098055. Matérialisé par la CI (stade (a), autorisé par Frédéric Bragance le 09/10/2026), sans session Claude ni recopie humaine. Le verdict est reproduit tel quel ; seul le contrat a été contrôlé._
+_Provenance : verdict rendu par ChatGPT via l'API OpenAI (run 41664634234), posté sur https://github.com/vito-sainte-marie/nexus-vito/issues/28#issuecomment-6607988687. Matérialisé par la CI (stade (a), autorisé par Frédéric Bragance le 09/10/2026), sans session Claude ni recopie humaine. Le verdict est reproduit tel quel ; seul le contrat a été contrôlé._
 
 ## Ce que la CI a contrôlé
 
 - `NEXT_ACTION_CONTRACT` conforme (mêmes règles que le relais : vocabulaire, palier Frédéric, aucune mention qui relance Claude).
-- `LOT` = `INVENTAIRE-CAISSE-RENFORT-20261102`, `REQUEST` = `request-4.md` : c'est la demande en attente au registre (`ATTENTE_DECISION`).
+- `LOT` = `INVENTAIRE-CAISSE-RENFORT-20261102`, `REQUEST` = `request-7.md` : c'est la demande en attente au registre (`ATTENTE_DECISION`).
 - Rail `handoff-continuite-20260920` : celui du lot au registre, de forme `handoff-*` ; ni `main` ni `production`.
-- Lecture du rail : `RAIL_LU` = `388f05c5a85a02c4d4748c28f2625b6b9e6f2027`, `HEAD` = `388f05c5a85a02c4d4748c28f2625b6b9e6f2027`, SHA du run `388f05c5a85a02c4d4748c28f2625b6b9e6f2027`, tête du rail `388f05c5a85a02c4d4748c28f2625b6b9e6f2027`. Un SHA doit être celui du run ; `INACCESSIBLE` (relais intégral) n'est admis que si le run est la tête du rail.
+- Lecture du rail : `RAIL_LU` = `86e9c4de1fe8362cf9d76144167262a06b8e462b`, `HEAD` = `86e9c4de1fe8362cf9d76144167262a06b8e462b`, SHA du run `86e9c4de1fe8362cf9d76144167262a06b8e462b`, tête du rail `86e9c4de1fe8362cf9d76144167262a06b8e462b`. Un SHA doit être celui du run ; `INACCESSIBLE` (relais intégral) n'est admis que si le run est la tête du rail.
 - Aucun palier humain : ni `DECISION: BLOCKED`, ni `OWNER_NEXT: Frédéric`, ni `STOP_REQUIRED` renseigné.
 
 ## Ce que la CI n'a PAS contrôlé
 
-- Les conditions du verdict (« Le fil caisse L1 doit conserver le refus par défaut, l’isolation par site et la RLS existante ; pilotesRenfort reste sans lecteur ni activation ; aucune migration, policy, grant, mutation, fusion ou déploiement Production n’est autorisé par cette décision ; toute modification de la frontière d’autorisation relève d’un arbitrage séparé SECURITE_RLS_SITE_ID. »). Elles lient l'exécutant suivant (`session-claude-habilitee`), qui les vérifie avant d'agir.
+- Les conditions du verdict. Elles lient l'exécutant suivant (`github-actions-claude`), qui les vérifie avant d'agir.
 - Ce dépôt est poussé avec le jeton du workflow : il ne relance ni la CI ni Claude. La reprise reste celle du prochain réveil.
 
 ## Texte de l'arbitre
 
-**Verdict : APPROVED_WITH_CONDITIONS, closes: false.**
+**APPROVED.** L’incrément 2 L1 est validé à la tête `ac934e7d`. La recette Test et la CI sont vertes. Les échecs résiduels sont diagnostiqués et ne constituent pas une régression produit inexpliquée, conformément à l’acquis `REGRESSION_PRODUIT_VS_BANC`.
 
-L’audit « clé absente = défaut » est suffisant pour ce périmètre : les lecteurs recensés conservent le comportement existant, les nouvelles listes sont refusées par défaut et les épreuves couvrent les valeurs absentes, mal formées et intersites. Les sept échecs connus n’introduisent pas de blocage supplémentaire selon l’acquis `REGRESSION_PRODUIT_VS_BANC`.
+La décision métier de Frédéric citée dans la demande lève le précédent motif `DECISION_METIER_NON_ARBITREE`. Cette approbation ne clôt pas le lot et n’autorise aucune opération en Production.
 
-La PR #173 est recevable comme base du fil caisse L1. Son approbation n’autorise toutefois ni sa fusion dans `production`, ni un déploiement ou une mutation Production. Ces gestes restent hors du prochain geste autorisé. Le chaînage L1 peut continuer hors Production conformément à `PALIER_HUMAIN_RESTREINT` et `COMMIT_PUSH_RAIL_SANS_GO`.
+BRANCHE_DU_LOT: handoff-continuite-20260920
 
-RAIL_LU: 388f05c5a85a02c4d4748c28f2625b6b9e6f2027
+RAIL_LU: 86e9c4de1fe8362cf9d76144167262a06b8e462b
 
 NEXT_ACTION_CONTRACT
-DECISION: APPROVED_WITH_CONDITIONS
+DECISION: APPROVED
 CLOSES: false
 LOT: INVENTAIRE-CAISSE-RENFORT-20261102
-REQUEST: request-4.md
-BRANCHE_DU_LOT: handoff-continuite-20260920
-HEAD: 388f05c5a85a02c4d4748c28f2625b6b9e6f2027
+REQUEST: request-7.md
+HEAD: 86e9c4de1fe8362cf9d76144167262a06b8e462b
 LEASE: aucun
-GATE_STATE: G2, CI conforme au diagnostic — 7 échecs connus et aucun nouveau
+GATE_STATE: G2, CI verte
 PROOF_STATE: PROOF_VALID
-CONDITIONS: Le fil caisse L1 doit conserver le refus par défaut, l’isolation par site et la RLS existante ; pilotesRenfort reste sans lecteur ni activation ; aucune migration, policy, grant, mutation, fusion ou déploiement Production n’est autorisé par cette décision ; toute modification de la frontière d’autorisation relève d’un arbitrage séparé SECURITE_RLS_SITE_ID.
+CONDITIONS: aucune
 BLOCKER: aucun
 STOP_REQUIRED: non
 CAPACITE_REQUISE: DEPOT_ECRITURE_RAIL
 OWNER_NEXT: Claude
-EXECUTANT_NEXT: session-claude-habilitee
-ACTION_NEXT: Implémenter sur la base validée le fil caisse L1 consommant piloteCaisseCourant, avec ses épreuves pilote, non-pilote et isolation intersite, sans geste Production.
+EXECUTANT_NEXT: github-actions-claude
+ACTION_NEXT: Matérialiser cette décision sur le rail avec `outils/handoff.js decision --auteur ChatGPT`.
