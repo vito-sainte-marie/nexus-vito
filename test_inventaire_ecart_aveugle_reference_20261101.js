@@ -26,7 +26,7 @@ function purger(dernierStock, plan) {
   const debut = SRC.indexOf('referenceEcartAveugle = {};\n    Object.keys(dernierStock)');
   const fin = SRC.indexOf('modesAveugle = modesLus;');
   assert.ok(debut > 0 && fin > debut, 'bloc de purge introuvable');
-  const ctx = { dernierStock, produitsPlanIds: new Set(plan), referenceEcartAveugle: {} };
+  const ctx = { dernierStock, produitsPlanIds: new Set(plan), referenceEcartAveugle: {}, filCaisseEnCours: false };
   vm.createContext(ctx);
   vm.runInContext(SRC.slice(debut, fin), ctx);
   return ctx;

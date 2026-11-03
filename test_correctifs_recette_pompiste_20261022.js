@@ -32,7 +32,7 @@ function epreuves(S) {
   });
 
   eprouve('C4 un seul compteur', () => {
-    assert.ok(/const prefixeEtape = \(idx === -1 \|\| enFil\(\)\) \? '' :/.test(S.inv), "le préfixe « Étape n/N » doit être vide dans le fil");
+    assert.ok(/const prefixeEtape = \(idx === -1 \|\| enFil\(\)( \|\| filCaisseEnCours)?\) \? '' :/.test(S.inv), "le préfixe « Étape n/N » doit être vide dans le fil");
   });
   eprouve('C2 plus de confirm natif dans l\'ouverture', () => {
     const debut = S.inv.indexOf("getElementById('btnCategorieConforme')");
@@ -94,7 +94,7 @@ function muter(nom, cle, de, vers, attendu) {
   ok(`mutation « ${nom} » → ${attendu} rougit`);
 }
 muter('liste de noms revenue dans le fil', 'module', "return { NOMBRE_ETAPES,", "const CATEGORIES_FIL = /gaz|gla[cç]ons/i; return { NOMBRE_ETAPES,", 'C1');
-muter('compteur doublé', 'inv', "(idx === -1 || enFil()) ? ''", "(idx === -1) ? ''", 'C4');
+muter('compteur doublé', 'inv', "(idx === -1 || enFil() || filCaisseEnCours) ? ''", "(idx === -1) ? ''", 'C4');
 muter('confirm natif rétabli', 'inv', "if (!(await confirmerEnPage(`Aucun chiffre saisi pour ${p.designation} — on enregistre 0.`, 'Enregistrer 0'))) return;", "if (!confirm(`Aucun chiffre saisi pour ${p.designation} — on enregistre 0. Confirmer ?`)) return;", 'C2 plus de confirm');
 muter('question conforme dans le fil', 'inv', "if (!enFil()) {\n        const nb", "if (true) {\n        const nb", 'C2 plus de confirm');
 muter('accord « les 1 produit »', 'inv', "nb > 1 ? `les ${nb} produits restants` : 'le produit restant'", "`les ${nb} produits restants`", 'C2 accord');
