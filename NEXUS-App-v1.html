@@ -2786,6 +2786,10 @@
 
     // Entrée du fil « Ma caisse » (L1, incrément 3) : pilote + caissière du jour en service ; étape 2 (comptage) puis 3 (fermeture, 45 min avant la fin).
     const piloteCaisse = (enService && roleDuJour === NexusFilCaisse.ROLE) ? await chargerPiloteCaisse(employee.site_id, employee.id) : false;
+    // Heure de fin du quart affichée dans le bandeau de la caissière (lecture seule des horaires, comme pour le pompiste).
+    if (enService && roleDuJour === NexusFilCaisse.ROLE && fuseauStation && (quartDuJour === 'matin' || quartDuJour === 'soir')) {
+      finMinutes = NexusStation.finDuQuartMinutes(await chargerHorairesStation(employee.site_id), quartDuJour === 'matin' ? 'quart1' : 'quart2', fuseauStation, new Date());
+    }
     let fermetureCaisseDue = false;
     if (piloteCaisse && fuseauStation && NexusFilCaisse.quartConcerneParFermeture(quartDuJour)) {
       fermetureCaisseDue = NexusFilCaisse.fermetureDueEnService({ station: NexusStation, horaires: await chargerHorairesStation(employee.site_id), quartDuJour, fuseau: fuseauStation });
