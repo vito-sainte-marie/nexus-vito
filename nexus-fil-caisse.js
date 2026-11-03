@@ -1,7 +1,7 @@
 'use strict';
 // Fil « Ma caisse » — lot INVENTAIRE-CAISSE-RENFORT-20261102, L1 (decision-4, APPROVED_WITH_CONDITIONS).
-// Trois étapes au plus : 1 inscription au quart, 2 comptage d'ouverture ou de changement (cigarettes à l'aveugle, CBD, produits du jour),
-// 3 comptage de fermeture. Même règle que le fil du pompiste : une étape faite ou sans objet ne figure pas dans le plan.
+// Deux étapes au plus : 2 comptage d'ouverture ou de changement (cigarettes à l'aveugle, CBD, produits du jour), 3 comptage de fermeture du soir.
+// L'inscription au quart est la prise de poste elle-même (elle crée le service caissière) : il n'y a pas d'étape 1. Même règle que le fil du pompiste : une étape faite ou sans objet ne figure pas dans le plan.
 // REFUS PAR DÉFAUT : le fil n'existe que pour un pilote de la caisse (nexus-pilotes-inventaire.js) dont le rôle du jour est caissière.
 // Pour tout autre cas, estActif / urlEtape / planPour répondent « pas de fil » et l'écran garde son comportement actuel.
 // Ce contrôle est un mécanisme de déploiement côté page, pas une frontière d'autorisation : la RLS reste la frontière.
@@ -11,13 +11,10 @@
   else root.NexusFilCaisse = factory();
 })(typeof self !== 'undefined' ? self : this, function () {
   const NOMBRE_ETAPES = 3;
-  // Étape 3 (fermeture individuelle) ouverte : la validation écrit la seule ligne de l'employée (a_valide_cloture) ; la clôture du quart
-  // est faite par le serveur (run_scheduled_inventory_reviews, PR #176). Repasser à false referme l'étape sans autre effet.
-  const FERMETURE_OUVERTE = true;
   const PAGE = 'NEXUS-Inventaire-v1.html';
   const ACCUEIL = 'NEXUS-App-v1.html';
   const ROLE = 'caissiere';
-  const PLAN_COMPLET = [1, 2, 3];
+  const PLAN_COMPLET = [2, 3];
   // Périmètre du comptage d'entrée (decision-4, condition 2) : catégories du site existantes, sans catégorie ni produit nouveau.
   // Cigarettes (à l'aveugle), CBD, et les produits du jour (journaux, pains / sandwichs, viennoiserie).
   const CATEGORIES_CAISSE = ['cigarettes', 'cbd', 'journaux', 'pains / sandwichs', 'viennoiserie'];
@@ -50,9 +47,9 @@
   const planOuComplet = (plan) => (Array.isArray(plan) && plan.length ? plan : PLAN_COMPLET);
 
   // Étapes restantes d'après les faits ; vide si l'on n'est pas pilote caissière (aucun fil).
-  function planPour({ pilote, roleDuJour, inscrit, comptageFait, fermetureDue, fermetureFaite }) {
+  function planPour({ pilote, roleDuJour, comptageFait, fermetureDue, fermetureFaite }) {
     if (!autorise(pilote, roleDuJour)) return [];
-    return [!inscrit && 1, !comptageFait && 2, FERMETURE_OUVERTE && fermetureDue && !fermetureFaite && 3].filter(Boolean);
+    return [!comptageFait && 2, fermetureDue && !fermetureFaite && 3].filter(Boolean);
   }
   // Nature du comptage de l'étape 2 : à l'arrivée sur un quart déjà compté par une collègue, c'est un changement
   // (un seul comptage de la caissière entrante ferme Q1 et ouvre Q2, decision-2) ; sinon une ouverture.
@@ -83,5 +80,41 @@
     return s ? urlEtape(s, planOuComplet(plan), pilote, roleDuJour) : ACCUEIL;
   }
 
-  return { NOMBRE_ETAPES, FERMETURE_OUVERTE, PAGE, ACCUEIL, ROLE, MESSAGE_AUCUN_PRODUIT, LIBELLE_SORTIE, LIBELLE_TERMINER, autorise, estActif, etapeDe, planDe, planPour, natureComptage, CATEGORIES_CAISSE, estProduitCaisse, restreindre, libelleProgression, libelleContinuer, urlEtape, urlApres };
+  // Faits d'inventaire jugés sur le quart du SERVICE de l'employé (mêmes règles que l'Accueil du pompiste) : ouverture validée,
+  // clôture faite. `rows` = lignes inventaire_quart_employes (lecture existante), jamais une écriture.
+  function faitsInventaire(rows, dateISO, quartDuJour) {
+    const sur = (r) => r && r.inventaire_quarts && r.inventaire_quarts.date === dateISO && r.inventaire_quarts.is_simulation !== true
+      && (!quartDuJour || !r.inventaire_quarts.quart || r.inventaire_quarts.quart === quartDuJour);
+    const l = Array.isArray(rows) ? rows : [];
+    const clotureFaite = l.some((r) => (r.responsable_comptage || r.a_valide_ouverture) && sur(r) && (!!r.inventaire_quarts.cloture_le || r.a_valide_cloture === true));
+    const ouvertureFaite = !clotureFaite && l.some((r) => r.a_valide_ouverture && sur(r) && !r.inventaire_quarts.cloture_le && r.inventaire_quarts.statut === 'ouvert');
+    return { ouvertureFaite, clotureFaite };
+  }
+  // La fermeture s'ouvre 45 minutes avant la fin du quart (même délai que la fermeture de la piste) ; sans heure de fin, jamais.
+  const DELAI_FERMETURE_MIN = 45;
+  function fermetureDue(finMinutes, maintenantMinutes) {
+    if (finMinutes == null || maintenantMinutes == null) return false;
+    return Number(maintenantMinutes) >= Number(finMinutes) - DELAI_FERMETURE_MIN;
+  }
+  // Condition unique de la fermeture, partagée par l'Accueil et Missions : quart du soir (quart2) seulement, car la caissière du matin
+  // ne compte pas à sa sortie (c'est l'entrante qui compte, decision-2). `station` = NexusStation ; même calcul de fin de quart que le pompiste.
+  const quartConcerneParFermeture = (quartDuJour) => quartDuJour === 'soir';
+  // Étape 3 OUVERTE (arbitrage request-14/15, #160) : validerCloture() n'écrit plus que la ligne de l'employée ; le quart est clos par le serveur
+  // (cron, quand toute la population a validé, ou repli fin + délai). Dépend du déploiement préalable de la migration 20261103190000.
+  const FERMETURE_OUVERTE = true;
+  function fermetureDueEnService({ station, horaires, quartDuJour, fuseau, maintenant, ouverte = FERMETURE_OUVERTE }) {
+    if (ouverte !== true || !quartConcerneParFermeture(quartDuJour) || !horaires || !fuseau || !station) return false;
+    const now = maintenant || new Date();
+    return fermetureDue(station.finDuQuartMinutes(horaires, 'quart2', fuseau, now), station.minutesLocalesStation(fuseau, now));
+  }
+
+  // Entrée du fil depuis l'Accueil et Missions : la prise de poste vaut inscription (pas d'étape 1), donc au plus deux étapes :
+  // 2 comptage d'ouverture, 3 fermeture du soir. null si pas de fil autorisé ou rien à faire (la page garde son lien actuel).
+  function lienEntree(pilote, roleDuJour, enService, { ouvertureFaite, clotureFaite, fermetureDue: due } = {}) {
+    if (enService !== true) return null;
+    const plan = planPour({ pilote, roleDuJour, comptageFait: ouvertureFaite === true || clotureFaite === true, fermetureDue: due === true, fermetureFaite: clotureFaite === true });
+    return plan.length ? urlEtape(plan[0], plan, pilote, roleDuJour) : null;
+  }
+
+  return { NOMBRE_ETAPES, lienEntree, faitsInventaire, fermetureDue, fermetureDueEnService, FERMETURE_OUVERTE, quartConcerneParFermeture, DELAI_FERMETURE_MIN, PAGE, ACCUEIL, ROLE, MESSAGE_AUCUN_PRODUIT, LIBELLE_SORTIE, LIBELLE_TERMINER, autorise, estActif, etapeDe, planDe, planPour, natureComptage, CATEGORIES_CAISSE, estProduitCaisse, restreindre, libelleProgression, libelleContinuer, urlEtape, urlApres };
 });

@@ -1428,6 +1428,8 @@
 <script src="nexus-desktop.js?v=20260904-0104"></script>
 <script src="nexus-fil-debut-quart.js?v=20261021-0001"></script>
 <script src="nexus-fil-fin-quart.js?v=20261031-0001"></script>
+<script src="nexus-pilotes-inventaire.js?v=20261102-1"></script>
+<script src="nexus-fil-caisse.js?v=20261103-0002"></script>
 <script src="nexus-accueil-piste.js?v=20261030-0001"></script>
 <script src="nexus-menu-accueil.js?v=20261030-0001"></script>
 <script src="nexus-prise-de-poste.js"></script>
@@ -2025,6 +2027,14 @@
     return (data && data.reception_carburant_role) || 'employe';
   }
 
+  // Pilote de l'inventaire caisse : lecture seule de station_config.parametres_inventaire, jamais faite hors caissière en service.
+  // Lecture en erreur = pas pilote (refus par défaut). Mécanisme de déploiement, pas une frontière d'autorisation.
+  async function chargerPiloteCaisse(siteId, employeeId) {
+    const { data, error } = await nexusClient.from('station_config').select('parametres_inventaire').eq('site', siteId).maybeSingle();
+    if (error) { console.error('Chargement pilotes caisse (accueil):', error); return false; }
+    return NexusPilotesInventaire.estPiloteCaisse(data && data.parametres_inventaire, employeeId);
+  }
+
   // Horaires de la station (station_config.horaires) : seule source de la fin de quart pour la fermeture de la piste.
   // Lecture en erreur ou absente = null : aucune fermeture proposée, jamais d'heure inventée.
   async function chargerHorairesStation(siteId) {
@@ -2246,6 +2256,7 @@
   // même priorité (voir determinerPhraseCoach) — une seule vérité.
   // Lot 2 : tant que le début de quart n'est pas terminé, le pompiste reprend le fil à l'étape où il s'est arrêté.
   const FIL_LIEN_TEXTE = 'Reprendre mon début de quart →';
+  const FIL_CAISSE_LIEN_TEXTE = 'Commencer l’inventaire →';
   function determinerProchaineActionEmploye(ctx) {
     // Journée terminée : le dire, sans proposer de pointage (14/09/2026,
     // voir NexusPointageRegles.journeeTermineeSansService). Vérifié en
@@ -2305,7 +2316,10 @@
       };
     }
     if (ctx.inventaireApplicable && !ctx.inventaireFait && !ctx.inventaireOuvertureFaite) {
-      return { couleur: 'inventaire', titre: 'Le comptage d’ouverture/clôture de votre quart n’a pas encore été fait.', lienTexte: ctx.filLien ? FIL_LIEN_TEXTE : 'Faire l’inventaire →', lien: ctx.filLien || 'NEXUS-Inventaire-v1.html' };
+      return { couleur: 'inventaire', titre: 'Le comptage d’ouverture/clôture de votre quart n’a pas encore été fait.', lienTexte: ctx.filLien ? FIL_LIEN_TEXTE : ctx.filCaisseLien ? FIL_CAISSE_LIEN_TEXTE : 'Faire l’inventaire →', lien: ctx.filLien || ctx.filCaisseLien || 'NEXUS-Inventaire-v1.html' };
+    }
+    if (ctx.inventaireApplicable && !ctx.inventaireFait && ctx.inventaireOuvertureFaite && ctx.filCaisseLien) {
+      return { couleur: 'inventaire', titre: 'La fermeture de votre caisse est à faire avant la fin du quart.', lienTexte: FIL_CAISSE_LIEN_TEXTE, lien: ctx.filCaisseLien };
     }
     if (ctx.fdjApplicable && !ctx.fdjFait) {
       return { couleur: 'fdj', titre: 'Le contrôle FDJ de votre quart n’a pas encore été fait.', lienTexte: 'Compter le FDJ →', lien: 'NEXUS-FDJ-v1.html' };
@@ -2771,6 +2785,18 @@
         || (NexusFilFinQuart.planSelonFaits(faitsFermeture).length ? NexusFilFinQuart.urlEtape(NexusFilFinQuart.planSelonFaits(faitsFermeture)[0], momentIndexFin, NexusFilFinQuart.planSelonFaits(faitsFermeture)) : null);
     }
 
+    // Entrée du fil « Ma caisse » (L1, incrément 3) : pilote + caissière du jour en service ; étape 2 (comptage) puis 3 (fermeture, 45 min avant la fin).
+    const piloteCaisse = (enService && roleDuJour === NexusFilCaisse.ROLE) ? await chargerPiloteCaisse(employee.site_id, employee.id) : false;
+    // Heure de fin du quart affichée dans le bandeau de la caissière (lecture seule des horaires, comme pour le pompiste).
+    if (enService && roleDuJour === NexusFilCaisse.ROLE && fuseauStation && (quartDuJour === 'matin' || quartDuJour === 'soir')) {
+      finMinutes = NexusStation.finDuQuartMinutes(await chargerHorairesStation(employee.site_id), quartDuJour === 'matin' ? 'quart1' : 'quart2', fuseauStation, new Date());
+    }
+    let fermetureCaisseDue = false;
+    if (piloteCaisse && fuseauStation && NexusFilCaisse.quartConcerneParFermeture(quartDuJour)) {
+      fermetureCaisseDue = NexusFilCaisse.fermetureDueEnService({ station: NexusStation, horaires: await chargerHorairesStation(employee.site_id), quartDuJour, fuseau: fuseauStation });
+    }
+    const filCaisseLien = NexusFilCaisse.lienEntree(piloteCaisse, roleDuJour, enService && inventaireApplicable, { ouvertureFaite: inventaireOuvertureFaite, clotureFaite: inventaireFait, fermetureDue: fermetureCaisseDue });
+
     const missionsInfo = calculerMissionsObligatoiresJour(catalogueRows, completionsRows, roleDuJour, maintenant);
     const controlesInfo = calculerControlesQuartJour(inventaireApplicable, inventaireFait, fdjApplicable, fdjFait, jaugeageApplicable, jaugeageFait, indexApplicable, indexFait);
     // `serviceCourantJour` / `serviceCourantId` / `enService` sont calculés
@@ -2851,7 +2877,7 @@
       missionsInfo, controlesInfo,
       inventaireApplicable, inventaireFait, inventaireOuvertureFaite, fdjApplicable, fdjFait, receptionApplicable,
       jaugeageApplicable, jaugeageFait,
-      indexApplicable, indexFait, indexLien, filLien,
+      indexApplicable, indexFait, indexLien, filLien, filCaisseLien,
     };
 
     renderProgressionService(calculerEtapesProgressionService(ctx));
@@ -2873,6 +2899,10 @@
       missions: missionsInfo, points: missionsInfo.pointsAujourdhui, filLien, finQuartLien, finQuartFait,
       finMinutes, maintenantMinutes, finIndexApplicable, finIndexFait, clotureInventaireFait, fermetureLien,
       pointageActif: pointageActifSite === true, recap: recapQuart,
+      // Variante caissière (toutes les caissières en service) : faits déjà chargés plus haut, aucune lecture ajoutée.
+      // Pilote : fil (filCaisseLien) ; autre caissière : Inventaire classique, comme la prochaine action d'aujourd'hui.
+      piloteCaisse: piloteCaisse === true, filCaisseLien, fdjApplicable,
+      inventaireLien: inventaireApplicable ? 'NEXUS-Inventaire-v1.html' : null,
     });
     const faitsMenu = { estNiveauManager: false, enService, roleDuJour, receptionApplicable, fdjApplicable, fermetureLien, pointageActif: pointageActifSite === true };
     monterMenuAccueil(faitsMenu);

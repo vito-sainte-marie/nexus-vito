@@ -57,7 +57,8 @@ const EPREUVES = {
   'mode inactif hors service, en consultation externe, autre rôle': (M) => {
     assert.strictEqual(M.modele(Object.assign({}, base, { enService: false })), null);
     assert.strictEqual(M.modele(Object.assign({}, base, { consultationExterne: true })), null);
-    assert.strictEqual(M.modele(Object.assign({}, base, { roleDuJour: 'caissiere' })), null);
+    // La caissière a sa propre variante (décision du 03/11 13:44) ; les autres rôles gardent l'Accueil actuel.
+    for (const r of ['renfort', 'polyvalent', 'manager']) assert.strictEqual(M.modele(Object.assign({}, base, { roleDuJour: r })), null);
   },
   'heure de début en heure de la station': (M) => {
     assert.strictEqual(M.heureLocale('2026-10-30T05:05:00Z', 'Indian/Reunion'), '09 h 05');

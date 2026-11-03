@@ -222,7 +222,7 @@ async function executerAccueil({
   const noms = [
     'document', 'console', 'nexusClient', 'nexusFuseauSite', 'nexusJourDansFuseau',
     'NexusForfait', 'NexusPointageRegles', 'NexusFilDebutQuart', 'NexusFilFinQuart', 'NexusStation', 'chargerHorairesStation', 'NexusAccueilPiste', 'NexusMenuAccueil', 'monterMenuAccueil', 'localStorage', 'location',
-    'NexusCarburantDonnees', 'NexusRelevesPiste', 'chargerReceptionCarburantRole', 'chargerJaugeageCarburantActifSite',
+    'NexusCarburantDonnees', 'NexusRelevesPiste', 'chargerReceptionCarburantRole', 'chargerJaugeageCarburantActifSite', 'NexusFilCaisse', 'chargerPiloteCaisse',
     'renderProgressionService', 'renderProchaineAction', 'renderOutilsQuart',
     'nexusEcranOperationnelAtteignable', 'nexusDernierServiceTermine',
     ...EXPORTS_PURS,
@@ -245,6 +245,8 @@ async function executerAccueil({
     require('./nexus-releves-piste.js'),
     async () => receptionRole,
     async () => jaugeageActif,
+    require('./nexus-fil-caisse.js'),
+    async () => false,
     etapes => { rendus.etapes = etapes; rendus.pct = purs.calculerPourcentageProgressionService(etapes); },
     action => { rendus.action = action; },
     (codes, libelleRole, titreSection) => { Object.assign(rendus, { tuiles: codes, libelleRole, titreSection }); },

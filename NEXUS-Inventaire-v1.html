@@ -1348,7 +1348,7 @@
       + `<a id="filSortie" href="${C.ACCUEIL}" style="color:var(--cyan);text-decoration:none;">← ${C.LIBELLE_SORTIE}</a>`;
     const phone = document.querySelector('.phone');
     phone.insertBefore(barre, phone.firstChild);
-    document.getElementById('filSortie').addEventListener('click', () => { try { if (quartRow) sauvegarderDraft(typeBrouillon); } catch (e) { /* brouillon déjà écrit à chaque saisie */ } });
+    document.getElementById('filSortie').addEventListener('click', () => { try { if (quartRow) sauvegarderDraft(etape === 3 ? 'cloture' : 'ouverture'); } catch (e) { /* brouillon déjà écrit à chaque saisie */ } });
   }
   function filCaisseTerminer() { window.location.href = window.NexusFilCaisse.ACCUEIL; }
   const filFermeture = window.NexusFilFinQuart.estActif(location.search);
@@ -3614,7 +3614,8 @@
       ${enAttente ? `<div class="resume-card" style="border-color:var(--amber);">⚠️ ${enAttente} comptage${enAttente > 1 ? 's' : ''} en attente de connexion — sauvegardé${enAttente > 1 ? 's' : ''} sur cet appareil, envoyé${enAttente > 1 ? 's' : ''} dès que le réseau revient. Rien n'est perdu.</div>` : ''}
       <button class="btn-primary" id="btnRetourAccueil">${filCaisseEnCours ? window.NexusFilCaisse.LIBELLE_TERMINER : enFil() ? FIL.libelleContinuer(filEtape, filPlan) : 'Retour'}</button>
     `;
-    document.getElementById('btnRetourAccueil').addEventListener('click', filCaisseEnCours ? filCaisseTerminer : enFil() ? filTerminer : renderAccueil);
+    if (filCaisseEnCours) document.getElementById('btnRetourAccueil').addEventListener('click', filCaisseTerminer);
+    else document.getElementById('btnRetourAccueil').addEventListener('click', enFil() ? filTerminer : renderAccueil);
   }
 
   // ------------------------------------------------------------
@@ -3769,7 +3770,7 @@
         alert('Une erreur est survenue et la clôture a été bloquée : ' + (err && err.message ? err.message : err) + '\n\nMerci de faire une capture d\'écran de ce message et de la transmettre.');
       }
     });
-    document.getElementById('btnAnnulerCloture').addEventListener('click', enFil() ? () => { filSauverAvantSortie(); window.location.href = FIL.ACCUEIL; } : renderAccueil);
+    document.getElementById('btnAnnulerCloture').addEventListener('click', filCaisseEnCours ? () => { window.location.href = window.NexusFilCaisse.ACCUEIL; } : enFil() ? () => { filSauverAvantSortie(); window.location.href = FIL.ACCUEIL; } : renderAccueil);
   }
 
   // Repère de cage (INVENTAIRE-GAZ-CAGE-20261031) : dit par où commencer à compter, jamais combien.
@@ -4104,7 +4105,8 @@
       </div>
       <button class="btn-primary" id="btnRetourAccueil">${filCaisseEnCours ? window.NexusFilCaisse.LIBELLE_TERMINER : enFil() ? FIL.libelleContinuer(filEtape, filPlan) : 'Retour'}</button>
     `;
-    document.getElementById('btnRetourAccueil').addEventListener('click', filCaisseEnCours ? filCaisseTerminer : enFil() ? filTerminer : renderAccueil);
+    if (filCaisseEnCours) document.getElementById('btnRetourAccueil').addEventListener('click', filCaisseTerminer);
+    else document.getElementById('btnRetourAccueil').addEventListener('click', enFil() ? filTerminer : renderAccueil);
   }
 
   // ------------------------------------------------------------
@@ -4428,9 +4430,21 @@
     }
 
     const etapeCaisse = window.NexusFilCaisse.etapeDe(location.search, piloteCaisseCourant, roleDuJour);
-    const filCaisse = etapeCaisse === 2 || (etapeCaisse === 3 && window.NexusFilCaisse.FERMETURE_OUVERTE);
-    if (filCaisse) {
-      filCaisseActiver(etapeCaisse);
+    const filCaisse = etapeCaisse === 2 || etapeCaisse === 3;
+    if (filCaisse && etapeCaisse === 3) {
+      // Fermeture du soir : la clôture existante (mêmes écritures), restreinte au périmètre de la caisse.
+      filCaisseActiver(3);
+      zoneActive = 'boutique';
+      if (quartEmployeRow && quartEmployeRow.a_valide_cloture) {
+        document.getElementById('titre').textContent = 'Inventaire de clôture validé';
+        document.getElementById('sousTitre').textContent = '';
+        document.getElementById('content').innerHTML = `
+          <div class="resume-card"><div class="checkmark">✓</div><div class="final-greet">Merci ${employeeCourant.nom}</div></div>
+          <button class="btn-primary" id="btnFilTerminer">${window.NexusFilCaisse.LIBELLE_TERMINER}</button>`;
+        document.getElementById('btnFilTerminer').addEventListener('click', filCaisseTerminer);
+      } else demarrerCloture();
+    } else if (filCaisse) {
+      filCaisseActiver(2);
       zoneActive = 'boutique';
       const dejaValide = etapeCaisse === 3 ? (quartEmployeRow && quartEmployeRow.a_valide_cloture) : (quartEmployeRow && quartEmployeRow.a_valide_ouverture);
       if (dejaValide) {
