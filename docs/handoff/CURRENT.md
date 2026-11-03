@@ -1,10 +1,10 @@
-<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/INVENTAIRE-CAISSE-RENFORT-20261102/request-10.md
+<!-- MIROIR v1 — NE PAS ÉDITER. Source canonique : docs/handoff/lots/INVENTAIRE-CAISSE-RENFORT-20261102/request-11.md
      Régénéré par outils/handoff.js. Le protocole v2 lit le registre, pas ce fichier. -->
 ---
 protocol: nexus-handoff/2
 kind: request
 lot_id: INVENTAIRE-CAISSE-RENFORT-20261102
-seq: 10
+seq: 11
 author: Claude
 branch: handoff-continuite-20260920
 status: AWAITING_DECISION
@@ -20,57 +20,51 @@ preuves:
     classe: VERIFIED
     valeur: 174-fichiers
 ---
-# Clôture du quart partagé : tous les employés en poste, repli à la fin prévue + délai (remplace request-9)
+# request-11 — INVENTAIRE-CAISSE-RENFORT-20261102 : clôture du quart partagée par la vérification serveur
 
 ## Branche du lot
-BRANCHE_DU_LOT: handoff-continuite-20260920
+handoff-continuite-20260920
 
-## Décisions de Frédéric citées telles quelles (via Guardian)
-- 03/11 12:49 (commentaire 6610055143) :
-> « La clôture est individuelle : la caissière peut clôturer de son côté et le pompiste également, mais la caissière ou le pompiste clôture soit le quart 1, soit le quart 2, en fonction de leurs prises de poste. »
-- 03/11 13:46 (commentaire 6611296591) :
-> « Le quart est terminé : réponse 1 ; si pas clôturé par l'employé, option 3 avec 30 mn après l'heure de fin prévue dans les réglages. »
-- 03/11 13:44 (commentaire 6611256508), déjà appliquée dans PR #175 (commit 2adf35a3), hors arbitrage : l'Accueil « caisse » est donné à toutes les caissières en service ; le fil reste réservé aux pilotes. Changement visible pour toutes les caissières en Production après fusion.
+## Ce que cette demande remplace
+Elle supersede request-10 (arbitrage `STOP_REQUIRED SECURITE_RLS_SITE_ID`, run 41688426571). Frédéric a choisi entre les deux mécanismes proposés (Guardian, commentaire 6611921472, 03/11), cité tel quel :
 
-Cette request supersède request-9 (même sujet, désormais complétée par la décision du 13:46).
+> « Vérification serveur » : la vérification automatique existante (cron `nexus-inventaire-reviews`, `*/15 * * * *`, `run_scheduled_inventory_reviews()`) ferme le quart partagé quand tous ceux qui ont pris leur poste sur ce quart ont validé leur clôture individuelle, ou à l'heure de fin prévue + `closureDelayMinutes` (30). Aucun nouvel accès pour les employés : pas de policy élargie sur `shifts`, pas de fonction appelable par un employé. L'option « accès limité employé » est écartée.
 
-## Règle proposée (aucun code écrit)
-1. **Fait individuel** : « clôture faite » d'un employé = `inventaire_quart_employes.a_valide_cloture` de sa ligne, sur le quart de sa prise de poste (matin = quart 1, soir = quart 2). Vaut pour la caissière (`faitsInventaire`) et le pompiste (`inventaireFait`). La clôture de l'un ne retire plus le lien de l'autre.
-2. **Quart terminé, réponse 1** : le quart partagé passe à `cloture` quand TOUS les employés qui ont pris leur poste sur ce quart ont validé leur clôture. `cloture_le` = heure de la dernière clôture individuelle.
-3. **Repli, option 3** : si un employé n'a pas clôturé, le quart est considéré terminé 30 minutes après l'heure de fin prévue dans `station_config.horaires` (`quart1` / `quart2`, `fin_normal`). Le délai n'est pas une constante : on réutilise `parametres_inventaire.closureDelayMinutes` (30 par défaut). Les produits de l'employé défaillant restent non comptés et donnent lieu à l'alerte existante (`cloture_incomplete` / `cloture_en_retard`).
+Le palier `SECURITE_RLS_SITE_ID` est donc levé par ce choix : aucune policy, aucun grant, aucune fonction appelable par un employé. Rien n'est écrit : demande d'arbitrage avant tout code.
 
-## Points demandés par Guardian
-### 1. Qui fait passer le quart à `cloture` à l'échéance
-Constat (migration 20260905131500, `run_scheduled_inventory_reviews`, l. 180-195) : la fonction planifiée lit déjà `closureDelayMinutes` et la fin normale du quart, mais elle ne fait que **créer l'alerte `cloture_en_retard`** ; elle ne passe jamais le quart à `cloture`. Deux voies :
-- **A (sans porte, recommandée pour la suite immédiate)** : l'état « terminé » est **calculé à la lecture** côté client (fil, Accueil, progression) : tous les employés en poste ont `a_valide_cloture`, ou l'heure locale du site dépasse `date + fin_normal + closureDelayMinutes`. Aucune écriture nouvelle. Limite : `inventaire_quarts.cloture_le` n'est pas posé au repli ; le moteur d'écarts, le snapshot et le contrôle manager qui lisent cette colonne ne voient le quart terminé qu'une fois la dernière clôture écrite.
-- **B (PORTE POUR FRÉDÉRIC)** : étendre `run_scheduled_inventory_reviews` (ou une fonction/cron neuf) pour écrire `statut='cloture'` et `cloture_le` à l'échéance. C'est une migration SQL et une écriture sur le quart hors de l'employé. Je ne l'écris pas ; elle ne démarre qu'après GO explicite.
-Arbitrage demandé : A seule pour l'instant, ou A puis B ?
+## Changement proposé (une migration, Test seulement)
+1. **Côté employé** (`NEXUS-Inventaire-v1.html`, `validerCloture`) : n'écrit plus que sa ligne `inventaire_quart_employes` (`a_valide_cloture`, `heure_depart`) et ses comptages. Il ne touche plus `inventaire_quarts.statut` ni `cloture_le`.
+2. **Côté serveur** : `run_scheduled_inventory_reviews()` (privilégiée ; elle lit déjà `horaires.quartN.fin_normal` et `closureDelayMinutes`, migration 20260905131500) passe un quart non clos en `cloture` :
+   - quand toutes les `shifts` du site, de la date et du quart ont une ligne `a_valide_cloture = true` ; `cloture_le` = max(`heure_depart`) ;
+   - sinon à fin + `closureDelayMinutes`, avec l'alerte `cloture_en_retard` déjà émise, et `cloture_le` = l'instant de la limite (ni l'heure de la vérification, ni une heure inventée) — à confirmer.
+3. L'employé qui a changé de poste reste attendu sur son quart (arbitrage request-10).
 
-### 2. Population attendue
-Les employés ayant pris leur poste sur ce quart (`shifts` du site, date, quart), pas seulement les lignes déjà présentes dans `inventaire_quart_employes`.
-- **Constat RLS (Test, lu le 03/11)** : `select_shifts` ne laisse à un employé que **ses propres** shifts (managers/gérants : ceux du site). Un employé ne peut donc pas lister les collègues en poste. `select_inventaire_quart_employes` (propre ligne, ou quart du site) et `select_inventaire_quarts` (site) restent lisibles : la voie « lignes présentes » fonctionne sans changement.
-- Conséquence : la population complète depuis `shifts` exige soit une fonction SECURITY DEFINER qui renvoie les effectifs du quart, soit une policy de lecture : **c'est une porte (sécurité/RLS) pour Frédéric**, non écrite. Sans elle, la règle 2 ne s'applique qu'aux employés qui ont ouvert une ligne ; un employé en poste sans ligne n'est pas attendu, et le repli (règle 3) couvre le cas.
-- **Changement de poste en cours de quart** (service clos par une nouvelle prise de poste) : proposition, un employé qui a changé de poste n'est attendu que sur le service **en cours** de la clôture ; son ancien service n'exige plus de clôture. À confirmer.
-Arbitrage demandé : accepter la lecture limitée aux lignes présentes en attendant, ou ouvrir la porte de lecture des effectifs ?
+## Lecteurs de `cloture_le` / `statut = 'cloture'` à traiter
+| Lecteur | Aujourd'hui | Après |
+|---|---|---|
+| Accueil caissière/pompiste (`NEXUS-App-v1.html`, `inventaireFait`, `clotureInventaire`) | `inventaire_quarts.cloture_le` | `a_valide_cloture` de **sa propre ligne** (décision 1 de Guardian) |
+| Fil caisse (`nexus-fil-caisse.js` `faitsInventaire`, `nexus-fil-caisse-lecture.js`) | `cloture_le` du quart | idem : sa propre ligne |
+| Progression (`nexus-progression.js` ~l. 1648) | `a_valide_cloture` ET `cloture_le` | **inchangé en code** : la série reste `PENDING` tant que le serveur n'a pas fermé (≤ 15 min) |
+| Snapshot décénium (`nexus-inventaire-snapshot-donnees.js`, moteur) | `cloture_le` (`.or(cloture_le.is.null,…)`) | inchangé : un quart ouvert plus longtemps est lu « ouvert » ; à mesurer |
+| Moteur d'écarts (`nexus-inventaire-moteur.js` ~l. 666) | durée ouvert_le→cloture_le | inchangé ; la durée s'allonge de ≤ 15 min |
+| Manager : état du quart, « rouvrir » (`rouvrirClotureQuart`, Manager l. 1119) | remet `statut='ouvert'`, `cloture_le=null` | voir point A |
+| Manager : clôture directe | écrit `cloture` | voir point B |
 
-### 3. Fait individuel
-`a_valide_cloture` de la ligne de l'employé, pour la caissière comme pour le pompiste (cf. règle 1). `cloture_incomplete` reste calculée sur le périmètre de l'employé qui clôture.
-
-### 4. Vérification RLS sur Test avant tout code
-Faite le 03/11 (lecture seule, Test) : `select_inventaire_quart_employes` : `employee_id = auth.uid()` OU quart du site de l'employé ; `select_inventaire_quarts` : site de l'employé ; `select_shifts` : voir point 2. Les lignes du quart sont lisibles par un employé du site : aucune policy à modifier pour la voie « lignes présentes ».
-
-## Constat complémentaire (Guardian 6610696949)
-`referenceEcartAveugle` est vide au comptage du soir : `chargerDerniersStocks` (#169) ne lit que les comptages de type `cloture`. Tant que l'étape 3 est masquée, le fil caisse ne peut produire aucun écart sur les cigarettes ni le CBD ; le contrôle fiable du lot dépend donc de la clôture individuelle.
+## Points à arbitrer
+- **A — Réouverture manager.** Après réouverture, `statut='ouvert'` et les lignes gardent `a_valide_cloture=true` : le cron les refermerait au tick suivant (≤ 15 min). Proposition : la réouverture remet aussi `a_valide_cloture=false` pour les lignes concernées (écriture manager déjà permise ? à vérifier, sans nouvelle policy) ; sinon le cron la défait. Alternative : marquer le quart « rouvert » et l'exclure du cron. Choix demandé.
+- **B — Clôture manager directe.** Le manager écrit déjà `cloture` : conservée telle quelle, le cron ne touche que `statut <> 'cloture'` (idempotence).
+- **C — Population.** `shifts` du site, de la date et du quart. La correspondance exacte shift ↔ quart (matin/soir) sera établie par une lecture seule sur Test avant d'écrire la migration ; un shift renfort ou sans quart est exclu ou non : à trancher. Un shift sans ligne `inventaire_quart_employes` bloque la fermeture anticipée jusqu'à fin + 30 min (prudent, conforme à la règle).
+- **D — Fenêtre du cron.** Existante : `date >= aujourd'hui - 2`, un quart par site. Multisite : boucle par site, filtrée `site = r.site` ; épreuve d'isolation à deux sites.
+- **E — Idempotence.** `update … where statut <> 'cloture'` ; l'alerte `cloture_en_retard` garde son test d'existence ; relance sans double effet.
+- **F — Délai de grâce.** `closureDelayMinutes` absent ⇒ 30 (déjà le cas).
 
 ## Conditions avant tout code
-Arbitrage sur cette request. Ensuite : épreuves sur les deux ordres de clôture (caissière puis pompiste, pompiste puis caissière) et sur le repli (échéance dépassée, non dépassée, closureDelayMinutes modifié, employé défaillant), mutations, recette Test avec deux comptes (Employé Test B pour la partie manuelle, GOV-012). Rien n'est câblé en attendant. Changement du parcours pompiste en Production.
+Épreuves sur Test (SQL et JS) : les deux ordres de clôture ; repli à fin + 30 ; changement de poste ; deux sites ; relance du cron ; réouverture manager. Mutations sur chaque garde. Recette navigateur : Employé Test B seulement (GOV-012), par Guardian.
 
-## Portes à franchir par Frédéric (non écrites)
-- Voie B du point 1 (écriture à l'échéance, SQL).
-- Lecture des effectifs d'un quart par un employé (point 2, SECURITY DEFINER ou policy).
+## Portes (non franchies)
+- Migration : **Test uniquement**. Application en Production : `SUPABASE_PRODUCTION_MUTATION`, GO écrit de Frédéric, appliquée par CC.
+- Aucune policy, grant, fonction appelable par un employé, ni nouvelle règle d'alerte.
+- Aucune lecture Production.
 
 ## Preuve des conditions de decision-4
-- Fil affiché seulement si `piloteCaisseCourant === true` et `roleDuJour === 'caissiere'` ; l'affichage Accueil caisse des non-pilotes n'a pas de fil ; épreuves pilote / non-pilote / autre rôle / inter-sites.
-- Aucune catégorie ni produit nouveau ; comptage à l'aveugle.
-- Aucune migration, policy, grant ni règle d'alerte dans cette demande. Défaut A (RLS update_inventaire_alertes) non contourné.
-- Changement de quart arrêté au libellé. Lectures seules de `inventaire_quart_employes`.
+Inchangées : fil affiché seulement si `piloteCaisseCourant === true` et `roleDuJour === 'caissiere'` ; aucune nouvelle catégorie ni produit ; comptage à l'aveugle ; pas de contournement du défaut A ; le changement de quart s'arrête au libellé.
