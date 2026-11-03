@@ -15,6 +15,9 @@
   const ACCUEIL = 'NEXUS-App-v1.html';
   const ROLE = 'caissiere';
   const PLAN_COMPLET = [1, 2, 3];
+  // Périmètre du comptage d'entrée (decision-4, condition 2) : catégories du site existantes, sans catégorie ni produit nouveau.
+  // Cigarettes (à l'aveugle), CBD, et les produits du jour (journaux, pains / sandwichs, viennoiserie).
+  const CATEGORIES_CAISSE = ['cigarettes', 'cbd', 'journaux', 'pains / sandwichs', 'viennoiserie'];
   const LIBELLES_VERS = { 2: 'Continuer vers mon comptage', 3: 'Continuer vers ma fermeture' };
   const LIBELLE_TERMINER = 'Terminer ma caisse';
   const LIBELLE_SORTIE = 'Quitter et revenir à l\'Accueil';
@@ -51,6 +54,13 @@
   // (un seul comptage de la caissière entrante ferme Q1 et ouvre Q2, decision-2) ; sinon une ouverture.
   function natureComptage({ quartPrecedentCompte }) { return quartPrecedentCompte === true ? 'changement' : 'ouverture'; }
 
+  const nomCategorie = (p) => String((p && (p.categorie || p.categorie_nom || (p.inventaire_categories && p.inventaire_categories.nom))) || '').trim().toLocaleLowerCase('fr-FR');
+  const estProduitCaisse = (p) => CATEGORIES_CAISSE.includes(nomCategorie(p));
+  // Restreint la liste au périmètre de la caissière ; hors fil autorisé, la liste est rendue telle quelle (même référence).
+  function restreindre(liste, pilote, roleDuJour) {
+    return autorise(pilote, roleDuJour) && Array.isArray(liste) ? liste.filter(estProduitCaisse) : liste;
+  }
+
   function suivante(n, plan) { return planOuComplet(plan).find((x) => x > n) || null; }
   function libelleProgression(n, plan) {
     const p = planOuComplet(plan); const i = p.indexOf(n);
@@ -69,5 +79,5 @@
     return s ? urlEtape(s, planOuComplet(plan), pilote, roleDuJour) : ACCUEIL;
   }
 
-  return { NOMBRE_ETAPES, PAGE, ACCUEIL, ROLE, LIBELLE_SORTIE, LIBELLE_TERMINER, autorise, estActif, etapeDe, planDe, planPour, natureComptage, libelleProgression, libelleContinuer, urlEtape, urlApres };
+  return { NOMBRE_ETAPES, PAGE, ACCUEIL, ROLE, LIBELLE_SORTIE, LIBELLE_TERMINER, autorise, estActif, etapeDe, planDe, planPour, natureComptage, CATEGORIES_CAISSE, estProduitCaisse, restreindre, libelleProgression, libelleContinuer, urlEtape, urlApres };
 });

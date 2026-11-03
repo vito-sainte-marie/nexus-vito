@@ -56,4 +56,50 @@ cas('vocabulaire des rôles : seul le rôle du jour `caissiere` (shifts.role) ou
   assert.strictEqual(C.autorise(true, 'caissiere'), true);
 });
 cas('aucun accès à pilotesRenfort dans le module', () => assert.ok(!/pilotesRenfort/.test(fs.readFileSync(F, 'utf8').replace(/\/\/.*$/gm, ''))));
+
+// ── Périmètre du comptage d'entrée (condition 2) : cigarettes, CBD, produits du jour ──
+const P = (nom) => ({ id: nom, inventaire_categories: { nom } });
+const LISTE = ['Cigarettes', 'CBD', 'Journaux', 'Pains / Sandwichs', 'Viennoiserie', 'Gaz', 'Huiles', 'Jaugeage Carburant', 'Glaçons'].map(P);
+cas('pilote caissière : seules les familles de la caisse restent', () => {
+  const r = C.restreindre(LISTE, true, 'caissiere');
+  assert.deepStrictEqual(r.map((x) => x.id), ['Cigarettes', 'CBD', 'Journaux', 'Pains / Sandwichs', 'Viennoiserie']);
+});
+cas('non-pilote, pompiste, polyvalent, renfort, manager : la liste revient inchangée (même référence)', () => {
+  for (const [p, r] of [[false, 'caissiere'], [undefined, 'caissiere'], [true, 'pompiste'], [true, 'polyvalent'], [true, 'renfort'], [true, 'manager'], [true, 'caissier']]) assert.strictEqual(C.restreindre(LISTE, p, r), LISTE);
+});
+cas('liste non tableau : renvoyée telle quelle, sans exception', () => {
+  assert.strictEqual(C.restreindre(null, true, 'caissiere'), null);
+  assert.strictEqual(C.restreindre(undefined, true, 'caissiere'), undefined);
+});
+cas('aucune nouvelle catégorie : la casse ne compte pas, une catégorie inconnue est écartée', () => {
+  assert.strictEqual(C.estProduitCaisse(P('CIGARETTES')), true);
+  assert.strictEqual(C.estProduitCaisse(P('Boissons chaudes')), false);
+  assert.strictEqual(C.estProduitCaisse({}), false);
+  assert.strictEqual(C.estProduitCaisse(null), false);
+});
+
+// ── Câblage de la page (épreuve statique) ──
+const HTML = fs.readFileSync(path.join(__dirname, process.env.PAGE_MUTE || 'NEXUS-Inventaire-v1.html'), 'utf8');
+cas('page : le module est chargé et le fil n\'est activé que par etapeDe(pilote, rôle du jour)', () => {
+  assert.ok(/<script src="nexus-fil-caisse\.js/.test(HTML));
+  assert.ok(/NexusFilCaisse\.etapeDe\(location\.search, piloteCaisseCourant, roleDuJour\) === 2/.test(HTML));
+});
+cas('page : le rôle passé au module est roleDuJour, jamais la fiche employé', () => {
+  const appels = HTML.match(/NexusFilCaisse\.(?:etapeDe|restreindre|autorise)\([^)]*\)/g) || [];
+  assert.ok(appels.length >= 2);
+  for (const a of appels) { assert.ok(/roleDuJour/.test(a), a); assert.ok(!/employeeCourant\.role|employee\.role/.test(a), a); }
+});
+cas('page : le fil caisse n\'allume pas enFil() (le flux de catégories reste celui d\'avant)', () => {
+  const bloc = HTML.slice(HTML.indexOf('function filCaisseActiver'), HTML.indexOf('const filFermeture'));
+  assert.ok(!/filEtape\s*=|enFil\s*=/.test(bloc));
+  assert.ok(/const enFil = \(\) => filEtape != null;/.test(HTML));
+});
+cas('page : restreindreAuPlanQuart ne filtre par la caisse que si le fil est en cours', () => {
+  assert.ok(/if \(filCaisseEnCours\) liste = window\.NexusFilCaisse\.restreindre\(liste, piloteCaisseCourant, roleDuJour\);/.test(HTML));
+});
+cas('page : aucune écriture ni droit nouveau dans le bloc du fil caisse', () => {
+  const bloc = HTML.slice(HTML.indexOf('function filCaisseActiver'), HTML.indexOf('const filFermeture'));
+  assert.ok(!/\.(insert|upsert|update|delete|rpc)\(/.test(bloc));
+  assert.ok(!/inventaire_quart_employes|from\('/.test(bloc));
+});
 console.log(`\n${ok} contrôles OK`);

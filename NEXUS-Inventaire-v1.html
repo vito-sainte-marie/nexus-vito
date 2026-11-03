@@ -358,6 +358,7 @@
      drapeau READY avant toute initialisation opérationnelle. -->
 <script src="nexus-fil-debut-quart.js?v=20261021-0001"></script>
 <script src="nexus-fil-fin-quart.js?v=20261031-0001"></script>
+<script src="nexus-fil-caisse.js?v=20261103-0001"></script>
 <script src="nexus-inventaire-mode-test.js?v=20260904-0104"></script>
 <script>
   // ------------------------------------------------------------
@@ -1326,6 +1327,27 @@
   const filEtape = FIL.etapeDe(location.search);
   const enFil = () => filEtape != null;
   const filPlan = FIL.planDe(location.search);
+  // Fil « Ma caisse », étape 2 seule (lot INVENTAIRE-CAISSE-RENFORT, L1, decision-4) : activé uniquement pour un pilote de la caisse
+  // dont le rôle du jour (service, jamais le rôle de la fiche) est caissière. Sinon rien de ceci ne s'exécute : enFil() reste faux
+  // et l'écran est celui d'avant. Aucune écriture nouvelle : c'est le comptage d'ouverture existant, restreint au périmètre de la caisse.
+  let filCaisseEnCours = false;
+  const filCaissePlan = () => window.NexusFilCaisse.planDe(location.search);
+  function filCaisseActiver() {
+    const C = window.NexusFilCaisse;
+    filCaisseEnCours = true;
+    document.body.classList.add('fil-actif');
+    const menu = document.querySelector('.header .menu-btn');
+    if (menu) menu.style.display = 'none';
+    const barre = document.createElement('div');
+    barre.id = 'filBarre';
+    barre.style.cssText = 'display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 14px;font-size:13px;';
+    barre.innerHTML = `<span id="filProgres" class="progres" style="font-weight:600;">${C.libelleProgression(2, filCaissePlan())}</span>`
+      + `<a id="filSortie" href="${C.ACCUEIL}" style="color:var(--cyan);text-decoration:none;">← ${C.LIBELLE_SORTIE}</a>`;
+    const phone = document.querySelector('.phone');
+    phone.insertBefore(barre, phone.firstChild);
+    document.getElementById('filSortie').addEventListener('click', () => { try { if (quartRow) sauvegarderDraft('ouverture'); } catch (e) { /* brouillon déjà écrit à chaque saisie */ } });
+  }
+  function filCaisseTerminer() { window.location.href = window.NexusFilCaisse.ACCUEIL; }
   const filFermeture = window.NexusFilFinQuart.estActif(location.search);
   let filFuseau = null;
   function filDate() { try { return NexusStation.dateLocaleStation(filFuseau); } catch (e) { return null; } }
@@ -1595,6 +1617,7 @@
   // empêcher l'employé de travailler, quitte à perdre le bénéfice du plan
   // pour ce passage-là.
   function restreindreAuPlanQuart(liste) {
+    if (filCaisseEnCours) liste = window.NexusFilCaisse.restreindre(liste, piloteCaisseCourant, roleDuJour);
     if (!planQuartActif) return liste;
     return liste.filter(p => produitsPlanIds.has(p.id) || (p.inventaire_categories && p.inventaire_categories.nom === JAUGEAGE_NOM));
   }
@@ -3575,9 +3598,9 @@
         ${nbLivraisonsDeclarees ? `<div class="stat-row"><span class="stat-label">Livraisons déclarées</span><span class="stat-value">${nbLivraisonsDeclarees}</span></div>` : ''}
       </div>
       ${enAttente ? `<div class="resume-card" style="border-color:var(--amber);">⚠️ ${enAttente} comptage${enAttente > 1 ? 's' : ''} en attente de connexion — sauvegardé${enAttente > 1 ? 's' : ''} sur cet appareil, envoyé${enAttente > 1 ? 's' : ''} dès que le réseau revient. Rien n'est perdu.</div>` : ''}
-      <button class="btn-primary" id="btnRetourAccueil">${enFil() ? FIL.libelleContinuer(filEtape, filPlan) : 'Retour'}</button>
+      <button class="btn-primary" id="btnRetourAccueil">${filCaisseEnCours ? window.NexusFilCaisse.libelleContinuer(2, filCaissePlan()) : enFil() ? FIL.libelleContinuer(filEtape, filPlan) : 'Retour'}</button>
     `;
-    document.getElementById('btnRetourAccueil').addEventListener('click', enFil() ? filTerminer : renderAccueil);
+    document.getElementById('btnRetourAccueil').addEventListener('click', filCaisseEnCours ? filCaisseTerminer : enFil() ? filTerminer : renderAccueil);
   }
 
   // ------------------------------------------------------------
@@ -4389,7 +4412,19 @@
       if (codeConnu) zoneActive = codeConnu;
     }
 
-    if (enFil()) {
+    const filCaisse = window.NexusFilCaisse.etapeDe(location.search, piloteCaisseCourant, roleDuJour) === 2;
+    if (filCaisse) {
+      filCaisseActiver();
+      zoneActive = 'boutique';
+      if (quartEmployeRow && quartEmployeRow.a_valide_ouverture) {
+        document.getElementById('titre').textContent = 'Inventaire d\'ouverture validé';
+        document.getElementById('sousTitre').textContent = '';
+        document.getElementById('content').innerHTML = `
+          <div class="resume-card"><div class="checkmark">✓</div><div class="final-greet">Merci ${employeeCourant.nom}</div></div>
+          <button class="btn-primary" id="btnFilTerminer">${window.NexusFilCaisse.libelleContinuer(2, filCaissePlan())}</button>`;
+        document.getElementById('btnFilTerminer').addEventListener('click', filCaisseTerminer);
+      } else demarrerOuvertureComptage();
+    } else if (enFil()) {
       // Quart déjà choisi à la prise de poste (fixé plus haut, avant toute création) ; zone piste, sans choix ni Accueil.
       if (zonesAutorisees.includes('piste')) zoneActive = 'piste';
       if (filFermeture) {
