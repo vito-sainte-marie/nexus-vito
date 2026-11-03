@@ -58,7 +58,7 @@ Aucun lecteur ne traite « clé absente » différemment de la valeur par défau
 
 - Lecteurs JS : NEXUS-Inventaire-Manager-v1.html (défauts 500–508 ; `snapshotMaxDelayMinutes != null ? … : défaut` à 1387–1388 ; `reviewFrequency === 'exception_only'` à 3359), NEXUS-Inventaire-v1.html (gardes `Number.isFinite`, 1385–1400), NEXUS-Parametres-Inventaire-v1.html (fusion de `DEFAULTS_PARAMETRES_INVENTAIRE` sur le JSON stocké, 280–320, 2907–2908). Tous fusionnent les défauts ou gardent par `Number.isFinite`, `!= null` ou `||`.
 - Fonctions SQL de revue (20260905131500_fuseau_horaire_par_site.sql, 20260803021549_planification_synthese_inventaire.sql) : ne lisent que les 9 clés d'origine. Celles-ci sont toujours présentes par le défaut de colonne NOT NULL (20260803015407_inventaire_supervision_configurable.sql), `reviewFrequency` comprise.
-- Réserve : audit fait sur le dépôt, aucune ligne Production lue par moi. Les 11 clés ajoutées (dont les deux listes) ne sont lues que par la garde de ce lot.
+- Réserve : audit fait sur le dépôt, aucune ligne Production lue par moi. Parmi les 11 clés matérialisées, seules les deux listes sont nouvelles dans ce lot ; `pilotesCaisse` n'est lue que par la garde, `pilotesRenfort` par aucun écran. Les autres sont des défauts déjà portés par l'écran de réglages.
 
 ## Frontière de sécurité (rappel de decision-3)
 
