@@ -80,5 +80,12 @@
     return s ? urlEtape(s, planOuComplet(plan), pilote, roleDuJour) : ACCUEIL;
   }
 
-  return { NOMBRE_ETAPES, PAGE, ACCUEIL, ROLE, MESSAGE_AUCUN_PRODUIT, LIBELLE_SORTIE, LIBELLE_TERMINER, autorise, estActif, etapeDe, planDe, planPour, natureComptage, CATEGORIES_CAISSE, estProduitCaisse, restreindre, libelleProgression, libelleContinuer, urlEtape, urlApres };
+  // Entrée depuis l'Accueil (incrément 3a) : adresse de l'étape 2 pour une caissière pilote en service dont le comptage reste à faire ;
+  // null dans tous les autres cas (l'Accueil garde alors son lien actuel). Le fait « comptage à faire » est jugé par l'appelant.
+  function lienAccueil(pilote, roleDuJour, enService, comptageAFaire) {
+    if (enService !== true || comptageAFaire !== true) return null;
+    return urlEtape(2, [2], pilote, roleDuJour);
+  }
+
+  return { NOMBRE_ETAPES, lienAccueil, PAGE, ACCUEIL, ROLE, MESSAGE_AUCUN_PRODUIT, LIBELLE_SORTIE, LIBELLE_TERMINER, autorise, estActif, etapeDe, planDe, planPour, natureComptage, CATEGORIES_CAISSE, estProduitCaisse, restreindre, libelleProgression, libelleContinuer, urlEtape, urlApres };
 });
