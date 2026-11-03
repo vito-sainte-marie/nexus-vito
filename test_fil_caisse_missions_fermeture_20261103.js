@@ -63,13 +63,14 @@ const ETAPE2 = 'NEXUS-Inventaire-v1.html?fil=caisse&etape=2&plan=2';
     assert.strictEqual(await L.lienEntree(ctx(client({ erreurConfig: true })), G), null);
     assert.strictEqual(await L.lienEntree(ctx(client({ erreurRows: true })), G), null);
   });
-  await cas('étape 3 MASQUÉE (quart partagé non arbitré) : même à l\'heure de fermeture, aucun lien de fermeture', async () => {
-    assert.strictEqual(C.FERMETURE_OUVERTE, false);
+  await cas('étape 3 OUVERTE : FERMETURE_OUVERTE vrai ; le lien de fermeture n\'apparaît qu\'à l\'heure due', async () => {
+    assert.strictEqual(C.FERMETURE_OUVERTE, true);
     S.maintenant = 600;
-    assert.strictEqual(await L.lienEntree(ctx(client({ rows: ouverte })), G), null);
+    const tot = await L.lienEntree(ctx(client({ rows: ouverte })), G);
+    assert.ok(!/etape=3/.test(String(tot)), 'pas de fermeture avant l\'heure due : ' + tot);
     S.maintenant = 1280;
-    assert.strictEqual(await L.lienEntree(ctx(client({ rows: ouverte })), G), null);
-    assert.strictEqual(await L.lienEntree(ctx(client()), G), 'NEXUS-Inventaire-v1.html?fil=caisse&etape=2&plan=2');
+    const tard = await L.lienEntree(ctx(client({ rows: ouverte })), G);
+    assert.strictEqual(tard, 'NEXUS-Inventaire-v1.html?fil=caisse&etape=3&plan=3');
     S.maintenant = 600;
   });
   await cas('quart partagé (preuve de la relecture) : le quart clos par le pompiste rend clotureFaite vrai pour la caissière, et inversement', async () => {
