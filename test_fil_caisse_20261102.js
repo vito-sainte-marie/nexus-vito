@@ -123,4 +123,22 @@ cas('page : aucune écriture ni droit nouveau dans le bloc du fil caisse', () =>
   assert.ok(!/\.(insert|upsert|update|delete|rpc)\(/.test(bloc));
   assert.ok(!/inventaire_quart_employes|from\('/.test(bloc));
 });
+cas('page : bouton final « Terminer ma caisse » tant que l\'étape 3 n\'est pas câblée', () => {
+  assert.ok(!/NexusFilCaisse\.libelleContinuer\(/.test(HTML));
+  assert.strictEqual((HTML.match(/NexusFilCaisse\.LIBELLE_TERMINER/g) || []).length, 2);
+});
+cas('page : titre de catégorie sans « Étape » dans le fil caisse (une seule numérotation)', () => {
+  const i = HTML.indexOf('function libelleEtapeParcours');
+  const bloc = HTML.slice(i, HTML.indexOf('const cible', i));
+  assert.ok(/enFil\(\) \|\| filCaisseEnCours\) \? ''/.test(bloc));
+  assert.ok(/catégories`/.test(bloc));
+});
+cas('page : en fil caisse, « Précédent » et « Retour » sont masqués (sortie par la barre seule)', () => {
+  assert.ok(/body[^\n]*classList\.add\('fil-actif', 'fil-caisse'\)/.test(HTML) || /classList\.add\('fil-actif', 'fil-caisse'\)/.test(HTML));
+  assert.ok(/\.fil-caisse \.nexus-retour-btn, \.fil-caisse #btnAnnulerOuverture \{ display: none !important; \}/.test(HTML));
+});
+cas('page : étiquette cigarettes courte, sans « bureau géré par le manager »', () => {
+  assert.ok(!/bureau géré par le manager/.test(HTML));
+  assert.strictEqual((HTML.match(/📍 Caisse uniquement</g) || []).length, 3);
+});
 console.log(`\n${ok} contrôles OK`);

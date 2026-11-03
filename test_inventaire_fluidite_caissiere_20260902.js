@@ -13,7 +13,7 @@ assert.strictEqual(fluidite.quantiteApresConditionnement('', 10), '10',
 assert.strictEqual(fluidite.quantiteApresConditionnement('2,5', 8), '20',
   'la virgule décimale doit rester compatible avec le clavier français');
 
-assert(html.includes('📍 Caisse uniquement — bureau géré par le manager'),
+assert(html.includes('📍 Caisse uniquement'),
   'le carrousel doit rappeler que le bureau est réservé au manager');
 assert(html.includes("placeholder=\"${estCigaretteCaisseEmploye(p) ? 'Comptage caisse' : 'Votre comptage'}\""),
   'le champ du carrousel cigarettes doit être nommé Comptage caisse');
