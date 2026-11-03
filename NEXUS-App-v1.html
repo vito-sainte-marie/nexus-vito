@@ -2894,8 +2894,10 @@
       missions: missionsInfo, points: missionsInfo.pointsAujourdhui, filLien, finQuartLien, finQuartFait,
       finMinutes, maintenantMinutes, finIndexApplicable, finIndexFait, clotureInventaireFait, fermetureLien,
       pointageActif: pointageActifSite === true, recap: recapQuart,
-      // Variante caissière pilote : faits déjà chargés plus haut, aucune lecture ajoutée.
+      // Variante caissière (toutes les caissières en service) : faits déjà chargés plus haut, aucune lecture ajoutée.
+      // Pilote : fil (filCaisseLien) ; autre caissière : Inventaire classique, comme la prochaine action d'aujourd'hui.
       piloteCaisse: piloteCaisse === true, filCaisseLien, fdjApplicable,
+      inventaireLien: inventaireApplicable ? 'NEXUS-Inventaire-v1.html' : null,
     });
     const faitsMenu = { estNiveauManager: false, enService, roleDuJour, receptionApplicable, fdjApplicable, fermetureLien, pointageActif: pointageActifSite === true };
     monterMenuAccueil(faitsMenu);

@@ -93,11 +93,16 @@
     return l.length ? l.join(' → ') : null;
   }
 
-  // Variante caissière pilote (lot INVENTAIRE-CAISSE-RENFORT) : même carte de poste, même habillage, un seul fil « Ma caisse ».
-  // Refus par défaut : sans `piloteCaisse === true` (fait déjà lu par l'Accueil), aucun modèle. Le lien vient de l'Accueil
-  // (NexusFilCaisse.lienEntree), jamais recalculé ici ; aucun bloc piste (réception, index, jaugeage).
+  // Variante caissière en service (lot INVENTAIRE-CAISSE-RENFORT, décision de Frédéric du 03/11 13:44 : à toutes les caissières) :
+  // même carte de poste, même habillage, une carte « Ma caisse ». Le bouton diffère : la pilote (`piloteCaisse === true`) va au fil
+  // (lien de l'Accueil, NexusFilCaisse.lienEntree) ; toute autre caissière va là où mène aujourd'hui sa prochaine action
+  // (`inventaireLien`, donné par l'Accueil), sans fil. Aucun lien n'est recalculé ici ; aucun bloc piste.
   function modeleCaisse(f) {
     const fait = !!(f.inventaireOuvertureFaite || f.inventaireFait);
+    const pilote = f.piloteCaisse === true;
+    const bouton = pilote
+      ? (f.filCaisseLien ? { libelle: 'Continuer vers ma caisse →', href: f.filCaisseLien } : null)
+      : (!fait && f.inventaireLien ? { libelle: 'Faire l’inventaire →', href: f.inventaireLien } : null);
     const m = f.missions || { total: 0, faites: 0 };
     return {
       variante: 'caisse',
@@ -106,9 +111,9 @@
       poste: { libelle: 'Caisse', quart: libelleQuart(f.quart), depuis: heureLocale(f.heureDebut, f.fuseau), fin: f.finMinutes != null ? heureDeMinutes(Number(f.finMinutes)) : null, image: IMAGES_POSTE.caissiere },
       etapes: [{ code: 'comptage', libelle: 'Comptage d’entrée', etat: fait ? 'fait' : 'a_faire' }],
       faites: fait ? 1 : 0, total: 1, filTermine: fait,
-      bouton: f.filCaisseLien ? { libelle: 'Continuer vers ma caisse →', href: f.filCaisseLien } : null,
+      bouton,
       reception: null, finQuart: null, fermeture: null, termine: null,
-      incoherent: !fait && !f.filCaisseLien,
+      incoherent: !fait && !bouton,
       missions: null,
       raccourcis: { missions: { restantes: Math.max(0, m.total - m.faites), total: m.total }, fdj: f.fdjApplicable === true },
       points: Number(f.points) || 0,
@@ -117,7 +122,7 @@
 
   // f : faits de l'Accueil. Rend null quand le mode ne s'applique pas.
   function modele(f) {
-    if (f && f.enService && !f.consultationExterne && f.roleDuJour === 'caissiere' && f.piloteCaisse === true) return modeleCaisse(f);
+    if (f && f.enService && !f.consultationExterne && f.roleDuJour === 'caissiere') return modeleCaisse(f);
     if (!f || !f.enService || f.consultationExterne || f.roleDuJour !== 'pompiste') return null;
     const etapes = etapesOuverture(f);
     const faites = etapes.filter((e) => e.etat !== 'a_faire').length;
