@@ -150,11 +150,17 @@ async function comportement(src) {
       await ctx.close();
     }
     // 3b. Taille choisie : téléphone 375 px à DPR 3 -> 1200 (335 px x 3 = 1005), jamais le 1600 ; bureau 1100 px @DPR1 -> 1200, @DPR2 -> 1600.
-    for (const [w, dpr, attendu] of [[375, 3, '-1200.webp'], [1440, 1, '-1200.webp'], [1440, 2, '-1600.webp']]) {
-      const { ctx, p } = await nouveau(w, { deviceScaleFactor: dpr }); await monter(p, true);
+    // Le `sizes` suit la VUE : la colonne mobile d'un ordinateur (1440 px, ~476 px affichés) à DPR 2 -> 1200, pas 1600.
+    for (const [w, dpr, attendu, bureau] of [[375, 3, '-1200.webp', false], [1440, 1, '-1200.webp', true], [1440, 2, '-1600.webp', true], [1440, 2, '-1200.webp', false]]) {
+      const { ctx, p } = await nouveau(w, { deviceScaleFactor: dpr });
+      await p.evaluate((bu) => { if (bu) document.body.classList.add('nexus-desktop'); }, bureau);
+      await monter(p, true);
       await p.waitForFunction(() => { const i = document.querySelector('.am-banniere img'); return i && i.complete && i.currentSrc; }, null, { timeout: 5000 }).catch(() => {});
       const cs = await p.evaluate(() => (document.querySelector('.am-banniere img') || {}).currentSrc || '');
       if (!cs.endsWith(attendu)) ko('taille de photo : ' + w + ' px @DPR' + dpr + ' devrait charger ' + attendu + ', a chargé ' + cs);
+      const fs17 = await p.evaluate(() => parseFloat(getComputedStyle(document.querySelector('.am-banniere #taglineRole')).fontSize));
+      if (bureau && (fs17 < 16 || fs17 > 18)) ko('slogan en vue bureau : ' + fs17 + ' px, attendu 16 à 18');
+      if (!bureau && fs17 !== 12) ko('slogan en vue mobile : ' + fs17 + ' px, attendu 12 (inchangé)');
       await ctx.close();
     }
     // 4. Contraste AA du texte blanc sur les zones les plus claires de chaque photo (ombre ignorée : cas le plus sévère).

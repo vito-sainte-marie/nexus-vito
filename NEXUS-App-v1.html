@@ -456,6 +456,9 @@
   }
   body:has(.am-marqueur) .am-banniere #taglineRole,
   body.nexus-desktop:has(.am-marqueur) .am-banniere #taglineRole{display:block; position:absolute; left:14px; right:14px; bottom:10px; z-index:2; margin:0; max-width:none; text-align:left; font-size:12px; line-height:1.35; font-weight:700; font-style:italic; color:white; text-shadow:0 1px 3px color-mix(in srgb, black 85%, transparent), 0 0 8px color-mix(in srgb, black 55%, transparent);}
+  @media (min-width:768px){
+    body.nexus-desktop:has(.am-marqueur) .am-banniere #taglineRole{font-size:17px; line-height:1.3;}
+  }
   body:has(.am-marqueur) .am-banniere .dots-anim i{background:currentColor;}
   @media (prefers-reduced-motion:reduce){
     body:has(.am-marqueur) .dots-anim i{animation:none;}
@@ -3285,6 +3288,13 @@
       if (s && ban) ban.appendChild(s);
     } catch (e) {}
   }
+  // La largeur affichée suit la VUE (body.nexus-desktop), pas la fenêtre : la colonne mobile d'un ordinateur
+  // fait ~476 px même dans une fenêtre de 1440 px.
+  function sizesBanniere() {
+    let bureau = false;
+    try { bureau = document.body.classList.contains('nexus-desktop'); } catch (e) {}
+    return bureau ? '1100px' : '(min-width:560px) 480px, calc(100vw - 40px)';
+  }
   function banniereAccueilHtml(siteId) {
     const apercu = siteId === SITE_APERCU_BANNIERE && typeof APERCU_BANNIERE_DEMANDE !== 'undefined' && APERCU_BANNIERE_DEMANDE === true;
     if (SITES_BANNIERE_VITO.indexOf(siteId) === -1 && !apercu) return '';
@@ -3292,7 +3302,7 @@
     const base = baseBanniere(nuit);
     return '<div class="am-banniere"><img src="' + base + '-800.webp"'
       + ' srcset="' + base + '-800.webp 800w, ' + base + '-1200.webp 1200w, ' + base + '-1600.webp 1600w"'
-      + ' sizes="(min-width:768px) 1100px, (min-width:560px) 480px, calc(100vw - 40px)" width="1600" height="800" loading="lazy" decoding="async"'
+      + ' sizes="' + sizesBanniere() + '" width="1600" height="800" loading="lazy" decoding="async"'
       + ' alt="La station ViTO de Sainte-Marie : auvent, totem et végétation tropicale"'
       + ' onerror="var s=document.getElementById(\'taglineRole\'),i=document.getElementById(\'sessionInfo\');if(s&&i)i.parentNode.insertBefore(s,i);this.parentNode.remove()"></div>';
   }

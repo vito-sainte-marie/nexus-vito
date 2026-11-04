@@ -13,7 +13,7 @@ const EPREUVES = {
     assert(h.includes('accueil-station-vito-800.webp 800w') && h.includes('accueil-station-vito-1200.webp 1200w') && h.includes('accueil-station-vito-1600.webp 1600w'));
     const n = fabrique(src, '', 'sombre').banniereAccueilHtml('vito-sainte-marie');
     assert(n.includes('accueil-station-vito-nuit-800.webp 800w') && n.includes('accueil-station-vito-nuit-1200.webp 1200w') && n.includes('accueil-station-vito-nuit-1600.webp 1600w') && !n.includes('vito-800.webp'));
-    assert(h.includes('sizes="(min-width:768px) 1100px, (min-width:560px) 480px, calc(100vw - 40px)"'));
+    assert(/sizes="' \+ sizesBanniere\(\) \+ '"/.test(src) && src.includes("return bureau ? '1100px' : '(min-width:560px) 480px, calc(100vw - 40px)'"), 'sizes suit la vue (nexus-desktop), pas la fenêtre');
     assert(h.includes('loading="lazy"') && /alt="[^"]{10,}"/.test(h) && h.includes('this.parentNode.remove()') && h.includes("getElementById('taglineRole')"));
   },
   'NOUVEAU : bandeau absent pour un site non ViTO, avec ou sans paramètre': (src) => {
