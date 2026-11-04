@@ -286,10 +286,12 @@
     const photo = jauge.photoLe ? `<div class="sub">Photo prise le ${esc(new Date(jauge.photoLe).toLocaleString('fr-FR'))} : ces volumes sont ceux de cet instant.</div>` : '';
     const conf = pret ? `${total}<div class="card"><label style="display:flex;gap:10px;align-items:flex-start"><input type="checkbox" id="jConf" style="width:26px;height:26px;accent-color:var(--green)" ${jauge.confirme ? 'checked' : ''}><span>Je confirme que ces quatre volumes correspondent à l'écran du Veeder-Root.</span></label></div>
       <button class="btn" data-act="jenregistrer" ${jauge.confirme && !jauge.enregistre ? '' : 'disabled'}>${jauge.enregistre ? 'Jaugeage enregistré' : 'Enregistrer le jaugeage'}</button>` : '';
+    const enLecture = jauge.sondeActive && (jauge.statut === 'en_attente' || jauge.statut === 'en_cours');
+    const lectureMuette = jauge.rattrapage && jauge.statut !== 'traite' && jauge.statut !== 'erreur';
     return `<h1>Jaugeage Veeder-Root</h1><div class="sub">Cadrez uniquement l'écran du Veeder-Root, rien d'autre.</div>
       <div class="card"><div class="cadre-vr" aria-label="Guide de cadrage : l'écran du Veeder-Root doit remplir le cadre"><span class="cc cc1"></span><span class="cc cc2"></span><span class="cc cc3"></span><span class="cc cc4"></span><div class="cadre-ecran"><div>SUPER SANS PLOMB · VOLUME</div><div>GASOIL CUVE 1 · VOLUME</div><div>GASOIL CUVE 2 · VOLUME</div><div>GNR · VOLUME</div></div></div><div class="sub" style="margin:6px 0 10px">Placez l'écran dans le cadre : les quatre volumes lisibles, sans reflet, sans visage ni autre document.</div><button class="btn2" data-act="jcamera">Prendre la photo de l'écran</button><input type="file" accept="image/*" capture="environment" id="jPhoto" tabindex="-1" aria-hidden="true" style="position:absolute;width:1px;height:1px;overflow:hidden;opacity:0;clip:rect(0,0,0,0)">
-      <div class="progres" id="jEtat">${esc(jauge.message || LIB_STATUT[jauge.statut])}</div>
-      ${jauge.docId ? '<button class="lien-discret" data-act="jrafraichir">Actualiser la lecture</button>' : ''}</div>
+      <div class="progres" id="jEtat">${esc(jauge.message || (enLecture ? 'Lecture de la photo en cours…' : LIB_STATUT[jauge.statut]))}</div>
+      ${jauge.docId ? `<button class="${lectureMuette ? 'btn2' : 'lien-discret'}" data-act="jrafraichir">Actualiser la lecture</button>` : ''}</div>
       ${photo}${lignes}${avert}${conf}${(ex || jauge.enregistre || jauge.impossible) ? '' : '<div class="sub"><button class="lien-discret" data-act="jimpossible">Je ne peux pas faire le jaugeage</button></div>'}${enFil() ? (jauge.enregistre || jauge.existant || jauge.impossible ? filContinuer() : '') : '<button class="btn2" data-act="choix">Retour</button>'}`;
   }
   // Jaugeage impossible : la porte qui était sur la carte de l'Inventaire (retirée, fil unique). Écrit le statut du jour, jamais un relevé.
@@ -347,6 +349,7 @@
     if (id && /^j(SP|GO|GNR)-/.test(id)) { const el = document.getElementById(id); if (el) { el.focus(); const n = el.value.length; try { el.setSelectionRange(n, n); } catch (x) {} } }
   }
   async function envoyerPhoto(fichier) {
+    arreterSonde();
     jauge.statut = 'envoi'; jauge.message = ''; rendre();
     try {
       const fmt = R.extensionPhoto(fichier);
@@ -385,6 +388,7 @@
       jauge.statut = 'hors_ligne'; jauge.message = cause.message;
       if (cause.type === 'reseau') reseau.ok = false;
     }
+    if (jauge.statut === 'en_attente') lancerSonde();
     rendre(); if (jauge.statut === 'en_attente') focaliserPremierVide();
   }
   // Recopie différée des index : le pompiste peut valider sa fin de quart puis recopier dans Decenium plus tard.
@@ -423,12 +427,14 @@
     } catch (x) { console.error(x); reseau.ok = false; jauge.message = 'Enregistrement impossible : vos valeurs restent à l\'écran, réessayez.'; }
     rendre();
   }
-  async function actualiserLecture() {
+  async function actualiserLecture(opts) {
     if (!jauge.docId) return;
+    const doc = jauge.docId, avant = jauge.statut, msgAvant = jauge.message;
     try {
-      const { data, error } = await nexusClient.from('documents_ocr_file').select('status, resultat_texte, erreur_message, deposited_at').eq('id', jauge.docId).single();
+      const { data, error } = await nexusClient.from('documents_ocr_file').select('status, resultat_texte, erreur_message, deposited_at').eq('id', doc).single();
       if (error) throw error;
-      jauge.statut = data.status; jauge.photoLe = data.deposited_at || null; reseau.ok = true;
+      if (jauge.docId !== doc) return; // une autre photo a pris la place pendant la requête
+      jauge.statut = data.status; jauge.photoLe = data.deposited_at || null; reseau.ok = true; jauge.message = '';
       if (data.status === 'traite') {
         jauge.propositions = {};
         V.lireEcranVeederRoot(data.resultat_texte).forEach(c => {
@@ -439,8 +445,39 @@
         fusionnerLecture();
       }
     } catch (x) { console.error(x); reseau.ok = false; jauge.message = 'Le serveur ne répond pas. Réessayez ou saisissez à la main.'; }
+    // Interrogation automatique : on ne réécrit l'écran (et le champ en cours de saisie) que si quelque chose a changé.
+    if (opts && opts.sonde && jauge.statut === avant && jauge.message === msgAvant) return;
     rendreEnGardantLeFocus();
   }
+  // Lecture enchaînée : après un envoi réussi, la file est interrogée toutes les 3 s pendant 90 s au plus, en lecture seule
+  // (même requête que « Actualiser la lecture »). Elle ne fait que proposer : fusionnerLecture n'écrase rien, la case « Je confirme » reste requise.
+  const SONDE_PAS_MS = 3000, SONDE_DUREE_MS = 90000;
+  let sonde = null;
+  function arreterSonde() {
+    if (sonde) { clearTimeout(sonde.minuteur); sonde = null; }
+    jauge.sondeActive = false;
+  }
+  function lancerSonde() {
+    arreterSonde();
+    if (!jauge.docId) return;
+    const s = sonde = { fin: Date.now() + SONDE_DUREE_MS, minuteur: null };
+    jauge.sondeActive = true; jauge.rattrapage = false;
+    const tour = async () => {
+      if (sonde !== s) return;
+      if (ecran !== 'jauge' || jauge.enregistre) { arreterSonde(); return; }
+      await actualiserLecture({ sonde: true });
+      if (sonde !== s) return;
+      if (jauge.statut === 'traite' || jauge.statut === 'erreur') { arreterSonde(); rendreEnGardantLeFocus(); return; }
+      if (Date.now() >= s.fin) {
+        arreterSonde();
+        jauge.message = 'La lecture automatique ne répond pas. Touchez Actualiser plus tard ou saisissez les volumes à la main.'; jauge.rattrapage = true;
+        rendreEnGardantLeFocus(); return;
+      }
+      s.minuteur = setTimeout(tour, SONDE_PAS_MS);
+    };
+    s.minuteur = setTimeout(tour, SONDE_PAS_MS);
+  }
+  window.addEventListener('pagehide', arreterSonde);
 
   function vueFini() {
     return `<div class="card"><h2>Terminé</h2><div class="sub">Relevé validé. ${moment && R.estDebut(moment) ? 'Decenium renseigne automatiquement les valeurs de début : rien à recopier.' : 'Decenium reste la référence : NEXUS n\'est qu\'un carnet d\'aide à la recopie.'}</div></div>${filContinuer()}`;

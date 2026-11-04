@@ -38,7 +38,7 @@ const ligneEsc = (s) => (/^\s*const esc = .*$/m.exec(s) || [''])[0];
 
 // Bac à sable. `lecture` : { status, resultat } renvoyé par la table documents_ocr_file.
 function bac(source, { lecture = null, actif = null } = {}) {
-  const noms = ['vueJauge', 'envoyerPhoto', 'actualiserLecture', 'premierChampVide', 'focaliserPremierVide', 'fusionnerLecture', 'rendreEnGardantLeFocus'];
+  const noms = ['vueJauge', 'envoyerPhoto', 'actualiserLecture', 'premierChampVide', 'focaliserPremierVide', 'fusionnerLecture', 'rendreEnGardantLeFocus', 'arreterSonde', 'lancerSonde'];
   const fns = {};
   for (const n of noms) fns[n] = extraireFonction(source, n);
   const journal = [];
@@ -69,7 +69,9 @@ function bac(source, { lecture = null, actif = null } = {}) {
     const window = { NexusCameraPage: { redimensionnerPhoto: async (f) => f }, NexusCaptureGuidee: GUIDEE };
     const nexusFuseauSite = async () => 'UTC';
     const enFil = () => false, filContinuer = () => '';
-    let sauvegardes = 0;
+    let sauvegardes = 0, ecran = 'jauge', sonde = null;
+    const SONDE_PAS_MS = 3000, SONDE_DUREE_MS = 90000;
+    const setTimeout = () => 0, clearTimeout = () => {};
     const sauverJauge = () => { sauvegardes++; return true; };
     const rendre = () => { journal.push('rendre'); };
     ${Object.values(fns).filter(Boolean).join('\n')}
@@ -93,6 +95,7 @@ async function lancer(source) {
     const { api } = bac(source);
     await api.envoyerPhoto({ name: 'p.jpg' });
     assert.strictEqual(api.jauge.statut, 'en_attente');
+    api.arreterSonde(); // la lecture enchaînée (épreuve dédiée) remplace la phrase pendant l'attente
     const html = api.vueJauge();
     assert.ok(html.includes(PHRASE), `phrase absente : ${/id="jEtat">([^<]*)/.exec(html) && /id="jEtat">([^<]*)/.exec(html)[1]}`);
   });
@@ -269,9 +272,9 @@ function ok(l) { n++; console.log('OK —', l); }
   await muter('« échoué » rétabli (état erreur)', "erreur: 'Lecture automatique indisponible.", "erreur: 'La lecture automatique a échoué.", 'E2a');
   await muter('« échec » dans un texte de l\'écran', "Cadrez uniquement l'écran du Veeder-Root, rien d'autre.", "En cas d'échec, cadrez l'écran du Veeder-Root.", 'E2c');
   await muter('état erreur sans invitation à saisir', "erreur: 'Lecture automatique indisponible. Saisissez les quatre volumes", "erreur: 'Lecture automatique indisponible. Reprenez les volumes", 'E2d');
-  await muter('lien redevenu bouton plein', 'class="lien-discret" data-act="jrafraichir"', 'class="btn2" data-act="jrafraichir"', 'E3a');
+  await muter('lien redevenu bouton plein', "lectureMuette ? 'btn2' : 'lien-discret'", "'btn2'", 'E3a');
   await muter('style lien sans cible tactile', 'min-height:44px;background:none', 'min-height:20px;background:none', 'E3b');
-  await muter('lien affiché sans photo', "${jauge.docId ? '<button class=\"lien-discret\"", "${true ? '<button class=\"lien-discret\"", 'E3c');
+  await muter('lien affiché sans photo', "${jauge.docId ? `<button class=\"${lectureMuette", "${true ? `<button class=\"${lectureMuette", 'E3c');
   await muter('fusion absente', "fusionnerLecture();\n      }", "}", 'E4a');
   await muter('fusion qui écrase', "if (!jauge.saisies[c.k] && p && p.volume_l != null)", "if (p && p.volume_l != null)", 'E4b');
   await muter('confirmation conservée', "{ jauge.confirme = false; sauverJauge(); }", "{ sauverJauge(); }", 'E4c');
