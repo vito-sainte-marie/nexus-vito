@@ -561,9 +561,10 @@ t('cas 14 — les deux chemins tiennent sur un écran de téléphone', () => {
 
   // Aucune règle d'affichage conditionnée à la largeur : le panneau ne peut
   // pas disparaître à partir d'un certain seuil.
-  // Seule exception : @media (hover:hover) (V1.1, survol des cartes) — il ne dépend
-  // pas de la largeur et ne masque rien.
-  assert.ok(!/@media(?!\s*\(hover:\s*hover\))/.test(src),
+  // Seules exceptions : @media (hover:hover) (V1.1, survol des cartes) et
+  // @media (prefers-reduced-motion) (point sans pulsation) — aucune ne dépend de la
+  // largeur et aucune ne masque rien.
+  assert.ok(!/@media(?!\s*\((?:hover:\s*hover|prefers-reduced-motion:\s*reduce)\))/.test(src),
     'une media query pourrait masquer un chemin selon la largeur — à réexaminer si l\'écran en acquiert une');
 
   // Et surtout : aucune garde JavaScript ne consulte la taille de l'écran

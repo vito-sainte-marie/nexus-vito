@@ -184,7 +184,9 @@
 .pdp-btn[disabled]{opacity:.55;}
 /* V1.1 (04/11/2026) — grande vue bureau SEULEMENT : grille centrée de cartes portrait,
    mêmes cartes, même ordre, mêmes gestionnaires. Aucune règle hors body.nexus-desktop. */
-body.nexus-desktop .pdp{max-width:1100px;}
+body.nexus-desktop .pdp{max-width:1100px;margin-left:auto;margin-right:auto;}
+body.nexus-desktop .desktop-grid > .pdp{column-span:all;}
+body.nexus-desktop .desktop-grid:has(> .pdp){column-count:1;}
 body.nexus-desktop .pdp-titre, body.nexus-desktop .pdp-sous{text-align:center;}
 body.nexus-desktop .pdp-sous{margin-bottom:22px;}
 body.nexus-desktop .pdp-cartes{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px;}

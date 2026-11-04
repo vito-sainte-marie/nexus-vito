@@ -411,12 +411,15 @@
      même halo que le voyant « Connecté »), distinct du texte. */
   .chemins-point{display:inline-block; vertical-align:middle; width:7px; height:7px; margin-right:8px; border-radius:50%; background:var(--green); animation:statutPulse 2s infinite;}
   /* V1.1 : survol et focus clavier des deux cartes de service. Présentation seule. */
+  /* Survol/focus : vert plus soutenu que --green-dim. 0.05 en Jour pour garder 4,5:1 (texte --green). */
+  :root{--service-survol:0.12;} [data-theme="jour"]{--service-survol:0.05;}
   .chemins-btn-service, .chemins-rappel{transition:border-color .15s, background .15s, box-shadow .15s, transform .15s;}
-  .chemins-btn-service:focus-visible, .chemins-rappel:focus-within{border-color:var(--cyan); background:var(--panel-raised); box-shadow:0 6px 18px rgba(var(--shadow-rgb),0.22); outline:none;}
+  .chemins-btn-service:focus-visible, .chemins-rappel:focus-within{border-color:var(--green); background:linear-gradient(rgba(var(--green-rgb),var(--service-survol)),rgba(var(--green-rgb),var(--service-survol))),var(--green-dim); box-shadow:0 6px 18px rgba(var(--shadow-rgb),0.22); outline:none;}
+  @media (prefers-reduced-motion: reduce){ .chemins-point{animation:none;} }
   .chemins-rappel-lien:focus-visible{outline:2px solid var(--cyan); outline-offset:2px; border-radius:4px;}
   @media (hover:hover){
     .chemins-btn-service, .chemins-rappel, .chemins-rappel-lien{cursor:pointer;}
-    .chemins-btn-service:hover, .chemins-rappel:hover{border-color:var(--cyan); background:var(--panel-raised); box-shadow:0 6px 18px rgba(var(--shadow-rgb),0.22); transform:translateY(-1px);}
+    .chemins-btn-service:hover, .chemins-rappel:hover{border-color:var(--green); background:linear-gradient(rgba(var(--green-rgb),var(--service-survol)),rgba(var(--green-rgb),var(--service-survol))),var(--green-dim); box-shadow:0 6px 18px rgba(var(--shadow-rgb),0.22); transform:translateY(-1px);}
     .chemins-rappel-lien:hover{color:var(--cyan);}
   }
   .section-tag{font-family:var(--mono); font-size:9.5px; letter-spacing:0.14em; text-transform:uppercase; color:var(--text-dim); padding:20px 20px 8px; display:flex; align-items:center; gap:8px;}
