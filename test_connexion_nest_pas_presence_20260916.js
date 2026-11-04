@@ -563,12 +563,16 @@ t('cas 14 — les deux chemins tiennent sur un écran de téléphone', () => {
   // pas disparaître à partir d'un certain seuil.
   // 03/11/2026 : la V1 visuelle du dirigeant porte UNE media query (mise en page
   // de l'en-tête sur une ligne). Elle est admise parce qu'elle est bornée au
+  // 04/11 (V1.1) : deux media queries de présentation seule sont aussi admises, @media (hover:hover)
+  // (survol des cartes) et @media (prefers-reduced-motion: reduce) (point sans pulsation) : aucune ne
+  // dépend de la largeur et aucune ne masque rien.
   // bloc `body:has(.am-marqueur)` (04/11 : sous `body.nexus-desktop`, la vue bureau) et ne masque rien : aucune règle
   // display:none / visibility:hidden / opacity:0 / height:0 à l'intérieur.
   const mq = /@media[^{]*\{((?:[^{}]*\{[^}]*\})*)\s*\}/g;
   let m;
   while ((m = mq.exec(src))) {
-    assert.ok(/^\s*(body(?:\.nexus-desktop)?:has\(\.am-marqueur\)[^{]*\{[^}]*\}\s*)+$/.test(m[1]),
+    const presentation = /^@media\s*\((?:hover:\s*hover|prefers-reduced-motion:\s*reduce)\)\s*$/.test(m[0].slice(0, m[0].indexOf('{')).trim());
+    assert.ok(presentation || /^\s*(body(?:\.nexus-desktop)?:has\(\.am-marqueur\)[^{]*\{[^}]*\}\s*)+$/.test(m[1]),
       'une media query hors du bloc dirigeant pourrait masquer un chemin selon la largeur — à réexaminer');
     assert.ok(!/display:\s*none|visibility:\s*hidden|opacity:\s*0\b|height:\s*0\b/.test(m[1]),
       'la media query du dirigeant ne doit rien masquer');

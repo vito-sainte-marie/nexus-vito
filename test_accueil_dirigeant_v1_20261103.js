@@ -44,7 +44,7 @@ const EPREUVES = {
   },
   'service : même lien, mêmes textes, même identifiant, sans photo (décision du 04/11)': (src) => {
     assert(src.includes('id="cheminService" href="NEXUS-Prise-De-Poste-v1.html"') && src.includes('Commencer mon service opérationnel'));
-    assert(src.includes('Changer de rôle / refaire ma prise de poste') && src.includes('● Service en cours'));
+    assert(src.includes('Changer de rôle / refaire ma prise de poste') && src.includes('<span class="chemins-point" aria-hidden="true"></span>Service en cours'));
     const i = src.indexOf('function renderPrisePoste('); const j = src.indexOf("if (typeof NexusPriseDePoste === 'undefined')", i);
     assert(!/poste-manager|ap-poste-image/.test(src.slice(i, j)));
   },

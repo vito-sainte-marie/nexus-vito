@@ -407,6 +407,21 @@
   .chemins-btn-service{background:var(--green-dim); border-color:rgba(var(--green-rgb),0.35); color:var(--green);}
   .chemins-rappel{margin:16px 20px 0; padding:12px 16px; border-radius:var(--r-md); background:var(--green-dim); border:1px solid rgba(var(--green-rgb),0.25); font-family:var(--mono); font-size:11px; color:var(--green);}
   .chemins-rappel-lien{display:block; margin-top:7px; color:var(--text-mid); font-size:10.5px; text-decoration:underline;}
+  /* V1.1 (04/11/2026) : le point du rappel est un vrai point vert (jeton --green,
+     même halo que le voyant « Connecté »), distinct du texte. */
+  .chemins-point{display:inline-block; vertical-align:middle; width:7px; height:7px; margin-right:8px; border-radius:50%; background:var(--green); animation:statutPulse 2s infinite;}
+  /* V1.1 : survol et focus clavier des deux cartes de service. Présentation seule. */
+  /* Survol/focus : vert plus soutenu que --green-dim. 0.05 en Jour pour garder 4,5:1 (texte --green). */
+  :root{--service-survol:0.12;} [data-theme="jour"]{--service-survol:0.05;}
+  .chemins-btn-service, .chemins-rappel{transition:border-color .15s, background .15s, box-shadow .15s, transform .15s;}
+  .chemins-btn-service:focus-visible, .chemins-rappel:focus-within{border-color:var(--green); background:linear-gradient(rgba(var(--green-rgb),var(--service-survol)),rgba(var(--green-rgb),var(--service-survol))),var(--green-dim); box-shadow:0 6px 18px rgba(var(--shadow-rgb),0.22); outline:none;}
+  @media (prefers-reduced-motion: reduce){ .chemins-point{animation:none;} }
+  .chemins-rappel-lien:focus-visible{outline:2px solid var(--cyan); outline-offset:2px; border-radius:4px;}
+  @media (hover:hover){
+    .chemins-btn-service, .chemins-rappel, .chemins-rappel-lien{cursor:pointer;}
+    .chemins-btn-service:hover, .chemins-rappel:hover{border-color:var(--green); background:linear-gradient(rgba(var(--green-rgb),var(--service-survol)),rgba(var(--green-rgb),var(--service-survol))),var(--green-dim); box-shadow:0 6px 18px rgba(var(--shadow-rgb),0.22); transform:translateY(-1px);}
+    .chemins-rappel-lien:hover{color:var(--cyan);}
+  }
   /* Accueil du dirigeant, V1 visuelle (GO Frédéric 03/11/2026, consigne Guardian du canal Guardian).
      Doctrine : améliorer ce que l'utilisateur voit, sans modifier ce que NEXUS fait.
      Tout sélecteur ci-dessous exige .am-marqueur, posé par le seul chemin manager de
@@ -438,6 +453,13 @@
   /* Slogan posé sur la photo, en bas à gauche, sur un léger dégradé sombre. */
   body:has(.am-marqueur) .am-banniere::after{content:''; position:absolute; left:0; right:0; bottom:0; height:80%; z-index:1; pointer-events:none; background:linear-gradient(to top, color-mix(in srgb, black 90%, transparent), color-mix(in srgb, black 70%, transparent) 40%, transparent);}
   body:has(.am-marqueur) .am-poste{margin:12px 20px 0; padding:0; text-decoration:none; color:var(--text); font-family:'Inter',-apple-system,sans-serif; font-size:13px; background:var(--panel); border:1px solid var(--hairline);}
+  /* Survol/focus V1.1 sur les cartes du dirigeant : la règle ci-dessus (0,2,1) écraserait .chemins-rappel:hover (0,2,0). */
+  body:has(.am-marqueur) .am-poste.chemins-rappel, body:has(.am-marqueur) a.am-poste{transition:border-color .15s, background .15s, box-shadow .15s, transform .15s;}
+  body:has(.am-marqueur) a.am-poste:focus-visible, body:has(.am-marqueur) .am-poste.chemins-rappel:focus-within{border-color:var(--green); background:linear-gradient(color-mix(in srgb,var(--green) calc(var(--service-survol)*100%),transparent),color-mix(in srgb,var(--green) calc(var(--service-survol)*100%),transparent)),var(--green-dim); box-shadow:0 6px 18px color-mix(in srgb,black 22%,transparent); outline:none;}
+  @media (hover:hover){
+    body:has(.am-marqueur) a.am-poste, body:has(.am-marqueur) .am-poste.chemins-rappel{cursor:pointer;}
+    body:has(.am-marqueur) a.am-poste:hover, body:has(.am-marqueur) .am-poste.chemins-rappel:hover{border-color:var(--green); background:linear-gradient(color-mix(in srgb,var(--green) calc(var(--service-survol)*100%),transparent),color-mix(in srgb,var(--green) calc(var(--service-survol)*100%),transparent)),var(--green-dim); box-shadow:0 6px 18px color-mix(in srgb,black 22%,transparent); transform:translateY(-1px);}
+  }
   body:has(.am-marqueur) .am-poste .ap-poste-nom{font-family:'Inter',-apple-system,sans-serif; font-size:18px; font-weight:700; color:var(--text);}
   body:has(.am-marqueur) .am-poste .ap-poste-texte{box-sizing:border-box; width:100%;}
   body:has(.am-marqueur) .am-poste::after{display:none;}
@@ -3338,7 +3360,7 @@
       if (serviceCourant) {
         const lib = serviceCourant.role ? (LIBELLE_ROLE_JOUR[serviceCourant.role] || serviceCourant.role) : null;
         hote.innerHTML = entete + '<div class="ap-poste am-poste chemins-rappel"><div class="ap-poste-texte">'
-          + '<div class="ap-poste-nom">● Service en cours'
+          + '<div class="ap-poste-nom"><span class="chemins-point" aria-hidden="true"></span>Service en cours'
           + (lib ? ' — ' + lib : '')
           + (serviceCourant.quart ? ' · ' + serviceCourant.quart : '') + '</div>'
           + '<a class="chemins-rappel-lien am-poste-lien" href="NEXUS-Prise-De-Poste-v1.html">'
@@ -3359,7 +3381,7 @@
     // plus sur l'écran de prise de poste. Ce bloc AFFICHE, il n'écrit rien.
     if (serviceCourant) {
       const lib = serviceCourant.role ? (LIBELLE_ROLE_JOUR[serviceCourant.role] || serviceCourant.role) : null;
-      hote.innerHTML = '<div class="chemins-rappel">● Service en cours'
+      hote.innerHTML = '<div class="chemins-rappel"><span class="chemins-point" aria-hidden="true"></span>Service en cours'
         + (lib ? ' — ' + lib : '')
         + (serviceCourant.quart ? ' · ' + serviceCourant.quart : '')
         + '<div id="prisePosteRecap"></div>'

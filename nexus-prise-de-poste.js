@@ -182,6 +182,18 @@
 .pdp-btn{width:100%;margin-top:10px;padding:14px;border-radius:12px;border:1px solid var(--cyan);background:var(--cyan);color:var(--on-cyan-alt);font:inherit;font-weight:600;font-size:15px;cursor:pointer;}
 .pdp-btn.pdp-texte{background:none;border:none;color:var(--cyan);}
 .pdp-btn[disabled]{opacity:.55;}
+/* V1.1 (04/11/2026) — grande vue bureau SEULEMENT : grille centrée de cartes portrait,
+   mêmes cartes, même ordre, mêmes gestionnaires. Aucune règle hors body.nexus-desktop. */
+body.nexus-desktop .pdp{max-width:1100px;margin-left:auto;margin-right:auto;}
+body.nexus-desktop .desktop-grid > .pdp{column-span:all;}
+body.nexus-desktop .desktop-grid:has(> .pdp){column-count:1;}
+body.nexus-desktop .pdp-titre, body.nexus-desktop .pdp-sous{text-align:center;}
+body.nexus-desktop .pdp-sous{margin-bottom:22px;}
+body.nexus-desktop .pdp-cartes{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px;}
+body.nexus-desktop .pdp-carte{flex-direction:column;aspect-ratio:3/4;min-height:0;text-align:center;}
+body.nexus-desktop .pdp-visuel{order:0;flex:1 1 auto;min-height:0;}
+body.nexus-desktop .pdp-visuel::after{background:linear-gradient(to bottom,rgba(var(--panel-rgb),0) 50%,var(--panel) 100%);}
+body.nexus-desktop .pdp-corps{flex:0 0 auto;align-self:stretch;padding:14px 16px 18px;}
 `;
 
   function poserStyle() {
