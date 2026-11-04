@@ -82,6 +82,16 @@ posée que sur décision de Frédéric. Sur Test, ne la posez pas.
 `--une-fois` traite ce qui attend puis s'arrête. Le journal est écrit dans
 `jaugeage.log` (non versionné). Aucun démarrage automatique n'est installé.
 
+## Cohabitation avec le worker des bons
+Sur l'iMac, le worker des bons (`~/nexus-ocr-worker/main.py`, hors dépôt) lit lui aussi
+`documents_ocr_file`. Depuis la bascule Production du 04/11/2026 (GO de Frédéric), sa requête
+de file exclut les photos de jaugeage, qui appartiennent à ce service :
+
+    .or_("type_document.is.null,type_document.neq.jaugeage_veeder_root")
+
+Sans ce filtre, le worker des bons prendrait les photos de jaugeage. Le service de Test
+(`com.nexus.jaugeage`) et celui de Production (`com.nexus.jaugeage-prod`) sont deux agents distincts.
+
 ## Épreuve
 
 `test_jaugeage_service_resultat_texte_20261104.js` (à la racine du dépôt) fabrique
