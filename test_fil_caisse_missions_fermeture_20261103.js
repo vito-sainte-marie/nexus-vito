@@ -63,13 +63,14 @@ const ETAPE2 = 'NEXUS-Inventaire-v1.html?fil=caisse&etape=2&plan=2';
     assert.strictEqual(await L.lienEntree(ctx(client({ erreurConfig: true })), G), null);
     assert.strictEqual(await L.lienEntree(ctx(client({ erreurRows: true })), G), null);
   });
-  await cas('étape 3 MASQUÉE (quart partagé non arbitré) : même à l\'heure de fermeture, aucun lien de fermeture', async () => {
-    assert.strictEqual(C.FERMETURE_OUVERTE, false);
+  await cas('étape 3 OUVERTE : FERMETURE_OUVERTE vrai ; le lien de fermeture n\'apparaît qu\'à l\'heure due', async () => {
+    assert.strictEqual(C.FERMETURE_OUVERTE, true);
     S.maintenant = 600;
-    assert.strictEqual(await L.lienEntree(ctx(client({ rows: ouverte })), G), null);
+    const tot = await L.lienEntree(ctx(client({ rows: ouverte })), G);
+    assert.ok(!/etape=3/.test(String(tot)), 'pas de fermeture avant l\'heure due : ' + tot);
     S.maintenant = 1280;
-    assert.strictEqual(await L.lienEntree(ctx(client({ rows: ouverte })), G), null);
-    assert.strictEqual(await L.lienEntree(ctx(client()), G), 'NEXUS-Inventaire-v1.html?fil=caisse&etape=2&plan=2');
+    const tard = await L.lienEntree(ctx(client({ rows: ouverte })), G);
+    assert.strictEqual(tard, 'NEXUS-Inventaire-v1.html?fil=caisse&etape=3&plan=3');
     S.maintenant = 600;
   });
   await cas('quart partagé (preuve de la relecture) : le quart clos par le pompiste rend clotureFaite vrai pour la caissière, et inversement', async () => {
@@ -128,6 +129,23 @@ const ETAPE2 = 'NEXUS-Inventaire-v1.html?fil=caisse&etape=2&plan=2';
     assert.ok(/etapeCaisse === 3\)[\s\S]{0,300}filCaisseActiver\(3\)[\s\S]{0,800}demarrerCloture\(\)/.test(I));
     assert.ok(/sauvegarderDraft\(etape === 3 \? 'cloture' : 'ouverture'\)/.test(I));
     assert.ok(/filCaisseEnCours \? window\.NexusFilCaisse\.LIBELLE_TERMINER/.test(I));
+  });
+  await cas('retouches #177 : carte « Commencer la clôture → », aucun confirm natif dans la clôture, Retour masqué', () => {
+    const A = lire(process.env.ACC_MUTE || 'nexus-accueil-piste.js'), M2 = lire(process.env.PAGE_MUTE || 'NEXUS-Missions-v1.html');
+    assert.ok(/fermetureEnCours \? 'Commencer la clôture →'/.test(A) && /code: 'cloture', libelle: 'Clôture'/.test(A) && /total: fermetureAFaire \? 2 : 1/.test(A));
+    assert.ok(/clotureSeule \? 'Commencer la clôture →'/.test(M2));
+    const i0 = I.indexOf('async function validerCloture'), i1 = I.indexOf('\n    }\n', i0 + 2000);
+    const corps = I.slice(i0, I.indexOf('function ', i0 + 30));
+    assert.ok(i0 > 0 && corps.length > 500 && !/(^|[^.\w])confirm\(/.test(corps) && /confirmerEnPage\(/.test(corps), 'validerCloture sans confirm natif');
+    assert.ok(/\.fil-caisse #btnAnnulerCloture[^{]*\{ display: none !important; \}/.test(I));
+  });
+  await cas('retouches #177 (2e vague) : plus aucun confirm( ni alert( natif sur toute la page Inventaire', () => {
+    const code = I.split('\n').filter(l => !/^\s*\/\//.test(l)).join('\n');
+    assert.ok(!/(^|[^.\w])(confirm|alert)\(/.test(code), 'confirm(/alert( natif restant');
+    assert.ok(/function alerterEnPage\(/.test(I) && /async function changerQuart/.test(I));
+    assert.ok(/btnValiderFinalisationDoubleLieu'\)\.addEventListener\('click', async \(\) =>/.test(I));
+    assert.ok(/await confirmerEnPage\(`Aucun chiffre saisi pour la boutique/.test(I));
+    assert.ok(/await confirmerEnPage\('Changer de quart maintenant/.test(I));
   });
   await cas('aucun câblage du changement de quart dans le fil', () => {
     assert.ok(!/changement[-_ ]de[-_ ]quart|changerQuart|echangeQuart/i.test(lire('nexus-fil-caisse.js') + lire('nexus-fil-caisse-lecture.js')));

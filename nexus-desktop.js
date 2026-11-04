@@ -348,6 +348,34 @@ const NEXUS_DESKTOP_CSS = `
   .nexus-tooltip-title{font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; color:#EDF1F5; margin-bottom:4px;}
   .nexus-tooltip-desc{font-size:12px; line-height:1.4; color:#B7C0CA;}
   .nexus-tooltip-cta{font-family:'IBM Plex Mono',monospace; font-size:9.5px; color:#4FC3D9; margin-top:6px; letter-spacing:0.02em;}
+
+  /* Mode Jour (Guardian #160, 6630497855) : la barre latérale posait ses couleurs en
+     dur et restait sombre sur une page claire. Surcharges présentation seule, toutes
+     sous [data-theme="jour"] : sans ce réglage (Sombre, et les pages qui ne chargent
+     pas nexus-theme.js) rien ne s'applique et les valeurs ci-dessus restent seules.
+     Palette = JOUR de nexus-theme.js ; contrastes mesurés par
+     test_nexus_desktop_theme_jour_20261104.js. */
+  [data-theme="jour"] .nexus-sidebar{background:#FFFFFF; border-right-color:#D5DCE3;}
+  [data-theme="jour"] .nexus-sidebar-brand span{color:#0F172A;}
+  [data-theme="jour"] .nexus-sidebar-group{color:#56657A;}
+  [data-theme="jour"] .nexus-sidebar-link{color:#475569;}
+  [data-theme="jour"] .nexus-sidebar-link:hover{background:#EEF2F5; color:#0F172A;}
+  [data-theme="jour"] .nexus-sidebar-link.active{background:#EAF4F6; color:#0B7285;}
+  [data-theme="jour"] .nexus-sidebar-foot{border-top-color:#D5DCE3;}
+  [data-theme="jour"] .nexus-sidebar-toggle{border-color:rgba(11,114,133,0.35); background:#EAF4F6; color:#0B7285;}
+  [data-theme="jour"] .nexus-sidebar-toggle:active{background:#CFE8EE;}
+  [data-theme="jour"] .nexus-sidebar-curseur-track{background:rgba(15,23,42,0.06);}
+  [data-theme="jour"] .nexus-sidebar-curseur-thumb{background:rgba(11,114,133,0.5);}
+  [data-theme="jour"] .nexus-sidebar-curseur-thumb:hover, [data-theme="jour"] .nexus-sidebar-curseur-thumb.glisse{background:rgba(11,114,133,0.85);}
+  [data-theme="jour"] .nexus-sidebar-dot{background:#B91C1C;}
+  @media (min-width:900px){
+    [data-theme="jour"] .nexus-vue-bureau-flottant{background:#FFFFFF; border-color:rgba(11,114,133,0.4); color:#0B7285; box-shadow:0 6px 20px rgba(15,23,42,0.18);}
+    [data-theme="jour"] .nexus-vue-bureau-flottant:hover{background:#EEF2F5;}
+  }
+  [data-theme="jour"] .nexus-tooltip{background:#FFFFFF; border-color:#D5DCE3; box-shadow:0 8px 24px rgba(15,23,42,0.18);}
+  [data-theme="jour"] .nexus-tooltip-title{color:#0F172A;}
+  [data-theme="jour"] .nexus-tooltip-desc{color:#475569;}
+  [data-theme="jour"] .nexus-tooltip-cta{color:#0B7285;}
 `;
 
 // Alerte NEXUS FDJ (09/08/2026, demande de Frédéric) : "envoie au manager

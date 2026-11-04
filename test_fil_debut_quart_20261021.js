@@ -218,7 +218,7 @@ function epreuves(S) {
     assert.ok(/id="filSortie" href="\$\{FIL\.ACCUEIL\}"[^`]*\$\{FIL\.LIBELLE_SORTIE\}/.test(I), 'sortie absente');
     assert.ok(/document\.getElementById\('filSortie'\)\.addEventListener\('click', filSauverAvantSortie\)/.test(I), 'la sortie ne range pas le brouillon');
     assert.ok(/FIL\.terminer\(localStorage[^}]*?window\.location\.href = FIL\.ACCUEIL/.test(I), 'la fin ne rend pas à l\'Accueil');
-    assert.ok(/addEventListener\('click', enFil\(\) \? filTerminer : renderAccueil\)/.test(I), 'bouton final non branché sur la fin du fil');
+    assert.ok(/addEventListener\('click', (?:filCaisseEnCours \? filCaisseTerminer : )?enFil\(\) \? filTerminer : renderAccueil\)/.test(I), 'bouton final non branché sur la fin du fil');
     assert.ok(/sauvegarderDraft\(filFermeture \? 'cloture' : 'ouverture'\)/.test(/function filSauverAvantSortie[\s\S]*?\n  \}/.exec(I)[0]), 'brouillon non rangé');
   });
 

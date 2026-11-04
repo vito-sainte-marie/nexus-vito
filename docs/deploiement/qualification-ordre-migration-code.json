@@ -798,6 +798,23 @@
       "objets_constates": [
         "inventaire_zone_produit.repere_cage"
       ]
+    },
+    "20261103190000": {
+      "etat": "atomique_ou_procedure_speciale",
+      "justification": "Remplace le corps de run_scheduled_inventory_reviews() (clôture anticipée + repli, lot INVENTAIRE-CAISSE-RENFORT-20261102, PR #176) et ferme EXECUTE a public, anon, authenticated. Aucun DDL destructif, aucune table ni colonne creee, aucun grant. Ordre STRICT : cette migration s applique AVANT le deploiement de #177, car le front de #177 n ecrit plus inventaire_quarts et le serveur devient seul a clore le quart. Le front servi aujourd hui reste compatible avec la nouvelle fonction (il ferme encore le quart lui-meme ; la fonction ignore un quart deja clos). Cette qualification documentaire ne constitue aucune autorisation de migration, de fusion ou de deploiement en Production : chacun reste un GO distinct de Frederic. Limitee au blob 089fff6a53af125ec9f31db4032d10e4742d4a81 : un blob different fait tomber cette qualification.",
+      "procedure": "docs/deploiement/procedure-cloture-quart-serveur-production-20261103.md",
+      "mesure": {
+        "source": "catalogue",
+        "le": "2026-11-03T19:55:00Z",
+        "cible": "uzhjpqpctpvxytxpxoqz",
+        "par": "claude",
+        "outil": "execute_sql du connecteur Supabase, lecture seule de la structure sous le GO de Frederic du 03/11/2026 19:41 (Guardian #160 6618342213) ; aucune ligne de donnee lue",
+        "identite_constatee": "projet uzhjpqpctpvxytxpxoqz passe en argument de l appel",
+        "lecture_seule": "requetes select sur pg_proc, information_schema.columns, pg_constraint et supabase_migrations.schema_migrations uniquement",
+        "verdict": "NON APPLIQUEE — fonction presente (prosecdef vrai, corps 5630 car., md5 a2477baed2ff3fc3b9ae5bfc26e179c7) sans cloture_serveur ni anticipee ; proacl = {postgres=X/postgres} ; estampilles 20261103190000 et 20261103224401 = 0 ; 321 migrations, derniere = 20261101014700 ; colonnes et contraintes utilisees presentes (statut cloture, gravite attention/critique admises).",
+        "blob_migration": "089fff6a53af125ec9f31db4032d10e4742d4a81"
+      },
+      "prochaine_action": "GO distinct de Frederic : application en Production (migration avant #177), relecture post-application de la procedure, puis fusion de #177. Aucune operation Production par Claude."
     }
   },
   "prochaine_action": "Axe SS4 migration -> code : LEVE pour 20260919103000 (13/13 objets constates sur le catalogue le 01/10/2026) et pour 20261001160000 (ACL constatee fermee le 03/10/2026). Ces qualifications restent acquises tant que leur fichier de migration ne change pas : la garde compare mesure.blob_migration a l'empreinte du candidat, et une migration retouchee fait tomber sa qualification. Il n'y a plus d'echeance horaire (l'ancienne fraicheur de 72 h aurait fait retomber l'axe le 04/10/2026 sans que rien ne bouge). CE QUE LA GARDE NE VOIT PAS : une base modifiee sans que le depot bouge - c'est exactement ce que la relecture du 03/10 a trouve pour 20261001160000. Toute procedure d'application relit donc la base avant d'ecrire. CE QUE CELA N'AUTORISE PAS : aucune fusion ni aucun deploiement ; chacun reste un GO distinct de Frederic. RESTE A FAIRE, separement : (1) les 11 migrations du rail toujours non qualifiees ; (2) le cablage de garde-ordre-migration-code.js dans deploiement-production.yml. Lecture du verdict et table de decision : SS18.4 ; recit de la mesure : SS20. MISE A JOUR DU 04/10/2026 : les 13 migrations du candidat rebuild/fdj-62-20260922 sont qualifiees (12 atomiques en serie avant le code, 20261004120000 code d abord) ; ordre et gestes dans docs/deploiement/procedure-fdj-62-production.md."

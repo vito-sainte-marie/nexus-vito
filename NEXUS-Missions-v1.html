@@ -2541,8 +2541,9 @@
         const lienCaisse = await NexusFilCaisseLecture.lienEntree({ client: nexusClient, employee, roleDuJour, enService: true, quartDuJour, fuseau: FUSEAU_SITE });
         if (lienCaisse) {
           const zoneCaisse = document.getElementById('filCaisseEntreeSection');
-          zoneCaisse.innerHTML = '<div class="fil-caisse-entree"><div class="journee-priorite-label">Comptage Boutique</div><div class="journee-priorite-titre">Votre inventaire de caisse vous attend.</div></div>';
-          const lien = document.createElement('a'); lien.href = lienCaisse; lien.textContent = 'Commencer l’inventaire →';
+          const clotureSeule = /[?&]etape=3(&|$)/.test(lienCaisse);
+          zoneCaisse.innerHTML = '<div class="fil-caisse-entree"><div class="journee-priorite-label">Comptage Boutique</div><div class="journee-priorite-titre">' + (clotureSeule ? 'La clôture de votre caisse vous attend.' : 'Votre inventaire de caisse vous attend.') + '</div></div>';
+          const lien = document.createElement('a'); lien.href = lienCaisse; lien.textContent = clotureSeule ? 'Commencer la clôture →' : 'Commencer l’inventaire →';
           zoneCaisse.firstChild.appendChild(lien);
         }
       } catch (e) { console.error('Entrée fil caisse (Missions):', e); }
