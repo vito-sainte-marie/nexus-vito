@@ -11,10 +11,12 @@ const base = (src) => { const css = bloc(src); return css.slice(0, css.indexOf('
 const regle = (css, sel) => { const i = css.indexOf(M + ' ' + sel + '{'); assert(i >= 0, 'règle absente : ' + sel); return css.slice(i, css.indexOf('}', i)); };
 
 const STRUCTURE = {
-  'mobile : en-tête en une colonne, trois rangées empilées': (src) => {
-    assert(/grid-template-columns:minmax\(0,1fr\);/.test(regle(base(src), '.header')));
-    assert(/text-align:left/.test(regle(base(src), '#sessionInfo')) && /max-width:none/.test(regle(base(src), '#sessionInfo')));
-    assert(/flex-wrap:nowrap/.test(regle(base(src), '.header-brandrow')));
+  'en-tête sur le modèle de l’employé : une rangée de marque, une ligne d’état dessous': (src) => {
+    assert(/display:flex;\s*flex-wrap:wrap/.test(regle(base(src), '.header')));
+    const br = regle(base(src), '.header-brandrow'); assert(/flex:0 0 100%/.test(br) && /flex-wrap:nowrap/.test(br));
+    assert(/display:contents/.test(regle(base(src), '.header-brand-left')));
+    assert(/order:3/.test(regle(base(src), '.header-brand-right')) && /justify-content:flex-end/.test(regle(base(src), '.header-brand-right')));
+    assert(/text-align:right/.test(regle(base(src), '#sessionInfo')));
   },
   'mobile : la station tient sur une ligne, sans déborder': (src) => {
     const r = regle(base(src), '.header-sitename');
@@ -38,11 +40,11 @@ const STRUCTURE = {
   },
 };
 const MUTANTS_STRUCTURE = {
-  'mobile : en-tête en une colonne, trois rangées empilées': (s) => s.replace('grid-template-columns:minmax(0,1fr); align-items', 'grid-template-columns:minmax(0,1fr) auto; align-items'),
+  'en-tête sur le modèle de l’employé : une rangée de marque, une ligne d’état dessous': (s) => s.replace('.header-brand-right{order:3;', '.header-brand-right{order:0;'),
   'mobile : la station tient sur une ligne, sans déborder': (s) => s.replace('white-space:nowrap; overflow:hidden; text-overflow:ellipsis;', ''),
-  'aucun position:absolute ajouté dans l’en-tête dirigeant': (s) => s.replace('text-align:left; font-size:12px; line-height:1.3;}', 'text-align:left; font-size:12px; line-height:1.3; position:absolute;}'),
+  'aucun position:absolute ajouté dans l’en-tête dirigeant': (s) => s.replace('text-align:right; font-size:12px; line-height:1.3;}', 'text-align:right; font-size:12px; line-height:1.3; position:absolute;}'),
   'le bouton ☰ n’est pas touché par le bloc dirigeant': (s) => s.replace(M + ' #taglineRole{display:none;}', M + ' .menu-accueil-bouton{top:11px;}\n  ' + M + ' #taglineRole{display:none;}'),
-  'la mise en page une ligne suit la vue bureau, pas la fenêtre': (s) => s.replace('body.nexus-desktop:has(.am-marqueur) .header-statut-row{', 'body:has(.am-marqueur) .header-statut-row{'),
+  'la mise en page une ligne suit la vue bureau, pas la fenêtre': (s) => s.replace('body.nexus-desktop:has(.am-marqueur) .header{padding', 'body:has(.am-marqueur) .header{padding'),
   'carte de service : texte sur toute la largeur, sans photo ni dégradé': (s) => s.replace('.am-poste::after{display:none;}', '.am-poste::after{display:block;}'),
 };
 
@@ -65,7 +67,10 @@ const MESURE = () => {
   const tx = document.querySelector('.am-poste .ap-poste-texte').getBoundingClientRect();
   const nm = document.querySelector('.am-poste .ap-poste-nom').getBoundingClientRect(); const carte = document.querySelector('.am-poste').getBoundingClientRect();
   const sn = document.querySelector('.header-sitename').getBoundingClientRect();
-  return { n: rc.length, ov, nomStation: sn.width, colonne: document.querySelector('.app').getBoundingClientRect().width, texteLarge: tx.width > carte.width * 0.8, nomDebordeCarte: nm.right > tx.right + 1 || nm.bottom > carte.bottom + 1, defileH: document.documentElement.scrollWidth > innerWidth };
+  const R = (q) => document.querySelector(q).getBoundingClientRect();
+  const ordre = R('.menu-accueil-bouton').left < R('.header-mark').left && R('.header-mark').left < R('.header-wordmark').left && R('.header-wordmark').right <= R('.header-sitewrap').left + 1;
+  const ligneEtat = R('.header-statut').top >= Math.max(R('.header-wordmark').bottom, R('.header-sitewrap').bottom, R('.header-mark').bottom) - 1;
+  return { ordre, ligneEtat, n: rc.length, ov, nomStation: sn.width, colonne: document.querySelector('.app').getBoundingClientRect().width, texteLarge: tx.width > carte.width * 0.8, nomDebordeCarte: nm.right > tx.right + 1 || nm.bottom > carte.bottom + 1, defileH: document.documentElement.scrollWidth > innerWidth };
 };
 const ouvrir = () => {
   let pw; try { pw = require('playwright'); } catch (e) { try { pw = require(path.join(process.env.PLAYWRIGHT_DIR || '', 'node_modules', 'playwright')); } catch (e2) { return null; } }
@@ -88,7 +93,7 @@ async function geometrie(src) {
   } finally { await b.close(); }
   return { sorties };
 }
-const verdict = (g) => { for (const [w, r] of g.sorties) { assert(r.nomStation > 0, w + ' : le nom de la station a une largeur nulle'); assert(r.n >= 6, w + ' : éléments de l’en-tête introuvables (' + r.n + ')'); assert.deepStrictEqual(r.ov, [], w + ' : chevauchement ' + r.ov.join(', ')); assert(r.texteLarge && !r.nomDebordeCarte && !r.defileH, w + ' : carte ou page qui déborde'); } };
+const verdict = (g) => { for (const [w, r] of g.sorties) { assert(r.nomStation > 0, w + ' : le nom de la station a une largeur nulle'); assert(r.ordre, w + ' : ordre ☰, logo, NEXUS, station non respecté'); assert(r.ligneEtat, w + ' : la ligne d’état n’est pas sous la rangée de marque'); assert(r.n >= 6, w + ' : éléments de l’en-tête introuvables (' + r.n + ')'); assert.deepStrictEqual(r.ov, [], w + ' : chevauchement ' + r.ov.join(', ')); assert(r.texteLarge && !r.nomDebordeCarte && !r.defileH, w + ' : carte ou page qui déborde'); } };
 
 (async () => {
   let ko = 0;
@@ -103,9 +108,9 @@ const verdict = (g) => { for (const [w, r] of g.sorties) { assert(r.nomStation >
   if (g.saute) console.log('⚠ géométrie 4 cas : NON EXÉCUTÉE (' + g.saute + ') — la garde des chevauchements n’a rien mesuré ici.');
   else {
     try { verdict(g); console.log('✓ géométrie fenêtre 375/320, colonne 520 dans 1440, vue bureau : aucun chevauchement, carte contenue'); } catch (e) { ko++; console.log('✗ géométrie — ' + e.message); }
-    const mut = await geometrie(APP.replace('header-statut-row{margin-top:10px;', 'header-statut-row{margin-top:0;'));
+    const mut = await geometrie(APP.replace('flex-wrap:nowrap; justify-content:flex-start; align-items:center; gap:8px; padding-left:44px;', 'flex-wrap:nowrap; justify-content:flex-start; align-items:center; gap:8px; padding-left:0;'));
     let mord = false; try { verdict(mut); } catch (e) { mord = true; }
-    if (!mord) { ko++; console.log('✗ géométrie — la mutation (rangée Connecté collée au ☰) ne la fait pas rougir'); } else console.log('✓ géométrie mord : rangée Connecté remontée sous le ☰ = rouge');
+    if (!mord) { ko++; console.log('✗ géométrie — la mutation (logo sous le ☰ (padding-left retiré)) ne la fait pas rougir'); } else console.log('✓ géométrie mord : logo sous le ☰ = rouge');
   }
   if (ko) { console.log(ko + ' échec(s)'); process.exit(1); }
   console.log('Accueil dirigeant mobile : ' + Object.keys(STRUCTURE).length + ' épreuves de structure' + (g.saute ? ', géométrie non exécutée.' : ' + géométrie.'));

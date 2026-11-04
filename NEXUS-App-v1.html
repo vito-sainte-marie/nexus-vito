@@ -412,16 +412,21 @@
      Tout sélecteur ci-dessous exige .am-marqueur, posé par le seul chemin manager de
      renderPrisePoste : l'employé, la consultation externe et les autres pages n'en voient rien.
      Couleurs : jetons existants uniquement ; aucun texte posé sur la photo. */
-  body:has(.am-marqueur) .header{display:grid; grid-template-columns:minmax(0,1fr); align-items:center; column-gap:12px; row-gap:6px; padding:14px 20px 10px; text-align:left;}
-  body:has(.am-marqueur) .header-brandrow{display:flex; flex-wrap:nowrap; grid-column:1 / -1; justify-content:flex-start; align-items:center; gap:8px; padding-left:44px; min-width:0;}
-  body:has(.am-marqueur) .header-brand-side{flex:0 1 auto; min-width:0;}
-  body:has(.am-marqueur) .header-brand-right{flex:1 1 0;}
-  body:has(.am-marqueur) .header-sitename{font-size:12px; line-height:1.25; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-  body:has(.am-marqueur) .header-brand-left{justify-content:flex-start;}
-  body:has(.am-marqueur) .header-mark{width:30px; height:30px;}
-  body:has(.am-marqueur) .header-sitewrap{max-width:none;}
-  body:has(.am-marqueur) .header-statut-row{margin-top:10px; justify-content:flex-start; gap:8px;}
-  body:has(.am-marqueur) #sessionInfo{margin:0 !important; max-width:none; text-align:left; font-size:12px; line-height:1.3;}
+  /* En-tête du dirigeant sur le modèle de l'employé (Guardian 6628440177, décision de Frédéric) : une rangée
+     (☰, logo, NEXUS à gauche ; nom de la station à droite), puis une ligne d'état dessous. Même disposition
+     en colonne mobile, sur téléphone et sur ordinateur. Le nom de la station se raccourcit par « … », jamais à largeur nulle. */
+  body:has(.am-marqueur) .header{display:flex; flex-wrap:wrap; align-items:center; column-gap:12px; row-gap:6px; padding:20px 20px 10px; text-align:left;}
+  body:has(.am-marqueur) .header-brandrow{display:flex; flex:0 0 100%; flex-wrap:nowrap; justify-content:flex-start; align-items:center; gap:8px; padding-left:44px; min-height:36px; min-width:0;}
+  body:has(.am-marqueur) .header-brand-left{display:contents;}
+  body:has(.am-marqueur) .header-divider{display:none;}
+  body:has(.am-marqueur) .header-mark{order:1; width:30px; height:30px;}
+  body:has(.am-marqueur) .header-wordmark{order:2; flex:0 0 auto;}
+  body:has(.am-marqueur) .header-brand-right{order:3; flex:1 1 0; min-width:64px; justify-content:flex-end;}
+  body:has(.am-marqueur) .header-sitewrap{max-width:100%; min-width:0;}
+  body:has(.am-marqueur) .header-sitename{font-size:12px; line-height:1.25; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0;}
+  body:has(.am-marqueur) .header-statut-row{margin-top:0; flex:0 1 auto; justify-content:flex-start; gap:8px;}
+  body:has(.am-marqueur) .header-live:not(:empty)::before{content:'\00b7\00a0';}
+  body:has(.am-marqueur) #sessionInfo{margin:0 0 0 auto !important; max-width:none; flex:0 1 auto; text-align:right; font-size:12px; line-height:1.3;}
   body:has(.am-marqueur) #taglineRole{display:none;}
   body:has(.am-marqueur) .am-date{margin:12px 20px 0; font-family:'Inter',-apple-system,sans-serif; font-size:13px; color:var(--text-mid); font-variant-numeric:tabular-nums;}
   body:has(.am-marqueur) .am-banniere{margin:12px 20px 0; height:140px; border-radius:var(--r-lg); overflow:hidden; border:1px solid var(--hairline); background:var(--panel);}
@@ -443,11 +448,8 @@
   /* La mise en page « une ligne » suit la VUE (body.nexus-desktop), pas la fenêtre : en vue mobile
      sur ordinateur, la colonne .app reste à 520 px dans une fenêtre large (Guardian 6628190562). */
   @media (min-width:768px){
-    body.nexus-desktop:has(.am-marqueur) .header{grid-template-columns:minmax(0,1fr) auto auto; padding:14px 28px 10px;}
-    body.nexus-desktop:has(.am-marqueur) .header-brandrow{grid-column:1; grid-row:1;}
-    body.nexus-desktop:has(.am-marqueur) .header-statut-row{grid-column:2; grid-row:1; margin-top:0;}
-    body.nexus-desktop:has(.am-marqueur) #sessionInfo{grid-column:3; grid-row:1; text-align:right;}
-    body.nexus-desktop:has(.am-marqueur) #taglineRole{display:block; grid-column:1 / -1; grid-row:2; max-width:none; margin:0; font-size:12px; color:var(--text-dim);}
+    body.nexus-desktop:has(.am-marqueur) .header{padding:20px 28px 10px;}
+    body.nexus-desktop:has(.am-marqueur) #taglineRole{display:block; flex:0 0 100%; order:9; max-width:none; margin:0; font-size:12px; color:var(--text-dim);}
     body.nexus-desktop:has(.am-marqueur) .am-date, body.nexus-desktop:has(.am-marqueur) .am-banniere, body.nexus-desktop:has(.am-marqueur) .am-poste{margin-left:28px; margin-right:28px;}
     body.nexus-desktop:has(.am-marqueur) .am-banniere{height:220px;}
     body.nexus-desktop:has(.am-marqueur) .header-brandrow{padding-left:52px;}
@@ -667,8 +669,10 @@
   .mm-entree:hover{background:var(--mm-hover);}
   .mm-desactive,.mm-desactive:hover{opacity:.45;cursor:default;background:none;}
   .mm-mention{display:block;font-size:12px;color:var(--mm-titre);margin-top:2px;}
+  /* Tout l'en-tête (marque, nom de station, ligne d'état) est invisible tant que le poste n'est pas connu : sa mise en page
+     dépend du marqueur .am-marqueur, posé plus tard. visibility garde la place réservée, donc aucun saut au dévoilement. */
   body.accueil-attente .app > *:not(.header){visibility:hidden !important;}
-  body.accueil-attente .header-statut-row, body.accueil-attente #taglineRole, body.accueil-attente #sessionInfo{visibility:hidden !important;}
+  body.accueil-attente .header > *, body.accueil-attente .header-brandrow *, body.accueil-attente .menu-accueil-bouton{visibility:hidden !important;}
   .ap-h1{font-size:24px;font-weight:700;margin:8px 0 14px;color:var(--ap-text);}
   .ap-poste{position:relative;display:flex;height:104px;flex-shrink:0;border:1px solid var(--hairline);background:var(--panel);border-radius:16px;overflow:hidden;margin-bottom:12px;}
   .ap-poste-texte{position:relative;z-index:1;padding:16px;display:flex;flex-direction:column;justify-content:center;gap:2px;}
