@@ -2727,7 +2727,7 @@
         <div class="fil-revue-cat">${g.nom}</div>
         ${g.items.map((p, pi) => {
           const s = comptagesSaisie[p.id];
-          const val = (s && s.compte !== undefined) ? `${fmtNum(s.compte)} ${p.unite}` : 'à compter';
+          const val = (s && s.compte !== undefined) ? `${fmtNum(s.compte)} ${p.unite === 'unité' && Number(s.compte) > 1 ? 'unités' : p.unite}` : 'à compter';
           return `<button class="btn-text fil-revue-ligne" data-g="${gi}" data-p="${pi}"><span>${p.designation}</span><span>${val}</span></button>`;
         }).join('')}
       </div>`).join('');

@@ -83,4 +83,8 @@ assert.strictEqual((html.match(/class="btn-ghost" id="btnProduitPrecedent"/g) ||
 
 // --- 6. Revalidation : le produit corrigé repasse par la saisie existante
 assert.ok(extraire(script, 'reculerCarrousel').includes('renderCarrousel(groupe)'));
+// --- 7. Pluriel : « 3 unités », « 1 unité » (retour Guardian, recette 6634872830)
+const corpsRevue = extraire(script, 'renderFilRevue');
+assert.ok(/p\.unite === 'unité' && Number\(s\.compte\) > 1 \? 'unités'/.test(corpsRevue), 'la revue doit accorder « unités » au-delà de 1');
+
 console.log('OK test_inventaire_fil_revoir_comptages_20261104');
