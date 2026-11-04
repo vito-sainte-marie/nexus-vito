@@ -79,8 +79,20 @@
   let BASCULE_QUART2_PDP = null;
   let QUART_PLANIFIE_PDP = null;
 
+  // Fenêtre de relève (Guardian #160, 04/11/2026) : sans planning, entre 30 min avant
+  // le quart 2 et 30 min après la fin du quart 1, la PERSONNE dit où elle en est.
+  // `null` hors fenêtre, ou si les horaires ne permettent pas de la calculer.
+  let FENETRE_RELEVE_PDP = null;
+  let CHOIX_RELEVE_PDP = null; // 'matin' | 'soir', posé par l'une des deux cartes
+
+  function enFenetreDeReleve() {
+    if (!FENETRE_RELEVE_PDP || QUART_PLANIFIE_PDP || !FUSEAU_STATION_PDP) return false;
+    return NexusStation.dansFenetreReleve(FENETRE_RELEVE_PDP, NexusStation.minutesLocalesStation(FUSEAU_STATION_PDP));
+  }
+
   function quartDuMoment() {
     if (!FUSEAU_STATION_PDP || BASCULE_QUART2_PDP === null) return null;
+    if (CHOIX_RELEVE_PDP && !QUART_PLANIFIE_PDP) return CHOIX_RELEVE_PDP;
     const r = NexusStation.quartDuJour({
       planifie: QUART_PLANIFIE_PDP,
       minutesMaintenant: NexusStation.minutesLocalesStation(FUSEAU_STATION_PDP),
@@ -103,6 +115,15 @@
     if (FUSEAU_STATION_PDP) {
       QUART_PLANIFIE_PDP = await NexusStation.quartPlanifie(
         employee.id, NexusStation.dateLocaleStation(FUSEAU_STATION_PDP));
+    }
+    FENETRE_RELEVE_PDP = null;
+    CHOIX_RELEVE_PDP = null;
+    if (FUSEAU_STATION_PDP && BASCULE_QUART2_PDP !== null) {
+      // Une lecture qui échoue ne bloque rien : pas de fenêtre, l'horloge décide comme avant.
+      try {
+        FENETRE_RELEVE_PDP = await NexusStation.fenetreReleveDeLaStation(
+          employee.site_id, nexusClient, FUSEAU_STATION_PDP, BASCULE_QUART2_PDP);
+      } catch (e) { FENETRE_RELEVE_PDP = null; }
     }
     if (!FUSEAU_STATION_PDP || BASCULE_QUART2_PDP === null) {
       console.warn('Prise de poste : fuseau ou horaires de quart non configurés — le quart ne sera pas deviné.');
@@ -270,6 +291,29 @@ body.nexus-desktop .pdp-corps{flex:0 0 auto;align-self:stretch;padding:14px 16px
     });
   }
 
+  // Relève : deux grandes cartes, rien d'autre (règle de lisibilité de Frédéric,
+  // 04/11/2026). Le choix est écrit dans shifts.quart par la prise de poste qui suit.
+  function renderChoixReleve() {
+    const f = FENETRE_RELEVE_PDP;
+    hoteCourant.innerHTML = `
+      <div class="pdp" id="pdpReleve">
+        <h2 class="pdp-titre">Bonjour ${echapper(employeeCourant.nom)}</h2>
+        <div class="pdp-cartes" id="pdpCartesReleve">
+          <button type="button" class="pdp-carte pdp-releve" data-choix="matin">
+            <span class="pdp-corps"><span class="pdp-nom" style="display:block;">Je finis le quart 1</span>
+            <span class="pdp-tag" style="display:block;">jusqu'à ${NexusStation.libelleHeure(f.finQuart1)}</span></span>
+          </button>
+          <button type="button" class="pdp-carte pdp-releve" data-choix="soir">
+            <span class="pdp-corps"><span class="pdp-nom" style="display:block;">Je commence le quart 2</span>
+            <span class="pdp-tag" style="display:block;">à partir de ${NexusStation.libelleHeure(f.debutQuart2)}</span></span>
+          </button>
+        </div>
+      </div>`;
+    hoteCourant.querySelectorAll('.pdp-releve').forEach(el => {
+      el.addEventListener('click', () => choisirReleve(el.dataset.choix));
+    });
+  }
+
   // FDJ Vague 1 (17/09/2026) — l'ouverture du quart FDJ est une CONSÉQUENCE de
   // la prise de poste, jamais une action de plus. Ce module est le seul endroit
   // de NEXUS qui en ouvre un. Elle ne bloque jamais la prise de poste ; son
@@ -371,6 +415,26 @@ body.nexus-desktop .pdp-corps{flex:0 0 auto;align-self:stretch;padding:14px 16px
     return NexusFilDebutQuart.ACCUEIL_DEMARRAGE;
   }
 
+  // « Je finis » avec un service du quart 1 déjà en cours : aucune écriture, ni clôture
+  // ni ouverture — on renvoie à l'accueil (cas Terry, 12 h 39).
+  async function serviceQuart1EnCours() {
+    // Le service courant n'a qu'une source (nexusServiceCourant) : aucune lecture de `shifts` ici.
+    const r = await nexusServiceCourant(employeeCourant);
+    return !!(r && r.service && r.service.quart === 'matin');
+  }
+
+  async function choisirReleve(choix) {
+    if (roleChoisi) return;
+    CHOIX_RELEVE_PDP = choix === 'soir' ? 'soir' : 'matin';
+    if (CHOIX_RELEVE_PDP === 'matin' && await serviceQuart1EnCours()) {
+      const aller = optionsCourantes.aller;
+      if (typeof aller === 'function') aller('NEXUS-App-v1.html');
+      else window.location.href = 'NEXUS-App-v1.html';
+      return;
+    }
+    renderChoixPoste();
+  }
+
   async function terminerPriseDePoste(reponse, reactiver) {
     const { data, error } = reponse;
     if (error || !data || data.ok !== true) {
@@ -436,7 +500,8 @@ body.nexus-desktop .pdp-corps{flex:0 0 auto;align-self:stretch;padding:14px 16px
       return false;
     }
     posteFrequent = await chargerPosteFrequent();
-    renderChoixPoste();
+    if (enFenetreDeReleve()) renderChoixReleve();
+    else renderChoixPoste();
     return true;
   }
 
@@ -469,5 +534,5 @@ body.nexus-desktop .pdp-corps{flex:0 0 auto;align-self:stretch;padding:14px 16px
       </div>`;
   }
 
-  global.NexusPriseDePoste = { monter, recapitulatif, ROLES };
+  global.NexusPriseDePoste = { monter, recapitulatif, ROLES, enFenetreDeReleve };
 })(window);
