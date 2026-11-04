@@ -135,7 +135,7 @@ cas('page : titre de catégorie sans « Étape » dans le fil caisse (une seule 
 });
 cas('page : en fil caisse, « Précédent » et « Retour » sont masqués (sortie par la barre seule)', () => {
   assert.ok(/body[^\n]*classList\.add\('fil-actif', 'fil-caisse'\)/.test(HTML) || /classList\.add\('fil-actif', 'fil-caisse'\)/.test(HTML));
-  assert.ok(/\.fil-caisse \.nexus-retour-btn, \.fil-caisse #btnAnnulerOuverture \{ display: none !important; \}/.test(HTML));
+  assert.ok(/\.fil-caisse \.nexus-retour-btn, \.fil-caisse #btnAnnulerOuverture, \.fil-caisse #btnAnnulerCloture \{ display: none !important; \}/.test(HTML));
 });
 cas('page : étiquette cigarettes courte, sans « bureau géré par le manager »', () => {
   assert.ok(!/bureau géré par le manager/.test(HTML));

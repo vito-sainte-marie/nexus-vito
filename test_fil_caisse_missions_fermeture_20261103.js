@@ -130,6 +130,15 @@ const ETAPE2 = 'NEXUS-Inventaire-v1.html?fil=caisse&etape=2&plan=2';
     assert.ok(/sauvegarderDraft\(etape === 3 \? 'cloture' : 'ouverture'\)/.test(I));
     assert.ok(/filCaisseEnCours \? window\.NexusFilCaisse\.LIBELLE_TERMINER/.test(I));
   });
+  await cas('retouches #177 : carte « Commencer la clôture → », aucun confirm natif dans la clôture, Retour masqué', () => {
+    const A = lire(process.env.ACC_MUTE || 'nexus-accueil-piste.js'), M2 = lire(process.env.PAGE_MUTE || 'NEXUS-Missions-v1.html');
+    assert.ok(/fermetureEnCours \? 'Commencer la clôture →'/.test(A) && /code: 'cloture', libelle: 'Clôture'/.test(A) && /total: fermetureAFaire \? 2 : 1/.test(A));
+    assert.ok(/clotureSeule \? 'Commencer la clôture →'/.test(M2));
+    const i0 = I.indexOf('async function validerCloture'), i1 = I.indexOf('\n    }\n', i0 + 2000);
+    const corps = I.slice(i0, I.indexOf('function ', i0 + 30));
+    assert.ok(i0 > 0 && corps.length > 500 && !/(^|[^.\w])confirm\(/.test(corps) && /confirmerEnPage\(/.test(corps), 'validerCloture sans confirm natif');
+    assert.ok(/\.fil-caisse #btnAnnulerCloture[^{]*\{ display: none !important; \}/.test(I));
+  });
   await cas('aucun câblage du changement de quart dans le fil', () => {
     assert.ok(!/changement[-_ ]de[-_ ]quart|changerQuart|echangeQuart/i.test(lire('nexus-fil-caisse.js') + lire('nexus-fil-caisse-lecture.js')));
   });

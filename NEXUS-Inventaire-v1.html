@@ -309,7 +309,7 @@
 /* Fil « Mon début de quart » : pas de retour vers le catalogue des catégories. */
 .fil-actif #btnRetourCategories, .fil-actif #btnRetourCategoriesCarrousel { display: none; }
 /* Fil « Ma caisse » : la seule sortie est « Quitter et revenir à l'Accueil » de la barre du fil. */
-.fil-caisse .nexus-retour-btn, .fil-caisse #btnAnnulerOuverture { display: none !important; }
+.fil-caisse .nexus-retour-btn, .fil-caisse #btnAnnulerOuverture, .fil-caisse #btnAnnulerCloture { display: none !important; }
 </style>
 </head>
 <body>
@@ -4022,12 +4022,12 @@
       const base = `${manquants.length} produit${manquants.length > 1 ? 's' : ''} sur ${total} sans stock final saisi (${pct}%).`;
       if (total > 0 && manquants.length / total > 0.5) {
         clotureIncomplete = true;
-        if (!confirm(`${base}\n\nLa majorité des produits n'ont pas été comptés. Clôturer maintenant verrouillera l'inventaire jusqu'à ce qu'un manager le rouvre, et le manager en sera averti.\n\nÊtes-vous sûr de valider cette clôture ? Cette action est irréversible.`)) return;
+        if (!(await confirmerEnPage(`${base}\n\nLa majorité des produits n'ont pas été comptés. Clôturer maintenant verrouillera l'inventaire jusqu'à ce qu'un manager le rouvre, et le manager en sera averti.\n\nÊtes-vous sûr de valider cette clôture ? Cette action est irréversible.`, 'Valider la clôture'))) return;
       } else {
-        if (!confirm(`${base}\n\nÊtes-vous sûr de valider cette clôture ? Cette action est irréversible.`)) return;
+        if (!(await confirmerEnPage(`${base}\n\nÊtes-vous sûr de valider cette clôture ? Cette action est irréversible.`, 'Valider la clôture'))) return;
       }
     } else {
-      if (!confirm('Êtes-vous sûr de valider cette clôture d\'inventaire ? Cette action est irréversible.')) return;
+      if (!(await confirmerEnPage('Êtes-vous sûr de valider cette clôture d\'inventaire ? Cette action est irréversible.', 'Valider la clôture'))) return;
     }
 
     const btn = document.getElementById('btnValiderCloture');

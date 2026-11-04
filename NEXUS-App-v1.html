@@ -2319,7 +2319,7 @@
       return { couleur: 'inventaire', titre: 'Le comptage d’ouverture/clôture de votre quart n’a pas encore été fait.', lienTexte: ctx.filLien ? FIL_LIEN_TEXTE : ctx.filCaisseLien ? FIL_CAISSE_LIEN_TEXTE : 'Faire l’inventaire →', lien: ctx.filLien || ctx.filCaisseLien || 'NEXUS-Inventaire-v1.html' };
     }
     if (ctx.inventaireApplicable && !ctx.inventaireFait && ctx.inventaireOuvertureFaite && ctx.filCaisseLien) {
-      return { couleur: 'inventaire', titre: 'La fermeture de votre caisse est à faire avant la fin du quart.', lienTexte: FIL_CAISSE_LIEN_TEXTE, lien: ctx.filCaisseLien };
+      return { couleur: 'inventaire', titre: 'La fermeture de votre caisse est à faire avant la fin du quart.', lienTexte: 'Commencer la clôture →', lien: ctx.filCaisseLien };
     }
     if (ctx.fdjApplicable && !ctx.fdjFait) {
       return { couleur: 'fdj', titre: 'Le contrôle FDJ de votre quart n’a pas encore été fait.', lienTexte: 'Compter le FDJ →', lien: 'NEXUS-FDJ-v1.html' };
@@ -2901,7 +2901,7 @@
       pointageActif: pointageActifSite === true, recap: recapQuart,
       // Variante caissière (toutes les caissières en service) : faits déjà chargés plus haut, aucune lecture ajoutée.
       // Pilote : fil (filCaisseLien) ; autre caissière : Inventaire classique, comme la prochaine action d'aujourd'hui.
-      piloteCaisse: piloteCaisse === true, filCaisseLien, fdjApplicable,
+      piloteCaisse: piloteCaisse === true, filCaisseLien, fermetureCaisseDue, fdjApplicable,
       inventaireLien: inventaireApplicable ? 'NEXUS-Inventaire-v1.html' : null,
     });
     const faitsMenu = { estNiveauManager: false, enService, roleDuJour, receptionApplicable, fdjApplicable, fermetureLien, pointageActif: pointageActifSite === true };

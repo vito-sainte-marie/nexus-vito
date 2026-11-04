@@ -100,8 +100,11 @@
   function modeleCaisse(f) {
     const fait = !!(f.inventaireOuvertureFaite || f.inventaireFait);
     const pilote = f.piloteCaisse === true;
+    // Étape Clôture (étape 3 du fil) : pilote, fermeture due, clôture pas encore faite. L'entrée est alors faite ou non ; le lien du fil donne la prochaine étape.
+    const fermetureAFaire = pilote && f.fermetureCaisseDue === true && !f.inventaireFait;
+    const fermetureEnCours = fermetureAFaire && fait;
     const bouton = pilote
-      ? (f.filCaisseLien ? { libelle: 'Commencer l’inventaire →', href: f.filCaisseLien } : null)
+      ? (f.filCaisseLien ? { libelle: fermetureEnCours ? 'Commencer la clôture →' : 'Commencer l’inventaire →', href: f.filCaisseLien } : null)
       : (!fait && f.inventaireLien ? { libelle: 'Commencer l’inventaire →', href: f.inventaireLien } : null);
     const m = f.missions || { total: 0, faites: 0 };
     return {
@@ -109,11 +112,12 @@
       mode: 'ouverture',
       prenom: f.prenom || '',
       poste: { libelle: 'Caisse', quart: libelleQuart(f.quart), depuis: heureLocale(f.heureDebut, f.fuseau), fin: f.finMinutes != null ? heureDeMinutes(Number(f.finMinutes)) : null, image: IMAGES_POSTE.caissiere },
-      etapes: [{ code: 'comptage', libelle: 'Comptage d’entrée', etat: fait ? 'fait' : 'a_faire' }],
-      faites: fait ? 1 : 0, total: 1, filTermine: fait,
+      etapes: [{ code: 'comptage', libelle: 'Comptage d’entrée', etat: fait ? 'fait' : 'a_faire' }]
+        .concat(fermetureAFaire ? [{ code: 'cloture', libelle: 'Clôture', etat: 'a_faire' }] : []),
+      faites: fait ? 1 : 0, total: fermetureAFaire ? 2 : 1, filTermine: fait && !fermetureAFaire,
       bouton,
       reception: null, finQuart: null, fermeture: null, termine: null,
-      incoherent: !fait && !bouton,
+      incoherent: (!fait || fermetureAFaire) && !bouton,
       missions: null,
       raccourcis: { missions: { restantes: Math.max(0, m.total - m.faites), total: m.total }, fdj: f.fdjApplicable === true },
       points: Number(f.points) || 0,
