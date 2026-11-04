@@ -2026,7 +2026,7 @@
       const type = document.getElementById('mrType').value;
       const qteSaisie = parseFloat(document.getElementById('mrQte').value);
       const justif = document.getElementById('mrJustif').value;
-      if (!produitId || !type || isNaN(qteSaisie) || qteSaisie <= 0) { alert('Choisissez un produit, un type de mouvement et une quantité positive.'); return; }
+      if (!produitId || !type || isNaN(qteSaisie) || qteSaisie <= 0) { alerterEnPage('Choisissez un produit, un type de mouvement et une quantité positive.'); return; }
       const produit = mouvementRapideProduits.find(p => p.id === produitId);
       const infoType = M ? M.infoTypeMouvement(type) : null;
       const qte = (infoType && infoType.sens === 'sortant') ? -Math.abs(qteSaisie) : Math.abs(qteSaisie);
@@ -2129,7 +2129,7 @@
     document.getElementById('btnRrAjouterLigne').addEventListener('click', () => {
       const produitId = document.getElementById('rrProduit').value;
       const qte = parseFloat(document.getElementById('rrQte').value);
-      if (!produitId || isNaN(qte) || qte <= 0) { alert('Choisissez un produit et une quantité positive.'); return; }
+      if (!produitId || isNaN(qte) || qte <= 0) { alerterEnPage('Choisissez un produit et une quantité positive.'); return; }
       const produit = mouvementRapideProduits.find(p => p.id === produitId);
       // Une même ligne (produit déjà ajouté à cette réception) s'additionne
       // plutôt que de dupliquer la ligne — deux cartons du même produit
@@ -2145,7 +2145,7 @@
     document.getElementById('btnRrRetour').addEventListener('click', renderAccueil);
 
     document.getElementById('btnRrValider').addEventListener('click', async () => {
-      if (!receptionLignes.length) { alert('Ajoutez au moins un produit à la réception avant de valider.'); return; }
+      if (!receptionLignes.length) { alerterEnPage('Ajoutez au moins un produit à la réception avant de valider.'); return; }
       const justif = document.getElementById('rrJustif').value || null;
       const btn = document.getElementById('btnRrValider');
       btn.disabled = true;
@@ -2467,7 +2467,7 @@
   async function changerQuart(nouveauQuart) {
     if (nouveauQuart === quartActuel) return;
     const enCours = Object.values(comptagesSaisie).some(s => s && s.compte !== undefined) || mouvementsSaisie.length > 0;
-    if (enCours && !confirm('Changer de quart maintenant abandonnera la saisie en cours (non enregistrée). Continuer ?')) return;
+    if (enCours && !(await confirmerEnPage('Changer de quart maintenant abandonnera la saisie en cours (non enregistrée). Continuer ?', 'Changer de quart'))) return;
 
     quartActuel = nouveauQuart;
     comptagesSaisie = {};
@@ -2669,7 +2669,7 @@
         validerOuverture();
       } catch (err) {
         console.error('Erreur validation ouverture:', err);
-        alert('Une erreur est survenue et la validation a été bloquée : ' + (err && err.message ? err.message : err) + '\n\nMerci de faire une capture d\'écran de ce message et de la transmettre.');
+        alerterEnPage('Une erreur est survenue et la validation a été bloquée : ' + (err && err.message ? err.message : err) + '\n\nMerci de faire une capture d\'écran de ce message et de la transmettre.');
       }
     });
     document.getElementById('btnAnnulerOuverture').addEventListener('click', renderAccueil);
@@ -2688,7 +2688,7 @@
         validerOuverture();
       } catch (err) {
         console.error('Erreur validation ouverture:', err);
-        alert('Une erreur est survenue et la validation a été bloquée : ' + (err && err.message ? err.message : err));
+        alerterEnPage('Une erreur est survenue et la validation a été bloquée : ' + (err && err.message ? err.message : err));
       }
     });
   }
@@ -2859,7 +2859,7 @@
       // Comptage à l'aveugle : aucun produit n'est jamais présumé conforme au
       // stock transmis. Le bouton ne fait qu'avancer, une fois chaque produit compté.
       if (comptageAveugleImpose()) {
-        if (groupe.items.some(p => !produitEstCompte(p))) { alert('Comptez chaque produit de la catégorie avant de continuer.'); return; }
+        if (groupe.items.some(p => !produitEstCompte(p))) { alerterEnPage('Comptez chaque produit de la catégorie avant de continuer.'); return; }
         ouvrirProchaineCategorie();
         return;
       }
@@ -2874,7 +2874,7 @@
       const production = groupe.items.filter(p => quartActuel === 'matin' && profilParProduit[p.id] === 'production_journaliere');
       const simples = groupe.items.filter(p => !estComptageDeuxLieuxEmploye(p) && !production.includes(p));
       const doubles = groupe.items.filter(estComptageDeuxLieuxEmploye);
-      if (!simples.length) { alert('Les produits restants de cette catégorie se saisissent individuellement (dépôt + boutique, ou production journalière) — voir ci-dessus.'); return; }
+      if (!simples.length) { alerterEnPage('Les produits restants de cette catégorie se saisissent individuellement (dépôt + boutique, ou production journalière) — voir ci-dessus.'); return; }
       // Dans le fil, le bouton dit déjà « Valider cette catégorie conforme » : pas de seconde question.
       if (!enFil()) {
         const nb = simples.length;
@@ -3406,6 +3406,30 @@
     });
   }
 
+  // Avertissement dans la page (même raison que confirmerEnPage) : jamais de
+  // alert() natif sur les parcours employé. Non bloquant ; un seul bouton.
+  function alerterEnPage(message) {
+    const overlay = document.createElement('div');
+    overlay.className = 'calc-overlay';
+    overlay.id = 'alertPageOverlay';
+    const modal = document.createElement('div');
+    modal.className = 'calc-modal';
+    modal.setAttribute('role', 'alertdialog');
+    const texte = document.createElement('div');
+    texte.style.whiteSpace = 'pre-line';
+    texte.textContent = message;
+    const actions = document.createElement('div');
+    actions.className = 'confirm-page-actions';
+    const ok = document.createElement('button');
+    ok.className = 'btn-primary';
+    ok.textContent = 'OK';
+    ok.addEventListener('click', () => overlay.remove());
+    actions.append(ok);
+    modal.append(texte, actions);
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+  }
+
   async function validerOuverture() {
     if (modeTestInventaireActif()) {
       const moment = typeof window !== 'undefined' && window.NexusInventaireModeTest
@@ -3767,7 +3791,7 @@
         validerCloture();
       } catch (err) {
         console.error('Erreur validation clôture:', err);
-        alert('Une erreur est survenue et la clôture a été bloquée : ' + (err && err.message ? err.message : err) + '\n\nMerci de faire une capture d\'écran de ce message et de la transmettre.');
+        alerterEnPage('Une erreur est survenue et la clôture a été bloquée : ' + (err && err.message ? err.message : err) + '\n\nMerci de faire une capture d\'écran de ce message et de la transmettre.');
       }
     });
     document.getElementById('btnAnnulerCloture').addEventListener('click', filCaisseEnCours ? () => { window.location.href = window.NexusFilCaisse.ACCUEIL; } : enFil() ? () => { filSauverAvantSortie(); window.location.href = FIL.ACCUEIL; } : renderAccueil);
@@ -3906,7 +3930,7 @@
     `;
     const premier = document.querySelector('.produit-input-finalisation');
     if (premier) { premier.focus(); premier.select(); }
-    document.getElementById('btnValiderFinalisationDoubleLieu').addEventListener('click', () => {
+    document.getElementById('btnValiderFinalisationDoubleLieu').addEventListener('click', async () => {
       // Filet de sécurité (07/08/2026) : même principe que sur les boutons
       // de validation ouverture/clôture — une erreur ici ne doit jamais
       // rester invisible pour l'employé.
@@ -3917,7 +3941,7 @@
           const p = produitsZone.find(x => x.id === produitId);
           let vBoutique = el.value === '' ? null : evaluerAdditionChainee(el.value);
           if (vBoutique === null || isNaN(vBoutique)) {
-            if (!confirm(`Aucun chiffre saisi pour la boutique sur ${p ? p.designation : 'ce produit'} — on enregistre 0. Confirmer ?`)) return; // reste sur l'écran, rien n'est perdu
+            if (!(await confirmerEnPage(`Aucun chiffre saisi pour la boutique sur ${p ? p.designation : 'ce produit'} — on enregistre 0.`, 'Enregistrer 0'))) return; // reste sur l'écran, rien n'est perdu
             vBoutique = 0;
           }
           const s = comptagesSaisie[produitId];
@@ -3942,7 +3966,7 @@
         if (typeFlux === 'cloture') validerCloture(); else validerOuverture();
       } catch (err) {
         console.error('Erreur finalisation double lieu:', err);
-        alert('Une erreur est survenue et la validation a été bloquée : ' + (err && err.message ? err.message : err) + '\n\nMerci de faire une capture d\'écran de ce message et de la transmettre.');
+        alerterEnPage('Une erreur est survenue et la validation a été bloquée : ' + (err && err.message ? err.message : err) + '\n\nMerci de faire une capture d\'écran de ce message et de la transmettre.');
       }
     });
     if (auto) {
@@ -3964,7 +3988,7 @@
     const type = document.getElementById('mouvType').value;
     const qteSaisie = parseFloat(document.getElementById('mouvQte').value);
     const justif = document.getElementById('mouvJustif').value;
-    if (!produitId || isNaN(qteSaisie) || qteSaisie < 0) { alert('Choisissez un produit et une quantité positive.'); return; }
+    if (!produitId || isNaN(qteSaisie) || qteSaisie < 0) { alerterEnPage('Choisissez un produit et une quantité positive.'); return; }
     const produit = produitsZone.find(p => p.id === produitId);
     const infoType = TYPES_MOUVEMENT.find(t => t.value === type);
     const qte = infoType.sens === 'sortant' ? -Math.abs(qteSaisie) : Math.abs(qteSaisie);

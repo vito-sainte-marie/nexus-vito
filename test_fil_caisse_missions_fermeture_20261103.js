@@ -139,6 +139,14 @@ const ETAPE2 = 'NEXUS-Inventaire-v1.html?fil=caisse&etape=2&plan=2';
     assert.ok(i0 > 0 && corps.length > 500 && !/(^|[^.\w])confirm\(/.test(corps) && /confirmerEnPage\(/.test(corps), 'validerCloture sans confirm natif');
     assert.ok(/\.fil-caisse #btnAnnulerCloture[^{]*\{ display: none !important; \}/.test(I));
   });
+  await cas('retouches #177 (2e vague) : plus aucun confirm( ni alert( natif sur toute la page Inventaire', () => {
+    const code = I.split('\n').filter(l => !/^\s*\/\//.test(l)).join('\n');
+    assert.ok(!/(^|[^.\w])(confirm|alert)\(/.test(code), 'confirm(/alert( natif restant');
+    assert.ok(/function alerterEnPage\(/.test(I) && /async function changerQuart/.test(I));
+    assert.ok(/btnValiderFinalisationDoubleLieu'\)\.addEventListener\('click', async \(\) =>/.test(I));
+    assert.ok(/await confirmerEnPage\(`Aucun chiffre saisi pour la boutique/.test(I));
+    assert.ok(/await confirmerEnPage\('Changer de quart maintenant/.test(I));
+  });
   await cas('aucun câblage du changement de quart dans le fil', () => {
     assert.ok(!/changement[-_ ]de[-_ ]quart|changerQuart|echangeQuart/i.test(lire('nexus-fil-caisse.js') + lire('nexus-fil-caisse-lecture.js')));
   });
