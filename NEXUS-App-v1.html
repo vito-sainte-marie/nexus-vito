@@ -407,6 +407,63 @@
   .chemins-btn-service{background:var(--green-dim); border-color:rgba(var(--green-rgb),0.35); color:var(--green);}
   .chemins-rappel{margin:16px 20px 0; padding:12px 16px; border-radius:var(--r-md); background:var(--green-dim); border:1px solid rgba(var(--green-rgb),0.25); font-family:var(--mono); font-size:11px; color:var(--green);}
   .chemins-rappel-lien{display:block; margin-top:7px; color:var(--text-mid); font-size:10.5px; text-decoration:underline;}
+  /* Accueil du dirigeant, V1 visuelle (GO Frédéric 03/11/2026, consigne Guardian du canal Guardian).
+     Doctrine : améliorer ce que l'utilisateur voit, sans modifier ce que NEXUS fait.
+     Tout sélecteur ci-dessous exige .am-marqueur, posé par le seul chemin manager de
+     renderPrisePoste : l'employé, la consultation externe et les autres pages n'en voient rien.
+     Couleurs : jetons existants uniquement ; aucun texte posé sur la photo. */
+  /* En-tête du dirigeant sur le modèle de l'employé (Guardian 6628440177, décision de Frédéric) : une rangée
+     (☰, logo, NEXUS à gauche ; nom de la station à droite), puis une ligne d'état dessous. Même disposition
+     en colonne mobile, sur téléphone et sur ordinateur. Le nom de la station se raccourcit par « … », jamais à largeur nulle. */
+  body:has(.am-marqueur) .header{display:flex; flex-wrap:wrap; align-items:center; column-gap:12px; row-gap:6px; padding:20px 20px 10px; text-align:left;}
+  body:has(.am-marqueur) .header-brandrow{display:flex; flex:0 0 100%; flex-wrap:nowrap; justify-content:flex-start; align-items:center; gap:8px; padding-left:44px; min-height:36px; min-width:0;}
+  body:has(.am-marqueur) .header-brand-left{display:contents;}
+  body:has(.am-marqueur) .header-divider{display:none;}
+  body:has(.am-marqueur) .header-mark{order:1; width:30px; height:30px;}
+  body:has(.am-marqueur) .header-wordmark{order:2; flex:0 0 auto;}
+  body:has(.am-marqueur) .header-brand-right{order:3; flex:1 1 0; min-width:64px; justify-content:flex-end;}
+  body:has(.am-marqueur) .header-sitewrap{max-width:100%; min-width:0;}
+  body:has(.am-marqueur) .header-sitename{font-size:12px; line-height:1.25; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0;}
+  body:has(.am-marqueur) .header-statut-row{margin-top:0; flex:0 1 auto; justify-content:flex-start; gap:8px;}
+  body:has(.am-marqueur) .header-live:not(:empty)::before{content:'\00b7\00a0';}
+  body:has(.am-marqueur) #sessionInfo{margin:0 0 0 auto !important; max-width:none; flex:0 1 auto; text-align:right; font-size:12px; line-height:1.3;}
+  body:has(.am-marqueur) #taglineRole{display:none;}
+  body:has(.am-marqueur) .am-date{margin:12px 20px 0; font-family:'Inter',-apple-system,sans-serif; font-size:13px; color:var(--text-mid); font-variant-numeric:tabular-nums;}
+  body:has(.am-marqueur) .am-banniere{margin:12px 20px 0; height:140px; border-radius:var(--r-lg); overflow:hidden; border:1px solid var(--hairline); background:var(--panel);}
+  body:has(.am-marqueur) .am-banniere{position:relative;}
+  body:has(.am-marqueur) .am-banniere img{display:block; position:absolute; inset:0; z-index:0; width:100%; height:100%; object-fit:cover; object-position:50% 30%;}
+  /* Fondu enchaîné Jour <-> Sombre (Guardian 6628368788) : la nouvelle photo se pose au-dessus. */
+  body:has(.am-marqueur) .am-banniere img.am-fondu{opacity:0; transition:opacity 800ms ease;}
+  body:has(.am-marqueur) .am-banniere img.am-fondu.am-fondu-visible{opacity:1;}
+  /* Slogan posé sur la photo, en bas à gauche, sur un léger dégradé sombre. */
+  body:has(.am-marqueur) .am-banniere::after{content:''; position:absolute; left:0; right:0; bottom:0; height:80%; z-index:1; pointer-events:none; background:linear-gradient(to top, color-mix(in srgb, black 90%, transparent), color-mix(in srgb, black 70%, transparent) 40%, transparent);}
+  body:has(.am-marqueur) .am-poste{margin:12px 20px 0; padding:0; text-decoration:none; color:var(--text); font-family:'Inter',-apple-system,sans-serif; font-size:13px; background:var(--panel); border:1px solid var(--hairline);}
+  body:has(.am-marqueur) .am-poste .ap-poste-nom{font-family:'Inter',-apple-system,sans-serif; font-size:18px; font-weight:700; color:var(--text);}
+  body:has(.am-marqueur) .am-poste .ap-poste-texte{box-sizing:border-box; width:100%;}
+  body:has(.am-marqueur) .am-poste::after{display:none;}
+  body:has(.am-marqueur) .am-poste-lien{display:block; margin-top:2px; color:var(--text-mid); font-family:'Inter',-apple-system,sans-serif; font-size:13px; text-decoration:underline;}
+  body:has(.am-marqueur) .section-tag{font-family:'Inter',-apple-system,sans-serif; font-size:11px; font-weight:600; letter-spacing:0.08em; padding:24px 20px 10px;}
+  body:has(.am-marqueur) .ma-progression-mini{margin-top:12px; padding:10px 18px; white-space:nowrap;}
+  body:has(.am-marqueur) .ma-progression-mini-texte{font-family:'Inter',-apple-system,sans-serif; font-size:14px;}
+  /* La mise en page « une ligne » suit la VUE (body.nexus-desktop), pas la fenêtre : en vue mobile
+     sur ordinateur, la colonne .app reste à 520 px dans une fenêtre large (Guardian 6628190562). */
+  @media (min-width:768px){
+    body.nexus-desktop:has(.am-marqueur) .header{padding:20px 28px 10px;}
+    body.nexus-desktop:has(.am-marqueur) #taglineRole{display:block; flex:0 0 100%; order:9; max-width:none; margin:0; font-size:12px; color:var(--text-dim);}
+    body.nexus-desktop:has(.am-marqueur) .am-date, body.nexus-desktop:has(.am-marqueur) .am-banniere, body.nexus-desktop:has(.am-marqueur) .am-poste{margin-left:28px; margin-right:28px;}
+    body.nexus-desktop:has(.am-marqueur) .am-banniere{height:220px;}
+    body.nexus-desktop:has(.am-marqueur) .header-brandrow{padding-left:52px;}
+  }
+  body:has(.am-marqueur) .am-banniere #taglineRole,
+  body.nexus-desktop:has(.am-marqueur) .am-banniere #taglineRole{display:block; position:absolute; left:14px; right:14px; bottom:10px; z-index:2; margin:0; max-width:none; text-align:left; font-size:12px; line-height:1.35; font-weight:700; font-style:italic; color:white; text-shadow:0 1px 3px color-mix(in srgb, black 85%, transparent), 0 0 8px color-mix(in srgb, black 55%, transparent);}
+  @media (min-width:768px){
+    body.nexus-desktop:has(.am-marqueur) .am-banniere #taglineRole{font-size:17px; line-height:1.3;}
+  }
+  body:has(.am-marqueur) .am-banniere .dots-anim i{background:currentColor;}
+  @media (prefers-reduced-motion:reduce){
+    body:has(.am-marqueur) .dots-anim i{animation:none;}
+    body:has(.am-marqueur) .am-banniere img.am-fondu{transition:none;}
+  }
   .section-tag{font-family:var(--mono); font-size:9.5px; letter-spacing:0.14em; text-transform:uppercase; color:var(--text-dim); padding:20px 20px 8px; display:flex; align-items:center; gap:8px;}
   .section-tag::after{content:''; flex:1; height:1px; background:var(--hairline);}
   .section-tag .n1{color:var(--gold);}
@@ -615,8 +672,10 @@
   .mm-entree:hover{background:var(--mm-hover);}
   .mm-desactive,.mm-desactive:hover{opacity:.45;cursor:default;background:none;}
   .mm-mention{display:block;font-size:12px;color:var(--mm-titre);margin-top:2px;}
+  /* Tout l'en-tête (marque, nom de station, ligne d'état) est invisible tant que le poste n'est pas connu : sa mise en page
+     dépend du marqueur .am-marqueur, posé plus tard. visibility garde la place réservée, donc aucun saut au dévoilement. */
   body.accueil-attente .app > *:not(.header){visibility:hidden !important;}
-  body.accueil-attente .header-statut-row, body.accueil-attente #taglineRole, body.accueil-attente #sessionInfo{visibility:hidden !important;}
+  body.accueil-attente .header > *, body.accueil-attente .header-brandrow *, body.accueil-attente .menu-accueil-bouton{visibility:hidden !important;}
   .ap-h1{font-size:24px;font-weight:700;margin:8px 0 14px;color:var(--ap-text);}
   .ap-poste{position:relative;display:flex;height:104px;flex-shrink:0;border:1px solid var(--hairline);background:var(--panel);border-radius:16px;overflow:hidden;margin-bottom:12px;}
   .ap-poste-texte{position:relative;z-index:1;padding:16px;display:flex;flex-direction:column;justify-content:center;gap:2px;}
@@ -3146,9 +3205,124 @@
       + '<span class="ma-progression-mini-lien">Voir mes séries →</span></a>');
   }
 
+  // Accueil du dirigeant, V1 visuelle : affichage seul, aucune donnée lue ni écrite.
+  // La marque ViTO est réservée aux sites de cette liste explicite ; tout autre
+  // site garde un en-tête sans photo. Sur Test, ?apercu_banniere=1 montre le
+  // bandeau ; ce paramètre n'a d'effet pour AUCUN autre site (Production inclus).
+  // Paramètre d'aperçu lu une fois au chargement, hors de renderPrisePoste (qui ne
+  // doit rien régler sur une donnée de l'URL) ; sans effet hors nexus-station-test.
+  const APERCU_BANNIERE_DEMANDE = (function () {
+    try { return new URLSearchParams(window.location.search).get('apercu_banniere') === '1'; } catch (e) { return false; }
+  })();
   function renderPrisePoste(employee, serviceCourant, estNiveauManager) {
+  // Seul point à étendre pour la bannière : la liste des sites qui l'affichent.
+  // Lot futur (note du Guardian, #160) : bannière pour toutes les stations ViTO,
+  // une photo par enseigne (Total, Sol…) choisie dans les Réglages de la station.
+  // Cela demande une donnée par site ou enseigne, un écran de Réglages et une
+  // migration : décisions de Frédéric. Ne pas l'implémenter ici.
+  const SITES_BANNIERE_VITO = ['vito-sainte-marie'];
+  const SITE_APERCU_BANNIERE = 'nexus-station-test';
+  // La photo suit le thème actif : Jour = photo de jour, Sombre = photo de nuit. Une seule
+  // image est présente à la fois ; elle est remplacée quand nexus-theme.js change data-theme.
+  function photoAccueilNuit() {
+    try { return document.documentElement.getAttribute('data-theme') !== 'jour'; } catch (e) { return true; }
+  }
+  function baseBanniere(nuit) {
+    return 'assets/accueil/accueil-station-vito' + (nuit ? '-nuit' : '');
+  }
+  const FONDU_MS = 800;
+  // Changement de thème : la nouvelle photo est préchargée, puis posée AU-DESSUS de l'ancienne
+  // (opacité 0 -> 1, ~800 ms) ; l'ancienne n'est retirée qu'à la fin. La bannière garde sa hauteur
+  // fixe : aucun saut. Mouvement réduit : la transition CSS est nulle, le remplacement est immédiat. Préchargement en échec : l'ancienne reste.
+  function changerPhotoBanniere(nuit) {
+    document.querySelectorAll('.am-banniere').forEach(function (ban) {
+      const actuelle = ban.querySelector('img:not(.am-fondu)');
+      if (!actuelle) return;
+      ban.querySelectorAll('img.am-fondu').forEach(function (x) { x.remove(); });
+      const base = baseBanniere(nuit);
+      const src = base + '-800.webp';
+      const srcset = base + '-800.webp 800w, ' + base + '-1200.webp 1200w, ' + base + '-1600.webp 1600w';
+      ban._jeton = (ban._jeton || 0) + 1;
+      const jeton = ban._jeton;
+      const pre = new Image();
+      pre.sizes = actuelle.getAttribute('sizes') || '';
+      pre.srcset = srcset;
+      pre.onload = function () {
+        if (ban._jeton !== jeton || !ban.contains(actuelle)) return;
+        const n = document.createElement('img');
+        n.className = 'am-fondu';
+        n.setAttribute('sizes', actuelle.getAttribute('sizes') || '');
+        n.setAttribute('srcset', srcset);
+        n.setAttribute('src', src);
+        n.setAttribute('width', actuelle.getAttribute('width') || '1600');
+        n.setAttribute('height', actuelle.getAttribute('height') || '800');
+        n.setAttribute('decoding', 'async');
+        n.setAttribute('alt', actuelle.getAttribute('alt') || '');
+        actuelle.insertAdjacentElement('afterend', n);
+        void n.offsetWidth;
+        n.classList.add('am-fondu-visible');
+        setTimeout(function () {
+          if (ban._jeton !== jeton) return;
+          n.classList.remove('am-fondu', 'am-fondu-visible');
+          actuelle.remove();
+        }, FONDU_MS + 50);
+      };
+      pre.src = src;
+    });
+  }
+  (function () {
+    try {
+      new MutationObserver(function () {
+        changerPhotoBanniere(photoAccueilNuit());
+      }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    } catch (e) {}
+  })();
+  // Le slogan (#taglineRole) est UN seul élément : posé sur la photo quand la bannière existe,
+  // sinon laissé dans l'en-tête. Le texte reste écrit par le même code (#taglineTexte).
+  function sloganDansEntete() {
+    try {
+      const s = document.getElementById('taglineRole');
+      const info = document.getElementById('sessionInfo');
+      if (s && info && info.parentNode && s.parentNode !== info.parentNode) info.parentNode.insertBefore(s, info);
+    } catch (e) {}
+  }
+  function sloganSurPhoto() {
+    try {
+      const s = document.getElementById('taglineRole');
+      const ban = document.querySelector('.am-banniere');
+      if (s && ban) ban.appendChild(s);
+    } catch (e) {}
+  }
+  // La largeur affichée suit la VUE (body.nexus-desktop), pas la fenêtre : la colonne mobile d'un ordinateur
+  // fait ~476 px même dans une fenêtre de 1440 px.
+  function sizesBanniere() {
+    let bureau = false;
+    try { bureau = document.body.classList.contains('nexus-desktop'); } catch (e) {}
+    return bureau ? '1100px' : '(min-width:560px) 480px, calc(100vw - 40px)';
+  }
+  function banniereAccueilHtml(siteId) {
+    const apercu = siteId === SITE_APERCU_BANNIERE && typeof APERCU_BANNIERE_DEMANDE !== 'undefined' && APERCU_BANNIERE_DEMANDE === true;
+    if (SITES_BANNIERE_VITO.indexOf(siteId) === -1 && !apercu) return '';
+    const nuit = photoAccueilNuit();
+    const base = baseBanniere(nuit);
+    return '<div class="am-banniere"><img src="' + base + '-800.webp"'
+      + ' srcset="' + base + '-800.webp 800w, ' + base + '-1200.webp 1200w, ' + base + '-1600.webp 1600w"'
+      + ' sizes="' + sizesBanniere() + '" width="1600" height="800" loading="lazy" decoding="async"'
+      + ' alt="La station ViTO de Sainte-Marie : auvent, totem et végétation tropicale"'
+      + ' onerror="var s=document.getElementById(\'taglineRole\'),i=document.getElementById(\'sessionInfo\');if(s&&i)i.parentNode.insertBefore(s,i);this.parentNode.remove()"></div>';
+  }
+  // Date et heure à l'heure de la station (FUSEAU_STATION), jamais celle de l'appareil.
+  function dateStationHtml() {
+    if (typeof FUSEAU_STATION === 'undefined' || !FUSEAU_STATION) return '';
+    try {
+      const t = new Date().toLocaleString('fr-FR', { timeZone: FUSEAU_STATION, weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+      return '<div class="am-date">' + t + '</div>';
+    } catch (e) { return ''; }
+  }
+
     const hote = document.getElementById('prisePosteHote');
     if (!hote) return;
+    sloganDansEntete();
     // Le créateur en consultation externe regarde les données d'un autre
     // site : lui proposer d'y prendre un poste n'aurait aucun sens.
     if (employee.consultation_externe) return;
@@ -3157,18 +3331,25 @@
     // poste opérationnelle (ou le rappel du service en cours), aucun choix de
     // poste présenté ici.
     if (estNiveauManager) {
+      // V1 visuelle (03/11/2026) : un marqueur invisible active les règles
+      // `body:has(.am-marqueur)` ; le bandeau photo n'existe que pour les sites
+      // de la liste explicite. Mêmes textes, mêmes liens, mêmes conditions.
+      const entete = '<span class="am-marqueur" hidden></span>' + dateStationHtml() + banniereAccueilHtml(employee.site_id);
       if (serviceCourant) {
         const lib = serviceCourant.role ? (LIBELLE_ROLE_JOUR[serviceCourant.role] || serviceCourant.role) : null;
-        hote.innerHTML = '<div class="chemins-rappel">● Service en cours'
+        hote.innerHTML = entete + '<div class="ap-poste am-poste chemins-rappel"><div class="ap-poste-texte">'
+          + '<div class="ap-poste-nom">● Service en cours'
           + (lib ? ' — ' + lib : '')
-          + (serviceCourant.quart ? ' · ' + serviceCourant.quart : '')
-          + '<a class="chemins-rappel-lien" href="NEXUS-Prise-De-Poste-v1.html">'
-          + 'Changer de rôle / refaire ma prise de poste</a></div>';
+          + (serviceCourant.quart ? ' · ' + serviceCourant.quart : '') + '</div>'
+          + '<a class="chemins-rappel-lien am-poste-lien" href="NEXUS-Prise-De-Poste-v1.html">'
+          + 'Changer de rôle / refaire ma prise de poste</a></div>'
+          + '</div>';
       } else {
-        hote.innerHTML = '<div class="chemins"><div class="chemins-actions">'
-          + '<a class="chemins-btn chemins-btn-service" id="cheminService" href="NEXUS-Prise-De-Poste-v1.html">Commencer mon service opérationnel</a>'
-          + '</div></div>';
+        hote.innerHTML = entete + '<a class="ap-poste am-poste" id="cheminService" href="NEXUS-Prise-De-Poste-v1.html">'
+          + '<div class="ap-poste-texte"><div class="ap-poste-nom">Commencer mon service opérationnel</div></div>'
+          + '</a>';
       }
+      sloganSurPhoto();
       return;
     }
 

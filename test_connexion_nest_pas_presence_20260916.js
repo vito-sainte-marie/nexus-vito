@@ -561,7 +561,19 @@ t('cas 14 — les deux chemins tiennent sur un écran de téléphone', () => {
 
   // Aucune règle d'affichage conditionnée à la largeur : le panneau ne peut
   // pas disparaître à partir d'un certain seuil.
-  assert.ok(!/@media/.test(src),
+  // 03/11/2026 : la V1 visuelle du dirigeant porte UNE media query (mise en page
+  // de l'en-tête sur une ligne). Elle est admise parce qu'elle est bornée au
+  // bloc `body:has(.am-marqueur)` (04/11 : sous `body.nexus-desktop`, la vue bureau) et ne masque rien : aucune règle
+  // display:none / visibility:hidden / opacity:0 / height:0 à l'intérieur.
+  const mq = /@media[^{]*\{((?:[^{}]*\{[^}]*\})*)\s*\}/g;
+  let m;
+  while ((m = mq.exec(src))) {
+    assert.ok(/^\s*(body(?:\.nexus-desktop)?:has\(\.am-marqueur\)[^{]*\{[^}]*\}\s*)+$/.test(m[1]),
+      'une media query hors du bloc dirigeant pourrait masquer un chemin selon la largeur — à réexaminer');
+    assert.ok(!/display:\s*none|visibility:\s*hidden|opacity:\s*0\b|height:\s*0\b/.test(m[1]),
+      'la media query du dirigeant ne doit rien masquer');
+  }
+  assert.ok(!/@media/.test(src.replace(mq, '')),
     'une media query pourrait masquer un chemin selon la largeur — à réexaminer si l\'écran en acquiert une');
 
   // Et surtout : aucune garde JavaScript ne consulte la taille de l'écran
