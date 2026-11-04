@@ -32,10 +32,10 @@ const EPREUVES = {
     assert.strictEqual(new Function('FUSEAU_STATION', extraire(src) + '; return dateStationHtml();')(null), '');
   },
   'tout sélecteur ajouté exige le marqueur du bloc dirigeant': (src) => {
-    const css = src.slice(src.indexOf('/* Accueil du dirigeant, V1 visuelle'), src.indexOf('.section-tag{font-family:var(--mono)'));
+    const css = src.slice(src.indexOf('/* Accueil du dirigeant, V1 visuelle'), src.indexOf('.section-tag{font-family:var(--mono)')).replace(/\/\*[\s\S]*?\*\//g, '');
     const sels = [...css.matchAll(/(?:^|\})\s*([^{}@\/][^{}]*)\{/g)].map((m) => m[1].trim()).filter((x) => x && !x.startsWith('@media'));
     assert(sels.length >= 15);
-    for (const s of sels) for (const part of s.split(',')) assert(part.trim().startsWith('body:has(.am-marqueur)'), part);
+    for (const s of sels) for (const part of s.split(',')) assert(/^body(\.nexus-desktop)?:has\(\.am-marqueur\)/.test(part.trim()), part);
   },
   'couleurs par jetons uniquement : aucune valeur en dur dans le nouveau CSS': (src) => {
     const css = src.slice(src.indexOf('/* Accueil du dirigeant, V1 visuelle'), src.indexOf('.section-tag{font-family:var(--mono)'));

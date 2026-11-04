@@ -24,6 +24,11 @@ const STRUCTURE = {
     for (const m of bloc(src).matchAll(/([^{}]*)\{([^}]*)\}/g)) if (/\.header|#sessionInfo/.test(m[1])) assert(!/position\s*:\s*absolute/.test(m[2]), m[1]);
   },
   'le bouton ☰ n’est pas touché par le bloc dirigeant': (src) => { assert(!/menu-accueil-bouton/.test(bloc(src))); },
+  'la mise en page une ligne suit la vue bureau, pas la fenêtre': (src) => {
+    const b = bloc(src); const m = b.slice(b.indexOf('@media (min-width:768px)'));
+    assert(m.includes('body.nexus-desktop:has(.am-marqueur) .header{'));
+    assert(!/(^|[\s,{])body:has\(\.am-marqueur\)/.test(m.replace(/\/\*[\s\S]*?\*\//g, '')));
+  },
   'carte de service : texte sur toute la largeur, sans photo ni dégradé': (src) => {
     const b = base(src);
     assert(/width:100%/.test(regle(b, '.am-poste .ap-poste-texte')));
@@ -36,6 +41,7 @@ const MUTANTS_STRUCTURE = {
   'mobile : la station tient sur une ligne, sans déborder': (s) => s.replace('white-space:nowrap; overflow:hidden; text-overflow:ellipsis;', ''),
   'aucun position:absolute ajouté dans l’en-tête dirigeant': (s) => s.replace('text-align:left; font-size:12px; line-height:1.3;}', 'text-align:left; font-size:12px; line-height:1.3; position:absolute;}'),
   'le bouton ☰ n’est pas touché par le bloc dirigeant': (s) => s.replace(M + ' #taglineRole{display:none;}', M + ' .menu-accueil-bouton{top:11px;}\n  ' + M + ' #taglineRole{display:none;}'),
+  'la mise en page une ligne suit la vue bureau, pas la fenêtre': (s) => s.replace('body.nexus-desktop:has(.am-marqueur) .header-statut-row{', 'body:has(.am-marqueur) .header-statut-row{'),
   'carte de service : texte sur toute la largeur, sans photo ni dégradé': (s) => s.replace('.am-poste::after{display:none;}', '.am-poste::after{display:block;}'),
 };
 
@@ -57,7 +63,8 @@ const MESURE = () => {
   for (let i = 0; i < rc.length; i++) for (let j = i + 1; j < rc.length; j++) { const a = rc[i], c = rc[j]; if (a.l < c.r - 1 && c.l < a.r - 1 && a.t < c.b - 1 && c.t < a.b - 1) ov.push(a.s + ' x ' + c.s); }
   const tx = document.querySelector('.am-poste .ap-poste-texte').getBoundingClientRect();
   const nm = document.querySelector('.am-poste .ap-poste-nom').getBoundingClientRect(); const carte = document.querySelector('.am-poste').getBoundingClientRect();
-  return { n: rc.length, ov, texteLarge: tx.width > carte.width * 0.8, nomDebordeCarte: nm.right > tx.right + 1 || nm.bottom > carte.bottom + 1, defileH: document.documentElement.scrollWidth > innerWidth };
+  const sn = document.querySelector('.header-sitename').getBoundingClientRect();
+  return { n: rc.length, ov, nomStation: sn.width, colonne: document.querySelector('.app').getBoundingClientRect().width, texteLarge: tx.width > carte.width * 0.8, nomDebordeCarte: nm.right > tx.right + 1 || nm.bottom > carte.bottom + 1, defileH: document.documentElement.scrollWidth > innerWidth };
 };
 const ouvrir = () => {
   let pw; try { pw = require('playwright'); } catch (e) { try { pw = require(path.join(process.env.PLAYWRIGHT_DIR || '', 'node_modules', 'playwright')); } catch (e2) { return null; } }
@@ -68,15 +75,19 @@ async function geometrie(src) {
   let b; try { b = await pw.chromium.launch(process.env.CHR ? { executablePath: process.env.CHR } : {}); } catch (e) { return { saute: 'Chromium indisponible' }; }
   const sorties = [];
   try {
-    for (const w of [375, 320]) {
+    // Trois cas (Guardian 6628190562) : fenêtre mobile, colonne mobile de 520 px dans une fenêtre de 1 440 px
+    // (vue par défaut sur ordinateur, sans body.nexus-desktop), vue bureau 1 440 px.
+    const CAS = [['fenêtre 375', 375, false], ['fenêtre 320', 320, false], ['colonne mobile 520 dans fenêtre 1440', 1440, false], ['vue bureau 1440', 1440, true]];
+    for (const [nom, w, bureau] of CAS) {
       const p = await b.newPage({ viewport: { width: w, height: 800 } });
       await p.setContent(fixture(src), { waitUntil: 'domcontentloaded' });
-      sorties.push([w, await p.evaluate(MESURE)]); await p.close();
+      if (bureau) await p.evaluate(() => document.body.classList.add('nexus-desktop'));
+      sorties.push([nom, await p.evaluate(MESURE)]); await p.close();
     }
   } finally { await b.close(); }
   return { sorties };
 }
-const verdict = (g) => { for (const [w, r] of g.sorties) { assert(r.n >= 6, w + ' px : éléments de l’en-tête introuvables (' + r.n + ')'); assert.deepStrictEqual(r.ov, [], w + ' px : chevauchement ' + r.ov.join(', ')); assert(r.texteLarge && !r.nomDebordeCarte && !r.defileH, w + ' px : carte ou page qui déborde'); } };
+const verdict = (g) => { for (const [w, r] of g.sorties) { assert(r.nomStation > 0, w + ' : le nom de la station a une largeur nulle'); assert(r.n >= 6, w + ' : éléments de l’en-tête introuvables (' + r.n + ')'); assert.deepStrictEqual(r.ov, [], w + ' : chevauchement ' + r.ov.join(', ')); assert(r.texteLarge && !r.nomDebordeCarte && !r.defileH, w + ' : carte ou page qui déborde'); } };
 
 (async () => {
   let ko = 0;
@@ -88,9 +99,9 @@ const verdict = (g) => { for (const [w, r] of g.sorties) { assert(r.n >= 6, w + 
     console.log('✓ ' + nom);
   }
   const g = await geometrie(APP);
-  if (g.saute) console.log('⚠ géométrie 375/320 px : NON EXÉCUTÉE (' + g.saute + ') — la garde des chevauchements n’a rien mesuré ici.');
+  if (g.saute) console.log('⚠ géométrie 4 cas : NON EXÉCUTÉE (' + g.saute + ') — la garde des chevauchements n’a rien mesuré ici.');
   else {
-    try { verdict(g); console.log('✓ géométrie 375 et 320 px : aucun chevauchement, carte contenue'); } catch (e) { ko++; console.log('✗ géométrie — ' + e.message); }
+    try { verdict(g); console.log('✓ géométrie fenêtre 375/320, colonne 520 dans 1440, vue bureau : aucun chevauchement, carte contenue'); } catch (e) { ko++; console.log('✗ géométrie — ' + e.message); }
     const mut = await geometrie(APP.replace('header-statut-row{margin-top:10px;', 'header-statut-row{margin-top:0;'));
     let mord = false; try { verdict(mut); } catch (e) { mord = true; }
     if (!mord) { ko++; console.log('✗ géométrie — la mutation (rangée Connecté collée au ☰) ne la fait pas rougir'); } else console.log('✓ géométrie mord : rangée Connecté remontée sous le ☰ = rouge');
