@@ -412,20 +412,25 @@
      Tout sélecteur ci-dessous exige .am-marqueur, posé par le seul chemin manager de
      renderPrisePoste : l'employé, la consultation externe et les autres pages n'en voient rien.
      Couleurs : jetons existants uniquement ; aucun texte posé sur la photo. */
-  body:has(.am-marqueur) .header{display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; column-gap:12px; row-gap:6px; padding:14px 20px 10px; text-align:left;}
-  body:has(.am-marqueur) .header-brandrow{display:flex; grid-column:1 / -1; justify-content:flex-start; gap:10px; padding-left:44px;}
+  body:has(.am-marqueur) .header{display:grid; grid-template-columns:minmax(0,1fr); align-items:center; column-gap:12px; row-gap:6px; padding:14px 20px 10px; text-align:left;}
+  body:has(.am-marqueur) .header-brandrow{display:flex; flex-wrap:nowrap; grid-column:1 / -1; justify-content:flex-start; align-items:center; gap:8px; padding-left:44px; min-width:0;}
+  body:has(.am-marqueur) .header-brand-side{flex:0 1 auto; min-width:0;}
+  body:has(.am-marqueur) .header-brand-right{flex:1 1 0;}
+  body:has(.am-marqueur) .header-sitename{font-size:12px; line-height:1.25; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   body:has(.am-marqueur) .header-brand-left{justify-content:flex-start;}
   body:has(.am-marqueur) .header-mark{width:30px; height:30px;}
   body:has(.am-marqueur) .header-sitewrap{max-width:none;}
-  body:has(.am-marqueur) .header-statut-row{margin-top:0; justify-content:flex-start; gap:8px;}
-  body:has(.am-marqueur) #sessionInfo{margin:0 !important; max-width:48vw; text-align:right; font-size:12px; line-height:1.3;}
+  body:has(.am-marqueur) .header-statut-row{margin-top:10px; justify-content:flex-start; gap:8px;}
+  body:has(.am-marqueur) #sessionInfo{margin:0 !important; max-width:none; text-align:left; font-size:12px; line-height:1.3;}
   body:has(.am-marqueur) #taglineRole{display:none;}
   body:has(.am-marqueur) .am-date{margin:12px 20px 0; font-family:'Inter',-apple-system,sans-serif; font-size:13px; color:var(--text-mid); font-variant-numeric:tabular-nums;}
   body:has(.am-marqueur) .am-banniere{margin:12px 20px 0; height:140px; border-radius:var(--r-lg); overflow:hidden; border:1px solid var(--hairline); background:var(--panel);}
   body:has(.am-marqueur) .am-banniere img{display:block; width:100%; height:100%; object-fit:cover; object-position:50% 30%;}
   body:has(.am-marqueur) .am-poste{margin:12px 20px 0; padding:0; text-decoration:none; color:var(--text); font-family:'Inter',-apple-system,sans-serif; font-size:13px; background:var(--panel); border:1px solid var(--hairline);}
   body:has(.am-marqueur) .am-poste .ap-poste-nom{font-family:'Inter',-apple-system,sans-serif; font-size:18px; font-weight:700; color:var(--text);}
-  body:has(.am-marqueur) .am-poste .ap-poste-texte{max-width:60%;}
+  body:has(.am-marqueur) .am-poste .ap-poste-texte{box-sizing:border-box; max-width:55%;}
+  body:has(.am-marqueur) .am-poste .ap-poste-image{width:45%;}
+  body:has(.am-marqueur) .am-poste::after{background:linear-gradient(90deg,var(--panel) 50%,color-mix(in srgb,var(--panel) 85%,transparent) 58%,transparent 100%);}
   body:has(.am-marqueur) .am-poste-lien{display:block; margin-top:2px; color:var(--text-mid); font-family:'Inter',-apple-system,sans-serif; font-size:13px; text-decoration:underline;}
   body:has(.am-marqueur) .section-tag{font-family:'Inter',-apple-system,sans-serif; font-size:11px; font-weight:600; letter-spacing:0.08em; padding:24px 20px 10px;}
   body:has(.am-marqueur) .ma-progression-mini{margin-top:12px; padding:10px 18px; white-space:nowrap;}
@@ -433,8 +438,8 @@
   @media (min-width:768px){
     body:has(.am-marqueur) .header{grid-template-columns:minmax(0,1fr) auto auto; padding:14px 28px 10px;}
     body:has(.am-marqueur) .header-brandrow{grid-column:1; grid-row:1;}
-    body:has(.am-marqueur) .header-statut-row{grid-column:2; grid-row:1;}
-    body:has(.am-marqueur) #sessionInfo{grid-column:3; grid-row:1;}
+    body:has(.am-marqueur) .header-statut-row{grid-column:2; grid-row:1; margin-top:0;}
+    body:has(.am-marqueur) #sessionInfo{grid-column:3; grid-row:1; text-align:right;}
     body:has(.am-marqueur) #taglineRole{display:block; grid-column:1 / -1; grid-row:2; max-width:none; margin:0; font-size:12px; color:var(--text-dim);}
     body:has(.am-marqueur) .am-date, body:has(.am-marqueur) .am-banniere, body:has(.am-marqueur) .am-poste{margin-left:28px; margin-right:28px;}
     body:has(.am-marqueur) .am-banniere{height:220px;}
