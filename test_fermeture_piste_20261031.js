@@ -108,10 +108,10 @@ const EPREUVES = {
     assert(!h.includes('apFermeture"'));
   },
   // 8 bis : corrections du Guardian (rapport 6545741605)
-  'sans pointage actif : pas de « Pointer mon départ », un bouton plein « Se déconnecter »': (M) => {
+  'sans pointage actif : pas de « Pointer mon départ », un bouton plein « Terminer mon service »': (M) => {
     const h = M.html(M.modele(terminee({ pointageActif: false })));
     assert(!h.includes('Pointer mon départ') && !h.includes('apBoutonDepart'));
-    assert(/<a class="ap-bouton" id="apLogout" href="#">Se déconnecter<\/a>/.test(h) && (h.match(/id="apLogout"/g) || []).length === 1);
+    assert(/<a class="ap-bouton" id="apTerminerService" href="#">Terminer mon service<\/a>/.test(h) && (h.match(/id="apTerminerService"/g) || []).length === 1);
     assert.strictEqual(pleins(h), 1);
     assert(M.html(M.modele(terminee())).includes('Pointer mon départ'));
   },

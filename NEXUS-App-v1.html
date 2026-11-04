@@ -2997,6 +2997,20 @@
       document.body.classList.add('accueil-piste');
       const sortie = document.getElementById('apLogout');
       if (sortie) sortie.addEventListener('click', (e) => { e.preventDefault(); nexusLogout(); });
+      // « Terminer mon service » : clôture du service, puis déconnexion. Un échec ne déconnecte pas
+      // en silence — le service resterait ouvert sans que personne le sache.
+      const terminer = document.getElementById('apTerminerService');
+      if (terminer) terminer.addEventListener('click', async (e) => {
+        e.preventDefault();
+        if (terminer.dataset.encours === '1') return;
+        terminer.dataset.encours = '1';
+        const bilan = await nexusTerminerMonService(employee);
+        if (bilan && bilan.ok) { nexusLogout(); return; }
+        terminer.dataset.encours = '';
+        terminer.textContent = 'Réessayer';
+        const erreur = document.getElementById('apTerminerErreur');
+        if (erreur) { erreur.hidden = false; erreur.innerHTML = 'Service non clos · <a href="#" id="apLogout">Se déconnecter quand même</a>'; const l = document.getElementById('apLogout'); if (l) l.addEventListener('click', (ev) => { ev.preventDefault(); nexusLogout(); }); }
+      });
     }
     const nbActions = (prochainPointageEffectif ? 1 : 0)
       + Math.max(0, missionsInfo.total - missionsInfo.faites)

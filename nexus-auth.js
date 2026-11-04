@@ -573,6 +573,33 @@ async function nexusAppliquerCloturePilote(services, decision){
 }
 
 /**
+ * L'employé termine son propre service (bouton « Terminer mon service »).
+ * ────────────────────────────────────────────────────────
+ * Aucune écriture nouvelle : le service courant est lu par
+ * `nexusServiceCourant`, refermé par `nexusAppliquerCloturePilote`, la seule
+ * écriture de clôture. La décision est humaine — source `employe`, et
+ * `cloture_par` nomme l'employé.
+ *
+ * Retour : { ok: true, closes } quand il n'y a plus de service ouvert (refermé
+ * ici, ou déjà absent) ; { ok: false } quand la lecture ou l'écriture a échoué —
+ * l'appelant ne doit alors pas laisser croire que le service est clos.
+ */
+async function nexusTerminerMonService(employee){
+  const regles = nexusReglesPilote();
+  if(!regles || !employee || !employee.id) return { ok: false };
+  const courant = await nexusServiceCourant(employee);
+  if(!courant || courant.erreur) return { ok: false };
+  if(!courant.service) return { ok: true, closes: 0 };
+  const bilan = await nexusAppliquerCloturePilote([{ service: courant.service }], {
+    source: regles.SOURCE_CLOTURE_PILOTE.employe,
+    par:    employee.id,
+    motifPour: (obsolete, MOTIFS) => MOTIFS.fin_de_service,
+  });
+  if(bilan.indisponible || bilan.invalide || (bilan.refuses && bilan.refuses.length)) return { ok: false };
+  return { ok: true, closes: bilan.closes };
+}
+
+/**
  * NEXUS referme seul, au retour dans l'application. `cloture_par` NULL :
  * aucun humain n'a pris cette décision, et le journal doit pouvoir le dire.
  */

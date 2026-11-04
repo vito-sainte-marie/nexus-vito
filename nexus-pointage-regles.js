@@ -149,6 +149,7 @@
     jour_precedent: 'Fin non enregistrée — service d\'un jour précédent clos automatiquement (phase pilote)',
     quart_termine:  'Fin non enregistrée — quart planifié terminé, service clos automatiquement (phase pilote)',
     manager:        'Fin non enregistrée — régularisation par le manager (phase pilote)',
+    fin_de_service: 'Fin non enregistrée — service terminé par l\'employé, bouton « Terminer mon service » (phase pilote)',
   };
 
   // Les valeurs écrites dans `shifts.cloture_source`. Elles répondent à une
@@ -166,6 +167,7 @@
   const SOURCE_CLOTURE_PILOTE = {
     automatique: 'cycle_pilote', // NEXUS, au retour dans l'application
     manager:     'manager',      // un humain, que `cloture_par` nomme
+    employe:     'employe',      // l'employé lui-même, par « Terminer mon service »
   };
 
   /**
