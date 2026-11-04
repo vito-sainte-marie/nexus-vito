@@ -41,10 +41,11 @@ const EPREUVES = {
     const css = src.slice(src.indexOf('/* Accueil du dirigeant, V1 visuelle'), src.indexOf('.section-tag{font-family:var(--mono)'));
     assert(!/#[0-9a-fA-F]{3,8}\b|rgba?\(/.test(css.replace(/\/\*[\s\S]*?\*\//g, '')));
   },
-  'service : même lien, mêmes textes, même identifiant, photo du poste manager': (src) => {
+  'service : même lien, mêmes textes, même identifiant, sans photo (décision du 04/11)': (src) => {
     assert(src.includes('id="cheminService" href="NEXUS-Prise-De-Poste-v1.html"') && src.includes('Commencer mon service opérationnel'));
     assert(src.includes('Changer de rôle / refaire ma prise de poste') && src.includes('● Service en cours'));
-    assert(src.includes('assets/postes/poste-manager.webp') && fs.existsSync(path.join(__dirname, 'assets/postes/poste-manager.webp')));
+    const i = src.indexOf('function renderPrisePoste('); const j = src.indexOf("if (typeof NexusPriseDePoste === 'undefined')", i);
+    assert(!/poste-manager|ap-poste-image/.test(src.slice(i, j)));
   },
   'le marqueur n’est émis que par la branche manager': (src) => {
     assert.strictEqual((src.match(/class="am-marqueur"/g) || []).length, 1);
@@ -84,7 +85,7 @@ const MUTANTS = {
   'date à l’heure de la station, jamais celle de l’appareil': (s) => s.replace('timeZone: FUSEAU_STATION, ', ''),
   'tout sélecteur ajouté exige le marqueur du bloc dirigeant': (s) => s.replace('body:has(.am-marqueur) .am-date{', '.am-date{'),
   'couleurs par jetons uniquement : aucune valeur en dur dans le nouveau CSS': (s) => s.replace('color:var(--text-mid); font-variant-numeric', 'color:#888; font-variant-numeric'),
-  'service : même lien, mêmes textes, même identifiant, photo du poste manager': (s) => s.replace('id="cheminService"', 'id="autre"'),
+  'service : même lien, mêmes textes, même identifiant, sans photo (décision du 04/11)': (s) => s.replace('id="cheminService"', 'id="autre"'),
   'le marqueur n’est émis que par la branche manager': (s) => s.replace("NexusPriseDePoste.monter(hote, employee)", "hote.insertAdjacentHTML('beforeend','<span class=\"am-marqueur\"></span>');NexusPriseDePoste.monter(hote, employee)").replace("if (typeof NexusPriseDePoste === 'undefined') return;", "if (typeof NexusPriseDePoste === 'undefined') return; /* am-marqueur */"),
 };
 let ko = 0;

@@ -24,11 +24,11 @@ const STRUCTURE = {
     for (const m of bloc(src).matchAll(/([^{}]*)\{([^}]*)\}/g)) if (/\.header|#sessionInfo/.test(m[1])) assert(!/position\s*:\s*absolute/.test(m[2]), m[1]);
   },
   'le bouton ☰ n’est pas touché par le bloc dirigeant': (src) => { assert(!/menu-accueil-bouton/.test(bloc(src))); },
-  'carte de service : texte dans ~55 %, image après lui, dégradé': (src) => {
+  'carte de service : texte sur toute la largeur, sans photo ni dégradé': (src) => {
     const b = base(src);
-    assert(/max-width:55%/.test(regle(b, '.am-poste .ap-poste-texte')));
-    assert(/width:45%/.test(regle(b, '.am-poste .ap-poste-image')));
-    assert(/linear-gradient\(90deg,var\(--panel\)/.test(regle(b, '.am-poste::after')));
+    assert(/width:100%/.test(regle(b, '.am-poste .ap-poste-texte')));
+    assert(/display:none/.test(regle(b, '.am-poste::after')));
+    assert(!/ap-poste-image/.test(b));
   },
 };
 const MUTANTS_STRUCTURE = {
@@ -36,7 +36,7 @@ const MUTANTS_STRUCTURE = {
   'mobile : la station tient sur une ligne, sans déborder': (s) => s.replace('white-space:nowrap; overflow:hidden; text-overflow:ellipsis;', ''),
   'aucun position:absolute ajouté dans l’en-tête dirigeant': (s) => s.replace('text-align:left; font-size:12px; line-height:1.3;}', 'text-align:left; font-size:12px; line-height:1.3; position:absolute;}'),
   'le bouton ☰ n’est pas touché par le bloc dirigeant': (s) => s.replace(M + ' #taglineRole{display:none;}', M + ' .menu-accueil-bouton{top:11px;}\n  ' + M + ' #taglineRole{display:none;}'),
-  'carte de service : texte dans ~55 %, image après lui, dégradé': (s) => s.replace('max-width:55%', 'max-width:60%'),
+  'carte de service : texte sur toute la largeur, sans photo ni dégradé': (s) => s.replace('.am-poste::after{display:none;}', '.am-poste::after{display:block;}'),
 };
 
 // Géométrie : la page réelle, scripts retirés, remplie comme le fait la branche manager.
@@ -47,7 +47,7 @@ const fixture = (src) => {
   s = s.replace(/(id="sessionInfo"[^>]*>)/, '$1Bonjour Frédéric · <a href="#">Se déconnecter</a>');
   s = s.replace(/(id="stationTitle"[^>]*>)[^<]*/, '$1NEXUS Station Test');
   s = s.replace('class="menu-accueil-bouton"', 'class="menu-accueil-bouton mm-pret"');
-  const carte = '<span class="am-marqueur" hidden></span><a class="ap-poste am-poste" id="cheminService" href="#"><div class="ap-poste-texte"><div class="ap-poste-nom">Commencer mon service opérationnel</div></div><div class="ap-poste-image"></div></a>';
+  const carte = '<span class="am-marqueur" hidden></span><a class="ap-poste am-poste" id="cheminService" href="#"><div class="ap-poste-texte"><div class="ap-poste-nom">Commencer mon service opérationnel</div></div></a>';
   return s.replace(/(id="prisePosteHote"[^>]*>)/, '$1' + carte);
 };
 const MESURE = () => {
@@ -55,9 +55,9 @@ const MESURE = () => {
   const rc = sel.map((s) => [s, document.querySelector(s)]).filter((x) => x[1]).map(([s, e]) => { const r = e.getBoundingClientRect(); return { s, l: r.left, t: r.top, r: r.right, b: r.bottom }; });
   const ov = [];
   for (let i = 0; i < rc.length; i++) for (let j = i + 1; j < rc.length; j++) { const a = rc[i], c = rc[j]; if (a.l < c.r - 1 && c.l < a.r - 1 && a.t < c.b - 1 && c.t < a.b - 1) ov.push(a.s + ' x ' + c.s); }
-  const tx = document.querySelector('.am-poste .ap-poste-texte').getBoundingClientRect(); const im = document.querySelector('.am-poste .ap-poste-image').getBoundingClientRect();
+  const tx = document.querySelector('.am-poste .ap-poste-texte').getBoundingClientRect();
   const nm = document.querySelector('.am-poste .ap-poste-nom').getBoundingClientRect(); const carte = document.querySelector('.am-poste').getBoundingClientRect();
-  return { n: rc.length, ov, texteApresImage: tx.right > im.left + 1, nomDebordeCarte: nm.right > tx.right + 1 || nm.bottom > carte.bottom + 1, defileH: document.documentElement.scrollWidth > innerWidth };
+  return { n: rc.length, ov, texteLarge: tx.width > carte.width * 0.8, nomDebordeCarte: nm.right > tx.right + 1 || nm.bottom > carte.bottom + 1, defileH: document.documentElement.scrollWidth > innerWidth };
 };
 const ouvrir = () => {
   let pw; try { pw = require('playwright'); } catch (e) { try { pw = require(path.join(process.env.PLAYWRIGHT_DIR || '', 'node_modules', 'playwright')); } catch (e2) { return null; } }
@@ -76,7 +76,7 @@ async function geometrie(src) {
   } finally { await b.close(); }
   return { sorties };
 }
-const verdict = (g) => { for (const [w, r] of g.sorties) { assert(r.n >= 6, w + ' px : éléments de l’en-tête introuvables (' + r.n + ')'); assert.deepStrictEqual(r.ov, [], w + ' px : chevauchement ' + r.ov.join(', ')); assert(!r.texteApresImage && !r.nomDebordeCarte && !r.defileH, w + ' px : carte ou page qui déborde'); } };
+const verdict = (g) => { for (const [w, r] of g.sorties) { assert(r.n >= 6, w + ' px : éléments de l’en-tête introuvables (' + r.n + ')'); assert.deepStrictEqual(r.ov, [], w + ' px : chevauchement ' + r.ov.join(', ')); assert(r.texteLarge && !r.nomDebordeCarte && !r.defileH, w + ' px : carte ou page qui déborde'); } };
 
 (async () => {
   let ko = 0;

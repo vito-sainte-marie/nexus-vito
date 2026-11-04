@@ -428,9 +428,8 @@
   body:has(.am-marqueur) .am-banniere img{display:block; width:100%; height:100%; object-fit:cover; object-position:50% 30%;}
   body:has(.am-marqueur) .am-poste{margin:12px 20px 0; padding:0; text-decoration:none; color:var(--text); font-family:'Inter',-apple-system,sans-serif; font-size:13px; background:var(--panel); border:1px solid var(--hairline);}
   body:has(.am-marqueur) .am-poste .ap-poste-nom{font-family:'Inter',-apple-system,sans-serif; font-size:18px; font-weight:700; color:var(--text);}
-  body:has(.am-marqueur) .am-poste .ap-poste-texte{box-sizing:border-box; max-width:55%;}
-  body:has(.am-marqueur) .am-poste .ap-poste-image{width:45%;}
-  body:has(.am-marqueur) .am-poste::after{background:linear-gradient(90deg,var(--panel) 50%,color-mix(in srgb,var(--panel) 85%,transparent) 58%,transparent 100%);}
+  body:has(.am-marqueur) .am-poste .ap-poste-texte{box-sizing:border-box; width:100%;}
+  body:has(.am-marqueur) .am-poste::after{display:none;}
   body:has(.am-marqueur) .am-poste-lien{display:block; margin-top:2px; color:var(--text-mid); font-family:'Inter',-apple-system,sans-serif; font-size:13px; text-decoration:underline;}
   body:has(.am-marqueur) .section-tag{font-family:'Inter',-apple-system,sans-serif; font-size:11px; font-weight:600; letter-spacing:0.08em; padding:24px 20px 10px;}
   body:has(.am-marqueur) .ma-progression-mini{margin-top:12px; padding:10px 18px; white-space:nowrap;}
@@ -444,8 +443,6 @@
     body:has(.am-marqueur) .am-date, body:has(.am-marqueur) .am-banniere, body:has(.am-marqueur) .am-poste{margin-left:28px; margin-right:28px;}
     body:has(.am-marqueur) .am-banniere{height:220px;}
     body:has(.am-marqueur) .header-brandrow{padding-left:52px;}
-    body:has(.am-marqueur) .am-poste .ap-poste-image{width:40%; max-width:420px;}
-    body:has(.am-marqueur) .am-poste .ap-poste-texte{max-width:none;}
   }
   .section-tag{font-family:var(--mono); font-size:9.5px; letter-spacing:0.14em; text-transform:uppercase; color:var(--text-dim); padding:20px 20px 8px; display:flex; align-items:center; gap:8px;}
   .section-tag::after{content:''; flex:1; height:1px; background:var(--hairline);}
@@ -3257,11 +3254,11 @@
           + (serviceCourant.quart ? ' · ' + serviceCourant.quart : '') + '</div>'
           + '<a class="chemins-rappel-lien am-poste-lien" href="NEXUS-Prise-De-Poste-v1.html">'
           + 'Changer de rôle / refaire ma prise de poste</a></div>'
-          + '<div class="ap-poste-image" style="background-image:url(assets/postes/poste-manager.webp)"></div></div>';
+          + '</div>';
       } else {
         hote.innerHTML = entete + '<a class="ap-poste am-poste" id="cheminService" href="NEXUS-Prise-De-Poste-v1.html">'
           + '<div class="ap-poste-texte"><div class="ap-poste-nom">Commencer mon service opérationnel</div></div>'
-          + '<div class="ap-poste-image" style="background-image:url(assets/postes/poste-manager.webp)"></div></a>';
+          + '</a>';
       }
       return;
     }
