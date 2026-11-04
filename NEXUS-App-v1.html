@@ -407,6 +407,36 @@
   .chemins-btn-service{background:var(--green-dim); border-color:rgba(var(--green-rgb),0.35); color:var(--green);}
   .chemins-rappel{margin:16px 20px 0; padding:12px 16px; border-radius:var(--r-md); background:var(--green-dim); border:1px solid rgba(var(--green-rgb),0.25); font-family:var(--mono); font-size:11px; color:var(--green);}
   .chemins-rappel-lien{display:block; margin-top:7px; color:var(--text-mid); font-size:10.5px; text-decoration:underline;}
+  /* Accueil du dirigeant, V1 visuelle (GO Frédéric 03/11/2026, consigne Guardian du canal Guardian).
+     Doctrine : améliorer ce que l'utilisateur voit, sans modifier ce que NEXUS fait.
+     Tout sélecteur ci-dessous exige .am-marqueur, posé par le seul chemin manager de
+     renderPrisePoste : l'employé, la consultation externe et les autres pages n'en voient rien.
+     Couleurs : jetons existants uniquement ; aucun texte posé sur la photo. */
+  body:has(.am-marqueur) .header{display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; column-gap:12px; row-gap:6px; padding:14px 20px 10px; text-align:left;}
+  body:has(.am-marqueur) .header-brandrow{display:flex; grid-column:1 / -1; justify-content:flex-start; gap:10px;}
+  body:has(.am-marqueur) .header-brand-left{justify-content:flex-start;}
+  body:has(.am-marqueur) .header-mark{width:30px; height:30px;}
+  body:has(.am-marqueur) .header-sitewrap{max-width:none;}
+  body:has(.am-marqueur) .header-statut-row{margin-top:0; justify-content:flex-start; gap:8px;}
+  body:has(.am-marqueur) #sessionInfo{margin:0 !important; max-width:none; text-align:right; font-size:12px; line-height:1.3; white-space:nowrap;}
+  body:has(.am-marqueur) #taglineRole{display:none;}
+  body:has(.am-marqueur) .am-date{margin:12px 20px 0; font-family:'Inter',-apple-system,sans-serif; font-size:13px; color:var(--text-mid); font-variant-numeric:tabular-nums;}
+  body:has(.am-marqueur) .am-banniere{margin:12px 20px 0; height:140px; border-radius:var(--r-lg); overflow:hidden; border:1px solid var(--hairline); background:var(--panel);}
+  body:has(.am-marqueur) .am-banniere img{display:block; width:100%; height:100%; object-fit:cover;}
+  body:has(.am-marqueur) .am-poste{margin:12px 20px 0; text-decoration:none; color:var(--text);}
+  body:has(.am-marqueur) .am-poste-lien{display:block; margin-top:2px; color:var(--text-mid); font-size:12px; text-decoration:underline;}
+  body:has(.am-marqueur) .section-tag{font-family:'Inter',-apple-system,sans-serif; font-size:11px; font-weight:600; letter-spacing:0.08em; padding:24px 20px 10px;}
+  body:has(.am-marqueur) .ma-progression-mini{margin-top:12px; padding:10px 18px; white-space:nowrap;}
+  body:has(.am-marqueur) .ma-progression-mini-texte{font-family:'Inter',-apple-system,sans-serif; font-size:14px;}
+  @media (min-width:768px){
+    body:has(.am-marqueur) .header{grid-template-columns:minmax(0,1fr) auto auto; padding:14px 28px 10px;}
+    body:has(.am-marqueur) .header-brandrow{grid-column:1; grid-row:1;}
+    body:has(.am-marqueur) .header-statut-row{grid-column:2; grid-row:1;}
+    body:has(.am-marqueur) #sessionInfo{grid-column:3; grid-row:1;}
+    body:has(.am-marqueur) #taglineRole{display:block; grid-column:1 / -1; grid-row:2; max-width:none; margin:0; font-size:12px; color:var(--text-dim);}
+    body:has(.am-marqueur) .am-date, body:has(.am-marqueur) .am-banniere, body:has(.am-marqueur) .am-poste{margin-left:28px; margin-right:28px;}
+    body:has(.am-marqueur) .am-banniere{height:220px;}
+  }
   .section-tag{font-family:var(--mono); font-size:9.5px; letter-spacing:0.14em; text-transform:uppercase; color:var(--text-dim); padding:20px 20px 8px; display:flex; align-items:center; gap:8px;}
   .section-tag::after{content:''; flex:1; height:1px; background:var(--hairline);}
   .section-tag .n1{color:var(--gold);}
@@ -3146,7 +3176,36 @@
       + '<span class="ma-progression-mini-lien">Voir mes séries →</span></a>');
   }
 
+  // Accueil du dirigeant, V1 visuelle : affichage seul, aucune donnée lue ni écrite.
+  // La marque ViTO est réservée aux sites de cette liste explicite ; tout autre
+  // site garde un en-tête sans photo. Sur Test, ?apercu_banniere=1 montre le
+  // bandeau ; ce paramètre n'a d'effet pour AUCUN autre site (Production inclus).
+  // Paramètre d'aperçu lu une fois au chargement, hors de renderPrisePoste (qui ne
+  // doit rien régler sur une donnée de l'URL) ; sans effet hors nexus-station-test.
+  const APERCU_BANNIERE_DEMANDE = (function () {
+    try { return new URLSearchParams(window.location.search).get('apercu_banniere') === '1'; } catch (e) { return false; }
+  })();
   function renderPrisePoste(employee, serviceCourant, estNiveauManager) {
+  const SITES_BANNIERE_VITO = ['vito-sainte-marie'];
+  const SITE_APERCU_BANNIERE = 'nexus-station-test';
+  function banniereAccueilHtml(siteId) {
+    const apercu = siteId === SITE_APERCU_BANNIERE && typeof APERCU_BANNIERE_DEMANDE !== 'undefined' && APERCU_BANNIERE_DEMANDE === true;
+    if (SITES_BANNIERE_VITO.indexOf(siteId) === -1 && !apercu) return '';
+    return '<div class="am-banniere"><img src="assets/accueil/accueil-station-vito-800.webp"'
+      + ' srcset="assets/accueil/accueil-station-vito-800.webp 800w, assets/accueil/accueil-station-vito-1600.webp 1600w"'
+      + ' sizes="(min-width:768px) 1400px, 100vw" width="1600" height="800" loading="lazy" decoding="async"'
+      + ' alt="La station ViTO de Sainte-Marie : auvent, totem et végétation tropicale"'
+      + ' onerror="this.parentNode.remove()"></div>';
+  }
+  // Date et heure à l'heure de la station (FUSEAU_STATION), jamais celle de l'appareil.
+  function dateStationHtml() {
+    if (typeof FUSEAU_STATION === 'undefined' || !FUSEAU_STATION) return '';
+    try {
+      const t = new Date().toLocaleString('fr-FR', { timeZone: FUSEAU_STATION, weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+      return '<div class="am-date">' + t + '</div>';
+    } catch (e) { return ''; }
+  }
+
     const hote = document.getElementById('prisePosteHote');
     if (!hote) return;
     // Le créateur en consultation externe regarde les données d'un autre
@@ -3157,17 +3216,23 @@
     // poste opérationnelle (ou le rappel du service en cours), aucun choix de
     // poste présenté ici.
     if (estNiveauManager) {
+      // V1 visuelle (03/11/2026) : un marqueur invisible active les règles
+      // `body:has(.am-marqueur)` ; le bandeau photo n'existe que pour les sites
+      // de la liste explicite. Mêmes textes, mêmes liens, mêmes conditions.
+      const entete = '<span class="am-marqueur" hidden></span>' + dateStationHtml() + banniereAccueilHtml(employee.site_id);
       if (serviceCourant) {
         const lib = serviceCourant.role ? (LIBELLE_ROLE_JOUR[serviceCourant.role] || serviceCourant.role) : null;
-        hote.innerHTML = '<div class="chemins-rappel">● Service en cours'
+        hote.innerHTML = entete + '<div class="ap-poste am-poste chemins-rappel"><div class="ap-poste-texte">'
+          + '<div class="ap-poste-nom">● Service en cours'
           + (lib ? ' — ' + lib : '')
-          + (serviceCourant.quart ? ' · ' + serviceCourant.quart : '')
-          + '<a class="chemins-rappel-lien" href="NEXUS-Prise-De-Poste-v1.html">'
-          + 'Changer de rôle / refaire ma prise de poste</a></div>';
+          + (serviceCourant.quart ? ' · ' + serviceCourant.quart : '') + '</div>'
+          + '<a class="chemins-rappel-lien am-poste-lien" href="NEXUS-Prise-De-Poste-v1.html">'
+          + 'Changer de rôle / refaire ma prise de poste</a></div>'
+          + '<div class="ap-poste-image" style="background-image:url(assets/postes/poste-manager.webp)"></div></div>';
       } else {
-        hote.innerHTML = '<div class="chemins"><div class="chemins-actions">'
-          + '<a class="chemins-btn chemins-btn-service" id="cheminService" href="NEXUS-Prise-De-Poste-v1.html">Commencer mon service opérationnel</a>'
-          + '</div></div>';
+        hote.innerHTML = entete + '<a class="ap-poste am-poste" id="cheminService" href="NEXUS-Prise-De-Poste-v1.html">'
+          + '<div class="ap-poste-texte"><div class="ap-poste-nom">Commencer mon service opérationnel</div></div>'
+          + '<div class="ap-poste-image" style="background-image:url(assets/postes/poste-manager.webp)"></div></a>';
       }
       return;
     }
