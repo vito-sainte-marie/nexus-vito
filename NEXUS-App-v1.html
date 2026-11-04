@@ -453,6 +453,13 @@
   /* Slogan posé sur la photo, en bas à gauche, sur un léger dégradé sombre. */
   body:has(.am-marqueur) .am-banniere::after{content:''; position:absolute; left:0; right:0; bottom:0; height:80%; z-index:1; pointer-events:none; background:linear-gradient(to top, color-mix(in srgb, black 90%, transparent), color-mix(in srgb, black 70%, transparent) 40%, transparent);}
   body:has(.am-marqueur) .am-poste{margin:12px 20px 0; padding:0; text-decoration:none; color:var(--text); font-family:'Inter',-apple-system,sans-serif; font-size:13px; background:var(--panel); border:1px solid var(--hairline);}
+  /* Survol/focus V1.1 sur les cartes du dirigeant : la règle ci-dessus (0,2,1) écraserait .chemins-rappel:hover (0,2,0). */
+  body:has(.am-marqueur) .am-poste.chemins-rappel, body:has(.am-marqueur) a.am-poste{transition:border-color .15s, background .15s, box-shadow .15s, transform .15s;}
+  body:has(.am-marqueur) a.am-poste:focus-visible, body:has(.am-marqueur) .am-poste.chemins-rappel:focus-within{border-color:var(--green); background:linear-gradient(color-mix(in srgb,var(--green) calc(var(--service-survol)*100%),transparent),color-mix(in srgb,var(--green) calc(var(--service-survol)*100%),transparent)),var(--green-dim); box-shadow:0 6px 18px color-mix(in srgb,black 22%,transparent); outline:none;}
+  @media (hover:hover){
+    body:has(.am-marqueur) a.am-poste, body:has(.am-marqueur) .am-poste.chemins-rappel{cursor:pointer;}
+    body:has(.am-marqueur) a.am-poste:hover, body:has(.am-marqueur) .am-poste.chemins-rappel:hover{border-color:var(--green); background:linear-gradient(color-mix(in srgb,var(--green) calc(var(--service-survol)*100%),transparent),color-mix(in srgb,var(--green) calc(var(--service-survol)*100%),transparent)),var(--green-dim); box-shadow:0 6px 18px color-mix(in srgb,black 22%,transparent); transform:translateY(-1px);}
+  }
   body:has(.am-marqueur) .am-poste .ap-poste-nom{font-family:'Inter',-apple-system,sans-serif; font-size:18px; font-weight:700; color:var(--text);}
   body:has(.am-marqueur) .am-poste .ap-poste-texte{box-sizing:border-box; width:100%;}
   body:has(.am-marqueur) .am-poste::after{display:none;}
