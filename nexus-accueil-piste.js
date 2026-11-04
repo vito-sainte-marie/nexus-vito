@@ -229,7 +229,8 @@
         + ligne('+' + v.points + ' point' + (v.points > 1 ? 's' : '') + ' aujourd’hui', v.points > 0) + '</ul>'
         + (t.pointageActif
           ? '<a class="ap-bouton" id="apBoutonDepart" href="' + URL_POINTAGE + '">Pointer mon départ</a>'
-          : '<a class="ap-bouton" id="apLogout" href="#">Se déconnecter</a>')
+          : '<a class="ap-bouton" id="apTerminerService" href="#">Terminer mon service</a>'
+            + '<div class="ap-poste-sous" id="apTerminerErreur" hidden>Service non clos</div>')
         + '</section>';
       out += '<a class="ap-lien-discret" id="apResterEncore" href="' + URL_MISSIONS + '">Je reste encore : voir les missions</a>';
       out += '<a class="ap-progression" id="apProgression" href="' + URL_PROGRESSION + '"><span>Ma progression · +' + v.points + ' point' + (v.points > 1 ? 's' : '') + ' aujourd’hui</span><span>Mes séries ›</span></a>';

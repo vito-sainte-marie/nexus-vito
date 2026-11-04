@@ -183,13 +183,13 @@ console.log('\nFin non enregistrée — dire l’absence au lieu de la combler')
 
 verifier('chaque motif est un texte unique, qui annonce l’absence', () => {
   const cles = Object.keys(R.MOTIF_CLOTURE_PILOTE).sort();
-  assert.deepStrictEqual(cles, ['jour_precedent', 'manager', 'quart_termine']);
+  assert.deepStrictEqual(cles, ['fin_de_service', 'jour_precedent', 'manager', 'quart_termine']);
   for (const cle of cles) {
     const texte = R.MOTIF_CLOTURE_PILOTE[cle];
     assert.ok(texte.startsWith('Fin non enregistrée — '), cle + ' doit annoncer la fin non enregistrée : ' + texte);
     assert.ok(texte.endsWith('(phase pilote)'), cle + ' doit se dire provisoire : ' + texte);
   }
-  assert.strictEqual(new Set(Object.values(R.MOTIF_CLOTURE_PILOTE)).size, 3, 'trois motifs distincts');
+  assert.strictEqual(new Set(Object.values(R.MOTIF_CLOTURE_PILOTE)).size, 4, 'quatre motifs distincts');
 });
 
 verifier('tout motif rendu par la règle existe dans le catalogue', () => {
