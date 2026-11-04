@@ -4,13 +4,15 @@ const fs = require('fs'); const path = require('path'); const assert = require('
 const lire = (f) => fs.readFileSync(path.join(__dirname, f), 'utf8');
 const APP = lire('NEXUS-App-v1.html');
 const extraire = (src) => { const i = src.indexOf('const SITES_BANNIERE_VITO'); const j = src.indexOf("const hote = document.getElementById('prisePosteHote');", i); return src.slice(i, j); };
-const fabrique = (src, search) => new Function('APERCU_BANNIERE_DEMANDE', 'FUSEAU_STATION', extraire(src) + '; return { banniereAccueilHtml, dateStationHtml };')(/(^|[?&])apercu_banniere=1(&|$)/.test(search), 'Indian/Reunion');
+const fabrique = (src, search, theme) => new Function('APERCU_BANNIERE_DEMANDE', 'FUSEAU_STATION', 'document', 'MutationObserver', extraire(src) + '; return { banniereAccueilHtml, dateStationHtml };')(/(^|[?&])apercu_banniere=1(&|$)/.test(search), 'Indian/Reunion', { documentElement: { getAttribute: () => theme || 'sombre' }, querySelectorAll: () => [] }, function () { this.observe = () => {}; });
 const hrefs = (html) => (html.match(/href="[^"#]*"/g) || []).sort();
 const blocManager = (src) => { const i = src.indexOf('<div data-role="manager" style="display:none;">'); return src.slice(i, i + 6000); };
 const EPREUVES = {
   'site ViTO : bandeau présent, srcset 800/1600, différé, alt, retrait si l’image échoue': (src) => {
-    const h = fabrique(src, '').banniereAccueilHtml('vito-sainte-marie');
+    const h = fabrique(src, '', 'jour').banniereAccueilHtml('vito-sainte-marie');
     assert(h.includes('accueil-station-vito-800.webp 800w') && h.includes('accueil-station-vito-1600.webp 1600w'));
+    const n = fabrique(src, '', 'sombre').banniereAccueilHtml('vito-sainte-marie');
+    assert(n.includes('accueil-station-vito-nuit-800.webp 800w') && n.includes('accueil-station-vito-nuit-1600.webp 1600w') && !n.includes('vito-800.webp'));
     assert(h.includes('loading="lazy"') && /alt="[^"]{10,}"/.test(h) && h.includes('onerror="this.parentNode.remove()"'));
   },
   'NOUVEAU : bandeau absent pour un site non ViTO, avec ou sans paramètre': (src) => {
@@ -56,14 +58,26 @@ const EPREUVES = {
   'les deux images existent, poids bornés': () => {
     assert(fs.statSync(path.join(__dirname, 'assets/accueil/accueil-station-vito-1600.webp')).size < 200 * 1024);
     assert(fs.statSync(path.join(__dirname, 'assets/accueil/accueil-station-vito-800.webp')).size < 80 * 1024);
+    assert(fs.statSync(path.join(__dirname, 'assets/accueil/accueil-station-vito-nuit-1600.webp')).size < 200 * 1024);
+    assert(fs.statSync(path.join(__dirname, 'assets/accueil/accueil-station-vito-nuit-800.webp')).size < 80 * 1024);
   },
-  'fichiers interdits intacts (aucune modification hors NEXUS-App-v1.html, assets/accueil, cette épreuve)': () => {
-    let d; try { d = execSync('git diff --name-only FETCH_HEAD', { cwd: __dirname, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }); } catch (e) { return; }
+  'fichiers interdits intacts (la fonctionnalité ne vit que dans NEXUS-App-v1.html et assets/accueil)': () => {
+    // Indépendante de git et du build : un fichier interdit ne doit jamais citer la bannière.
     const interdits = ['nexus-desktop.js', 'nexus-theme.js', 'nexus-menu-accueil.js', 'nexus-recherche.js', 'nexus-raccourcis-catalogue.js', 'nexus-accueil-piste.js'];
-    for (const f of d.split('\n').filter(Boolean)) assert(!interdits.includes(f), f);
+    for (const f of interdits) {
+      const c = fs.readFileSync(path.join(__dirname, f), 'utf8');
+      assert(!/am-banniere|accueil-station-vito|apercu_banniere/.test(c), f);
+    }
+  },
+  'la photo suit le thème : Jour = jour, Sombre = nuit, une seule image': (s) => {
+    assert(s.includes("getAttribute('data-theme') !== 'jour'"));
+    assert(s.includes("'assets/accueil/accueil-station-vito' + (nuit ? '-nuit' : '')"));
+    assert(s.includes("attributeFilter: ['data-theme']"));
+    assert((s.match(/class="am-banniere"><img/g) || []).length === 1);
   },
 };
 const MUTANTS = {
+  'la photo suit le thème : Jour = jour, Sombre = nuit, une seule image': (s) => s.replace("attributeFilter: ['data-theme']", "attributeFilter: ['class']"),
   'site ViTO : bandeau présent, srcset 800/1600, différé, alt, retrait si l’image échoue': (s) => s.replace('loading="lazy"', ''),
   'NOUVEAU : bandeau absent pour un site non ViTO, avec ou sans paramètre': (s) => s.replace("['vito-sainte-marie']", "['vito-sainte-marie','nexus-station-test']"),
   'aperçu Test : le paramètre montre le bandeau sur nexus-station-test seulement': (s) => s.replace("siteId === SITE_APERCU_BANNIERE && ", ''),

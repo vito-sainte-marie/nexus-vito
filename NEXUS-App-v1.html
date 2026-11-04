@@ -3188,11 +3188,30 @@
   function renderPrisePoste(employee, serviceCourant, estNiveauManager) {
   const SITES_BANNIERE_VITO = ['vito-sainte-marie'];
   const SITE_APERCU_BANNIERE = 'nexus-station-test';
+  // La photo suit le thème actif : Jour = photo de jour, Sombre = photo de nuit. Une seule
+  // image est présente à la fois ; elle est remplacée quand nexus-theme.js change data-theme.
+  function photoAccueilNuit() {
+    try { return document.documentElement.getAttribute('data-theme') !== 'jour'; } catch (e) { return true; }
+  }
+  (function () {
+    try {
+      new MutationObserver(function () {
+        const nuit = photoAccueilNuit();
+        document.querySelectorAll('.am-banniere img').forEach(function (img) {
+          const base = 'assets/accueil/accueil-station-vito' + (nuit ? '-nuit' : '');
+          img.setAttribute('srcset', base + '-800.webp 800w, ' + base + '-1600.webp 1600w');
+          img.setAttribute('src', base + '-800.webp');
+        });
+      }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    } catch (e) {}
+  })();
   function banniereAccueilHtml(siteId) {
     const apercu = siteId === SITE_APERCU_BANNIERE && typeof APERCU_BANNIERE_DEMANDE !== 'undefined' && APERCU_BANNIERE_DEMANDE === true;
     if (SITES_BANNIERE_VITO.indexOf(siteId) === -1 && !apercu) return '';
-    return '<div class="am-banniere"><img src="assets/accueil/accueil-station-vito-800.webp"'
-      + ' srcset="assets/accueil/accueil-station-vito-800.webp 800w, assets/accueil/accueil-station-vito-1600.webp 1600w"'
+    const nuit = photoAccueilNuit();
+    const base = 'assets/accueil/accueil-station-vito' + (nuit ? '-nuit' : '');
+    return '<div class="am-banniere"><img src="' + base + '-800.webp"'
+      + ' srcset="' + base + '-800.webp 800w, ' + base + '-1600.webp 1600w"'
       + ' sizes="(min-width:768px) 1400px, 100vw" width="1600" height="800" loading="lazy" decoding="async"'
       + ' alt="La station ViTO de Sainte-Marie : auvent, totem et végétation tropicale"'
       + ' onerror="this.parentNode.remove()"></div>';
