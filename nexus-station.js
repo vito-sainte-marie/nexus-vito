@@ -262,6 +262,19 @@
     return `${p.year}-${p.month}-${p.day}`;
   }
 
+  // Fenêtre de relève de la station : null si les horaires sont illisibles
+  // (l'horloge décide alors comme avant). La lecture de station_config vit ici,
+  // pas dans les écrans.
+  async function fenetreReleveDeLaStation(siteId, client, timezone, minutesBascule) {
+    try {
+      const { data } = await (client || nexusClient).from('station_config').select('horaires').eq('site', siteId).maybeSingle();
+      return fenetreReleve({
+        minutesBascule,
+        finQuart1Minutes: finDuQuartMinutes(data && data.horaires, 'quart1', timezone),
+      });
+    } catch (e) { return null; }
+  }
+
   // ────────────────────────────────────────────────────────────────
   // LA règle complète du quart (Verify, 05/09/2026)
   //
@@ -420,7 +433,36 @@
     return minutesDepuisMinuit((regime === 'etendu' ? q['fin_etendu'] : q['fin_normal']) || q['fin_normal']);
   }
 
+  // FENÊTRE DE RELÈVE — 04/11/2026 (Guardian #160, choix 2 de Frédéric). Un employé
+  // du quart 2 arrive ~15 min avant l'heure pour se changer : l'horloge seule le
+  // rangeait au quart 1. De `margeMinutes` avant le début du quart 2 à `margeMinutes`
+  // après la fin du quart 1, ce n'est pas à l'horloge de trancher mais à la personne.
+  // PURE. Les deux bornes viennent des horaires configurés, aucune heure en dur.
+  // null : une des deux heures manque, ou la fenêtre serait vide — on retombe alors
+  // sur l'horloge, comme avant.
+  const MARGE_RELEVE_MINUTES = 30;
+  function fenetreReleve({ minutesBascule, finQuart1Minutes, margeMinutes }) {
+    const marge = Number.isFinite(margeMinutes) ? margeMinutes : MARGE_RELEVE_MINUTES;
+    if (!Number.isFinite(minutesBascule) || !Number.isFinite(finQuart1Minutes)) return null;
+    const debut = minutesBascule - marge;
+    const fin = finQuart1Minutes + marge;
+    if (fin <= debut) return null;
+    return { debut, fin, debutQuart2: minutesBascule, finQuart1: finQuart1Minutes };
+  }
+
+  // PURE. Début inclus, fin exclue : à 12 h 10 on choisit, à 13 h 15 le quart 2 est automatique.
+  function dansFenetreReleve(fenetre, minutes) {
+    return !!fenetre && Number.isFinite(minutes) && minutes >= fenetre.debut && minutes < fenetre.fin;
+  }
+
+  // PURE. 765 -> « 12 h 45 », 720 -> « 12 h » (sans minutes nulles, comme on le dit).
+  function libelleHeure(minutes) {
+    const h = Math.floor(minutes / 60), m = minutes % 60;
+    return m === 0 ? h + ' h' : h + ' h ' + String(m).padStart(2, '0');
+  }
+
   global.NexusStation = {
+    fenetreReleve, fenetreReleveDeLaStation, dansFenetreReleve, libelleHeure, MARGE_RELEVE_MINUTES,
     finDuQuartMinutes, siteDe, exigerSite, bloquerSiteIndetermine, fuseauDeLaStation,
     minutesDepuisMinuit, minutesLocalesStation, quartDepuisMinutes,
     cleHoraireDuJour, seuilDepuisHoraires, JOURS_ETENDUS, heureSqlEnHHMM,
