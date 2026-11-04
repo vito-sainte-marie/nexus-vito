@@ -80,7 +80,15 @@
     document.head.appendChild(style);
   }
 
+  // Une page qui gère elle-même un parcours interne (ex. le fil d'inventaire)
+  // pose window.NexusHeaderNav.surRetour : s'il rend true, le retour est traité
+  // en interne et l'historique du navigateur n'est pas touché.
+  window.NexusHeaderNav = window.NexusHeaderNav || { surRetour: null };
+
   function retourner() {
+    try {
+      if (typeof window.NexusHeaderNav.surRetour === 'function' && window.NexusHeaderNav.surRetour() === true) return;
+    } catch (e) { /* un crochet défaillant ne bloque jamais le retour */ }
     if (window.history.length > 1) {
       window.history.back();
     } else {
