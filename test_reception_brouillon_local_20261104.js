@@ -138,6 +138,9 @@ async function chargerPage(stockage) {
   H3.cliquer('btnRecommencer');
   assert.ok(/id="btnConfirmerRecommencer"/.test(H3.contenu().innerHTML), 'Confirmation dans la page');
   assert.ok(st.getItem(cle), 'Rien n\'est effacé avant confirmation');
+  // Action irréversible : « garder » est le bouton principal, « tout effacer » le secondaire teinté rouge.
+  assert.ok(/class="btn-primary" id="btnAnnulerRecommencer"/.test(H3.contenu().innerHTML), 'Garder ma saisie est le bouton principal');
+  assert.ok(/class="btn-ghost btn-destructif" id="btnConfirmerRecommencer"/.test(H3.contenu().innerHTML), 'Tout effacer est secondaire et destructif');
   H3.cliquer('btnConfirmerRecommencer');
   assert.strictEqual(st.getItem(cle), null, 'Brouillon effacé après confirmation');
   assert.strictEqual(H3.brouillonEnAttente, null);
