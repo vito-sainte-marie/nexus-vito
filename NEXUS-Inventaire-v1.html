@@ -307,6 +307,8 @@
 
   footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
 /* Fil « Mon début de quart » : pas de retour vers le catalogue des catégories. */
+.fil-revue-cat{font-weight:600; margin-bottom:6px;}
+.fil-revue-ligne{display:flex !important; justify-content:space-between; gap:12px; text-align:left; font-size:14px !important; color:var(--text) !important; border-top:1px solid var(--hairline) !important;}
 .fil-actif #btnRetourCategories, .fil-actif #btnRetourCategoriesCarrousel { display: none; }
 /* Fil « Ma caisse » : la seule sortie est « Quitter et revenir à l'Accueil » de la barre du fil. */
 .fil-caisse .nexus-retour-btn, .fil-caisse #btnAnnulerOuverture, .fil-caisse #btnAnnulerCloture { display: none !important; }
@@ -2681,7 +2683,10 @@
     document.getElementById('sousTitre').textContent = 'Gaz, glaçons et écailles comptés.';
     document.getElementById('content').innerHTML = `
       ${renderBarreProgression()}
-      <button class="btn-primary" id="btnTerminerOuverture">Valider mon inventaire d'ouverture</button>`;
+      <button class="btn-primary" id="btnTerminerOuverture">Valider mon inventaire d'ouverture</button>
+      <button class="btn-ghost" id="btnRevoirComptages">← Revoir mes comptages</button>`;
+    ecranFil = 'validation';
+    document.getElementById('btnRevoirComptages').addEventListener('click', renderFilRevue);
     document.getElementById('btnTerminerOuverture').addEventListener('click', () => {
       try {
         if (produitsDoubleLieuEnAttenteBoutique().length) { renderFinalisationDoubleLieu('ouverture'); return; }
@@ -2692,6 +2697,73 @@
       }
     });
   }
+
+  // Revue des comptages du fil (04/11/2026, retour terrain : un pompiste ne
+  // pouvait pas corriger « Glaçons ViTO 5 kg » depuis l'écran de validation).
+  // Navigation seule : mêmes écrans de saisie, mêmes écritures qu'avant.
+  let ecranFil = null; // 'carrousel' | 'liste' | 'revue' | 'validation' — null hors fil d'ouverture
+  function ouvrirProduitDuFil(groupe, index) {
+    categorieActive = groupe.nom;
+    carrouselModeCorrection = false;
+    if (groupe.items.length > CARROUSEL_SEUIL) {
+      carrouselIndex = index;
+      sauvegarderPositionCourante(groupe.nom, carrouselIndex);
+      renderCarrousel(groupe);
+    } else {
+      sauvegarderPositionCourante(groupe.nom, null);
+      renderCategorieListe(groupe);
+      const input = document.querySelector(`.produit-input[data-produit="${groupe.items[index].id}"]`);
+      if (input) { input.scrollIntoView({ block: 'center' }); input.focus(); }
+    }
+  }
+
+  function renderFilRevue() {
+    ecranFil = 'revue';
+    const { groupesRequis } = groupesParcoursOuverture();
+    document.getElementById('titre').textContent = 'Revoir mes comptages';
+    document.getElementById('sousTitre').textContent = 'Touchez un produit pour le corriger.';
+    const blocs = groupesRequis.map((g, gi) => `
+      <div class="card">
+        <div class="fil-revue-cat">${g.nom}</div>
+        ${g.items.map((p, pi) => {
+          const s = comptagesSaisie[p.id];
+          const val = (s && s.compte !== undefined) ? `${fmtNum(s.compte)} ${p.unite}` : 'à compter';
+          return `<button class="btn-text fil-revue-ligne" data-g="${gi}" data-p="${pi}"><span>${p.designation}</span><span>${val}</span></button>`;
+        }).join('')}
+      </div>`).join('');
+    document.getElementById('content').innerHTML = `
+      ${blocs}
+      <button class="btn-primary" id="btnRevueRetour">← Retour à la validation</button>`;
+    document.querySelectorAll('.fil-revue-ligne').forEach(el => {
+      el.addEventListener('click', () => ouvrirProduitDuFil(groupesRequis[+el.dataset.g], +el.dataset.p));
+    });
+    document.getElementById('btnRevueRetour').addEventListener('click', renderFilValidation);
+  }
+
+  // Crochet du bouton « ‹ Précédent » de l'en-tête (nexus-header-nav.js) :
+  // pendant le comptage il recule d'un produit, jamais hors du fil. Au tout
+  // premier produit il rend false et la navigation normale reprend.
+  function filRetourEntete() {
+    if (!enFil() || filFermeture || ecranFil === null) return false;
+    const { groupesRequis } = groupesParcoursOuverture();
+    if (ecranFil === 'revue') { renderFilValidation(); return true; }
+    if (ecranFil === 'validation') {
+      const g = groupesRequis[groupesRequis.length - 1];
+      if (!g) return false;
+      ouvrirProduitDuFil(g, g.items.length - 1);
+      return true;
+    }
+    const gi = groupesRequis.findIndex(g => g.nom === categorieActive);
+    if (gi === -1) return false;
+    const g = groupesRequis[gi];
+    if (ecranFil === 'carrousel' && carrouselIndex > 0) { reculerCarrousel(g); return true; }
+    if (gi === 0) return false;
+    const prec = groupesRequis[gi - 1];
+    ouvrirProduitDuFil(prec, prec.items.length - 1);
+    return true;
+  }
+  window.NexusHeaderNav = window.NexusHeaderNav || {};
+  window.NexusHeaderNav.surRetour = filRetourEntete;
 
   function ouvrirCategorie(groupe) {
     categorieActive = groupe.nom;
@@ -2806,6 +2878,7 @@
   }
 
   function renderCategorieListe(groupe) {
+    ecranFil = 'liste';
     const libelleEtape = libelleEtapeParcours(groupe);
     document.getElementById('titre').textContent = libelleEtape.titre;
     document.getElementById('sousTitre').textContent = libelleEtape.sousTitre;
@@ -2971,6 +3044,7 @@
   // donc que les différences.
   // ------------------------------------------------------------
   function renderCarrousel(groupe) {
+    ecranFil = 'carrousel';
     const items = groupe.items;
     const p = items[carrouselIndex];
     const libelleEtape = libelleEtapeParcours(groupe);
@@ -3046,7 +3120,7 @@
         `}
       </div>
       <div class="carrousel-footer">Produit ${carrouselIndex + 1} sur ${items.length}</div>
-      ${carrouselIndex > 0 ? `<button class="btn-text" id="btnProduitPrecedent">← Revenir au produit précédent</button>` : ''}
+      ${carrouselIndex > 0 ? `<button class="btn-ghost" id="btnProduitPrecedent">← Revenir au produit précédent</button>` : ''}
       <button class="btn-text" id="btnRetourCategoriesCarrousel">← Retour aux catégories</button>
     `;
 
@@ -3157,6 +3231,7 @@
   // automatiquement sans ce geste explicite de validation (§3.2).
   // ------------------------------------------------------------
   function renderCarrouselProduction(groupe, p, items) {
+    ecranFil = 'carrousel';
     const rec = recommandationsParProduit[p.id] || null;
     const conseillee = rec ? rec.quantiteConseillee : null;
     const M = typeof NexusInventaireMoteur !== 'undefined' ? NexusInventaireMoteur : null;
@@ -3183,7 +3258,7 @@
         <button class="btn-primary" id="btnValiderProduit">Valider ce produit</button>
       </div>
       <div class="carrousel-footer">Produit ${carrouselIndex + 1} sur ${items.length}</div>
-      ${carrouselIndex > 0 ? `<button class="btn-text" id="btnProduitPrecedent">← Revenir au produit précédent</button>` : ''}
+      ${carrouselIndex > 0 ? `<button class="btn-ghost" id="btnProduitPrecedent">← Revenir au produit précédent</button>` : ''}
       <button class="btn-text" id="btnRetourCategoriesCarrousel">← Retour aux catégories</button>
     `;
 
