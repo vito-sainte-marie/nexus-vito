@@ -240,6 +240,7 @@
   .brouillon-reprise{border:1px solid var(--hairline); border-radius:12px; padding:16px; margin-bottom:14px; text-align:center;}
   .brouillon-reprise p{margin:0 0 12px; font-size:14px; color:var(--text);}
   .btn-ghost{width:100%; padding:12px; border:1px solid var(--hairline); border-radius:10px; background:transparent; color:var(--text-mid); font-size:13px; cursor:pointer; margin-top:8px;}
+  .btn-ghost.btn-destructif{border-color:rgba(var(--red-rgb),0.4); background:var(--red-dim); color:var(--red);}
   .btn-loading-dots{display:inline-flex; gap:3px; margin-left:6px; vertical-align:middle;}
   .btn-loading-dots i{width:4px; height:4px; border-radius:50%; background:currentColor; display:inline-block; font-style:normal; animation:btnDotsBounce 1.2s infinite ease-in-out;}
   .btn-loading-dots i:nth-child(2){animation-delay:0.15s;}
@@ -627,8 +628,8 @@
     document.getElementById('content').innerHTML = confirmationRecommencer ? `
       <div class="brouillon-reprise">
         <p>Recommencer supprime la saisie enregistrée sur cet appareil. Cette action est définitive.</p>
-        <button class="btn-primary" id="btnConfirmerRecommencer">Oui, tout effacer et recommencer</button>
-        <button class="btn-ghost" id="btnAnnulerRecommencer">Non, garder ma saisie</button>
+        <button class="btn-primary" id="btnAnnulerRecommencer">Non, garder ma saisie</button>
+        <button class="btn-ghost btn-destructif" id="btnConfirmerRecommencer">Oui, tout effacer et recommencer</button>
       </div>
     ` : `
       <div class="brouillon-reprise">
