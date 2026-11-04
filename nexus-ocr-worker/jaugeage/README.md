@@ -17,8 +17,11 @@ Ce dépôt est public : il ne contient ni clé, ni `.env`, ni photo réelle.
    `lecteur-vision` (Apple Vision, local, aucun envoi réseau).
 4. Traduit la lecture avec `lecture_jaugeage.py` : cinq valeurs par cuve, format
    de l'écran, bornes de vraisemblance, volume + espace vide égal à la
-   contenance de référence (`reference_cuves.json`, ± 3 L), volume du dessin égal
-   à celui du tableau.
+   contenance de référence (`reference_cuves.json`, ± 1 L), volume du dessin égal
+   à celui du tableau. Un titre « RESERVOIR n » illisible est reconstitué d'après
+   la disposition fixe de l'écran, uniquement si la cuve a une somme de
+   référence : le contrôle exact volume + espace vide protège du mauvais
+   rattachement.
 5. Écrit `status = 'traite'` (ou `'erreur'`), `resultat_json` (lecture complète
    et contrôles) et `resultat_texte` (texte lu par `nexus-veeder-root.js`).
    Seule une cuve dont **tous** les contrôles passent porte un volume ; les
@@ -78,6 +81,16 @@ posée que sur décision de Frédéric. Sur Test, ne la posez pas.
 
 `--une-fois` traite ce qui attend puis s'arrête. Le journal est écrit dans
 `jaugeage.log` (non versionné). Aucun démarrage automatique n'est installé.
+
+## Cohabitation avec le worker des bons
+Sur l'iMac, le worker des bons (`~/nexus-ocr-worker/main.py`, hors dépôt) lit lui aussi
+`documents_ocr_file`. Depuis la bascule Production du 04/11/2026 (GO de Frédéric), sa requête
+de file exclut les photos de jaugeage, qui appartiennent à ce service :
+
+    .or_("type_document.is.null,type_document.neq.jaugeage_veeder_root")
+
+Sans ce filtre, le worker des bons prendrait les photos de jaugeage. Le service de Test
+(`com.nexus.jaugeage`) et celui de Production (`com.nexus.jaugeage-prod`) sont deux agents distincts.
 
 ## Épreuve
 

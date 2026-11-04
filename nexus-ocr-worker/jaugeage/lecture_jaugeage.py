@@ -45,7 +45,7 @@ SAUT_MIN = 1.8
 # calcule l'espace vide à partir du volume : la somme est constante à
 # l'arrondi près. Une erreur de lecture d'un seul chiffre la fait sauter.
 REFERENCE = Path(__file__).resolve().parent / "reference_cuves.json"
-TOLERANCE_SOMME_L = 3   # écart entre deux cuves >= 1,8 fois l'écart entre deux lignes
+TOLERANCE_SOMME_L = 1   # arrondi de la console ; mesuré exact sur 7 photos (21/10 et 04/11)
 
 RE_RESERVOIR = re.compile(
     r"RESERVOIR\s*(\d+)\s*[:;]\s*(R\d+)\s+(\d+(?:[.,]\d+)?)\s*M3\s+([A-Z0-9]+)", re.I
@@ -57,12 +57,18 @@ CHAMPS = ["volume_l", "hauteur_mm", "espace_vide_l", "temperature_c", "eau_mm"]
 DECIMALES = {"volume_l": 0, "hauteur_mm": 1, "espace_vide_l": 0, "temperature_c": 1, "eau_mm": 1}
 
 
+class LectureImpossible(RuntimeError):
+    pass
+
+
 def lire_vision(photo: str) -> dict:
+    # Lève une exception (et non sys.exit) : le service distingue ainsi une
+    # photo illisible d'un arrêt demandé (Ctrl+C, arrêt de l'iMac).
     if not LECTEUR.exists():
-        sys.exit(f"Lecteur introuvable : {LECTEUR} (compiler lecteur.swift d'abord)")
+        raise LectureImpossible(f"Lecteur introuvable : {LECTEUR} (compiler lecteur.swift d'abord)")
     sortie = subprocess.run([str(LECTEUR), photo], capture_output=True, text=True, timeout=60)
     if sortie.returncode != 0:
-        sys.exit(f"Lecture Vision impossible : {sortie.stderr.strip()}")
+        raise LectureImpossible(f"Lecture Vision impossible : {sortie.stderr.strip()}")
     return json.loads(sortie.stdout)
 
 
@@ -89,11 +95,18 @@ def centre_y(l: dict) -> float:
     return l["y"] + l["hauteur"] / 2
 
 
-def charger_reference() -> dict:
+def charger_reference() -> tuple[dict, list, dict]:
+    """(sommes par réservoir, disposition de l'écran, fiches des cuves).
+    Accepte l'ancien format {"1": 28761, …} (sommes seules)."""
     try:
-        return {int(k): v for k, v in json.loads(REFERENCE.read_text(encoding="utf-8")).items()}
+        brut = json.loads(REFERENCE.read_text(encoding="utf-8"))
     except (OSError, ValueError):
-        return {}
+        return {}, [], {}
+    if "cuves" not in brut:
+        return {int(k): v for k, v in brut.items()}, [], {}
+    fiches = {int(k): v for k, v in brut["cuves"].items()}
+    sommes = {k: v["somme_l"] for k, v in fiches.items() if "somme_l" in v}
+    return sommes, brut.get("disposition", []), fiches
 
 
 def controler(lu: dict, textes: dict, contenance: float, somme_ref: float | None = None) -> list[str]:
@@ -125,7 +138,7 @@ def controler(lu: dict, textes: dict, contenance: float, somme_ref: float | None
 
 def analyser(vision: dict) -> dict:
     lignes = vision.get("lignes", [])
-    reference = charger_reference()
+    reference, disposition, fiches = charger_reference()
     titres = []
     for l in lignes:
         m = RE_RESERVOIR.search(l["texte"])
@@ -146,18 +159,49 @@ def analyser(vision: dict) -> dict:
         e, i = max(ecarts)
         if e > 0.1:
             coupure = (xs[i] + xs[i + 1]) / 2
-    colonnes = [[t for t in titres if coupure is None or t["ligne"]["x"] < coupure]]
+    colonnes = [[t for t in titres if coupure is None or t["ligne"]["x"] < coupure]] if titres else []
     if coupure is not None:
         colonnes.append([t for t in titres if t["ligne"]["x"] >= coupure])
 
     cuves = []
-    for idx, col in enumerate(colonnes):
+    vus = {t["numero"] for t in titres}
+    # Titre de cuve illisible (version 3, 04/11/2026) : l'écran de la station
+    # a une disposition fixe (reference_cuves.json, « disposition »). Dans une
+    # colonne où un titre manque, on le reconstitue à sa place, à condition
+    # que la cuve ait une somme de référence : le contrôle exact
+    # volume + espace vide empêche alors tout mauvais rattachement.
+    for col in colonnes:
         col.sort(key=lambda t: -t["ligne"]["y"])
-        x_min = min(t["ligne"]["x"] for t in col) - 0.03
+        if coupure is None or not disposition:
+            continue
+        attendu = next((c for c in disposition if col[0]["numero"] in c), None)
+        if not attendu or [t["numero"] for t in col] != [n for n in attendu if n in vus]:
+            continue  # ordre lu différent de la disposition : on ne reconstitue rien
+        par_num = {t["numero"]: t for t in col}
+        nouveau = []
+        for n in attendu:
+            if n in par_num:
+                nouveau.append(par_num[n])
+            elif n in fiches and n in reference:
+                f = fiches[n]
+                nouveau.append({"ligne": None, "numero": n, "repere": f["repere"],
+                                "contenance_l": float(f["contenance_m3"]) * 1000,
+                                "produit": f["produit"], "deduit": True})
+                vus.add(n)
+        col[:] = nouveau
+    for n, f in sorted(fiches.items()):
+        if n not in vus:  # colonne entière illisible : la cuve est signalée, sans valeur
+            cuves.append(cuve_vide({"numero": n, "repere": f["repere"], "contenance_l": float(f["contenance_m3"]) * 1000,
+                                    "produit": f["produit"]}, "titre de la cuve non lu"))
+
+    for idx, col in enumerate(colonnes):
+        reels = [t for t in col if t["ligne"] is not None]
+        x_min = min(t["ligne"]["x"] for t in reels) - 0.03
         # La colonne de gauche s'arrête où commencent les titres de droite.
-        x_max = (min(t["ligne"]["x"] for t in colonnes[1]) - 0.005
+        x_max = (min(t["ligne"]["x"] for t in colonnes[1] if t["ligne"] is not None) - 0.005
                  if (idx == 0 and coupure is not None) else 1.0)
-        y_haut = max(centre_y(t["ligne"]) for t in col) + 0.01
+        # Titre du haut reconstitué : on cherche plus haut que le premier titre lu.
+        y_haut = max(centre_y(t["ligne"]) for t in reels) + (0.30 if col[0]["ligne"] is None else 0.01)
 
         dans_col = [l for l in lignes if x_min <= l["x"] < x_max and l["y"] < y_haut]
         libelles = [l for l in dans_col if est_libelle(l["texte"]) and not RE_RESERVOIR.search(l["texte"])]
@@ -179,14 +223,22 @@ def analyser(vision: dict) -> dict:
         groupes, raison = decouper(valeurs, k)
 
         for n, t in enumerate(col):
-            # Dessin de la cuve : entier entre le titre et les libellés, sous ce titre.
-            y_t = centre_y(t["ligne"])
-            y_suivant = centre_y(col[n + 1]["ligne"]) if n + 1 < len(col) else y_bas
-            dessin = [nombre(l["texte"]) for l in dans_col
-                      if t["ligne"]["x"] - 0.03 <= l["x"] < x_libelles - 0.01
-                      and y_suivant < centre_y(l) < y_t
-                      and nombre(l["texte"]) is not None and decimales(l["texte"]) == 0]
-            volume_dessin = max(dessin) if dessin else None
+            volume_dessin = None
+            if t["ligne"] is not None:
+                # Dessin de la cuve : entier entre le titre et les libellés, sous ce titre.
+                y_t = centre_y(t["ligne"])
+                suivant = col[n + 1] if n + 1 < len(col) else None
+                if suivant is None:
+                    y_suivant = y_bas
+                elif suivant["ligne"] is not None:
+                    y_suivant = centre_y(suivant["ligne"])
+                else:
+                    y_suivant = y_t - 0.07  # titre suivant reconstitué : on reste près du sien
+                dessin = [nombre(l["texte"]) for l in dans_col
+                          if t["ligne"]["x"] - 0.03 <= l["x"] < x_libelles - 0.01
+                          and y_suivant < centre_y(l) < y_t
+                          and nombre(l["texte"]) is not None and decimales(l["texte"]) == 0]
+                volume_dessin = max(dessin) if dessin else None
 
             if groupes is None:
                 cuves.append(cuve_vide(t, raison, volume_dessin))
@@ -199,6 +251,8 @@ def analyser(vision: dict) -> dict:
             lu = {c: nombre(textes[c]) for c in CHAMPS}
             controles = controler(lu, textes, t["contenance_l"], reference.get(t["numero"]))
             remarques = []
+            if t.get("deduit"):
+                remarques.append("titre de la cuve non lu : rattachée par la disposition de l'écran")
             if volume_dessin is None:
                 remarques.append("volume du dessin non lu (contrôle par la contenance seul)")
             elif volume_dessin != lu["volume_l"]:
@@ -232,7 +286,7 @@ def analyser(vision: dict) -> dict:
         statut = "a_verifier"
     return {
         "moteur": "apple-vision",
-        "version_traducteur": 2,
+        "version_traducteur": 3,
         "horodatage_ecran": horodatage,
         "nb_cuves": len(cuves),
         "cuves": sorted(cuves, key=lambda c: c["reservoir"]),
@@ -300,7 +354,10 @@ if __name__ == "__main__":
     if len(sys.argv) == 3 and sys.argv[1] == "--json":
         vision = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
     elif len(sys.argv) == 2:
-        vision = lire_vision(sys.argv[1])
+        try:
+            vision = lire_vision(sys.argv[1])
+        except LectureImpossible as exc:
+            sys.exit(str(exc))
     else:
         sys.exit(__doc__)
     resultat = analyser(vision)

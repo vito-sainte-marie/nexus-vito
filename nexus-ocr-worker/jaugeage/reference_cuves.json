@@ -1,6 +1,9 @@
 {
-  "1": 28761,
-  "2": 9534,
-  "3": 19019,
-  "4": 30471
+  "disposition": [[1, 3], [2, 4]],
+  "cuves": {
+    "1": {"repere": "R3", "contenance_m3": 30, "produit": "SP", "somme_l": 28761},
+    "2": {"repere": "R4", "contenance_m3": 10, "produit": "GO", "somme_l": 9534},
+    "3": {"repere": "R1", "contenance_m3": 20, "produit": "GO", "somme_l": 19019},
+    "4": {"repere": "R2", "contenance_m3": 30, "produit": "GNR", "somme_l": 30471}
+  }
 }
