@@ -79,7 +79,17 @@ for (const [nom, mut] of MUTATIONS) {
   assert(rouge, 'mutation survivante : ' + nom);
 }
 // Câblage : l'Accueil donne les faits déjà chargés, sans nouvelle lecture ; le libellé du fil caisse remplace celui du pompiste.
-assert(/piloteCaisse: piloteCaisse === true, filCaisseLien, fdjApplicable,\s*\n\s*inventaireLien: inventaireApplicable \? 'NEXUS-Inventaire-v1.html' : null/.test(APP), 'App ne câble pas la variante');
+assert(/piloteCaisse: piloteCaisse === true, filCaisseLien, fermetureCaisseDue, fdjApplicable,\s*\n\s*inventaireLien: inventaireApplicable \? 'NEXUS-Inventaire-v1.html' : null/.test(APP), 'App ne câble pas la variante');
 assert(APP.includes("const FIL_CAISSE_LIEN_TEXTE = 'Commencer l’inventaire →'") && /ctx\.filLien \? FIL_LIEN_TEXTE : ctx\.filCaisseLien \? FIL_CAISSE_LIEN_TEXTE/.test(APP));
 assert(/roleDuJour === NexusFilCaisse\.ROLE && fuseauStation && \(quartDuJour === 'matin' \|\| quartDuJour === 'soir'\)\) \{\s*\n\s*finMinutes = NexusStation\.finDuQuartMinutes/.test(APP), 'App ne charge pas la fin de quart de la caissière');
 console.log('OK — ' + Object.keys(EPREUVES).length + ' épreuves, ' + MUTATIONS.length + ' mutations tuées, câblage vérifié');
+// Retouche #177 : la carte du soir montre l'étape Clôture et « Commencer la clôture → » quand la fermeture est due.
+{
+  const M = charger(SRC);
+  const soir = Object.assign({}, base, { inventaireOuvertureFaite: true, fermetureCaisseDue: true, filCaisseLien: 'NEXUS-Inventaire-v1.html?fil=caisse&etape=3&plan=3' });
+  const h = M.html(M.modele(soir));
+  assert(h.includes('1 sur 2') && h.includes('Clôture') && h.includes('Commencer la clôture →') && !h.includes('Commencer l’inventaire →'), 'carte clôture');
+  assert(!M.html(M.modele(Object.assign({}, soir, { piloteCaisse: false }))).includes('Commencer la clôture →'), 'non pilote : pas de clôture');
+  assert(M.html(M.modele(Object.assign({}, soir, { inventaireFait: true }))).includes('Clôture') === false, 'clôture faite : plus d’étape');
+  console.log('  ✓ carte du soir : étape Clôture et bouton « Commencer la clôture → »');
+}

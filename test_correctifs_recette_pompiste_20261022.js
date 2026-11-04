@@ -72,7 +72,7 @@ function epreuves(S) {
     assert.ok(/inventaire_quarts\(date, quart, cloture_le, is_simulation, statut\)/.test(S.app), 'la requête doit lire le statut du quart');
     assert.ok(/const inventaireOuvertureFaite = inventaireApplicable && !inventaireFait &&/.test(S.app), 'inventaireOuvertureFaite absent');
     assert.ok(/r\.inventaire_quarts\.statut === 'ouvert'/.test(S.app), 'l\'ouverture faite doit se déduire du statut « ouvert »');
-    assert.ok(/select\('responsable_comptage, a_valide_ouverture, inventaire_quarts\(/.test(S.app), 'la requête doit lire a_valide_ouverture de l\'employé');
+    assert.ok(/select\('responsable_comptage, a_valide_ouverture, (?:a_valide_cloture, heure_depart, )?inventaire_quarts\(/.test(S.app), 'la requête doit lire a_valide_ouverture de l\'employé');
     assert.ok(/const inventaireOuvertureFaite = [\s\S]*?r\.a_valide_ouverture && r\.inventaire_quarts/.test(S.app), 'l\'ouverture se lit sur la validation de l\'employé, pas sur le responsable du comptage (recette 22/10 : un pompiste non responsable restait relancé)');
     assert.ok(/!ctx\.inventaireOuvertureFaite/.test(S.app), 'la relance d\'inventaire doit s\'arrêter une fois l\'ouverture faite');
     assert.ok(/if \(ctx\.inventaireOuvertureFaite\) \{\s*return \{[^}]*Il restera la clôture, en fin de quart/.test(S.app), 'message « ouverture faite, clôture en fin de quart » absent');

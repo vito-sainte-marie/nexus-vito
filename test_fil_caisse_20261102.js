@@ -135,10 +135,28 @@ cas('page : titre de catégorie sans « Étape » dans le fil caisse (une seule 
 });
 cas('page : en fil caisse, « Précédent » et « Retour » sont masqués (sortie par la barre seule)', () => {
   assert.ok(/body[^\n]*classList\.add\('fil-actif', 'fil-caisse'\)/.test(HTML) || /classList\.add\('fil-actif', 'fil-caisse'\)/.test(HTML));
-  assert.ok(/\.fil-caisse \.nexus-retour-btn, \.fil-caisse #btnAnnulerOuverture \{ display: none !important; \}/.test(HTML));
+  assert.ok(/\.fil-caisse \.nexus-retour-btn, \.fil-caisse #btnAnnulerOuverture, \.fil-caisse #btnAnnulerCloture \{ display: none !important; \}/.test(HTML));
 });
 cas('page : étiquette cigarettes courte, sans « bureau géré par le manager »', () => {
   assert.ok(!/bureau géré par le manager/.test(HTML));
   assert.strictEqual((HTML.match(/📍 Caisse uniquement</g) || []).length, 3);
+});
+cas('étape 3 ouverte : FERMETURE_OUVERTE vrai ; la fermeture due apparaît au plan, faite elle disparaît', () => {
+  assert.strictEqual(C.FERMETURE_OUVERTE, true);
+  const b = { pilote: true, roleDuJour: 'caissiere', comptageFait: true };
+  assert.deepStrictEqual(C.planPour({ ...b, fermetureDue: true, fermetureFaite: false }), [3]);
+  assert.deepStrictEqual(C.planPour({ ...b, fermetureDue: true, fermetureFaite: true }), []);
+});
+cas('page : validerCloture écrit la seule ligne de l\'employée, le quart est clos par le serveur', () => {
+  const i = HTML.indexOf('async function validerCloture');
+  const bloc = HTML.slice(i, HTML.indexOf('function renderFinalCloture', i));
+  assert.ok(/from\('inventaire_quart_employes'\)\.update\(\{ a_valide_cloture: true, heure_depart:/.test(bloc));
+  assert.ok(!/from\('inventaire_quarts'\)\.update\(/.test(bloc), 'le client ne clôt plus le quart');
+  assert.ok(!/statut: 'cloture'/.test(bloc));
+});
+cas('accueil : la clôture se juge aussi sur a_valide_cloture de l\'employé', () => {
+  const app = fs.readFileSync(path.join(__dirname, 'NEXUS-App-v1.html'), 'utf8');
+  assert.ok(/select\('responsable_comptage, a_valide_ouverture, a_valide_cloture, heure_depart, inventaire_quarts\(/.test(app));
+  assert.ok(/\(!!r\.inventaire_quarts\.cloture_le \|\| r\.a_valide_cloture === true\)/.test(app));
 });
 console.log(`\n${ok} contrôles OK`);

@@ -86,7 +86,7 @@
     const sur = (r) => r && r.inventaire_quarts && r.inventaire_quarts.date === dateISO && r.inventaire_quarts.is_simulation !== true
       && (!quartDuJour || !r.inventaire_quarts.quart || r.inventaire_quarts.quart === quartDuJour);
     const l = Array.isArray(rows) ? rows : [];
-    const clotureFaite = l.some((r) => (r.responsable_comptage || r.a_valide_ouverture) && sur(r) && !!r.inventaire_quarts.cloture_le);
+    const clotureFaite = l.some((r) => (r.responsable_comptage || r.a_valide_ouverture) && sur(r) && (!!r.inventaire_quarts.cloture_le || r.a_valide_cloture === true));
     const ouvertureFaite = !clotureFaite && l.some((r) => r.a_valide_ouverture && sur(r) && !r.inventaire_quarts.cloture_le && r.inventaire_quarts.statut === 'ouvert');
     return { ouvertureFaite, clotureFaite };
   }
@@ -99,9 +99,9 @@
   // Condition unique de la fermeture, partagée par l'Accueil et Missions : quart du soir (quart2) seulement, car la caissière du matin
   // ne compte pas à sa sortie (c'est l'entrante qui compte, decision-2). `station` = NexusStation ; même calcul de fin de quart que le pompiste.
   const quartConcerneParFermeture = (quartDuJour) => quartDuJour === 'soir';
-  // Étape 3 MASQUÉE tant que la clôture d'un quart partagé n'est pas arbitrée (#160, relecture de 62671bee) : validerCloture() clôt le
-  // quart de la STATION, pas la ligne de l'employée ; le lien de l'un ou de l'autre disparaîtrait selon l'ordre. Aucun lien de fermeture.
-  const FERMETURE_OUVERTE = false;
+  // Étape 3 OUVERTE (arbitrage request-14/15, #160) : validerCloture() n'écrit plus que la ligne de l'employée ; le quart est clos par le serveur
+  // (cron, quand toute la population a validé, ou repli fin + délai). Dépend du déploiement préalable de la migration 20261103190000.
+  const FERMETURE_OUVERTE = true;
   function fermetureDueEnService({ station, horaires, quartDuJour, fuseau, maintenant, ouverte = FERMETURE_OUVERTE }) {
     if (ouverte !== true || !quartConcerneParFermeture(quartDuJour) || !horaires || !fuseau || !station) return false;
     const now = maintenant || new Date();
