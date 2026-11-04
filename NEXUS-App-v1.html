@@ -3215,6 +3215,11 @@
     try { return new URLSearchParams(window.location.search).get('apercu_banniere') === '1'; } catch (e) { return false; }
   })();
   function renderPrisePoste(employee, serviceCourant, estNiveauManager) {
+  // Seul point à étendre pour la bannière : la liste des sites qui l'affichent.
+  // Lot futur (note du Guardian, #160) : bannière pour toutes les stations ViTO,
+  // une photo par enseigne (Total, Sol…) choisie dans les Réglages de la station.
+  // Cela demande une donnée par site ou enseigne, un écran de Réglages et une
+  // migration : décisions de Frédéric. Ne pas l'implémenter ici.
   const SITES_BANNIERE_VITO = ['vito-sainte-marie'];
   const SITE_APERCU_BANNIERE = 'nexus-station-test';
   // La photo suit le thème actif : Jour = photo de jour, Sombre = photo de nuit. Une seule
