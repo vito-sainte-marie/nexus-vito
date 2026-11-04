@@ -25,7 +25,8 @@ const STRUCTURE = {
   },
   'le bouton ☰ n’est pas touché par le bloc dirigeant': (src) => { assert(!/menu-accueil-bouton/.test(bloc(src))); },
   'la mise en page une ligne suit la vue bureau, pas la fenêtre': (src) => {
-    const b = bloc(src); const m = b.slice(b.indexOf('@media (min-width:768px)'));
+    const b = bloc(src); let m = b.slice(b.indexOf('@media (min-width:768px)')); const fin = m.search(/\n\s*body:has\(\.am-marqueur\) \.am-banniere #taglineRole,/); if (fin > 0) m = m.slice(0, fin); // après le bloc bureau : règles de surcharge
+    
     assert(m.includes('body.nexus-desktop:has(.am-marqueur) .header{'));
     assert(!/(^|[\s,{])body:has\(\.am-marqueur\)/.test(m.replace(/\/\*[\s\S]*?\*\//g, '')));
   },

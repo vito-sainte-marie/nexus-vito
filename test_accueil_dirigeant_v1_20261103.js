@@ -8,12 +8,13 @@ const fabrique = (src, search, theme) => new Function('APERCU_BANNIERE_DEMANDE',
 const hrefs = (html) => (html.match(/href="[^"#]*"/g) || []).sort();
 const blocManager = (src) => { const i = src.indexOf('<div data-role="manager" style="display:none;">'); return src.slice(i, i + 6000); };
 const EPREUVES = {
-  'site ViTO : bandeau présent, srcset 800/1600, différé, alt, retrait si l’image échoue': (src) => {
+  'site ViTO : bandeau présent, srcset 800/1200/1600, différé, alt, retrait si l’image échoue': (src) => {
     const h = fabrique(src, '', 'jour').banniereAccueilHtml('vito-sainte-marie');
-    assert(h.includes('accueil-station-vito-800.webp 800w') && h.includes('accueil-station-vito-1600.webp 1600w'));
+    assert(h.includes('accueil-station-vito-800.webp 800w') && h.includes('accueil-station-vito-1200.webp 1200w') && h.includes('accueil-station-vito-1600.webp 1600w'));
     const n = fabrique(src, '', 'sombre').banniereAccueilHtml('vito-sainte-marie');
-    assert(n.includes('accueil-station-vito-nuit-800.webp 800w') && n.includes('accueil-station-vito-nuit-1600.webp 1600w') && !n.includes('vito-800.webp'));
-    assert(h.includes('loading="lazy"') && /alt="[^"]{10,}"/.test(h) && h.includes('onerror="this.parentNode.remove()"'));
+    assert(n.includes('accueil-station-vito-nuit-800.webp 800w') && n.includes('accueil-station-vito-nuit-1200.webp 1200w') && n.includes('accueil-station-vito-nuit-1600.webp 1600w') && !n.includes('vito-800.webp'));
+    assert(h.includes('sizes="(min-width:768px) 1100px, (min-width:560px) 480px, calc(100vw - 40px)"'));
+    assert(h.includes('loading="lazy"') && /alt="[^"]{10,}"/.test(h) && h.includes('this.parentNode.remove()') && h.includes("getElementById('taglineRole')"));
   },
   'NOUVEAU : bandeau absent pour un site non ViTO, avec ou sans paramètre': (src) => {
     for (const site of ['nexus-station-test', 'autre-station', undefined, null, '']) {
@@ -59,6 +60,8 @@ const EPREUVES = {
   'les deux images existent, poids bornés': () => {
     assert(fs.statSync(path.join(__dirname, 'assets/accueil/accueil-station-vito-1600.webp')).size < 200 * 1024);
     assert(fs.statSync(path.join(__dirname, 'assets/accueil/accueil-station-vito-800.webp')).size < 80 * 1024);
+    assert(fs.statSync(path.join(__dirname, 'assets/accueil/accueil-station-vito-1200.webp')).size < 120 * 1024);
+    assert(fs.statSync(path.join(__dirname, 'assets/accueil/accueil-station-vito-nuit-1200.webp')).size < 120 * 1024);
     assert(fs.statSync(path.join(__dirname, 'assets/accueil/accueil-station-vito-nuit-1600.webp')).size < 200 * 1024);
     assert(fs.statSync(path.join(__dirname, 'assets/accueil/accueil-station-vito-nuit-800.webp')).size < 80 * 1024);
   },
@@ -79,7 +82,7 @@ const EPREUVES = {
 };
 const MUTANTS = {
   'la photo suit le thème : Jour = jour, Sombre = nuit, une seule image': (s) => s.replace("attributeFilter: ['data-theme']", "attributeFilter: ['class']"),
-  'site ViTO : bandeau présent, srcset 800/1600, différé, alt, retrait si l’image échoue': (s) => s.replace('loading="lazy"', ''),
+  'site ViTO : bandeau présent, srcset 800/1200/1600, différé, alt, retrait si l’image échoue': (s) => s.replace('loading="lazy"', ''),
   'NOUVEAU : bandeau absent pour un site non ViTO, avec ou sans paramètre': (s) => s.replace("['vito-sainte-marie']", "['vito-sainte-marie','nexus-station-test']"),
   'aperçu Test : le paramètre montre le bandeau sur nexus-station-test seulement': (s) => s.replace("siteId === SITE_APERCU_BANNIERE && ", ''),
   'date à l’heure de la station, jamais celle de l’appareil': (s) => s.replace('timeZone: FUSEAU_STATION, ', ''),
