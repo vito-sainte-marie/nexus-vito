@@ -108,4 +108,33 @@ assert.deepStrictEqual(luesC.map(c => c.volume_l), [12000, null, null, null], 'C
 // (le service lui-même lève une exception sur une photo sans titre : défaut signalé, non figé ici)
 assert.deepStrictEqual(VR.lireEcranVeederRoot('ECRAN 2026-11-04T14:30'), [], 'D : rien à lire, rien d\'inventé');
 
-console.log('test_jaugeage_service_resultat_texte_20261104 : 4 scénarios, dossier versionné sans secret ni photo — OK');
+// --- 7. Scénario E : titre « RESERVOIR 3 » absent de la lecture --------------------------------------------------
+// Disposition réelle de l'écran (reference_cuves.json) : colonne gauche = cuves 1 et 3, colonne droite = 2 et 4.
+// Vision manque le titre de la cuve 3 : le traducteur la reconstitue à sa place et ne la valide que si
+// volume + espace vide = somme de référence (19019 L).
+const ref = JSON.parse(fs.readFileSync(path.join(DOSSIER, 'reference_cuves.json'), 'utf8'));
+assert.deepStrictEqual(ref.disposition, [[1, 3], [2, 4]], 'E : la disposition de référence est celle de l\'écran');
+const PLACE = { 1: [0, 0.85], 3: [0, 0.50], 2: [1, 0.85], 4: [1, 0.50] };
+const VAL = { 1: [12000, '1234.5', 16761], 2: [5000, '812.3', 4534], 3: [8000, '1010.0', 11019], 4: [9000, '902.4', 21471] };
+const cuvesE = (surcharge = {}) => [1, 2, 3, 4].map(n => ({
+  n, repere: ref.cuves[n].repere, cap: ref.cuves[n].contenance_m3, produit: ref.cuves[n].produit,
+  col: PLACE[n][0], yTitre: PLACE[n][1], valeurs: [...(surcharge[n] || VAL[n]), '18.0', '0.0'],
+}));
+const sansTitre3 = v => ({ ...v, lignes: v.lignes.filter(l => !/^RESERVOIR 3\b/.test(l.texte)) });
+const avant = vision(cuvesE());
+assert.ok(avant.lignes.some(l => /^RESERVOIR 3\b/.test(l.texte)), 'E : le titre existe avant retrait');
+assert.ok(!sansTitre3(avant).lignes.some(l => /^RESERVOIR 3\b/.test(l.texte)), 'E : le titre RESERVOIR 3 est retiré');
+assert.deepStrictEqual(service(avant).resultat.cuves.map(c => c.statut), ['a_valider', 'a_valider', 'a_valider', 'a_valider'], 'E : repère, lecture complète valide');
+
+const E = service(sansTitre3(avant));
+assert.deepStrictEqual(E.resultat.cuves.map(c => c.reservoir), [1, 2, 3, 4], 'E : les quatre cuves sont rendues, la 3 retrouvée par sa place');
+assert.deepStrictEqual(E.resultat.cuves.map(c => c.statut), ['a_valider', 'a_valider', 'a_valider', 'a_valider'], 'E : la cuve 3 est validée par la somme de référence');
+const luesE = VR.lireEcranVeederRoot(E.texte);
+assert.deepStrictEqual(luesE.map(c => [c.reservoir, c.volume_l]), [[1, 28761 - 16761], [2, 5000], [3, 8000], [4, 9000]], 'E : volumes justes, aucun volume inventé');
+
+// Même lecture, somme fausse : la cuve 3 retrouvée ne porte aucun nombre.
+const E2 = service(sansTitre3(vision(cuvesE({ 3: [8000, '1010.0', 11029] }))));
+assert.strictEqual(E2.resultat.cuves.find(c => c.reservoir === 3).statut, 'a_verifier', 'E2 : somme fausse, cuve 3 à vérifier');
+assert.strictEqual(VR.lireEcranVeederRoot(E2.texte).find(c => c.reservoir === 3).volume_l, null, 'E2 : aucun volume proposé pour la cuve 3');
+
+console.log('test_jaugeage_service_resultat_texte_20261104 : 5 scénarios, dossier versionné sans secret ni photo — OK');

@@ -22,7 +22,8 @@ Rien n'est enregistré dans Carburants par ce service : le pompiste voit une
 lecture proposée, l'utilise ou la corrige, et confirme lui-même.
 
 Sécurité :
-  - les clés sont lues dans ~/nexus-jaugeage/.env, jamais affichées ;
+  - les clés sont lues dans le fichier .env placé à côté de ce script
+    (sur l'iMac : ~/nexus-jaugeage/.env), jamais affichées ;
   - le service REFUSE de démarrer sur la base de Production tant que
     NEXUS_JAUGEAGE_PRODUCTION=oui n'est pas posé (décision de Frédéric).
 
@@ -38,7 +39,8 @@ import os
 import sys
 import tempfile
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from urllib.parse import urlparse
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
@@ -52,6 +54,9 @@ BUCKET = "documents-a-traiter"
 INTERVALLE_S = 8
 REF_PRODUCTION = "uzhjpqpctpvxytxpxoqz"
 MOTEUR = "apple-vision"
+VERSION_SERVICE = 2
+BLOCAGE_MAX = timedelta(minutes=10)   # un document « en_cours » plus vieux est remis en file
+INTERVALLE_REPRISE_S = 300
 
 
 def charger_env(chemin: Path) -> None:
@@ -92,7 +97,8 @@ def texte_pour_releves_piste(resultat: dict) -> str:
     for c in resultat.get("cuves", []):
         cap_m3 = int(round(c["contenance_l"] / 1000))
         lignes.append(f"RESERVOIR {c['reservoir']}: {c['repere']} {cap_m3}M3 {c['produit']}")
-        if c["statut"] == "a_valider":
+        complet = all(c.get(k) is not None for k in ("volume_l", "hauteur_mm", "eau_mm"))
+        if c["statut"] == "a_valider" and complet:
             vol = int(c["volume_l"])
             lignes.append(f"Volume Produit {vol}")
             lignes.append(f"{vol}")
@@ -129,7 +135,9 @@ def traiter(sb, log: logging.Logger, doc: dict) -> None:
         }).eq("id", doc_id).execute()
         resume = ", ".join(f"R{c['reservoir']} {c['statut']}" for c in resultat["cuves"])
         log.info("Jaugeage %s lu (%s) : %s", doc_id, resultat["statut"], resume or "aucune cuve")
-    except BaseException as exc:  # SystemExit de lire_vision compris
+    except Exception as exc:  # noqa: BLE001 — photo illisible, réseau… : le document passe en erreur
+        # Un arrêt demandé (Ctrl+C, arrêt de l'iMac) n'est PAS attrapé ici : le
+        # document reste « en_cours » et remettre_en_file() le reprend au redémarrage.
         log.exception("Échec de lecture du jaugeage %s", doc_id)
         sb.table("documents_ocr_file").update({
             "status": "erreur",
@@ -137,8 +145,20 @@ def traiter(sb, log: logging.Logger, doc: dict) -> None:
             "erreur_message": f"Lecture du jaugeage impossible : {exc}"[:2000],
             "traite_at": datetime.now(timezone.utc).isoformat(),
         }).eq("id", doc_id).execute()
-        if isinstance(exc, KeyboardInterrupt):
-            raise
+
+
+def remettre_en_file(sb, log: logging.Logger, site: str) -> None:
+    """Remet « en_attente » une photo restée « en_cours » (coupure pendant la lecture)."""
+    limite = (datetime.now(timezone.utc) - BLOCAGE_MAX).isoformat()
+    rep = (sb.table("documents_ocr_file").update({"status": "en_attente"})
+           .eq("site", site).eq("type_document", TYPE_DOCUMENT).eq("status", "en_cours")
+           .lt("deposited_at", limite).is_("traite_at", "null").execute())
+    if rep.data:
+        log.warning("%d photo(s) de jaugeage bloquée(s) remise(s) en file", len(rep.data))
+
+
+def est_production(url: str) -> bool:
+    return (urlparse(url).hostname or "") == f"{REF_PRODUCTION}.supabase.co"
 
 
 def main() -> None:
@@ -150,7 +170,7 @@ def main() -> None:
     if not (url and cle and site):
         sys.exit("Configuration incomplète : SUPABASE_URL, SUPABASE_SERVICE_KEY et NEXUS_SITE "
                  "doivent être dans ~/nexus-jaugeage/.env")
-    if REF_PRODUCTION in url and os.environ.get("NEXUS_JAUGEAGE_PRODUCTION") != "oui":
+    if (est_production(url) or REF_PRODUCTION in url) and os.environ.get("NEXUS_JAUGEAGE_PRODUCTION") != "oui":
         sys.exit("Refus : ce .env vise la base de PRODUCTION. Le service jaugeage tourne sur Test "
                  "tant que Frédéric n'a pas donné son GO (NEXUS_JAUGEAGE_PRODUCTION=oui).")
     if not LJ.LECTEUR.exists():
@@ -158,20 +178,34 @@ def main() -> None:
 
     from supabase import create_client
     sb = create_client(url, cle)
-    base = "PRODUCTION" if REF_PRODUCTION in url else "Test"
-    log.info("Service jaugeage démarré : base %s, site %s, moteur %s", base, site, MOTEUR)
+    base = "PRODUCTION" if est_production(url) else "Test"
+    log.info("Service jaugeage v%s démarré : base %s, site %s, moteur %s, traducteur v%s",
+             VERSION_SERVICE, base, site, MOTEUR, LJ.analyser({"lignes": []}).get("version_traducteur"))
 
     une_fois = "--une-fois" in sys.argv
+    derniere_reprise = 0.0
+    echecs = 0
     while True:
         try:
+            if time.time() - derniere_reprise >= INTERVALLE_REPRISE_S:
+                remettre_en_file(sb, log, site)
+                derniere_reprise = time.time()
             rep = (sb.table("documents_ocr_file")
                    .select("id, fichier_path")
                    .eq("site", site).eq("status", "en_attente").eq("type_document", TYPE_DOCUMENT)
                    .order("deposited_at").limit(3).execute())
             for doc in rep.data or []:
                 traiter(sb, log, doc)
+            if echecs:
+                log.info("Connexion rétablie après %d essai(s) en échec", echecs)
+            echecs = 0
         except Exception:  # noqa: BLE001 — le service ne s'arrête pas seul (coupure réseau…)
-            log.exception("Erreur dans la boucle, nouvel essai dans %ss", INTERVALLE_S)
+            echecs += 1
+            # Journal sobre : la 1re erreur en détail, puis un rappel toutes les ~10 min.
+            if echecs == 1:
+                log.exception("Erreur dans la boucle, nouvel essai toutes les %ss", INTERVALLE_S)
+            elif echecs % 75 == 0:
+                log.warning("Toujours en échec depuis %d essais (~%d min)", echecs, echecs * INTERVALLE_S // 60)
         if une_fois:
             break
         time.sleep(INTERVALLE_S)

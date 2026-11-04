@@ -17,8 +17,11 @@ Ce dépôt est public : il ne contient ni clé, ni `.env`, ni photo réelle.
    `lecteur-vision` (Apple Vision, local, aucun envoi réseau).
 4. Traduit la lecture avec `lecture_jaugeage.py` : cinq valeurs par cuve, format
    de l'écran, bornes de vraisemblance, volume + espace vide égal à la
-   contenance de référence (`reference_cuves.json`, ± 3 L), volume du dessin égal
-   à celui du tableau.
+   contenance de référence (`reference_cuves.json`, ± 1 L), volume du dessin égal
+   à celui du tableau. Un titre « RESERVOIR n » illisible est reconstitué d'après
+   la disposition fixe de l'écran, uniquement si la cuve a une somme de
+   référence : le contrôle exact volume + espace vide protège du mauvais
+   rattachement.
 5. Écrit `status = 'traite'` (ou `'erreur'`), `resultat_json` (lecture complète
    et contrôles) et `resultat_texte` (texte lu par `nexus-veeder-root.js`).
    Seule une cuve dont **tous** les contrôles passent porte un volume ; les
