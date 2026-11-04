@@ -235,6 +235,10 @@
   .btn-primary{width:100%; padding:14px; border:none; border-radius:10px; font-size:14px; font-weight:600; background:var(--cyan); color:var(--on-cyan); cursor:pointer; margin-top:6px;}
   .btn-primary:disabled{opacity:0.35; cursor:not-allowed;}
   .btn-primary.danger{background:var(--red); color:var(--on-red);}
+  .brouillon-etat{font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; margin:-8px 0 14px; letter-spacing:0.02em; min-height:12px;}
+  .brouillon-etat.brouillon-alerte{color:var(--text-mid);}
+  .brouillon-reprise{border:1px solid var(--hairline); border-radius:12px; padding:16px; margin-bottom:14px; text-align:center;}
+  .brouillon-reprise p{margin:0 0 12px; font-size:14px; color:var(--text);}
   .btn-ghost{width:100%; padding:12px; border:1px solid var(--hairline); border-radius:10px; background:transparent; color:var(--text-mid); font-size:13px; cursor:pointer; margin-top:8px;}
   .btn-loading-dots{display:inline-flex; gap:3px; margin-left:6px; vertical-align:middle;}
   .btn-loading-dots i{width:4px; height:4px; border-radius:50%; background:currentColor; display:inline-block; font-style:normal; animation:btnDotsBounce 1.2s infinite ease-in-out;}
@@ -483,9 +487,184 @@
     return `
       <div class="stepper">${ETAPES.map((e,i) => `<div class="stepper-item ${i < idx ? 'fait' : (i === idx ? 'actif' : '')}"></div>`).join('')}</div>
       <div class="stepper-label">Étape ${idx+1} sur ${ETAPES.length} — ${ETAPES_LABELS[etape]}</div>
+      ${brouillonEtatHtml()}
     `;
   }
   function allerEtape(e) { etape = e; render(); }
+
+  // ------------------------------------------------------------
+  // BROUILLON LOCAL (04/11/2026, demande Guardian)
+  // ------------------------------------------------------------
+  // Une réception dure plusieurs minutes, souvent entre deux clients de la
+  // piste : un rechargement, un appel ou l'éviction de l'onglet effaçaient
+  // toute la saisie (tout l'état vit en mémoire). L'état est donc recopié
+  // dans le localStorage de l'appareil à chaque saisie, à chaque changement
+  // d'étape et quand la page se masque. Ce n'est PAS un envoi : rien ne part
+  // au serveur avant la soumission finale, et l'écran le dit. Les fichiers
+  // (justificatif) ne sont pas conservés, seulement leur nom. Le brouillon
+  // ne sert que sur le même appareil ; un brouillon serveur est un autre lot.
+  const BROUILLON_VERSION = 1;
+  const BROUILLON_PREFIXE = 'nexus_reception_brouillon_';
+  const BROUILLON_VALIDITE_MS = 12 * 3600 * 1000;
+  let stockageIndisponible = false;
+  let dernierEnregistrement = null; // ISO du dernier enregistrement local réussi
+  let debutBrouillon = null; // ISO du premier enregistrement de la visite en cours
+  let brouillonEnAttente = null; // brouillon proposé à la reprise (écran d'accueil)
+  let confirmationRecommencer = false;
+
+  function stockageLocal() { try { return (typeof localStorage !== 'undefined') ? localStorage : null; } catch (e) { return null; } }
+  function cleBrouillon(jour) { return `${BROUILLON_PREFIXE}${employeeCourant.id}_${siteId}_${jour || dateISO()}`; }
+  function clesBrouillonCandidates() {
+    // Un brouillon commencé juste avant minuit reste repris après minuit.
+    return [cleBrouillon(dateISO()), cleBrouillon(dateISO(new Date(Date.now() - 24 * 3600 * 1000)))];
+  }
+  function instantisable(v) { return v === null || v === undefined || v === '' ? '' : v; }
+  function etatBrouillon() {
+    return {
+      v: BROUILLON_VERSION,
+      employee_id: employeeCourant.id, site: siteId,
+      commence_le: debutBrouillon, sauvegarde_le: new Date().toISOString(),
+      etape, visite, lignes, mesuresParCuve, compartiments, compartimentOuvert,
+      controleCompartiments, derogationGlobaleCompartiments, derogationsParCompartiment,
+      heureFin, jaugeageLe, modeSaisie, doublon, idempotencyKey,
+      regularisation: {
+        motif: regularisation.motif, controle_terrain_par: regularisation.controle_terrain_par,
+        justificatif_nom: regularisation.justificatif_nom,
+        justificatif_a_rattacher: !!(regularisation.justificatif_url || regularisation.justificatif_a_rattacher),
+      },
+    };
+  }
+  function sauvegarderBrouillon() {
+    if (!employeeCourant || !idempotencyKey || ETAPES.indexOf(etape) < 0 && etape !== 'calcul') return;
+    try {
+      const st = stockageLocal();
+      if (!st) throw new Error('stockage absent');
+      if (!debutBrouillon) debutBrouillon = new Date().toISOString();
+      const e = etatBrouillon();
+      st.setItem(cleBrouillon(), JSON.stringify(e));
+      stockageIndisponible = false;
+      dernierEnregistrement = e.sauvegarde_le;
+    } catch (err) {
+      stockageIndisponible = true;
+    }
+    majEtatBrouillon();
+  }
+  function lireBrouillon() {
+    try {
+      const st = stockageLocal();
+      if (!st) return null;
+      let meilleur = null;
+      clesBrouillonCandidates().forEach(k => {
+        const brut = st.getItem(k);
+        if (!brut) return;
+        let b = null;
+        try { b = JSON.parse(brut); } catch (e) { b = null; }
+        const age = b ? Date.now() - new Date(b.sauvegarde_le).getTime() : NaN;
+        const valide = b && b.v === BROUILLON_VERSION && b.employee_id === employeeCourant.id && b.site === siteId
+          && b.idempotencyKey && !isNaN(age) && age < BROUILLON_VALIDITE_MS;
+        if (!valide) { try { st.removeItem(k); } catch (e) { /* ignoré */ } return; }
+        if (!meilleur || b.sauvegarde_le > meilleur.sauvegarde_le) meilleur = b;
+      });
+      return meilleur;
+    } catch (e) { return null; }
+  }
+  function effacerBrouillon() {
+    debutBrouillon = null; dernierEnregistrement = null;
+    try {
+      const st = stockageLocal();
+      if (st) clesBrouillonCandidates().forEach(k => st.removeItem(k));
+    } catch (e) { /* ignoré : un brouillon périmé est de toute façon ignoré après 12 h */ }
+  }
+  function testerStockage() {
+    try {
+      const st = stockageLocal();
+      if (!st) throw new Error('stockage absent');
+      st.setItem(`${BROUILLON_PREFIXE}sonde`, '1');
+      st.removeItem(`${BROUILLON_PREFIXE}sonde`);
+      stockageIndisponible = false;
+    } catch (e) { stockageIndisponible = true; }
+  }
+  function brouillonEtatTexte() {
+    if (stockageIndisponible) return 'Sauvegarde automatique indisponible sur cet appareil';
+    return dernierEnregistrement ? `Enregistré sur cet appareil à ${heureCourteFr(dernierEnregistrement)}` : '';
+  }
+  function brouillonEtatHtml() {
+    return `<div class="brouillon-etat${stockageIndisponible ? ' brouillon-alerte' : ''}" id="brouillonEtat">${brouillonEtatTexte()}</div>`;
+  }
+  function majEtatBrouillon() {
+    const el = document.getElementById('brouillonEtat');
+    if (el) el.textContent = brouillonEtatTexte();
+  }
+  function heureFr(iso) {
+    const d = new Date(iso);
+    return isNaN(d.getTime()) ? '' : `${d.getHours()} h ${String(d.getMinutes()).padStart(2, '0')}`;
+  }
+  function libelleEtapeBrouillon(e) { return ETAPES_LABELS[e] || 'Rapprochement'; }
+  function restaurerBrouillon(b) {
+    etape = b.etape;
+    visite = b.visite; lignes = b.lignes; mesuresParCuve = b.mesuresParCuve || {};
+    compartiments = b.compartiments || []; compartimentOuvert = b.compartimentOuvert == null ? null : b.compartimentOuvert;
+    controleCompartiments = b.controleCompartiments || null;
+    derogationGlobaleCompartiments = b.derogationGlobaleCompartiments || null;
+    derogationsParCompartiment = b.derogationsParCompartiment || {};
+    panneauDerogationPour = null;
+    heureFin = b.heureFin || ''; jaugeageLe = b.jaugeageLe || { avant: '', apres: '' };
+    modeSaisie = (b.modeSaisie === 'regularisation' && peutRegulariser()) ? 'regularisation' : 'temps_reel';
+    doublon = b.doublon || { date: '', etat: 'vide', visites: [], confirme: false };
+    const r = b.regularisation || {};
+    regularisation = { motif: r.motif || '', controle_terrain_par: r.controle_terrain_par || '', justificatif_url: null, justificatif_nom: r.justificatif_nom || '', justificatif_en_cours: false, justificatif_a_rattacher: !!r.justificatif_a_rattacher };
+    // Même clé qu'avant le rechargement : une soumission déjà partie puis
+    // reprise ici reste idempotente côté base.
+    idempotencyKey = b.idempotencyKey;
+    debutBrouillon = b.commence_le || b.sauvegarde_le;
+    resultatsParCarburant = null;
+    brouillonEnAttente = null;
+    allerEtape(etape);
+  }
+  function renderReprise() {
+    const b = brouillonEnAttente;
+    const texte = `Une réception commencée à ${heureFr(b.commence_le || b.sauvegarde_le)} (étape : ${libelleEtapeBrouillon(b.etape)}) n'est pas terminée`;
+    document.getElementById('content').innerHTML = confirmationRecommencer ? `
+      <div class="brouillon-reprise">
+        <p>Recommencer supprime la saisie enregistrée sur cet appareil. Cette action est définitive.</p>
+        <button class="btn-primary" id="btnConfirmerRecommencer">Oui, tout effacer et recommencer</button>
+        <button class="btn-ghost" id="btnAnnulerRecommencer">Non, garder ma saisie</button>
+      </div>
+    ` : `
+      <div class="brouillon-reprise">
+        <p>${texte}</p>
+        <button class="btn-primary" id="btnReprendre">Reprendre</button>
+        <button class="btn-ghost" id="btnRecommencer">Recommencer</button>
+      </div>
+    `;
+    const clic = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener('click', fn); };
+    clic('btnReprendre', () => restaurerBrouillon(brouillonEnAttente));
+    clic('btnRecommencer', () => { confirmationRecommencer = true; renderReprise(); });
+    clic('btnAnnulerRecommencer', () => { confirmationRecommencer = false; renderReprise(); });
+    clic('btnConfirmerRecommencer', () => { effacerBrouillon(); brouillonEnAttente = null; confirmationRecommencer = false; render(); });
+  }
+
+  // "‹ Précédent" de l'en-tête (nexus-header-nav.js) : à l'intérieur d'une
+  // réception il recule d'une étape au lieu de quitter la page. Il ne rend
+  // false (donc ne laisse la main à l'historique) que sur l'accueil.
+  const ETAPE_PRECEDENTE = { livraison: 'accueil', jaugeage_avant: 'livraison', compartiments: 'jaugeage_avant', reception: 'compartiments', jaugeage_final: 'reception', calcul: 'jaugeage_final', succes: 'accueil' };
+  function retourEtapeReception() {
+    if (!ETAPE_PRECEDENTE[etape]) return false;
+    if (enSoumission) return true;
+    if ((etape === 'compartiments' || etape === 'reception') && compartimentOuvert !== null) {
+      compartimentOuvert = null; panneauDerogationPour = null; render(); return true;
+    }
+    if (etape === 'accueil') return false;
+    const cible = ETAPE_PRECEDENTE[etape];
+    // Revenir à l'accueil ne supprime pas le brouillon : l'accueil le propose.
+    if (cible === 'accueil' && etape !== 'succes') { brouillonEnAttente = lireBrouillon(); confirmationRecommencer = false; }
+    allerEtape(cible);
+    return true;
+  }
+  if (typeof window !== 'undefined') {
+    window.NexusHeaderNav = window.NexusHeaderNav || { surRetour: null };
+    window.NexusHeaderNav.surRetour = retourEtapeReception;
+  }
 
   function render() {
     document.getElementById('titre').textContent = etape === 'accueil' ? 'Réception carburant' : (etape === 'succes' ? 'Réception terminée' : 'Réception carburant');
@@ -500,12 +679,14 @@
     else if (etape === 'jaugeage_final') renderJaugeage('apres');
     else if (etape === 'calcul') renderCalcul();
     else if (etape === 'succes') renderSucces();
+    sauvegarderBrouillon();
   }
 
   // ------------------------------------------------------------
   // ACCUEIL — consignes de sécurité paramétrées par site (Coach NEXUS)
   // ------------------------------------------------------------
   function renderAccueil() {
+    if (brouillonEnAttente) { renderReprise(); return; }
     if (!cuvesActivesSite().length) {
       document.getElementById('content').innerHTML = `<div class="locked">Aucun carburant actif n'est configuré pour ce site. Contactez votre manager.</div>`;
       return;
@@ -523,6 +704,7 @@
           </div>
         </div>
       ` : ''}
+      ${stockageIndisponible ? `<div class="brouillon-etat brouillon-alerte" id="brouillonEtat">${brouillonEtatTexte()}</div>` : ''}
       <button class="btn-primary" id="btnDemarrer">Démarrons ensemble</button>
       ${peutRegulariser() ? `<button class="btn-ghost" id="btnRegulariser">Régulariser une réception passée</button>` : ''}
     `;
@@ -600,7 +782,7 @@
         <input class="champ-input texte" id="fMotifRegul" placeholder="Pourquoi la saisie n'a pas pu être faite sur le moment" value="${regularisation.motif}">
         <div class="champ-label">Justificatif <span class="optionnel">(optionnel)</span></div>
         <input class="champ-input" id="fJustificatif" type="file" accept="image/*,application/pdf">
-        <div class="champ-note" id="etatJustificatif">${regularisation.justificatif_url ? `✓ ${regularisation.justificatif_nom} joint.` : 'Photo ou scan du relevé manuscrit, du BL ou de la feuille de dépotage.'}</div>
+        <div class="champ-note" id="etatJustificatif">${regularisation.justificatif_url ? `✓ ${regularisation.justificatif_nom} joint.` : (regularisation.justificatif_a_rattacher ? `⚠ « ${echapperTexte(regularisation.justificatif_nom)} » n'est pas conservé après rechargement : joignez-le à nouveau.` : 'Photo ou scan du relevé manuscrit, du BL ou de la feuille de dépotage.')}</div>
         <div id="zoneDoublonReception"></div>
       ` : ''}
       <button class="btn-primary" id="btnContinuerLivraison" disabled>Continuer</button>
@@ -669,7 +851,7 @@
       compartiments = Array.from({ length: n }, (_, i) => ({ numero: i + 1, carburant: null, quantite_declaree_l: '', cuve_destination_id: null, vide: false, statut: 'a_receptionner', motif_non_receptionne: null, receptionne_le: null }));
       allerEtape('jaugeage_avant');
     });
-    document.getElementById('btnAnnulerLivraison').addEventListener('click', () => { if (confirm('Annuler cette réception ? La saisie en cours sera perdue.')) allerEtape('accueil'); });
+    document.getElementById('btnAnnulerLivraison').addEventListener('click', () => { if (confirm('Annuler cette réception ? La saisie en cours sera perdue.')) { effacerBrouillon(); brouillonEnAttente = null; allerEtape('accueil'); } });
   }
   // Lecture des réceptions déjà enregistrées à la date saisie. Ne tranche
   // rien : deux livraisons le même jour arrivent réellement. Elle rend
@@ -1608,6 +1790,8 @@
         .catch(e => console.error('Rapprochement commande/réception carburant (non bloquant):', e));
     }
 
+    // Soumission acceptée : le brouillon local n'a plus lieu d'être.
+    effacerBrouillon();
     allerEtape('succes');
   }
 
@@ -1693,6 +1877,14 @@
       chargerManagersSite(),
     ]);
     if (!config) config = { cuvesOrdonnees: [], cuvesCarburants: {}, nombreCompartimentsDefaut: 6, seuilEcartCompartimentsPct: 2, seuilEcartMesurePct: 2, consignesSecurite: [], contactManager: {} };
+    testerStockage();
+    brouillonEnAttente = lireBrouillon();
+    // Chaque saisie est recopiée sur l'appareil. Les champs écrivent leur
+    // valeur dans l'état avant que l'événement remonte jusqu'ici.
+    const contenu = document.getElementById('content');
+    if (contenu.addEventListener) ['input', 'change', 'click'].forEach(t => contenu.addEventListener(t, () => sauvegarderBrouillon()));
+    if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('pagehide', sauvegarderBrouillon);
+    if (document.addEventListener) document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') sauvegarderBrouillon(); });
     render();
   });
 </script>
