@@ -1,0 +1,28 @@
+{
+  "schema": "nexus-ordre-execution/1",
+  "usage_unique": true,
+  "operation": "MIGRATION_APPLY",
+  "lot": "INVENTAIRE-CAISSE-RENFORT-20261102",
+  "request": "request-16",
+  "cible": {
+    "env": "production",
+    "project_ref": "uzhjpqpctpvxytxpxoqz"
+  },
+  "artefact": {
+    "chemin": "supabase/migrations/20261103190000_cloture_quart_inventaire_anticipee_et_repli.sql",
+    "blob": "089fff6a53af125ec9f31db4032d10e4742d4a81",
+    "commit": "cccbf8af539eb5760878323f4b673dd7004ef181"
+  },
+  "preconditions": {
+    "registre_derniere_version": 20261101014700,
+    "fonction_md5.run_scheduled_inventory_reviews": "a2477baed2ff3fc3b9ae5bfc26e179c7"
+  },
+  "postconditions": {
+    "registre_derniere_version": 20261103190000,
+    "fonction_md5.run_scheduled_inventory_reviews": "754348ef34d11c5485e12876458039f5"
+  },
+  "retour_arriere": "Restaurer la définition capturée en lecture seule avant écriture (md5 a2477baed2ff3fc3b9ae5bfc26e179c7, proacl postgres seul) par create or replace function public.run_scheduled_inventory_reviews(); relire md5, proacl et job cron nexus-inventaire-reviews. Le revoke n'est pas à défaire. Rollback de #176 après #177 interdit sans retirer #177.",
+  "cree_le": "2026-11-04T00:43:48.247Z",
+  "expire_le": "2026-11-05T00:43:48.247Z",
+  "operation_hash": "7b6954881cf4cedd059951d9dc72ad775f5a9150f9f4a71e54a3578b383cd899"
+}
