@@ -173,6 +173,32 @@
     return Object.assign({}, ligne, { valeurSept: nouvelleSept, recopiee: false });
   }
 
+  // Clés dont la valeur saisie diffère de celle déjà envoyée au serveur
+  // (insert-only : seule la RPC tracée peut la changer).
+  function ecartsServeur(saisies, valeursServeur) {
+    return Object.keys(valeursServeur || {}).filter(k => {
+      const s = saisies && saisies[k], v = valeursServeur[k];
+      return estSeptChiffres(s) && v && v.valeur_sept_chiffres !== s;
+    });
+  }
+
+  // Compteurs de pompes différentes qui portent exactement la même valeur
+  // saisie : une recopie ou une faute de frappe, jamais bloquant.
+  function valeursIdentiques(saisies) {
+    const parValeur = {};
+    POMPES.forEach(p => ORDRE_PHYSIQUE[p].forEach(pr => {
+      const k = `${p}-${pr}`, v = saisies && saisies[k];
+      if (estSeptChiffres(v)) (parValeur[v] = parValeur[v] || []).push(k);
+    }));
+    const doublons = {};
+    Object.keys(parValeur).forEach(v => {
+      const ks = parValeur[v];
+      if (new Set(ks.map(k => k.split('-')[0])).size < 2) return;
+      ks.forEach(k => { doublons[k] = ks.filter(x => x !== k && x.split('-')[0] !== k.split('-')[0]); });
+    });
+    return doublons;
+  }
+
   const TEXTE_CONFIRMATION_RECOPIE = 'Je confirme avoir recopié les valeurs dans Decenium.';
 
   // Cause d'un échec d'envoi de la photo du jaugeage. Même principe que le pointage
@@ -237,7 +263,7 @@
     SEUIL_ECART_INDICATIF_L, GNR_INDEX_REFERENCE, MOMENTS, ORDRE_PHYSIQUE, POMPES,
     ordreRecopieDecenium, nettoyerSaisie, estSeptChiffres, convertirSeptVersSix,
     controlerIndex, confirmationExceptionnelleValide, comparerQ1Q2, revueAnomalies,
-    appliquerCorrection, TEXTE_CONFIRMATION_RECOPIE, causePhoto, extensionPhoto, precontrolePompiste,
+    appliquerCorrection, ecartsServeur, valeursIdentiques, TEXTE_CONFIRMATION_RECOPIE, causePhoto, extensionPhoto, precontrolePompiste,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   root.NexusRelevesPiste = api;

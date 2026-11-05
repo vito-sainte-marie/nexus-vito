@@ -42,7 +42,7 @@ function bac(source, { stockage = 'ok' } = {}) {
   const aLocalEcrit = /let\s+localEcrit\b/.test(source);
   const code = `
     let emp = { id: 'emp1' }, date = '2026-10-21', moment = null, ecran = 'choix', pompe = 1;
-    let saisies = {}, motifs = {}, modeComplet = {}, refStatut = {}, visuel = {};
+    let saisies = {}, motifs = {}, modeComplet = {}, deuxDiff = {}, refStatut = {}, visuel = {};
     let serveur = { releveId: null, valeurs: {}, final: false }, reseau = { ok: true, derniereErreur: null };
     let jauge = { statut: 'aucune', docId: null, photoLe: null, propositions: {}, saisies: {}, existant: null, confirme: false, enregistre: false, message: '' };
     const FIL = null, filEtape = null, enFil = () => false; // hors fil : ces tests mesurent la sortie et l'état, pas le fil (voir test_fil_debut_quart_20261021.js)
