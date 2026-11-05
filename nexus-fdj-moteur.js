@@ -529,6 +529,28 @@
     return ecarts;
   }
 
+  // Marque de vigilance « ne suit pas le quart voisin » (05/11/2026, demande de
+  // Frédéric) : recalculée à l'affichage, jamais lue dans le statut d'une
+  // alerte. Compare le stock initial du quart ÉDITÉ au stock final du quart
+  // précédent, et son stock final au stock initial du quart suivant. Un jeu
+  // n'est marqué que si les deux valeurs sont connues et différentes ; dès
+  // que l'écart disparaît, la marque disparaît avec.
+  function marquesContinuiteVoisins(counts, finalPrecedentParJeu, initialSuivantParJeu) {
+    const c = counts || {}, prec = finalPrecedentParJeu || {}, suiv = initialSuivantParJeu || {};
+    const connu = v => v !== undefined && v !== null && v !== '' && Number.isFinite(Number(v));
+    const initial = {}, final = {};
+    Object.keys(c).forEach(gameId => {
+      const ligne = c[gameId] || {};
+      if (connu(ligne.stock_initial) && connu(prec[gameId]) && Number(ligne.stock_initial) !== Number(prec[gameId])) {
+        initial[gameId] = { precedent: Number(prec[gameId]), courant: Number(ligne.stock_initial) };
+      }
+      if (connu(ligne.stock_final) && connu(suiv[gameId]) && Number(ligne.stock_final) !== Number(suiv[gameId])) {
+        final[gameId] = { suivant: Number(suiv[gameId]), courant: Number(ligne.stock_final) };
+      }
+    });
+    return { initial, final };
+  }
+
   // AUTO vs À REVOIR — 16/08/2026, demande de Frédéric : une chaîne
   // rétablie ne signifie pas que les anciens écarts calculés pendant la
   // rupture sont automatiquement valides ; "résolution de l'alerte +
@@ -2172,7 +2194,7 @@
     soldesCarnetsParJeu, soldeCarnetsJeu, soldesCarnetsAvecReference, instantEffetMouvement,
     calculerCandidatsFdj,
     quartPrecedentAttendu, quartSuivant, chaineContinuite, qualifierQuartsAbsentsReconstitues,
-    chaineInterrompueDynamique, ecartsContinuiteStock, ecartsContinuiteAAppliquer,
+    chaineInterrompueDynamique, ecartsContinuiteStock, marquesContinuiteVoisins, ecartsContinuiteAAppliquer,
     verdictContinuiteStock, detailContinuiteStock, emplacementContinuiteStock,
     origineStockInitial, origineStockFinal, libelleVerdictContinuiteStock, EMPLACEMENTS_FDJ,
     approNonTraceParJeu, lignesApproNonTracees, reconciliationApproActivation, decisionSynchronisationApproActivation,
