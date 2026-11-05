@@ -93,7 +93,7 @@
   let emp = null, date = null, moment = null;
   let ecran = 'choix';
   let pompe = 1;
-  let saisies = {}, motifs = {}, precedents = {}, finQ1 = null;
+  let saisies = {}, motifs = {}, precedents = {}, finQ1 = null, tracees = {}, deuxDiff = {};
   let modeComplet = {}, refStatut = {}, visuel = {}, habilites = [], quartsReels = [], referenceDispo = false;
   let serveur = { releveId: null, valeurs: {}, final: false };
   let reseau = { ok: true, derniereErreur: null };
@@ -189,10 +189,21 @@
     serveur.valeurs = {};
     (data || []).forEach(v => { serveur.valeurs[`${v.pompe}-${v.produit}`] = v; });
   }
-  // Envoie au serveur les valeurs d'une pompe complète (jamais une valeur partielle).
-  async function synchroniser() {
+  const MOTIF_CORRECTION_AUTO = 'Correction de saisie avant validation du relevé';
+  // Correction d'une valeur déjà envoyée : toujours par la RPC tracée (motif obligatoire).
+  async function corrigerTracee(k, motif) {
+    const v = serveur.valeurs[k]; if (!v) return true;
+    const c = R.convertirSeptVersSix(saisies[k]);
+    const { error } = await nexusClient.rpc('carburant_index_corriger_valeur', { p_valeur_id: v.id, p_nouvelle_valeur_sept_chiffres: saisies[k], p_nouvelle_valeur_decenium: c.valeurDecenium, p_troncature_sans_perte: c.troncatureSansPerte, p_motif: motif, p_confirmation_exceptionnelle: R.controlerIndex(saisies[k], precedents[k]).niveau === 'fort' });
+    if (error) { console.error(error); return false; }
+    tracees[k] = saisies[k]; return true;
+  }
+  // Envoie au serveur les valeurs d'une pompe complète (jamais une valeur partielle),
+  // jusqu'à la pompe affichée, sans jamais envoyer une pompe bloquée par un recul sans motif ;
+  // une valeur corrigée à l'écran après envoi est réécrite par la RPC tracée.
+  async function synchroniser(jusqua = 4) {
     try {
-      const pompesCompletes = R.POMPES.filter(p => R.ORDRE_PHYSIQUE[p].every(pr => R.estSeptChiffres(saisies[`${p}-${pr}`])));
+      const pompesCompletes = R.POMPES.filter(p => p <= jusqua && R.ORDRE_PHYSIQUE[p].every(pr => R.estSeptChiffres(saisies[`${p}-${pr}`]) && !reculBloquant(`${p}-${pr}`)));
       if (!pompesCompletes.length) { majEtat(); return; }
       const id = await assurerReleve();
       await chargerValeursServeur();
@@ -210,6 +221,11 @@
         lignes.push(ligne);
       }));
       if (lignes.length) { const { error } = await nexusClient.from('carburant_index_valeurs').insert(lignes); if (error) throw error; await chargerValeursServeur(); }
+      const corriges = R.ecartsServeur(saisies, serveur.valeurs).filter(k => pompesCompletes.indexOf(Number(k.split('-')[0])) >= 0 && tracees[k] !== saisies[k]);
+      let echec = false;
+      for (const k of corriges) { if (!(await corrigerTracee(k, motifs[k] || MOTIF_CORRECTION_AUTO))) echec = true; }
+      if (corriges.length) await chargerValeursServeur();
+      if (echec) throw new Error('Correction tracée refusée');
       reseau.ok = true; reseau.derniereErreur = null;
     } catch (e) { reseau.ok = false; reseau.derniereErreur = e; console.error('Synchro relevé:', e); }
     majEtat();
@@ -474,6 +490,12 @@
   const recul = (k) => R.controlerIndex(saisies[k], precedents[k]).niveau === 'fort';
   // Un recul bloque la suite (motif exigé) sauf à l'ouverture de Q1 : l'écart de nuit y est une anomalie enregistrée, jamais un blocage.
   const reculBloquant = (k) => moment !== 'debut_q1' && recul(k) && !R.confirmationExceptionnelleValide(motifs[k]);
+  const nomCompteur = (k) => { const [p, pr] = k.split('-'); return `pompe ${p} · ${pr}`; };
+  function alerteDoublon(k, v) {
+    if (!R.estSeptChiffres(v)) return '';
+    const autres = R.valeursIdentiques(saisies)[k]; if (!autres || !autres.length) return '';
+    return `<div class="alerte indic">Même valeur que ${autres.map(nomCompteur).join(', ')} : vérifiez qu'il ne s'agit pas d'une recopie. Indicatif, vous pouvez continuer.</div>`;
+  }
   function champDebut(p, pr) {
     const k = `${p}-${pr}`, ref = precedents[k] != null ? String(precedents[k]).padStart(7, '0') : null, v = saisies[k] || '';
     const rapide = ref && !modeComplet[k];
@@ -486,7 +508,11 @@
         ${ok ? '<div class="alerte ok">Confirmé (2 derniers chiffres identiques ; contrôle partiel, non une preuve des 7 chiffres).</div>' : ''}
         <button class="btn2" style="margin-top:8px" data-act="complet" data-k="${k}">Valeur différente ou douteuse : saisir les 7 chiffres</button></div>`;
     }
-    let bloc = '';
+    let bloc = deuxDiff[k] && !R.estSeptChiffres(v) ? '<div class="alerte fort">Les 2 derniers chiffres ne correspondent pas. Tapez les 7 chiffres du compteur.</div>' : '';
+    if (R.estSeptChiffres(v) && moment !== 'debut_q1' && recul(k)) {
+      bloc += `<div class="alerte fort">⚠ Cet index est <b>inférieur</b> à la référence (${R.controlerIndex(v, precedents[k]).ecart} L). Vérifiez le compteur ; sinon justifiez ci-dessous.<textarea data-motif="${k}" placeholder="Justification (obligatoire pour continuer)">${esc(motifs[k] || '')}</textarea></div>`;
+    }
+    bloc += alerteDoublon(k, v);
     if (R.estSeptChiffres(v) && moment === 'debut_q1' && ref) {
       const n = R.classerEcartNuit(Number(v) - Number(ref));
       if (n.code && n.code !== 'conforme') bloc += `<div class="alerte ${n.code === 'toleree' ? 'indic' : 'fort'}">Écart de nuit ${n.ecart > 0 ? '+' : ''}${n.ecart} : ${TXT_NUIT[n.code]}. Cela ne bloque pas la saisie ; le manager le verra.${n.code !== 'toleree' ? `<textarea data-motif="${k}" placeholder="Explication (facultative)">${esc(motifs[k] || '')}</textarea>` : ''}</div>`;
@@ -505,6 +531,7 @@
       const ctl = R.controlerIndex(v, precedents[k]);
       if (ctl.niveau === 'fort') bloc += `<div class="alerte fort">⚠ Cet index est <b>inférieur</b> au dernier relevé (${ctl.ecart} L). Vérifiez le compteur ; sinon justifiez ci-dessous.<textarea data-motif="${k}" placeholder="Justification (obligatoire pour continuer)">${esc(motifs[k] || '')}</textarea></div>`;
       else if (ctl.niveau === 'indicatif') bloc += `<div class="alerte indic">Écart de ${ctl.ecart} L depuis le dernier relevé : indicatif, vous pouvez continuer.</div>`;
+      bloc += alerteDoublon(k, v);
     }
     return `<div class="card champ"><label for="i${k}"><span class="${pr === 'GO' ? 'p-go' : 'p-sp'}">${pr}</span><span class="ref">${ref}</span></label>
       <input class="idx" id="i${k}" data-k="${k}" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="7" value="${esc(v)}" placeholder="7 chiffres">${bloc}</div>`;
@@ -525,7 +552,9 @@
     const rev = R.revueAnomalies(saisies, precedents, motifs, moment);
     const noms = (k) => { const [p, pr] = k.split('-'); return `Pompe <span class="npompe">${p}</span> · <span class="p-${pr.toLowerCase()}">${pr}</span>`; };
     const txt = { MANQUANT: 'valeur manquante', INVALIDE: 'valeur invalide', INDEX_INFERIEUR: 'index inférieur au précédent', ECART_ELEVE: 'écart élevé (indicatif)', NUIT_TOLEREE: 'écart de nuit +1 : toléré et tracé', NUIT_A_JUSTIFIER: 'écart de nuit à justifier', NUIT_ALERTE_PRIORITAIRE: 'alerte prioritaire au manager', NUIT_DIMINUTION: 'index en diminution : anomalie' };
-    const liste = rev.lignes.length ? rev.lignes.map(l => `<div class="alerte ${l.bloquant ? 'fort' : 'indic'}">${noms(l.clef)} : ${txt[l.code]}${l.ecart != null ? ` (${l.ecart} L)` : ''}${motifs[l.clef] ? ` · justifié : « ${esc(motifs[l.clef])} »` : ''}</div>`).join('') : '<div class="alerte ok">Aucune anomalie.</div>';
+    const dbl = R.valeursIdentiques(saisies);
+    const doublonsLignes = Object.keys(dbl).map(k => `<div class="alerte indic">${noms(k)} : même valeur que ${dbl[k].map(nomCompteur).join(', ')} (indicatif)</div>`).join('');
+    const liste = (rev.lignes.length || doublonsLignes) ? rev.lignes.map(l => `<div class="alerte ${l.bloquant ? 'fort' : 'indic'}">${noms(l.clef)} : ${txt[l.code]}${l.ecart != null ? ` (${l.ecart} L)` : ''}${motifs[l.clef] ? ` · justifié : « ${esc(motifs[l.clef])} »` : ''}</div>`).join('') + doublonsLignes : '<div class="alerte ok">Aucune anomalie.</div>';
     const recap = R.POMPES.map(p => R.ORDRE_PHYSIQUE[p].map(pr => `<div class="ligne"><span class="n">P<span class="npompe">${p}</span> <span class="p-${pr.toLowerCase()}">${pr}</span></span><span class="v">${esc(saisies[`${p}-${pr}`] || 'non saisi')}</span><button class="btn2" style="width:auto;min-height:40px;padding:6px 12px" data-act="modifier" data-p="${p}">Modifier</button></div>`).join('')).join('');
     let cmp = '';
     if (moment === 'debut_q1') cmp = `<div class="card"><h2>Dernière fin de Q2 ↔ début de Q1</h2>${referenceDispo ? '<div class="sub">Contrôle séparé sur chacun des huit compteurs. Les anomalies ne bloquent pas : elles sont enregistrées et visibles du manager.</div>' : '<div class="alerte indic">Aucune fin de Q2 validée : comparaison impossible (non bloquant).</div>'}</div>`;
@@ -569,8 +598,8 @@
       if (brut.length === 2 && ref) {
         const ev = R.evaluerDebut(ref, brut);
         if (ev.ok) { saisies[k] = ev.valeurSept; refStatut[k] = ev.statut; }
-        else { modeComplet[k] = true; refStatut[k] = 'saisie_complete'; delete saisies[k]; }
-        sauverLocal(); rendre();
+        else { modeComplet[k] = true; deuxDiff[k] = true; refStatut[k] = 'saisie_complete'; delete saisies[k]; }
+        sauverLocal(); rendre(); if (deuxDiff[k]) focus(k);
       }
       return;
     }
@@ -629,7 +658,7 @@
     if (a === 'choix') { if (enFil()) return; moment = null; localEcrit = null; ecran = 'choix'; await chargerARecopier(); rendre(); return; }
     if (a === 'prec') { if (ecran === 'revue') { ecran = 'pompe'; pompe = 4; } else pompe--; sauverLocal(); rendre(); return; }
     if (a === 'modifier') { pompe = Number(b.dataset.p); ecran = 'pompe'; rendre(); return; }
-    if (a === 'suiv') { await synchroniser(); if (pompe < 4) { pompe++; ecran = 'pompe'; } else ecran = 'revue'; sauverLocal(); rendre(); return; }
+    if (a === 'suiv') { await synchroniser(pompe); if (pompe < 4) { pompe++; ecran = 'pompe'; } else ecran = 'revue'; sauverLocal(); rendre(); return; }
     if (a === 'valider') { await valider(); return; }
     if (a === 'fin') { ecran = 'fini'; rendre(); return; }
   });
@@ -654,14 +683,14 @@
     await synchroniser();
     const complet = R.POMPES.every(p => R.ORDRE_PHYSIQUE[p].every(pr => serveur.valeurs[`${p}-${pr}`]));
     if (!complet) { alert('Le serveur ne répond pas : relevé non validé. Votre saisie est gardée sur l\'appareil, réessayez.'); return; }
-    // Corrections de recul justifiées : passent par la RPC tracée (motif obligatoire).
-    for (const k of Object.keys(motifs)) {
-      const v = serveur.valeurs[k];
+    // Toute valeur différente de celle du serveur est réécrite ; un recul ou un écart de nuit justifié est tracé même sans changement.
+    for (const k of R.POMPES.flatMap(p => R.ORDRE_PHYSIQUE[p].map(pr => `${p}-${pr}`))) {
+      const v = serveur.valeurs[k]; if (!v || tracees[k] === saisies[k]) continue;
       const nuit = moment === 'debut_q1' && precedents[k] != null && ['a_justifier', 'alerte_prioritaire', 'diminution'].indexOf(R.classerEcartNuit(Number(saisies[k]) - Number(precedents[k])).code) >= 0;
-      if (v && (R.controlerIndex(saisies[k], precedents[k]).niveau === 'fort' || nuit) && motifs[k] && (R.confirmationExceptionnelleValide(motifs[k]) || nuit) && !v.confirme) {
-        const c = R.convertirSeptVersSix(saisies[k]);
-        const { error } = await nexusClient.rpc('carburant_index_corriger_valeur', { p_valeur_id: v.id, p_nouvelle_valeur_sept_chiffres: saisies[k], p_nouvelle_valeur_decenium: c.valeurDecenium, p_troncature_sans_perte: c.troncatureSansPerte, p_motif: motifs[k], p_confirmation_exceptionnelle: R.controlerIndex(saisies[k], precedents[k]).niveau === 'fort' });
-        if (error) { console.error(error); }
+      const justifie = motifs[k] && (R.confirmationExceptionnelleValide(motifs[k]) || nuit) && (R.controlerIndex(saisies[k], precedents[k]).niveau === 'fort' || nuit);
+      const different = v.valeur_sept_chiffres !== saisies[k];
+      if (different || justifie) {
+        if (!(await corrigerTracee(k, motifs[k] || MOTIF_CORRECTION_AUTO)) && different) { alert('Une correction n\'a pas pu être enregistrée : relevé non validé. Réessayez.'); return; }
       }
     }
     const { error } = await nexusClient.from('carburant_index_releves').update({ statut: 'final', finalise_le: new Date().toISOString() }).eq('id', serveur.releveId);
@@ -671,7 +700,7 @@
   }
 
   async function ouvrirMoment() {
-    saisies = {}; motifs = {}; modeComplet = {}; refStatut = {}; visuel = {}; pompe = 1; serveur = { releveId: null, valeurs: {}, final: false };
+    saisies = {}; motifs = {}; modeComplet = {}; refStatut = {}; visuel = {}; tracees = {}; deuxDiff = {}; pompe = 1; serveur = { releveId: null, valeurs: {}, final: false };
     await chargerPrecedents(); await chargerFinQ1();
     localEcrit = null;
     const loc = lireLocal();
