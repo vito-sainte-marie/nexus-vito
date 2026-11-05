@@ -76,7 +76,9 @@ const blocsMoteurRapprochement = [
 
 const sandboxRapprochement = { console };
 vm.createContext(sandboxRapprochement);
-vm.runInContext(`${blocsMoteurRapprochement}
+vm.runInContext(lireSource('nexus-inventaire-decenium-lecture.js'), sandboxRapprochement);
+vm.runInContext(`var parametresInventaire = {}; var DEFAULTS_PARAMETRES_INVENTAIRE = { stockNegatifCategoriesExclues: null };
+${blocsMoteurRapprochement}
 this.rapprocherLignesStock = rapprocherLignesStock;
 this.resoudreHorodatageExport = resoudreHorodatageExport;
 `, sandboxRapprochement);
@@ -198,7 +200,7 @@ testSync('NEXUS-Inventaire-Manager-v1.html — section renommée "Photo Decenium
 
 testSync('NEXUS-Inventaire-Manager-v1.html — le fichier Stock actuel est facultatif (bouton Ventes non conditionné à sa présence)', () => {
   const iClick = scriptManager.indexOf("btnComparerVentes.addEventListener('click'");
-  const blocClick = scriptManager.slice(iClick, iClick + 2200);
+  const blocClick = scriptManager.slice(iClick, iClick + 4200);
   assert.ok(blocClick.includes('if (fichierStock)'), 'le chemin Stock doit rester conditionnel — comportement historique préservé sans lui');
   assert.ok(blocClick.includes('await comparerVentesQuart(fichier)'), 'le rapprochement Ventes doit toujours avoir lieu, avec ou sans Stock');
 });
