@@ -163,6 +163,7 @@
   .jeu-ventes.anomalie{color:var(--red); font-weight:700;}
   .jeu-row.anomalie{background:rgba(240,87,90,0.08); box-shadow:inset 3px 0 0 var(--red);}
   .jeu-input.auto{color:var(--text-mid);}
+  .jeu-input.continuite-rompue{border-color:var(--amber); color:var(--amber); background:var(--amber-dim);}
   .jeu-inputs{display:flex; gap:6px;}
   .jeu-input-wrap{flex:1;}
   .jeu-input-label{font-family:var(--mono); font-size:8px; color:var(--text-dim); text-transform:uppercase; margin-bottom:3px; text-align:center;}
@@ -5404,13 +5405,39 @@
     return data || [];
   }
 
+  // Valeurs des quarts voisins (stock final du précédent, stock initial du
+  // suivant) pour la marque de vigilance de continuité. Une lecture en échec
+  // ou un voisin absent donne {} : aucune marque, jamais une fausse alerte.
+  async function chargerVoisinsContinuite(shift) {
+    const vide = { finalPrecedent: {}, initialSuivant: {} };
+    try {
+      const [{ data: prev, error: e1 }, { data: next, error: e2 }] = await Promise.all([
+        nexusClient.from('fdj_shifts').select('id').eq('site', siteId)
+          .or(`date.lt.${shift.date},and(date.eq.${shift.date},quart.lt.${shift.quart})`)
+          .order('date', { ascending: false }).order('quart', { ascending: false }).limit(1).maybeSingle(),
+        nexusClient.from('fdj_shifts').select('id').eq('site', siteId)
+          .or(`date.gt.${shift.date},and(date.eq.${shift.date},quart.gt.${shift.quart})`)
+          .order('date', { ascending: true }).order('quart', { ascending: true }).limit(1).maybeSingle(),
+      ]);
+      if (e1 || e2) { console.error('Quarts voisins FDJ (continuité):', e1 || e2); return vide; }
+      const [rp, rn] = await Promise.all([
+        prev ? nexusClient.from('fdj_shift_counts').select('game_id, stock_final').eq('shift_id', prev.id) : Promise.resolve({ data: [] }),
+        next ? nexusClient.from('fdj_shift_counts').select('game_id, stock_initial').eq('shift_id', next.id) : Promise.resolve({ data: [] }),
+      ]);
+      (rp.data || []).forEach(c => { if (c.stock_final !== null) vide.finalPrecedent[c.game_id] = c.stock_final; });
+      (rn.data || []).forEach(c => { if (c.stock_initial !== null) vide.initialSuivant[c.game_id] = c.stock_initial; });
+    } catch (err) { console.error('Quarts voisins FDJ (continuité):', err); }
+    return vide;
+  }
+
   async function ouvrirEditionExistant(shift) {
     document.getElementById('content').innerHTML = '<div class="loading">Chargement du quart…</div>';
-    const [{ data: counts }, { data: reports }, historiqueAudit, demandesCorrection] = await Promise.all([
+    const [{ data: counts }, { data: reports }, historiqueAudit, demandesCorrection, voisins] = await Promise.all([
       nexusClient.from('fdj_shift_counts').select('*').eq('shift_id', shift.id),
       nexusClient.from('fdj_reports').select('*').eq('shift_id', shift.id),
       chargerHistoriqueAudit(shift.id),
       chargerDemandesCorrection(shift.id),
+      chargerVoisinsContinuite(shift),
     ]);
     const countsMap = {};
     const stockInitialAutoCharge = {};
@@ -5461,6 +5488,7 @@
       estNouveau: false,
       historiqueAudit,
       demandesCorrection,
+      voisinsFinalPrecedent: voisins.finalPrecedent, voisinsInitialSuivant: voisins.initialSuivant,
       motifReouverture: '',
       motifCorrectionStock: '',
       certifier: false,
@@ -5693,6 +5721,8 @@
     const v = calculerVentesEdition(jeu.id);
     const anomalie = v.qte !== null && v.qte < 0;
     const auto = !!edition.stockInitialAuto[jeu.id];
+    const marques = NexusFdjMoteur.marquesContinuiteVoisins(edition.counts, edition.voisinsFinalPrecedent, edition.voisinsInitialSuivant);
+    const mI = marques.initial[jeu.id], mF = marques.final[jeu.id];
     return `
       <div class="jeu-row ${anomalie ? 'anomalie' : ''}" data-jeu="${jeu.id}">
         <div class="jeu-nom-ligne">
@@ -5700,9 +5730,9 @@
           <div class="jeu-ventes ${anomalie ? 'anomalie' : (v.valeur !== null ? 'calc' : '')}">${anomalie ? `⚠️ Anomalie : ${fmtNum(v.qte)}` : (v.qte !== null ? `${fmtNum(v.qte)} · ${fmtEuro(v.valeur)}` : '—')}</div>
         </div>
         <div class="jeu-inputs">
-          <div class="jeu-input-wrap"><div class="jeu-input-label">Initial</div><input type="number" inputmode="decimal" class="jeu-input ${auto ? 'auto' : ''}" data-jeu="${jeu.id}" data-champ="stock_initial" value="${s.stock_initial ?? ''}" title="${auto ? 'Hérité automatiquement du quart précédent' : ''}"></div>
+          <div class="jeu-input-wrap"><div class="jeu-input-label">Initial</div><input type="number" inputmode="decimal" class="jeu-input ${auto ? 'auto' : ''}${mI ? ' continuite-rompue' : ''}" data-jeu="${jeu.id}" data-champ="stock_initial" value="${s.stock_initial ?? ''}" title="${mI ? `Ne suit pas le quart précédent (${fmtNum(mI.precedent)} → ${fmtNum(mI.courant)})` : (auto ? 'Hérité automatiquement du quart précédent' : '')}"></div>
           <div class="jeu-input-wrap"><div class="jeu-input-label">Appro</div><input type="number" inputmode="decimal" class="jeu-input" data-jeu="${jeu.id}" data-champ="appro" value="${s.appro ?? 0}"></div>
-          <div class="jeu-input-wrap"><div class="jeu-input-label">Final</div><input type="number" inputmode="decimal" class="jeu-input" data-jeu="${jeu.id}" data-champ="stock_final" value="${s.stock_final ?? ''}"></div>
+          <div class="jeu-input-wrap"><div class="jeu-input-label">Final</div><input type="number" inputmode="decimal" class="jeu-input${mF ? ' continuite-rompue' : ''}" data-jeu="${jeu.id}" data-champ="stock_final" value="${s.stock_final ?? ''}"${mF ? ` title="Le quart suivant démarre à ${fmtNum(mF.suivant)}"` : ''}></div>
         </div>
       </div>
     `;
