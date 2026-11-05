@@ -107,7 +107,7 @@
   let localEcrit = null;
   function sauverLocal() {
     try {
-      localStorage.setItem(cleBrouillon(), JSON.stringify({ saisies, motifs, modeComplet, refStatut, visuel, pompe, ecran, t: Date.now() }));
+      localStorage.setItem(cleBrouillon(), JSON.stringify({ saisies, motifs, modeComplet, deuxDiff, refStatut, visuel, pompe, ecran, t: Date.now() }));
       if (Object.keys(saisies).some(k => saisies[k])) localEcrit = true;
       return true;
     }
@@ -194,7 +194,7 @@
   async function corrigerTracee(k, motif) {
     const v = serveur.valeurs[k]; if (!v) return true;
     const c = R.convertirSeptVersSix(saisies[k]);
-    const { error } = await nexusClient.rpc('carburant_index_corriger_valeur', { p_valeur_id: v.id, p_nouvelle_valeur_sept_chiffres: saisies[k], p_nouvelle_valeur_decenium: c.valeurDecenium, p_troncature_sans_perte: c.troncatureSansPerte, p_motif: motif, p_confirmation_exceptionnelle: R.controlerIndex(saisies[k], precedents[k]).niveau === 'fort' });
+    const { error } = await nexusClient.rpc('carburant_index_corriger_valeur', { p_valeur_id: v.id, p_nouvelle_valeur_sept_chiffres: saisies[k], p_nouvelle_valeur_decenium: c.valeurDecenium, p_troncature_sans_perte: c.troncatureSansPerte, p_motif: motif, p_confirmation_exceptionnelle: motif !== MOTIF_CORRECTION_AUTO && R.controlerIndex(saisies[k], precedents[k]).niveau === 'fort' });
     if (error) { console.error(error); return false; }
     tracees[k] = saisies[k]; return true;
   }
@@ -704,7 +704,7 @@
     await chargerPrecedents(); await chargerFinQ1();
     localEcrit = null;
     const loc = lireLocal();
-    if (loc) { saisies = loc.saisies || {}; motifs = loc.motifs || {}; modeComplet = loc.modeComplet || {}; refStatut = loc.refStatut || {}; visuel = loc.visuel || {}; pompe = loc.pompe || 1; if (Object.keys(saisies).some(k => saisies[k])) localEcrit = true; }
+    if (loc) { saisies = loc.saisies || {}; motifs = loc.motifs || {}; modeComplet = loc.modeComplet || {}; deuxDiff = loc.deuxDiff || {}; refStatut = loc.refStatut || {}; visuel = loc.visuel || {}; pompe = loc.pompe || 1; if (Object.keys(saisies).some(k => saisies[k])) localEcrit = true; }
     try {
       const { data: ex } = await nexusClient.from('carburant_index_releves').select('id, statut').eq('site', emp.site_id).eq('date', date).eq('moment', moment).eq('auteur', emp.id).maybeSingle();
       if (ex) { serveur.releveId = ex.id; serveur.final = ex.statut === 'final'; await chargerValeursServeur(); }

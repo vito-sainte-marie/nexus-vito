@@ -74,4 +74,10 @@ garde('f) le message n\'est levé que par l\'écart des 2 chiffres, pas silencie
 garde('règle de Frédéric : la fin de quart reste en 7 chiffres, sans saisie rapide',
   h => /function champ\(p, pr\) \{\s*if \(R\.estDebut\(moment\)\) return champDebut\(p, pr\);/.test(h),
   'if (R.estDebut(moment)) return champDebut(p, pr);', 'return champDebut(p, pr);');
+garde('f) le message des 2 chiffres survit à un rechargement (brouillon local)',
+  h => /JSON\.stringify\(\{ saisies, motifs, modeComplet, deuxDiff,/.test(h) && /deuxDiff = loc\.deuxDiff \|\| \{\}/.test(h),
+  'modeComplet, deuxDiff, refStatut', 'modeComplet, refStatut');
+garde('a) un motif automatique n\'accorde jamais la confirmation exceptionnelle',
+  h => /p_confirmation_exceptionnelle: motif !== MOTIF_CORRECTION_AUTO && /.test(h),
+  'motif !== MOTIF_CORRECTION_AUTO && ', '');
 console.log(n + '/' + n + ' réussies');
