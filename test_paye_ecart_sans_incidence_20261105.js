@@ -62,6 +62,8 @@ console.log(`${n} contrôles passent.`);
   const pdf = fs.readFileSync(__dirname + '/nexus-paye-dossier-pdf.js', 'utf8');
   assert(!/jours mesurés|reconstitué[s]?\b(?! à)/.test(html.replace(/presencesReconstituees|joursReconstitues|reconstitues/g, '')), 'libellé « reconstitué » restant dans l’écran');
   assert(/Constatée : journée attestée/.test(html) && /Calculée : durée chiffrée/.test(html) && /Corrigée : heures exceptionnelles/.test(html), 'trois notions absentes de l’infobulle');
+  assert(!/source unique/i.test(html), '« source unique » ne doit plus apparaître dans l’écran');
+  assert(!/\(Verify \+ pointage\)/.test(html), 'compteur du haut non aligné');
   assert(/confirmée\(s\) par deux sources/.test(pdf), 'note PDF non alignée');
   console.log('OK — vocabulaire Constatée / Calculée / Corrigée');
 }
