@@ -815,6 +815,29 @@
         "blob_migration": "089fff6a53af125ec9f31db4032d10e4742d4a81"
       },
       "prochaine_action": "GO distinct de Frederic : application en Production (migration avant #177), relecture post-application de la procedure, puis fusion de #177. Aucune operation Production par Claude."
+    },
+    "20261105190000": {
+      "etat": "migration_deja_appliquee",
+      "justification": "Migration creant la table carburant_sonde_alertes (RLS, 2 policies, index), la fonction SECURITY DEFINER nexus_detecter_sonde_a_verifier() et le declencheur trg_detecter_sonde_a_verifier (lot alerte sonde a verifier, PR #193). Appliquee en Production le 05/11/2026 sur GO de Frederic (Guardian #160 6664642729) et approbation ponctuelle ; registre : estampille 20261105173056 (nom carburant_sonde_alertes), differente de celle du fichier, qui reste le repere de la garde. Aucune donnee ecrite. Cette qualification ne constitue aucune autorisation de fusion ni de deploiement : GO distinct de Frederic. Limitee au blob e431b6aa184adce78588b13ffd8963dbdbb8cf61.",
+      "mesure": {
+        "source": "catalogue",
+        "le": "2026-11-05T17:31:00Z",
+        "cible": "uzhjpqpctpvxytxpxoqz",
+        "par": "claude",
+        "outil": "execute_sql du connecteur Supabase apres apply_migration, lecture seule de la structure ; aucune ligne de donnee lue hors comptage de la table creee",
+        "identite_constatee": "projet uzhjpqpctpvxytxpxoqz passe en argument de l appel",
+        "lecture_seule": "requetes select sur pg_class, pg_trigger, pg_proc, pg_policies et supabase_migrations.schema_migrations uniquement",
+        "moteur": "non releve",
+        "verdict": "APPLIQUEE — table presente, relrowsecurity vrai, 0 ligne ; policies select_carburant_sonde_alertes et marquer_vue_manager_meme_site_carburant_sonde_alertes ; declencheur trg_detecter_sonde_a_verifier actif (tgenabled O) ; fonction prosecdef vrai, proacl = {postgres=X/postgres,service_role=X/postgres} (ni public, ni anon, ni authenticated) ; estampille 20261105173056 carburant_sonde_alertes.",
+        "blob_migration": "e431b6aa184adce78588b13ffd8963dbdbb8cf61"
+      },
+      "objets_constates": [
+        "nexus_detecter_sonde_a_verifier",
+        "trg_detecter_sonde_a_verifier",
+        "carburant_sonde_alertes",
+        "select_carburant_sonde_alertes",
+        "marquer_vue_manager_meme_site_carburant_sonde_alertes"
+      ]
     }
   },
   "prochaine_action": "Axe SS4 migration -> code : LEVE pour 20260919103000 (13/13 objets constates sur le catalogue le 01/10/2026) et pour 20261001160000 (ACL constatee fermee le 03/10/2026). Ces qualifications restent acquises tant que leur fichier de migration ne change pas : la garde compare mesure.blob_migration a l'empreinte du candidat, et une migration retouchee fait tomber sa qualification. Il n'y a plus d'echeance horaire (l'ancienne fraicheur de 72 h aurait fait retomber l'axe le 04/10/2026 sans que rien ne bouge). CE QUE LA GARDE NE VOIT PAS : une base modifiee sans que le depot bouge - c'est exactement ce que la relecture du 03/10 a trouve pour 20261001160000. Toute procedure d'application relit donc la base avant d'ecrire. CE QUE CELA N'AUTORISE PAS : aucune fusion ni aucun deploiement ; chacun reste un GO distinct de Frederic. RESTE A FAIRE, separement : (1) les 11 migrations du rail toujours non qualifiees ; (2) le cablage de garde-ordre-migration-code.js dans deploiement-production.yml. Lecture du verdict et table de decision : SS18.4 ; recit de la mesure : SS20. MISE A JOUR DU 04/10/2026 : les 13 migrations du candidat rebuild/fdj-62-20260922 sont qualifiees (12 atomiques en serie avant le code, 20261004120000 code d abord) ; ordre et gestes dans docs/deploiement/procedure-fdj-62-production.md."

@@ -420,6 +420,7 @@
   let employeeCourantId = null;
   let VALIDEES_SITE = new Set();
   let JOURNAL_DECISIONS = [];
+  let SONDE_ALERTES = [];
   // Secteurs configurables (11/08/2026, audit stratégique Brief/Rapport de
   // Direction) : type_commerce/secteurs viennent de la table sites
   // (migration ajouter_secteurs_configurables_sites) — repli sur le preset
@@ -1612,6 +1613,7 @@
     // directeur d'exploitation → G Décisions de direction → vigilance →
     // impact → détail Carburants → export PDF.
     root.innerHTML = `<div class="desktop-grid">
+      ${renderSondeAlertes()}
       ${renderHeroEtSynthese(BRIEF)}
       ${renderBoussole(BRIEF)}
       ${renderCeQuiAChange(BRIEF)}
@@ -1656,6 +1658,14 @@
         await rafraichir();
       });
     });
+    root.querySelectorAll('.sonde-alerte-vu').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        const ok = await marquerSondeAlerteVue(btn.dataset.alerteId);
+        if (!ok) { btn.disabled = false; alert("Erreur — réessayez."); return; }
+        await rafraichir();
+      });
+    });
     root.querySelectorAll('.decision-fait').forEach(btn => {
       btn.addEventListener('click', async (e) => {
         e.stopPropagation();
@@ -1694,8 +1704,35 @@
   }
 
   async function rafraichir() {
+    await chargerSondeAlertes();
     BRIEF = await construireBrief();
     renderBrief();
+  }
+
+  // Alerte « sonde à vérifier » (05/11/2026) : une ligne, un bouton « Vu »,
+  // jamais de bandeau permanent — l'alerte disparaît au « Vu » ou après 7 jours.
+  // Une lecture en échec ne doit jamais empêcher le Brief de s'afficher.
+  async function chargerSondeAlertes() {
+    try {
+      const { data, error } = await nexusClient.from('carburant_sonde_alertes').select('id, carburant, sens, nb_receptions, fenetre, ecart_moyen_l')
+        .eq('site', SITE_ACTUEL).eq('vue', false).gt('expire_le', new Date().toISOString()).order('ouverte_le', { ascending: false });
+      SONDE_ALERTES = error ? [] : (data || []);
+    } catch (e) { SONDE_ALERTES = []; }
+  }
+  function renderSondeAlertes() {
+    if (!SONDE_ALERTES.length) return '';
+    return SONDE_ALERTES.map(a => {
+      const nom = String(a.carburant || '').toUpperCase();
+      return `<div class="sonde-alerte" data-alerte-id="${a.id}" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:10px 14px; margin-bottom:10px; border:1px solid rgba(245,166,35,0.3); border-radius:10px; background:var(--amber-dim);">
+        <span style="flex:1; min-width:220px; font-size:13px;">${nom} : écart répété à la réception (${a.nb_receptions} sur ${a.fenetre}) — sonde à faire vérifier. <a href="NEXUS-Carburant-Reception-v1.html" style="color:var(--amber);">Voir les réceptions</a></span>
+        <button type="button" class="sonde-alerte-vu" data-alerte-id="${a.id}" style="padding:6px 14px; border-radius:8px; border:1px solid rgba(245,166,35,0.4); background:transparent; color:var(--amber); cursor:pointer;">Vu</button>
+      </div>`;
+    }).join('');
+  }
+  async function marquerSondeAlerteVue(alerteId) {
+    const { error } = await nexusClient.from('carburant_sonde_alertes').update({ vue: true, vue_par: employeeCourantId, vue_le: new Date().toISOString() }).eq('id', alerteId);
+    if (error) { console.error('Marquer alerte sonde vue (Brief):', error); return false; }
+    return true;
   }
 
   // Écrit la décision validée dans journal_decisions — même table, mêmes
