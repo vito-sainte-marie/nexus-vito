@@ -130,9 +130,9 @@
     }
 
     const notes = [];
-    if (v.presence.joursReconstitues) notes.push(`${v.presence.joursReconstitues} journée(s) confirmée(s) par une seule source — Verify ou pointage, pas les deux.`);
+    if (v.presence.joursReconstitues) notes.push(`${v.presence.joursMesures} journée(s) sur ${v.presence.joursMesures + v.presence.joursReconstitues} constatée(s) confirmée(s) par deux sources (Verify et pointage).`);
     if (v.presence.joursPlanifies) notes.push(`${v.presence.joursPlanifies} journée(s) de renfort comptée(s) sur le seul planning officiel, qui fait foi pour le renfort.`);
-    if (v.presence.heuresParDefaut) notes.push(`${heures(v.presence.heuresParDefaut)} chiffrées par la durée de référence du jour, pour les journées constatées dans Verify.`);
+    if (v.presence.heuresParDefaut) notes.push(`${heures(v.presence.heuresParDefaut)} calculées d’après la durée de référence du poste (journée longue = 7 h + 1 h supplémentaire, règle du 10/10), pour les journées constatées dans Verify.`);
     if (v.heuresSupplementaires.heuresDejaIncluses) notes.push(`${heures(v.heuresSupplementaires.heuresDejaIncluses)} d’une décision antérieure décrivent la même heure que la 8e heure du barème : elles ne sont pas ajoutées. Aucun taux de majoration n’est appliqué ici : il relève du cadre légal et de la convention.`);
     if (v.financier.ecartsInformatifs) notes.push(`${v.financier.ecartsInformatifs} écart(s) de caisse restent informatifs : aucune retenue.`);
     if (notes.length) rapport.encadre(notes.map(n => ({ texte: `- ${n}` })));

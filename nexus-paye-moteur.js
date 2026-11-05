@@ -978,7 +978,9 @@
       // (§4). Et cela vaut même si une décision ancienne, enregistrée du
       // temps où ces journées étaient « à valider », porte encore ce statut.
       f.items.filter(i => i.rubrique !== RUBRIQUE_ECART && !i.decisionAnterieure
-          && (i.statut === 'a_verifier' || i.contestationOuverte))
+          // Décision Frédéric 05/11 : un écart de caisse contesté bloque toujours le mois ;
+          // un écart ordinaire, rattaché et non contesté, ne bloque ni le salarié ni le mois.
+          && (sansIncidencePaie(i) ? i.contestationOuverte : (i.statut === 'a_verifier' || i.contestationOuverte)))
         .forEach(i => bloqueurs.push({ categorie: 'element', type: i.typeItem, employeeId: f.employee.id, sourceCle: i.sourceCle, libelle: `${f.employee.nom} : ${i.libelle}` }));
     });
     ecartsNonAttribues.filter(i => i.statut === 'a_verifier').forEach(i => bloqueurs.push({ categorie: 'element', type: 'ecart_non_attribue', employeeId: null, sourceCle: i.sourceCle, libelle: `${i.libelle} : attribution à corriger dans Verify` }));
@@ -1167,6 +1169,15 @@
     };
   }
 
+  // Un écart de caisse n'est pas une décision de paie (05/11/2026, lot Paye 3) :
+  // il reste consultable, avec son lien vers Verify, mais ne compte ni dans le
+  // statut du salarié ni dans « Décisions à traiter ». Seuls les écarts de
+  // caisse sont visés : les autres éléments `impactPaye:false` (jour férié,
+  // absence) restent de vraies décisions.
+  function sansIncidencePaie(item) {
+    return !!item && item.typeItem === 'ecart_caisse' && item.impactPaye === false;
+  }
+
   // Statut par salarié (03/09/2026). Trois états seulement, dans un ordre
   // de gravité strict — le statut du mois est celui du salarié le plus
   // en retard, jamais une moyenne :
@@ -1183,7 +1194,7 @@
     // Un écart de concordance n'empêche pas un salarié d'être prêt : il est
     // signalé au manager, qui intervient sur les exceptions et non pour
     // reconfirmer des heures déjà justifiées (§4, §14).
-    if ((fiche.items || []).some(i => i.rubrique !== 'ecart_verify_planning' && !i.decisionAnterieure
+    if ((fiche.items || []).some(i => i.rubrique !== 'ecart_verify_planning' && !i.decisionAnterieure && !sansIncidencePaie(i)
         && (i.statut === 'a_verifier' || i.contestationOuverte))) return 'a_verifier';
     return 'pret';
   }
@@ -1248,5 +1259,5 @@
   }
 
   global.NexusPayeMoteur = { heuresParDefautJour, posteDuJour, reglesHeures, dureeNetteHeures, minutesHoraire, DUREES_REFERENCE_DEFAUT, HEURES_RENFORT_DEFAUT, moisISO, finMoisISO, dateDansMois, extraireEmployeeIds, reglageEmploye, construireRapport, lignesExport,
-    MOTIFS_INDISPO, TYPES_ITEM_EVENEMENT_RH, LIBELLE_STATUT_SALARIE, LIBELLE_POSTE, RUBRIQUE_ECART, variablesComptables, statutSalarie, statutGlobal, dossierComptable };
+    MOTIFS_INDISPO, TYPES_ITEM_EVENEMENT_RH, LIBELLE_STATUT_SALARIE, LIBELLE_POSTE, RUBRIQUE_ECART, variablesComptables, sansIncidencePaie, statutSalarie, statutGlobal, dossierComptable };
 })(typeof window !== 'undefined' ? window : globalThis);

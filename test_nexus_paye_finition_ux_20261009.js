@@ -214,7 +214,10 @@ async function chargement(fuseau, echec) {
   vm.runInContext('SELECTION = null; render();', ctx);
   const ligne = id => (ecran().match(new RegExp(`<tr data-employee="${id}"[\\s\\S]*?</tr>`)) || [''])[0];
   const nB2 = vm.runInContext("itemsEnAttente(RAPPORT.employes.find(f=>f.employee.id==='b2')).length", ctx);
-  verifier('le salarié à plusieurs anomalies en a bien plusieurs', nB2 >= 2);
+  // Lot 3 (05/11/2026) : l'écart de caisse (sans incidence sur la paie) ne compte plus
+  // parmi les éléments à traiter ; il reste dans les items, consultable via Verify.
+  verifier('le salarié à plusieurs anomalies garde sa présence hors planning à traiter, sans compter l’écart de caisse',
+    nB2 === 1 && vm.runInContext("RAPPORT.employes.find(f=>f.employee.id==='b2').items.length", ctx) >= 2);
   verifier('sa ligne annonce le nombre d’éléments à traiter', dans(ligne('b2'), `<span class="flag compte">${nB2} à traiter</span>`));
   verifier('… et ressort comme prioritaire', /<tr data-employee="b2"[^>]*class="[^"]*prioritaire/.test(ecran()));
   verifier('le salarié sans anomalie : « Rien à vérifier », pas prioritaire',
@@ -242,13 +245,13 @@ async function chargement(fuseau, echec) {
   // Le bouton de la fiche et la ligne du tableau comptent la même chose :
   // l'écart de caisse à valider en fait partie (le banc navigateur affichait 2 contre 3).
   verifier('l’action principale nomme le même nombre que la ligne du tableau',
-    dans(ecran(), `<button class="btn primary jump-first" style="margin:0 0 8px">Traiter les ${nB2} éléments</button>`));
+    dans(ecran(), `<button class="btn primary jump-first" style="margin:0 0 8px">Traiter les ${nB2} élément${nB2 > 1 ? 's' : ''}</button>`));
 
   vm.runInContext('SELECTION = null; ONGLET = "decisions"; render();', ctx);
   const nBloq = vm.runInContext('RAPPORT.bloqueurs.length', ctx);
   verifier('le volet décisions annonce un seul nombre, écart de caisse compris',
     dans(ecran(), `${vm.runInContext('RAPPORT.synthese.aVerifier', ctx)} à arbitrer · ${vm.runInContext('RAPPORT.synthese.configurationRequise', ctx)} paramétrage`)
-    && dans(ecran(), `Traiter les ${nBloq} éléments</button>`) && !dans(ecran(), `Traiter les ${nBloq - 1} éléments`));
+    && dans(ecran(), `Traiter les ${nBloq} élément${nBloq > 1 ? 's' : ''}</button>`) && !dans(ecran(), `Traiter les ${nBloq - 1} élément`));
   vm.runInContext('SELECTION = "b2"; ONGLET = "fiche"; render();', ctx);
 
   // ── 5. La fiche en trois sections, les zéros sur une ligne ──────────────
