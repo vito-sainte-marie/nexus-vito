@@ -53,6 +53,7 @@ vm.runInContext(fs.readFileSync(path.join(__dirname, 'nexus-ecarts-moteur.js'), 
 vm.runInContext(fs.readFileSync(path.join(__dirname, 'nexus-ecarts-donnees.js'), 'utf8'), ctx);
 if (!ctx.URLSearchParams) ctx.URLSearchParams = URLSearchParams;
 vm.runInContext(fs.readFileSync(path.join(__dirname, 'nexus-paye-moteur.js'), 'utf8'), ctx);
+vm.runInContext(fs.readFileSync(path.join(__dirname, 'nexus-banniere-station.js'), 'utf8'), ctx);
 vm.runInContext(script[1], ctx);
 
 // ── Recette : août 2026 ──────────────────────────────────────────────────
@@ -131,7 +132,7 @@ verifier('le CSV est explicitement présenté comme technique', contient('Export
 
 // P1 — variables comptables agrégées sur la carte salarié.
 ['Présence', 'Présence à vérifier', 'Congés payés', 'Maladie / maternité', 'Retards',
-  'Heures supplémentaires', 'Jours fériés', 'Éléments financiers'].forEach(v => {
+  'Heures supplémentaires', 'Jours fériés', 'Absences retenues en paie'].forEach(v => {
   verifier(`la carte salarié affiche « ${v} »`, contient(v));
 });
 verifier('les sources et événements journaliers passent derrière « Voir le détail »',

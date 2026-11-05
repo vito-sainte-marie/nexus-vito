@@ -279,8 +279,8 @@ function executerDeuxChemins(employee, serviceCourant, estNiveauManager) {
     monter: async (hote, emp) => { appelsPdp.push('monter'); },
     recapitulatif: async (hote, emp, role) => { appelsPdp.push('recapitulatif:' + role); },
   };
-  new Function('document', 'LIBELLE_ROLE_JOUR', 'NexusPriseDePoste', `return ${SRC_CHEMINS};`)(
-    document, purs.LIBELLE_ROLE_JOUR, NexusPriseDePoste)(employee, serviceCourant, estNiveauManager);
+  new Function('document', 'LIBELLE_ROLE_JOUR', 'NexusPriseDePoste', 'NexusBanniereStation', `return ${SRC_CHEMINS};`)(
+    document, purs.LIBELLE_ROLE_JOUR, NexusPriseDePoste, require('./nexus-banniere-station.js'))(employee, serviceCourant, estNiveauManager);
   return document.getElementById('prisePosteHote').innerHTML;
 }
 

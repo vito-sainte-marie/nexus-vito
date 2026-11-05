@@ -56,6 +56,7 @@ vm.runInContext(fs.readFileSync(path.join(__dirname, 'nexus-ecarts-moteur.js'), 
 vm.runInContext(fs.readFileSync(path.join(__dirname, 'nexus-ecarts-donnees.js'), 'utf8'), ctx);
 if (!ctx.URLSearchParams) ctx.URLSearchParams = URLSearchParams;
 vm.runInContext(fs.readFileSync(path.join(__dirname, 'nexus-paye-moteur.js'), 'utf8'), ctx);
+vm.runInContext(fs.readFileSync(path.join(__dirname, 'nexus-banniere-station.js'), 'utf8'), ctx);
 vm.runInContext(script[1], ctx);
 
 // ── Recette : août 2026, cinq salariés et tous les cas de la §9 ──────────
@@ -175,7 +176,7 @@ const tousOnglets = () => ['synthese','journees','evenements','variables','histo
   vm.runInContext(`FICHE_ONGLET='${o}'; render();`, ctx); return ecran(); }).join('\n');
 const ongletsTxt = tousOnglets();
 vm.runInContext("FICHE_ONGLET='synthese'; render();", ctx);
-['Heures retenues', 'Planning officiel', 'Anomalies'].forEach(b => verifier(`la fiche ouvre « ${b} »`, dans(ongletsTxt, b)));
+['Heures retenues', 'Planning officiel', 'Ventilation des heures'].forEach(b => verifier(`la fiche ouvre « ${b} »`, dans(ongletsTxt, b)));
 verifier('la source officielle du planning est atteignable depuis la fiche',
   dans(ongletsTxt, 'docs.google.com/spreadsheets/d/aout2026'));
 verifier('les décisions, sources et justificatifs sont historisés',
@@ -272,10 +273,10 @@ vm.runInContext("RAPPORT.periodeEnregistree = null; render();", ctx);
 // Production affiche ces deux alertes. Une refonte de présentation n'a pas
 // le droit de les perdre en route : elles portent la seule action qui
 // débloque le dossier.
-vm.runInContext("SELECTION = 'e3'; ONGLET = 'fiche'; render();", ctx);
+vm.runInContext("SELECTION = 'e3'; ONGLET = 'fiche'; FICHE_ONGLET = 'synthese'; render();", ctx);
 const fiche = () => (rendu.panelInner || '') + ecran();
 verifier('un rattachement à la paie jamais confirmé est signalé dans sa fiche',
-  dans(fiche(), 'Rattachement à la paie jamais confirmé'));
+  dans(fiche(), '1 réglage à compléter : rattachement à la paie'));
 verifier('… et la fiche porte de quoi le configurer', dans(fiche(), 'btn configure'));
 
 vm.runInContext(`
@@ -286,10 +287,10 @@ vm.runInContext(`
 verifier('le hors-paie non confirmé a bien été mis en place pour l’épreuve',
   vm.runInContext("REGLAGE_E4.confirme", ctx) === false);
 verifier('un hors paie déduit du rôle et jamais confirmé est signalé lui aussi',
-  dans(fiche(), 'Hors paie proposé d’après le rôle, jamais confirmé'));
+  dans(fiche(), '1 réglage à compléter : rattachement à la paie'));
 vm.runInContext("REGLAGE_E4.confirme = true; SELECTION = 'e5'; render();", ctx);
 verifier('un rattachement confirmé n’affiche aucune de ces alertes',
-  !dans(fiche(), 'jamais confirmé'));
+  !dans(fiche(), 'réglage à compléter'));
 
 // ── §7 — densité, pédagogie, accessibilité ──────────────────────────────
 verifier('les notions métier portent une info-bulle', compter(ecran(), /data-info="/g) >= 3);
@@ -403,12 +404,12 @@ verifier('les liens de source sont touchables eux aussi',
 // Safari iOS compte sa barre d'outils dans 100vh ; le conteneur déborderait
 // du visible. On redit la même borne en dvh, après : les Safari anciens
 // ignorent la seconde, les récents la prennent.
-verifier('les deux zones de défilement bornent leur hauteur en vh puis en dvh',
-  compter(html, /max-height:calc\(100vh - 322px\);max-height:calc\(100dvh - 322px\)/g) === 2);
+verifier('la zone de défilement du tableau borne leur hauteur en vh puis en dvh',
+  compter(html, /max-height:calc\(100vh - 322px\);max-height:calc\(100dvh - 322px\)/g) === 1);
 verifier('le défilement interne reste inertiel sur iOS',
-  compter(html, /-webkit-overflow-scrolling:touch/g) === 2);
+  compter(html, /-webkit-overflow-scrolling:touch/g) === 1);
 verifier('sous 1180 px ces bornes s’effacent, le flux redevient naturel',
-  dans(html, '.tablescroll,.panelbody{max-height:none}'));
+  dans(html, '.tablescroll{max-height:none}'));
 // Un écran qui tient dans l'encoche : déjà en production, on le garde.
 verifier('la page tient compte des bords sûrs du téléphone',
   dans(html, 'viewport-fit=cover') && dans(html, 'env(safe-area-inset-bottom)'));

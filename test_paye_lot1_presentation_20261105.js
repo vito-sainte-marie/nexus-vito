@@ -45,6 +45,7 @@ function charger(html) {
   vm.runInContext(fs.readFileSync(path.join(__dirname, 'nexus-ecarts-donnees.js'), 'utf8'), ctx);
   if (!ctx.URLSearchParams) ctx.URLSearchParams = URLSearchParams;
   vm.runInContext(fs.readFileSync(path.join(__dirname, 'nexus-paye-moteur.js'), 'utf8'), ctx);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, 'nexus-banniere-station.js'), 'utf8'), ctx);
   
   vm.runInContext(script[1], ctx);
   const JOURS_E1 = ['2026-08-03', '2026-08-04', '2026-08-06', '2026-08-07'];
@@ -180,4 +181,28 @@ if (avantSrc) {
 } else {
   console.log('SKIP — comparaison avant / après (git indisponible)');
 }
+
+// ── Corrections du Guardian (#160, 6671839139 et 6671871777) ─────────────────
+const src = apres.html;
+verifier('ancienne barre du haut retirée (appbar)', !/<header class="appbar"/.test(src));
+verifier('« 1 réglage à compléter » avec bouton Configurer, plus de « décision à prendre » pour le rattachement',
+  /réglage(s)? à compléter : rattachement à la paie/.test(src) && /btn primary configure/.test(src));
+verifier('Transmettre à la comptabilité désactivé tant que des salariés sont à traiter, avec la raison',
+  /Transmettre[^`]*?\$\{[^}]*à traiter/.test(src) || /à traiter<\/|à traiter\)/.test(src));
+verifier('formats d’heures sans « .00 »', ev(apres, "hFr(0)") === '0 h' && ev(apres, "hFr(21)") === '21 h' && ev(apres, "hFr(7.5)") === '7,5 h');
+verifier('variables € : message vide dédié', /Aucune variable ce mois/.test(src) && /function tuilesFiche/.test(src));
+verifier('icônes SVG (plus d’emoji caisse / pompe / renfort)', !/[🏪⛽🛒🔧💼]/u.test(src));
+verifier('la fiche n’a plus qu’une zone de défilement (le tableau)', (src.match(/-webkit-overflow-scrolling:touch/g) || []).length === 1);
+// Photo de l'Accueil : module partagé, plus l'ancienne photo de Paye
+verifier('la photo suit le module partagé de l’Accueil', /NexusBanniereStation\.html\(/.test(src) && /NexusBanniereStation\.suivreTheme\(/.test(src) && /nexus-banniere-station\.js/.test(src));
+verifier('l’ancienne photo de Paye est retirée', !/station-crepuscule/.test(src)
+  && !fs.existsSync(path.join(__dirname, 'assets/paye/station-crepuscule.webp')));
+verifier('photo de jour et de nuit, mêmes fichiers que l’Accueil', ['', '-nuit'].every(n => [800, 1200, 1600].every(w =>
+  fs.existsSync(path.join(__dirname, `assets/accueil/accueil-station-vito${n}-${w}.webp`)))));
+const B = require('./nexus-banniere-station.js');
+verifier('bannière : Sainte-Marie oui, autre site non, aperçu Test seulement avec le paramètre',
+  B.html('vito-sainte-marie', { sizes: '100vw' }).includes('am-banniere') && B.html('autre-site', { sizes: '100vw' }) === ''
+  && B.html('nexus-station-test', { sizes: '100vw' }) === '' && B.html('nexus-station-test', { apercu: true, sizes: '100vw' }).includes('am-banniere'));
+verifier('le fondu est coupé sous mouvement réduit', /prefers-reduced-motion:reduce\)\{\.hero>\.am-banniere img\.am-fondu\{transition:none/.test(src));
+
 console.log(`\n${ok} contrôles passent.`);
