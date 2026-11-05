@@ -76,7 +76,9 @@ const blocsMoteurRapprochement = [
 
 const sandboxRapprochement = { console };
 vm.createContext(sandboxRapprochement);
-vm.runInContext(`${blocsMoteurRapprochement}
+vm.runInContext(lireSource('nexus-inventaire-decenium-lecture.js'), sandboxRapprochement);
+vm.runInContext(`var parametresInventaire = {}; var DEFAULTS_PARAMETRES_INVENTAIRE = { stockNegatifCategoriesExclues: null };
+${blocsMoteurRapprochement}
 this.rapprocherLignesStock = rapprocherLignesStock;
 this.resoudreHorodatageExport = resoudreHorodatageExport;
 `, sandboxRapprochement);

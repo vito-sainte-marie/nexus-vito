@@ -27,6 +27,7 @@
 <script src="nexus-desktop.js?v=20260904-0104"></script>
 <script src="nexus-inventaire-moteur.js?v=20260904-0104"></script>
 <script src="nexus-inventaire-snapshot-moteur.js?v=20260904-0104"></script>
+<script src="nexus-inventaire-decenium-lecture.js?v=20261105-0001"></script>
 <script src="nexus-inventaire-snapshot-donnees.js?v=20260904-0104"></script>
 <script src="nexus-inventaire-plan-donnees.js?v=20260904-0104"></script>
 <script src="nexus-inventaire-manager-donnees.js?v=20260904-0104"></script>
@@ -506,6 +507,10 @@
     // (doctrine §5 de Frédéric : jamais un seuil codé en dur). Valeur par
     // défaut assumée (Article 5), ajustable après observation terrain.
     snapshotMaxDelayMinutes: 5,
+    // L2a (05/11/2026) : stock négatif au fichier Decenium = donnée peu fiable,
+    // exclue de la comparaison. null = toutes les catégories ; un tableau de
+    // noms de catégories Decenium limite l'exclusion à celles-ci.
+    stockNegatifCategoriesExclues: null,
   };
   let parametresInventaire = { ...DEFAULTS_PARAMETRES_INVENTAIRE };
   let categoriesSite = [];
@@ -1256,9 +1261,13 @@
       const reader = new FileReader();
       reader.onload = (e) => {
         try {
-          const wb = XLSX.read(e.target.result, { type: 'array' });
+          // raw:true (L2a, 05/11/2026) : les exports Decenium sont des tableaux
+          // HTML à virgule française ; sans cela SheetJS lit "3,00" comme 300
+          // et perd les zéros initiaux des codes-barres. Les nombres sont
+          // convertis ensuite par NexusInventaireDeceniumLecture.nombreDecenium.
+          const wb = XLSX.read(e.target.result, { type: 'array', raw: true });
           const feuille = wb.Sheets[wb.SheetNames[0]];
-          const lignes = XLSX.utils.sheet_to_json(feuille, { defval: null });
+          const lignes = XLSX.utils.sheet_to_json(feuille, { defval: null, raw: true });
           resolve(lignes);
         } catch (err) { reject(err); }
       };
@@ -1284,7 +1293,8 @@
       const designationBrute = ligne['lib article'] || ligne['Lib Article'] || ligne['LIB ARTICLE'] || '';
       const categorieBrute = ligne['Categ'] || ligne['categ'] || null;
       const codeBarresBrut = ligne['Code Barres'] || ligne['code barres'] || ligne['CODE BARRES'] || null;
-      const quantite = Number(ligne['QTE'] ?? ligne['Qte'] ?? ligne['qte'] ?? 0);
+      const nombre = NexusInventaireDeceniumLecture.nombreDecenium;
+      const quantite = nombre(ligne['QTE'] ?? ligne['Qte'] ?? ligne['qte']) ?? 0;
 
       let produit = null;
       const cb = normaliserCodeBarresVentes(codeBarresBrut);
@@ -1300,9 +1310,9 @@
         designation_brute: String(designationBrute || '').trim(),
         code_barres_brut: codeBarresBrut ? String(codeBarresBrut).replace(/[\s ]/g, '') : null,
         categorie_brute: categorieBrute,
-        quantite_vendue: isNaN(quantite) ? 0 : quantite,
-        prix_achat_ht: Number(ligne['PA HT']) || null,
-        prix_vente_ht: Number(ligne['PV HT']) || null,
+        quantite_vendue: quantite,
+        prix_achat_ht: nombre(ligne['PA HT']) || null,
+        prix_vente_ht: nombre(ligne['PV HT']) || null,
         produit_id: produit ? produit.id : null,
         designation_matchee: produit ? produit.designation : null,
       };
@@ -1323,42 +1333,21 @@
   // validés le 02/08/2026 sur 0208quart1.xlsx) — plusieurs variantes
   // plausibles sont acceptées ci-dessous ; à corriger dès le premier
   // export réel si l'en-tête diffère.
-  function rapprocherLignesStock(lignesFichier, produits) {
-    const parCodeBarres = new Map();
-    const parDesignationExacte = new Map();
-    produits.forEach(p => {
-      const cb = normaliserCodeBarresVentes(p.code_barres);
-      if (cb) parCodeBarres.set(cb, p);
-      parDesignationExacte.set(p.designation.trim().toLowerCase(), p);
-    });
-
-    return lignesFichier.map(ligne => {
-      const designationBrute = ligne['lib article'] || ligne['Lib Article'] || ligne['LIB ARTICLE'] || '';
-      const codeBarresBrut = ligne['Code Barres'] || ligne['code barres'] || ligne['CODE BARRES'] || null;
-      const quantite = Number(
-        ligne['Stock'] ?? ligne['STOCK'] ?? ligne['stock'] ??
-        ligne['Qte Stock'] ?? ligne['QTE STOCK'] ?? ligne['Qté Stock'] ??
-        ligne['Stock Actuel'] ?? ligne['STOCK ACTUEL'] ?? 0
-      );
-
-      let produit = null;
-      const cb = normaliserCodeBarresVentes(codeBarresBrut);
-      if (cb && parCodeBarres.has(cb)) {
-        produit = parCodeBarres.get(cb);
-      } else {
-        const cle = normaliserTexteVentes(designationBrute);
-        const nomCible = ALIAS_VENTES_SANS_CODE_BARRES[cle];
-        if (nomCible) produit = parDesignationExacte.get(nomCible.trim().toLowerCase()) || null;
-      }
-
-      return {
-        designation_brute: String(designationBrute || '').trim(),
-        code_barres_brut: codeBarresBrut ? String(codeBarresBrut).replace(/[\s ]/g, '') : null,
-        quantite_stock: isNaN(quantite) ? 0 : quantite,
-        prix_achat_ht: Number(ligne['PA HT']) || null,
-        produit_id: produit ? produit.id : null,
-        designation_matchee: produit ? produit.designation : null,
-      };
+  function rapprocherLignesStock(lignesFichier, produits, lignesVentes) {
+    // L2a (05/11/2026) : le vrai export Stock actuel n'a ni code-barres ni la
+    // colonne "lib article" ; le rapprochement passe par le libellé + la
+    // catégorie, relié au code-barres de la ligne Ventes (voir le module).
+    // Ancien code lu sur des en-têtes supposés, il rapprochait 0 ligne.
+    return NexusInventaireDeceniumLecture.rapprocherStockDecenium(lignesFichier, lignesVentes || [], produits, {
+      normaliser: normaliserTexteVentes,
+      normaliserCode: normaliserCodeBarresVentes,
+      resoudreAlias: (libelle, catalogue) => {
+        const nomCible = ALIAS_VENTES_SANS_CODE_BARRES[normaliserTexteVentes(libelle)];
+        return nomCible ? catalogue.find(p => p.designation.trim().toLowerCase() === nomCible.trim().toLowerCase()) : null;
+      },
+      categoriesNegatifsExclues: (parametresInventaire && parametresInventaire.stockNegatifCategoriesExclues !== undefined)
+        ? parametresInventaire.stockNegatifCategoriesExclues
+        : DEFAULTS_PARAMETRES_INVENTAIRE.stockNegatifCategoriesExclues,
     });
   }
 
@@ -1379,7 +1368,7 @@
   // Ne touche à AUCUNE table de résultat (inventaire_rapprochements) :
   // c'est comparerVentesQuart, appelée juste après par l'appelant, qui lit
   // ce nouveau Snapshot actif (déjà branché depuis l'Étape 1).
-  async function construirePhotoDecenium(fichierStock, { salesHeureDeclaree, stockHeureDeclaree, confirmerMalgreDelai }) {
+  async function construirePhotoDecenium(fichierStock, fichierVentes, { salesHeureDeclaree, stockHeureDeclaree, confirmerMalgreDelai }) {
     const instantImport = new Date().toISOString();
     const sales = resoudreHorodatageExport(salesHeureDeclaree, instantImport);
     const stock = resoudreHorodatageExport(stockHeureDeclaree, instantImport);
@@ -1399,7 +1388,9 @@
 
     const produits = await chargerCatalogueProduitsPourVentes(siteId);
     const lignesStockBrutes = await parserFichierVentesDecenium(fichierStock); // parseur générique XLSX (Article 11)
-    const lignesStockRapprochees = rapprocherLignesStock(lignesStockBrutes, produits);
+    const lignesVentesBrutes = fichierVentes ? await parserFichierVentesDecenium(fichierVentes) : [];
+    const lignesStockRapprochees = rapprocherLignesStock(lignesStockBrutes, produits, lignesVentesBrutes);
+    const bilan = NexusInventaireDeceniumLecture.bilanArticlesVendus(lignesVentesBrutes, lignesStockRapprochees, normaliserTexteVentes);
 
     const nouveauSnapshot = await NexusInventaireSnapshotDonnees.creerSnapshot(nexusClient, siteId, {
       salesFilename: null, salesExportAt: sales.at, salesExportTimeSource: sales.source,
@@ -1415,7 +1406,9 @@
     await NexusInventaireSnapshotDonnees.creerLignesSnapshot(nexusClient, nouveauSnapshot.id, siteId,
       lignesStockRapprochees.map(l => ({ ...l, importe_par: managerCourant.id })));
 
-    return { creee: true, besoinConfirmation: false, qualification, snapshot: nouveauSnapshot };
+    return { creee: true, besoinConfirmation: false, qualification, snapshot: nouveauSnapshot, bilan,
+      nbLignes: lignesStockRapprochees.length, nbRapprochees: lignesStockRapprochees.filter(l => l.produit_id).length,
+      nbNegatifs: lignesStockRapprochees.filter(l => l.motif === 'stock_negatif').length };
   }
 
   // Écoulement physique constaté sur le quart pour un produit : stock
@@ -2903,6 +2896,17 @@
   // jamais une confirmation automatique (doctrine §7 de Frédéric) : le
   // manager doit explicitement cliquer "Poursuivre quand même" pour que
   // NEXUS crée le Snapshot malgré la réserve.
+  // Résumé lisible pour le manager (L2a) : combien d'articles vendus sont
+  // retrouvés au stock, lesquels sont à vérifier et pourquoi.
+  function renderBilanPhotoDecenium(r) {
+    const b = r.bilan;
+    const esc = (t) => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const liste = b.aVerifier.map(a => `<li>${esc(a.libelle)} — ${esc(a.raison)}</li>`).join('');
+    return `<div class="snapshot-bilan"><strong>Stock : ${b.nbRetrouves} article(s) vendu(s) sur ${b.nbVendus} retrouvé(s).</strong>` +
+      (r.nbNegatifs ? ` ${r.nbNegatifs} ligne(s) à stock négatif écartée(s).` : '') +
+      (b.aVerifier.length ? `<div>À vérifier :</div><ul>${liste}</ul>` : '') + `</div>`;
+  }
+
   function renderSnapshotAvertissement(qualification) {
     if (!qualification) return '';
     const M = NexusInventaireSnapshotMoteur;
@@ -3181,7 +3185,7 @@
         if (fichierStock) {
           const salesHeureDeclaree = document.getElementById('snapshotVentesHeureInput').value || null;
           const stockHeureDeclaree = document.getElementById('snapshotStockHeureInput').value || null;
-          const resultat = await construirePhotoDecenium(fichierStock, {
+          const resultat = await construirePhotoDecenium(fichierStock, fichier, {
             salesHeureDeclaree, stockHeureDeclaree, confirmerMalgreDelai: snapshotConfirmerMalgreDelai,
           });
           if (resultat.besoinConfirmation) {
@@ -3198,6 +3202,8 @@
             return; // on attend la confirmation explicite avant de créer quoi que ce soit
           }
           snapshotConfirmerMalgreDelai = false; // consommée, ne doit pas survivre à ce clic
+          const avertBilan = document.getElementById('snapshotAvertissement');
+          if (avertBilan && resultat.bilan) avertBilan.innerHTML = renderBilanPhotoDecenium(resultat);
         }
 
         btnComparerVentes.disabled = true;
