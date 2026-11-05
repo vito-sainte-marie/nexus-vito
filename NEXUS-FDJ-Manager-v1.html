@@ -5411,21 +5411,35 @@
   async function chargerVoisinsContinuite(shift) {
     const vide = { finalPrecedent: {}, initialSuivant: {} };
     try {
-      const [{ data: prev, error: e1 }, { data: next, error: e2 }] = await Promise.all([
+      // Un quart voisin vide (créé sans comptage) ne doit pas masquer le
+      // suivant : on remonte/descend sur quelques quarts et, jeu par jeu, on
+      // retient la valeur du voisin le plus proche qui en porte une.
+      const [{ data: prevs, error: e1 }, { data: nexts, error: e2 }] = await Promise.all([
         nexusClient.from('fdj_shifts').select('id').eq('site', siteId)
           .or(`date.lt.${shift.date},and(date.eq.${shift.date},quart.lt.${shift.quart})`)
-          .order('date', { ascending: false }).order('quart', { ascending: false }).limit(1).maybeSingle(),
+          .order('date', { ascending: false }).order('quart', { ascending: false }).limit(8),
         nexusClient.from('fdj_shifts').select('id').eq('site', siteId)
           .or(`date.gt.${shift.date},and(date.eq.${shift.date},quart.gt.${shift.quart})`)
-          .order('date', { ascending: true }).order('quart', { ascending: true }).limit(1).maybeSingle(),
+          .order('date', { ascending: true }).order('quart', { ascending: true }).limit(8),
       ]);
       if (e1 || e2) { console.error('Quarts voisins FDJ (continuité):', e1 || e2); return vide; }
+      const idsP = (prevs || []).map(x => x.id), idsN = (nexts || []).map(x => x.id);
       const [rp, rn] = await Promise.all([
-        prev ? nexusClient.from('fdj_shift_counts').select('game_id, stock_final').eq('shift_id', prev.id) : Promise.resolve({ data: [] }),
-        next ? nexusClient.from('fdj_shift_counts').select('game_id, stock_initial').eq('shift_id', next.id) : Promise.resolve({ data: [] }),
+        idsP.length ? nexusClient.from('fdj_shift_counts').select('shift_id, game_id, stock_final').in('shift_id', idsP) : Promise.resolve({ data: [] }),
+        idsN.length ? nexusClient.from('fdj_shift_counts').select('shift_id, game_id, stock_initial').in('shift_id', idsN) : Promise.resolve({ data: [] }),
       ]);
-      (rp.data || []).forEach(c => { if (c.stock_final !== null) vide.finalPrecedent[c.game_id] = c.stock_final; });
-      (rn.data || []).forEach(c => { if (c.stock_initial !== null) vide.initialSuivant[c.game_id] = c.stock_initial; });
+      const retenir = (lignes, ids, champ, cible) => {
+        const rang = {}; ids.forEach((id, i) => { rang[id] = i; });
+        const meilleur = {};
+        (lignes || []).forEach(c => {
+          if (c[champ] === null || c[champ] === undefined) return;
+          if (meilleur[c.game_id] === undefined || rang[c.shift_id] < meilleur[c.game_id]) {
+            meilleur[c.game_id] = rang[c.shift_id]; cible[c.game_id] = c[champ];
+          }
+        });
+      };
+      retenir(rp.data, idsP, 'stock_final', vide.finalPrecedent);
+      retenir(rn.data, idsN, 'stock_initial', vide.initialSuivant);
     } catch (err) { console.error('Quarts voisins FDJ (continuité):', err); }
     return vide;
   }
@@ -5979,6 +5993,20 @@
         // decision-1 : un 0 confirmé n'est plus une confirmation dès que la
         // fin est ressaisie.
         if (champ === 'stock_final') delete edition.counts[gameId].stock_final_confirme_zero;
+        // La marque de continuité suit la saisie : elle apparaît ou disparaît
+        // dès que l'écart avec le quart voisin naît ou se résorbe.
+        const marques = NexusFdjMoteur.marquesContinuiteVoisins(edition.counts, edition.voisinsFinalPrecedent, edition.voisinsInitialSuivant);
+        const mI = marques.initial[gameId], mF = marques.final[gameId];
+        const inI = document.querySelector(`.jeu-input[data-jeu="${gameId}"][data-champ="stock_initial"]`);
+        const inF = document.querySelector(`.jeu-input[data-jeu="${gameId}"][data-champ="stock_final"]`);
+        if (inI) {
+          inI.classList.toggle('continuite-rompue', !!mI);
+          inI.title = mI ? `Ne suit pas le quart précédent (${fmtNum(mI.precedent)} → ${fmtNum(mI.courant)})` : (edition.stockInitialAuto[gameId] ? 'Hérité automatiquement du quart précédent' : '');
+        }
+        if (inF) {
+          inF.classList.toggle('continuite-rompue', !!mF);
+          inF.title = mF ? `Le quart suivant démarre à ${fmtNum(mF.suivant)}` : '';
+        }
         const row = input.closest('.jeu-row');
         const v = calculerVentesEdition(gameId);
         const anomalie = v.qte !== null && v.qte < 0;

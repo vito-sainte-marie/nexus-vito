@@ -45,4 +45,12 @@ assert(html.includes('Le quart suivant démarre à '), 'infobulle du quart préc
 assert(html.includes('marquesContinuiteVoisins(edition.counts, edition.voisinsFinalPrecedent, edition.voisinsInitialSuivant)'), 'recalcul à l\'affichage');
 assert(html.includes('chargerVoisinsContinuite(shift)'), 'voisins chargés à l\'ouverture');
 assert(!/marquesContinuiteVoisins[^\n]*fdj_alertes/.test(html), 'indépendant du statut des alertes');
+// Correctif Guardian : recalcul pendant la saisie, voisin vide ignoré.
+assert(/classList\.toggle\('continuite-rompue', !!mI\)/.test(html) && /classList\.toggle\('continuite-rompue', !!mF\)/.test(html), 'la marque bascule pendant la saisie');
+const corpsInput = html.slice(html.indexOf("if (champ === 'stock_final') delete edition.counts"));
+assert(corpsInput.indexOf('marquesContinuiteVoisins') > -1 && corpsInput.indexOf('marquesContinuiteVoisins') < corpsInput.indexOf('majResume();'), 'recalcul dans le gestionnaire input');
+const loader = html.slice(html.indexOf('async function chargerVoisinsContinuite'), html.indexOf('async function chargerVoisinsContinuite') + 3000);
+assert(loader.includes('.limit(8)') && !loader.includes('.limit(1)'), 'plusieurs quarts voisins examinés');
+assert(loader.includes(".in('shift_id'"), 'comptages de tous les voisins lus');
+assert(loader.includes('rang[c.shift_id] < meilleur[c.game_id]'), 'voisin le plus proche portant une valeur');
 console.log('OK test_fdj_continuite_orange_manager_20261105');
