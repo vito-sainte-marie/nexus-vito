@@ -156,7 +156,74 @@ footer{padding:12px;font-size:9.5px}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 button.lien-salarie{all:unset;cursor:pointer;color:var(--cyan);font:11px var(--mono);text-decoration:underline}
 button.lien-salarie:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
-.help a,.lien-lisible{color:var(--cyan);text-decoration:underline;text-underline-offset:2px}</style>
+.help a,.lien-lisible{color:var(--cyan);text-decoration:underline;text-underline-offset:2px}
+/* Lot 1 « présentation » (05/11/2026) : nuit bleue, page Paye seulement. */
+:root{--bg:#07131E;--panel:#0D202E;--raised:#0F2433;--line:#254354;--cyan:#24D8E3;--green:#29C98A;--amber:#F5A12A}
+body{background:radial-gradient(1200px 500px at 70% -10%,#0E2A3D 0%,#07131E 60%) #07131E;color:#F2F7FA}
+.hero{position:relative;overflow:hidden;border:1px solid var(--line);border-radius:18px;background:#0D202E;min-height:112px;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px 20px;margin-bottom:14px}
+.hero::before{content:"";position:absolute;inset:0 0 0 auto;width:46%;background:url(assets/paye/station-crepuscule.webp) center/cover no-repeat}
+.hero::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,#07131E 0%,rgba(7,19,30,.55) 30%,rgba(7,19,30,0) 60%)}
+.hero>*{position:relative;z-index:1}
+.hero .fil{font-size:12px;color:var(--mid)}
+.hero h1{margin:2px 0 0;font-size:30px;line-height:1.1}
+.hero .sous{font-size:13px;color:var(--mid)}
+.hero .selecteurs{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:8px}
+.hero .station-sel{border:1px solid var(--line);border-radius:12px;padding:6px 12px;background:rgba(13,32,46,.85);font-size:13px}
+.hero .topacts{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.hero .btn.nouveau{background:linear-gradient(180deg,#36E7EE,#1FC6D2);color:#04222A;border:0;border-radius:12px;font-weight:600;box-shadow:0 6px 18px rgba(36,216,227,.35)}
+.kpi3{display:grid;grid-template-columns:repeat(3,1fr) .85fr;gap:12px;margin-bottom:14px}
+.kpi3 .kpi{border:1px solid var(--line);border-radius:18px;background:linear-gradient(180deg,#0F2433,#0D202E);padding:14px 16px;text-align:left;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.kpi3 .kpi.warn{border-color:rgba(245,161,42,.45)}
+.kpi3 .kpi.discret{border-radius:0;border:0;border-left:1px solid var(--line);background:none;box-shadow:none}
+.kpi3 .kpi b{font-size:30px}
+.anneau{width:56px;height:56px;flex:none}
+.anneau circle{fill:none;stroke-width:6}
+.anneau .fond{stroke:#17323F}
+.caisse-consult{margin:0 0 12px;border:1px solid var(--line);border-radius:14px;padding:8px 14px;background:#0D202E;font-size:13px}
+.caisse-consult summary{cursor:pointer;color:var(--mid)}
+.caisse-consult .lignes-c{display:flex;flex-wrap:wrap;gap:16px;align-items:center;margin-top:8px}
+.liste-onglets{display:flex;gap:6px}
+.liste-onglets .filtre{border:0;border-bottom:2px solid transparent;border-radius:0;background:none;padding:8px 10px}
+.liste-onglets .filtre[aria-pressed="true"]{border-bottom-color:var(--cyan);color:var(--cyan);background:none}
+@media(min-width:0){.caisse-consult .kpi{text-align:left;border:1px solid var(--line);border-radius:12px;background:#0F2433;padding:8px 12px}.caisse-consult .kpi b{display:block;font-size:20px}}
+tr.grp td{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--mid);padding:10px 12px 4px;background:none}
+.av{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:50%;box-shadow:inset 0 0 0 2px var(--cyan);background:#0A1A26;font-size:13px;font-weight:600;flex:none}
+.cell-id{display:flex;align-items:center;gap:12px}
+.capsule{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px;border-radius:15px;background:#142B3B;border:1px solid var(--line);color:#C9D6DF;font-size:12.5px}
+.st{display:inline-flex;align-items:center;height:30px;padding:0 14px;border-radius:15px;font-size:13px;border:1px solid}
+.st.ok{background:rgba(41,201,138,.14);color:#3FE0A0;border-color:rgba(41,201,138,.35)}
+.st.todo{background:rgba(245,161,42,.14);color:#F5A12A;border-color:rgba(245,161,42,.45)}
+.st.hp{background:#142B3B;color:var(--mid);border-color:var(--line)}
+table.sal tr.selected{background:rgba(36,216,227,.10);box-shadow:inset 0 0 0 1px rgba(36,216,227,.6),0 0 16px rgba(36,216,227,.18)}
+.fiche-tete{display:flex;align-items:center;gap:14px;margin-bottom:12px}
+.fiche-tete .av{width:64px;height:64px;font-size:18px}
+.fiche-tete h2{margin:0;font-size:24px}
+.ftabs{display:flex;gap:6px;overflow-x:auto;margin:0 0 12px}
+.ftab{height:38px;padding:0 14px;border-radius:12px;border:1px solid var(--line);background:#0D202E;color:var(--text);white-space:nowrap}
+.ftab[aria-selected="true"]{background:linear-gradient(180deg,#36E7EE,#1FC6D2);color:#04222A;border-color:transparent}
+.ftab .pt{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--amber);margin-left:6px}
+.carte-h{border:1px solid var(--line);border-radius:14px;background:#0F2433;padding:14px 16px;margin-bottom:10px}
+.carte-h .gros{font-size:40px;font-weight:600;line-height:1}
+.repart{display:flex;height:10px;border-radius:5px;overflow:hidden;background:#17323F;margin:8px 0 4px}
+.repart i{display:block;height:100%}
+.minis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px}
+.mini{border:1px solid var(--line);border-radius:14px;background:#0F2433;padding:10px 12px}
+.mini b{display:block;font-size:20px}
+.decision-zone{border:1px solid rgba(245,161,42,.45);background:rgba(245,161,42,.08);border-radius:14px;padding:12px 14px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.fiche-pied{display:flex;gap:10px;flex-wrap:wrap}
+.fiche-pied .btn:disabled{opacity:.5;cursor:not-allowed}
+.retour-liste,.pied-mobile{display:none}
+@media(max-width:1180px){.kpi3{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:820px){
+ .hero{min-height:118px}.hero h1{font-size:24px}.kpi3{grid-template-columns:repeat(3,1fr);gap:8px}
+ .kpi3 .kpi{padding:10px;flex-direction:column;align-items:flex-start}.kpi3 .kpi.discret{display:none}.kpi3 .anneau{display:none}.kpi3 .kpi b{font-size:22px}
+ .workspace.fiche-ouverte .tablewrap{display:none}
+ .workspace:not(.fiche-ouverte) .panel{display:none}
+ .retour-liste{display:inline-block;margin-bottom:10px}
+ .pied-mobile{display:block;margin-top:12px}.pied-mobile .btn{width:100%;min-height:48px}.pied-mobile .btn:disabled{opacity:.5}
+ .minis{grid-template-columns:1fr}
+}
+</style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 <script src="nexus-build.js"></script>
@@ -180,7 +247,7 @@ button.lien-salarie:focus-visible{outline:2px solid var(--cyan);outline-offset:2
 <script>
 let EMPLOYEE, SITE, RAPPORT, MOIS = NexusEcartsDonnees.bornesDuMois(NexusEcartsDonnees.jourDeLaStation(new Date())).dateDebut;
 const LIBELLES={absence_a_qualifier:'Absence à qualifier',absence_qualifiee:'Absence qualifiée',presence_exceptionnelle:'Présence exceptionnelle',absence_a_verifier:'Présence à vérifier',conge_paye:'Congé payé',arret_maladie:'Arrêt maladie',retard:'Retard',retard_incoherent:'Retard incohérent',heure_supplementaire:'Heure supplémentaire',jour_ferie:'Jour férié',acompte:'Acompte',dette:'Dette / avance qualifiée',ecart_caisse:'Écart de caisse qualifié',autre:'Autre variable'};
-const INFOS={ecartsCalcul:['Comment sont calculés les écarts ?','Cet écran est en lecture seule : il reprend les écarts saisis dans Verify (boutique / piste) et FDJ, sans rien modifier. La saisie, la vérification et la correction se font dans Verify ou FDJ.\nLes montants sont ceux du mois civil choisi, au fuseau horaire de la station, avec les mêmes calculs que la page Analyse des écarts.\nAucun montant n’est retenu automatiquement sur la paie : seul un montant que vous saisissez vous-même ici est transmis à la comptabilité.\nUn versement supérieur à l’écart (surplus de versement) n’est pas transmis à la comptabilité.'],indicateursEcarts:['Manques validés et solde opérationnel','Manques validés du mois : somme des manques de caisse du mois civil que le manager a validés (écarts « à vérifier » exclus). C’est l’indicateur principal. Solde opérationnel du mois : somme algébrique de tous les écarts du mois, manques et excédents, validés ou non ; il peut être moins négatif sans que les manques validés diminuent. Les régularisations encaissées ce mois comptent au jour de l’encaissement, même sur un écart d’un mois antérieur ; le reste à régulariser est un cumul depuis l’origine, arrêté à la fin du mois. Mêmes chiffres que la page Analyse des écarts. Aucune retenue sur salaire n’est créée.'],heures:['Comment lire les heures','Constatée : journée attestée par Verify (avec ou sans pointage), ou par le planning officiel pour un renfort. Le détail « confirmée par deux sources » (Verify et pointage) figure dans l’infobulle de la tuile et dans le PDF. Calculée : durée chiffrée selon les règles du poste (journée longue = 7 h + 1 h supplémentaire, règle du 10/10). Corrigée : heures exceptionnelles justifiées par le manager. Confirmée : jour retenu après ces contrôles. Hors planning : présence constatée un jour non planifié ; ses heures proposées par le barème restent en attente tant que vous n’avez pas tranché. Retenue : ce qui part à la comptabilité — uniquement les heures sans réserve et celles que vous avez confirmées.'],dossier:['Dossier mensuel','NEXUS prépare les variables et les preuves. La comptabilité reste responsable du bulletin. Aucune retenue n’est appliquée automatiquement.'],preuves:['Présence confirmée','Le planning indique ce qui était prévu. Verify et le pointage apportent les preuves de présence réelle. Une journée attestée par une seule source reste signalée comme telle.'],arbitrage:['À vérifier','Cette zone rassemble uniquement les décisions qui nécessitent votre intervention avant de préparer le dossier comptable.'],ecart:['Écart de caisse','Un écart positif ou négatif reste visible pour la traçabilité. Il ne devient jamais automatiquement une dette du salarié ni une retenue sur paie.'],export:['Dossier comptable','L’export contient les présences confirmées, les variables validées et les écarts informatifs. Les éléments encore à vérifier ne sont jamais transmis.'],periode:['Saisie sur une période','Pour une seule journée, utilisez la même date dans « Du » et « Au ». Pour plusieurs jours, NEXUS conserve une ligne datée par journée. Les congés et absences ne se saisissent pas ici : ils relèvent d’un événement RH.'],evenementRH:['Événement RH','Une absence longue, un congé, une maternité, une paternité, une formation ou un arrêt maladie est UN événement, avec une date de début et une date de fin — jamais une ligne par jour. Déclaré une fois, il est reporté automatiquement sur chaque mois qu’il traverse, y compris quand la date de retour n’est pas encore connue.'],statutSalarie:['Statut du salarié','Prêt : plus rien à décider. À vérifier : les données sont là, un arbitrage reste à rendre. Donnée manquante : il manque un paramétrage ou toute donnée du mois. Le statut du mois est celui du salarié le plus en retard.'],regularisation:['Écarts et régularisations','L’écart initial reste attaché à la période où il est né. Un versement encaissé plus tard apparaît comme une régularisation et réduit le solde restant, sans réécrire les statistiques du mois d’origine. Aucun écart de caisse ne devient automatiquement une retenue sur salaire : seul un montant saisi par le manager est transmis à la comptabilité.'],heuresRetenues:['Heures retenues','NEXUS additionne les heures confirmées du mois : celles mesurées par Verify ou Pointage, et celles calculées d’après le barème de la station pour une journée constatée. Les heures supplémentaires arbitrées s’ajoutent à ce total ; celles déjà comprises dans le barème y figurent déjà et ne sont pas comptées deux fois.']};
+const INFOS={ecartsCalcul:['Comment sont calculés les écarts ?','Cet écran est en lecture seule : il reprend les écarts saisis dans Verify (boutique / piste) et FDJ, sans rien modifier. La saisie, la vérification et la correction se font dans Verify ou FDJ.\nLes montants sont ceux du mois civil choisi, au fuseau horaire de la station, avec les mêmes calculs que la page Analyse des écarts.\nAucun montant n’est retenu automatiquement sur la paie : seul un montant que vous saisissez vous-même ici est transmis à la comptabilité.\nUn versement supérieur à l’écart (surplus de versement) n’est pas transmis à la comptabilité.'],indicateursEcarts:['Manques validés et solde opérationnel','Manques validés du mois : somme des manques de caisse du mois civil que le manager a validés (écarts « à vérifier » exclus). C’est l’indicateur principal. Solde opérationnel du mois : somme algébrique de tous les écarts du mois, manques et excédents, validés ou non ; il peut être moins négatif sans que les manques validés diminuent. Les régularisations encaissées ce mois comptent au jour de l’encaissement, même sur un écart d’un mois antérieur ; le reste à régulariser est un cumul depuis l’origine, arrêté à la fin du mois. Mêmes chiffres que la page Analyse des écarts. Aucune retenue sur salaire n’est créée.'],heures:['Comment lire les heures','Constatée : journée attestée par Verify (avec ou sans pointage), ou par le planning officiel pour un renfort. Le détail « confirmée par deux sources » (Verify et pointage) figure dans l’infobulle de la tuile et dans le PDF. Calculée : durée chiffrée selon les règles du poste (journée longue = 7 h + 1 h supplémentaire, règle du 10/10). Corrigée : heures exceptionnelles justifiées par le manager. Confirmée : jour retenu après ces contrôles. Hors planning : présence constatée un jour non planifié ; ses heures proposées par le barème restent en attente tant que vous n’avez pas tranché. Retenue : ce qui part à la comptabilité — uniquement les heures sans réserve et celles que vous avez confirmées.'],dossier:['Dossier mensuel','NEXUS prépare les variables et les preuves. La comptabilité reste responsable du bulletin. Aucune retenue n’est appliquée automatiquement.'],preuves:['Présence confirmée','Le planning indique ce qui était prévu. Verify et le pointage apportent les preuves de présence réelle. Une journée attestée par une seule source reste signalée comme telle.'],arbitrage:['À vérifier','Cette zone rassemble uniquement les décisions qui nécessitent votre intervention avant de préparer le dossier comptable.'],ecart:['Écart de caisse','Un écart positif ou négatif reste visible pour la traçabilité. Il ne devient jamais automatiquement une dette du salarié ni une retenue sur paie.'],export:['Dossier comptable','L’export contient les présences confirmées, les variables validées et les écarts informatifs. Les éléments encore à vérifier ne sont jamais transmis.'],periode:['Saisie sur une période','Pour une seule journée, utilisez la même date dans « Du » et « Au ». Pour plusieurs jours, NEXUS conserve une ligne datée par journée. Les congés et absences ne se saisissent pas ici : ils relèvent d’un événement RH.'],evenementRH:['Événement RH','Une absence longue, un congé, une maternité, une paternité, une formation ou un arrêt maladie est UN événement, avec une date de début et une date de fin — jamais une ligne par jour. Déclaré une fois, il est reporté automatiquement sur chaque mois qu’il traverse, y compris quand la date de retour n’est pas encore connue.'],statutSalarie:['Statut du salarié','Prêt : plus rien à décider. À vérifier : les données sont là, un arbitrage reste à rendre. Donnée manquante : il manque un paramétrage ou toute donnée du mois. Le statut du mois est celui du salarié le plus en retard.'],regularisation:['Écarts et régularisations','L’écart initial reste attaché à la période où il est né. Un versement encaissé plus tard apparaît comme une régularisation et réduit le solde restant, sans réécrire les statistiques du mois d’origine. Aucun écart de caisse ne devient automatiquement une retenue sur salaire : seul un montant saisi par le manager est transmis à la comptabilité.'],heuresRetenues:['Heures retenues','Une heure est Constatée (mesurée par Verify ou Pointage), Calculée (d’après le barème de la station pour une journée constatée) ou Corrigée (modifiée par le manager). NEXUS additionne les heures confirmées du mois. Les heures supplémentaires arbitrées s’ajoutent à ce total ; celles déjà comprises dans le barème y figurent déjà et ne sont pas comptées deux fois.']};
 // Les seuls types encore saisissables JOURNÉE PAR JOURNÉE. Congés,
 // maladie, maternité, paternité, formation et absences longues n'y sont
 // plus : ce sont des événements RH, portés par une période unique
@@ -215,7 +282,8 @@ function itemMeta(i){const q=i.quantiteMinutes!=null?`${i.quantiteMinutes} min`:
 // Tout ce qui suit est de la PRÉSENTATION. Les totaux, les statuts et les
 // arbitrages viennent de NexusPayeMoteur ; aucun calcul métier n'est
 // refait ici, et aucun chiffre affiché n'est inventé.
-let SELECTION=null, ONGLET='fiche', FILTRE='tous', RECHERCHE='', TRI={cle:'nom',sens:1}, COMMERCE='';
+let FICHE_ONGLET='synthese', FICHE_OUVERTE=false;
+let SELECTION=null, ONGLET='fiche', FILTRE='inclus', RECHERCHE='', TRI={cle:'statut',sens:1}, COMMERCE='';
 const SANS_ACCENT=s=>String(s==null?'':s).normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
 const H2=n=>Number(n||0).toFixed(2);
 const ONGLETS=[['fiche','Fiche salarié'],['decisions','Décisions'],['dossier','Dossier comptable']];
@@ -307,8 +375,9 @@ function agregats(){
 function fichesAffichees(){
  const q=SANS_ACCENT(RECHERCHE).trim();
  let l=(RAPPORT.employes||[]).filter(f=>{
-  if(FILTRE==='hors_paie'&&f.reglage.inclus)return false;
-  if(FILTRE==='a_verifier'&&!(f.reglage.inclus&&(itemsEnAttente(f).length||bloqueursConfig(f.employee.id).length)))return false;
+  if(FILTRE==='hors_paie'){if(f.reglage.inclus)return false}
+  else if(!f.reglage.inclus)return false;
+  if(FILTRE==='a_verifier'&&!(f.statut!=='pret'||itemsEnAttente(f).length||bloqueursConfig(f.employee.id).length))return false;
   if(FILTRE==='prets'&&f.statut!=='pret')return false;
   if(!q)return true;
   return SANS_ACCENT(`${f.employee.nom} ${f.employee.role||''}`).includes(q);
@@ -334,36 +403,50 @@ function libelleCompte(l){
  return `${pluriel(l.length,'ligne')} affichée${l.length>1?'s':''} · ${inclus} dans la paie · ${l.length-inclus} hors paie`;
 }
 function corpsTable(l){
- if(!l.length)return `<tr><td colspan="6"><div class="empty-state">Aucun salarié ne correspond à ce filtre.</div></td></tr>`;
- return l.map(ligneSalarie).join('');
+ if(!l.length)return `<tr><td colspan="4"><div class="empty-state">Aucun salarié ne correspond à ce filtre.</div></td></tr>`;
+ const groupes=TRI.cle==='statut'&&FILTRE!=='hors_paie';
+ let out='',dernier=null;
+ l.forEach(f=>{
+  if(groupes){const g=f.statut==='pret'?'Prêts':'À traiter d’abord';if(g!==dernier){out+=`<tr class="grp"><td colspan="4">${g}</td></tr>`;dernier=g}}
+  out+=ligneSalarie(f);
+ });
+ return out;
 }
 function renderTable(){
- const s=RAPPORT.synthese, l=fichesAffichees();
+ const s=RAPPORT.synthese, l=fichesAffichees(), a=agregats();
+ const ongletsListe=[['inclus',`Salariés (${s.salariesInclus})`],['hors_paie',`Hors paie (${a.horsPaie})`]];
  return `<div class="tabletools">
-  <div class="section-label" style="margin:0">Salariés · ${s.salariesPrets}/${s.salariesInclus} prêts</div>${infoBtn('statutSalarie','statut du salarié')}
+  <div class="liste-onglets filtres" role="group" aria-label="Liste des salariés">${ongletsListe.map(([v,lib])=>`<button type="button" class="filtre" data-filtre="${v}" aria-pressed="${(v==='hors_paie')===(FILTRE==='hors_paie')}">${lib}</button>`).join('')}</div>${infoBtn('statutSalarie','statut du salarié')}
   <input id="recherche" type="search" placeholder="Rechercher un salarié…" aria-label="Rechercher un salarié" value="${ECHAPPE(RECHERCHE)}">
-  <div class="filtres" role="group" aria-label="Filtrer les salariés">${FILTRES.map(([v,lib])=>`<button type="button" class="filtre" data-filtre="${v}" aria-pressed="${FILTRE===v}">${lib}</button>`).join('')}</div>
  </div>
  <div class="tablescroll"><table class="sal"><caption class="sr">Salariés du mois</caption><thead><tr>
   <th scope="col"><button type="button" class="tri" data-tri="nom" data-lib="Salarié">Salarié${fleche('nom')}</button></th>
-  <th scope="col">Affectation</th>
+  <th scope="col">Fonction</th>
   <th scope="col"><button type="button" class="tri" data-tri="heures" data-lib="Heures">Heures${fleche('heures')}</button></th>
-  <th scope="col">Absences</th>
-  <th scope="col"><button type="button" class="tri" data-tri="anomalies" data-lib="Éléments à vérifier">Éléments à vérifier${fleche('anomalies')}</button></th>
   <th scope="col"><button type="button" class="tri" data-tri="statut" data-lib="Statut">Statut${fleche('statut')}</button></th>
  </tr></thead><tbody id="tbody">${corpsTable(l)}</tbody></table></div>
  <div class="help" id="tableCount" style="padding:0 11px 9px;margin:0">${libelleCompte(l)}</div>`;
 }
+function anneau(pct,couleur){
+ const c=157.1, d=Math.max(0,Math.min(100,pct))/100*c;
+ return `<svg class="anneau" viewBox="0 0 60 60" aria-hidden="true"><circle class="fond" cx="30" cy="30" r="25"/><circle cx="30" cy="30" r="25" stroke="${couleur}" stroke-linecap="round" stroke-dasharray="${d.toFixed(1)} ${c}" transform="rotate(-90 30 30)"/></svg>`;
+}
 function renderKpis(s,ec,a){
- const cq=(typeof NexusPayeRegularisations!=='undefined'&&NexusPayeRegularisations.compteursQualification?NexusPayeRegularisations.compteursQualification(RAPPORT.items,s.configurationRequise):{decisionsPaie:s.aVerifier+s.configurationRequise,ecartsAQualifier:0}), dec=cq.decisionsPaie;
- return `<div class="kpirow" role="group" aria-label="Indicateurs du mois">
- <button type="button" class="kpi${FILTRE==='tous'?' actif':''}" data-kpi="salaries"><span>Salariés dans la paie</span><b>${s.salariesInclus}</b><small>${s.salariesInclus+a.horsPaie} salariés : ${s.salariesInclus} dans la paie + ${a.horsPaie} hors paie</small></button>
- <button type="button" class="kpi${TRI.cle==='heures'?' actif':''}" data-kpi="heures"><span>Heures confirmées</span><b>${H2(s.heuresConfirmees-a.attente)} h${a.attente?` <em class="kpi-attente" title="Heures de présence hors planning en attente d’arbitrage : non comptées tant qu’aucune décision n’est prise">+ ${H2(a.attente)} h à arbitrer</em>`:''}</b><small>${a.mesures+a.reconstitues} jour${a.mesures+a.reconstitues>1?'s':''} constaté${a.mesures+a.reconstitues>1?'s':''}${a.supp?` · +${H2(a.supp)} h supp. arbitrées`:''}</small></button>
- <button type="button" class="kpi warn${FILTRE==='a_verifier'?' actif':''}" data-kpi="decisions"><span>Décisions de paie à traiter</span><b>${dec}</b><small>${dec-s.configurationRequise} à arbitrer · ${s.configurationRequise} paramétrage${s.configurationRequise>1?'s':''}</small></button>
- <button type="button" class="kpi${cq.ecartsAQualifier?' warn':''}" data-kpi="ecarts-qualifier"><span>Écarts de caisse à qualifier</span><b>${cq.ecartsAQualifier}</b><small>sans incidence sur les heures ni la rémunération</small></button>
- <button type="button" class="kpi${FILTRE==='prets'?' actif':''}" data-kpi="prets"><span>Salariés prêts</span><b>${s.salariesPrets}/${s.salariesInclus}</b><small>${s.salariesAVerifier} à vérifier · ${s.salariesDonneeManquante} donnée manquante</small></button>
- <button type="button" class="kpi money" data-kpi="ecarts"><span>Manques validés du mois</span>${regulOk()?`<b>${eurosDe(REGUL.indic.manquesValides)}</b><small>solde opérationnel ${eurosDe(REGUL.indic.soldeOperationnel)} · encaissé ${euros(REGUL.synthese.encaissements.netCentimes)} ce mois${ec.aAttribuer?` · ${ec.aAttribuer} à attribuer`:''}</small>`:`<b>—</b><small>${ECHAPPE(raisonRegul())}</small>`}</button>
+ const inclus=s.salariesInclus, prets=s.salariesPrets, atraiter=Math.max(0,inclus-prets);
+ const pc=n=>inclus?Math.round(n/inclus*100):0;
+ return `<div class="kpi3" role="group" aria-label="Indicateurs du mois">
+ <button type="button" class="kpi${FILTRE!=='hors_paie'&&TRI.cle!=='heures'?' actif':''}" data-kpi="salaries"><span>Salariés en paie<b>${inclus}</b></span></button>
+ <button type="button" class="kpi${FILTRE==='prets'?' actif':''}" data-kpi="prets"><span>Prêts à valider<b>${prets}</b></span>${anneau(pc(prets),'#24D8E3')}<small class="sr">${pc(prets)} %</small></button>
+ <button type="button" class="kpi warn${FILTRE==='a_verifier'?' actif':''}" data-kpi="decisions"><span>À traiter<b>${atraiter}</b></span>${anneau(pc(atraiter),'#F5A12A')}<small class="sr">${pc(atraiter)} %</small></button>
+ <button type="button" class="kpi discret${TRI.cle==='heures'?' actif':''}" data-kpi="heures"><span>Heures retenues ce mois<b>${H2(s.heuresConfirmees-a.attente)} h</b>${a.attente?`<small>+ ${H2(a.attente)} h à arbitrer</small>`:''}</span></button>
  </div>`;
+}
+function renderCaisseConsultation(s,ec){
+ const cq=(typeof NexusPayeRegularisations!=='undefined'&&NexusPayeRegularisations.compteursQualification?NexusPayeRegularisations.compteursQualification(RAPPORT.items,s.configurationRequise):{decisionsPaie:s.aVerifier+s.configurationRequise,ecartsAQualifier:0});
+ return `<details class="caisse-consult"><summary>Caisse en consultation${cq.ecartsAQualifier?` · ${cq.ecartsAQualifier} écart${cq.ecartsAQualifier>1?'s':''} à qualifier`:''}</summary><div class="lignes-c">
+ <button type="button" class="kpi money" data-kpi="ecarts"><span>Manques validés du mois</span>${regulOk()?`<b>${eurosDe(REGUL.indic.manquesValides)}</b><small>solde opérationnel ${eurosDe(REGUL.indic.soldeOperationnel)} · encaissé ${euros(REGUL.synthese.encaissements.netCentimes)} ce mois${ec.aAttribuer?` · ${ec.aAttribuer} à attribuer`:''}</small>`:`<b>—</b><small>${ECHAPPE(raisonRegul())}</small>`}</button>
+ <button type="button" class="kpi${cq.ecartsAQualifier?' warn':''}" data-kpi="ecarts-qualifier"><span>Écarts de caisse à qualifier</span><b>${cq.ecartsAQualifier}</b><small>sans incidence sur les heures ni la rémunération</small></button>
+ <a href="${ECHAPPE(lienAnalyseEcarts())}" style="color:var(--green)">Voir dans Verify ↗</a></div></details>`;
 }
 function renderPanneau(){
  const f=trouverFiche(SELECTION);
@@ -477,13 +560,14 @@ function render(){
  if(!SELECTION||!trouverFiche(SELECTION))SELECTION=selectionParDefaut();
  const dec=s.aVerifier+s.configurationRequise;
  document.getElementById('app').innerHTML=`
- <div class="topbar">
-  <div class="brand"><span class="eyebrow">Dossier mensuel</span><span class="station">${ECHAPPE(COMMERCE||SITE||'Station non identifiée')}</span></div>
-  <div class="monthnav"><button type="button" id="prev" aria-label="Mois précédent">←</button><strong>${moisLabel()}</strong><button type="button" id="next" aria-label="Mois suivant">→</button><span class="status ${statut}">${etatDossier(statut)}</span>${infoBtn('dossier','dossier mensuel')}</div>
-  <div class="topacts"><button type="button" class="btn" id="toggleSaisie" aria-expanded="false" aria-controls="drawerSaisie">+ Nouvelle saisie</button><button type="button" class="btn${dec?' primary':''}" data-onglet="decisions">Vérifications${dec?` · ${dec}`:''}</button><button type="button" class="btn" data-onglet="dossier">Transmettre à la comptabilité</button></div>
- </div>
+ <header class="hero">
+  <div><div class="fil">NEXUS / Gestion</div><h1>Paye</h1><div class="sous">Préparation des variables mensuelles</div>
+  <div class="selecteurs"><span class="station-sel">${ECHAPPE(COMMERCE||SITE||'Station non identifiée')}</span><span class="monthnav"><button type="button" id="prev" aria-label="Mois précédent">←</button><strong>${moisLabel()}</strong><button type="button" id="next" aria-label="Mois suivant">→</button></span><span class="status ${statut}">${etatDossier(statut)}</span>${infoBtn('dossier','dossier mensuel')}</div></div>
+  <div class="topacts"><button type="button" class="btn nouveau" id="toggleSaisie" aria-expanded="false" aria-controls="drawerSaisie">+ Nouvelle saisie</button><button type="button" class="btn" data-onglet="dossier">Transmettre à la comptabilité</button></div>
+ </header>
  ${renderKpis(s,ec,a)}
- <div class="workspace">
+ ${renderCaisseConsultation(s,ec)}
+ <div class="workspace${FICHE_OUVERTE?' fiche-ouverte':''}">
   <div class="tablewrap" id="employeesSection">${renderTable()}</div>
   <aside class="panel" id="panelInner" aria-label="Panneau de travail">${renderPanneau()}</aside>
  </div>
@@ -583,19 +667,27 @@ function celluleAttente(f){
  if(att.some(i=>i.contestationOuverte))chips.push('<span class="flag red">Contestation ouverte</span>');
  return chips.join(' ');
 }
+function initiales(nom){return String(nom||'?').split(/\s+/).filter(Boolean).slice(0,2).map(m=>m[0].toUpperCase()).join('')||'?'}
+function iconeFonction(f){
+ const r=SANS_ACCENT(f.employee.role||'');
+ if((f.heuresRenfort||0)>0&&!(f.heuresCaisse||0)&&!(f.heuresPiste||0))return '↻';
+ if(/pompe|piste/.test(r))return '⛽';
+ if(/caiss/.test(r))return '🧾';
+ return '';
+}
+function pillListe(f){
+ if(!f.reglage.inclus)return '<span class="st hp">Hors paie</span>';
+ return f.statut==='pret'?'<span class="st ok">Prêt</span>':'<span class="st todo">À traiter</span>';
+}
 function ligneSalarie(f){
  const id=f.employee.id, inclus=!!f.reglage.inclus;
  const v=NexusPayeMoteur.variablesComptables(f);
- const [lib,ton]=STATUTS_SALARIE[f.statut]||STATUTS_SALARIE.hors_paie;
- const mode=!inclus?'Hors paie':(f.reglage.modePresence==='manuel'?'Heures saisies à la main':'Barème de la station');
- const hp=horsPlanning(f), jours=f.joursConfirmes?f.joursConfirmes.size:0;
- return `<tr data-employee="${ECHAPPE(id)}" tabindex="0" aria-label="Ouvrir la fiche de ${ECHAPPE(f.employee.nom)}" class="${SELECTION===id?'selected ':''}${inclus?'':'horspaie'}${inclus&&(itemsEnAttente(f).length||bloqueursConfig(id).length)?' prioritaire':''}">`
- +`<td class="cell-first" data-col="Salarié"><div class="cell-nom">${ECHAPPE(f.employee.nom)}</div><div class="cell-sub">${inclus?`${pluriel(jours,'jour')} confirmé${jours>1?'s':''}`:'Ne figure pas au dossier de paie'}</div></td>`
- +`<td data-col="Affectation"><div>${ECHAPPE(f.employee.role||'Poste non renseigné')}</div><div class="cell-sub">${mode}${hp?` · ${pluriel(hp,'jour')} hors planning`:''}</div></td>`
- +`<td data-col="Heures" class="cell-num${inclus&&v.presence.heures?'':' zero'}"><span>${inclus?libelleHeures(v):'Non concerné'}</span>${inclus&&heuresEnAttente(f)?`<div class="cell-sub">${[heuresEnAttente(f)?`dont ${H2(heuresEnAttente(f))} h en attente`:''].filter(Boolean).join(' · ')}</div>`:''}</td>`
- +`<td data-col="Absences">${inclus?celluleAbsences(v):'<span class="flag vide">Non concerné</span>'}</td>`
- +`<td data-col="Éléments à vérifier">${celluleAttente(f)}</td>`
- +`<td data-col="Statut"><span class="flag ${ton}">${lib}</span></td></tr>`;
+ const ic=iconeFonction(f);
+ return `<tr data-employee="${ECHAPPE(id)}" tabindex="0" aria-label="Ouvrir la fiche de ${ECHAPPE(f.employee.nom)}" class="${SELECTION===id?'selected ':''}${inclus?'':'horspaie'}${inclus&&f.statut!=='pret'?' prioritaire':''}">`
+ +`<td class="cell-first" data-col="Salarié"><div class="cell-id"><span class="av" aria-hidden="true">${ECHAPPE(initiales(f.employee.nom))}</span><div class="cell-nom">${ECHAPPE(f.employee.nom)}</div></div></td>`
+ +`<td data-col="Fonction"><span class="capsule">${ic?`<span aria-hidden="true">${ic}</span>`:''}${ECHAPPE(f.employee.role||'Poste non renseigné')}</span></td>`
+ +`<td data-col="Heures" class="cell-num${inclus&&v.presence.heures?'':' zero'}"><span>${inclus?libelleHeures(v):'—'}</span></td>`
+ +`<td data-col="Statut">${pillListe(f)}</td></tr>`;
 }
 // Fiche salarié : tout ce que le manager doit voir pour trancher, dans le
 // panneau latéral. Chaque élément n'apparaît qu'une fois — les anomalies à
@@ -613,39 +705,35 @@ function renderFiche(f){
  const reste=items.filter(i=>i.typeItem!=='ecart_caisse'&&!(i.statut==='a_verifier'||i.contestationOuverte));
  const lien=lienPlanningSecurise(), hp=horsPlanning(f), jours=f.joursConfirmes?f.joursConfirmes.size:0;
  const src=(RAPPORT.planningOfficiel&&RAPPORT.planningOfficiel.source)||'nexus';
- const tete=`<div class="panel-head"><div><h2>${ECHAPPE(f.employee.nom)}</h2><div class="meta">${ECHAPPE(f.employee.role||'Poste non renseigné')}${inclus?` · ${H2(v.presence.heures)} h · ${pluriel(jours,'jour')}`:''}</div></div>${pillStatut(f.statut)}</div>`
+ const tete=`<button type="button" class="btn retour-liste">‹ Paye</button><div class="fiche-tete"><span class="av" aria-hidden="true">${ECHAPPE(initiales(f.employee.nom))}</span><div><h2>${ECHAPPE(f.employee.nom)}</h2><div class="meta"><span class="capsule">${ECHAPPE(f.employee.role||'Poste non renseigné')}</span></div></div>${pillListe(f)}</div>`
  +`${inclus?'':`<div class="empty">Cet employé ne figure pas dans le dossier de paie de la station.${f.reglage.commentaire?` ${ECHAPPE(f.reglage.commentaire)}`:''}</div>`}`
  // Un rattachement jamais confirmé bloque le dossier du mois. Le statut le
  // dit déjà en une pastille ; la fiche doit dire quoi faire, et où.
  +`${f.reglage.confirme?'':`<div class="alert">${inclus?'Rattachement à la paie jamais confirmé : confirmez-le pour que ce salarié puisse être déclaré prêt.':'Hors paie proposé d’après le rôle, jamais confirmé : confirmez-le pour débloquer le dossier du mois.'}</div>`}`
  +`${conf.length?`<div class="alert">${conf.map(b=>ECHAPPE(b.libelle)).join('<br>')}<br>Réglage permanent à compléter une fois — ce n’est pas un arbitrage du mois.</div>`:''}`;
  if(!inclus)return tete+`<div class="actions" style="margin-top:10px"><button class="btn configure" data-id="${id}">Configurer le rattachement</button></div>`;
- return tete
- +`<div class="bloc-titre">Synthèse mensuelle ${infoBtn('heures','lecture des heures')}</div>${aTraiter?`<button class="btn primary jump-first" style="margin:0 0 8px">Traiter les ${aTraiter} élément${aTraiter>1?'s':''}</button>`:''}${renderVariables(v,f)}`
- +`<div class="bloc-titre">Heures retenues ${infoBtn('heuresRetenues','heures retenues')}</div>`
- +`<div class="lignes">`
-  +`<div class="ligne">Heures confirmées sans réserve<b>${H2(v.presence.heures-heuresEnAttente(f))} h</b></div>`
-  +`${heuresEnAttente(f)?`<div class="ligne">Heures hors planning en attente de votre décision<b>${H2(heuresEnAttente(f))} h</b></div>`:''}`
-  +`<div class="ligne${v.presence.heuresParDefaut?'':' muet'}">dont heures issues du barème de la station<b>${H2(v.presence.heuresParDefaut)} h</b></div>`
-  +`<div class="ligne${v.heuresSupplementaires.heuresDejaIncluses?'':' muet'}">dont heures supplémentaires déjà comptées dans le barème<b>${H2(v.heuresSupplementaires.heuresDejaIncluses)} h</b></div>`
-  +`<div class="ligne${v.heuresSupplementaires.heures?'':' muet'}">Heures supplémentaires arbitrées, en plus<b>${H2(v.heuresSupplementaires.heures)} h</b></div>`
-  +`<div class="ligne${v.retards.minutes?'':' muet'}">Retards retenus<b>${v.retards.minutes} min</b></div>`
- +`</div>`
- +renderHeures(v)
- +`<div class="bloc-titre">Planning officiel et affectations</div>`
- +`${v.presence.joursMesures+v.presence.joursReconstitues===0&&hp?`<div class="alert">Aucun jour planifié confirmé ce mois : les ${pluriel(hp,'présence')} constatée${hp>1?'s':''} sont hors planning et attendent votre décision.</div>`:''}`
- +`<div class="lignes">`
-  +`<div class="ligne">Source du planning<b>${src==='google_sheets'?'Google Sheets (officiel)':'Planning NEXUS'}</b></div>`
-  +`<div class="ligne">Mode de présence<b>${f.reglage.modePresence==='manuel'?'Heures saisies à la main':'Barème de la station'}</b></div>`
-  +`<div class="ligne">Jours confirmés<b>${v.presence.joursMesures+v.presence.joursReconstitues} constaté${v.presence.joursMesures+v.presence.joursReconstitues>1?'s':''}</b></div>`
-  +`<div class="ligne${hp?'':' muet'}">Jours travaillés hors planning<b>${hp}</b></div>`
- +`</div>`
- +`${lien?`<div class="help" style="margin-top:0"><a href="${ECHAPPE(lien)}" target="_blank" rel="noopener" style="color:var(--green)">Ouvrir le planning officiel ↗</a></div>`:''}`
- +`<div class="bloc-titre">Anomalies à résoudre${anomalies.length?` · ${anomalies.length}`:''}</div>`
- +`${anomalies.length?anomalies.map(i=>renderItem(f,i)).join(''):'<div class="ok">✓ Aucune anomalie à résoudre pour ce salarié.</div>'}`
- +`${ecarts.length?`<div class="bloc-titre">Écarts de caisse et régularisations · ${ecarts.length} ${infoBtn('regularisation','écarts et régularisations')}</div><div class="help" style="margin-top:0">Informations de contrôle, séparées des éléments de rémunération. Un écart de caisse ne devient jamais automatiquement une dette salariale.</div>${ecarts.map(i=>renderItem(f,i)).join('')}`:''}`
- +`<div class="actions" style="margin-top:10px"><button class="btn configure" data-id="${id}">Configurer le rattachement</button><button class="btn detail-toggle" data-emp="${id}">Voir le détail des sources et événements</button></div>`
- +`<div class="detail-zone" data-emp="${id}" hidden><div class="bloc-titre">Historique des décisions, sources et justificatifs</div>${reste.length?reste.map(i=>renderItem(f,i)).join(''):'<div class="empty">Aucun événement particulier détecté sur ce mois.</div>'}</div>`;
+ const jm=v.presence.joursMesures+v.presence.joursReconstitues;
+ const hC=Number(f.heuresCaisse||0), hP=Number(f.heuresPiste||0), hR=Number(f.heuresRenfort||0), hT=hC+hP+hR;
+ const part=x=>hT?Math.round(x/hT*100):0;
+ const onglets=[['synthese','Synthèse'],['journees','Journées'],['evenements','Événements'],['variables','Variables €'],['historique','Historique']];
+ const nav=`<div class="ftabs" role="tablist" aria-label="Rubriques de la fiche">${onglets.map(([k,lib])=>`<button type="button" class="ftab" role="tab" data-ftab="${k}" aria-selected="${FICHE_ONGLET===k}">${lib}${k==='evenements'&&anomalies.length?'<span class="pt" aria-hidden="true"></span>':''}</button>`).join('')}</div>`;
+ const info=cle=>infoBtn(cle,cle);
+ const zoneDecision=aTraiter?`<div class="decision-zone"><div><b>${aTraiter} décision${aTraiter>1?'s':''} à prendre</b><div class="help" style="margin:2px 0 0">Un point de paie attend votre arbitrage avant de valider ce salarié.</div></div><button type="button" class="btn primary jump-first">Traiter ›</button></div>`:'';
+ const synthese=`<div class="carte-h"><div class="meta">Heures retenues ${infoBtn('heuresRetenues','heures retenues')}</div><div class="gros">${H2(v.presence.heures)} h</div><div class="help" style="margin:2px 0 0">${pluriel(jm,'journée')} constatée${jm>1?'s':''}${v.presence.heuresParDefaut?` · dont ${H2(v.presence.heuresParDefaut)} h calculées d’après le barème de la station`:''}</div>`
+  +(hT?`<div class="repart" role="img" aria-label="Répartition par activité"><i style="width:${part(hC)}%;background:#24D8E3"></i><i style="width:${part(hP)}%;background:#3D7BF2"></i><i style="width:${part(hR)}%;background:#8A96A5"></i></div><div class="help" style="margin:0">Répartition des ${H2(hT)} h, pas en plus : caisse ${H2(hC)} h · piste ${H2(hP)} h · renfort ${H2(hR)} h</div>`:'')
+  +`</div>`
+  +`<div class="minis"><div class="mini"><span class="meta">Absence</span><b>${v.congesPayes.jours+v.maladieMaternite.jours+v.autresAbsences.jours} j</b></div><div class="mini"><span class="meta">Retard</span><b>${v.retards.minutes} min</b></div><div class="mini"><span class="meta">Variables</span><b>${(()=>{const fin=v.financier,t=fin.acompteCentimes+fin.detteCentimes+fin.retenueEcartCentimes;return t?euros(t):'—'})()}</b></div></div>`
+  +zoneDecision;
+ const journees=renderHeures(v)+`<div class="lignes"><div class="ligne">Jours constatés<b>${jm}</b></div><div class="ligne${hp?'':' muet'}">Jours travaillés hors planning<b>${hp}</b></div><div class="ligne">Source du planning<b>${src==='google_sheets'?'Google Sheets (officiel)':'Planning NEXUS'}</b></div></div>${lien?`<div class="help"><a href="${ECHAPPE(lien)}" target="_blank" rel="noopener" style="color:var(--green)">Ouvrir le planning officiel ↗</a></div>`:''}`;
+ const evenements=`<div class="bloc-titre">Anomalies à résoudre${anomalies.length?` · ${anomalies.length}`:''}</div>`
+  +`${anomalies.length?anomalies.map(i=>renderItem(f,i)).join(''):'<div class="ok">✓ Aucune anomalie à résoudre pour ce salarié.</div>'}`
+  +`${ecarts.length?`<div class="bloc-titre">Écarts de caisse et régularisations · ${ecarts.length} ${infoBtn('regularisation','écarts et régularisations')}</div>${ecarts.map(i=>renderItem(f,i)).join('')}`:''}`;
+ const variables=renderVariables(v,f);
+ const historique=`<div class="detail-zone" data-emp="${id}"><div class="bloc-titre">Historique des décisions, sources et justificatifs</div>${reste.length?reste.map(i=>renderItem(f,i)).join(''):'<div class="empty">Aucun événement particulier détecté sur ce mois.</div>'}</div>`;
+ const corps={synthese,journees,evenements,variables,historique}[FICHE_ONGLET]||synthese;
+ return tete+nav+corps
+ +`<div class="fiche-pied"><button type="button" class="btn primary valider-salarie" ${aTraiter?'disabled title="Disponible quand la décision est prise"':''}>✓ Valider le salarié</button><button type="button" class="btn" data-ftab="journees">Voir le détail</button><button class="btn configure" data-id="${id}">Configurer le rattachement</button></div>`
+ +`<div class="pied-mobile"><button type="button" class="btn primary" data-onglet="dossier" ${RAPPORT.synthese.aVerifier+RAPPORT.synthese.configurationRequise?'disabled':''}>Transmettre au comptable${RAPPORT.synthese.aVerifier+RAPPORT.synthese.configurationRequise?` · ${RAPPORT.synthese.aVerifier+RAPPORT.synthese.configurationRequise} à traiter`:''}</button></div>`;
 }
 function arrondi(x){return Math.round(Number(x||0)*100)/100}
 function ecartsAExaminer(f){
@@ -937,10 +1025,10 @@ function majTable(){
  const l=fichesAffichees(), corps=document.getElementById('tbody');
  if(corps)corps.innerHTML=corpsTable(l);
  const c=document.getElementById('tableCount');if(c)c.textContent=libelleCompte(l);
- document.querySelectorAll('.filtre').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.filtre===FILTRE)));
+ document.querySelectorAll('.filtre').forEach(b=>b.setAttribute('aria-pressed',String((b.dataset.filtre==='hors_paie')===(FILTRE==='hors_paie'))));
  document.querySelectorAll('button.tri').forEach(b=>{b.textContent=`${b.dataset.lib}${fleche(b.dataset.tri)}`});
  document.querySelectorAll('[data-kpi]').forEach(b=>{
-  const actif=(b.dataset.kpi==='salaries'&&FILTRE==='tous')||(b.dataset.kpi==='decisions'&&FILTRE==='a_verifier')||(b.dataset.kpi==='prets'&&FILTRE==='prets')||(b.dataset.kpi==='heures'&&TRI.cle==='heures');
+  const actif=(b.dataset.kpi==='salaries'&&FILTRE==='inclus')||(b.dataset.kpi==='decisions'&&FILTRE==='a_verifier')||(b.dataset.kpi==='prets'&&FILTRE==='prets')||(b.dataset.kpi==='heures'&&TRI.cle==='heures');
   b.classList.toggle('actif',!!actif);
  });
  bindLignes();
@@ -953,7 +1041,8 @@ function majPanneau(){
 }
 function selectionner(id,onglet){
  if(!trouverFiche(id))return;
- SELECTION=id;ONGLET=onglet||'fiche';
+ SELECTION=id;ONGLET=onglet||'fiche';FICHE_ONGLET='synthese';FICHE_OUVERTE=true;
+ const w=document.querySelector('.workspace');if(w)w.classList.add('fiche-ouverte');
  majTable();majPanneau();
 }
 function bindLignes(){
@@ -978,7 +1067,7 @@ function bindCockpit(){
  document.querySelectorAll('.lien-salarie').forEach(b=>b.onclick=()=>selectionner(b.dataset.employee));
  document.querySelectorAll('[data-kpi]').forEach(b=>b.onclick=()=>{
   const k=b.dataset.kpi;
-  if(k==='salaries'){FILTRE='tous';RECHERCHE='';majTable();const i=document.getElementById('recherche');if(i)i.value=''}
+  if(k==='salaries'){FILTRE='inclus';RECHERCHE='';majTable();const i=document.getElementById('recherche');if(i)i.value=''}
   else if(k==='heures'){TRI={cle:'heures',sens:-1};majTable()}
   else if(k==='decisions'){FILTRE='a_verifier';majTable();ouvrirOnglet('decisions','reviewSection')}
   else if(k==='prets'){FILTRE='prets';majTable()}
@@ -992,7 +1081,9 @@ function bindCockpit(){
  // l'onglet, sinon le clic ne faisait plus rien.
  document.querySelectorAll('.jump-review').forEach(b=>b.onclick=()=>ouvrirOnglet('decisions','reviewSection'));
  document.querySelectorAll('.jump-first').forEach(b=>b.onclick=()=>{ouvrirOnglet('decisions','reviewSection');const c=document.querySelector('#reviewSection .review-card .btn, #reviewSection .review-card select');if(c&&c.focus)c.focus({preventScroll:true})});
- document.querySelectorAll('.jump-employees').forEach(b=>b.onclick=()=>{FILTRE='tous';majTable();const i=document.getElementById('recherche');if(i&&i.focus)i.focus()});
+ document.querySelectorAll('.jump-employees').forEach(b=>b.onclick=()=>{FILTRE='inclus';majTable();const i=document.getElementById('recherche');if(i&&i.focus)i.focus()});
+ document.querySelectorAll('[data-ftab]').forEach(b=>b.onclick=()=>{FICHE_ONGLET=b.dataset.ftab;ONGLET='fiche';majPanneau()});
+ document.querySelectorAll('.retour-liste').forEach(b=>b.onclick=()=>{FICHE_OUVERTE=false;const w=document.querySelector('.workspace');if(w)w.classList.remove('fiche-ouverte')});
  bindLignes();
 }
 // Un conflit que Verify a tranché (08/10/2026, décision de Frédéric) ne

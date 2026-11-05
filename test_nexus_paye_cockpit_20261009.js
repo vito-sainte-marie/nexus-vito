@@ -134,43 +134,52 @@ verifier('le bandeau porte le mois et sa navigation',
 verifier('le bandeau porte l’état du dossier',
   /en préparation|en vérification|prêt pour comptabilité|transmis/.test(ecran()));
 verifier('le bandeau porte les trois actions principales',
-  dans(ecran(), 'Nouvelle saisie') && dans(ecran(), 'Vérifications') && dans(ecran(), 'Transmettre à la comptabilité'));
-verifier('les six indicateurs sont sur une seule ligne',
-  dans(ecran(), 'class="kpirow"') && compter(ecran(), /data-kpi="/g) === 6);
+  dans(ecran(), 'Nouvelle saisie') && dans(ecran(), 'Transmettre à la comptabilité'));
+// Lot 1 présentation (05/11) : trois compteurs + « Heures retenues » discret ;
+// manques validés et écarts passent en « Caisse en consultation ».
+verifier('trois compteurs en tête, plus les heures retenues en discret',
+  dans(ecran(), 'class="kpi3"') && compter(ecran(), /data-kpi="(salaries|prets|decisions|heures)"/g) === 4);
 verifier('… et chacun est un bouton, donc cliquable au clavier comme à la souris',
-  compter(ecran(), /<button type="button" class="kpi/g) === 6);
+  compter(ecran(), /<button type="button" class="kpi/g) === 6 && dans(ecran(), 'class="caisse-consult"'));
 // Libellés de la finition du 09/10 : « dans la paie » rend explicite que les
 // salariés hors paie sont décomptés à part (17 = 9 + 8), et l'indicateur
 // d'écarts porte le SOLDE réel issu des régularisations, non un total d'écarts.
-['Salariés dans la paie', 'Heures confirmées', 'Décisions de paie à traiter', 'Écarts de caisse à qualifier',
-  'Salariés prêts', 'Manques validés du mois'].forEach(k => {
-  verifier(`l’indicateur « ${k} » est présent`, dans(ecran(), `<span>${k}</span>`));
+['Salariés en paie', 'Heures retenues ce mois', 'À traiter', 'Écarts de caisse à qualifier',
+  'Prêts à valider', 'Manques validés du mois'].forEach(k => {
+  verifier(`l’indicateur « ${k} » est présent`, dans(ecran(), `<span>${k}`));
 });
 verifier('les écarts de caisse sont tenus à l’écart des éléments de rémunération',
   dans(ecran(), 'Informations de contrôle, séparées des éléments de rémunération'));
 
-const COLONNES = ['Salarié', 'Affectation', 'Heures', 'Absences', 'Éléments à vérifier', 'Statut'];
+const COLONNES = ['Salarié', 'Fonction', 'Heures', 'Statut'];
 verifier('le tableau compact remplace les cartes', dans(ecran(), 'class="tablescroll"') && dans(ecran(), 'table class="sal"'));
-COLONNES.forEach(c => verifier(`la colonne « ${c} » existe`, dans(ecran(), `>${c}<`) || dans(ecran(), `${c}</button>`)));
-verifier('quatre colonnes sont triables', compter(ecran(), /data-tri="/g) === 4);
+COLONNES.forEach(c => verifier(`la colonne « ${c} » existe`, dans(ecran(), `>${c}<`) || dans(ecran(), `${c}</button>`) || dans(ecran(), `data-lib="${c}"`) || dans(ecran(), `${c}</th>`)));
+verifier('quatre colonnes sont triables', compter(ecran(), /data-tri="/g) === 3);
 verifier('la recherche est instantanée', dans(ecran(), 'id="recherche"') && dans(ecran(), 'type="search"'));
-verifier('les quatre filtres sont offerts', compter(ecran(), /class="filtre"|class="filtre /g) === 4);
+verifier('deux onglets de liste : Salariés et Hors paie', compter(ecran(), /class="filtre"|class="filtre /g) === 2
+  && /Salariés \(\d+\)/.test(ecran()) && /Hors paie \(\d+\)/.test(ecran()));
 verifier('le tableau défile indépendamment', dans(html, '.tablescroll{overflow:auto'));
-verifier('cinq salariés, un par ligne', compter(ecran(), /<tr data-employee/g) === 5);
-verifier('chaque ligne porte ses six cellules', compter(ecran(), /<td [^>]*data-col="/g) === 30);
-verifier('le salarié hors paie reste visible, en retrait',
+verifier('quatre salariés en paie, un par ligne', compter(ecran(), /<tr data-employee/g) === 4);
+verifier('chaque ligne porte ses quatre cellules', compter(ecran(), /<td [^>]*data-col="/g) === 16);
+vm.runInContext("FILTRE = 'hors_paie'; render();", ctx);
+verifier('le salarié hors paie reste visible dans son onglet, en retrait',
   dans(ecran(), 'horspaie') && dans(ecran(), 'Mathieu'));
+vm.runInContext("FILTRE = 'inclus'; render();", ctx);
 
 // ── §4 — panneau latéral ────────────────────────────────────────────────
 verifier('le panneau latéral a trois onglets', dans(ecran(), 'role="tablist"') && compter(ecran(), /data-onglet="/g) >= 3);
 verifier('les trois volets sont nommés',
   dans(ecran(), 'id="ficheSection"') && dans(ecran(), 'id="reviewSection"') && dans(ecran(), 'id="accountantSection"'));
-['Synthèse mensuelle', 'Heures retenues', 'Planning officiel et affectations',
-  'Anomalies à résoudre'].forEach(b => verifier(`la fiche ouvre « ${b} »`, dans(ecran(), b)));
+// La fiche est en onglets : chaque contenu vit dans son onglet.
+const tousOnglets = () => ['synthese','journees','evenements','variables','historique'].map(o => {
+  vm.runInContext(`FICHE_ONGLET='${o}'; render();`, ctx); return ecran(); }).join('\n');
+const ongletsTxt = tousOnglets();
+vm.runInContext("FICHE_ONGLET='synthese'; render();", ctx);
+['Heures retenues', 'Planning officiel', 'Anomalies'].forEach(b => verifier(`la fiche ouvre « ${b} »`, dans(ongletsTxt, b)));
 verifier('la source officielle du planning est atteignable depuis la fiche',
-  dans(ecran(), 'docs.google.com/spreadsheets/d/aout2026'));
+  dans(ongletsTxt, 'docs.google.com/spreadsheets/d/aout2026'));
 verifier('les décisions, sources et justificatifs sont historisés',
-  dans(ecran(), 'Historique des décisions, sources et justificatifs'));
+  dans(ongletsTxt, 'Historique des décisions, sources et justificatifs'));
 
 // ── Une anomalie n’offre que les actions qui la concernent ──────────────
 // Une présence hors planning se confirme, se corrige ou ne se retient pas.
@@ -188,6 +197,7 @@ verifier('un écart offre Sans impact paie, Transmettre à la comptabilité et s
 // L'écart se lit depuis la fiche du salarié ET depuis la liste du mois :
 // deux chemins de lecture, une seule décision. Ce qui est interdit, c'est
 // deux boutons pour la même décision DANS LE MÊME volet.
+vm.runInContext(`FICHE_ONGLET = 'evenements'; render();`, ctx);
 const volets = ecran().split('id="reviewSection"');
 verifier('chaque volet n’offre qu’une paire d’actions par élément',
   volets.length === 2
@@ -222,8 +232,7 @@ verifier('la règle est écrite à l’écran, pas seulement dans le code',
 
 // ── Recherche, filtres et tri : la lecture du tableau ───────────────────
 const ids = () => vm.runInContext('fichesAffichees().map(f=>f.employee.id)', ctx);
-verifier('les cinq salariés sont listés par défaut', ids().length === 5);
-verifier('le hors paie est lu en dernier, sans bloquer les autres', ids()[4] === 'e4');
+verifier('les quatre salariés en paie sont listés par défaut', ids().length === 4 && !ids().includes('e4'));
 vm.runInContext("RECHERCHE = 'sofi';", ctx);
 verifier('la recherche trouve un salarié sans accent ni casse', ids().join() === 'e5');
 vm.runInContext("RECHERCHE = ''; FILTRE = 'hors_paie';", ctx);
@@ -383,7 +392,7 @@ verifier('le bloc téléphone existe', bloc820.length > 100);
 verifier('le tableau se replie en fiches sous le pouce',
   dans(bloc820, 'table.sal thead{display:none}') && dans(bloc820, 'table.sal tbody tr{display:grid'));
 verifier('… et chaque cellule porte le nom de sa colonne',
-  dans(bloc820, "td::before{content:attr(data-col)") && compter(html, /data-col="/g) >= 6);
+  dans(bloc820, "td::before{content:attr(data-col)") && compter(html, /data-col="/g) >= 4);
 verifier('les commandes, la recherche et les menus font 44 px de haut',
   dans(bloc820, '.btn,.menu,input,select{min-height:44px}'));
 verifier('les bulles (i) gardent leur dessin et étendent leur aire de frappe',

@@ -132,6 +132,8 @@ verifier('aucune source ne s’affiche sous forme de clé technique brute',
   !/source : duree_reference|source : horaire_exceptionnel|source : undefined/.test(rendu.app));
 
 // ── §9 : la ventilation des heures par origine ───────────────────────────
+// La ventilation vit dans l’onglet Variables € de la fiche (lot 1 présentation, 05/11).
+vm.runInContext("FICHE_ONGLET='variables'; render();", ctx);
 for (const t of ['Heures de caisse', 'Heures de piste', 'Heures de renfort', 'Dont heures exceptionnelles (saisies par le manager)', 'Écarts à examiner'])
   verifier(`la fiche salarié ventile « ${t} »`, rendu.app.includes(t));
 verifier('les heures de piste valent le total, la caisse reste à zéro',

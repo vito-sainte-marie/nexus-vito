@@ -54,7 +54,8 @@ ctx.__d = {
 vm.runInContext(`MOIS='2026-09-01'; SITE='${SITE}'; EMPLOYEE={id:'m',role:'manager'};
   RAPPORT=NexusPayeMoteur.construireRapport(__d); RAPPORT.periodeEnregistree=null;
   RAPPORT.planningOfficiel={source:'nexus',url:null}; render();`, ctx);
-const ecran = rendu.app || '';
+// La fiche est en onglets (lot 1 présentation, 05/11) : on agrège tous les onglets.
+const ecran = (() => { const parts = []; for (const o of ['synthese','journees','evenements','variables','historique']) { vm.runInContext(`FICHE_ONGLET='${o}'; render();`, ctx); parts.push(rendu.app || ''); } vm.runInContext(`FICHE_ONGLET='synthese'; render();`, ctx); return parts.join('\n'); })();
 
 let n = 0;
 function verifier(l, c) { console.log(`${c ? 'OK  ' : 'ÉCHEC'} — ${l}`); assert.ok(c, l); n++; }

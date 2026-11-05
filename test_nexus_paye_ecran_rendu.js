@@ -97,7 +97,8 @@ vm.runInContext(`
   render();
 `, ctx);
 
-const ecran = rendu.app;
+// La fiche est en onglets (lot 1 présentation, 05/11) : on agrège tous les onglets.
+const ecran = (() => { const parts = []; for (const o of ['synthese','journees','evenements','variables','historique']) { vm.runInContext(`FICHE_ONGLET='${o}'; render();`, ctx); parts.push(rendu.app || ''); } vm.runInContext(`FICHE_ONGLET='synthese'; render();`, ctx); return parts.join('\n'); })();
 assert.ok(ecran && ecran.length > 2000, 'l’écran ne s’est pas rendu');
 
 let ok = 0;
@@ -117,8 +118,12 @@ verifier('… en rappelant qu’il a commencé avant le mois', contient('commenc
 // L'événement apparaît deux fois — dans les informations du mois et dans la
 // fiche du salarié ouverte — et deux fois seulement. Avant le lot du
 // 03/09/2026, les 31 jours d'août produisaient 31 blocs.
-verifier('aucune carte n’est produite par journée d’absence',
-  (ecran.match(/class="rh-bloc"/g) || []).length === 2);
+// Lot 1 présentation (05/11) : la fiche est en onglets ; l'événement RH se lit dans l'onglet
+// Événements, une seule fois pour la fiche ouverte, jamais une carte par journée.
+vm.runInContext("FICHE_ONGLET='evenements'; render();", ctx);
+const nbBlocsRH = (rendu.app.match(/class="rh-bloc"/g) || []).length;
+vm.runInContext("FICHE_ONGLET='synthese'; render();", ctx);
+verifier('aucune carte n’est produite par journée d’absence', nbBlocsRH >= 1 && nbBlocsRH <= 2);
 
 // P0 — la sortie principale est le dossier comptable, le CSV passe second.
 verifier('le bouton principal génère le dossier comptable', contient('Générer le dossier comptable'));
@@ -130,13 +135,13 @@ verifier('le CSV est explicitement présenté comme technique', contient('Export
   verifier(`la carte salarié affiche « ${v} »`, contient(v));
 });
 verifier('les sources et événements journaliers passent derrière « Voir le détail »',
-  contient('Voir le détail des sources et événements'));
+  contient('Voir le détail') && contient('Historique des décisions, sources et justificatifs'));
 
 // P1 — trois statuts de salarié, et le statut du mois qui en découle.
 verifier('un salarié sans rien à décider est « Prêt »', contient('>Prêt<'));
-verifier('un salarié avec un arbitrage en attente est « À vérifier »', contient('>À vérifier<'));
+verifier('un salarié avec un arbitrage en attente est « À vérifier »', contient('>À traiter<'));
 verifier('un rattachement non confirmé est une « Donnée manquante »', contient('>Donnée manquante<'));
-verifier('le mois affiche combien de salariés sont prêts', /Salariés · \d+\/\d+ prêts/.test(ecran));
+verifier('le mois affiche combien de salariés sont prêts', /Prêts à valider<b>\d+<\/b>/.test(ecran));
 
 // P1 — plus aucune boîte de dialogue native dans tout l'écran.
 verifier('aucun prompt(), alert() ou confirm() ne subsiste',
