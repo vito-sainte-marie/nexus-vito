@@ -463,6 +463,10 @@
   // fichier pour ne jamais réutiliser une confirmation obsolète.
   let snapshotConfirmerMalgreDelai = false;
   let snapshotAvertissementEnCours = null;
+  // Retour de l'import Photo Decenium (bilan, refus, fichier absent) : tenu
+  // hors du DOM car comparerVentesQuart redessine la page juste après.
+  let photoDeceniumRetourHtml = '';
+  let photoDeceniumImportEnCours = false;
 
   // Correction rétroactive (04/08/2026, audit fonctionnel §25-28) : le
   // manager choisit un produit/date/quart, voit la valeur initiale (jamais
@@ -1370,6 +1374,14 @@
   // ce nouveau Snapshot actif (déjà branché depuis l'Étape 1).
   async function construirePhotoDecenium(fichierStock, fichierVentes, { salesHeureDeclaree, stockHeureDeclaree, confirmerMalgreDelai }) {
     const instantImport = new Date().toISOString();
+    // Un export ne peut pas dater du futur : refus avant toute écriture
+    // (une heure future donnait une référence postérieure à l'import, classée Haute).
+    const limiteFutur = Date.now() + 60 * 1000;
+    const futur = [['Ventes', salesHeureDeclaree], ['Stock', stockHeureDeclaree]]
+      .find(([, v]) => v && new Date(v).getTime() > limiteFutur);
+    if (futur) {
+      return { creee: false, besoinConfirmation: false, refus: `Photo Decenium non créée : l'heure d'export ${futur[0]} est dans le futur. Corrigez-la ou videz le champ.` };
+    }
     const sales = resoudreHorodatageExport(salesHeureDeclaree, instantImport);
     const stock = resoudreHorodatageExport(stockHeureDeclaree, instantImport);
 
@@ -2898,6 +2910,11 @@
   // NEXUS crée le Snapshot malgré la réserve.
   // Résumé lisible pour le manager (L2a) : combien d'articles vendus sont
   // retrouvés au stock, lesquels sont à vérifier et pourquoi.
+  function renderMessagePhotoDecenium(texte) {
+    const esc = (t) => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    return `<div class="snapshot-avertissement">${esc(texte)}</div>`;
+  }
+
   function renderBilanPhotoDecenium(r) {
     const b = r.bilan;
     const esc = (t) => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -3041,7 +3058,7 @@
                 <input type="datetime-local" id="snapshotStockHeureInput">
               </div>
             </div>
-            <div id="snapshotAvertissement"></div>
+            <div id="snapshotAvertissement">${photoDeceniumRetourHtml}</div>
           </div>
 
           <div id="ventesResume"></div>
@@ -3167,6 +3184,7 @@
         const texte = document.getElementById('snapshotStockFileText');
         snapshotConfirmerMalgreDelai = false;
         snapshotAvertissementEnCours = null;
+        photoDeceniumRetourHtml = '';
         const avertEl = document.getElementById('snapshotAvertissement');
         if (avertEl) avertEl.innerHTML = '';
         if (fichier) { texte.textContent = fichier.name; label.classList.add('choisi'); }
@@ -3176,39 +3194,56 @@
       btnComparerVentes.addEventListener('click', async () => {
         const fichier = ventesFileInput.files[0];
         if (!fichier || !quartRow) return;
-        const fichierStock = snapshotStockFileInput ? snapshotStockFileInput.files[0] : null;
-
-        // Photo Decenium créée AVANT le rapprochement du quart (Étape 2) —
-        // uniquement si un fichier Stock actuel a été fourni ; sinon
-        // comportement historique intégralement préservé (aucun Snapshot
-        // touché, snapshot_id restera null comme depuis l'Étape 1).
-        if (fichierStock) {
-          const salesHeureDeclaree = document.getElementById('snapshotVentesHeureInput').value || null;
-          const stockHeureDeclaree = document.getElementById('snapshotStockHeureInput').value || null;
-          const resultat = await construirePhotoDecenium(fichierStock, fichier, {
-            salesHeureDeclaree, stockHeureDeclaree, confirmerMalgreDelai: snapshotConfirmerMalgreDelai,
-          });
-          if (resultat.besoinConfirmation) {
-            snapshotAvertissementEnCours = resultat.qualification;
-            const avertEl = document.getElementById('snapshotAvertissement');
-            if (avertEl) {
-              avertEl.innerHTML = renderSnapshotAvertissement(resultat.qualification);
-              const btnPoursuivre = document.getElementById('btnSnapshotPoursuivre');
-              if (btnPoursuivre) btnPoursuivre.addEventListener('click', () => {
-                snapshotConfirmerMalgreDelai = true;
-                btnComparerVentes.click();
-              });
-            }
-            return; // on attend la confirmation explicite avant de créer quoi que ce soit
-          }
-          snapshotConfirmerMalgreDelai = false; // consommée, ne doit pas survivre à ce clic
-          const avertBilan = document.getElementById('snapshotAvertissement');
-          if (avertBilan && resultat.bilan) avertBilan.innerHTML = renderBilanPhotoDecenium(resultat);
-        }
-
+        // Un second clic pendant l'import créerait une deuxième Photo.
+        if (photoDeceniumImportEnCours) return;
+        photoDeceniumImportEnCours = true;
         btnComparerVentes.disabled = true;
-        btnComparerVentes.textContent = 'Import en cours…';
-        await comparerVentesQuart(fichier);
+        const avertEl = () => document.getElementById('snapshotAvertissement');
+        const reactiver = () => { photoDeceniumImportEnCours = false; btnComparerVentes.disabled = false; };
+        try {
+          const fichierStock = snapshotStockFileInput ? snapshotStockFileInput.files[0] : null;
+          photoDeceniumRetourHtml = '';
+
+          // Photo Decenium créée AVANT le rapprochement du quart (Étape 2) —
+          // uniquement si un fichier Stock actuel a été fourni ; sinon
+          // comportement historique préservé (aucun Snapshot touché,
+          // snapshot_id restera null comme depuis l'Étape 1), avec un message.
+          if (fichierStock) {
+            const salesHeureDeclaree = document.getElementById('snapshotVentesHeureInput').value || null;
+            const stockHeureDeclaree = document.getElementById('snapshotStockHeureInput').value || null;
+            const resultat = await construirePhotoDecenium(fichierStock, fichier, {
+              salesHeureDeclaree, stockHeureDeclaree, confirmerMalgreDelai: snapshotConfirmerMalgreDelai,
+            });
+            if (resultat.refus) {
+              photoDeceniumRetourHtml = renderMessagePhotoDecenium(resultat.refus);
+              if (avertEl()) avertEl().innerHTML = photoDeceniumRetourHtml;
+              reactiver();
+              return;
+            }
+            if (resultat.besoinConfirmation) {
+              snapshotAvertissementEnCours = resultat.qualification;
+              if (avertEl()) {
+                avertEl().innerHTML = renderSnapshotAvertissement(resultat.qualification);
+                const btnPoursuivre = document.getElementById('btnSnapshotPoursuivre');
+                if (btnPoursuivre) btnPoursuivre.addEventListener('click', () => {
+                  snapshotConfirmerMalgreDelai = true;
+                  btnComparerVentes.click();
+                });
+              }
+              reactiver();
+              return; // on attend la confirmation explicite avant de créer quoi que ce soit
+            }
+            snapshotConfirmerMalgreDelai = false; // consommée, ne doit pas survivre à ce clic
+            if (resultat.bilan) photoDeceniumRetourHtml = renderBilanPhotoDecenium(resultat);
+          } else {
+            photoDeceniumRetourHtml = renderMessagePhotoDecenium('Photo Decenium non créée : fichier Stock absent.');
+          }
+
+          btnComparerVentes.textContent = 'Import en cours…';
+          await comparerVentesQuart(fichier);
+        } finally {
+          photoDeceniumImportEnCours = false;
+        }
       });
     }
     document.querySelectorAll('.btn-decision[data-decision]').forEach(btn => btn.addEventListener('click', async () => {
