@@ -39,9 +39,14 @@ assert.strictEqual(M.variablesComptables(f(avec)).retenueEcartCentimes || 0, 0);
 ok(!M.sansIncidencePaie({ typeItem: 'jour_ferie', statut: 'a_verifier', impactPaye: false }), 'un jour férié reste une décision');
 ok(!M.sansIncidencePaie({ typeItem: 'absence_a_verifier', statut: 'a_verifier', impactPaye: false }), 'une absence reste une décision');
 
-// Écart non attribué : visible, mais ne bloque plus le mois.
+// Décision Frédéric (05/11) : un écart non attribué bloque toujours le mois.
 const nonAttribue = run([Object.assign(ecart(-0.17), { employeeId: null })]);
-ok(!nonAttribue.bloqueurs.some(b => b.type === 'ecart_non_attribue'), 'un écart non attribué ne bloque pas la paie');
+ok(nonAttribue.bloqueurs.some(b => b.type === 'ecart_non_attribue'), 'un écart non attribué bloque toujours le mois');
+
+// Un écart contesté bloque le mois, mais le salarié reste « Prêt » s'il n'a rien d'autre.
+const conteste = run([Object.assign(ecart(-0.17), { contestation: { statut_contestation: 'ouverte' } })]);
+ok(conteste.bloqueurs.some(b => b.type === 'ecart_caisse' && b.employeeId === 'e1'), 'un écart contesté bloque le mois');
+assert.strictEqual(f(conteste).statut, f(sans).statut, 'ÉCHEC : le salarié reste dans son statut malgré la contestation'); n++;
 
 // Écran : la liste « à traiter » du salarié passe par la même règle.
 const html = fs.readFileSync(__dirname + '/NEXUS-Paye-v1.html', 'utf8');

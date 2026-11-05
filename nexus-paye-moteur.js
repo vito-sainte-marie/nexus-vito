@@ -977,11 +977,13 @@
       // et documentée, mais elle ne bloque pas la préparation de la paie
       // (§4). Et cela vaut même si une décision ancienne, enregistrée du
       // temps où ces journées étaient « à valider », porte encore ce statut.
-      f.items.filter(i => i.rubrique !== RUBRIQUE_ECART && !i.decisionAnterieure && !sansIncidencePaie(i)
-          && (i.statut === 'a_verifier' || i.contestationOuverte))
+      f.items.filter(i => i.rubrique !== RUBRIQUE_ECART && !i.decisionAnterieure
+          // Décision Frédéric 05/11 : un écart de caisse contesté bloque toujours le mois ;
+          // un écart ordinaire, rattaché et non contesté, ne bloque ni le salarié ni le mois.
+          && (sansIncidencePaie(i) ? i.contestationOuverte : (i.statut === 'a_verifier' || i.contestationOuverte)))
         .forEach(i => bloqueurs.push({ categorie: 'element', type: i.typeItem, employeeId: f.employee.id, sourceCle: i.sourceCle, libelle: `${f.employee.nom} : ${i.libelle}` }));
     });
-    ecartsNonAttribues.filter(i => i.statut === 'a_verifier' && !sansIncidencePaie(i)).forEach(i => bloqueurs.push({ categorie: 'element', type: 'ecart_non_attribue', employeeId: null, sourceCle: i.sourceCle, libelle: `${i.libelle} : attribution à corriger dans Verify` }));
+    ecartsNonAttribues.filter(i => i.statut === 'a_verifier').forEach(i => bloqueurs.push({ categorie: 'element', type: 'ecart_non_attribue', employeeId: null, sourceCle: i.sourceCle, libelle: `${i.libelle} : attribution à corriger dans Verify` }));
 
     // Statut par salarié, puis statut du mois (03/09/2026). Le mois n'est
     // « prêt » que si chaque salarié l'est : le manager voit d'où vient le
