@@ -270,6 +270,13 @@ tr.grp td{padding:16px 24px 8px}
 .caisse-consult .kpi b{font:700 15px var(--mono)}
 .liste-ecarts{display:grid;gap:6px;margin-top:12px}
 .ligne-ecart{display:grid;grid-template-columns:90px 80px 1fr auto;gap:10px;align-items:center;text-align:left;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--raised);color:var(--text);font:13px var(--sans);text-decoration:none;cursor:pointer}
+.groupes-ecarts{display:grid;gap:6px;margin-top:12px}
+.groupe-ecarts>summary{cursor:pointer;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font-weight:600}
+.groupe-ecarts[open]>summary{border-color:var(--cyan)}
+.groupe-ecarts .liste-ecarts{margin-top:6px}
+.ligne-ecart{grid-template-columns:90px 80px auto auto}
+.ecart-non-retenu{opacity:.55}
+.non-retenu{font-style:normal;font-size:13px;color:var(--muted,#8a94a6)}
 .ligne-ecart:hover,.ligne-ecart:focus-visible{border-color:var(--cyan)}
 .ligne-ecart b{font:700 13px var(--mono)}
 @media(max-width:620px){.ligne-ecart{grid-template-columns:1fr auto}}
@@ -638,6 +645,41 @@ function ligneEcartAQualifier(i){
   ?`<button type="button" class="ligne-ecart" data-voir-ecart="${ECHAPPE(i.employeeId)}" data-cle="${ECHAPPE(i.sourceCle)}">${texte}</button>`
   :`<a class="ligne-ecart" href="${ECHAPPE(i.deepLink||lienAnalyseEcarts())}">${texte}</a>`;
 }
+// Ligne d'écart dans un groupe : date · origine · montant ; les positifs Boutique/Piste sont grisés « non retenu ».
+function ligneEcartGroupe(i){
+ const c=i.ecartFinalCentimes!=null?i.ecartFinalCentimes:null;
+ const nonRetenu=c!=null&&c>0&&i.activite!=='fdj';
+ const montant=c!=null?euros(c):'—';
+ const texte=`<span>${jjmmaaaaFR(i.date)}</span><span>${origineEcart(i)}</span><b>${montant}</b>${nonRetenu?'<em class="non-retenu">non retenu</em>':''}`;
+ const cls='ligne-ecart'+(nonRetenu?' ecart-non-retenu':'');
+ const attribue=!!i.employeeId&&!i.attributionRequise&&!!trouverFiche(i.employeeId);
+ return attribue
+  ?`<button type="button" class="${cls}" data-voir-ecart="${ECHAPPE(i.employeeId)}" data-cle="${ECHAPPE(i.sourceCle)}">${texte}</button>`
+  :`<a class="${cls}" href="${ECHAPPE(i.deepLink||lienAnalyseEcarts())}">${texte}</a>`;
+}
+// Écarts de caisse regroupés par salarié (06/11/2026) : une ligne par salarié avec son cumul transmis
+// (même fonction que le dossier comptable), « Non attribués » en tête, puis cumul le plus négatif.
+function groupesEcartsCaisse(items){
+ const g=new Map();
+ (items||[]).filter(i=>i&&i.typeItem==='ecart_caisse').forEach(i=>{
+  const attribue=!!i.employeeId&&!i.attributionRequise&&!!trouverFiche(i.employeeId);
+  const k=attribue?i.employeeId:'__na';
+  if(!g.has(k))g.set(k,{cle:k,nom:attribue?(i.employeeNom||'Salarié'):'Non attribués',attribue,items:[]});
+  g.get(k).items.push(i);
+ });
+ const L=[...g.values()];
+ L.forEach(x=>{
+  x.items.sort((a,b)=>String(a.date)<String(b.date)?-1:String(a.date)>String(b.date)?1:0);
+  x.cumulCentimes=x.attribue?NexusPayeMoteur.cumulEcartsCaisseMois(x.items.map(i=>({activite:i.activite,ecartFinal:i.ecartFinalCentimes!=null?i.ecartFinalCentimes/100:null,ecartInitial:i.ecartInitialCentimes!=null?i.ecartInitialCentimes/100:null}))).totalCentimes:null;
+ });
+ L.sort((a,b)=>(a.attribue===b.attribue?0:a.attribue?1:-1)||((a.cumulCentimes||0)-(b.cumulCentimes||0))||String(a.nom).localeCompare(String(b.nom)));
+ return L;
+}
+function renderGroupeEcarts(x){
+ const n=x.items.length;
+ const resume=`${ECHAPPE(x.nom)} · ${n} écart${n>1?'s':''}${x.attribue?` · ${euros(x.cumulCentimes)}`:''}`;
+ return `<details class="groupe-ecarts" name="groupe-ecarts" data-groupe="${ECHAPPE(x.cle)}"><summary>${resume}</summary><div class="liste-ecarts">${x.items.map(ligneEcartGroupe).join('')}</div></details>`;
+}
 function voirEcart(emp,cle){
  if(!trouverFiche(emp))return;
  SELECTION=emp;ONGLET='fiche';FICHE_ONGLET='evenements';FICHE_OUVERTE=true;ECART_SURLIGNE=cle||'*';
@@ -648,11 +690,11 @@ function voirEcart(emp,cle){
 }
 function renderCaisseConsultation(s,ec){
  const cq=(typeof NexusPayeRegularisations!=='undefined'&&NexusPayeRegularisations.compteursQualification?NexusPayeRegularisations.compteursQualification(RAPPORT.items,s.configurationRequise):{decisionsPaie:s.aVerifier+s.configurationRequise,ecartsAQualifier:0});
- const aQ=ecartsAQualifierDe(RAPPORT.items).slice().sort((a,b)=>String(a.date)<String(b.date)?-1:String(a.date)>String(b.date)?1:0);
+ const groupes=groupesEcartsCaisse(RAPPORT.items);
  return `<details class="caisse-consult"><summary>Caisse en consultation${cq.ecartsAQualifier?` · ${cq.ecartsAQualifier} écart${cq.ecartsAQualifier>1?'s':''} à qualifier`:''}</summary><div class="lignes-c">
  <button type="button" class="kpi money" data-kpi="ecarts"><span>Manques validés du mois</span>${regulOk()?`<b>${eurosDe(REGUL.indic.manquesValides)}</b><small>solde opérationnel ${eurosDe(REGUL.indic.soldeOperationnel)} · encaissé ${euros(REGUL.synthese.encaissements.netCentimes)} ce mois${ec.aAttribuer?` · ${ec.aAttribuer} à attribuer`:''}</small>`:`<b>—</b><small>${ECHAPPE(raisonRegul())}</small>`}</button>
  <button type="button" class="kpi${cq.ecartsAQualifier?' warn':''}" data-kpi="ecarts-qualifier"><span>Écarts de caisse à qualifier</span><b>${cq.ecartsAQualifier}</b><small>sans incidence sur les heures ni la rémunération</small></button>
- <a class="source-link" href="${ECHAPPE(lienAnalyseEcarts())}" style="color:var(--green)">Voir dans Verify ↗</a></div>${aQ.length?`<div class="liste-ecarts" id="listeEcartsAQualifier" aria-label="Écarts de caisse à qualifier">${aQ.map(ligneEcartAQualifier).join('')}</div>`:''}</details>`;
+ <a class="source-link" href="${ECHAPPE(lienAnalyseEcarts())}" style="color:var(--green)">Voir dans Verify ↗</a></div>${groupes.length?`<div class="groupes-ecarts" id="listeEcartsAQualifier" aria-label="Écarts de caisse par salarié">${groupes.map(renderGroupeEcarts).join('')}</div>`:''}</details>`;
 }
 function renderPanneau(){
  const f=trouverFiche(SELECTION);
