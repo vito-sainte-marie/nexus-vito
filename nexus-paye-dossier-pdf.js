@@ -82,7 +82,7 @@
       { variable: 'Congés payés', valeur: nombre(v.congesPayes.jours, 'jour') },
       { variable: 'Maladie / maternité / paternité', valeur: nombre(v.maladieMaternite.jours, 'jour') },
       { variable: 'Autres absences qualifiées', valeur: nombre(v.autresAbsences.jours, 'jour') },
-      { variable: 'Retards', valeur: v.retards.occurrences ? `${minutes(v.retards.minutes)} sur ${nombre(v.retards.occurrences, 'jour')}` : '—' },
+      { variable: 'Retards', valeur: v.retards.occurrences ? `${minutes(v.retards.minutes)} sur ${nombre(v.retards.occurrences, 'jour')}${(v.retards.detail || []).length ? ` (${v.retards.detail.map(r => `${String(r.date).slice(8, 10)}/${String(r.date).slice(5, 7)} : ${minutes(r.minutes)}`).join(' ; ')})` : ''}` : '—' },
       { variable: 'Heures supplémentaires', valeur: v.heuresSupplementaires.heures ? `${heures(v.heuresSupplementaires.heures)} (comprises dans la présence)` : 'aucune' },
       { variable: 'Heures supplémentaires en attente d’arbitrage', valeur: v.heuresSupplementaires.enAttente ? nombre(v.heuresSupplementaires.enAttente, 'élément') : 'aucun' },
       { variable: 'Détail par date (normales / sup.)', valeur: (v.presence.detailJours || []).length ? v.presence.detailJours.map(j => `${j.date} ${j.normales} h + ${j.supplementaires} h`).join(' ; ') : 'aucune journée' },

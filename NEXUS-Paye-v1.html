@@ -813,7 +813,7 @@ function lignesComptable(v,f){
  if(v.joursFeries.jours){const dt=(v.joursFeries.dates||[]).map(jourMoisFR).filter(Boolean);ev.push(`Férié travaillé : ${v.joursFeries.jours} j${dt.length?` · ${ECHAPPE(dt.join(', '))}`:''}`);}
  [v.congesPayes,v.maladieMaternite,v.autresAbsences].forEach(g=>g.detail.forEach(e=>ev.push(`${ECHAPPE(e.libelle||'Absence')}${e.debut?` du ${ECHAPPE(e.debut)}${e.fin&&e.fin!==e.debut?` au ${ECHAPPE(e.fin)}`:''}`:''}`)));
  if(v.absence.jours)ev.push(`${pluriel(v.absence.jours,'jour')} d’absence retenu${v.absence.jours>1?'s':''}`);
- if(v.retards.minutes)ev.push(`retards retenus ${v.retards.minutes} min`);
+ if(v.retards.minutes){const dr=(v.retards.detail||[]).filter(r=>r.date).map(r=>`${r.date.slice(8,10)}/${r.date.slice(5,7)} : ${r.minutes} min`);ev.push(`retards retenus ${v.retards.minutes} min${dr.length?` (${ECHAPPE(dr.join(' ; '))})`:''}`);}
  if(ev.length)L.push({k:'Événements',h:ev.join(' · ')});
  const fin=v.financier,ar=[];
  if(fin.acompteCentimes)ar.push(`acomptes ${euros(fin.acompteCentimes)}`);
