@@ -128,7 +128,7 @@ function ctxDe(quartStatut, avecAlertes, photo, ventes) {
   return {
     alertesOuvertes, sensiblesNonComptesDetail: [], employesSite: [], modesAveugleActifs: [], jaugeageActif: false,
     synthese, etat: { texte: 'Clôturé', urgence: null }, produitsSensiblesTotal: 0,
-    decisionsQuart: avecAlertes ? [{ id: 'd1', decision: 'accepte', cree_le: '2026-11-06T11:00:00Z', alerte_id: 'a0' }] : [],
+    decisionsQuart: avecAlertes ? [{ id: 'd1', resolution: 'validee', cree_le: '2026-11-06T11:00:00Z', alerte_id: 'a0' }, { id: 'd2', resolution: 'recomptage', cree_le: '2026-11-06T11:05:00Z', alerte_id: 'a3' }] : [],
     review: null, bornes: { debut: '2026-11-06', fin: '2026-11-06' }, alertesPeriode: [], decisionsPeriode: [],
     importDeceniumFait: !!ventes, couverture7: null, couverture14: null, couverture30: null,
     qualiteRapprochement: null, maturiteInventaire: null, cutoverInventaire: null, missionsAvecRapprochement: [],
@@ -169,6 +169,9 @@ for (const c of cas) {
     // (pas de carte d'import ni de panneaux : il n'y a rien à importer ni à décider).
     assert(rendu.includes("Aucun inventaire n'a encore été démarré"), `${c.nom} : message d'attente absent`);
     assert(!rendu.includes('id="sectionATerminer"') && !rendu.includes('id="sectionAControler"'), `${c.nom} : aucun panneau attendu`);
+    // Carte Photo Decenium en lecture seule : état visible, aucun formulaire d'import.
+    assert(/class="section-titre"[^>]*>[^<]*Photo Decenium/.test(rendu) && rendu.includes('quart pas encore démarré'), `${c.nom} : carte Photo en lecture seule absente`);
+    assert(!rendu.includes('id="ventesFileInput"') && !rendu.includes('id="btnComparerVentes"'), `${c.nom} : aucun import sans quart`);
     verifies++;
     continue;
   }
@@ -176,6 +179,9 @@ for (const c of cas) {
   assert(rendu.includes('id="sectionAControler"'), `${c.nom} : panneau Décisions absent`);
   assert(/Photo Decenium|PHOTO DECENIUM/.test(rendu), `${c.nom} : carte Photo Decenium absente`);
   assert((rendu.match(/class="section-titre"[^>]*>[^<]*Photo Decenium/gi) || []).length <= 1, `${c.nom} : la Photo Decenium doit tenir en une seule carte`);
+  if (c.ctx.decisionsQuart.length) {
+    assert(rendu.includes('class="inv-historique"') && !rendu.includes('Aucune décision enregistrée'), `${c.nom} : l'historique des décisions doit s'afficher (${c.ctx.decisionsQuart.length} décisions)`);
+  }
   if (c.ctx.alertesOuvertes.length) {
     assert.strictEqual((rendu.match(/class="inv-fiche"/g) || []).length, c.ctx.alertesOuvertes.length, `${c.nom} : une fiche par anomalie ouverte`);
     // Les 5 décisions existantes restent proposées, inchangées, dans chaque fiche.

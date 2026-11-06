@@ -509,8 +509,8 @@
   let quartSelectionne = 'matin';
   let quartRow = null;
   let detailDecisionsOuvert = false; // "Décisions du quart" — détail déplié (02/08/2026)
-  let categoriesOuvertes = new Set();
-  let fichesOuvertes = new Set(); // "À terminer" — catégories dépliées (02/08/2026)
+  let categoriesOuvertes = new Set(); // "À terminer" — catégories dépliées (02/08/2026)
+  let fichesOuvertes = new Set(); // fiches d'anomalie dépliées (panneau Décisions)
   let rouvertureFormOuvert = false; // "Rouvrir la clôture" — formulaire de motif déplié (02/08/2026)
   let dernierCtx = null;
 
@@ -2896,7 +2896,7 @@
     `;
   }
   function renderPanneauDecisions(alertesOuvertes, decisionsQuart) {
-    const nbDec = decisionsQuart ? ['validee', 'recomptage', 'erreur_saisie', 'demarque'].reduce((n, k) => n + ((decisionsQuart[k] && (decisionsQuart[k].length != null ? decisionsQuart[k].length : decisionsQuart[k])) || 0), 0) : 0;
+    const nbDec = Array.isArray(decisionsQuart) ? decisionsQuart.length : 0;
     return `
       <section class="inv-panneau" id="sectionAControler">
         <div class="inv-panneau-entete">
@@ -3185,7 +3185,12 @@
       ${renderSelecteurPeriode()}
       ${renderCouverturePhysique(couverture7, couverture14, couverture30)}
       ${periodeSelectionnee === 'jour' ? `
-      ${quartRow ? '' : '<div class="quart-statut">Aucun inventaire n\'a encore été démarré pour ce quart.</div>'}
+      ${quartRow ? '' : `<div class="quart-statut">Aucun inventaire n'a encore été démarré pour ce quart.</div>
+        <div class="section-titre">Photo Decenium</div>
+        <div class="ventes-card">
+          ${renderSnapshotBadge(ctx.snapshotActif)}
+          <div class="ventes-desc ventes-statut" data-ventes="${statutVentes(quartRow, ctx.importDeceniumFait).cle}">Ventes du quart : <b>${statutVentes(quartRow, ctx.importDeceniumFait).texte}</b> ${NexusComposantsPilotage.infoBtn('photoDecenium', 'Photo Decenium')}</div>
+        </div>`}
 
       ${quartRow ? renderQualiteRapprochement(qualiteRapprochement) : ''}
 
