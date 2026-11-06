@@ -41,10 +41,10 @@
     return `${v > 0 ? '+' : ''}${v.toFixed(2).replace('.', ',')} €`;
   }
 
-  // « -6,53 € (Boutique -5,53 € · Piste 0,00 € · FDJ -1,00 €) » : même ligne que le bloc « Pour le comptable ».
+  // « -6,53 € » : une seule valeur, même ligne que le bloc « Pour le comptable » (pas de détail par origine).
   function ecartsMois(m) {
     if (!m || (!m.totalCentimes && !m.boutiqueCentimes && !m.pisteCentimes && !m.fdjCentimes)) return '—';
-    return `${euros(m.totalCentimes)} (Boutique ${euros(m.boutiqueCentimes)} · Piste ${euros(m.pisteCentimes)} · FDJ ${euros(m.fdjCentimes)})`;
+    return euros(m.totalCentimes);
   }
 
   function heures(valeur) {

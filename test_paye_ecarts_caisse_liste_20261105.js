@@ -158,7 +158,9 @@ verifier('le montant ajusté remplace le montant initial après vérification', 
 const fiche5 = ev("RAPPORT.employes.find(f=>f.employee.id==='e5')");
 verifier('la fiche porte le cumul du mois : Boutique -20 €', ev("NexusPayeMoteur.variablesComptables(RAPPORT.employes.find(f=>f.employee.id==='e5'))").financier.ecartsCaisseMois.totalCentimes === -2000);
 const bloc = ev("renderPourComptable(NexusPayeMoteur.variablesComptables(RAPPORT.employes.find(f=>f.employee.id==='e5')),RAPPORT.employes.find(f=>f.employee.id==='e5'))");
-verifier('« Pour le comptable » montre « Écarts de caisse du mois » avec le détail par origine', /Écarts de caisse du mois/.test(bloc) && /Boutique -20\.00 € · Piste 0\.00 € · FDJ 0\.00 €/.test(bloc.replace(/\u00a0/g, ' ')));
+verifier('« Pour le comptable » montre une seule valeur « Écarts de caisse du mois », sans détail par origine', /Écarts de caisse du mois/.test(bloc) && /-20\.00 €/.test(bloc.replace(/\u00a0/g, ' ')) && !/Boutique|Piste|FDJ/.test(bloc.replace(/Écarts de caisse du mois/g, '')));
+verifier('l\'export transmet une seule ligne ecarts_caisse_mois (-20.00), sans détail', (() => { const l = ev("NexusPayeMoteur.lignesExport(RAPPORT)").filter(x => x.type === 'ecarts_caisse_mois'); return l.length >= 1 && l.some(x => x.montant_euros === '-20.00') && !l.some(x => /Boutique|Piste|FDJ/.test(x.commentaire)); })());
+verifier('le PDF ne montre aucun détail par origine pour les écarts du mois', !/Boutique[^\n]*Piste[^\n]*FDJ/.test(require('fs').readFileSync(__dirname + '/nexus-paye-dossier-pdf.js', 'utf8')));
 console.log(`\n${ok} contrôles passent.`);
 
 // Un montant qui change après la vérification : caduque (vérifié) ou « élément arrivé après la transmission » (transmis).

@@ -1078,6 +1078,13 @@
         quantite_minutes: Math.round(j.presence * 60), montant_euros: '', impact_paye: 'information',
         commentaire: `${j.poste || 'sans poste'} · ${j.normales} h normales · ${j.supplementaires} h sup.${j.autres ? ` · ${j.autres} h exceptionnelles` : ''}`,
       }));
+      // Une seule valeur d'écarts de caisse transmise pour le mois (06/11/2026), sans détail par origine.
+      const ecm = f.ecartsCaisseMois;
+      if (ecm && ecm.totalCentimes) lignes.push({
+        employe: f.employee.nom, type: 'ecarts_caisse_mois', date: '', quantite_minutes: '',
+        montant_euros: (ecm.totalCentimes / 100).toFixed(2), impact_paye: 'information',
+        commentaire: 'Écarts de caisse du mois (cumul transmis)',
+      });
       valides.forEach(i => lignes.push({
         employe: f.employee.nom, type: i.typeItem, date: i.date || '', source: i.origine || '',
         ecart_initial: i.ecartInitialCentimes == null ? '' : (i.ecartInitialCentimes / 100).toFixed(2),

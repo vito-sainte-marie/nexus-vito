@@ -867,11 +867,12 @@ function lignesComptable(v,f){
  if(ec)L.push({k:'Écarts de caisse du mois',h:ec});
  return L;
 }
-// « -6,53 € (Boutique -5,53 € · Piste 0 € · FDJ -1,00 €) » ; vide si rien n'est transmis ce mois.
+// Une seule valeur transmise au comptable (06/11/2026) : « -6.53 € », sans le détail par origine.
+// Vide si rien n'est transmis ce mois.
 function ecartsMoisTexte(v){
  const m=v.financier&&v.financier.ecartsCaisseMois;
  if(!m||!m.totalCentimes&&!m.boutiqueCentimes&&!m.pisteCentimes&&!m.fdjCentimes)return '';
- return `${euros(m.totalCentimes)} (Boutique ${euros(m.boutiqueCentimes)} · Piste ${euros(m.pisteCentimes)} · FDJ ${euros(m.fdjCentimes)})`;
+ return euros(m.totalCentimes);
 }
 function renderPourComptable(v,f){
  const L=lignesComptable(v,f);
