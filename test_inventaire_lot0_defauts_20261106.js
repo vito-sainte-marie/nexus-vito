@@ -66,10 +66,15 @@ verifier('défaut 1 : la carte affiche « Non comptés : n sur N obligatoires »
   assert.ok(!html.includes("'Produits requis'") && !html.includes("'Produits comptés'"), 'ancien libellé inversé retiré');
 });
 
+verifier('retouches Guardian : bouton masqué sans alerte validable, mention du périmètre antérieur', () => {
+  assert.ok(html.includes("${alertesValidablesEnBloc(alertesOuvertes).length > 0 ? '<button class=\"btn-tout-valider\""), 'bouton');
+  assert.ok(html.includes('périmètre antérieur, tous produits'), 'mention');
+});
+
 verifier('migration : même périmètre piste côté serveur, valeur_attendue enregistrée, droits fermés', () => {
   assert.ok((migration.match(/z\.code = 'piste'/g) || []).length === 2);
   assert.ok(/valeur_constatee, valeur_attendue\)\s+values \(r\.site, q\.id, 'cloture_incomplete', 'attention', v_non_comptes, v_attendus\)/.test(migration));
   assert.ok(/revoke execute on function public\.run_scheduled_inventory_reviews\(\) from public, anon, authenticated/.test(migration));
   assert.ok(!/\bgrant\b/i.test(migration.replace(/--.*$/gm, '')));
 });
-console.log(`${passes}/5 vérifications passent.`);
+console.log(`${passes}/6 vérifications passent.`);

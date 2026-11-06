@@ -2010,7 +2010,7 @@
         <div class="alerte-valeurs">
           ${estClotureIncomplete
             // valeur_constatee = nombre de produits NON comptés ; valeur_attendue = obligatoires (absente des anciennes alertes).
-            ? `<span>Non comptés : <b>${fmtNum(a.valeur_constatee)}</b>${a.valeur_attendue != null ? ` sur <b>${fmtNum(a.valeur_attendue)}</b> obligatoires` : ''}</span>`
+            ? `<span>Non comptés : <b>${fmtNum(a.valeur_constatee)}</b>${a.valeur_attendue != null ? ` sur <b>${fmtNum(a.valeur_attendue)}</b> obligatoires` : ' <small>(périmètre antérieur, tous produits)</small>'}</span>`
             : `<span>${labelAttendu} : <b>${fmtNum(a.valeur_attendue)}</b></span>
           <span>${labelConstate} : <b>${fmtNum(a.valeur_constatee)}</b></span>
           ${ecart !== null ? `<span>Écart : <b>${ecart > 0 ? '+' : ''}${fmtNum(ecart)}</b></span>` : ''}`}
@@ -3095,7 +3095,7 @@
 
         <div class="section-titre-action-row">
           <div class="section-titre">À contrôler</div>
-          ${alertesOuvertes.length > 0 ? '<button class="btn-tout-valider" id="btnToutValider">Tout valider</button>' : ''}
+          ${alertesValidablesEnBloc(alertesOuvertes).length > 0 ? '<button class="btn-tout-valider" id="btnToutValider">Tout valider</button>' : ''}
         </div>
         ${alertesOuvertes.length === 0 ? '<div class="empty">Aucun écart ouvert.</div>' : alertesOuvertes.map(a => renderAlerteCard(a)).join('')}
       ` : ''}
