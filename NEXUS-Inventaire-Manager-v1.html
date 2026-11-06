@@ -68,10 +68,26 @@
   @media (prefers-reduced-motion:reduce){.header>.am-banniere img.am-fondu{transition:none}}
   .entete-texte{position:relative;z-index:1;max-width:340px}
   .entete-station{font-size:13px;color:var(--text-mid);margin-top:2px}
-  .entete-selecteur{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:10px}
-  .entete-selecteur .date-input{min-height:44px}
+  .entete-selecteur{display:flex;align-items:center;gap:6px;flex-wrap:nowrap;margin-top:10px}
+  .entete-selecteur .date-input{min-height:44px;flex:1 1 auto;min-width:0}
+  .segment-quart{display:inline-flex;flex:none;border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-left:4px;background:var(--panel)}
+  .segment-quart .quart-pill{border:0;border-radius:0;background:transparent;padding:0 16px;justify-content:center;flex:1}
+  .segment-quart .quart-pill+.quart-pill{border-left:1px solid var(--line)}
+  .segment-quart .quart-pill.active{background:rgba(var(--cyan-rgb),0.15);color:var(--cyan)}
   .btn-jour{min-width:44px;min-height:44px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--text);font-size:18px;cursor:pointer}
   .entete-selecteur .quart-pill{min-height:44px;display:inline-flex;align-items:center}
+  .entete-rouvrir{margin:0 0 12px}
+  /* Mobile : bannière courte (≤ 180 px) avec titre, station et état sur l'image ; sélecteur et actions dessous. */
+  @media (max-width:640px){
+    .header>.am-banniere{inset:0 0 auto 0;height:170px}
+    .header>.am-banniere::after{background:linear-gradient(to right,var(--bg) 0%,var(--bg) 55%,transparent 100%),linear-gradient(to bottom,transparent 45%,var(--bg) 100%);opacity:.95}
+    .entete-texte{max-width:none}
+    .entete-texte .eyebrow{padding-right:96px}
+    .menu-btn{background:var(--panel)}
+    .entete-selecteur{flex-wrap:wrap}
+    .segment-quart{flex:1 0 100%;margin-left:0;margin-top:2px}
+    .entete-actions a,.entete-actions button{flex:1 1 auto;justify-content:center}
+  }
   .entete-etat{margin-top:10px;min-height:30px}
   .entete-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
   .entete-actions a,.entete-actions button{min-height:44px;display:inline-flex;align-items:center;padding:0 14px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--text);font:600 13px var(--sans);text-decoration:none;cursor:pointer}
@@ -208,12 +224,6 @@
      un manager en tout début de quart. Jamais d'heure limite inventée : la
      référence vient de station_config.horaires (fin_normal), réellement
      configurée dans Paramètres Station. */
-  .etat-quart-card{border-radius:12px; padding:12px 16px; margin-bottom:14px; font-size:12.5px; line-height:1.5; border:1px solid var(--hairline); background:var(--panel);}
-  .etat-quart-titre{font-family:var(--mono); font-size:10.5px; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-mid); margin-bottom:4px;}
-  .etat-quart-card.proche{border-color:rgba(var(--amber-rgb),0.35); background:var(--amber-dim);}
-  .etat-quart-card.proche .etat-quart-texte{color:var(--amber);}
-  .etat-quart-card.retard{border-color:rgba(var(--red-rgb),0.4); background:var(--red-dim);}
-  .etat-quart-card.retard .etat-quart-texte{color:var(--red); font-weight:600;}
 
   /* Synthèse du quart (02/08/2026, demande de Frédéric — remplace l'ancien
      stats-row à 3 cases) : vue d'ensemble chiffrée, jamais un chiffre
@@ -426,14 +436,16 @@
       <div class="eyebrow">NEXUS · Inventaire — Manager</div>
       <div class="title" id="titre">Chargement…</div>
       <div class="entete-station" id="enteteStation"></div>
+      <div class="entete-etat" id="enteteEtat"></div>
       <div class="entete-selecteur" id="enteteSelecteur">
         <button type="button" class="btn-jour" id="btnJourPrec" aria-label="Jour précédent">‹</button>
         <input type="date" id="selDate" class="date-input">
         <button type="button" class="btn-jour" id="btnJourSuiv" aria-label="Jour suivant">›</button>
-        <div class="quart-pill" data-quart="matin">Matin</div>
-        <div class="quart-pill" data-quart="soir">Soir</div>
+        <div class="segment-quart" role="group" aria-label="Quart">
+          <div class="quart-pill" data-quart="matin">Matin</div>
+          <div class="quart-pill" data-quart="soir">Soir</div>
+        </div>
       </div>
-      <div class="entete-etat" id="enteteEtat"></div>
       <div class="entete-actions">
         <a href="NEXUS-Stock-Localise-v1.html" id="btnStockEmplacement">Stock par emplacement</a>
         <button type="button" class="principal" id="btnVoirManquants" hidden></button>
@@ -607,9 +619,9 @@
     document.getElementById('selDate').value = dateSelectionnee;
     document.querySelectorAll('#enteteSelecteur .quart-pill[data-quart]').forEach(el =>
       el.classList.toggle('active', el.dataset.quart === quartSelectionne));
-    const texte = q ? libelleStatutQuart(q) : 'Pas encore démarré';
+    const texte = q ? (etat && etat.texte ? etat.texte : libelleStatutQuart(q)) : 'Pas encore démarré';
     let ton = 'hp';
-    if (q && q.statut === 'cloture') ton = 'ok';
+    if (q && q.statut === 'cloture') ton = synthese && synthese.manquants > 0 ? 'todo' : 'ok';
     else if (etat && etat.urgence === 'retard') ton = 'bad';
     else if (etat && etat.urgence === 'proche') ton = 'todo';
     document.getElementById('enteteEtat').innerHTML = NexusComposantsPilotage.pill(texte, ton);
@@ -2580,28 +2592,24 @@
     `;
   }
 
-  // État du quart (02/08/2026, demande de Frédéric) : bandeau contextualisé
-  // séparé de la Progression chiffrée — répond à "où en est ce quart, là,
-  // maintenant" avant de détailler les chiffres.
-  function renderEtatQuartCard(etat) {
-    // Rouvrir la clôture (02/08/2026, demande de Frédéric) : uniquement
-    // proposé quand le quart est effectivement clôturé — le manager doit
-    // toujours pouvoir débloquer un inventaire déjà validé, même par erreur
-    // ou par une clôture prématurée.
+  // Rouvrir la clôture (02/08/2026, demande de Frédéric) : uniquement
+  // proposé quand le quart est effectivement clôturé — le manager doit
+  // toujours pouvoir débloquer un inventaire déjà validé, même par erreur
+  // ou par une clôture prématurée. L'état du quart se lit dans l'en-tête.
+  function renderRouvrirCloture() {
     const peutRouvrir = quartRow && quartRow.statut === 'cloture';
+    if (!peutRouvrir) return '';
     return `
-      <div class="etat-quart-card ${etat.urgence !== 'normal' ? etat.urgence : ''}">
-        <div class="etat-quart-titre">État du quart</div>
-        <div class="etat-quart-texte">${etat.texte}</div>
-        ${peutRouvrir ? (rouvertureFormOuvert ? `
-          <div style="margin-top:10px;">
+      <div class="entete-rouvrir">
+        ${rouvertureFormOuvert ? `
+          <div>
             <input type="text" id="motifRouverture" class="alerte-commentaire-input" placeholder="Motif de la réouverture (ex : comptages incomplets à corriger)">
             <div class="decision-row">
               <button class="btn-decision valider" id="btnConfirmerRouverture">Confirmer la réouverture</button>
               <button class="btn-decision" id="btnAnnulerRouverture">Annuler</button>
             </div>
           </div>
-        ` : `<button class="btn-inline-lien" id="btnRouvrirCloture" style="margin-top:8px;">Rouvrir la clôture pour corriger les comptages</button>`) : ''}
+        ` : `<button class="btn-inline-lien" id="btnRouvrirCloture">Rouvrir la clôture pour corriger les comptages</button>`}
       </div>
     `;
   }
@@ -3015,16 +3023,7 @@
       : (alertesPeriode || []);
 
     document.getElementById('content').innerHTML = `
-      ${renderEtatConfiance(maturiteInventaire, cutoverInventaire)}
-      ${renderSelecteurPeriode()}
-      ${renderCouverturePhysique(couverture7, couverture14, couverture30)}
       ${periodeSelectionnee === 'jour' ? `
-      ${quartRow ? renderEtatQuartCard(etat) : '<div class="quart-statut">Aucun inventaire n\'a encore été démarré pour ce quart.</div>'}
-
-      ${quartRow ? renderQualiteRapprochement(qualiteRapprochement) : ''}
-
-      ${quartRow ? renderRapprochementParMission(missionsAvecRapprochement) : ''}
-
       ${quartRow ? renderIndicateurs(synthese, etat, alertesOuvertes) : ''}
 
       <div class="conseiller-card" id="conseillerCard">
@@ -3037,6 +3036,18 @@
         </div>
         <div id="conseillerCorps"></div>
       </div>
+
+      ${renderRouvrirCloture()}
+      ` : ''}
+      ${renderEtatConfiance(maturiteInventaire, cutoverInventaire)}
+      ${renderSelecteurPeriode()}
+      ${renderCouverturePhysique(couverture7, couverture14, couverture30)}
+      ${periodeSelectionnee === 'jour' ? `
+      ${quartRow ? '' : '<div class="quart-statut">Aucun inventaire n\'a encore été démarré pour ce quart.</div>'}
+
+      ${quartRow ? renderQualiteRapprochement(qualiteRapprochement) : ''}
+
+      ${quartRow ? renderRapprochementParMission(missionsAvecRapprochement) : ''}
 
       ${quartRow ? `
         <div class="section-titre">Photo Decenium</div>

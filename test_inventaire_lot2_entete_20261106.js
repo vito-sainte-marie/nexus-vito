@@ -45,6 +45,29 @@ verifier('Conseiller : une ligne et « Pourquoi ? »', () => {
   assert.ok(html.includes('btnPourquoi') && html.includes('Pourquoi ?'));
 });
 
+verifier('retouche 1 : tuiles et Conseiller arrivent avant l\'état de confiance', () => {
+  const t = html.slice(html.indexOf("document.getElementById('content').innerHTML = `"));
+  const iT = t.indexOf('renderIndicateurs(synthese'), iC = t.indexOf('id="conseillerCard"'), iE = t.indexOf('renderEtatConfiance(');
+  assert.ok(iT > 0 && iT < iC && iC < iE, [iT, iC, iE].join(','));
+  assert.ok(t.indexOf('renderSelecteurPeriode()') > iC && t.indexOf('renderCouverturePhysique(') > iC);
+});
+verifier('retouche 2 : la bannière porte le texte de clôture, orange si incomplet ; la carte État du quart est retirée', () => {
+  assert.ok(!html.includes('etat-quart-card') && !html.includes('renderEtatQuartCard'));
+  assert.ok(/etat && etat\.texte \? etat\.texte/.test(html));
+  assert.ok(/synthese && synthese\.manquants > 0 \? 'todo' : 'ok'/.test(html));
+  assert.ok(html.indexOf('id="enteteEtat"') < html.indexOf('id="enteteSelecteur"'));
+});
+verifier('retouche 3 : Matin | Soir en segment, sur une ligne au bureau, pleine largeur sous la date en mobile', () => {
+  assert.ok(/<div class="segment-quart"[^>]*>\s*<div class="quart-pill" data-quart="matin">Matin<\/div>\s*<div class="quart-pill" data-quart="soir">Soir<\/div>/.test(html));
+  assert.ok(/\.entete-selecteur\{[^}]*flex-wrap:nowrap/.test(html));
+  assert.ok(/\.segment-quart\{flex:1 0 100%/.test(html));
+});
+verifier('retouche 4 : bannière mobile ≤ 180 px avec voile, jetons seulement', () => {
+  const m = html.match(/@media \(max-width:640px\)\{\s*\.header>\.am-banniere\{[^}]*height:(\d+)px/);
+  assert.ok(m && Number(m[1]) <= 180);
+  assert.ok(/\.header>\.am-banniere::after\{background:linear-gradient\(to right,var\(--bg\) 0%,var\(--bg\) 55%/.test(html));
+});
+
 let ko = 0;
 cas.forEach(([nom, f]) => { try { f(); console.log('ok  ' + nom); } catch (e) { ko++; console.log('KO  ' + nom + ' — ' + e.message); } });
 if (ko) process.exit(1);
