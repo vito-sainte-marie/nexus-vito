@@ -47,6 +47,7 @@ vm.runInContext(fs.readFileSync(path.join(__dirname, 'nexus-ecarts-moteur.js'), 
 vm.runInContext(fs.readFileSync(path.join(__dirname, 'nexus-ecarts-donnees.js'), 'utf8'), ctx);
 if (!ctx.URLSearchParams) ctx.URLSearchParams = URLSearchParams;
 vm.runInContext(fs.readFileSync(path.join(__dirname, 'nexus-paye-moteur.js'), 'utf8'), ctx);
+vm.runInContext(fs.readFileSync(path.join(__dirname, 'nexus-banniere-station.js'), 'utf8'), ctx);
 vm.runInContext(script[1], ctx);
 
 ctx.__donnees = {
@@ -105,8 +106,8 @@ const bloqueursTerry = vm.runInContext('RAPPORT.bloqueurs', ctx).filter(b => /Te
 
 verifier('le moteur bloque bien sur le rattachement non confirmé de Terry', bloqueursTerry.length === 1);
 verifier('la fiche de Terry offre « Configurer le rattachement »',
-  terry.includes('class="btn configure" data-id="v1"'));
-verifier('… et dit pourquoi il faut confirmer', terry.includes('jamais confirmé'));
+  /class="btn (primary )?configure" data-id="v1"/.test(terry));
+verifier('… et dit pourquoi il faut confirmer', terry.includes('Réglage permanent'));
 const alex = fiche('v2');
 verifier('un hors-paie confirmé (Alex) garde le bouton pour être réinclus',
   alex.includes('class="btn configure" data-id="v2"'));

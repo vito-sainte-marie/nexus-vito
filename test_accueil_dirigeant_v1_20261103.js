@@ -2,8 +2,9 @@
 // Doctrine : améliorer ce que l'utilisateur voit sans modifier ce que NEXUS fait. Chaque épreuve est contrôlée par une mutation.
 const fs = require('fs'); const path = require('path'); const assert = require('assert'); const { execSync } = require('child_process');
 const lire = (f) => fs.readFileSync(path.join(__dirname, f), 'utf8');
-const APP = lire('NEXUS-App-v1.html');
-const extraire = (src) => { const i = src.indexOf('const SITES_BANNIERE_VITO'); const j = src.indexOf("const hote = document.getElementById('prisePosteHote');", i); return src.slice(i, j); };
+// Le code de la bannière vit dans nexus-banniere-station.js (partagé avec Paye, 05/11) : l'épreuve et ses mutants portent sur HTML + module.
+const APP = lire('NEXUS-App-v1.html') + '\n/*MODULE*/\n' + lire('nexus-banniere-station.js');
+const extraire = (src) => { const m = src.indexOf('/*MODULE*/'); const mod = src.slice(m + 10).replace(/if \(typeof module[\s\S]*$/, ''); const i = src.indexOf('function sloganDansEntete'); const j = src.indexOf("const hote = document.getElementById('prisePosteHote');", i); return mod + '\n' + src.slice(i, j); };
 const fabrique = (src, search, theme) => new Function('APERCU_BANNIERE_DEMANDE', 'FUSEAU_STATION', 'document', 'MutationObserver', extraire(src) + '; return { banniereAccueilHtml, dateStationHtml };')(/(^|[?&])apercu_banniere=1(&|$)/.test(search), 'Indian/Reunion', { documentElement: { getAttribute: () => theme || 'sombre' }, querySelectorAll: () => [] }, function () { this.observe = () => {}; });
 const hrefs = (html) => (html.match(/href="[^"#]*"/g) || []).sort();
 const blocManager = (src) => { const i = src.indexOf('<div data-role="manager" style="display:none;">'); return src.slice(i, i + 6000); };
@@ -13,7 +14,7 @@ const EPREUVES = {
     assert(h.includes('accueil-station-vito-800.webp 800w') && h.includes('accueil-station-vito-1200.webp 1200w') && h.includes('accueil-station-vito-1600.webp 1600w'));
     const n = fabrique(src, '', 'sombre').banniereAccueilHtml('vito-sainte-marie');
     assert(n.includes('accueil-station-vito-nuit-800.webp 800w') && n.includes('accueil-station-vito-nuit-1200.webp 1200w') && n.includes('accueil-station-vito-nuit-1600.webp 1600w') && !n.includes('vito-800.webp'));
-    assert(/sizes="' \+ sizesBanniere\(\) \+ '"/.test(src) && src.includes("return bureau ? '1100px' : '(min-width:560px) 480px, calc(100vw - 40px)'"), 'sizes suit la vue (nexus-desktop), pas la fenêtre');
+    assert(/sizes: sizesBanniere\(\)/.test(src) && src.includes("return bureau ? '1100px' : '(min-width:560px) 480px, calc(100vw - 40px)'"), 'sizes suit la vue (nexus-desktop), pas la fenêtre');
     assert(h.includes('loading="lazy"') && /alt="[^"]{10,}"/.test(h) && h.includes('this.parentNode.remove()') && h.includes("getElementById('taglineRole')"));
   },
   'NOUVEAU : bandeau absent pour un site non ViTO, avec ou sans paramètre': (src) => {

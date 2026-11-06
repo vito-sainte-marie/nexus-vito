@@ -14,6 +14,7 @@
 <meta name="apple-mobile-web-app-title" content="NEXUS">
 <meta name="theme-color" content="#0B0F14">
 <script src="nexus-theme.js"></script>
+<script src="nexus-banniere-station.js"></script>
 <title>NEXUS</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -3247,72 +3248,10 @@
   // bandeau ; ce paramètre n'a d'effet pour AUCUN autre site (Production inclus).
   // Paramètre d'aperçu lu une fois au chargement, hors de renderPrisePoste (qui ne
   // doit rien régler sur une donnée de l'URL) ; sans effet hors nexus-station-test.
-  const APERCU_BANNIERE_DEMANDE = (function () {
-    try { return new URLSearchParams(window.location.search).get('apercu_banniere') === '1'; } catch (e) { return false; }
-  })();
+  const APERCU_BANNIERE_DEMANDE = NexusBanniereStation.apercuDemande();
   function renderPrisePoste(employee, serviceCourant, estNiveauManager) {
-  // Seul point à étendre pour la bannière : la liste des sites qui l'affichent.
-  // Lot futur (note du Guardian, #160) : bannière pour toutes les stations ViTO,
-  // une photo par enseigne (Total, Sol…) choisie dans les Réglages de la station.
-  // Cela demande une donnée par site ou enseigne, un écran de Réglages et une
-  // migration : décisions de Frédéric. Ne pas l'implémenter ici.
-  const SITES_BANNIERE_VITO = ['vito-sainte-marie'];
-  const SITE_APERCU_BANNIERE = 'nexus-station-test';
-  // La photo suit le thème actif : Jour = photo de jour, Sombre = photo de nuit. Une seule
-  // image est présente à la fois ; elle est remplacée quand nexus-theme.js change data-theme.
-  function photoAccueilNuit() {
-    try { return document.documentElement.getAttribute('data-theme') !== 'jour'; } catch (e) { return true; }
-  }
-  function baseBanniere(nuit) {
-    return 'assets/accueil/accueil-station-vito' + (nuit ? '-nuit' : '');
-  }
-  const FONDU_MS = 800;
-  // Changement de thème : la nouvelle photo est préchargée, puis posée AU-DESSUS de l'ancienne
-  // (opacité 0 -> 1, ~800 ms) ; l'ancienne n'est retirée qu'à la fin. La bannière garde sa hauteur
-  // fixe : aucun saut. Mouvement réduit : la transition CSS est nulle, le remplacement est immédiat. Préchargement en échec : l'ancienne reste.
-  function changerPhotoBanniere(nuit) {
-    document.querySelectorAll('.am-banniere').forEach(function (ban) {
-      const actuelle = ban.querySelector('img:not(.am-fondu)');
-      if (!actuelle) return;
-      ban.querySelectorAll('img.am-fondu').forEach(function (x) { x.remove(); });
-      const base = baseBanniere(nuit);
-      const src = base + '-800.webp';
-      const srcset = base + '-800.webp 800w, ' + base + '-1200.webp 1200w, ' + base + '-1600.webp 1600w';
-      ban._jeton = (ban._jeton || 0) + 1;
-      const jeton = ban._jeton;
-      const pre = new Image();
-      pre.sizes = actuelle.getAttribute('sizes') || '';
-      pre.srcset = srcset;
-      pre.onload = function () {
-        if (ban._jeton !== jeton || !ban.contains(actuelle)) return;
-        const n = document.createElement('img');
-        n.className = 'am-fondu';
-        n.setAttribute('sizes', actuelle.getAttribute('sizes') || '');
-        n.setAttribute('srcset', srcset);
-        n.setAttribute('src', src);
-        n.setAttribute('width', actuelle.getAttribute('width') || '1600');
-        n.setAttribute('height', actuelle.getAttribute('height') || '800');
-        n.setAttribute('decoding', 'async');
-        n.setAttribute('alt', actuelle.getAttribute('alt') || '');
-        actuelle.insertAdjacentElement('afterend', n);
-        void n.offsetWidth;
-        n.classList.add('am-fondu-visible');
-        setTimeout(function () {
-          if (ban._jeton !== jeton) return;
-          n.classList.remove('am-fondu', 'am-fondu-visible');
-          actuelle.remove();
-        }, FONDU_MS + 50);
-      };
-      pre.src = src;
-    });
-  }
-  (function () {
-    try {
-      new MutationObserver(function () {
-        changerPhotoBanniere(photoAccueilNuit());
-      }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-    } catch (e) {}
-  })();
+  // Photo, sites, fondu et suivi du thème : module partagé avec la page Paye (nexus-banniere-station.js).
+  NexusBanniereStation.suivreTheme();
   // Le slogan (#taglineRole) est UN seul élément : posé sur la photo quand la bannière existe,
   // sinon laissé dans l'en-tête. Le texte reste écrit par le même code (#taglineTexte).
   function sloganDansEntete() {
@@ -3337,15 +3276,11 @@
     return bureau ? '1100px' : '(min-width:560px) 480px, calc(100vw - 40px)';
   }
   function banniereAccueilHtml(siteId) {
-    const apercu = siteId === SITE_APERCU_BANNIERE && typeof APERCU_BANNIERE_DEMANDE !== 'undefined' && APERCU_BANNIERE_DEMANDE === true;
-    if (SITES_BANNIERE_VITO.indexOf(siteId) === -1 && !apercu) return '';
-    const nuit = photoAccueilNuit();
-    const base = baseBanniere(nuit);
-    return '<div class="am-banniere"><img src="' + base + '-800.webp"'
-      + ' srcset="' + base + '-800.webp 800w, ' + base + '-1200.webp 1200w, ' + base + '-1600.webp 1600w"'
-      + ' sizes="' + sizesBanniere() + '" width="1600" height="800" loading="lazy" decoding="async"'
-      + ' alt="La station ViTO de Sainte-Marie : auvent, totem et végétation tropicale"'
-      + ' onerror="var s=document.getElementById(\'taglineRole\'),i=document.getElementById(\'sessionInfo\');if(s&&i)i.parentNode.insertBefore(s,i);this.parentNode.remove()"></div>';
+    return NexusBanniereStation.html(siteId, {
+      apercu: typeof APERCU_BANNIERE_DEMANDE !== 'undefined' && APERCU_BANNIERE_DEMANDE === true,
+      sizes: sizesBanniere(),
+      surErreur: "var s=document.getElementById('taglineRole'),i=document.getElementById('sessionInfo');if(s&&i)i.parentNode.insertBefore(s,i);"
+    });
   }
   // Date et heure à l'heure de la station (FUSEAU_STATION), jamais celle de l'appareil.
   function dateStationHtml() {
