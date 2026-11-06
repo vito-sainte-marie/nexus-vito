@@ -128,4 +128,5 @@ verifier('« À traiter » compte le paramétrage (1, pas 0)', /data-kpi="decisi
 verifier('le bouton Décisions porte la pastille 1', /data-onglet="decisions">Décisions<span class="n">1<\/span>/.test(a));
 verifier('l’infobulle de Valider nomme la cause', /id="validerMois"[^>]*title="1 paramétrage à compléter : Angélique avant de valider"/.test(a));
 verifier('« Configurer » mène directement au salarié', /class="btn configure" data-id="e3"[^>]*>Configurer/.test(a));
+verifier('avec un paramétrage, la tuile « À traiter » n’affiche aucun pourcentage et l’anneau est plein', /data-kpi="decisions">.*?stroke-dasharray="157\.1 157\.1".*?<small class="sr">à traiter<\/small>/.test(a.replace(/\n/g, ' ')));
 console.log(`${ok} contrôles passent.`);

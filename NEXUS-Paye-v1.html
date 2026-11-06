@@ -600,11 +600,13 @@ function anneau(pct,couleur){
 }
 function renderKpis(s,ec,a){
  const inclus=s.salariesInclus, prets=s.salariesPrets, atraiter=nbATraiter();
+ // Les paramétrages concernent des salariés hors du total « en paie » : un pourcentage n'aurait pas de sens (peut dépasser 100 %).
+ const avecParam=nomsParametrages().length>0;
  const pc=n=>inclus?Math.round(n/inclus*100):0;
  return `<div class="kpi3" role="group" aria-label="Indicateurs du mois">
  <button type="button" class="kpi${FILTRE!=='hors_paie'&&TRI.cle!=='heures'?' actif':''}" data-kpi="salaries"><span>Salariés en paie<b>${inclus}</b></span></button>
  <button type="button" class="kpi${FILTRE==='prets'?' actif':''}" data-kpi="prets"><span>Prêts à valider<b>${prets}</b></span>${anneau(pc(prets),'var(--cyan)')}<small class="sr">${pc(prets)} %</small></button>
- <button type="button" class="kpi${atraiter?' warn':''}${FILTRE==='a_verifier'?' actif':''}" data-kpi="decisions"><span>À traiter<b>${atraiter}</b></span>${anneau(pc(atraiter),'var(--amber)')}<small class="sr">${pc(atraiter)} %</small></button>
+ <button type="button" class="kpi${atraiter?' warn':''}${FILTRE==='a_verifier'?' actif':''}" data-kpi="decisions"><span>À traiter<b>${atraiter}</b></span>${anneau(avecParam?100:pc(atraiter),'var(--amber)')}<small class="sr">${avecParam?'à traiter':pc(atraiter)+' %'}</small></button>
  <button type="button" class="kpi discret${TRI.cle==='heures'?' actif':''}" data-kpi="heures"><span>Heures retenues ce mois<b>${hFr(s.heuresConfirmees-a.attente)}</b>${a.attente?`<small>+ ${hFr(a.attente)} à arbitrer</small>`:''}</span></button>
  </div>`;
 }
