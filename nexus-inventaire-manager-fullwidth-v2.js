@@ -60,7 +60,7 @@
       padding:14px 16px;
       border:1px solid rgba(86,199,220,.22);
       border-radius:14px;
-      background:linear-gradient(135deg,rgba(86,199,220,.10),rgba(21,30,40,.88) 52%,rgba(215,180,91,.045));
+      background:linear-gradient(135deg,rgba(86,199,220,.10),var(--panel,rgba(21,30,40,.88)) 52%,rgba(215,180,91,.045));
       text-decoration:none;
       color:inherit;
       box-shadow:0 10px 28px rgba(0,0,0,.14);
@@ -69,8 +69,8 @@
     .inv-photo-decenium-access:hover{border-color:rgba(86,199,220,.38); transform:translateY(-1px);}
     .inv-photo-decenium-access-main{display:flex;align-items:center;gap:12px;min-width:0;}
     .inv-photo-decenium-access-icon{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:rgba(86,199,220,.12);font-size:17px;flex:0 0 auto;}
-    .inv-photo-decenium-access-title{font-size:13px;font-weight:700;color:#E9F2F5;}
-    .inv-photo-decenium-access-sub{font-size:11px;color:#8293A3;margin-top:2px;line-height:1.35;}
+    .inv-photo-decenium-access-title{font-size:13px;font-weight:700;color:var(--text,#E9F2F5);}
+    .inv-photo-decenium-access-sub{font-size:11px;color:var(--text-mid,#8293A3);margin-top:2px;line-height:1.35;}
     .inv-photo-decenium-access-action{font:700 10px/1 var(--mono);color:#56C7DC;white-space:nowrap;letter-spacing:.03em;}
     .inv-photo-decenium-access.is-waiting{opacity:.65;cursor:default;pointer-events:none;}
 
@@ -90,7 +90,7 @@
 
     @media (max-width: 560px){
       .inv-photo-decenium-access{padding:12px 13px;gap:10px;}
-      .inv-photo-decenium-access-sub{display:none;}
+      .inv-photo-decenium-access-sub{font-size:11px;}
       .inv-photo-decenium-access-action{font-size:9px;}
     }
   `;
@@ -144,15 +144,33 @@
     }
     if(conseiller.nextElementSibling!==acces) conseiller.insertAdjacentElement('afterend',acces);
 
+    // États réels lus sur #content (posés par renderTout) : jamais « Chargement… » une fois la page rendue.
+    const ct=document.getElementById('content');
+    const rendu=!!(ct && ct.dataset.photoEtat);
+    const sub=acces.querySelector('.inv-photo-decenium-access-sub');
+    const action=acces.querySelector('.inv-photo-decenium-access-action');
+    let texteSub='Rapprocher les ventes et le stock actuel avec les comptages physiques.';
+    let texteAction='Chargement…';
+    if(rendu){
+      const d=ct.dataset;
+      const etat=d.photoEtat==='active'
+        ? 'Active · référence '+d.photoRef+(d.photoConfiance?' · confiance '+d.photoConfiance:'')
+        : 'Aucune photo active';
+      const ventes='Ventes du quart : '+(d.ventes==='quart-non-demarre'?'quart pas encore démarré':d.ventes==='importees'?'importées':'non importées');
+      texteSub=etat+' — '+ventes;
+      texteAction=photo?'Ouvrir →':'';
+    }
+    if(sub && sub.textContent!==texteSub) sub.textContent=texteSub;
+    if(action && action.textContent!==texteAction) action.textContent=texteAction;
+    const attente=!rendu;
+    acces.classList.toggle('is-waiting',attente);
     if(photo){
-      acces.classList.remove('is-waiting');
       acces.onclick=(e)=>{
         e.preventDefault();
         photo.titre.scrollIntoView({behavior:'smooth',block:'start'});
       };
     }else{
-      acces.classList.add('is-waiting');
-      acces.querySelector('.inv-photo-decenium-access-action').textContent='Chargement…';
+      acces.onclick=(e)=>e.preventDefault();
     }
   }
 
