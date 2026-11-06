@@ -887,7 +887,7 @@ function renderVariables(v,f){
 function tuilesFiche(v,f){
  const attente=n=>n?`${n} en attente d’arbitrage`:'';
  const fin=v.financier, totalFin=fin.acompteCentimes+fin.detteCentimes+fin.retenueEcartCentimes;
- const detailFin=[fin.acompteCentimes?`acompte ${euros(fin.acompteCentimes)}`:'',fin.detteCentimes?`dette ${euros(fin.detteCentimes)}`:'',fin.retenueEcartCentimes?`écart retenu ${euros(fin.retenueEcartCentimes)}`:'',fin.ecartsInformatifs?`${pluriel(fin.ecartsInformatifs,'écart')} informatif${fin.ecartsInformatifs>1?'s':''}`:''].filter(Boolean).join(' · ');
+ const detailFin=[fin.acompteCentimes?`acompte ${euros(fin.acompteCentimes)}`:'',fin.detteCentimes?`dette ${euros(fin.detteCentimes)}`:'',fin.retenueEcartCentimes?`écart retenu ${euros(fin.retenueEcartCentimes)} (décision antérieure)`:'',fin.ecartsInformatifs?`${pluriel(fin.ecartsInformatifs,'écart')} informatif${fin.ecartsInformatifs>1?'s':''}`:''].filter(Boolean).join(' · ');
  const hAtt=f?heuresEnAttente(f):0;
  // Les écarts de caisse sans incidence paie attendent une qualification, pas un arbitrage : ils ont leur propre libellé.
  const nEcartQ=f?ecartsAQualifierDe(f.items).filter(i=>NexusPayeMoteur.sansIncidencePaie(i)).length:0;
@@ -1094,7 +1094,7 @@ function renderItem(f,i){
  const emp=i.employeeId||(f&&f.employee.id)||'',periode=i.origine==='indisponibilite',
   ecart=i.typeItem==='ecart_caisse',
   statut=ecart?(typeof NexusPayeRegularisations!=='undefined'&&NexusPayeRegularisations.statutQualification?(q=>q.statut+(q.nonRegularise?' · non régularisé':''))(NexusPayeRegularisations.statutQualification(i,(REGUL&&REGUL.situations&&REGUL.situations[i.sourceCle])||null)):(LIBELLE_STATUT_ITEM[i.statut]||'sans impact paie')):(LIBELLE_STATUT_ITEM[i.statut]||'sans impact paie'),
-  actions=i.signale&&i.statut==='information'?`<div class="item-actions"><button class="btn primary verify-signal" data-emp="${emp}" data-key="${ECHAPPE(i.sourceCle)}">Marquer vérifié</button></div>`:i.statut==='a_verifier'&&!i.attributionRequise?(periode&&i.evenementId?blocQualification(i):i.serieAbsence?blocDeclaration(i,emp):`<div class="item-actions"><button class="btn exclude" data-emp="${emp}" data-key="${ECHAPPE(i.sourceCle)}">${ecart?'Sans impact paie':'Ne pas retenir'}</button><button class="btn ${ecart?'primary':''} validate" data-emp="${emp}" data-key="${ECHAPPE(i.sourceCle)}">${ecart?'Transmettre à la comptabilité':'Confirmer'}</button></div>`):'',
+  actions=i.signale&&i.statut==='information'?`<div class="item-actions"><button class="btn primary verify-signal" data-emp="${emp}" data-key="${ECHAPPE(i.sourceCle)}">Marquer vérifié</button></div>`:i.statut==='a_verifier'&&!i.attributionRequise?(periode&&i.evenementId?blocQualification(i):i.serieAbsence?blocDeclaration(i,emp):ecart?'':`<div class="item-actions"><button class="btn exclude" data-emp="${emp}" data-key="${ECHAPPE(i.sourceCle)}">${ecart?'Sans impact paie':'Ne pas retenir'}</button><button class="btn ${ecart?'primary':''} validate" data-emp="${emp}" data-key="${ECHAPPE(i.sourceCle)}">${ecart?'Transmettre à la comptabilité':'Confirmer'}</button></div>`):'',
   source=i.deepLink?`<a class="source-link" href="${ECHAPPE(i.deepLink)}">${i.attributionRequise?'Corriger l’attribution dans':'Voir le contrôle'} ${i.origine==='fdj'?'FDJ':'Verify'} ↗</a>`:'';
  // Un événement RH se lit en trois lignes — motif, période couverte,
  // nombre de jours — et non comme une phrase datée noyée dans un libellé

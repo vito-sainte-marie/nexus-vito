@@ -169,3 +169,9 @@ verifier('cumul inchangé : la vérification tient', V.ecartsCaisseModifies(snap
 verifier('cumul changé : la vérification devient caduque', V.verificationCaduque('verifie', 0, V.ecartsCaisseModifies(snap(-2000), sal(-500))) === true);
 verifier('mois transmis et cumul changé : « élément arrivé après la transmission »', V.etat({ statut: 'transmis', bloqueurs: 0, salariesInclus: 1, salariesPrets: 1, ecartsModifies: true }).elementApresTransmission === true);
 console.log('\nCaducité sur écart : contrôlée.');
+
+// Double comptage (Guardian 6682186743) : le cumul est automatique, plus de « Transmettre » sur un écart de caisse.
+const itemAV = { typeItem: 'ecart_caisse', statut: 'a_verifier', attributionRequise: false, employeeId: 'e5', sourceCle: 'ecart:ec1', origine: 'verify', ecartInitialCentimes: -2000, ecartFinalCentimes: -2000 };
+const htmlItem = ev(`renderItem(trouverFiche('e5'),${JSON.stringify(itemAV)})`);
+verifier('un écart de caisse n’a plus de bouton « Transmettre à la comptabilité » ni « Sans impact paie »', !/Transmettre à la comptabilité|Sans impact paie/.test(htmlItem) && !/class="btn[^"]*validate"/.test(htmlItem));
+console.log('\nPlus de double comptage : contrôlé.');

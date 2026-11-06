@@ -194,20 +194,14 @@ verifier('une anomalie d’heures offre Confirmer, Ne pas retenir et Corriger',
 // vocabulaire reste celui de la doctrine PAYE — on transmet un montant
 // saisi, ou l'on déclare l'écart sans impact paie.
 vm.runInContext(`SELECTION = 'e5'; ONGLET = 'fiche'; render();`, ctx);
-verifier('un écart offre Sans impact paie, Transmettre à la comptabilité et sa source',
-  dans(ecran(), '>Sans impact paie<') && dans(ecran(), '>Transmettre à la comptabilité<')
-  && dans(ecran(), 'Voir le contrôle Verify ↗'));
-// L'écart se lit depuis la fiche du salarié ET depuis la liste du mois :
-// deux chemins de lecture, une seule décision. Ce qui est interdit, c'est
-// deux boutons pour la même décision DANS LE MÊME volet.
+// Cumul automatique (Guardian 6682186743) : plus de décision manuelle sur l'écart, donc aucun bouton.
+verifier('un écart n’offre plus ni Sans impact paie ni Transmettre, mais garde sa source',
+  !dans(ecran(), '>Sans impact paie<') && dans(ecran(), 'Voir le contrôle Verify ↗')
+  && !/(validate|exclude)" data-emp="e5" data-key="ecart:ec1"/.test(ecran()));
 vm.runInContext(`FICHE_ONGLET = 'evenements'; render();`, ctx);
 const volets = ecran().split('id="reviewSection"');
-verifier('chaque volet n’offre qu’une paire d’actions par élément',
-  volets.length === 2
-  && compter(volets[0], /validate" data-emp="e5" data-key="ecart:ec1"/g) === 1
-  && compter(volets[0], /exclude" data-emp="e5" data-key="ecart:ec1"/g) === 1
-  && compter(volets[1], /validate" data-emp="e5" data-key="ecart:ec1"/g) === 1
-  && compter(volets[1], /exclude" data-emp="e5" data-key="ecart:ec1"/g) === 1);
+verifier('aucun volet n’offre d’action sur l’écart',
+  volets.length === 2 && !/(validate|exclude)" data-emp="e5" data-key="ecart:ec1"/.test(ecran()));
 
 // ── §5 — l’écart initial reste ; aucun versement n’est fabriqué ──────────
 // Les versements réels et le solde viennent de NexusPayeRegularisations
