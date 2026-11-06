@@ -18,7 +18,7 @@ let passes = 0;
 function verifier(nom, fn) { fn(); passes++; console.log('OK — ' + nom); }
 
 const contexte = (fuseau) => new Function('FUSEAU_STATION_IM', 'quartSelectionne', 'NexusStation', 'JAUGEAGE_NOM', 'DECISIONS', 'resoudreAlerteSansRecharger', 'chargerEtAfficherTout', 'alert', 'QUART_VERS_CLE_HORAIRE',
-  extraire('libelleStatutQuart') + extraire('libelleEtatQuart') + extraire('construireSynthese') +
+  extraire('libelleStatutQuart') + extraire('quartEstTermine') + extraire('libelleEtatQuart') + extraire('construireSynthese') +
   "const TYPES_ALERTE_HORS_TOUT_VALIDER = ['cloture_incomplete', 'demarque_ventes'];" +
   extraire('alertesValidablesEnBloc') + extraire('validerToutesAlertes', true) +
   'return { libelleEtatQuart, construireSynthese, validerToutesAlertes, alertesValidablesEnBloc };');
@@ -71,10 +71,15 @@ verifier('retouches Guardian : bouton masqué sans alerte validable, mention du 
   assert.ok(html.includes('périmètre antérieur, tous produits'), 'mention');
 });
 
+verifier('retouche conseiller : un quart clôturé n\'est plus « pas clôturable »', () => {
+  assert.ok(html.includes('a été clôturé avec <b>${synthese.manquants} produit(s) non comptés</b>${detail}'));
+  assert.ok(html.includes('quartEstTermine(quartRow)'));
+});
+
 verifier('migration : même périmètre piste côté serveur, valeur_attendue enregistrée, droits fermés', () => {
   assert.ok((migration.match(/z\.code = 'piste'/g) || []).length === 2);
   assert.ok(/valeur_constatee, valeur_attendue\)\s+values \(r\.site, q\.id, 'cloture_incomplete', 'attention', v_non_comptes, v_attendus\)/.test(migration));
   assert.ok(/revoke execute on function public\.run_scheduled_inventory_reviews\(\) from public, anon, authenticated/.test(migration));
   assert.ok(!/\bgrant\b/i.test(migration.replace(/--.*$/gm, '')));
 });
-console.log(`${passes}/6 vérifications passent.`);
+console.log(`${passes}/7 vérifications passent.`);

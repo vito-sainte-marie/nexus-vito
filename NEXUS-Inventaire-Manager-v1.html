@@ -661,14 +661,16 @@
   // pas être "en avance" puisqu'un quart n'existe qu'une fois commencé).
   // Seuil "à proximité de la fin" fixé à 60 minutes — heuristique
   // raisonnable, pas une donnée réelle, donc jamais présentée comme telle.
+  function quartEstTermine(quart) {
+    const dateDuQuart = quart && quart.date ? String(quart.date).slice(0, 10) : '';
+    const aujourdhuiStation = FUSEAU_STATION_IM ? new Intl.DateTimeFormat('en-CA', { timeZone: FUSEAU_STATION_IM }).format(new Date()) : '';
+    return !!quart && (quart.statut === 'cloture' || !!(dateDuQuart && aujourdhuiStation && dateDuQuart < aujourdhuiStation));
+  }
   function libelleEtatQuart(quart, synthese, horaires) {
     const base = libelleStatutQuart(quart);
     // 06/11/2026 (Contrôle inventaire, lot 0) : un quart clôturé ou d'un jour passé n'est
     // jamais « pas encore commencé » — l'heure du jour ne dit rien d'un quart d'hier.
-    const dateDuQuart = quart && quart.date ? String(quart.date).slice(0, 10) : '';
-    const aujourdhuiStation = FUSEAU_STATION_IM ? new Intl.DateTimeFormat('en-CA', { timeZone: FUSEAU_STATION_IM }).format(new Date()) : '';
-    const quartTermine = quart && (quart.statut === 'cloture' || (dateDuQuart && aujourdhuiStation && dateDuQuart < aujourdhuiStation));
-    if (quartTermine && synthese.phase === 'clotures') {
+    if (quartEstTermine(quart) && synthese.phase === 'clotures') {
       const m = synthese.manquants;
       return { texte: m === 0 ? 'Quart clôturé · comptage de clôture complet' : `Quart clôturé · comptage de clôture incomplet (${m} manquant${m > 1 ? 's' : ''})`, urgence: 'normal' };
     }
@@ -1856,7 +1858,10 @@
         const quartLabel = quartSelectionne === 'soir' ? 'soir' : 'matin';
         const detailCategories = synthese.categoriesIncompletes.slice(0, 3)
           .map(c => `${c.total - c.comptes} ${c.nom.toLowerCase()}`).join(', ');
-        remarques.push(`Le quart du <b>${quartLabel}</b> n'est pas clôturable : <b>${synthese.manquants} produit(s)</b> restent à compter${detailCategories ? `, dont ${detailCategories}` : ''}.`);
+        const detail = detailCategories ? ` (${detailCategories})` : '';
+        remarques.push(quartEstTermine(quartRow)
+          ? `Le quart du <b>${quartLabel}</b> a été clôturé avec <b>${synthese.manquants} produit(s) non comptés</b>${detail}.`
+          : `Le quart du <b>${quartLabel}</b> n'est pas clôturable : <b>${synthese.manquants} produit(s)</b> restent à compter${detailCategories ? `, dont ${detailCategories}` : ''}.`);
         if (synthese.categoriesIncompletes.length) {
           const prioritaires = synthese.categoriesIncompletes.slice(0, 2).map(c => c.nom).join(' et ');
           remarques.push(`Priorité recommandée : terminer <b>${prioritaires}</b> en premier.<br><button class="btn-conseiller-action" id="btnVoirCategoriesIncompletes">Voir les catégories incomplètes</button>`);
