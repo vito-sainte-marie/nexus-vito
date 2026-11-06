@@ -46,6 +46,7 @@ main{padding:12px 18px 20px}
 .kpirow{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin-bottom:9px}
 button.kpi{display:block;width:100%;text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:9px 11px;cursor:pointer;color:var(--text);font-family:var(--sans)}
 button.kpi:hover,button.kpi:focus-visible{border-color:rgba(79,195,217,.45);outline:none}
+button.kpi span b,button.kpi span small{text-transform:none}
 button.kpi span{display:block;font:9px var(--mono);color:var(--dim);text-transform:uppercase;letter-spacing:.05em}
 button.kpi b{display:block;font:700 19px var(--mono);margin-top:3px}
 .kpi-attente{font-style:normal;font-size:10.5px;font-weight:600;color:var(--amber);white-space:nowrap}
@@ -153,22 +154,23 @@ button.lien-salarie:focus-visible{outline:2px solid var(--cyan);outline-offset:2
 :root{--bg:#07131E;--panel:#0D202E;--raised:#0F2433;--line:#254354;--cyan:#24D8E3;--green:#29C98A;--amber:#F5A12A;--surf:#0D202E;--surf2:#0F2433;--trace:#17323F;--caps:#142B3B;--avbg:#0A1A26;--capt:#C9D6DF;--cta1:#36E7EE;--cta2:#1FC6D2;--ctat:#04222A;--glow:#0E2A3D}
 :root[data-theme="jour"]{--bg:#F4F6F8;--panel:#FFFFFF;--raised:#EEF2F5;--line:#D5DCE3;--text:#0F172A;--mid:#475569;--dim:#56657A;--cyan:#0B7285;--green:#047857;--amber:#B45309;--surf:#FFFFFF;--surf2:#F4F7FA;--trace:#E2E8EE;--caps:#EAF0F5;--avbg:#EEF3F7;--capt:#334155;--cta1:#14A3B5;--cta2:#0B7285;--ctat:#FFFFFF;--glow:#F4F6F8}
 body{background:radial-gradient(1200px 500px at 70% -10%,var(--glow) 0%,var(--bg) 60%) var(--bg);color:var(--text)}
-.hero{position:relative;overflow:hidden;border:1px solid var(--line);border-radius:18px;background:var(--surf);min-height:112px;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px 20px;margin-bottom:14px}
-.hero::after{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;background:linear-gradient(90deg,var(--surf) 0%,var(--surf) 38%,transparent 66%)}
-.hero>.am-banniere{position:absolute;inset:0 0 0 auto;width:50%;overflow:hidden;z-index:0}
-.hero>.am-banniere img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:60% 35%}
-.hero>.am-banniere img.am-fondu{opacity:0;transition:opacity 800ms ease}
-.hero>.am-banniere img.am-fondu-visible{opacity:1}
-@media(prefers-reduced-motion:reduce){.hero>.am-banniere img.am-fondu{transition:none}}
+.hero{position:relative;overflow:hidden;border:1px solid var(--line);border-radius:18px;background:var(--surf);padding:16px 20px;margin-bottom:14px}
+.hero-haut{position:relative;min-height:112px;display:flex;align-items:center;gap:16px}
+.hero-haut>.am-banniere{position:absolute;top:0;bottom:0;right:0;width:55%;overflow:hidden;z-index:0;-webkit-mask-image:linear-gradient(to right,transparent 0%,#000 45%,#000 85%,transparent 100%),linear-gradient(to bottom,transparent 0%,#000 20%,#000 75%,transparent 100%);-webkit-mask-composite:source-in;mask-image:linear-gradient(to right,transparent 0%,#000 45%,#000 85%,transparent 100%),linear-gradient(to bottom,transparent 0%,#000 20%,#000 75%,transparent 100%);mask-composite:intersect}
+.hero-haut>.am-banniere img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:60% 35%}
+.hero-haut>.am-banniere img.am-fondu{opacity:0;transition:opacity 800ms ease}
+.hero-haut>.am-banniere img.am-fondu-visible{opacity:1}
+@media(prefers-reduced-motion:reduce){.hero-haut>.am-banniere img.am-fondu{transition:none}}
 .hero .menu{font:600 12px var(--mono);color:var(--mid);text-decoration:none;border:1px solid var(--line);border-radius:12px;padding:6px 10px;background:var(--surf)}
 .loading .menu{margin-left:12px}
-.hero>*{position:relative;z-index:1}
+.hero-haut>*:not(.am-banniere),.hero>.topacts{position:relative;z-index:1}
+.hero>.topacts{margin-top:12px;justify-content:flex-start}
 .hero .fil{font-size:12px;color:var(--mid)}
 .hero h1{margin:2px 0 0;font-size:30px;line-height:1.1}
 .hero .sous{font-size:13px;color:var(--mid)}
 .hero .selecteurs{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:8px}
 .hero .station-sel{border:1px solid var(--line);border-radius:12px;padding:6px 12px;background:var(--surf);font-size:13px}
-.hero .topacts{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.hero .topacts{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-start}
 .hero .btn.nouveau{background:linear-gradient(180deg,var(--cta1),var(--cta2));color:var(--ctat);border:0;border-radius:12px;font-weight:600;box-shadow:0 6px 18px rgba(36,216,227,.35)}
 .kpi3{display:grid;grid-template-columns:repeat(3,1fr) .85fr;gap:12px;margin-bottom:14px}
 .kpi3 .kpi{border:1px solid var(--line);border-radius:18px;background:linear-gradient(180deg,var(--surf2),var(--surf));padding:14px 16px;text-align:left;display:flex;align-items:center;justify-content:space-between;gap:10px}
@@ -214,7 +216,7 @@ table.sal tr.selected{background:rgba(36,216,227,.10);box-shadow:inset 0 0 0 1px
 .retour-liste,.pied-mobile{display:none}
 @media(max-width:1180px){.kpi3{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:820px){
- .hero{min-height:118px}.hero h1{font-size:24px}.kpi3{grid-template-columns:repeat(3,1fr);gap:8px}
+ .hero-haut{min-height:118px}.hero h1{font-size:24px}.kpi3{grid-template-columns:repeat(3,1fr);gap:8px}
  .kpi3 .kpi{padding:10px;flex-direction:column;align-items:flex-start}.kpi3 .kpi.discret{display:none}.kpi3 .anneau{display:none}.kpi3 .kpi b{font-size:22px}
  .workspace.fiche-ouverte .tablewrap{display:none}
  .workspace:not(.fiche-ouverte) .panel{display:none}
@@ -565,12 +567,12 @@ function renderSaisie(){
 function render(){
  const s=RAPPORT.synthese, statut=etatPeriode(), ec=totauxEcarts(), a=agregats();
  if(!SELECTION||!trouverFiche(SELECTION))SELECTION=selectionParDefaut();
- const dec=s.aVerifier+s.configurationRequise;
+ const dec=Math.max(0,s.salariesInclus-s.salariesPrets);
  document.getElementById('app').innerHTML=`
- <header class="hero">
+ <header class="hero"><div class="hero-haut">
   ${NexusBanniereStation.html(SITE,{apercu:NexusBanniereStation.apercuDemande(),sizes:'(max-width:820px) 100vw, 50vw'})}
   <div><div class="fil">NEXUS / Gestion</div><h1>Paye</h1><div class="sous">Préparation des variables mensuelles</div>
-  <div class="selecteurs"><span class="station-sel">${ECHAPPE(COMMERCE||SITE||'Station non identifiée')}</span><span class="monthnav"><button type="button" id="prev" aria-label="Mois précédent">←</button><strong>${moisLabel()}</strong><button type="button" id="next" aria-label="Mois suivant">→</button></span><span class="status ${statut}">${etatDossier(statut)}</span>${infoBtn('dossier','dossier mensuel')}</div></div>
+  <div class="selecteurs"><span class="station-sel">${ECHAPPE(COMMERCE||SITE||'Station non identifiée')}</span><span class="monthnav"><button type="button" id="prev" aria-label="Mois précédent">←</button><strong>${moisLabel()}</strong><button type="button" id="next" aria-label="Mois suivant">→</button></span><span class="status ${statut}">${etatDossier(statut)}</span>${infoBtn('dossier','dossier mensuel')}</div></div></div>
   <div class="topacts"><a class="menu" href="NEXUS-App-v1.html">☰ Menu</a><button type="button" class="btn" data-onglet="decisions">Décisions${dec?`<span class="n">${dec}</span>`:''}</button><button type="button" class="btn" data-onglet="dossier">Dossier comptable</button><button type="button" class="btn nouveau" id="toggleSaisie" aria-expanded="false" aria-controls="drawerSaisie">+ Nouvelle saisie</button><button type="button" class="btn primary transmettre" data-onglet="dossier" ${dec?`disabled title="${dec} à traiter avant de transmettre"`:''}>Transmettre à la comptabilité${dec?` · ${dec} à traiter`:''}</button></div>
  </header>
  ${renderKpis(s,ec,a)}
@@ -763,7 +765,7 @@ function renderFiche(f){
  const historique=`<div class="detail-zone" data-emp="${id}"><div class="bloc-titre">Historique des décisions, sources et justificatifs</div>${reste.length?reste.map(i=>renderItem(f,i)).join(''):'<div class="empty">Aucun événement particulier détecté sur ce mois.</div>'}</div>`;
  const corps={synthese,journees,evenements,variables,historique}[FICHE_ONGLET]||synthese;
  return tete+nav+corps
- +`<div class="fiche-pied"><button type="button" class="btn primary valider-salarie" ${aTraiter?'disabled title="Disponible quand la décision est prise"':''}>✓ Valider le salarié</button><button type="button" class="btn" data-ftab="journees">Voir le détail</button><button class="btn configure" data-id="${id}">Configurer le rattachement</button></div>`
+ +`<div class="fiche-pied"><button type="button" class="btn primary valider-salarie" ${aTraiter?'disabled title="Disponible quand la décision est prise"':''}>✓ Valider le salarié</button><button type="button" class="btn" data-ftab="journees">Voir le détail</button>${reglage?'':`<button class="btn configure" data-id="${id}">Configurer le rattachement</button>`}</div>`
  +`<div class="pied-mobile"><button type="button" class="btn primary" data-onglet="dossier" ${RAPPORT.synthese.aVerifier+RAPPORT.synthese.configurationRequise?'disabled':''}>Transmettre au comptable${RAPPORT.synthese.aVerifier+RAPPORT.synthese.configurationRequise?` · ${RAPPORT.synthese.aVerifier+RAPPORT.synthese.configurationRequise} à traiter`:''}</button></div>`;
 }
 function arrondi(x){return Math.round(Number(x||0)*100)/100}

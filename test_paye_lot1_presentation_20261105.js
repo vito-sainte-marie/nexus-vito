@@ -203,6 +203,13 @@ const B = require('./nexus-banniere-station.js');
 verifier('bannière : Sainte-Marie oui, autre site non, aperçu Test seulement avec le paramètre',
   B.html('vito-sainte-marie', { sizes: '100vw' }).includes('am-banniere') && B.html('autre-site', { sizes: '100vw' }) === ''
   && B.html('nexus-station-test', { sizes: '100vw' }) === '' && B.html('nexus-station-test', { apercu: true, sizes: '100vw' }).includes('am-banniere'));
-verifier('le fondu est coupé sous mouvement réduit', /prefers-reduced-motion:reduce\)\{\.hero>\.am-banniere img\.am-fondu\{transition:none/.test(src));
+verifier('le fondu est coupé sous mouvement réduit', /prefers-reduced-motion:reduce\)\{\.hero-haut>\.am-banniere img\.am-fondu\{transition:none/.test(src));
+verifier('boutons d\u2019action sous le titre, hors de la photo', /<div class="hero-haut">[\s\S]*?<\/div><\/div><\/div>\s*<div class="topacts">/.test(src) && !/\.hero::after/.test(src));
+verifier('photo fondue sur tous les bords (masque horizontal x vertical, sans bordure ni ombre)',
+  /\.hero-haut>\.am-banniere\{[^}]*mask-image:linear-gradient\(to right,transparent 0%,#000 45%[^}]*to bottom[^}]*mask-composite:intersect/.test(src)
+  && /-webkit-mask-composite:source-in/.test(src) && !/\.am-banniere\{[^}]*(box-shadow|border)/.test(src));
+verifier('un seul nombre « à traiter » (salariés inclus - prêts), hors réglages hors-paie', /const dec=Math\.max\(0,s\.salariesInclus-s\.salariesPrets\)/.test(src));
+verifier('« 0 h » reste en minuscule dans les indicateurs', /button\.kpi span b,button\.kpi span small\{text-transform:none\}/.test(src));
+verifier('un seul bouton Configurer dans la fiche quand la zone de décision le porte', /\$\{reglage\?'':`<button class="btn configure"/.test(src));
 
 console.log(`\n${ok} contrôles passent.`);
