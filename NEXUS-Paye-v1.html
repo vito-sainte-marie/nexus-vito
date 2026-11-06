@@ -341,6 +341,12 @@ table.sal th,table.sal td{border-bottom:1px solid var(--line)}
  .capsule{height:auto;padding:0;background:none;font-size:13px;color:var(--mid)}
  .capsule [aria-hidden]{display:none}
 }
+/* Pour le comptable (06/11/2026, Frédéric) */
+.pour-comptable{margin:12px 0}
+.pour-comptable .ligne{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--line);font:400 15px var(--sans)}
+.pour-comptable .ligne>span:first-child{color:var(--mid);flex:0 0 96px}
+.pour-comptable .ligne>span:last-child{flex:1;text-align:right}
+.heures-detail tfoot td{border-top:1px solid var(--line)}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
@@ -726,13 +732,56 @@ function section(titre,tuiles){
 // Indicateur unique « 23 h · dont 2 h sup. » : la présence n'est jamais comptée deux fois,
 // les supplémentaires sont une PART de la présence, pas un ajout.
 function libelleHeures(v){const h=v.presence.heures,sp=v.heuresSupplementaires.heures;return `${hFr(h)}`+(sp?` · dont ${hFr(sp)} sup.`:'');}
-function renderHeures(v){
- const d=v.presence.detailJours||[];
+// Heures supplémentaires jour par jour (Frédéric, 05/11/2026) : la 8e heure du barème de chaque journée,
+// plus les heures validées par le manager à leur date (hors décision « déjà incluse », jamais ajoutée deux fois).
+// Présentation seulement : le total est la somme des lignes, et un test le rapproche de variablesComptables.
+function suppParJour(v,f){
+ const jours=(v.presence.detailJours||[]).map(j=>({date:j.date,poste:j.poste||null,presence:j.presence,normales:j.normales,supp:Number(j.supplementaires||0)}));
+ ((f&&f.items)||[]).filter(i=>i.typeItem==='heure_supplementaire'&&(i.statut==='valide'||i.statut==='information')&&!i.dejaIncluseDansHeures&&Number(i.quantiteMinutes||0)>0).forEach(i=>{
+  const h=Number(i.quantiteMinutes)/60;
+  const j=jours.find(x=>x.date===i.date);
+  if(j)j.supp+=h;else jours.push({date:i.date||'',poste:null,presence:0,normales:0,supp:h,manuelle:true});
+ });
+ jours.sort((a,b)=>String(a.date)<String(b.date)?-1:1);
+ const total=Math.round(jours.reduce((s,j)=>s+Math.round(j.supp*100)/100,0)*100)/100;
+ return {jours,total};
+}
+function renderHeures(v,f){
+ const {jours:d,total}=suppParJour(v,f);
  const att=v.heuresSupplementaires.enAttente?`<p class="meta">${pluriel(v.heuresSupplementaires.enAttente,'élément')} d’heures supplémentaires en attente d’arbitrage.</p>`:'';
- const lignes=d.map(j=>`<tr><td>${ECHAPPE(j.date)}</td><td>${ECHAPPE(j.poste||'sans poste')}</td><td>${hFr(j.presence)}</td><td>${hFr(j.normales)}</td><td>${j.supplementaires?`<b>${hFr(j.supplementaires)}</b>`:'0'}</td></tr>`).join('');
+ const lignes=d.map(j=>`<tr><td>${ECHAPPE(j.date)}</td><td>${ECHAPPE(j.poste||(j.manuelle?'heures validées':'sans poste'))}</td><td>${hFr(j.presence)}</td><td>${hFr(j.normales)}</td><td>${j.supp?`<b>${hFr(j.supp)}</b>`:'0'}</td></tr>`).join('');
  return `<section class="heures"><h4>Heures : ${libelleHeures(v)}</h4>${att}`
-  +(d.length?`<table class="heures-detail"><thead><tr><th>Date</th><th>Poste</th><th>Présence</th><th>Normales</th><th>Supplémentaires</th></tr></thead><tbody>${lignes}</tbody></table>`:'<p class="meta">Aucune journée confirmée sur ce mois.</p>')
+  +(d.length?`<table class="heures-detail"><thead><tr><th>Date</th><th>Poste</th><th>Présence</th><th>Normales</th><th>Heures supp.</th></tr></thead><tbody>${lignes}</tbody><tfoot><tr class="total-mois"><td colspan="4"><b>Total du mois</b></td><td><b>${hFr(total)}</b></td></tr></tfoot></table>`:'<p class="meta">Aucune journée confirmée sur ce mois.</p>')
   +`</section>`;
+}
+// Bloc « Pour le comptable » : mêmes chiffres que variablesComptables / lignesExport, une ligne seulement si elle a une valeur.
+function lignesComptable(v,f){
+ const {total}=suppParJour(v,f);
+ const jm=v.presence.joursMesures+v.presence.joursReconstitues;
+ const L=[];
+ if(jm||total){
+  const norm=v.presence.heuresNormales;
+  L.push({k:'Temps',h:`${pluriel(jm,'jour')} · ${hFr(norm)} normales${total?` · <b>${hFr(total)} supp.</b> <button type="button" class="lien-texte" data-ftab="journees">Voir le détail</button>`:''}`});
+ }
+ const ev=[];
+ if(v.joursFeries.jours)ev.push(`${pluriel(v.joursFeries.jours,'férié')} travaillé${v.joursFeries.jours>1?'s':''}`);
+ [v.congesPayes,v.maladieMaternite,v.autresAbsences].forEach(g=>g.detail.forEach(e=>ev.push(`${ECHAPPE(e.libelle||'Absence')}${e.debut?` du ${ECHAPPE(e.debut)}${e.fin&&e.fin!==e.debut?` au ${ECHAPPE(e.fin)}`:''}`:''}`)));
+ if(v.absence.jours)ev.push(`${pluriel(v.absence.jours,'jour')} d’absence retenu${v.absence.jours>1?'s':''}`);
+ if(v.retards.minutes)ev.push(`retards retenus ${v.retards.minutes} min`);
+ if(ev.length)L.push({k:'Événements',h:ev.join(' · ')});
+ const fin=v.financier,ar=[];
+ if(fin.acompteCentimes)ar.push(`acomptes ${euros(fin.acompteCentimes)}`);
+ if(fin.detteCentimes)ar.push(`avances / dettes ${euros(fin.detteCentimes)}`);
+ if(fin.retenueEcartCentimes)ar.push(`écart retenu ${euros(fin.retenueEcartCentimes)}`);
+ if(ar.length)L.push({k:'Argent',h:ar.join(' · ')});
+ return L;
+}
+function renderPourComptable(v,f){
+ const L=lignesComptable(v,f);
+ const sansVariable=!v.joursFeries.jours&&!v.congesPayes.jours&&!v.maladieMaternite.jours&&!v.autresAbsences.jours&&!v.absence.jours&&!v.retards.minutes&&!v.financier.acompteCentimes&&!v.financier.detteCentimes&&!v.financier.retenueEcartCentimes;
+ return `<section class="pour-comptable"><div class="bloc-titre">Pour le comptable · ${ECHAPPE(moisLabel())}</div>`
+  +L.map(l=>`<div class="ligne"><span>${l.k}</span><span>${l.h}</span></div>`).join('')
+  +(sansVariable?'<div class="ok">Aucune absence, aucun retard, aucune variable.</div>':'')+`</section>`;
 }
 function renderVariables(v,f){
  const R=tuilesFiche(v,f);
@@ -868,10 +917,10 @@ function renderFiche(f){
  const synthese=`<div class="carte-h"><div class="meta">Heures retenues ${infoBtn('heuresRetenues','heures retenues')}</div><div class="gros">${hFr(v.presence.heures)}</div><div class="help" style="margin:2px 0 0">${pluriel(jm,'journée')} constatée${jm>1?'s':''}${v.presence.heuresParDefaut?` · dont ${hFr(v.presence.heuresParDefaut)} calculées d’après le barème de la station`:''}</div>`
   +(hT?`<div class="repart" role="img" aria-label="Répartition par activité"><i class="c1" style="width:${part(hC)}%"></i><i class="c2" style="width:${part(hP)}%"></i><i class="c3" style="width:${part(hR)}%"></i></div><div class="help" style="margin:0">Répartition des ${hFr(hT)}, pas en plus : caisse ${hFr(hC)} · piste ${hFr(hP)} · renfort ${hFr(hR)}</div>`:'')
   +`</div>`
-  +`<div class="minis"><div class="mini"><span class="meta">Absence</span><b>${v.congesPayes.jours+v.maladieMaternite.jours+v.autresAbsences.jours} j</b></div><div class="mini"><span class="meta">Retard</span><b>${v.retards.minutes} min</b></div><div class="mini"><span class="meta">Variables</span><b>${(()=>{const fin=v.financier,t=fin.acompteCentimes+fin.detteCentimes+fin.retenueEcartCentimes;return t?euros(t):'—'})()}</b></div></div>`
+  +renderPourComptable(v,f)
   +zoneDecision;
  const tuiles=tuilesFiche(v,f);
- const journees=renderHeures(v)+section('Ventilation des heures',tuiles.temps)+`<div class="lignes"><div class="ligne">Jours constatés<b>${jm}</b></div><div class="ligne${hp?'':' muet'}">Jours travaillés hors planning<b>${hp}</b></div><div class="ligne">Source du planning<b>${src==='google_sheets'?'Google Sheets (officiel)':'Planning NEXUS'}</b></div></div>${lien?`<div class="help"><a href="${ECHAPPE(lien)}" target="_blank" rel="noopener" style="color:var(--green)">Ouvrir le planning officiel ↗</a></div>`:''}`;
+ const journees=renderHeures(v,f)+section('Ventilation des heures',tuiles.temps)+`<div class="lignes"><div class="ligne">Jours constatés<b>${jm}</b></div><div class="ligne${hp?'':' muet'}">Jours travaillés hors planning<b>${hp}</b></div><div class="ligne">Source du planning<b>${src==='google_sheets'?'Google Sheets (officiel)':'Planning NEXUS'}</b></div></div>${lien?`<div class="help"><a href="${ECHAPPE(lien)}" target="_blank" rel="noopener" style="color:var(--green)">Ouvrir le planning officiel ↗</a></div>`:''}`;
  const evenements=`<div class="bloc-titre">Absences, congés et retards du mois${evt.length?` · ${evt.length}`:''}</div>`
   +`${evt.length?evt.map(i=>renderItem(f,i)).join(''):'<div class="ok">Aucun événement ce mois.</div>'}`
   +section('Absences retenues en paie',tuiles.absences)

@@ -251,4 +251,29 @@ verifier('finition 2 : iPhone, photo en bandeau au-dessus du titre (rien dessus)
 verifier('finition 2 : iPhone, une ligne de 64 px par salarié (statut à droite), liens de source à 44 px',
   /min-height:64px/.test(fin2) && /td\[data-col="Statut"\]\{grid-column:3;grid-row:1 \/ 3/.test(fin2) && /<a class="source-link" href="\$\{ECHAPPE\(lienAnalyseEcarts\(\)\)\}"/.test(src));
 
+// Bloc « Pour le comptable » (Frédéric, 05/11) : bloc = Journées = moteur = export
+verifier('Synthèse : le bloc « Pour le comptable » remplace les trois cartes Absence / Retard / Variables',
+  /renderPourComptable\(v,f\)/.test(src) && !/class="minis"/.test(src.slice(src.indexOf('function renderFiche'))) && /Pour le comptable · \$\{ECHAPPE\(moisLabel\(\)\)\}/.test(src));
+verifier('Journées : colonne « Heures supp. » et ligne « Total du mois »',
+  /Heures supp\./.test(src) && /class="total-mois"/.test(src) && /Total du mois/.test(src));
+verifier('« Voir le détail » du bloc ouvre Journées',
+  /class="lien-texte" data-ftab="journees">Voir le détail/.test(src));
+ev(apres, "FICHE_ONGLET='synthese';");
+let vuHeures = false;
+ids.concat(['e1']).forEach(id => {
+  const r = JSON.parse(ev(apres, `(function(){const f=RAPPORT.employes.find(x=>x.employee.id==='${id}');const v=NexusPayeMoteur.variablesComptables(f);
+    const s=suppParJour(v,f);
+    const exp=NexusPayeMoteur.lignesExport(RAPPORT).filter(l=>l.employee_id==='${id}');
+    return JSON.stringify({bloc:s.total,moteur:Math.round(v.heuresSupplementaires.heures*100)/100,html:renderHeures(v,f).includes(hFr(s.total)),pc:renderPourComptable(v,f)});})()`));
+  verifier(`cohérence ${id} : total Journées (${r.bloc} h) = heures supp. du moteur (${r.moteur} h) et affiché dans le tableau`, r.bloc === r.moteur && r.html);
+  verifier(`bloc ${id} : titre du mois et soit des lignes, soit la phrase « Aucune absence »`, /Pour le comptable/.test(r.pc) && (/class="ligne"/.test(r.pc) || /Aucune absence, aucun retard, aucune variable\./.test(r.pc)));
+  if (r.bloc > 0) vuHeures = true;
+});
+const syn = JSON.parse(ev(apres, `(function(){
+  const v={presence:{detailJours:[{date:'2026-08-03',poste:'quart1',presence:1,normales:7,supplementaires:1},{date:'2026-08-04',poste:'quart1',presence:1,normales:7,supplementaires:0}]},heuresSupplementaires:{heures:1.5}};
+  const f={items:[{typeItem:'heure_supplementaire',statut:'valide',quantiteMinutes:30,date:'2026-08-04'},{typeItem:'heure_supplementaire',statut:'refuse',quantiteMinutes:600,date:'2026-08-05'},{typeItem:'heure_supplementaire',statut:'valide',dejaIncluseDansHeures:true,quantiteMinutes:600,date:'2026-08-03'}]};
+  const s=suppParJour(v,f);return JSON.stringify({total:s.total,n:s.jours.length,j4:s.jours.find(x=>x.date==='2026-08-04').supp});})()`));
+verifier('heures supp. par jour : barème + heures validées du manager, refusées et déjà incluses ignorées; total = somme des lignes',
+  syn.total === 1.5 && syn.n === 2 && syn.j4 === 0.5);
+
 console.log(`\n${ok} contrôles passent.`);

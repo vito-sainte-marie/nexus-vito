@@ -3,7 +3,7 @@
 // Décision Q1 du 10/10/2026 : jeudi→samedi = 7 h + 1 h supplémentaire (8ᵉ heure, comprise dans la
 // présence) ; dimanche→mercredi = 7 h ; renfort Q1 = 7 h sans supplémentaire. Cette épreuve exécute
 // le VRAI écran contre le VRAI moteur et lit ce que le manager voit : l'indicateur « N h · dont M h sup. »,
-// le tableau Date / Poste / Présence / Normales / Supplémentaires, et l'absence de double comptage.
+// le tableau Date / Poste / Présence / Normales / Heures supp., et l'absence de double comptage.
 'use strict';
 const assert = require('assert'), fs = require('fs'), path = require('path'), vm = require('vm');
 const html = fs.readFileSync(path.join(__dirname, 'NEXUS-Paye-v1.html'), 'utf8');
@@ -80,7 +80,7 @@ verifier('Angélique : aucune heure supplémentaire cumulée sur un renfort', vr
 
 // Détail par date, immédiatement visible.
 verifier('le tableau de détail est rendu', ecran.includes('class="heures-detail"'));
-['Date', 'Poste', 'Présence', 'Normales', 'Supplémentaires'].forEach(c => verifier(`colonne « ${c} »`, ecran.includes(`<th>${c}</th>`)));
+['Date', 'Poste', 'Présence', 'Normales', 'Heures supp.'].forEach(c => verifier(`colonne « ${c} »`, ecran.includes(`<th>${c}</th>`)));
 verifier('le détail de Camille compte 3 jours', vc.presence.detailJours.length === 3);
 verifier('le jeudi de Camille : 8 h = 7 h normales + 1 h sup.',
   vc.presence.detailJours.some(j => j.date === '2026-09-10' && j.presence === 8 && j.normales === 7 && j.supplementaires === 1));
