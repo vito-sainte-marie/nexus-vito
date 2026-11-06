@@ -447,6 +447,23 @@
     });
   }
 
+  // Fériés de la station : le calcul est celui de Tempo (nexus-jours-feries.js, un seul endroit),
+  // auquel `config.jours_feries` peut ajouter des dates (chaînes ou {date, nom}), sans doublon.
+  function moduleJoursFeries() {
+    if (global.NexusJoursFeries) return global.NexusJoursFeries;
+    try { return typeof require === 'function' ? require('./nexus-jours-feries.js') : null; } catch (e) { return null; }
+  }
+  function feriesDeLaPeriode(periode, ajouts) {
+    const par = new Map();
+    const JF = moduleJoursFeries();
+    if (JF) JF.joursFeriesMartinique(Number(String(periode).slice(0, 4))).forEach(f => par.set(f.date, f.nom));
+    (ajouts || []).forEach(a => {
+      const date = typeof a === 'string' ? a : a && a.date;
+      if (date && !par.has(date)) par.set(date, (a && a.nom) || null);
+    });
+    return par;
+  }
+
   function construireRapport(entree) {
     const periode = moisISO(entree.periode);
     const config = Object.assign({
@@ -454,6 +471,7 @@
       durees_reference: null, heures_renfort: 0,
       renfort_effectif_depuis: RENFORT_EFFECTIF_DEPUIS_DEFAUT,
     }, entree.config || {});
+    const feriesStation = feriesDeLaPeriode(periode, config.jours_feries);
     // Les durées de référence et l'horaire standard du renfort viennent des
     // Paramètres Station. Une seule lecture, un seul jeu de règles, partagé
     // par tout le calcul : c'est la condition pour que Verify et Paye ne
@@ -718,12 +736,16 @@
         // enregistrés restent visibles — ils arrivent par la voie des items
         // manuels, comme toute décision du manager.
 
-        // Un férié travaillé reste un élément de paie à arbitrer, et il l'est
-        // désormais même sans planning : c'est Verify qui atteste la journée.
-        if (preuve && (config.jours_feries || []).includes(date)) {
+        // Un férié travaillé est constaté par Verify ou le pointage, même sans planning : il est
+        // RETENU d'office (aucune décision à rendre, il ne compte ni dans le statut ni dans « à
+        // traiter »). Le manager peut seulement le retirer (journée saisie par erreur). NEXUS ne
+        // calcule aucune majoration : le comptable l'applique.
+        if (preuve && feriesStation.has(date)) {
+          const nomFerie = feriesStation.get(date);
           fiche.items.push({
             sourceCle: `jour-ferie:${employee.id}:${date}`, typeItem: 'jour_ferie', origine: preuve.type.indexOf('verify') !== -1 ? 'verify' : 'pointage',
-            date, libelle: 'Jour férié travaillé', statut: 'a_verifier', impactPaye: false,
+            date, nomFerie, libelle: nomFerie ? `Jour férié travaillé · ${nomFerie}` : 'Jour férié travaillé',
+            statut: 'valide', retenuAuto: true, impactPaye: false,
           });
         }
       });
@@ -1153,7 +1175,11 @@
         heuresDejaIncluses: Math.round(Number(fiche.heuresSupplementairesParDefaut || 0) * 100) / 100,
         enAttente: enAttente('heure_supplementaire'),
       },
-      joursFeries: { jours: feries.length, enAttente: enAttente('jour_ferie') },
+      joursFeries: {
+        jours: feries.length, enAttente: enAttente('jour_ferie'),
+        dates: feries.map(i => i.date).sort(),
+        detail: feries.map(i => ({ date: i.date, nom: i.nomFerie || null })).sort((a, b) => a.date < b.date ? -1 : 1),
+      },
       financier: {
         acompteCentimes: sommeCentimes(acomptes),
         detteCentimes: sommeCentimes(dettes),
