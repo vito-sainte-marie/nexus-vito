@@ -60,7 +60,7 @@
       padding:14px 16px;
       border:1px solid rgba(86,199,220,.22);
       border-radius:14px;
-      background:linear-gradient(135deg,rgba(86,199,220,.10),rgba(21,30,40,.88) 52%,rgba(215,180,91,.045));
+      background:var(--ipv-access-bg,linear-gradient(135deg,rgba(86,199,220,.10),rgba(21,30,40,.88) 52%,rgba(215,180,91,.045)));
       text-decoration:none;
       color:inherit;
       box-shadow:0 10px 28px rgba(0,0,0,.14);
@@ -69,9 +69,9 @@
     .inv-photo-decenium-access:hover{border-color:rgba(86,199,220,.38); transform:translateY(-1px);}
     .inv-photo-decenium-access-main{display:flex;align-items:center;gap:12px;min-width:0;}
     .inv-photo-decenium-access-icon{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:rgba(86,199,220,.12);font-size:17px;flex:0 0 auto;}
-    .inv-photo-decenium-access-title{font-size:13px;font-weight:700;color:#E9F2F5;}
-    .inv-photo-decenium-access-sub{font-size:11px;color:#8293A3;margin-top:2px;line-height:1.35;}
-    .inv-photo-decenium-access-action{font:700 10px/1 var(--mono);color:#56C7DC;white-space:nowrap;letter-spacing:.03em;}
+    .inv-photo-decenium-access-title{font-size:13px;font-weight:700;color:var(--text);}
+    .inv-photo-decenium-access-sub{font-size:11px;color:var(--text-mid);margin-top:2px;line-height:1.35;}
+    .inv-photo-decenium-access-action{font:700 10px/1 var(--mono);color:var(--ipv-titre-cyan,#56C7DC);white-space:nowrap;letter-spacing:.03em;}
     .inv-photo-decenium-access.is-waiting{opacity:.65;cursor:default;pointer-events:none;}
 
     #photoDeceniumSection{scroll-margin-top:18px;}

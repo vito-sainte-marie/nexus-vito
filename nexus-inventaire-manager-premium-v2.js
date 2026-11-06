@@ -33,13 +33,54 @@
         --inv-premium-green:#55D7A0;
         --inv-premium-radius:16px;
         --inv-premium-shadow:0 12px 34px rgba(0,0,0,.18);
+        --ipv-body-bg:#0B0F14;
+        --ipv-card-bg:linear-gradient(180deg, rgba(21,30,40,.96), rgba(17,24,32,.96));
+        --ipv-card-secondary:rgba(17,24,32,.72);
+        --ipv-field-bg:rgba(21,30,40,.9);
+        --ipv-pill-bg:rgba(21,30,40,.82);
+        --ipv-statut-bg:rgba(255,255,255,.018);
+        --ipv-file-bg:rgba(25,35,47,.72);
+        --ipv-badge-bg:rgba(25,35,47,.62);
+        --ipv-stat-bg:linear-gradient(180deg, rgba(25,35,47,.8), rgba(18,26,35,.82));
+        --ipv-eyebrow:rgba(86,199,220,.88);
+        --ipv-titre:#8997A5;
+        --ipv-titre-cyan:rgba(86,199,220,.82);
+        --ipv-titre-or:rgba(215,180,91,.82);
+        --ipv-vide:#8997A5;
+        --ipv-statut:#8997A5;
+        --ipv-desc:#8997A5;
       }
+      /* Jour : les surfaces et les textes de cette feuille suivent le thème actif (jamais un fond Sombre sous un texte Jour). */
+      :root[data-theme="jour"]{
+        --inv-premium-line:var(--line);
+        --inv-premium-line-strong:#B8C4CF;
+        --inv-premium-shadow:0 4px 14px rgba(15,23,42,.08);
+        --ipv-body-bg:var(--bg);
+        --ipv-card-bg:var(--panel);
+        --ipv-card-secondary:#F8FAFC;
+        --ipv-field-bg:var(--panel);
+        --ipv-pill-bg:var(--panel);
+        --ipv-statut-bg:#F1F5F9;
+        --ipv-file-bg:#F1F5F9;
+        --ipv-badge-bg:#F1F5F9;
+        --ipv-stat-bg:var(--panel);
+        --ipv-eyebrow:#0B6F83;
+        --ipv-titre:var(--text-mid);
+        --ipv-titre-cyan:#0B6F83;
+        --ipv-titre-or:#7A5A00;
+        --ipv-vide:var(--text-mid);
+        --ipv-statut:var(--text-mid);
+        --ipv-desc:var(--text-mid);
+        --ipv-access-bg:var(--panel);
+      }
+
+      .synthese-card .param-note{color:var(--text-mid)}
 
       body.nexus-inventaire-manager-premium-v2{
         background:
           radial-gradient(circle at 14% -8%, rgba(79,195,217,.055), transparent 28%),
           radial-gradient(circle at 86% 0%, rgba(212,175,55,.035), transparent 24%),
-          #0B0F14;
+          var(--ipv-body-bg);
       }
 
       body.nexus-inventaire-manager-premium-v2 .phone{
@@ -55,7 +96,7 @@
       body.nexus-inventaire-manager-premium-v2 .eyebrow{
         font-size:10px;
         letter-spacing:.16em;
-        color:rgba(86,199,220,.88);
+        color:var(--ipv-eyebrow);
       }
 
       body.nexus-inventaire-manager-premium-v2 .title{
@@ -77,18 +118,18 @@
       body.nexus-inventaire-manager-premium-v2 .section-titre-action-row .section-titre{
         margin-top:24px;
         margin-bottom:9px;
-        color:#667789;
+        color:var(--ipv-titre);
         font-size:9.5px;
         font-weight:700;
         letter-spacing:.115em;
       }
 
       body.nexus-inventaire-manager-premium-v2 .section-titre.premium-primary-section{
-        color:rgba(86,199,220,.82);
+        color:var(--ipv-titre-cyan);
       }
 
       body.nexus-inventaire-manager-premium-v2 .section-titre.premium-decision-section{
-        color:rgba(215,180,91,.82);
+        color:var(--ipv-titre-or);
       }
 
       body.nexus-inventaire-manager-premium-v2 .card,
@@ -96,7 +137,7 @@
       body.nexus-inventaire-manager-premium-v2 .empty{
         border-color:var(--inv-premium-line) !important;
         border-radius:var(--inv-premium-radius) !important;
-        background:linear-gradient(180deg, rgba(21,30,40,.96), rgba(17,24,32,.96)) !important;
+        background:var(--ipv-card-bg) !important;
         box-shadow:var(--inv-premium-shadow);
       }
 
@@ -124,7 +165,7 @@
 
       body.nexus-inventaire-manager-premium-v2 .premium-card-secondary{
         box-shadow:none;
-        background:rgba(17,24,32,.72) !important;
+        background:var(--ipv-card-secondary) !important;
       }
 
       body.nexus-inventaire-manager-premium-v2 .empty{
@@ -133,7 +174,7 @@
         align-items:center;
         justify-content:center;
         padding:15px 18px;
-        color:#657585;
+        color:var(--ipv-vide);
         line-height:1.5;
         box-shadow:none;
       }
@@ -147,14 +188,14 @@
         min-height:42px;
         border-radius:12px;
         border-color:var(--inv-premium-line);
-        background:rgba(21,30,40,.9);
+        background:var(--ipv-field-bg);
         font-size:14px;
       }
 
       body.nexus-inventaire-manager-premium-v2 .quart-pill,
       body.nexus-inventaire-manager-premium-v2 .periode-pill{
         border-color:var(--inv-premium-line);
-        background:rgba(21,30,40,.82);
+        background:var(--ipv-pill-bg);
         transition:transform .15s ease, border-color .15s ease, background .15s ease;
       }
 
@@ -183,8 +224,8 @@
         margin:2px 0 15px;
         border-radius:8px;
         border:1px solid var(--inv-premium-line);
-        background:rgba(255,255,255,.018);
-        color:#758596;
+        background:var(--ipv-statut-bg);
+        color:var(--ipv-statut);
       }
 
       body.nexus-inventaire-manager-premium-v2 .ventes-card{
@@ -207,13 +248,13 @@
 
       body.nexus-inventaire-manager-premium-v2 .ventes-desc{
         max-width:880px;
-        color:#8997A5;
+        color:var(--ipv-desc);
       }
 
       body.nexus-inventaire-manager-premium-v2 .ventes-file-label{
         min-height:42px;
         border-color:rgba(141,162,183,.16);
-        background:rgba(25,35,47,.72);
+        background:var(--ipv-file-bg);
       }
 
       body.nexus-inventaire-manager-premium-v2 .btn-comparer{
@@ -227,7 +268,7 @@
       body.nexus-inventaire-manager-premium-v2 .snapshot-badge,
       body.nexus-inventaire-manager-premium-v2 .ventes-resume{
         border:1px solid var(--inv-premium-line);
-        background:rgba(25,35,47,.62);
+        background:var(--ipv-badge-bg);
       }
 
       body.nexus-inventaire-manager-premium-v2 .stats-row{
@@ -237,7 +278,7 @@
       body.nexus-inventaire-manager-premium-v2 .stat-mini{
         border-radius:13px;
         border-color:var(--inv-premium-line);
-        background:linear-gradient(180deg, rgba(25,35,47,.8), rgba(18,26,35,.82));
+        background:var(--ipv-stat-bg);
       }
 
       body.nexus-inventaire-manager-premium-v2 button,
