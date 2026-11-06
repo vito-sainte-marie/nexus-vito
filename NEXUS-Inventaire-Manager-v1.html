@@ -88,11 +88,7 @@
   body:not(.nexus-desktop) .segment-quart{flex:1 0 100%;margin-left:0;margin-top:2px}
   body:not(.nexus-desktop) .entete-actions a,body:not(.nexus-desktop) .entete-actions button{flex:1 1 auto;justify-content:center}
   /* Vue bureau : tuiles et Conseiller sur toute la largeur, les deux colonnes dessous. */
-  /* Vue bureau : grille CSS à deux colonnes (les colonnes CSS déroutent Safari : blocs non peints, vide en bas de page).
-     Les blocs injectés par les scripts de la page occupent toute la largeur, dans l'ordre du DOM. */
-  body.nexus-desktop .desktop-grid{column-count:auto;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 20px;align-items:start}
-  body.nexus-desktop .desktop-grid>*{grid-column:auto;min-width:0}
-  body.nexus-desktop .desktop-grid>.indicateurs,body.nexus-desktop .desktop-grid>.conseiller-card,body.nexus-desktop .desktop-grid>.inv-photo-decenium-access,body.nexus-desktop .desktop-grid>#nexusManagerReassortCigarettesV3,body.nexus-desktop .desktop-grid>.loading,body.nexus-desktop .desktop-grid>.section-titre,body.nexus-desktop .desktop-grid>.section-titre-action-row,body.nexus-desktop .desktop-grid>.quart-statut,body.nexus-desktop .desktop-grid>.empty{grid-column:1 / -1}
+  body.nexus-desktop .desktop-grid>.indicateurs,body.nexus-desktop .desktop-grid>.conseiller-card{column-span:all}
   body.nexus-desktop .indicateurs{grid-template-columns:repeat(3,minmax(0,1fr))}
   /* Mode Jour : voile blanc quasi opaque sous le texte, menu opaque, pastilles en texte foncé sur fond pâle. */
   :root[data-theme="jour"] .header>.am-banniere::after{background:linear-gradient(to right,var(--panel) 0%,var(--panel) 50%,transparent 100%),linear-gradient(to bottom,transparent 45%,var(--panel) 100%);opacity:.96}
@@ -3182,15 +3178,6 @@
       </a>
     `;
 
-    // Résumé Photo Decenium (lu par nexus-inventaire-manager-fullwidth-v2.js) : états réels, jamais « Chargement… » sans fin.
-    const ct = document.getElementById('content');
-    if (ct) {
-      const sa = ctx.snapshotActif;
-      ct.dataset.photoEtat = sa ? 'active' : 'aucune';
-      ct.dataset.photoRef = sa ? new Date(sa.snapshot_reference_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).replace(', ', ' ') : '';
-      ct.dataset.photoConfiance = sa ? NexusInventaireSnapshotMoteur.libelleConfianceSnapshot(sa.confidence_level) : '';
-      ct.dataset.ventes = !quartRow ? 'quart-non-demarre' : (importDeceniumFait ? 'importees' : 'non-importees');
-    }
     majEntete(quartRow, synthese, etat);
     document.querySelectorAll('.np-tuile-corps').forEach(el => el.addEventListener('click', () => {
       const cible = document.getElementById(el.dataset.cible);
