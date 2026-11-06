@@ -59,7 +59,10 @@ cas('aucune couleur en dur hors :root (hors pictogrammes Excel)', () => {
 });
 cas('Paye est inchangée vs origin/production', () => {
   let avant; try { avant = execSync('git show origin/production:NEXUS-Paye-v1.html', { cwd: __dirname, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 1 << 26 }); } catch (e) { return; }
-  assert.strictEqual(paye, avant);
+  // Le CI exécute outils/build.sh avant les tests : il épingle et réécrit les balises <script src>. On les compare sans elles ;
+  // le reste de la page (styles, script en ligne) doit rester identique à origin/production.
+  const sansEpingle = (t) => t.replace(/<script src="[^"]*"><\/script>\n?/g, '');
+  assert.strictEqual(sansEpingle(paye), sansEpingle(avant));
 });
 cas('kit graphique : bannières jour/nuit et pictogrammes présents, sans couleur en dur', () => {
   const B = require('./nexus-banniere-station.js');

@@ -124,9 +124,10 @@
     let acces=document.getElementById('invPhotoDeceniumAccess');
     const photo=trouverPhotoDecenium();
 
+    // Le résumé se place APRÈS le Conseiller (jamais entre la bannière et les tuiles) ; sans Conseiller, on attend.
+    const conseiller=document.getElementById('conseillerCard');
+    if(!conseiller) return;
     if(!acces){
-      const section=document.querySelector('.section');
-      if(!section) return;
       acces=document.createElement('a');
       acces.id='invPhotoDeceniumAccess';
       acces.className='inv-photo-decenium-access is-waiting';
@@ -140,8 +141,8 @@
           </span>
         </span>
         <span class="inv-photo-decenium-access-action">Ouvrir →</span>`;
-      section.insertAdjacentElement('afterbegin',acces);
     }
+    if(conseiller.nextElementSibling!==acces) conseiller.insertAdjacentElement('afterend',acces);
 
     if(photo){
       acces.classList.remove('is-waiting');
