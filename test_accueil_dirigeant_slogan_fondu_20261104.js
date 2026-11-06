@@ -2,9 +2,10 @@
 // Présentation seulement : le texte du slogan est toujours écrit par le même code (#taglineTexte).
 // Structure : toujours exécutée. Comportement et contraste : Playwright (absent de la CI -> « NON EXÉCUTÉE », jamais « passed »).
 const fs = require('fs'); const path = require('path'); const assert = require('assert');
-const APP = fs.readFileSync(path.join(__dirname, 'NEXUS-App-v1.html'), 'utf8');
+// Bannière partagée : HTML + nexus-banniere-station.js (05/11).
+const APP = fs.readFileSync(path.join(__dirname, 'NEXUS-App-v1.html'), 'utf8') + '\n/*MODULE*/\n' + fs.readFileSync(path.join(__dirname, 'nexus-banniere-station.js'), 'utf8');
 const M = 'body:has(.am-marqueur)';
-const code = (src) => { const i = src.indexOf('const SITES_BANNIERE_VITO'); const j = src.indexOf("const hote = document.getElementById('prisePosteHote');", i); return src.slice(i, j); };
+const code = (src) => { const m = src.indexOf('/*MODULE*/'); const mod = src.slice(m + 10).replace(/if \(typeof module[\s\S]*$/, ''); const i = src.indexOf('function sloganDansEntete'); const j = src.indexOf("const hote = document.getElementById('prisePosteHote');", i); return mod + '\n' + src.slice(i, j); };
 
 const STRUCTURE = {
   'le slogan reste UN élément (#taglineRole), déplacé et non copié': (s) => {
@@ -34,7 +35,7 @@ const STRUCTURE = {
     assert(c.includes('actuelle.remove()') && !c.includes('matchMedia'), 'renderPrisePoste ne consulte pas matchMedia : le mouvement réduit relève du CSS');
     assert(/prefers-reduced-motion:reduce\)\{[^]*img\.am-fondu\{transition:none;\}/.test(s.slice(s.indexOf('/* Accueil du dirigeant, V1 visuelle'), s.indexOf('.section-tag{font-family:var(--mono)'))), 'mouvement réduit : transition nulle');
     assert(/pre\.onload = function/.test(c) && !/pre\.onerror/.test(c), 'échec du préchargement : l’ancienne reste');
-    assert(c.includes('changerPhotoBanniere(photoAccueilNuit())'));
+    assert(c.includes('changerPhoto(photoNuit())'));
   },
 };
 const MUT_STRUCT = {
@@ -52,7 +53,7 @@ const page = (src) => {
   s = s.replace(/(id="sessionInfo"[^>]*>)/, '$1Bonjour Frédéric');
   s = s.replace(/(id="prisePosteHote"[^>]*>)/, '$1');
   const js = '(function(){const APERCU_BANNIERE_DEMANDE=false, FUSEAU_STATION=null;' + code(src)
-    + ';window.__t={changerPhotoBanniere,sloganSurPhoto,sloganDansEntete,banniereAccueilHtml};})();';
+    + ';const changerPhotoBanniere=NexusBanniereStation.changerPhoto;window.__t={changerPhotoBanniere,sloganSurPhoto,sloganDansEntete,banniereAccueilHtml};})();';
   return s.replace('</body>', '<script>' + js + '</script></body>');
 };
 const ouvrir = () => { try { return require('playwright'); } catch (e) { try { return require(path.join(process.env.PLAYWRIGHT_DIR || '', 'node_modules', 'playwright')); } catch (e2) { return null; } } };
@@ -194,7 +195,7 @@ async function comportement(src) {
   }
   const MUTS = {
     'slogan hors de la photo (plus en position absolue)': (s) => s.replace('display:block; position:absolute; left:14px; right:14px; bottom:10px;', 'display:block; position:static;'),
-    'pas de fondu (échange direct)': (s) => s.replace(/function changerPhotoBanniere\(nuit\) \{/, 'function changerPhotoBanniere(nuit) { document.querySelectorAll(".am-banniere img").forEach(function(i){var b=baseBanniere(nuit);i.setAttribute("srcset",b+"-800.webp 800w, "+b+"-1600.webp 1600w");i.setAttribute("src",b+"-800.webp");}); return;'),
+    'pas de fondu (échange direct)': (s) => s.replace(/function changerPhoto\(nuit\) \{/, 'function changerPhoto(nuit) { document.querySelectorAll(".am-banniere img").forEach(function(i){var b=base(nuit);i.setAttribute("srcset",b+"-800.webp 800w, "+b+"-1600.webp 1600w");i.setAttribute("src",b+"-800.webp");}); return;'),
     'ancienne image jamais retirée': (s) => s.replace('actuelle.remove();', ''),
     'plus de dégradé : le texte blanc sur la photo claire': (s) => s.replace('color-mix(in srgb, black 90%, transparent), color-mix(in srgb, black 70%, transparent) 40%, transparent)', 'transparent, transparent)'),
   };

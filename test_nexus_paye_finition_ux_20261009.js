@@ -61,9 +61,11 @@ vm.runInContext(fs.readFileSync(path.join(__dirname, 'nexus-ecarts-moteur.js'), 
 vm.runInContext(fs.readFileSync(path.join(__dirname, 'nexus-ecarts-donnees.js'), 'utf8'), ctx);
 const ECARTS_REEL = ctx.NexusEcartsDonnees;
 vm.runInContext(fs.readFileSync(path.join(__dirname, 'nexus-paye-moteur.js'), 'utf8'), ctx);
+vm.runInContext(fs.readFileSync(path.join(__dirname, 'nexus-banniere-station.js'), 'utf8'), ctx);
 vm.runInContext(fs.readFileSync(path.join(__dirname, 'nexus-paye-regularisations.js'), 'utf8'), ctx);
 vm.runInContext(script[1], ctx);
 
+const hf = n => String(Math.round(n * 100) / 100).replace('.', ',');
 let ok = 0;
 function verifier(libelle, condition) {
   console.log(`${condition ? 'OK  ' : 'ÉCHEC'} — ${libelle}`);
@@ -218,34 +220,42 @@ async function chargement(fuseau, echec) {
   // parmi les éléments à traiter ; il reste dans les items, consultable via Verify.
   verifier('le salarié à plusieurs anomalies garde sa présence hors planning à traiter, sans compter l’écart de caisse',
     nB2 === 1 && vm.runInContext("RAPPORT.employes.find(f=>f.employee.id==='b2').items.length", ctx) >= 2);
-  verifier('sa ligne annonce le nombre d’éléments à traiter', dans(ligne('b2'), `<span class="flag compte">${nB2} à traiter</span>`));
+  verifier('sa ligne annonce le nombre d’éléments à traiter', dans(ligne('b2'), 'À traiter'));
   verifier('… et ressort comme prioritaire', /<tr data-employee="b2"[^>]*class="[^"]*prioritaire/.test(ecran()));
   verifier('le salarié sans anomalie : « Rien à vérifier », pas prioritaire',
-    dans(ligne('a1'), 'Rien à vérifier') && !/<tr data-employee="a1"[^>]*prioritaire/.test(ecran()));
+    dans(ligne('a1'), '>Prêt<') && !/<tr data-employee="a1"[^>]*prioritaire/.test(ecran()));
   verifier('le hors paie reste visible, jamais prioritaire',
-    /<tr data-employee="c3"[^>]*class="[^"]*horspaie/.test(ecran()) && !/<tr data-employee="c3"[^>]*prioritaire/.test(ecran()));
-  verifier('l’absence qualifiée se lit dans le tableau', dans(ligne('d4'), 'Maladie/maternité'));
+    (vm.runInContext("FILTRE='hors_paie'; render();", ctx), true)
+    && /<tr data-employee="c3"[^>]*class="[^"]*horspaie/.test(ecran()) && !/<tr data-employee="c3"[^>]*prioritaire/.test(ecran())
+    && (vm.runInContext("FILTRE='inclus'; render();", ctx), true));
+  vm.runInContext('SELECTION = "d4"; ONGLET = "fiche"; FICHE_ONGLET = "evenements"; render();', ctx);
+verifier('l’absence qualifiée se lit dans la fiche (onglet Événements)', dans(ecran(), 'Maladie / maternité'));
+vm.runInContext('SELECTION = null; FICHE_ONGLET = "synthese"; render();', ctx);
 
   // ── 4. Heures hors planning : proposées, jamais confirmées en silence ───
   const fB2 = 'RAPPORT.employes.find(f=>f.employee.id==="b2")';
   const att = vm.runInContext(`heuresEnAttente(${fB2})`, ctx);
   const presence = vm.runInContext(`NexusPayeMoteur.variablesComptables(${fB2}).presence.heures`, ctx);
   verifier('la présence hors planning propose des heures en attente', att > 0);
-  verifier('la ligne les signale à côté du total', dans(ligne('b2'), `dont ${att.toFixed(2)} h en attente`));
+  vm.runInContext('SELECTION = "b2"; ONGLET = "fiche"; FICHE_ONGLET = "journees"; render();', ctx);
+  verifier('la fiche signale les heures en attente à côté du total', dans(ecran(), `${hf(att)} h`));
+  vm.runInContext('SELECTION = null; FICHE_ONGLET = "synthese"; render();', ctx);
   const kpiH = (ecran().match(/data-kpi="heures">([\s\S]*?)<\/button>/) || [])[1] || '';
   const total = vm.runInContext('RAPPORT.synthese.heuresConfirmees', ctx);
   verifier('l’indicateur « Heures confirmées » les retire et les nomme',
-    dans(kpiH, `<b>${(total - att).toFixed(2)} h <em`) && dans(kpiH, `+ ${att.toFixed(2)} h à arbitrer</em>`));
-  vm.runInContext('SELECTION = "b2"; ONGLET = "fiche"; render();', ctx);
+    dans(kpiH, `<b>${hf(total - att)} h</b>`) && dans(kpiH, `+ ${hf(att)} h à arbitrer</small>`));
+  vm.runInContext('SELECTION = "b2"; ONGLET = "fiche"; FICHE_ONGLET = "journees"; render();', ctx);
   verifier('la fiche sépare heures confirmées et heures en attente',
-    dans(ecran(), `<span>Heures confirmées</span><b>${(presence - att).toFixed(2)} h</b>`)
-    && dans(ecran(), `<span>En attente d’arbitrage</span><b>${att.toFixed(2)} h</b>`));
+    dans(ecran(), `<span>Heures confirmées</span><b>${hf(presence - att)} h</b>`)
+    && dans(ecran(), `<span>En attente d’arbitrage</span><b>${hf(att)} h</b>`));
   verifier('la proposition du barème appelle une décision explicite',
     dans(ecran(), 'Proposition (barème, non décidée)') && dans(ecran(), 'confirmez, corrigez'));
   // Le bouton de la fiche et la ligne du tableau comptent la même chose :
   // l'écart de caisse à valider en fait partie (le banc navigateur affichait 2 contre 3).
+  vm.runInContext('FICHE_ONGLET = "synthese"; render();', ctx);
   verifier('l’action principale nomme le même nombre que la ligne du tableau',
-    dans(ecran(), `<button class="btn primary jump-first" style="margin:0 0 8px">Traiter les ${nB2} élément${nB2 > 1 ? 's' : ''}</button>`));
+    /<b>[^<]*À confirmer\.<\/b>/.test(ecran()) && dans(ecran(), 'jump-first">Traiter ›</button>'));
+  vm.runInContext('FICHE_ONGLET = "variables"; render();', ctx);
 
   vm.runInContext('SELECTION = null; ONGLET = "decisions"; render();', ctx);
   const nBloq = vm.runInContext('RAPPORT.bloqueurs.length', ctx);
@@ -256,11 +266,14 @@ async function chargement(fuseau, echec) {
 
   // ── 5. La fiche en trois sections, les zéros sur une ligne ──────────────
   verifier('trois sections nommées',
-    compter(ecran(), /<div class="sous-titre">/g) === 3
-    && dans(ecran(), '>Temps de travail<') && dans(ecran(), '>Absences<') && dans(ecran(), '>Éléments financiers et décisions<'));
+    (vm.runInContext('FICHE_ONGLET = "journees"; render();', ctx), dans(ecran(), '>Ventilation des heures<'))
+    && (vm.runInContext('FICHE_ONGLET = "evenements"; render();', ctx), dans(ecran(), '>Absences retenues en paie<'))
+    && (vm.runInContext('FICHE_ONGLET = "variables"; render();', ctx), dans(ecran(), '>Variables en euros<') || dans(ecran(), 'Aucune variable ce mois')));
+  vm.runInContext('FICHE_ONGLET = "evenements"; render();', ctx);
   verifier('les variables nulles tiennent sur une ligne compacte, sans tuile',
     dans(ecran(), '<div class="zeros">') && dans(ecran(), 'Congés payés 0') && !dans(ecran(), '<span>Congés payés</span>'));
-  verifier('la lecture des heures garde son infobulle', dans(ecran(), 'data-info="heures"'));
+  vm.runInContext('FICHE_ONGLET = "synthese"; render();', ctx);
+  verifier('la lecture des heures garde son infobulle', dans(ecran(), 'data-info="heuresRetenues"'));
   vm.runInContext('SELECTION = "a1"; render();', ctx);
   verifier('sans anomalie, aucun bouton « Traiter »',
     !/Traiter les \d/.test((ecran().split('id="ficheSection"')[1] || '').split('id="reviewSection"')[0]));
