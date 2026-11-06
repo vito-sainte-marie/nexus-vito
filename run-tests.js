@@ -25,7 +25,13 @@ for (const f of fichiers) {
     process.stdout.write('.');
   } catch (e) {
     const sortie = `${e.stdout || ''}${e.stderr || ''}`;
-    const cause = (sortie.match(/(?:[A-Za-z]*Error|Cannot find module)[^\n]{0,90}/) || ['sortie non nulle'])[0];
+    // Le message de l'erreur (ligne qui commence par « XxxError »), pas l'extrait de source node
+    // (« throw new AssertionError(obj) ») ; puis le cas en cause : celui qui suit le dernier « ✓ » imprimé.
+    let cause = (sortie.match(/^(?:[A-Za-z]*Error|Cannot find module)[^\n]{0,90}/m) || sortie.match(/(?:[A-Za-z]*Error|Cannot find module)[^\n]{0,90}/) || ['sortie non nulle'])[0];
+    const faits = (e.stdout ? String(e.stdout) : '').split('\n').filter(l => /^\s*✓ /.test(l));
+    if (faits.length) cause += ` — après le cas « ${faits[faits.length - 1].replace(/^\s*✓ /, '')} »`;
+    const lieu = sortie.match(new RegExp(f.replace('.', '\\.') + ':(\\d+)'));
+    if (lieu) cause += ` (${f}:${lieu[1]})`;
     echecs.push({ f, cause });
     process.stdout.write('x');
   }
