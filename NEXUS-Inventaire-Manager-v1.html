@@ -90,6 +90,37 @@
   /* Vue bureau : tuiles et Conseiller sur toute la largeur, les deux colonnes dessous. */
   body.nexus-desktop .desktop-grid>.indicateurs,body.nexus-desktop .desktop-grid>.conseiller-card{column-span:all}
   body.nexus-desktop .indicateurs{grid-template-columns:repeat(3,minmax(0,1fr))}
+  /* Lot 3 : vue Jour en grille CSS (et non en colonnes), Photo Decenium sur toute la largeur, puis Comptages | Décisions. */
+  body.nexus-desktop #content.desktop-grid[data-vue="jour"]{display:grid;grid-template-columns:minmax(0,1fr);column-count:auto;gap:16px;align-items:start}
+  body.nexus-desktop #content.desktop-grid[data-vue="jour"]>*{grid-column:1/-1;margin-bottom:0}
+  #invPhotoDeceniumAccess{display:none !important}
+  .inv-panneaux{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-items:start}
+  body.nexus-desktop .inv-panneaux{grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+  .inv-panneau{background:var(--panel);border:1px solid var(--hairline);border-radius:14px;padding:14px;min-width:0}
+  .inv-panneau-entete{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .inv-panneau-titre{font-size:15px;font-weight:700;color:var(--text);margin:0 0 10px}
+  .inv-panneau-entete .inv-panneau-titre{margin-bottom:10px}
+  .inv-cat{padding:10px 4px;border-top:1px solid var(--hairline);cursor:pointer;min-height:44px}
+  .inv-cat:first-of-type{border-top:0}
+  .inv-cat-top{display:flex;align-items:center;gap:10px}
+  .inv-cat-icone{width:28px;height:28px;flex:none;color:var(--cyan)}
+  .inv-cat.termine .inv-cat-icone{color:var(--green)}
+  .inv-cat-nom{flex:1;min-width:0;font-weight:600;color:var(--text)}
+  .inv-cat-nn{font-family:var(--mono);font-size:13px;color:var(--text-mid)}
+  .inv-cat-barre{height:6px;border-radius:3px;background:var(--hairline);margin-top:8px;overflow:hidden}
+  .inv-cat-barre>span{display:block;height:100%;background:var(--green)}
+  .inv-cat.a-compter .inv-cat-barre>span{background:var(--amber)}
+  .inv-fiche{border-top:1px solid var(--hairline);padding:4px 0}
+  .inv-fiche>summary{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;align-items:center;cursor:pointer;min-height:44px;padding:6px 0;list-style:none}
+  .inv-fiche>summary::-webkit-details-marker{display:none}
+  .inv-fiche-produit{font-weight:600;color:var(--text)}
+  .inv-fiche-chiffres{grid-column:1;font-family:var(--mono);font-size:12px;color:var(--text-mid)}
+  .inv-fiche-etat{grid-column:2;grid-row:1}
+  .inv-fiche-action{grid-column:1/-1;font-size:12px;color:var(--text-dim)}
+  .inv-historique{margin-top:12px;border-top:1px solid var(--hairline);padding-top:8px}
+  .inv-historique>summary{cursor:pointer;min-height:44px;display:flex;align-items:center;color:var(--text-mid)}
+  .inv-historique-vide{margin-top:12px;font-size:12px;color:var(--text-dim)}
+  .ventes-statut{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
   /* Mode Jour : voile blanc quasi opaque sous le texte, menu opaque, pastilles en texte foncé sur fond pâle. */
   :root[data-theme="jour"] .header>.am-banniere::after{background:linear-gradient(to right,var(--panel) 0%,var(--panel) 50%,transparent 100%),linear-gradient(to bottom,transparent 45%,var(--panel) 100%);opacity:.96}
   :root[data-theme="jour"] body:not(.nexus-desktop) .header>.am-banniere::after{background:linear-gradient(to right,var(--panel) 0%,var(--panel) 62%,transparent 100%),linear-gradient(to bottom,transparent 45%,var(--panel) 100%);opacity:.96}
@@ -478,7 +509,8 @@
   let quartSelectionne = 'matin';
   let quartRow = null;
   let detailDecisionsOuvert = false; // "Décisions du quart" — détail déplié (02/08/2026)
-  let categoriesOuvertes = new Set(); // "À terminer" — catégories dépliées (02/08/2026)
+  let categoriesOuvertes = new Set();
+  let fichesOuvertes = new Set(); // "À terminer" — catégories dépliées (02/08/2026)
   let rouvertureFormOuvert = false; // "Rouvrir la clôture" — formulaire de motif déplié (02/08/2026)
   let dernierCtx = null;
 
@@ -1286,6 +1318,7 @@
     return {
       phase, total, comptes, manquants: total - comptes,
       pourcentage: total > 0 ? Math.round((comptes / total) * 100) : 100,
+      categories,
       categoriesTotal: categories.length,
       categoriesTerminees: categories.filter(c => c.comptes === c.total).length,
       categoriesIncompletes: categories.filter(c => c.comptes < c.total),
@@ -2784,6 +2817,104 @@
   // périmètres différents) : une seule source de vérité, scopée au quart
   // sélectionné, avec un détail dépliable plutôt qu'un second bloc séparé.
   // L'audit multi-quarts existe déjà sur NEXUS-Journal-v1.html.
+  // Lot 3 (Contrôle inventaire, 06/11/2026) : panneaux Comptages | Décisions. Présentation seulement :
+  // mêmes données (synthese, alertes), mêmes boutons de décision (renderAlerteCard reste inchangée).
+  // Pictogrammes génériques du kit assets/inventaire/icones/, colorés par currentColor.
+  const ICONES_CATEGORIE = {
+    cigarettes: '<rect x="15" y="14" width="34" height="40" rx="4"/><path d="M15 27h34M24 27v19M32 27v19M40 27v19M20 19h24"/>',
+    gaz: '<rect x="22" y="19" width="20" height="36" rx="5"/><path d="M27 19v-8h10v8M26 11h12M28 30h8M28 40h8"/><path d="M17 27v19M47 27v19"/>',
+    glacons: '<path d="m32 8 22 12v24L32 56 10 44V20Z M10 20l22 12 22-12M32 32v24M21 14l22 12"/>',
+    stock: '<path d="m9 22 23-12 23 12v25L32 59 9 47Z M9 22l23 13 23-13M32 35v24M21 16l23 13"/>'
+  };
+  function iconeCategorie(nom) {
+    const n = String(nom || '').toLowerCase();
+    const cle = n.indexOf('cigar') !== -1 ? 'cigarettes' : n.indexOf('gaz') !== -1 ? 'gaz' : (n.indexOf('gla') !== -1 ? 'glacons' : 'stock');
+    return '<svg class="inv-cat-icone" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">' + ICONES_CATEGORIE[cle] + '</g></svg>';
+  }
+  function renderLigneComptage(c) {
+    const ouvert = categoriesOuvertes.has(c.nom);
+    const reste = c.total - c.comptes;
+    const pct = c.total > 0 ? Math.round((c.comptes / c.total) * 100) : 100;
+    const pastille = reste > 0 ? NexusComposantsPilotage.pill(reste + ' à compter', 'todo') : NexusComposantsPilotage.pill('Terminé', 'ok');
+    return `
+      <div class="categorie-manquante inv-cat ${reste > 0 ? 'a-compter' : 'termine'}" data-cat="${c.nom}">
+        <div class="inv-cat-top">
+          ${iconeCategorie(c.nom)}
+          <span class="inv-cat-nom">${c.nom}<span class="categorie-manquante-chevron ${ouvert ? 'open' : ''}">›</span></span>
+          <span class="inv-cat-nn">${c.comptes} / ${c.total}</span>
+          ${pastille}
+        </div>
+        <div class="inv-cat-barre" role="presentation"><span style="width:${pct}%"></span></div>
+        ${ouvert ? `
+          <div class="categorie-manquante-detail">
+            <div>Zone : <b>${c.zoneLabel}</b></div>
+            <div>Statut : <b>${c.statutLabel}</b></div>
+            ${c.produitsManquants.length ? `<div class="categorie-manquante-liste">Restent à compter : ${c.produitsManquants.slice(0, 8).join(' · ')}${c.produitsManquants.length > 8 ? '…' : ''}</div>` : ''}
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }
+  function renderPanneauComptages(synthese) {
+    const lignes = (synthese.categories || []).slice().sort((a, b) => ((b.total - b.comptes) > 0) - ((a.total - a.comptes) > 0));
+    return `
+      <section class="inv-panneau" id="sectionATerminer">
+        <h2 class="inv-panneau-titre">Comptages</h2>
+        ${lignes.length === 0
+          ? '<div class="empty">Tous les comptages requis ont été effectués.</div>'
+          : lignes.map(renderLigneComptage).join('')}
+        <div id="inv-comptages-pied"></div>
+      </section>
+    `;
+  }
+  function actionAttendue(a) {
+    if (a.type_alerte === 'cloture_incomplete') return 'Décider quoi faire des produits non comptés';
+    if (a.statut === 'sous_observation') return 'Surveiller — aucune décision à prendre';
+    if (a.statut === 'controle_manager_requis' && !a.nature_confirmee) return 'Vérifier le produit sur place';
+    if (a.nature_confirmee === 'ecart_stock_reel' && !a.regularisation_verifiee_le) return 'Vérifier la régularisation';
+    return 'Choisir une décision';
+  }
+  function renderFicheAnomalie(a) {
+    const estCloture = a.type_alerte === 'cloture_incomplete';
+    const produit = estCloture ? 'Ensemble du quart' : (a.inventaire_zone_produit ? a.inventaire_zone_produit.designation : 'Produit');
+    const ecart = (!estCloture && a.valeur_constatee != null && a.valeur_attendue != null) ? (a.valeur_constatee - a.valeur_attendue) : null;
+    const ouvert = fichesOuvertes.has(a.id);
+    const chiffres = estCloture
+      ? `Non comptés ${fmtNum(a.valeur_constatee)}`
+      : `Transmis ${fmtNum(a.valeur_attendue)} · Compté ${fmtNum(a.valeur_constatee)}${ecart !== null ? ` · Écart ${ecart > 0 ? '+' : ''}${fmtNum(ecart)}` : ''}`;
+    const etat = (typeof LIBELLES_STATUT_ALERTE !== 'undefined' && LIBELLES_STATUT_ALERTE[a.statut]) || String(a.statut || '').replace(/_/g, ' ');
+    return `
+      <details class="inv-fiche" data-fiche="${a.id}" ${ouvert ? 'open' : ''}>
+        <summary>
+          <span class="inv-fiche-produit">${produit}</span>
+          <span class="inv-fiche-chiffres">${chiffres}</span>
+          <span class="inv-fiche-etat">${NexusComposantsPilotage.pill(etat, a.gravite === 'critique' ? 'bad' : 'todo')}</span>
+          <span class="inv-fiche-action">${actionAttendue(a)}</span>
+        </summary>
+        ${renderAlerteCard(a)}
+      </details>
+    `;
+  }
+  function renderPanneauDecisions(alertesOuvertes, decisionsQuart) {
+    const nbDec = decisionsQuart ? ['validee', 'recomptage', 'erreur_saisie', 'demarque'].reduce((n, k) => n + ((decisionsQuart[k] && (decisionsQuart[k].length != null ? decisionsQuart[k].length : decisionsQuart[k])) || 0), 0) : 0;
+    return `
+      <section class="inv-panneau" id="sectionAControler">
+        <div class="inv-panneau-entete">
+          <h2 class="inv-panneau-titre">Décisions</h2>
+          ${alertesValidablesEnBloc(alertesOuvertes).length > 0 ? '<button class="btn-tout-valider" id="btnToutValider">Tout valider</button>' : ''}
+        </div>
+        ${alertesOuvertes.length === 0 ? '<div class="empty">Aucun écart ouvert.</div>' : alertesOuvertes.map(renderFicheAnomalie).join('')}
+        ${decisionsQuart && nbDec > 0
+          ? `<details class="inv-historique"><summary>Historique des décisions du quart</summary>${renderResumeDecisionsQuart(decisionsQuart)}</details>`
+          : '<div class="inv-historique-vide">Aucune décision enregistrée pour ce quart.</div>'}
+      </section>
+    `;
+  }
+  function statutVentes(quartRow, importDeceniumFait) {
+    if (!quartRow) return { cle: 'quart-non-demarre', texte: 'quart pas encore démarré' };
+    return importDeceniumFait ? { cle: 'importees', texte: 'importées' } : { cle: 'non-importees', texte: 'non importées' };
+  }
+
   function renderResumeDecisionsQuart(decisionsQuart, titre) {
     const compte = { validee: 0, recomptage: 0, erreur_saisie: 0, demarque: 0, explication: 0 };
     decisionsQuart.forEach(d => { if (compte[d.resolution] !== undefined) compte[d.resolution]++; });
@@ -3063,7 +3194,8 @@
       ${quartRow ? `
         <div class="section-titre">Photo Decenium</div>
         <div class="ventes-card">
-          <div class="ventes-desc">Importez l'export Excel des ventes de <b>ce quart</b> (à la connexion du caissier suivant) — NEXUS rapproche les quantités vendues avec les stocks de début, les réassorts et les stocks de fin, et signale les écarts. Ajoutez aussi l'export <b>Stock actuel</b> du site (facultatif) pour créer une Photo Decenium — une référence temporelle du site utilisée par les prochaines étapes de reconstruction.</div>
+          ${renderSnapshotBadge(ctx.snapshotActif)}
+          <div class="ventes-desc ventes-statut" data-ventes="${statutVentes(quartRow, ctx.importDeceniumFait).cle}">Ventes du quart : <b>${statutVentes(quartRow, ctx.importDeceniumFait).texte}</b> ${NexusComposantsPilotage.infoBtn('photoDecenium', 'Photo Decenium')}</div>
           <div class="ventes-file-row">
             <label class="ventes-file-label" id="ventesFileLabel" for="ventesFileInput">
               <svg class="ventes-file-icon" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -3116,22 +3248,14 @@
 
           <div id="ventesResume"></div>
           <div id="ventesJourneeResume"></div>
-          ${renderSnapshotBadge(ctx.snapshotActif)}
         </div>
 
-        <div class="section-titre" id="sectionATerminer">À terminer</div>
-        ${synthese.categoriesIncompletes.length === 0
-          ? '<div class="empty">Tous les comptages requis ont été effectués.</div>'
-          : `<div class="card">${synthese.categoriesIncompletes.map(c => renderCategorieManquante(c)).join('')}</div>`}
-
-        <div class="section-titre-action-row" id="sectionAControler">
-          <div class="section-titre">À contrôler</div>
-          ${alertesValidablesEnBloc(alertesOuvertes).length > 0 ? '<button class="btn-tout-valider" id="btnToutValider">Tout valider</button>' : ''}
+        <div class="inv-panneaux">
+          ${renderPanneauComptages(synthese)}
+          ${renderPanneauDecisions(alertesOuvertes, decisionsQuart)}
         </div>
-        ${alertesOuvertes.length === 0 ? '<div class="empty">Aucun écart ouvert.</div>' : alertesOuvertes.map(a => renderAlerteCard(a)).join('')}
       ` : ''}
 
-      ${quartRow && decisionsQuart ? renderResumeDecisionsQuart(decisionsQuart) : (quartRow ? '<div class="section-titre">Décisions du quart</div><div class="empty">Aucune décision enregistrée pour ce quart.</div>' : '')}
       ` : `
       ${review ? renderEtatPeriodeCard(review, bornes, maturiteInventaire) : '<div class="loading">Calcul de la synthèse…</div>'}
 
@@ -3178,6 +3302,11 @@
       </a>
     `;
 
+    {
+      const ct = document.getElementById('content');
+      ct.dataset.vue = periodeSelectionnee;
+      ct.dataset.ventes = statutVentes(quartRow, ctx.importDeceniumFait).cle;
+    }
     majEntete(quartRow, synthese, etat);
     document.querySelectorAll('.np-tuile-corps').forEach(el => el.addEventListener('click', () => {
       const cible = document.getElementById(el.dataset.cible);
@@ -3398,6 +3527,9 @@
       detailDecisionsOuvert = !detailDecisionsOuvert;
       renderTout(dernierCtx); // pas de rechargement réseau, juste replier/déplier
     });
+    document.querySelectorAll('.inv-fiche').forEach(el => el.addEventListener('toggle', () => {
+      if (el.open) fichesOuvertes.add(el.dataset.fiche); else fichesOuvertes.delete(el.dataset.fiche);
+    }));
     document.querySelectorAll('.categorie-manquante').forEach(el => el.addEventListener('click', () => {
       const cat = el.dataset.cat;
       if (categoriesOuvertes.has(cat)) categoriesOuvertes.delete(cat); else categoriesOuvertes.add(cat);
@@ -3591,7 +3723,8 @@
     NexusComposantsPilotage.brancherInfos({
       comptes: ["Produits comptés", 'Nombre de produits déjà comptés sur le nombre de produits attendus pour ce quart.'],
       manquants: ['Comptages manquants', 'Produits attendus que personne n\u2019a encore comptés pour ce quart.'],
-      anomalies: ['Anomalies à traiter', 'Écarts ou oublis ouverts qui attendent une décision du manager.']
+      anomalies: ['Anomalies à traiter', 'Écarts ou oublis ouverts qui attendent une décision du manager.'],
+      photoDecenium: ['Photo Decenium', 'Importez l\u2019export Excel des ventes de ce quart (à la connexion du caissier suivant) : NEXUS rapproche les quantités vendues avec les stocks de début, les réassorts et les stocks de fin, et signale les écarts. Ajoutez aussi l\u2019export Stock actuel du site (facultatif) pour créer une Photo Decenium, une référence temporelle du site utilisée par les prochaines étapes de reconstruction.']
     });
     if (!(await NexusForfait.nexusRequireProfessional('NEXUS-Inventaire-Manager-v1.html', siteId))) return;
     document.getElementById('titre').textContent = 'Contrôle inventaire';
