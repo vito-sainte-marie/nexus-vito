@@ -211,5 +211,10 @@ verifier('photo fondue sur tous les bords (masque horizontal x vertical, sans bo
 verifier('un seul nombre « à traiter » (salariés inclus - prêts), hors réglages hors-paie', /const dec=Math\.max\(0,s\.salariesInclus-s\.salariesPrets\)/.test(src));
 verifier('« 0 h » reste en minuscule dans les indicateurs', /button\.kpi span b,button\.kpi span small\{text-transform:none\}/.test(src));
 verifier('un seul bouton Configurer dans la fiche quand la zone de décision le porte', /\$\{reglage\?'':`<button class="btn configure"/.test(src));
+verifier('Menu hors de l\u2019en-tête, en haut à droite de la page', /<div class="haut-page"><a class="menu"[^>]*>☰ Menu<\/a><\/div>\s*<header class="hero">/.test(src) && !/<div class="topacts"><a class="menu"/.test(src) && /\.haut-page\{display:flex;justify-content:flex-end/.test(src));
+verifier('photo qui couvre le haut du cadre (fondu atteint le bord) et fondu droit large', /\.am-banniere\{position:absolute;top:-16px;bottom:-4px;right:-20px;width:62%/.test(src) && /#000 60%,transparent 100%/.test(src));
+verifier('avatars : une seule initiale, teinte stable par id, liseré et reflet, halo seulement sur la ligne choisie',
+  /function initiales\(nom\)\{const m=String\(nom\|\|'\?'\)\.trim\(\)\[0\]/.test(src) && /TEINTES_AVATAR=\[/.test(src) && /hsl\(var\(--teinte\)/.test(src)
+  && /table\.sal tr\.selected \.av\{[^}]*0 0 0 2px var\(--cyan\)/.test(src) && /\.fiche-tete \.av\{width:72px/.test(src) && (src.match(/\$\{avatar\(f\.employee\)\}/g) || []).length === 2);
 
 console.log(`\n${ok} contrôles passent.`);
