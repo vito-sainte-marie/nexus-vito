@@ -268,6 +268,15 @@ tr.grp td{padding:16px 24px 8px}
 .caisse-consult .kpi{border:0;background:var(--surf2);padding:16px}
 .caisse-consult .kpi span{font:400 13px var(--sans);letter-spacing:0;text-transform:none;color:var(--mid)}
 .caisse-consult .kpi b{font:700 15px var(--mono)}
+.liste-ecarts{display:grid;gap:6px;margin-top:12px}
+.ligne-ecart{display:grid;grid-template-columns:90px 1fr 60px 1.4fr auto;gap:10px;align-items:center;text-align:left;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--raised);color:var(--text);font:13px var(--sans);text-decoration:none;cursor:pointer}
+.ligne-ecart:hover,.ligne-ecart:focus-visible{border-color:var(--cyan)}
+.ligne-ecart b{font:700 13px var(--mono)}
+@media(max-width:620px){.ligne-ecart{grid-template-columns:1fr auto}}
+.var-ecart{text-align:left;color:inherit;font:inherit;cursor:pointer;width:100%}
+.var.attente.var-ecart{border-color:var(--line)}
+.var-ecart small{color:var(--mid)}
+.item.surligne{border-color:var(--cyan);box-shadow:0 0 0 2px rgba(79,195,217,.35)}
 .workspace{gap:24px}
 .tabletools{padding:16px;gap:8px}
 table.sal thead th{font:600 13px var(--sans);letter-spacing:0;text-transform:none;color:var(--mid);height:36px;padding:0 12px}
@@ -449,6 +458,8 @@ function itemMeta(i){const q=i.quantiteMinutes!=null?`${i.quantiteMinutes} min`:
 // arbitrages viennent de NexusPayeMoteur ; aucun calcul métier n'est
 // refait ici, et aucun chiffre affiché n'est inventé.
 let FICHE_ONGLET='synthese', FICHE_OUVERTE=false;
+// Écart mis en surbrillance dans l'onglet Événements après un clic depuis la liste ou la tuile (sourceCle ; '*' = tous ceux à qualifier).
+let ECART_SURLIGNE=null;
 let SELECTION=null, ONGLET='fiche', FILTRE='inclus', RECHERCHE='', TRI={cle:'statut',sens:1}, COMMERCE='';
 const SANS_ACCENT=s=>String(s==null?'':s).normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
 const H2=n=>Number(n||0).toFixed(2);
@@ -610,12 +621,35 @@ function renderKpis(s,ec,a){
  <button type="button" class="kpi discret${TRI.cle==='heures'?' actif':''}" data-kpi="heures"><span>Heures retenues ce mois<b>${hFr(s.heuresConfirmees-a.attente)}</b>${a.attente?`<small>+ ${hFr(a.attente)} à arbitrer</small>`:''}</span></button>
  </div>`;
 }
+// Un écart de caisse « à qualifier » attend une qualification, pas une décision de paie :
+// il ne bloque pas la validation (règle inchangée, voir NexusPayeMoteur.sansIncidencePaie).
+function ecartAQualifier(i){return !!i&&i.typeItem==='ecart_caisse'&&(i.statut==='a_verifier'||!!i.contestationOuverte)}
+function ecartsAQualifierDe(items){return (items||[]).filter(ecartAQualifier)}
+function ligneEcartAQualifier(i){
+ const src=i.origine==='fdj'?'FDJ':'Verify';
+ const attribue=!!i.employeeId&&!i.attributionRequise&&!!trouverFiche(i.employeeId);
+ const qui=attribue?ECHAPPE(i.employeeNom||'Salarié'):'non attribué';
+ const montant=i.ecartFinalCentimes!=null?euros(i.ecartFinalCentimes):'—';
+ const texte=`<span>${jjmmaaaaFR(i.date)}</span><span>${ECHAPPE(i.quart||'quart non précisé')}</span><span>${src}</span><span>${qui}</span><b>${montant}</b>`;
+ return attribue
+  ?`<button type="button" class="ligne-ecart" data-voir-ecart="${ECHAPPE(i.employeeId)}" data-cle="${ECHAPPE(i.sourceCle)}">${texte}</button>`
+  :`<a class="ligne-ecart" href="${ECHAPPE(i.deepLink||lienAnalyseEcarts())}">${texte}</a>`;
+}
+function voirEcart(emp,cle){
+ if(!trouverFiche(emp))return;
+ SELECTION=emp;ONGLET='fiche';FICHE_ONGLET='evenements';FICHE_OUVERTE=true;ECART_SURLIGNE=cle||'*';
+ const w=document.querySelector('.workspace');if(w)w.classList.add('fiche-ouverte');
+ majTable();majPanneau();
+ const el=document.querySelector('.item.surligne');
+ if(el&&el.scrollIntoView)el.scrollIntoView({behavior:'smooth',block:'center'});
+}
 function renderCaisseConsultation(s,ec){
  const cq=(typeof NexusPayeRegularisations!=='undefined'&&NexusPayeRegularisations.compteursQualification?NexusPayeRegularisations.compteursQualification(RAPPORT.items,s.configurationRequise):{decisionsPaie:s.aVerifier+s.configurationRequise,ecartsAQualifier:0});
+ const aQ=ecartsAQualifierDe(RAPPORT.items).slice().sort((a,b)=>String(a.date)<String(b.date)?-1:String(a.date)>String(b.date)?1:0);
  return `<details class="caisse-consult"><summary>Caisse en consultation${cq.ecartsAQualifier?` · ${cq.ecartsAQualifier} écart${cq.ecartsAQualifier>1?'s':''} à qualifier`:''}</summary><div class="lignes-c">
  <button type="button" class="kpi money" data-kpi="ecarts"><span>Manques validés du mois</span>${regulOk()?`<b>${eurosDe(REGUL.indic.manquesValides)}</b><small>solde opérationnel ${eurosDe(REGUL.indic.soldeOperationnel)} · encaissé ${euros(REGUL.synthese.encaissements.netCentimes)} ce mois${ec.aAttribuer?` · ${ec.aAttribuer} à attribuer`:''}</small>`:`<b>—</b><small>${ECHAPPE(raisonRegul())}</small>`}</button>
  <button type="button" class="kpi${cq.ecartsAQualifier?' warn':''}" data-kpi="ecarts-qualifier"><span>Écarts de caisse à qualifier</span><b>${cq.ecartsAQualifier}</b><small>sans incidence sur les heures ni la rémunération</small></button>
- <a class="source-link" href="${ECHAPPE(lienAnalyseEcarts())}" style="color:var(--green)">Voir dans Verify ↗</a></div></details>`;
+ <a class="source-link" href="${ECHAPPE(lienAnalyseEcarts())}" style="color:var(--green)">Voir dans Verify ↗</a></div>${aQ.length?`<div class="liste-ecarts" id="listeEcartsAQualifier" aria-label="Écarts de caisse à qualifier">${aQ.map(ligneEcartAQualifier).join('')}</div>`:''}</details>`;
 }
 function renderPanneau(){
  const f=trouverFiche(SELECTION);
@@ -755,6 +789,7 @@ function render(){
 // celle du dossier PDF : l'écran et le document ne peuvent pas diverger.
 function tuile(label,valeur,sous,options){
  const o=options||{};
+ if(o.versEcart)return `<button type="button" class="var var-ecart${o.vide?' vide':''}${o.attente?' attente':''}${o.pleine?' pleine':''}" data-voir-ecart="${ECHAPPE(o.versEcart)}"><span>${ECHAPPE(label)}</span><b>${ECHAPPE(valeur)}</b>${sous?`<small>${ECHAPPE(sous)}</small>`:''}</button>`;
  return `<div class="var${o.vide?' vide':''}${o.attente?' attente':''}${o.pleine?' pleine':''}"${o.info?` title="${ECHAPPE(o.info)}"`:''}><span>${ECHAPPE(label)}</span><b>${ECHAPPE(valeur)}</b>${sous?`<small>${ECHAPPE(sous)}</small>`:''}</div>`;
 }
 // Trois sections (09/10/2026) : temps de travail, absences, éléments
@@ -843,6 +878,9 @@ function tuilesFiche(v,f){
  const fin=v.financier, totalFin=fin.acompteCentimes+fin.detteCentimes+fin.retenueEcartCentimes;
  const detailFin=[fin.acompteCentimes?`acompte ${euros(fin.acompteCentimes)}`:'',fin.detteCentimes?`dette ${euros(fin.detteCentimes)}`:'',fin.retenueEcartCentimes?`écart retenu ${euros(fin.retenueEcartCentimes)}`:'',fin.ecartsInformatifs?`${pluriel(fin.ecartsInformatifs,'écart')} informatif${fin.ecartsInformatifs>1?'s':''}`:''].filter(Boolean).join(' · ');
  const hAtt=f?heuresEnAttente(f):0;
+ // Les écarts de caisse sans incidence paie attendent une qualification, pas un arbitrage : ils ont leur propre libellé.
+ const nEcartQ=f?ecartsAQualifierDe(f.items).filter(i=>NexusPayeMoteur.sansIncidencePaie(i)).length:0;
+ const autresAttente=Math.max(0,(fin.enAttente||0)-nEcartQ);
  const temps=[
   {label:'Heures confirmées',valeur:`${hFr(v.presence.heures-hAtt)}`,sous:`${pluriel(v.presence.joursMesures+v.presence.joursReconstitues,'jour')} constaté${v.presence.joursMesures+v.presence.joursReconstitues>1?'s':''}`,info:`Dont ${v.presence.joursMesures} confirmé${v.presence.joursMesures>1?'s':''} par deux sources (Verify et pointage).`,vide:!v.presence.heures},
   {label:'En attente d’arbitrage',valeur:`${hFr(hAtt)}`,sous:'hors planning, proposées par le barème',vide:!hAtt,attente:!!hAtt},
@@ -863,7 +901,7 @@ function tuilesFiche(v,f){
   {label:'Présence à vérifier',valeur:`${v.absence.jours} j`,sous:attente(v.absence.enAttente)||'retenue en paie',vide:!v.absence.jours&&!v.absence.enAttente,attente:!!v.absence.enAttente}
  ];
  const financier=[
-  {label:'Éléments financiers',valeur:totalFin?euros(totalFin):'—',sous:attente(fin.enAttente)||detailFin,vide:!totalFin&&!fin.enAttente&&!fin.ecartsInformatifs,attente:!!fin.enAttente}
+  {label:'Éléments financiers',valeur:totalFin?euros(totalFin):'—',sous:[attente(autresAttente),nEcartQ?`${pluriel(nEcartQ,'écart')} de caisse à qualifier · sans incidence paie`:''].filter(Boolean).join(' · ')||detailFin,vide:!totalFin&&!fin.enAttente&&!fin.ecartsInformatifs,attente:!!autresAttente,versEcart:nEcartQ&&f&&f.employee?f.employee.id:null}
  ];
  const vide=!totalFin&&!fin.enAttente&&!fin.ecartsInformatifs;
  return {temps,absences,financier,vide};
@@ -1073,7 +1111,8 @@ function renderItem(f,i){
   if(i.contradiction) c.push(`${pluriel((i.joursAvecPreuve||[]).length,'jour')} avec présence constatée`);
   detail=c.join(' · ');
  }
- return `<div class="item ${i.statut} ${i.bloquantTechnique?'blocked':''}">${entete}`
+ const surligne=ecart&&ECART_SURLIGNE&&(ECART_SURLIGNE===i.sourceCle||(ECART_SURLIGNE==='*'&&ecartAQualifier(i)));
+ return `<div class="item ${i.statut} ${i.bloquantTechnique?'blocked':''}${surligne?' surligne':''}"${ecart?` data-ecart-cle="${ECHAPPE(i.sourceCle)}"`:''}>${entete}`
   +`${detail?`<div class="item-meta">${ECHAPPE(detail)}${i.heuresAttribuees!=null?` <button class="h-edit" data-key="${ECHAPPE(i.sourceCle)}" title="Corriger les heures retenues" aria-label="Corriger les heures retenues" style="background:none;border:0;color:inherit;opacity:.7;cursor:pointer;padding:0 2px">✎</button>`:''}</div>`:''}`
   +`${i.heuresAttribuees!=null?`<div class="h-box" data-key="${ECHAPPE(i.sourceCle)}" hidden style="display:flex;align-items:center;gap:6px;margin:2px 0 6px"><input class="h-val" type="number" min="0" max="24" step="0.25" value="${i.heuresAttribuees}" style="width:72px;padding:6px;border-radius:8px"><span style="font-size:11px;opacity:.7">h retenues</span><button class="btn h-save" data-emp="${emp}" data-key="${ECHAPPE(i.sourceCle)}">Enregistrer</button></div>`:''}`
   +`${i.typeItem==='presence_exceptionnelle'&&i.statut==='a_verifier'&&i.heuresAttribuees!=null?`<div class="item-meta">Proposition (barème, non décidée) : ${hFr(i.heuresAttribuees)} — confirmez, corrigez ✎ ou ne retenez pas.</div>`:''}`
@@ -1318,7 +1357,7 @@ function majPanneau(){
 }
 function selectionner(id,onglet){
  if(!trouverFiche(id))return;
- SELECTION=id;ONGLET=onglet||'fiche';FICHE_ONGLET='synthese';FICHE_OUVERTE=true;
+ SELECTION=id;ONGLET=onglet||'fiche';FICHE_ONGLET='synthese';FICHE_OUVERTE=true;ECART_SURLIGNE=null;
  const w=document.querySelector('.workspace');if(w)w.classList.add('fiche-ouverte');
  majTable();majPanneau();
 }
@@ -1342,6 +1381,7 @@ function bindCockpit(){
  });
  document.querySelectorAll('[data-onglet]').forEach(b=>b.onclick=()=>ouvrirOnglet(b.dataset.onglet));
  document.querySelectorAll('.lien-salarie').forEach(b=>b.onclick=()=>selectionner(b.dataset.employee));
+ document.querySelectorAll('[data-voir-ecart]').forEach(b=>b.onclick=()=>voirEcart(b.dataset.voirEcart,b.dataset.cle));
  document.querySelectorAll('[data-kpi]').forEach(b=>b.onclick=()=>{
   const k=b.dataset.kpi;
   if(k==='salaries'){FILTRE='inclus';RECHERCHE='';majTable();const i=document.getElementById('recherche');if(i)i.value=''}
@@ -1359,7 +1399,7 @@ function bindCockpit(){
  document.querySelectorAll('.jump-review').forEach(b=>b.onclick=()=>ouvrirOnglet('decisions','reviewSection'));
  document.querySelectorAll('.jump-first').forEach(b=>b.onclick=()=>{ouvrirOnglet('decisions','reviewSection');const c=document.querySelector('#reviewSection .review-card .btn, #reviewSection .review-card select');if(c&&c.focus)c.focus({preventScroll:true})});
  document.querySelectorAll('.jump-employees').forEach(b=>b.onclick=()=>{FILTRE='inclus';majTable();const i=document.getElementById('recherche');if(i&&i.focus)i.focus()});
- document.querySelectorAll('[data-ftab]').forEach(b=>b.onclick=()=>{FICHE_ONGLET=b.dataset.ftab;ONGLET='fiche';majPanneau()});
+ document.querySelectorAll('[data-ftab]').forEach(b=>b.onclick=()=>{ECART_SURLIGNE=null;FICHE_ONGLET=b.dataset.ftab;ONGLET='fiche';majPanneau()});
  document.querySelectorAll('.retour-liste').forEach(b=>b.onclick=()=>{FICHE_OUVERTE=false;const w=document.querySelector('.workspace');if(w)w.classList.remove('fiche-ouverte')});
  bindLignes();
 }
