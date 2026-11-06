@@ -23,7 +23,9 @@ const NexusPayeValidation = (function () {
     const libelleValider = n === 1 ? 'Valider le salarié prêt' : `Valider les ${n} salariés prêts`;
     return {
       statut, restant, n, total,
-      capsule: `Validés ${n}/${total}`,
+      capsule: `${statut === 'brouillon' ? 'Prêts' : 'Validés'} ${n}/${total}`,
+      // Mois transmis, puis un élément à traiter est arrivé : jamais rouvert seul, mais signalé.
+      elementApresTransmission: statut === 'transmis' && restant > 0,
       validerVisible: statut === 'brouillon',
       validerActif: valider,
       validerLibelle: libelleValider,

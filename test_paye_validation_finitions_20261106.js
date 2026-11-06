@@ -126,8 +126,10 @@ verifier('un bloqueur ouvert empêche aussi la validation',
   !V.etat({ ...base0, bloqueurs: [{}] }).validerActif);
 verifier('transmission impossible avant vérification',
   !V.etat(base0).transmettreActif && !V.etat({ ...base0, salariesPrets: 1 }).transmettreActif);
-verifier('vérifié : Valider disparaît, Transmettre devient actif, capsule « Validés 3/3 »',
-  !V.etat({ ...base0, statut: 'verifie' }).validerVisible && V.etat({ ...base0, statut: 'verifie' }).transmettreActif && V.etat(base0).capsule === 'Validés 3/3');
+verifier('vérifié : Valider disparaît, Transmettre devient actif, capsule « Prêts 3/3 » en brouillon, « Validés 3/3 » après',
+  !V.etat({ ...base0, statut: 'verifie' }).validerVisible && V.etat({ ...base0, statut: 'verifie' }).transmettreActif && V.etat(base0).capsule === 'Prêts 3/3' && V.etat({ ...base0, statut: 'verifie' }).capsule === 'Validés 3/3' && V.etat({ ...base0, statut: 'transmis' }).capsule === 'Validés 3/3');
+verifier('mois transmis puis nouvel élément : mention, sans réouverture',
+  V.etat({ ...base0, statut: 'transmis', salariesPrets: 2 }).elementApresTransmission && !V.etat({ ...base0, statut: 'transmis' }).elementApresTransmission && !V.etat({ ...base0, statut: 'verifie', salariesPrets: 2 }).elementApresTransmission);
 verifier('transmis : plus rien à actionner',
   !V.etat({ ...base0, statut: 'transmis' }).transmettreActif && !V.etat({ ...base0, statut: 'transmis' }).validerVisible);
 verifier('la vérification devient caduque si un élément à traiter apparaît, jamais sur un mois transmis',
@@ -141,11 +143,12 @@ verifier('écran avec éléments à traiter : Valider et Transmettre désactivé
 verifier('la fiche ne porte plus « Valider le salarié »', !/valider-salarie/.test(ecran() + apres.html.replace(/\/\/.*$/gm, '').slice(0, 0)) && !/✓ Valider le salarié/.test(apres.html));
 
 ev("RAPPORT.bloqueurs=[]; RAPPORT.synthese.salariesPrets=RAPPORT.synthese.salariesInclus; render();");
-verifier('écran prêt : « Valider les n salariés prêts » actif et capsule Validés n/n',
-  btn('validerMois') !== '' && !/disabled/.test(btn('validerMois')) && /Valider les \d+ salariés prêts|Valider le salarié prêt/.test(ecran()) && /Validés (\d+)\/\1/.test(ecran()));
+verifier('écran prêt : « Valider les n salariés prêts » actif et capsule Prêts n/n',
+  btn('validerMois') !== '' && !/disabled/.test(btn('validerMois')) && /Valider les \d+ salariés prêts|Valider le salarié prêt/.test(ecran()) && /Prêts (\d+)\/\1/.test(ecran()) && !/Validés \d+\/\d+/.test(ecran()));
 verifier('écran prêt mais non vérifié : Transmettre reste désactivé', /disabled/.test(btn('transmettreMois')));
 
 ev("RAPPORT.periodeEnregistree={statut:'verifie',snapshot:{},verifie_par:'e3',verifie_le:'2026-11-06T09:00:00Z'}; render();");
+verifier('vérifié : capsule Validés', /Validés (\d+)\/\1/.test(ecran()));
 verifier('vérifié : badge « Vérifié par … le … », Transmettre actif, plus de Valider',
   /Vérifié par Angélique le 06\/11\/2026/.test(ecran()) && btn('validerMois') === '' && /primary transmettre/.test(btn('transmettreMois')) && !/disabled/.test(btn('transmettreMois')));
 
@@ -176,3 +179,7 @@ ev("RAPPORT.synthese.salariesPrets=RAPPORT.synthese.salariesInclus-1; RAPPORT.bl
   verifier('une activité à 0 h n’apparaît pas dans la légende', /filter\(x=>x\[2\]>0\)/.test(src));
   console.log(`${ok} contrôles passent.`);
 })().catch(e => { console.error(e); process.exit(1); });
+
+ev("RAPPORT.periodeEnregistree={statut:'transmis',snapshot:{},transmis_par:'e3',transmis_le:'2026-11-07T09:00:00Z'}; RAPPORT.synthese.salariesPrets=RAPPORT.synthese.salariesInclus-1; render();");
+verifier('écran transmis + nouvel élément : mention visible, aucune réouverture', /Un élément est arrivé après la transmission\. Rouvrez le dossier pour le retransmettre\./.test(ecran()) && ev('RAPPORT.periodeEnregistree.statut')==='transmis');
+verifier('Renfort : plus d\'ambre (orange réservé aux alertes)', !/#F59E0B/i.test(apres.html.match(/\.legende-repart[^}]*c3[^}]*}/)?.[0]||''));
