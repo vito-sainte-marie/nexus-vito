@@ -11,6 +11,10 @@
  * qu'il est inconnu, l'heure de l'appareil ne sert qu'à choisir une teinte d'affichage
  * (jamais un quart ni un jour métier) ; elle est corrigée dès que le fuseau arrive.
  *
+ * Vue bureau (`nexus_vue_bureau` = 'on', cf. nexus-desktop.js) : réglage ABSENT = Sombre, sans
+ * bascule horaire. Un choix explicite (Sombre, Jour, Auto) reste prioritaire partout ; en vue
+ * mobile, réglage absent = Auto, comme avant. Changer de vue recharge la page : la règle se réapplique.
+ *
  * Aucun accès Supabase, aucune logique métier : un réglage d'affichage.
  */
 (function (root) {
@@ -18,6 +22,7 @@
 
   const CLE_REGLAGE = 'nexus_theme';
   const CLE_FUSEAU = 'nexus_theme_fuseau';
+  const CLE_VUE_BUREAU = 'nexus_vue_bureau';
   const REGLAGES = ['sombre', 'jour', 'auto'];
   const DEBUT_JOUR = 6;   // inclus
   const FIN_JOUR = 18;    // exclu
@@ -74,8 +79,10 @@
     return heure >= DEBUT_JOUR && heure < FIN_JOUR ? 'jour' : 'sombre';
   }
 
-  // Rend 'jour' ou 'sombre'. Réglage absent ou inconnu = auto ; auto sans heure exploitable = sombre.
-  function calculerTheme(reglage, heure) {
+  // Rend 'jour' ou 'sombre'. Réglage absent ou inconnu = auto (en vue bureau : sombre) ;
+  // auto sans heure exploitable = sombre. `bureau` ne joue que quand aucun choix explicite n'existe.
+  function calculerTheme(reglage, heure, bureau) {
+    if (bureau === true && REGLAGES.indexOf(reglage) === -1) return 'sombre';
     const r = reglageValide(reglage);
     if (r === 'jour') return 'jour';
     if (r === 'sombre') return 'sombre';
@@ -103,6 +110,12 @@
     return false;
   }
   function lireReglage(stockage) { return reglageValide(lire(stockage, CLE_REGLAGE)); }
+  // Choix explicite de l'utilisateur, ou null quand rien de valide n'est mémorisé.
+  function lireReglageExplicite(stockage) {
+    const r = lire(stockage, CLE_REGLAGE);
+    return REGLAGES.indexOf(r) !== -1 ? r : null;
+  }
+  function lireVueBureau(stockage) { return lire(stockage, CLE_VUE_BUREAU) === 'on'; }
 
   // ── Application sur le document ─────────────────────────────────────
   function cssJour() {
@@ -111,7 +124,7 @@
       + ':root[data-theme="sombre"]{color-scheme:dark}';
   }
 
-  const etat = { fuseau: null, reglage: 'auto', theme: null, doc: null, stockage: null, minuteur: null };
+  const etat = { fuseau: null, reglage: 'auto', explicite: false, bureau: false, theme: null, doc: null, stockage: null, minuteur: null };
 
   function stockageAppareil() {
     try { return root && root.localStorage ? root.localStorage : null; } catch (e) { return null; }
@@ -121,7 +134,7 @@
     const heure = heureDansFuseau(etat.fuseau, new Date());
     // Fuseau inconnu : heure de l'appareil, pour la seule teinte d'affichage.
     const h = heure !== null ? heure : (function () { const d = new Date(); return d.getHours() + d.getMinutes() / 60; })();
-    return calculerTheme(etat.reglage, h);
+    return calculerTheme(etat.explicite ? etat.reglage : null, h, etat.bureau);
   }
 
   function appliquer() {
@@ -137,6 +150,7 @@
 
   function definirReglage(reglage) {
     etat.reglage = reglageValide(reglage);
+    etat.explicite = true;
     ecrire(etat.stockage, CLE_REGLAGE, etat.reglage);
     return appliquer();
   }
@@ -152,6 +166,8 @@
     etat.doc = doc;
     etat.stockage = stockage;
     etat.reglage = lireReglage(stockage);
+    etat.explicite = lireReglageExplicite(stockage) !== null;
+    etat.bureau = lireVueBureau(stockage);
     const f = lire(stockage, CLE_FUSEAU);
     etat.fuseau = f && f.trim() ? f.trim() : null;
     if (doc.head) {
@@ -169,10 +185,12 @@
   // Bloc du menu ☰ (rendu côté page, aucune logique métier).
   function menuHtml() {
     const libelle = { sombre: 'Sombre', jour: 'Jour', auto: 'Auto' };
+    // Sans choix explicite en vue bureau, c'est Sombre qui est actif.
+    const actif = !etat.explicite && etat.bureau ? 'sombre' : etat.reglage;
     return '<div class="mm-groupe" data-groupe="theme"><div class="mm-titre">Affichage</div>'
       + '<div class="mm-theme" role="group" aria-label="Thème">'
-      + REGLAGES.map((r) => '<button type="button" class="mm-theme-btn' + (r === etat.reglage ? ' mm-theme-actif' : '')
-        + '" data-theme-reglage="' + r + '" aria-pressed="' + (r === etat.reglage ? 'true' : 'false') + '">' + libelle[r] + '</button>').join('')
+      + REGLAGES.map((r) => '<button type="button" class="mm-theme-btn' + (r === actif ? ' mm-theme-actif' : '')
+        + '" data-theme-reglage="' + r + '" aria-pressed="' + (r === actif ? 'true' : 'false') + '">' + libelle[r] + '</button>').join('')
       + '</div></div>';
   }
   function brancherMenu(conteneur) {
@@ -191,8 +209,8 @@
   }
 
   const api = {
-    CLE_REGLAGE, CLE_FUSEAU, REGLAGES, DEBUT_JOUR, FIN_JOUR, SOMBRE, JOUR, JOUR_COMPLEMENT,
-    reglageValide, themeAuto, calculerTheme, heureDansFuseau, lireReglage, cssJour,
+    CLE_REGLAGE, CLE_FUSEAU, CLE_VUE_BUREAU, REGLAGES, DEBUT_JOUR, FIN_JOUR, SOMBRE, JOUR, JOUR_COMPLEMENT,
+    reglageValide, lireReglageExplicite, lireVueBureau, themeAuto, calculerTheme, heureDansFuseau, lireReglage, cssJour,
     definirReglage, definirFuseau, reglageCourant: () => etat.reglage, menuHtml, brancherMenu,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
