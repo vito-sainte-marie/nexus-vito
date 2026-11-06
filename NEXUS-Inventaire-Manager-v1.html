@@ -1405,7 +1405,7 @@
     const bilan = NexusInventaireDeceniumLecture.bilanArticlesVendus(lignesVentesBrutes, lignesStockRapprochees, normaliserTexteVentes);
 
     const nouveauSnapshot = await NexusInventaireSnapshotDonnees.creerSnapshot(nexusClient, siteId, {
-      salesFilename: null, salesExportAt: sales.at, salesExportTimeSource: sales.source,
+      salesFilename: fichierVentes ? fichierVentes.name : null, salesExportAt: sales.at, salesExportTimeSource: sales.source,
       stockFilename: fichierStock.name, stockExportAt: stock.at, stockExportTimeSource: stock.source,
       exportOrder: qualification.export_order, deltaSeconds: qualification.delta_seconds,
       snapshotReferenceAt: qualification.snapshot_reference_at,
