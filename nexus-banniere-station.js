@@ -37,20 +37,21 @@ const NexusBanniereStation = (function () {
       const actuelle = ban.querySelector('img:not(.am-fondu)');
       if (!actuelle) return;
       ban.querySelectorAll('img.am-fondu').forEach(function (x) { x.remove(); });
+      const propre = ban.getAttribute(nuit ? 'data-photo-nuit' : 'data-photo-jour');
       const b = base(nuit);
-      const src = b + '-800.webp';
-      const srcset = srcsetDe(b);
+      const src = propre || (b + '-800.webp');
+      const srcset = propre ? '' : srcsetDe(b);
       ban._jeton = (ban._jeton || 0) + 1;
       const jeton = ban._jeton;
       const pre = new Image();
       pre.sizes = actuelle.getAttribute('sizes') || '';
-      pre.srcset = srcset;
+      if (srcset) pre.srcset = srcset;
       pre.onload = function () {
         if (ban._jeton !== jeton || !ban.contains(actuelle)) return;
         const n = document.createElement('img');
         n.className = 'am-fondu';
         n.setAttribute('sizes', actuelle.getAttribute('sizes') || '');
-        n.setAttribute('srcset', srcset);
+        if (srcset) n.setAttribute('srcset', srcset);
         n.setAttribute('src', src);
         n.setAttribute('width', actuelle.getAttribute('width') || '1600');
         n.setAttribute('height', actuelle.getAttribute('height') || '800');
@@ -72,6 +73,12 @@ const NexusBanniereStation = (function () {
   function html(siteId, o) {
     o = o || {};
     if (!siteAvecBanniere(siteId, o.apercu === true)) return '';
+    if (o.photos && o.photos.jour && o.photos.nuit) {
+      // Illustration propre à une page (ex. Contrôle inventaire) : une seule image par thème.
+      return '<div class="am-banniere" data-photo-jour="' + o.photos.jour + '" data-photo-nuit="' + o.photos.nuit + '">'
+        + '<img src="' + (photoNuit() ? o.photos.nuit : o.photos.jour) + '" width="1600" height="533" decoding="async"'
+        + ' alt="' + (o.alt || '') + '" onerror="' + (o.surErreur || '') + 'this.parentNode.remove()"></div>';
+    }
     const b = base(photoNuit());
     return '<div class="am-banniere"><img src="' + b + '-800.webp"'
       + ' srcset="' + srcsetDe(b) + '"'

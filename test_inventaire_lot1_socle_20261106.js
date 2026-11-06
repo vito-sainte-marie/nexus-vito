@@ -61,4 +61,17 @@ cas('Paye est inchangée vs origin/production', () => {
   let avant; try { avant = execSync('git show origin/production:NEXUS-Paye-v1.html', { cwd: __dirname, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 1 << 26 }); } catch (e) { return; }
   assert.strictEqual(paye, avant);
 });
+cas('kit graphique : bannières jour/nuit et pictogrammes présents, sans couleur en dur', () => {
+  const B = require('./nexus-banniere-station.js');
+  for (const f of ['inventaire-banniere-sombre.webp', 'inventaire-banniere-claire.webp']) assert.ok(fs.statSync(path.join(__dirname, 'assets/inventaire', f)).size > 10000, f);
+  for (const n of ['comptage', 'gaz', 'glacons', 'cigarettes', 'decenium', 'anomalies', 'stock', 'recomptage']) {
+    const svg = lire('assets/inventaire/icones/' + n + '.svg');
+    assert.ok(svg.includes('viewBox="0 0 64 64"') && svg.includes('currentColor'), n);
+    assert.ok(!/#[0-9a-f]{3,8}\b|rgba?\(/i.test(svg), 'couleur en dur : ' + n);
+  }
+  assert.ok(/photos: \{jour: 'assets\/inventaire\/inventaire-banniere-claire\.webp', nuit: 'assets\/inventaire\/inventaire-banniere-sombre\.webp'\}/.test(page));
+  const h = B.html('vito-sainte-marie', { photos: { jour: 'a-jour.webp', nuit: 'a-nuit.webp' }, alt: 'x' });
+  assert.ok(h.includes('data-photo-jour="a-jour.webp"') && h.includes('data-photo-nuit="a-nuit.webp"') && h.includes('src="a-nuit.webp"'));
+  assert.ok(B.html('vito-sainte-marie', {sizes: '1px'}).includes('assets/accueil/'), "l'Accueil et Paye gardent leurs photos");
+});
 console.log(ok + ' cas OK');
