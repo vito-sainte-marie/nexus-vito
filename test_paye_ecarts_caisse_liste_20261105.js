@@ -87,7 +87,7 @@ function charger(html) {
     ecarts: [
       { id: 'ec1', employeeId: 'e5', date: '2026-08-11', activite: 'boutique', quart: 'quart1', sourceModule: 'verify',
         montantRetenu: -20, ecartInitial: -20, ecartFinal: -20, statut: 'a_verifier', deepLink: 'NEXUS-Verify-v1.html#ec1' },
-      { id: 'ec2', employeeId: null, date: '2026-08-05', activite: 'boutique', quart: 'quart2', sourceModule: 'fdj',
+      { id: 'ec2', employeeId: null, date: '2026-08-05', activite: 'fdj', quart: 'quart2', sourceModule: 'fdj',
         montantRetenu: -7, ecartInitial: -7, ecartFinal: -7, statut: 'a_verifier', deepLink: 'NEXUS-FDJ-v1.html#ec2' },
     ],
     audits: [], items: [], config: { jours_feries: ['2026-08-15'] },
@@ -122,7 +122,7 @@ verifier('le jeu contient deux écarts de caisse', aQ.length === 2);
 const liste = ev("RAPPORT.items.filter(ecartAQualifier).map(ligneEcartAQualifier).join('')");
 verifier('la liste montre les deux écarts, une ligne chacun', (liste.match(/class="ligne-ecart"/g) || []).length === 2);
 verifier('écart attribué : bouton vers la fiche du salarié, avec la clé de l’écart', /<button type="button" class="ligne-ecart" data-voir-ecart="e5" data-cle="ecart:ec1">/.test(liste));
-verifier('la ligne nomme date, quart, source et montant final', /11\/08\/2026<\/span><span>quart1<\/span><span>Verify<\/span>.*?<b>-20,00/.test(liste.replace(/\u00a0/g, ' ')) || /11\/08\/2026/.test(liste));
+verifier('la ligne montre date, origine (Boutique) et montant final, sans quart ni statut', /11\/08\/2026<\/span><span>Boutique<\/span><span>[^<]*<\/span><b>-20[.,]00/.test(liste.replace(/\u00a0/g, ' ')) && !/quart1|Verify/.test(liste));
 verifier('écart non attribué : lien vers la source FDJ, mention « non attribué »', /<a class="ligne-ecart" href="NEXUS-FDJ-v1\.html#ec2">.*?<span>FDJ<\/span><span>non attribué<\/span>/.test(liste));
 
 // Variables € : libellé neutre et cliquable
@@ -143,3 +143,29 @@ verifier('l’écart visé porte la surbrillance', /class="item [^"]*surligne"[^
 const bloq = ev("RAPPORT.bloqueurs.filter(b=>b.type==='ecart_caisse'&&b.employeeId==='e5').length");
 verifier('un écart rattaché et non contesté ne bloque toujours pas', bloq === 0);
 console.log(`${ok} contrôles passent.`);
+
+// Cumul mensuel transmis au comptable (décision du 05/11/2026).
+const cumul = lignes => ev('NexusPayeMoteur').cumulEcartsCaisseMois(lignes);
+const L = (activite, montant) => ({ activite, ecartInitial: montant, ecartFinal: montant, statut: 'valide' });
+verifier('FDJ +3 € et -1 € : total positif transmis à 0', cumul([L('fdj', 3), L('fdj', -1)]).fdjCentimes === 0);
+verifier('FDJ -5 € et +2 € : -3 €', cumul([L('fdj', -5), L('fdj', 2)]).fdjCentimes === -300);
+verifier('Boutique -4 € et +10 € : -4 € (pas de compensation)', cumul([L('boutique', -4), L('boutique', 10)]).boutiqueCentimes === -400);
+verifier('Piste +2 € seul : 0', cumul([L('piste', 2)]).totalCentimes === 0);
+const mixte = cumul([L('boutique', -5.53), L('piste', 4), L('fdj', -1)]);
+verifier('total = Boutique + Piste + FDJ avec le détail par origine', mixte.totalCentimes === -653 && mixte.boutiqueCentimes === -553 && mixte.pisteCentimes === 0 && mixte.fdjCentimes === -100);
+verifier('un écart à vérifier compte sur son montant du moment', cumul([{ activite: 'boutique', ecartInitial: -8, ecartFinal: -8, statut: 'a_verifier' }]).boutiqueCentimes === -800);
+verifier('le montant ajusté remplace le montant initial après vérification', cumul([{ activite: 'boutique', ecartInitial: -8, ecartFinal: -3, statut: 'valide' }]).boutiqueCentimes === -300);
+const fiche5 = ev("RAPPORT.employes.find(f=>f.employee.id==='e5')");
+verifier('la fiche porte le cumul du mois : Boutique -20 €', ev("NexusPayeMoteur.variablesComptables(RAPPORT.employes.find(f=>f.employee.id==='e5'))").financier.ecartsCaisseMois.totalCentimes === -2000);
+const bloc = ev("renderPourComptable(NexusPayeMoteur.variablesComptables(RAPPORT.employes.find(f=>f.employee.id==='e5')),RAPPORT.employes.find(f=>f.employee.id==='e5'))");
+verifier('« Pour le comptable » montre « Écarts de caisse du mois » avec le détail par origine', /Écarts de caisse du mois/.test(bloc) && /Boutique -20\.00 € · Piste 0\.00 € · FDJ 0\.00 €/.test(bloc.replace(/\u00a0/g, ' ')));
+console.log(`\n${ok} contrôles passent.`);
+
+// Un montant qui change après la vérification : caduque (vérifié) ou « élément arrivé après la transmission » (transmis).
+const V = ev('NexusPayeValidation');
+const snap = t => ({ dossier: { salaries: [{ employeeId: 'e5', variables: { financier: { ecartsCaisseMois: { totalCentimes: t } } } }] } });
+const sal = t => [{ employeeId: 'e5', variables: { financier: { ecartsCaisseMois: { totalCentimes: t } } } }];
+verifier('cumul inchangé : la vérification tient', V.ecartsCaisseModifies(snap(-2000), sal(-2000)) === false);
+verifier('cumul changé : la vérification devient caduque', V.verificationCaduque('verifie', 0, V.ecartsCaisseModifies(snap(-2000), sal(-500))) === true);
+verifier('mois transmis et cumul changé : « élément arrivé après la transmission »', V.etat({ statut: 'transmis', bloqueurs: 0, salariesInclus: 1, salariesPrets: 1, ecartsModifies: true }).elementApresTransmission === true);
+console.log('\nCaducité sur écart : contrôlée.');

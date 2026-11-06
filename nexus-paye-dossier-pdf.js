@@ -41,6 +41,12 @@
     return `${v > 0 ? '+' : ''}${v.toFixed(2).replace('.', ',')} €`;
   }
 
+  // « -6,53 € (Boutique -5,53 € · Piste 0,00 € · FDJ -1,00 €) » : même ligne que le bloc « Pour le comptable ».
+  function ecartsMois(m) {
+    if (!m || (!m.totalCentimes && !m.boutiqueCentimes && !m.pisteCentimes && !m.fdjCentimes)) return '—';
+    return `${euros(m.totalCentimes)} (Boutique ${euros(m.boutiqueCentimes)} · Piste ${euros(m.pisteCentimes)} · FDJ ${euros(m.fdjCentimes)})`;
+  }
+
   function heures(valeur) {
     const v = Number(valeur || 0);
     return `${(Math.round(v * 100) / 100).toString().replace('.', ',')} h`;
@@ -90,6 +96,7 @@
       { variable: 'Acomptes', valeur: v.financier.acompteCentimes ? euros(v.financier.acompteCentimes) : '—' },
       { variable: 'Dettes / avances', valeur: v.financier.detteCentimes ? euros(v.financier.detteCentimes) : '—' },
       { variable: 'Retenues sur écart de caisse', valeur: v.financier.retenueEcartCentimes ? euros(v.financier.retenueEcartCentimes) : '—' },
+      { variable: 'Écarts de caisse du mois', valeur: ecartsMois(v.financier.ecartsCaisseMois) },
     ];
     return lignes;
   }
@@ -194,6 +201,7 @@
     rapport.ligneCle('Acomptes', euros(dossier.synthese.acompteCentimes));
     rapport.ligneCle('Dettes / avances', euros(dossier.synthese.detteCentimes));
     rapport.ligneCle('Retenues sur écart de caisse', euros(dossier.synthese.retenueEcartCentimes));
+    rapport.ligneCle('Écarts de caisse du mois', euros(dossier.synthese.ecartsCaisseMoisCentimes || 0));
 
     rapport.sectionTitre('Récapitulatif par salarié');
     rapport.tableau(

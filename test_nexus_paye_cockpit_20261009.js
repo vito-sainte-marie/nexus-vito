@@ -219,11 +219,11 @@ verifier('les totaux ne fabriquent plus de versement ni de solde',
 verifier('aucune retenue sur salaire n’est générée automatiquement', t.retenu === 0);
 verifier('… et le moteur ne retient rien non plus',
   vm.runInContext("NexusPayeMoteur.variablesComptables(RAPPORT.employes.find(f=>f.employee.id==='e5')).financier.retenueEcartCentimes", ctx) === 0);
-verifier('l’écart se lit en quatre cases',
-  dans(ecran(), '<span>Initial</span>') && dans(ecran(), '<span>Correction à la validation</span>')
-  && !dans(ecran(), '<span>Régularisations encaissées</span>')
-  && dans(ecran(), '<span>Final validé</span>') && dans(ecran(), '<span>Impact paie</span>'));
-verifier('… avec les montants du mandat', dans(ecran(), '-50.00 €') && dans(ecran(), '+30.00 €') && dans(ecran(), '-20.00 €'));
+// Affichage court décidé le 05/11/2026 (Guardian, #160) : date · origine · montant final, sans historique.
+verifier('l’écart se lit en format court : plus d’historique ni de cases',
+  !dans(ecran(), '<span>Initial</span>') && !dans(ecran(), '<span>Correction à la validation</span>')
+  && !dans(ecran(), '<span>Régularisations encaissées</span>') && !dans(ecran(), '<span>Impact paie</span>'));
+verifier('… et montre le montant final', dans(ecran(), '-20.00 €'));
 verifier('la correction à la validation est final − initial, et rien sans les deux',
   vm.runInContext("correctionValidationCentimes({ecartInitialCentimes:-5000,ecartFinalCentimes:-2000})", ctx) === 3000
   && vm.runInContext("correctionValidationCentimes({ecartInitialCentimes:null,ecartFinalCentimes:-2000})", ctx) === null

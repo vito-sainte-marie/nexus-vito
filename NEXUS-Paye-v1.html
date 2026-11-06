@@ -269,7 +269,7 @@ tr.grp td{padding:16px 24px 8px}
 .caisse-consult .kpi span{font:400 13px var(--sans);letter-spacing:0;text-transform:none;color:var(--mid)}
 .caisse-consult .kpi b{font:700 15px var(--mono)}
 .liste-ecarts{display:grid;gap:6px;margin-top:12px}
-.ligne-ecart{display:grid;grid-template-columns:90px 1fr 60px 1.4fr auto;gap:10px;align-items:center;text-align:left;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--raised);color:var(--text);font:13px var(--sans);text-decoration:none;cursor:pointer}
+.ligne-ecart{display:grid;grid-template-columns:90px 80px 1fr auto;gap:10px;align-items:center;text-align:left;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--raised);color:var(--text);font:13px var(--sans);text-decoration:none;cursor:pointer}
 .ligne-ecart:hover,.ligne-ecart:focus-visible{border-color:var(--cyan)}
 .ligne-ecart b{font:700 13px var(--mono)}
 @media(max-width:620px){.ligne-ecart{grid-template-columns:1fr auto}}
@@ -425,7 +425,8 @@ function etatPeriode(){return (RAPPORT.periodeEnregistree&&RAPPORT.periodeEnregi
 let MENTION_VALIDATION='';
 function nomsParametrages(){return (RAPPORT.bloqueurs||[]).filter(b=>b.categorie==='configuration').map(b=>{const f=(RAPPORT.employes||[]).find(x=>x.employee.id===b.employeeId);return f?f.employee.nom:String(b.libelle||'').split(' : ')[0]})}
 function nbATraiter(){const s=RAPPORT.synthese;return NexusPayeValidation.aTraiter({bloqueurs:RAPPORT.bloqueurs,salariesInclus:s.salariesInclus,salariesPrets:s.salariesPrets})}
-function etatValidation(){const s=RAPPORT.synthese;return NexusPayeValidation.etat({statut:etatPeriode(),bloqueurs:RAPPORT.bloqueurs,parametrages:nomsParametrages(),salariesInclus:s.salariesInclus,salariesPrets:s.salariesPrets});}
+function ecartsCaisseModifies(){const p=RAPPORT.periodeEnregistree;return NexusPayeValidation.ecartsCaisseModifies(p&&p.snapshot,NexusPayeMoteur.dossierComptable(RAPPORT).salaries);}
+function etatValidation(){const s=RAPPORT.synthese;return NexusPayeValidation.etat({statut:etatPeriode(),ecartsModifies:ecartsCaisseModifies(),bloqueurs:RAPPORT.bloqueurs,parametrages:nomsParametrages(),salariesInclus:s.salariesInclus,salariesPrets:s.salariesPrets});}
 function nomVerificateur(p){if(!p||!p.verifie_par)return 'un responsable';const f=(RAPPORT.employes||[]).find(x=>x.employee.id===p.verifie_par);return f?f.employee.nom:(EMPLOYEE&&EMPLOYEE.id===p.verifie_par?EMPLOYEE.nom:'un responsable');}
 function boutonsValidation(mobile){
  const e=etatValidation(), p=RAPPORT.periodeEnregistree||null;
@@ -625,12 +626,14 @@ function renderKpis(s,ec,a){
 // il ne bloque pas la validation (règle inchangée, voir NexusPayeMoteur.sansIncidencePaie).
 function ecartAQualifier(i){return !!i&&i.typeItem==='ecart_caisse'&&(i.statut==='a_verifier'||!!i.contestationOuverte)}
 function ecartsAQualifierDe(items){return (items||[]).filter(ecartAQualifier)}
+// Origine affichée d'un écart : Boutique, Piste ou FDJ (déduite de l'activité), jamais le module source.
+function origineEcart(i){return i&&i.activite==='fdj'?'FDJ':i&&i.activite==='piste'?'Piste':'Boutique'}
 function ligneEcartAQualifier(i){
- const src=i.origine==='fdj'?'FDJ':'Verify';
+ const src=origineEcart(i);
  const attribue=!!i.employeeId&&!i.attributionRequise&&!!trouverFiche(i.employeeId);
  const qui=attribue?ECHAPPE(i.employeeNom||'Salarié'):'non attribué';
  const montant=i.ecartFinalCentimes!=null?euros(i.ecartFinalCentimes):'—';
- const texte=`<span>${jjmmaaaaFR(i.date)}</span><span>${ECHAPPE(i.quart||'quart non précisé')}</span><span>${src}</span><span>${qui}</span><b>${montant}</b>`;
+ const texte=`<span>${jjmmaaaaFR(i.date)}</span><span>${src}</span><span>${qui}</span><b>${montant}</b>`;
  return attribue
   ?`<button type="button" class="ligne-ecart" data-voir-ecart="${ECHAPPE(i.employeeId)}" data-cle="${ECHAPPE(i.sourceCle)}">${texte}</button>`
   :`<a class="ligne-ecart" href="${ECHAPPE(i.deepLink||lienAnalyseEcarts())}">${texte}</a>`;
@@ -860,11 +863,19 @@ function lignesComptable(v,f){
  if(fin.retenueEcartCentimes)ar.push(`écart retenu ${euros(fin.retenueEcartCentimes)}`);
  varsAutres(f).forEach(i=>ar.push(`${ECHAPPE(i.libelle||'Autre variable')} ${i.montantCentimes!=null?euros(i.montantCentimes):hFr(Number(i.quantiteMinutes)/60)}`));
  if(ar.length)L.push({k:'Argent',h:ar.join(' · ')});
+ const ec=ecartsMoisTexte(v);
+ if(ec)L.push({k:'Écarts de caisse du mois',h:ec});
  return L;
+}
+// « -6,53 € (Boutique -5,53 € · Piste 0 € · FDJ -1,00 €) » ; vide si rien n'est transmis ce mois.
+function ecartsMoisTexte(v){
+ const m=v.financier&&v.financier.ecartsCaisseMois;
+ if(!m||!m.totalCentimes&&!m.boutiqueCentimes&&!m.pisteCentimes&&!m.fdjCentimes)return '';
+ return `${euros(m.totalCentimes)} (Boutique ${euros(m.boutiqueCentimes)} · Piste ${euros(m.pisteCentimes)} · FDJ ${euros(m.fdjCentimes)})`;
 }
 function renderPourComptable(v,f){
  const L=lignesComptable(v,f);
- const sansVariable=!v.joursFeries.jours&&!v.congesPayes.jours&&!v.maladieMaternite.jours&&!v.autresAbsences.jours&&!v.absence.jours&&!v.retards.minutes&&!v.financier.acompteCentimes&&!v.financier.detteCentimes&&!v.financier.retenueEcartCentimes&&!varsAutres(f).length;
+ const sansVariable=!v.joursFeries.jours&&!v.congesPayes.jours&&!v.maladieMaternite.jours&&!v.autresAbsences.jours&&!v.absence.jours&&!v.retards.minutes&&!v.financier.acompteCentimes&&!v.financier.detteCentimes&&!v.financier.retenueEcartCentimes&&!ecartsMoisTexte(v)&&!varsAutres(f).length;
  return `<section class="pour-comptable"><div class="bloc-titre">Pour le comptable · ${ECHAPPE(moisLabel())}</div>`
   +L.map(l=>`<div class="ligne"><span>${l.k}</span><span>${l.h}</span></div>`).join('')
   +(sansVariable?'<div class="ok">Aucune absence, aucun retard, aucune variable.</div>':'')+`</section>`;
@@ -1100,7 +1111,7 @@ function renderItem(f,i){
    +`<div class="rh-periode">${jjmmaaaaFR(i.date)} → ${jjmmaaaaFR(i.dateFin||i.date)}</div>`
    +`<div class="rh-couverture">${pluriel(i.joursMois||0,'jour')} couvert${(i.joursMois||0)>1?'s':''}${debordement.length?` · ${ECHAPPE(debordement.join(' · '))}`:''}</div></div>`;
  }else{
-  entete=`<div class="item-top"><div class="item-title">${ECHAPPE(i.libelle)}${i.signale?` <span class="pill ${i.statut==='information'?'amber':'green'}">${i.statut==='information'?'Signalé':'Vérifié'}</span>`:''}</div><div class="item-date">${periode&&i.joursMois?pluriel(i.joursMois,'jour'):(i.date||'')}${i.quart?` · Q${ECHAPPE(i.quart)}`:''}</div></div>`;
+  entete=ecart?`<div class="item-top"><div class="item-title">${origineEcart(i)}</div><div class="item-date">${jjmmaaaaFR(i.date)}</div><b>${i.ecartFinalCentimes!=null?euros(i.ecartFinalCentimes):'—'}</b></div>`:`<div class="item-top"><div class="item-title">${ECHAPPE(i.libelle)}${i.signale?` <span class="pill ${i.statut==='information'?'amber':'green'}">${i.statut==='information'?'Signalé':'Vérifié'}</span>`:''}</div><div class="item-date">${periode&&i.joursMois?pluriel(i.joursMois,'jour'):(i.date||'')}${i.quart?` · Q${ECHAPPE(i.quart)}`:''}</div></div>`;
  }
  // Pour un événement RH, le décompte est déjà dans l'en-tête : on ne
  // garde du détail que ce qu'il n'a pas dit.
@@ -1116,8 +1127,8 @@ function renderItem(f,i){
   +`${detail?`<div class="item-meta">${ECHAPPE(detail)}${i.heuresAttribuees!=null?` <button class="h-edit" data-key="${ECHAPPE(i.sourceCle)}" title="Corriger les heures retenues" aria-label="Corriger les heures retenues" style="background:none;border:0;color:inherit;opacity:.7;cursor:pointer;padding:0 2px">✎</button>`:''}</div>`:''}`
   +`${i.heuresAttribuees!=null?`<div class="h-box" data-key="${ECHAPPE(i.sourceCle)}" hidden style="display:flex;align-items:center;gap:6px;margin:2px 0 6px"><input class="h-val" type="number" min="0" max="24" step="0.25" value="${i.heuresAttribuees}" style="width:72px;padding:6px;border-radius:8px"><span style="font-size:11px;opacity:.7">h retenues</span><button class="btn h-save" data-emp="${emp}" data-key="${ECHAPPE(i.sourceCle)}">Enregistrer</button></div>`:''}`
   +`${i.typeItem==='presence_exceptionnelle'&&i.statut==='a_verifier'&&i.heuresAttribuees!=null?`<div class="item-meta">Proposition (barème, non décidée) : ${hFr(i.heuresAttribuees)} — confirmez, corrigez ✎ ou ne retenez pas.</div>`:''}`
-  +`${ecart?`<div class="ecart-grid"><div class="ecart-cell"><span>Initial</span><b>${euros(i.ecartInitialCentimes)}</b></div><div class="ecart-cell"><span>Correction à la validation</span><b>${euros(correctionValidationCentimes(i))}</b></div><div class="ecart-cell"><span>Final validé</span><b>${euros(i.ecartFinalCentimes)}</b></div><div class="ecart-cell"><span>Impact paie</span><b>${i.impactPaye?'Oui':'Aucun'}</b></div></div>`:''}`
-  +`<div class="item-meta">${ECHAPPE(itemMeta(i))} · ${statut}${i.causeCode?` · motif : ${ECHAPPE(i.causeCode.replaceAll('_',' '))}`:''}</div>${source}${actions}</div>`;
+  +`${ecart&&i.contestationOuverte?'<div class="item-meta">Contestation ouverte — transmission bloquée</div>':''}`
+  +`${ecart?'':`<div class="item-meta">${ECHAPPE(itemMeta(i))} · ${statut}${i.causeCode?` · motif : ${ECHAPPE(i.causeCode.replaceAll('_',' '))}`:''}</div>`}${source}${actions}</div>`;
 }
 // Rendu d'un écart de concordance (§9 du cahier des charges du 09/10/2026).
 //
@@ -1196,10 +1207,10 @@ let SAISIES_MANAGER=false, SONDE_FAITE=false;
 async function verificationCaducite(){
  const e=etatValidation();
  // Caducité sur les seuls éléments à traiter explicites (bloqueurs) : un chargement partiel (salarié momentanément sans donnée) ne doit jamais effacer une vérification.
- if(!NexusPayeValidation.verificationCaduque(e.statut,NexusPayeValidation.aTraiter({bloqueurs:RAPPORT.bloqueurs})))return;
+ if(!NexusPayeValidation.verificationCaduque(e.statut,NexusPayeValidation.aTraiter({bloqueurs:RAPPORT.bloqueurs}),ecartsCaisseModifies()))return;
  await NexusPayeDonnees.enregistrerPeriode(nexusClient,{siteId:SITE,periode:MOIS,statut:'brouillon',snapshot:null,actorId:EMPLOYEE.id});
  RAPPORT.periodeEnregistree=Object.assign({},RAPPORT.periodeEnregistree,{statut:'brouillon',snapshot:null,verifie_par:null,verifie_le:null});
- MENTION_VALIDATION='La vérification est annulée : un nouvel élément est à traiter. Le mois repasse en préparation.';
+ MENTION_VALIDATION='La vérification est annulée : un nouvel élément est à traiter ou un écart de caisse a changé. Le mois repasse en préparation.';
 }
 async function reload(){document.getElementById('app').innerHTML='<div class="loading">Actualisation et contrôles croisés…</div>';try{if(!SONDE_FAITE){SAISIES_MANAGER=await NexusPayeDonnees.sonderSaisiesManager(nexusClient);SONDE_FAITE=true;}[RAPPORT,REGUL]=await Promise.all([NexusPayeDonnees.chargerRapport(nexusClient,SITE,MOIS),chargerRegularisationsPaye()]);await verificationCaducite();render();MENTION_VALIDATION=''}catch(e){console.error(e);document.getElementById('app').innerHTML=`<div class="alert">NEXUS PAYE n'a pas pu charger le dossier : ${ECHAPPE(e.message||e)}</div>`}}
 // ─── Modales NEXUS (03/09/2026) ────────────────────────────────────────

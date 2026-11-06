@@ -11,8 +11,21 @@ const NexusPayeValidation = (function () {
   }
   // Une vérification posée devient caduque si un nouvel élément à traiter apparaît.
   // Un mois transmis n'est jamais rouvert ici (règle existante : rouvrir est un geste explicite).
-  function verificationCaduque(statut, restant) {
-    return statut === 'verifie' && restant > 0;
+  function verificationCaduque(statut, restant, ecartsModifies) {
+    return statut === 'verifie' && (restant > 0 || ecartsModifies === true);
+  }
+  // Le cumul « Écarts de caisse du mois » d'un salarié a changé depuis l'instantané (montant ajusté,
+  // écart arrivé ou retiré) : même effet qu'un nouvel élément à traiter. Compare salarié par salarié.
+  function ecartsCaisseModifies(snapshot, salaries) {
+    const avant = {};
+    ((snapshot && snapshot.dossier && snapshot.dossier.salaries) || []).forEach(s => {
+      avant[s.employeeId] = Number(((s.variables || {}).financier || {}).ecartsCaisseMois && s.variables.financier.ecartsCaisseMois.totalCentimes) || 0;
+    });
+    if (!snapshot || !snapshot.dossier) return false;
+    return (salaries || []).some(s => {
+      const m = ((s.variables || {}).financier || {}).ecartsCaisseMois;
+      return (Number(m && m.totalCentimes) || 0) !== (avant[s.employeeId] || 0);
+    });
   }
   // Le titre d'un bouton grisé nomme sa cause : les paramétrages à compléter sont cités par salarié.
   function causeTitre(restant, parametrages) {
@@ -33,7 +46,7 @@ const NexusPayeValidation = (function () {
       statut, restant, n, total,
       capsule: `${statut === 'brouillon' ? 'Prêts' : 'Validés'} ${n}/${total}`,
       // Mois transmis, puis un élément à traiter est arrivé : jamais rouvert seul, mais signalé.
-      elementApresTransmission: statut === 'transmis' && restant > 0,
+      elementApresTransmission: statut === 'transmis' && (restant > 0 || e.ecartsModifies === true),
       validerVisible: statut === 'brouillon',
       validerActif: valider,
       validerLibelle: libelleValider,
@@ -43,6 +56,6 @@ const NexusPayeValidation = (function () {
         : statut === 'transmis' ? 'Déjà transmis' : (restant ? causeTitre(restant, parametrages) : ''),
     };
   }
-  return { aTraiter, verificationCaduque, etat };
+  return { aTraiter, verificationCaduque, ecartsCaisseModifies, etat };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = NexusPayeValidation;
