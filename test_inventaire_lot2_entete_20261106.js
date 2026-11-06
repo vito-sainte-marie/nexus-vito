@@ -62,10 +62,25 @@ verifier('retouche 3 : Matin | Soir en segment, sur une ligne au bureau, pleine 
   assert.ok(/\.entete-selecteur\{[^}]*flex-wrap:nowrap/.test(html));
   assert.ok(/\.segment-quart\{flex:1 0 100%/.test(html));
 });
-verifier('retouche 4 : bannière mobile ≤ 180 px avec voile, jetons seulement', () => {
-  const m = html.match(/@media \(max-width:640px\)\{\s*\.header>\.am-banniere\{[^}]*height:(\d+)px/);
+verifier('retouche 4 : bannière courte (≤ 180 px) dès que la vue bureau est absente, pas seulement sous 640 px', () => {
+  const m = html.match(/body:not\(\.nexus-desktop\) \.header>\.am-banniere\{[^}]*height:(\d+)px/);
   assert.ok(m && Number(m[1]) <= 180);
-  assert.ok(/\.header>\.am-banniere::after\{background:linear-gradient\(to right,var\(--bg\) 0%,var\(--bg\) 55%/.test(html));
+  assert.ok(/body:not\(\.nexus-desktop\) \.header>\.am-banniere::after\{background:linear-gradient\(to right,var\(--bg\) 0%,var\(--bg\) 55%/.test(html));
+  assert.ok(!/@media \(max-width:640px\)\{\s*\.header>\.am-banniere/.test(html));
+});
+verifier('retouches 2e série : bureau pleine largeur, date lisible, état sur une ligne, ligne de clôture résiduelle retirée', () => {
+  assert.ok(/body\.nexus-desktop \.desktop-grid>\.indicateurs,body\.nexus-desktop \.desktop-grid>\.conseiller-card\{column-span:all\}/.test(html));
+  assert.ok(/\.entete-selecteur \.date-input\{[^}]*min-width:(\d+)px/.test(html) && Number(html.match(/\.entete-selecteur \.date-input\{[^}]*min-width:(\d+)px/)[1]) >= 140);
+  assert.ok(Number(html.match(/\.entete-texte\{[^}]*max-width:(\d+)px/)[1]) >= 520);
+  assert.ok(html.includes("clotureClasse === 'attente' ? ''"));
+});
+verifier('mode Jour : textes ≥ 4,5:1 sur leurs fonds (pastilles, eyebrow, menu), mesurés', () => {
+  const lum = h => { const c = [1, 3, 5].map(i => parseInt(h.substr(i, 2), 16) / 255).map(v => v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
+  const rap = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+  const tok = n => html.match(new RegExp('--' + n + ':(#[0-9A-Fa-f]{6})'))[1];
+  [['j-ok-fg', 'j-ok-bg'], ['j-att-fg', 'j-att-bg'], ['j-bad-fg', 'j-bad-bg']].forEach(([f, b]) => assert.ok(rap(tok(f), tok(b)) >= 4.5, f + ' ' + rap(tok(f), tok(b)).toFixed(2)));
+  assert.ok(rap(tok('j-eyebrow'), '#FFFFFF') >= 4.5);
+  assert.ok(/:root\[data-theme="jour"\] \.menu-btn\{background:var\(--panel\);border:1px solid var\(--line\)/.test(html));
 });
 
 let ko = 0;

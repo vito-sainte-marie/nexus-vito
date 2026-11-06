@@ -52,7 +52,8 @@
     --line:#254354; --mid:#8A96A5; --trace:#17323F; --caps:#142B3B;
     --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
   }
-  :root[data-theme="jour"]{--line:#D5DCE3; --trace:#E2E8EE; --caps:#EAF0F5;}
+  :root[data-theme="jour"]{--line:#D5DCE3; --trace:#E2E8EE; --caps:#EAF0F5;
+    --j-ok-fg:#0C7A52; --j-ok-bg:#E3F5EC; --j-att-fg:#9A5B00; --j-att-bg:#FCEFD9; --j-bad-fg:#B8283F; --j-bad-bg:#FBE4E8; --j-eyebrow:#0B6F83;}
   *{box-sizing:border-box; margin:0; padding:0;}
   html,body{background:var(--bg); font-family:var(--sans); color:var(--text);}
   body{display:flex; justify-content:center; min-height:100vh;}
@@ -66,10 +67,10 @@
   .header>.am-banniere img.am-fondu{opacity:0;transition:opacity 800ms ease}
   .header>.am-banniere img.am-fondu-visible{opacity:1}
   @media (prefers-reduced-motion:reduce){.header>.am-banniere img.am-fondu{transition:none}}
-  .entete-texte{position:relative;z-index:1;max-width:340px}
+  .entete-texte{position:relative;z-index:1;max-width:600px}
   .entete-station{font-size:13px;color:var(--text-mid);margin-top:2px}
   .entete-selecteur{display:flex;align-items:center;gap:6px;flex-wrap:nowrap;margin-top:10px}
-  .entete-selecteur .date-input{min-height:44px;flex:1 1 auto;min-width:0}
+  .entete-selecteur .date-input{min-height:44px;flex:0 0 auto;min-width:150px}
   .segment-quart{display:inline-flex;flex:none;border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-left:4px;background:var(--panel)}
   .segment-quart .quart-pill{border:0;border-radius:0;background:transparent;padding:0 16px;justify-content:center;flex:1}
   .segment-quart .quart-pill+.quart-pill{border-left:1px solid var(--line)}
@@ -77,17 +78,27 @@
   .btn-jour{min-width:44px;min-height:44px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--text);font-size:18px;cursor:pointer}
   .entete-selecteur .quart-pill{min-height:44px;display:inline-flex;align-items:center}
   .entete-rouvrir{margin:0 0 12px}
-  /* Mobile : bannière courte (≤ 180 px) avec titre, station et état sur l'image ; sélecteur et actions dessous. */
-  @media (max-width:640px){
-    .header>.am-banniere{inset:0 0 auto 0;height:170px}
-    .header>.am-banniere::after{background:linear-gradient(to right,var(--bg) 0%,var(--bg) 55%,transparent 100%),linear-gradient(to bottom,transparent 45%,var(--bg) 100%);opacity:.95}
-    .entete-texte{max-width:none}
-    .entete-texte .eyebrow{padding-right:96px}
-    .menu-btn{background:var(--panel)}
-    .entete-selecteur{flex-wrap:wrap}
-    .segment-quart{flex:1 0 100%;margin-left:0;margin-top:2px}
-    .entete-actions a,.entete-actions button{flex:1 1 auto;justify-content:center}
-  }
+  /* Mobile (tout ce qui n'est pas la vue bureau) : bannière courte (≤ 180 px) avec titre, station et état sur l'image ; sélecteur et actions dessous. */
+  body:not(.nexus-desktop) .header>.am-banniere{inset:0 0 auto 0;height:170px}
+  body:not(.nexus-desktop) .header>.am-banniere::after{background:linear-gradient(to right,var(--bg) 0%,var(--bg) 55%,transparent 100%),linear-gradient(to bottom,transparent 45%,var(--bg) 100%);opacity:.95}
+  body:not(.nexus-desktop) .entete-texte{max-width:none}
+  body:not(.nexus-desktop) .entete-texte .eyebrow{padding-right:96px}
+  body:not(.nexus-desktop) .menu-btn{background:var(--panel)}
+  body:not(.nexus-desktop) .entete-selecteur{flex-wrap:wrap}
+  body:not(.nexus-desktop) .segment-quart{flex:1 0 100%;margin-left:0;margin-top:2px}
+  body:not(.nexus-desktop) .entete-actions a,body:not(.nexus-desktop) .entete-actions button{flex:1 1 auto;justify-content:center}
+  /* Vue bureau : tuiles et Conseiller sur toute la largeur, les deux colonnes dessous. */
+  body.nexus-desktop .desktop-grid>.indicateurs,body.nexus-desktop .desktop-grid>.conseiller-card{column-span:all}
+  body.nexus-desktop .indicateurs{grid-template-columns:repeat(3,minmax(0,1fr))}
+  /* Mode Jour : voile blanc quasi opaque sous le texte, menu opaque, pastilles en texte foncé sur fond pâle. */
+  :root[data-theme="jour"] .header>.am-banniere::after{background:linear-gradient(to right,var(--panel) 0%,var(--panel) 50%,transparent 100%),linear-gradient(to bottom,transparent 45%,var(--panel) 100%);opacity:.96}
+  :root[data-theme="jour"] body:not(.nexus-desktop) .header>.am-banniere::after{background:linear-gradient(to right,var(--panel) 0%,var(--panel) 62%,transparent 100%),linear-gradient(to bottom,transparent 45%,var(--panel) 100%);opacity:.96}
+  :root[data-theme="jour"] .menu-btn{background:var(--panel);border:1px solid var(--line);color:var(--text)}
+  :root[data-theme="jour"] .eyebrow{color:var(--j-eyebrow)}
+  :root[data-theme="jour"] .st.ok{background:var(--j-ok-bg);color:var(--j-ok-fg);border-color:var(--j-ok-fg)}
+  :root[data-theme="jour"] .st.todo{background:var(--j-att-bg);color:var(--j-att-fg);border-color:var(--j-att-fg)}
+  :root[data-theme="jour"] .st.bad{background:var(--j-bad-bg);color:var(--j-bad-fg);border-color:var(--j-bad-fg)}
+  :root[data-theme="jour"] .st.hp{color:var(--text-mid);border-color:var(--text-mid)}
   .entete-etat{margin-top:10px;min-height:30px}
   .entete-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
   .entete-actions a,.entete-actions button{min-height:44px;display:inline-flex;align-items:center;padding:0 14px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--text);font:600 13px var(--sans);text-decoration:none;cursor:pointer}
@@ -2741,7 +2752,7 @@
         ${P.tuile({valeur: s.manquants, libelle: 'Comptages manquants', pastille: P.pill(s.manquants ? 'À compter' : 'Complet', s.manquants ? 'todo' : 'ok'), info: 'manquants', cible: 'sectionATerminer'})}
         ${P.tuile({valeur: nbAnomalies, libelle: 'Anomalies à traiter', pastille: P.pill(nbAnomalies ? 'À décider' : 'Aucune', nbAnomalies ? 'todo' : 'ok'), info: 'anomalies', cible: 'sectionAControler'})}
       </div>
-      <div class="synthese-cloture ${clotureClasse}">${clotureTexte}</div>
+      ${clotureClasse === 'attente' ? '' : `<div class="synthese-cloture ${clotureClasse}">${clotureTexte}</div>`}
     `;
   }
 
