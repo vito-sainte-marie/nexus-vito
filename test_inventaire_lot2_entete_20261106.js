@@ -69,7 +69,7 @@ verifier('retouche 4 : bannière courte (≤ 180 px) dès que la vue bureau est 
   assert.ok(!/@media \(max-width:640px\)\{\s*\.header>\.am-banniere/.test(html));
 });
 verifier('retouches 2e série : bureau pleine largeur, date lisible, état sur une ligne, ligne de clôture résiduelle retirée', () => {
-  assert.ok(/body\.nexus-desktop \.desktop-grid>\.indicateurs,body\.nexus-desktop \.desktop-grid>\.conseiller-card\{column-span:all\}/.test(html));
+  assert.ok(/body\.nexus-desktop \.desktop-grid>\.indicateurs,body\.nexus-desktop \.desktop-grid>\.conseiller-card,[^{]*\{grid-column:1 \/ -1\}/.test(html));
   assert.ok(/\.entete-selecteur \.date-input\{[^}]*min-width:(\d+)px/.test(html) && Number(html.match(/\.entete-selecteur \.date-input\{[^}]*min-width:(\d+)px/)[1]) >= 140);
   assert.ok(Number(html.match(/\.entete-texte\{[^}]*max-width:(\d+)px/)[1]) >= 520);
   assert.ok(html.includes("clotureClasse === 'attente' ? ''"));
