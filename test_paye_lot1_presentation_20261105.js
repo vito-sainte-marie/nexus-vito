@@ -202,7 +202,7 @@ verifier('boutons d\u2019action sous le titre, hors de la photo', /<div class="h
 verifier('photo fondue sur tous les bords (masque horizontal x vertical, sans bordure ni ombre)',
   /\.hero-haut>\.am-banniere\{[^}]*mask-image:linear-gradient\(to right,transparent 0%,#000 45%[^}]*to bottom[^}]*mask-composite:intersect/.test(src)
   && /-webkit-mask-composite:source-in/.test(src) && !/\.am-banniere\{[^}]*(box-shadow|border)/.test(src));
-verifier('un seul nombre « à traiter » (salariés inclus - prêts), hors réglages hors-paie', /const dec=Math\.max\(0,s\.salariesInclus-s\.salariesPrets\)/.test(src));
+verifier('un seul nombre « à traiter » (salariés inclus - prêts, ou paramétrages à compléter si plus nombreux)', /const dec=nbATraiter\(\)/.test(src) && /atraiter=nbATraiter\(\)/.test(src));
 verifier('« 0 h » reste en minuscule dans les indicateurs', /button\.kpi span b,button\.kpi span small\{text-transform:none\}/.test(src));
 verifier('un seul bouton Configurer dans la fiche quand la zone de décision le porte', /\$\{reglage\?'':`<button class="btn configure"/.test(src));
 verifier('Menu hors de l\u2019en-tête, en haut à droite de la page', /<div class="haut-page"><a class="menu"[^>]*>☰ Menu<\/a><\/div>\s*<header class="hero">/.test(src) && !/<div class="topacts"><a class="menu"/.test(src) && /\.haut-page\{display:flex;justify-content:flex-end/.test(src));

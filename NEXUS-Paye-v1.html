@@ -414,7 +414,9 @@ function dernierJourMois(){return NexusEcartsDonnees.bornesDuMois(MOIS).dateFin}
 function etatPeriode(){return (RAPPORT.periodeEnregistree&&RAPPORT.periodeEnregistree.statut)||'brouillon';}
 // Validation du mois (06/11/2026) : règles dans nexus-paye-validation.js, écran ici.
 let MENTION_VALIDATION='';
-function etatValidation(){const s=RAPPORT.synthese;return NexusPayeValidation.etat({statut:etatPeriode(),bloqueurs:RAPPORT.bloqueurs,salariesInclus:s.salariesInclus,salariesPrets:s.salariesPrets});}
+function nomsParametrages(){return (RAPPORT.bloqueurs||[]).filter(b=>b.categorie==='configuration').map(b=>{const f=(RAPPORT.employes||[]).find(x=>x.employee.id===b.employeeId);return f?f.employee.nom:String(b.libelle||'').split(' : ')[0]})}
+function nbATraiter(){const s=RAPPORT.synthese;return NexusPayeValidation.aTraiter({bloqueurs:RAPPORT.bloqueurs,salariesInclus:s.salariesInclus,salariesPrets:s.salariesPrets})}
+function etatValidation(){const s=RAPPORT.synthese;return NexusPayeValidation.etat({statut:etatPeriode(),bloqueurs:RAPPORT.bloqueurs,parametrages:nomsParametrages(),salariesInclus:s.salariesInclus,salariesPrets:s.salariesPrets});}
 function nomVerificateur(p){if(!p||!p.verifie_par)return 'un responsable';const f=(RAPPORT.employes||[]).find(x=>x.employee.id===p.verifie_par);return f?f.employee.nom:(EMPLOYEE&&EMPLOYEE.id===p.verifie_par?EMPLOYEE.nom:'un responsable');}
 function boutonsValidation(mobile){
  const e=etatValidation(), p=RAPPORT.periodeEnregistree||null;
@@ -597,12 +599,14 @@ function anneau(pct,couleur){
  return `<svg class="anneau" viewBox="0 0 60 60" aria-hidden="true"><circle class="fond" cx="30" cy="30" r="25"/><circle cx="30" cy="30" r="25" style="stroke:${couleur}" stroke-linecap="round" stroke-dasharray="${d.toFixed(1)} ${c}" transform="rotate(-90 30 30)"/></svg>`;
 }
 function renderKpis(s,ec,a){
- const inclus=s.salariesInclus, prets=s.salariesPrets, atraiter=Math.max(0,inclus-prets);
+ const inclus=s.salariesInclus, prets=s.salariesPrets, atraiter=nbATraiter();
+ // Les paramétrages concernent des salariés hors du total « en paie » : un pourcentage n'aurait pas de sens (peut dépasser 100 %).
+ const avecParam=nomsParametrages().length>0;
  const pc=n=>inclus?Math.round(n/inclus*100):0;
  return `<div class="kpi3" role="group" aria-label="Indicateurs du mois">
  <button type="button" class="kpi${FILTRE!=='hors_paie'&&TRI.cle!=='heures'?' actif':''}" data-kpi="salaries"><span>Salariés en paie<b>${inclus}</b></span></button>
  <button type="button" class="kpi${FILTRE==='prets'?' actif':''}" data-kpi="prets"><span>Prêts à valider<b>${prets}</b></span>${anneau(pc(prets),'var(--cyan)')}<small class="sr">${pc(prets)} %</small></button>
- <button type="button" class="kpi${atraiter?' warn':''}${FILTRE==='a_verifier'?' actif':''}" data-kpi="decisions"><span>À traiter<b>${atraiter}</b></span>${anneau(pc(atraiter),'var(--amber)')}<small class="sr">${pc(atraiter)} %</small></button>
+ <button type="button" class="kpi${atraiter?' warn':''}${FILTRE==='a_verifier'?' actif':''}" data-kpi="decisions"><span>À traiter<b>${atraiter}</b></span>${anneau(avecParam?100:pc(atraiter),'var(--amber)')}<small class="sr">${avecParam?'à traiter':pc(atraiter)+' %'}</small></button>
  <button type="button" class="kpi discret${TRI.cle==='heures'?' actif':''}" data-kpi="heures"><span>Heures retenues ce mois<b>${hFr(s.heuresConfirmees-a.attente)}</b>${a.attente?`<small>+ ${hFr(a.attente)} à arbitrer</small>`:''}</span></button>
  </div>`;
 }
@@ -663,7 +667,7 @@ function renderDecisions(){
  ${RAPPORT.bloqueurs.length?`<div class="alert">${s.aVerifier} à arbitrer · ${s.configurationRequise} paramétrage${s.configurationRequise>1?'s':''} à compléter avant de valider le mois.${s.salariesDonneeManquante?`<br>${s.salariesDonneeManquante} salarié(s) en « donnée manquante » : leur fiche est incomplète et ne doit pas partir en paie.`:''}<br><button class="btn primary jump-first" style="margin-top:8px">Traiter les ${s.aVerifier+s.configurationRequise} élément${s.aVerifier+s.configurationRequise>1?'s':''}</button></div>`:'<div class="ok">✓ Aucun arbitrage en attente.</div>'}
  ${decisions.map(i=>`<div class="review-card"><div class="review-name">${ECHAPPE(i.employeeNom||'Employé à identifier')}</div>${blocExplication(i)}${renderItem(null,i)}</div>`).join('')}
  ${signales.length?`<div class="bloc-titre" id="signalSection">Signalés pour vérification · ${signales.length}</div><div class="help" style="margin-top:0">Verify fait foi : ces jours sont déjà comptés et ne bloquent pas le dossier. Régularisez le planning, ou marquez l’écart vérifié en donnant le motif.</div>${signales.map(i=>`<div class="review-card"><div class="review-name">${ECHAPPE(i.employeeNom||'Employé à identifier')}</div>${renderItem(null,i)}</div>`).join('')}`:''}
- ${conf.length?`<div class="bloc-titre">Paramétrages à compléter · ${conf.length}</div>${conf.map(b=>`<div class="review-card review-system"><div class="review-name">Paramétrage</div><div class="item-title">${ECHAPPE(b.libelle)}</div><div class="item-meta">Réglage permanent — à compléter une fois, pas un arbitrage du mois.</div><button class="btn jump-employees" style="margin-top:8px">Configurer</button></div>`).join('')}`:''}
+ ${conf.length?`<div class="bloc-titre">Paramétrages à compléter · ${conf.length}</div>${conf.map(b=>`<div class="review-card review-system"><div class="review-name">Paramétrage</div><div class="item-title">${ECHAPPE(b.libelle)}</div><div class="item-meta">Réglage permanent — à compléter une fois, pas un arbitrage du mois.</div>${b.employeeId?`<button class="btn configure" data-id="${ECHAPPE(b.employeeId)}" style="margin-top:8px">Configurer</button>`:`<button class="btn jump-employees" style="margin-top:8px">Configurer</button>`}</div>`).join('')}`:''}
  <div class="bloc-titre" id="ecartsSection">Écarts Verify / Planning à examiner (facultatif)${ecarts.length?` · ${ecarts.length}`:''} ${infoBtn('ecart','écarts informatifs')}</div>
  <div class="help" style="margin-top:0">Ce que Verify a constaté, mis en regard de ce que le planning prévoyait. Ces écarts ne modifient aucune heure et ne bloquent pas la préparation de la paie : les heures affichées restent celles que Verify justifie.</div>
  ${RAPPORT.renfortsLisibles===false?`<div class="alert">Les renforts déclarés dans Verify ne sont pas lisibles pour l’instant : la colonne attend sa migration. Les écarts ci-dessous ne tiennent donc pas compte des renforts.</div>`:''}
@@ -723,7 +727,7 @@ function renderSaisie(){
 function render(){
  const s=RAPPORT.synthese, statut=etatPeriode(), ec=totauxEcarts(), a=agregats();
  if(!SELECTION||!trouverFiche(SELECTION))SELECTION=selectionParDefaut();
- const dec=Math.max(0,s.salariesInclus-s.salariesPrets);
+ const dec=nbATraiter();
  document.getElementById('app').innerHTML=`
  <div class="haut-page"><a class="menu" href="NEXUS-App-v1.html">☰ Menu</a></div>
  <header class="hero"><div class="hero-haut">

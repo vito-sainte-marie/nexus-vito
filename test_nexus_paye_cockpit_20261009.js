@@ -279,7 +279,7 @@ vm.runInContext("SELECTION = 'e3'; ONGLET = 'fiche'; FICHE_ONGLET = 'synthese'; 
 const fiche = () => (rendu.panelInner || '') + ecran();
 verifier('un rattachement à la paie jamais confirmé est signalé dans sa fiche',
   dans(fiche(), '1 réglage à compléter : rattachement à la paie'));
-verifier('… et la fiche porte de quoi le configurer', dans(fiche(), 'primary configure') && (fiche().match(/class="btn [a-z ]*configure"/g) || []).length === 1);
+verifier('… et la fiche porte de quoi le configurer', dans(fiche(), 'primary configure') && (fiche().match(/class="btn primary configure"/g) || []).length === 1);
 
 vm.runInContext(`
   REGLAGE_E4 = RAPPORT.employes.find(f => f.employee.id === 'e4').reglage;
