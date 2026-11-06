@@ -14,11 +14,19 @@ const NexusPayeValidation = (function () {
   function verificationCaduque(statut, restant) {
     return statut === 'verifie' && restant > 0;
   }
+  // Le titre d'un bouton grisé nomme sa cause : les paramétrages à compléter sont cités par salarié.
+  function causeTitre(restant, parametrages) {
+    if (!parametrages.length) return `${restant} à traiter`;
+    const p = `${parametrages.length} paramétrage${parametrages.length > 1 ? 's' : ''} à compléter : ${parametrages.join(', ')}`;
+    const autres = restant - parametrages.length;
+    return autres > 0 ? `${p} · ${autres} autre${autres > 1 ? 's' : ''} à traiter` : p;
+  }
   function etat(e) {
     const statut = e.statut || 'brouillon';
     const restant = aTraiter(e);
     const n = Number(e.salariesPrets) || 0;
     const total = Number(e.salariesInclus) || 0;
+    const parametrages = Array.isArray(e.parametrages) ? e.parametrages : [];
     const valider = statut === 'brouillon' && restant === 0 && n > 0;
     const libelleValider = n === 1 ? 'Valider le salarié prêt' : `Valider les ${n} salariés prêts`;
     return {
@@ -29,10 +37,10 @@ const NexusPayeValidation = (function () {
       validerVisible: statut === 'brouillon',
       validerActif: valider,
       validerLibelle: libelleValider,
-      validerTitre: valider ? '' : (restant ? `${restant} à traiter avant de valider` : 'Aucun salarié prêt à valider'),
+      validerTitre: valider ? '' : (restant ? `${causeTitre(restant, parametrages)} avant de valider` : 'Aucun salarié prêt à valider'),
       transmettreActif: statut === 'verifie' && restant === 0,
       transmettreTitre: statut === 'brouillon' ? 'Validez d’abord les salariés prêts'
-        : statut === 'transmis' ? 'Déjà transmis' : (restant ? `${restant} à traiter` : ''),
+        : statut === 'transmis' ? 'Déjà transmis' : (restant ? causeTitre(restant, parametrages) : ''),
     };
   }
   return { aTraiter, verificationCaduque, etat };
