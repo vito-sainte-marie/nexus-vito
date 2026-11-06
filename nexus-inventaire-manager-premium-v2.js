@@ -7,7 +7,6 @@
   if (!/NEXUS-Inventaire-Manager-v1\.html$/i.test(window.location.pathname)) return;
 
   const STYLE_ID = 'nexus-inventaire-manager-premium-v2-style';
-  const HEADER_META_ID = 'nexusInventaireManagerPremiumMeta';
 
   const normaliser = (texte) => String(texte || '')
     .normalize('NFD')
@@ -63,58 +62,6 @@
         font-size:clamp(22px,2vw,30px);
         letter-spacing:-.025em;
         font-weight:650;
-      }
-
-      body.nexus-inventaire-manager-premium-v2 .heure-live{
-        margin-top:12px;
-        font-size:clamp(21px,1.8vw,26px);
-        letter-spacing:-.02em;
-      }
-
-      body.nexus-inventaire-manager-premium-v2 .date-live{
-        margin-top:4px;
-      }
-
-      body.nexus-inventaire-manager-premium-v2 .sub{
-        max-width:620px;
-        font-size:12.5px;
-        color:#7F8D9C;
-      }
-
-      .inv-manager-premium-meta{
-        display:flex;
-        gap:7px;
-        flex-wrap:wrap;
-        margin-top:13px;
-      }
-
-      .inv-manager-premium-chip{
-        display:inline-flex;
-        align-items:center;
-        gap:6px;
-        min-height:26px;
-        padding:5px 9px;
-        border-radius:999px;
-        border:1px solid var(--inv-premium-line);
-        background:rgba(255,255,255,.025);
-        color:#91A0AF;
-        font:600 9.5px/1 var(--mono);
-        letter-spacing:.04em;
-        text-transform:uppercase;
-      }
-
-      .inv-manager-premium-chip.primary{
-        color:var(--inv-premium-cyan);
-        border-color:rgba(86,199,220,.24);
-        background:var(--inv-premium-cyan-soft);
-      }
-
-      .inv-manager-premium-chip .dot{
-        width:6px;
-        height:6px;
-        border-radius:50%;
-        background:currentColor;
-        box-shadow:0 0 10px currentColor;
       }
 
       body.nexus-inventaire-manager-premium-v2 .divider{
@@ -368,22 +315,6 @@
     document.head.appendChild(style);
   }
 
-  function ajouterMetaEntete() {
-    const header = document.querySelector('.header');
-    const sub = header && header.querySelector('.sub');
-    if (!header || !sub || document.getElementById(HEADER_META_ID)) return;
-
-    const meta = document.createElement('div');
-    meta.id = HEADER_META_ID;
-    meta.className = 'inv-manager-premium-meta';
-    meta.innerHTML = `
-      <span class="inv-manager-premium-chip primary"><span class="dot"></span>Pilotage terrain</span>
-      <span class="inv-manager-premium-chip">Inventaire V2</span>
-      <span class="inv-manager-premium-chip">Vue manager</span>
-    `;
-    sub.insertAdjacentElement('afterend', meta);
-  }
-
   function renommerEtClasserTitres() {
     document.querySelectorAll('.section-titre').forEach((el) => {
       const texte = normaliser(el.textContent);
@@ -452,7 +383,6 @@
   function appliquer() {
     document.body.classList.add('nexus-inventaire-manager-premium-v2');
     injecterStyles();
-    ajouterMetaEntete();
     renommerEtClasserTitres();
     classerCartes();
     clarifierEtatsVides();

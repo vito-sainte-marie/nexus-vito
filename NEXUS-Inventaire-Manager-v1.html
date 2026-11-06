@@ -58,14 +58,29 @@
   body{display:flex; justify-content:center; min-height:100vh;}
   .phone{width:100%; max-width:460px; min-height:100vh; display:flex; flex-direction:column; border-left:1px solid var(--hairline); border-right:1px solid var(--hairline); padding-top:env(safe-area-inset-top); padding-bottom:env(safe-area-inset-bottom);}
 
-  .header{padding:24px 20px 14px; position:relative;}
-  /* Photo de la station (socle visuel, lot 1) : bandeau en tête, fondu vers le bas. Photo provisoire (Accueil) jusqu'au lot 2. */
-  .header>.am-banniere{position:relative;height:120px;margin:-24px -20px 12px;overflow:hidden;z-index:0;-webkit-mask-image:linear-gradient(to bottom,black 55%,transparent 100%);mask-image:linear-gradient(to bottom,black 55%,transparent 100%)}
-  .header>.am-banniere img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:85% 50%}
-  .header>.am-banniere::after{content:"";position:absolute;inset:0;background:linear-gradient(to right,var(--bg) 0%,transparent 65%);pointer-events:none}
-.header>.am-banniere img.am-fondu{opacity:0;transition:opacity 800ms ease}
+  .header{padding:18px 20px 14px; position:relative; min-height:150px; overflow:hidden;}
+  /* Photo de la station : posée derrière le texte, cadrée sur le terminal d'inventaire (à droite). */
+  .header>.am-banniere{position:absolute;inset:0;z-index:0;overflow:hidden;-webkit-mask-image:linear-gradient(to bottom,black 70%,transparent 100%);mask-image:linear-gradient(to bottom,black 70%,transparent 100%)}
+  .header>.am-banniere img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:85% 58%}
+  .header>.am-banniere::after{content:"";position:absolute;inset:0;background:linear-gradient(to right,var(--bg) 0%,var(--bg) 18%,transparent 75%);opacity:.92;pointer-events:none}
+  .header>.am-banniere img.am-fondu{opacity:0;transition:opacity 800ms ease}
   .header>.am-banniere img.am-fondu-visible{opacity:1}
   @media (prefers-reduced-motion:reduce){.header>.am-banniere img.am-fondu{transition:none}}
+  .entete-texte{position:relative;z-index:1;max-width:340px}
+  .entete-station{font-size:13px;color:var(--text-mid);margin-top:2px}
+  .entete-selecteur{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:10px}
+  .entete-selecteur .date-input{min-height:44px}
+  .btn-jour{min-width:44px;min-height:44px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--text);font-size:18px;cursor:pointer}
+  .entete-selecteur .quart-pill{min-height:44px;display:inline-flex;align-items:center}
+  .entete-etat{margin-top:10px;min-height:30px}
+  .entete-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  .entete-actions a,.entete-actions button{min-height:44px;display:inline-flex;align-items:center;padding:0 14px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--text);font:600 13px var(--sans);text-decoration:none;cursor:pointer}
+  .entete-actions .principal{background:var(--cyan);color:var(--on-cyan);border-color:var(--cyan)}
+  .entete-actions [hidden]{display:none}
+  .indicateurs{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:12px}
+  .lien-parametres{display:inline-block;margin:6px 0 14px;min-height:44px;line-height:44px;font-size:12.5px;color:var(--text-mid);text-decoration:none}
+  .conseiller-plus{margin-top:8px}
+  .btn-pourquoi{min-height:44px;background:none;border:0;color:var(--cyan);font:600 12.5px var(--sans);cursor:pointer;padding:0}
   .menu-btn{
     position:absolute; top:18px; right:18px; display:flex; align-items:center; gap:6px;
     font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase;
@@ -75,9 +90,6 @@
   .menu-btn:active{background:rgba(var(--cyan-rgb),0.2);}
   .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--cyan);}
   .title{font-size:22px; font-weight:600; margin-top:4px;}
-  .heure-live{font-family:var(--mono); font-size:26px; font-weight:600; margin-top:10px; color:var(--text);}
-  .date-live{font-size:12px; color:var(--text-mid); margin-top:2px; text-transform:capitalize;}
-  .sub{font-size:13px; color:var(--text-mid); margin-top:6px; line-height:1.5;}
   .divider{height:1px; background:var(--hairline); margin:0 20px;}
   .section{padding:16px 20px;}
   .loading{padding:60px 20px; text-align:center; color:var(--text-dim); font-size:13px;}
@@ -390,16 +402,6 @@
 
   footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
 
-  /* Bandeau quotidien Paramètres Inventaire (04/08/2026) */
-  .tip-banniere{margin:14px 20px 0; padding:12px 14px; border-radius:10px; background:var(--amber-dim); border:1px solid rgba(var(--amber-rgb),0.4); animation:tipApparition .25s ease;}
-  .tip-banniere-texte{font-size:12px; line-height:1.55; color:var(--amber-text);}
-  .tip-banniere-texte b{color:var(--amber);}
-  .tip-banniere-liste{margin:6px 0 0; padding-left:18px;}
-  .tip-banniere-liste li{margin-bottom:3px;}
-  .tip-banniere-actions{display:flex; justify-content:space-between; align-items:center; margin-top:8px;}
-  .tip-banniere-lien{font-family:var(--sans); font-size:11.5px; font-weight:700; color:var(--amber); text-decoration:none;}
-  .tip-banniere-fermer{color:var(--text-dim); font-size:13px; cursor:pointer; padding:2px 6px;}
-  @keyframes tipApparition{from{opacity:0; transform:translateY(-4px);} to{opacity:1; transform:translateY(0);}}
 
   /* Rapport PDF (10/08/2026) — mêmes classes que NEXUS-FDJ-Analyse-v1.html,
      NEXUS-Brief-v1.html et Nexus Verify (moteur PDF partagé, une seule
@@ -420,39 +422,26 @@
 <div class="phone">
   <div class="header">
     <a href="NEXUS-App-v1.html" class="menu-btn">☰ Menu</a>
-    <div class="eyebrow">NEXUS · Inventaire — Manager</div>
-    <div class="title" id="titre">Chargement…</div>
-    <div class="heure-live" id="heureLive">--:--:--</div>
-    <div class="date-live" id="dateLive"></div>
-    <div class="sub">Écarts, comptages manquants et décisions du jour</div>
+    <div class="entete-texte">
+      <div class="eyebrow">NEXUS · Inventaire — Manager</div>
+      <div class="title" id="titre">Chargement…</div>
+      <div class="entete-station" id="enteteStation"></div>
+      <div class="entete-selecteur" id="enteteSelecteur">
+        <button type="button" class="btn-jour" id="btnJourPrec" aria-label="Jour précédent">‹</button>
+        <input type="date" id="selDate" class="date-input">
+        <button type="button" class="btn-jour" id="btnJourSuiv" aria-label="Jour suivant">›</button>
+        <div class="quart-pill" data-quart="matin">Matin</div>
+        <div class="quart-pill" data-quart="soir">Soir</div>
+      </div>
+      <div class="entete-etat" id="enteteEtat"></div>
+      <div class="entete-actions">
+        <a href="NEXUS-Stock-Localise-v1.html" id="btnStockEmplacement">Stock par emplacement</a>
+        <button type="button" class="principal" id="btnVoirManquants" hidden></button>
+      </div>
+    </div>
   </div>
   <div class="divider"></div>
 
-  <!-- Bandeau quotidien Paramètres Inventaire (04/08/2026, demande de
-       Frédéric) : rappelle une fois par jour ce qu'on peut configurer,
-       disparaît tout seul après 1 minute (ou au clic), revient le
-       lendemain — jamais affiché en permanence pour ne pas polluer l'écran
-       "que dois-je traiter maintenant ?". localStorage garde juste la
-       date du dernier affichage, rien de plus. -->
-  <div class="tip-banniere" id="tipParametresInventaire" style="display:none;">
-    <div class="tip-banniere-texte">
-      💡 <b>Le saviez-vous ?</b><br>
-      Dans <b>⚙️ Paramètres Inventaire</b>, vous pouvez personnaliser entièrement votre inventaire :
-      <ul class="tip-banniere-liste">
-        <li>Ajouter ou retirer des produits à compter.</li>
-        <li>Organiser l'ordre et le parcours de comptage.</li>
-        <li>Définir les règles propres à certains produits (viennoiseries, presse, retours fournisseur, produits du jour…).</li>
-        <li>Régler les alertes et les seuils d'anomalie.</li>
-      </ul>
-    </div>
-    <div class="tip-banniere-actions">
-      <a href="NEXUS-Parametres-Inventaire-v1.html" class="tip-banniere-lien">Découvrir →</a>
-      <span class="tip-banniere-fermer" id="btnFermerTip">✕</span>
-    </div>
-  </div>
-
-  <!-- desktop-grid (02/08/2026) : mise en colonnes en vue bureau (voir
-       nexus-desktop.js) — purement additif, aucun effet en mobile. -->
   <div class="section desktop-grid" id="content">
     <div class="loading">Chargement…</div>
   </div>
@@ -588,17 +577,48 @@
     { value: 'correction_stock_transmis', label: 'Corriger le stock transmis', special: 'correction' },
   ];
 
-  function heureLocale() {
-    return new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  // En-tête (lot 2) : sélecteur jour/quart, état réel du quart, bouton « Voir les n manquants ».
+  // Les liaisons sont posées une fois ; majEntete() ne fait que refléter l'état après chaque rendu.
+  function decalerJour(delta) {
+    const [a, m, j] = dateSelectionnee.split('-').map(Number);
+    const d = new Date(Date.UTC(a, m - 1, j + delta));
+    return d.toISOString().slice(0, 10);
   }
-  function demarrerHorloge() {
-    const majHeure = () => {
-      document.getElementById('heureLive').textContent = heureLocale();
-      document.getElementById('dateLive').textContent = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
-    };
-    majHeure();
-    setInterval(majHeure, 1000);
+  function brancherEntete(siteId) {
+    const sel = document.getElementById('selDate');
+    const aller = async (iso) => { dateSelectionnee = iso; await chargerEtAfficherTout(); };
+    sel.addEventListener('change', e => { if (e.target.value) aller(e.target.value); });
+    document.getElementById('btnJourPrec').addEventListener('click', () => aller(decalerJour(-1)));
+    document.getElementById('btnJourSuiv').addEventListener('click', () => aller(decalerJour(1)));
+    document.querySelectorAll('#enteteSelecteur .quart-pill[data-quart]').forEach(el => el.addEventListener('click', async () => {
+      quartSelectionne = el.dataset.quart;
+      await chargerEtAfficherTout();
+    }));
+    document.getElementById('btnVoirManquants').addEventListener('click', () => {
+      const c = document.getElementById('sectionATerminer');
+      if (c) c.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    // Nom de la station : lu en base, jamais inventé (rien n'est affiché s'il manque).
+    Promise.resolve(nexusClient.from('sites').select('nom_entreprise').eq('site_id', siteId).maybeSingle())
+      .then(r => { const n = r && r.data && r.data.nom_entreprise; if (n) document.getElementById('enteteStation').textContent = n; })
+      .catch(() => {});
   }
+  function majEntete(q, synthese, etat) {
+    document.getElementById('selDate').value = dateSelectionnee;
+    document.querySelectorAll('#enteteSelecteur .quart-pill[data-quart]').forEach(el =>
+      el.classList.toggle('active', el.dataset.quart === quartSelectionne));
+    const texte = q ? libelleStatutQuart(q) : 'Pas encore démarré';
+    let ton = 'hp';
+    if (q && q.statut === 'cloture') ton = 'ok';
+    else if (etat && etat.urgence === 'retard') ton = 'bad';
+    else if (etat && etat.urgence === 'proche') ton = 'todo';
+    document.getElementById('enteteEtat').innerHTML = NexusComposantsPilotage.pill(texte, ton);
+    const b = document.getElementById('btnVoirManquants');
+    const n = q && synthese ? synthese.manquants : 0;
+    b.hidden = !(n > 0);
+    b.textContent = `Voir les ${n} manquant${n > 1 ? 's' : ''}`;
+  }
+
   function dateISO() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -1922,7 +1942,17 @@
       console.error('Conseiller NEXUS — traçabilité:', e);
     }
 
-    corps.innerHTML = remarques.map(r => `<div class="conseiller-remarque">${r}</div>`).join('');
+    const lignesConseiller = remarques.map(r => `<div class="conseiller-remarque">${r}</div>`);
+    corps.innerHTML = lignesConseiller.slice(0, 1).join('')
+      + (lignesConseiller.length > 1
+        ? `<button type="button" class="btn-pourquoi" id="btnPourquoi" aria-expanded="false">Pourquoi ?</button><div class="conseiller-plus" id="conseillerPlus" hidden>${lignesConseiller.slice(1).join('')}</div>`
+        : '');
+    const btnPourquoi = document.getElementById('btnPourquoi');
+    if (btnPourquoi) btnPourquoi.addEventListener('click', () => {
+      const plus = document.getElementById('conseillerPlus');
+      plus.hidden = !plus.hidden;
+      btnPourquoi.setAttribute('aria-expanded', String(!plus.hidden));
+    });
     const btnVoirCategories = document.getElementById('btnVoirCategoriesIncompletes');
     if (btnVoirCategories) btnVoirCategories.addEventListener('click', () => {
       const el = document.getElementById('sectionATerminer');
@@ -2674,39 +2704,11 @@
     `;
   }
 
-  // Progression du quart (02/08/2026, demande de Frédéric — remplace
-  // "Synthèse du quart") : pourcentage + barre visuelle en tête, pour que le
-  // manager comprenne l'avancement sans lire toutes les lignes.
-  // Bannière de clôture cohérente avec l'état temporel (02/08/2026, demande
-  // de Frédéric) : avant, "Clôture impossible..." en amber dès qu'il restait
-  // des comptages manquants, même à 18h06 pour une clôture normale à 19h40 —
-  // contredisait la carte État du quart, déjà nuancée. Les deux suivent
-  // maintenant la même logique d'urgence (normal/proche/retard).
-  // Brief Inventaire (04/08/2026, audit §21) : "le manager ne relit plus
-  // toute la feuille, il ouvre uniquement les cartes d'anomalies" — un
-  // condensé des 5 informations listées dans l'audit, calculé uniquement à
-  // partir de synthese/alertesOuvertes/decisionsQuart déjà chargés (jamais
-  // un second calcul divergent de renderSyntheseQuart en dessous).
-  function renderBriefInventaire(synthese, alertesOuvertes, decisionsQuart, importDeceniumFait) {
-    const anomaliesDetectees = alertesOuvertes.length + decisionsQuart.length;
-    return `
-      <div class="section-titre">Brief Inventaire</div>
-      <div class="synthese-card">
-        <div class="synthese-ligne"><span>Catégories terminées</span><span class="synthese-valeur ${synthese.categoriesTerminees < synthese.categoriesTotal ? 'amber' : 'green'}">${synthese.categoriesTerminees} / ${synthese.categoriesTotal}</span></div>
-        <div class="synthese-ligne"><span>Produits contrôlés</span><span class="synthese-valeur">${decisionsQuart.length}</span></div>
-        <div class="synthese-ligne"><span>Anomalies détectées</span><span class="synthese-valeur ${anomaliesDetectees ? 'amber' : 'green'}">${anomaliesDetectees}</span></div>
-        <div class="synthese-ligne"><span>Anomalies expliquées</span><span class="synthese-valeur ${decisionsQuart.length ? 'green' : ''}">${decisionsQuart.length}</span></div>
-        <div class="synthese-ligne"><span>Décisions nécessaires</span><span class="synthese-valeur ${alertesOuvertes.length ? 'amber' : 'green'}">${alertesOuvertes.length}</span></div>
-        <div class="synthese-ligne"><span>Import Decenium</span><span class="synthese-valeur ${importDeceniumFait ? 'green' : 'amber'}">${importDeceniumFait ? 'Fait' : 'Manquant'}</span></div>
-      </div>
-      ${alertesOuvertes.length > 0
-        ? `<div style="font-size:11px; color:var(--text-dim); margin:6px 2px 14px;">Ouvrez uniquement les cartes d'anomalies dans « À contrôler » — le reste est déjà à jour.</div>`
-        : `<div style="font-size:11px; color:var(--text-dim); margin:6px 2px 14px;">Aucune anomalie à traiter pour l'instant.</div>`}
-    `;
-  }
-
-  function renderSyntheseQuart(s, etat) {
-    const phaseLabel = s.phase === 'clotures' ? 'comptés (clôture)' : 'comptés';
+  // Indicateurs du quart (Contrôle inventaire, lot 2 — 06/11/2026) : trois tuiles cliquables et la ligne
+  // de clôture. Mêmes nombres que l'ancienne carte « Progression » (synthese.*) et mêmes règles de
+  // clôture : aucun calcul nouveau. Avant : bannière de clôture cohérente avec l'état temporel
+  // (normal/proche/retard), comme la carte État du quart.
+  function renderIndicateurs(s, etat, alertesOuvertes) {
     const urgence = etat ? etat.urgence : 'normal';
     let clotureClasse, clotureTexte;
     if (s.manquants === 0) {
@@ -2723,20 +2725,15 @@
       clotureClasse = 'retard';
       clotureTexte = `Clôture en retard — ${s.manquants} produit${s.manquants > 1 ? 's' : ''} non compté${s.manquants > 1 ? 's' : ''}.`;
     }
+    const P = NexusComposantsPilotage;
+    const nbAnomalies = alertesOuvertes.length;
     return `
-      <div class="synthese-card">
-        <div class="synthese-titre">Progression</div>
-        <div class="synthese-pct-row">
-          <span class="synthese-pct">${s.pourcentage}%</span>
-          <span class="synthese-pct-label">du comptage ${s.phase === 'clotures' ? 'de clôture' : "d'ouverture"} terminé</span>
-        </div>
-        <div class="synthese-barre"><div class="synthese-remplie" style="width:${s.pourcentage}%"></div></div>
-        <div class="synthese-ligne"><span>Produits ${phaseLabel}</span><span class="synthese-valeur ${s.manquants ? 'amber' : 'green'}">${s.comptes} / ${s.total}</span></div>
-        <div class="synthese-ligne"><span>Catégories terminées</span><span class="synthese-valeur ${s.categoriesTerminees < s.categoriesTotal ? 'amber' : 'green'}">${s.categoriesTerminees} / ${s.categoriesTotal}</span></div>
-        <div class="synthese-ligne"><span>Écarts à contrôler</span><span class="synthese-valeur ${s.ecartsAControler ? 'amber' : 'green'}">${s.ecartsAControler}</span></div>
-        <div class="synthese-ligne"><span>Comptages manquants</span><span class="synthese-valeur ${s.manquants ? 'amber' : 'green'}">${s.manquants}</span></div>
-        <div class="synthese-cloture ${clotureClasse}">${clotureTexte}</div>
+      <div class="indicateurs">
+        ${P.tuile({pct: s.pourcentage, couleur: s.manquants ? 'var(--amber)' : 'var(--green)', valeur: `${s.comptes} / ${s.total}`, libelle: `Produits ${s.phase === 'clotures' ? 'comptés (clôture)' : 'comptés'}`, info: 'comptes', cible: 'sectionATerminer'})}
+        ${P.tuile({valeur: s.manquants, libelle: 'Comptages manquants', pastille: P.pill(s.manquants ? 'À compter' : 'Complet', s.manquants ? 'todo' : 'ok'), info: 'manquants', cible: 'sectionATerminer'})}
+        ${P.tuile({valeur: nbAnomalies, libelle: 'Anomalies à traiter', pastille: P.pill(nbAnomalies ? 'À décider' : 'Aucune', nbAnomalies ? 'todo' : 'ok'), info: 'anomalies', cible: 'sectionAControler'})}
       </div>
+      <div class="synthese-cloture ${clotureClasse}">${clotureTexte}</div>
     `;
   }
 
@@ -3022,20 +3019,13 @@
       ${renderSelecteurPeriode()}
       ${renderCouverturePhysique(couverture7, couverture14, couverture30)}
       ${periodeSelectionnee === 'jour' ? `
-      <div class="quart-select-row">
-        <input type="date" id="selDate" class="date-input" value="${dateSelectionnee}">
-        <div class="quart-pill ${quartSelectionne === 'matin' ? 'active' : ''}" data-quart="matin">Matin</div>
-        <div class="quart-pill ${quartSelectionne === 'soir' ? 'active' : ''}" data-quart="soir">Soir</div>
-      </div>
       ${quartRow ? renderEtatQuartCard(etat) : '<div class="quart-statut">Aucun inventaire n\'a encore été démarré pour ce quart.</div>'}
-
-      ${quartRow ? renderBriefInventaire(synthese, alertesOuvertes, decisionsQuart, ctx.importDeceniumFait) : ''}
 
       ${quartRow ? renderQualiteRapprochement(qualiteRapprochement) : ''}
 
       ${quartRow ? renderRapprochementParMission(missionsAvecRapprochement) : ''}
 
-      ${quartRow ? renderSyntheseQuart(synthese, etat) : ''}
+      ${quartRow ? renderIndicateurs(synthese, etat, alertesOuvertes) : ''}
 
       <div class="conseiller-card" id="conseillerCard">
         <div class="conseiller-head">
@@ -3112,7 +3102,7 @@
           ? '<div class="empty">Tous les comptages requis ont été effectués.</div>'
           : `<div class="card">${synthese.categoriesIncompletes.map(c => renderCategorieManquante(c)).join('')}</div>`}
 
-        <div class="section-titre-action-row">
+        <div class="section-titre-action-row" id="sectionAControler">
           <div class="section-titre">À contrôler</div>
           ${alertesValidablesEnBloc(alertesOuvertes).length > 0 ? '<button class="btn-tout-valider" id="btnToutValider">Tout valider</button>' : ''}
         </div>
@@ -3166,14 +3156,10 @@
       </a>
     `;
 
-    const selDateEl = document.getElementById('selDate');
-    if (selDateEl) selDateEl.addEventListener('change', async (e) => {
-      dateSelectionnee = e.target.value;
-      await chargerEtAfficherTout();
-    });
-    document.querySelectorAll('.quart-pill').forEach(el => el.addEventListener('click', async () => {
-      quartSelectionne = el.dataset.quart;
-      await chargerEtAfficherTout();
+    majEntete(quartRow, synthese, etat);
+    document.querySelectorAll('.np-tuile-corps').forEach(el => el.addEventListener('click', () => {
+      const cible = document.getElementById(el.dataset.cible);
+      if (cible) cible.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }));
     document.querySelectorAll('.periode-pill').forEach(el => el.addEventListener('click', async () => {
       periodeSelectionnee = el.dataset.periode;
@@ -3580,9 +3566,12 @@
       const fuseauSite = await nexusFuseauSite(siteId);
       if (fuseauSite && typeof NexusTheme !== 'undefined') NexusTheme.definirFuseau(fuseauSite);
     } catch (e) {}
-    NexusComposantsPilotage.brancherInfos({});
+    NexusComposantsPilotage.brancherInfos({
+      comptes: ["Produits comptés", 'Nombre de produits déjà comptés sur le nombre de produits attendus pour ce quart.'],
+      manquants: ['Comptages manquants', 'Produits attendus que personne n\u2019a encore comptés pour ce quart.'],
+      anomalies: ['Anomalies à traiter', 'Écarts ou oublis ouverts qui attendent une décision du manager.']
+    });
     if (!(await NexusForfait.nexusRequireProfessional('NEXUS-Inventaire-Manager-v1.html', siteId))) return;
-    demarrerHorloge();
     document.getElementById('titre').textContent = 'Contrôle inventaire';
 
     dateSelectionnee = dateISO();
@@ -3593,8 +3582,8 @@
       return;
     }
 
+    brancherEntete(siteId);
     await chargerEtAfficherTout();
-    afficherTipParametresInventaireSiUtile();
 
     // Cadrage risques Phase 6 (tâche #235, 18/08/2026) — Inventaire devient
     // un domaine NexusRisques, écrit en arrière-plan depuis l'écran manager
@@ -3614,23 +3603,6 @@
     })();
   });
 
-  // Bandeau quotidien Paramètres Inventaire (04/08/2026, demande de
-  // Frédéric) : une seule clé localStorage horodatée à la date du jour —
-  // pas de table ni de compte à rebours côté serveur, juste "déjà montré
-  // aujourd'hui ?". Revient tout seul le lendemain puisque la date change.
-  function afficherTipParametresInventaireSiUtile() {
-    const CLE = 'nexus_tip_parametres_inventaire_derniere_date';
-    const aujourdhui = dateISO();
-    if (localStorage.getItem(CLE) === aujourdhui) return;
-    const banniere = document.getElementById('tipParametresInventaire');
-    if (!banniere) return;
-    banniere.style.display = 'block';
-    localStorage.setItem(CLE, aujourdhui);
-    const masquer = () => { banniere.style.display = 'none'; };
-    const minuteur = setTimeout(masquer, 60000);
-    const btnFermer = document.getElementById('btnFermerTip');
-    if (btnFermer) btnFermer.addEventListener('click', () => { clearTimeout(minuteur); masquer(); });
-  }
 </script>
 </body>
 </html>
