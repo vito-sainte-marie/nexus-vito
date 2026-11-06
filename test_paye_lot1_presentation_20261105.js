@@ -217,4 +217,27 @@ verifier('avatars : une seule initiale, teinte stable par id, liseré et reflet,
   /function initiales\(nom\)\{const m=String\(nom\|\|'\?'\)\.trim\(\)\[0\]/.test(src) && /TEINTES_AVATAR=\[/.test(src) && /hsl\(var\(--teinte\)/.test(src)
   && /table\.sal tr\.selected \.av\{[^}]*0 0 0 2px var\(--cyan\)/.test(src) && /\.fiche-tete \.av\{width:72px/.test(src) && (src.match(/\$\{avatar\(f\.employee\)\}/g) || []).length === 2);
 
+// Finition (Guardian 6673053959) : deux familles, tailles réduites, un principal par zone, bordures réduites
+const fin0 = src.indexOf('/* Finition (05/11/2026');
+const fin = src.slice(fin0, src.indexOf('</style>', fin0));
+verifier('finition : bloc présent et texte d’interface en Sans (boutons, onglets, filtres)', fin.length > 100
+  && /\.btn,\.hero \.btn,\.topacts \.btn,button\.filtre,button\.tab,\.ftab,\.monthnav button\{font:600 15px var\(--sans\)/.test(fin));
+verifier('finition : libellés sans capitales espacées (13 px, casse normale, couleur secondaire)',
+  /button\.kpi span\{font:400 13px var\(--sans\);letter-spacing:0;text-transform:none;color:var\(--mid\)/.test(fin)
+  && /table\.sal thead th\{font:600 13px var\(--sans\);letter-spacing:0;text-transform:none/.test(fin));
+verifier('finition : valeurs des compteurs pleines (texte, orange si à traiter, vert pour Prêts), en Mono 32 px',
+  /span b\{font:700 32px\/1\.1 var\(--mono\);color:var\(--text\)/.test(fin) && /\.kpi\.warn span b\{color:var\(--amber\)/.test(fin) && /data-kpi="prets"\] span b\{color:var\(--green\)/.test(fin));
+verifier('finition : seul le compteur « À traiter » > 0 garde une bordure colorée',
+  /\.kpi3 button\.kpi\{border:0/.test(fin) && /\.kpi3 button\.kpi\.warn\{border:1px solid/.test(fin) && /kpi\$\{atraiter\?' warn':''\}/.test(src));
+verifier('finition : cartes de la fiche, variables et capsules sans bordure; « Caisse en consultation » sans cadre',
+  /\.carte-h,\.mini,\.var,\.ligne\{border:0/.test(fin) && /\.capsule\{border:0/.test(fin) && /\.caisse-consult\{border:0;background:none/.test(fin));
+verifier('finition : lignes de 60 px, en-tête de colonne 36 px, boutons 44 px',
+  /table\.sal tbody td\{[^}]*height:60px/.test(fin) && /table\.sal thead th\{[^}]*height:36px/.test(fin) && /min-height:44px/.test(fin));
+verifier('finition : Transmettre principal seulement quand tout est prêt, sinon secondaire désactivé avec sa raison',
+  /class="btn\$\{dec\?'':' primary'\} transmettre"/.test(src) && /disabled title="\$\{dec\} à traiter avant de transmettre"/.test(src));
+verifier('finition : « Voir le détail » est un lien texte; « + Nouvelle saisie » reste le seul plein dans l’en-tête',
+  /class="btn lien-texte" data-ftab="journees">Voir le détail/.test(src) && /\.hero \.topacts \.btn:not\(\.nouveau\):not\(\.primary\)\{background:none/.test(fin));
+verifier('finition : aucune police ni taille hors charte dans le bloc (pas de capitales, tailles 13/15/32/36 seulement)',
+  !/text-transform:uppercase/.test(fin) && [...fin.matchAll(/font(?:-size)?:(?:[0-9]{3} )?([0-9.]+)px/g)].every(m => ['13', '15', '32', '36'].includes(m[1])));
+
 console.log(`\n${ok} contrôles passent.`);
