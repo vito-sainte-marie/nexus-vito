@@ -750,8 +750,8 @@
         }
       });
 
-      (entree.ecarts || []).filter(e => e.employeeId === employee.id && dateDansMois(e.date, periode) && Number.isFinite(Number(e.montantRetenu)) && Number(e.montantRetenu) !== 0).forEach(e => {
-        const montantRetenu = Number(e.montantRetenu);
+      (entree.ecarts || []).filter(e => e.employeeId === employee.id && dateDansMois(e.date, periode) && montantEcartDuMoment(e) !== 0).forEach(e => {
+        const montantRetenu = montantEcartDuMoment(e);
         const negatif = montantRetenu < 0;
         const contestationOuverte = e.contestation && ['ouverte', 'en_reexamen'].includes(e.contestation.statut_contestation);
         fiche.items.push({
@@ -971,8 +971,8 @@
       employes.push(fiche);
     });
 
-    const ecartsNonAttribues = (entree.ecarts || []).filter(e => !e.employeeId && dateDansMois(e.date, periode) && Number.isFinite(Number(e.montantRetenu)) && Number(e.montantRetenu) !== 0).map(e => {
-      const montantRetenu = Number(e.montantRetenu);
+    const ecartsNonAttribues = (entree.ecarts || []).filter(e => !e.employeeId && dateDansMois(e.date, periode) && montantEcartDuMoment(e) !== 0).map(e => {
+      const montantRetenu = montantEcartDuMoment(e);
       return {
         sourceCle: `ecart:${e.id}`, typeItem: 'ecart_caisse', origine: e.sourceModule,
         employeeId: null, employeeNom: 'Employé à identifier', date: e.date, quart: e.quart || null,
@@ -1122,6 +1122,14 @@
   // compensé). FDJ : somme algébrique du mois ; si elle est positive, 0 est transmis.
   // Montant pris : l'écart final, ou à défaut l'initial — un écart « à vérifier » compte donc sur
   // son montant du moment, puis sur son montant ajusté une fois vérifié.
+  // Montant du moment d'un écart (06/11/2026) : l'écart final, sinon l'initial, sinon le montant retenu.
+  // Liste et cumul portent sur le MÊME ensemble : un écart « à vérifier » (montantRetenu 0) est listé.
+  function montantEcartDuMoment(e) {
+    const brut = e.ecartFinal != null ? e.ecartFinal : (e.ecartInitial != null ? e.ecartInitial : e.montantRetenu);
+    const n = Number(brut);
+    return brut == null || !Number.isFinite(n) ? 0 : n;
+  }
+
   function cumulEcartsCaisseMois(lignes) {
     let boutique = 0, piste = 0, fdj = 0;
     (lignes || []).forEach(l => {
