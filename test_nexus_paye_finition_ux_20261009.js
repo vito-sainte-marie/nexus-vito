@@ -62,6 +62,7 @@ vm.runInContext(fs.readFileSync(path.join(__dirname, 'nexus-ecarts-donnees.js'),
 const ECARTS_REEL = ctx.NexusEcartsDonnees;
 vm.runInContext(fs.readFileSync(path.join(__dirname, 'nexus-paye-moteur.js'), 'utf8'), ctx);
 vm.runInContext(fs.readFileSync(path.join(__dirname, 'nexus-banniere-station.js'), 'utf8'), ctx);
+vm.runInContext(fs.readFileSync(path.join(__dirname, 'nexus-paye-validation.js'), 'utf8'), ctx);
 vm.runInContext(fs.readFileSync(path.join(__dirname, 'nexus-paye-regularisations.js'), 'utf8'), ctx);
 vm.runInContext(script[1], ctx);
 

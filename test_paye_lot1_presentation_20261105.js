@@ -46,6 +46,7 @@ function charger(html) {
   if (!ctx.URLSearchParams) ctx.URLSearchParams = URLSearchParams;
   vm.runInContext(fs.readFileSync(path.join(__dirname, 'nexus-paye-moteur.js'), 'utf8'), ctx);
   vm.runInContext(fs.readFileSync(path.join(__dirname, 'nexus-banniere-station.js'), 'utf8'), ctx);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, 'nexus-paye-validation.js'), 'utf8'), ctx);
   
   vm.runInContext(script[1], ctx);
   const JOURS_E1 = ['2026-08-03', '2026-08-04', '2026-08-06', '2026-08-07'];
@@ -136,20 +137,13 @@ verifier('le hors paie est lu dans son onglet, sans statut de paie',
   /Mathieu/.test(ecran()) && !/class="st (ok|todo)"[^>]*>[^<]*<\/span><\/td><\/tr>[\s\S]*Mathieu/.test(ecran()));
 ev(apres, "FILTRE='inclus'; render();");
 
-// Valider le salarié : désactivé tant qu'une décision est ouverte
+// Valider le salarié : bouton retiré de la fiche (lot validation, 06/11/2026) ; la validation se fait au niveau du mois
 const ids = ev(apres, "RAPPORT.employes.filter(f=>f.reglage.inclus).map(f=>f.employee.id)");
-let vuOuvert = false, vuFerme = false;
 ids.forEach(id => {
   ev(apres, `SELECTION='${id}'; FICHE_ONGLET='synthese'; render();`);
   const t = ecran() + (apres.rendu.panelInner || '');
-  const m = t.match(/<button[^>]*valider-salarie[^>]*>/);
-  if (!m) return;
-  const aTraiter = ev(apres, `itemsEnAttente(RAPPORT.employes.find(f=>f.employee.id==='${id}')).length + bloqueursConfig('${id}').length`);
-  const desactive = /\bdisabled\b/.test(m[0]);
-  if (aTraiter > 0) { vuOuvert = true; verifier(`« Valider le salarié » est désactivé pour ${id} (${aTraiter} décision(s) ouverte(s))`, desactive); }
-  else { vuFerme = true; verifier(`« Valider le salarié » est actif pour ${id} (aucune décision ouverte)`, !desactive); }
+  verifier(`aucun bouton « Valider le salarié » dans la fiche de ${id}`, !/valider-salarie|Valider le salarié<|✓ Valider le salarié/.test(t));
 });
-verifier('les deux cas (décision ouverte / aucune) ont été exercés', vuOuvert);
 
 // Aucun onglet mort
 ev(apres, "SELECTION='e1'; render();");
@@ -233,8 +227,8 @@ verifier('finition : cartes de la fiche, variables et capsules sans bordure; « 
   /\.carte-h,\.mini,\.var,\.ligne\{border:0/.test(fin) && /\.capsule\{border:0/.test(fin) && /\.caisse-consult\{border:0;background:none/.test(fin));
 verifier('finition : lignes de 60 px, en-tête de colonne 36 px, boutons 44 px',
   /table\.sal tbody td\{[^}]*height:60px/.test(fin) && /table\.sal thead th\{[^}]*height:36px/.test(fin) && /min-height:44px/.test(fin));
-verifier('finition : Transmettre principal seulement quand tout est prêt, sinon secondaire désactivé avec sa raison',
-  /class="btn\$\{dec\?'':' primary'\} transmettre"/.test(src) && /disabled title="\$\{dec\} à traiter avant de transmettre"/.test(src));
+verifier('finition : Transmettre principal seulement après vérification, sinon secondaire désactivé avec sa raison',
+  /class="btn\$\{e\.transmettreActif\?' primary':''\} transmettre"/.test(src) && /disabled title="\$\{ECHAPPE\(e\.transmettreTitre\)\}"/.test(src));
 verifier('finition : « Voir le détail » est un lien texte; « + Nouvelle saisie » reste le seul plein dans l’en-tête',
   /class="btn lien-texte" data-ftab="journees">Voir le détail/.test(src) && /\.hero \.topacts \.btn:not\(\.nouveau\):not\(\.primary\)\{background:none/.test(fin));
 verifier('finition : aucune police ni taille hors charte dans le bloc (pas de capitales, tailles 13/15/32/36 seulement)',

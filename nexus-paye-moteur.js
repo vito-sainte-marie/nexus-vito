@@ -1161,7 +1161,9 @@
       congesPayes: groupeEvenements(i => i.motif === 'conge'),
       maladieMaternite: groupeEvenements(i => MOTIFS_MALADIE.includes(i.motif)),
       autresAbsences: groupeEvenements(i => i.motif && i.motif !== 'conge' && !MOTIFS_MALADIE.includes(i.motif)),
-      retards: { minutes: sommeMinutes(retards), occurrences: retards.length, enAttente: enAttente('retard') + enAttente('retard_incoherent') },
+      retards: { minutes: sommeMinutes(retards), occurrences: retards.length,
+        // Date et durée de chaque retard retenu (jamais ceux en attente), triés par date : le comptable les voit datés.
+        detail: retards.map(i => ({ date: i.date, minutes: Number(i.quantiteMinutes || 0) })).sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0), enAttente: enAttente('retard') + enAttente('retard_incoherent') },
       heuresSupplementaires: {
         // Total = 8e heure du barème (Q1) + heures validées par le manager qui ne sont
         // PAS déjà dans la présence. Une décision antérieure « déjà incluse » décrit la
