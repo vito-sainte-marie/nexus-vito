@@ -663,6 +663,15 @@
   // raisonnable, pas une donnée réelle, donc jamais présentée comme telle.
   function libelleEtatQuart(quart, synthese, horaires) {
     const base = libelleStatutQuart(quart);
+    // 06/11/2026 (Contrôle inventaire, lot 0) : un quart clôturé ou d'un jour passé n'est
+    // jamais « pas encore commencé » — l'heure du jour ne dit rien d'un quart d'hier.
+    const dateDuQuart = quart && quart.date ? String(quart.date).slice(0, 10) : '';
+    const aujourdhuiStation = FUSEAU_STATION_IM ? new Intl.DateTimeFormat('en-CA', { timeZone: FUSEAU_STATION_IM }).format(new Date()) : '';
+    const quartTermine = quart && (quart.statut === 'cloture' || (dateDuQuart && aujourdhuiStation && dateDuQuart < aujourdhuiStation));
+    if (quartTermine && synthese.phase === 'clotures') {
+      const m = synthese.manquants;
+      return { texte: m === 0 ? 'Quart clôturé · comptage de clôture complet' : `Quart clôturé · comptage de clôture incomplet (${m} manquant${m > 1 ? 's' : ''})`, urgence: 'normal' };
+    }
     if (synthese.phase !== 'clotures' || synthese.manquants === 0) return { texte: base, urgence: 'normal' };
 
     const cleHoraire = QUART_VERS_CLE_HORAIRE[quartSelectionne];
@@ -1106,10 +1115,16 @@
   // Tout valider (02/08/2026, demande de Frédéric) : résout chaque alerte
   // ouverte du quart avec la décision "Valider" — même trace d'audit que si
   // le manager avait cliqué "Valider" alerte par alerte.
+  // 06/11/2026 (lot 0) : `cloture_incomplete` et `demarque_ventes` se traitent une par une,
+  // jamais en bloc — « Tout valider » les laissait s'effacer à chaque quart.
+  const TYPES_ALERTE_HORS_TOUT_VALIDER = ['cloture_incomplete', 'demarque_ventes'];
+  function alertesValidablesEnBloc(alertes) {
+    return alertes.filter(a => TYPES_ALERTE_HORS_TOUT_VALIDER.indexOf(a.type_alerte) === -1);
+  }
   async function validerToutesAlertes(alertes) {
     const decision = DECISIONS.find(d => d.value === 'validee');
     let erreurs = 0;
-    for (const a of alertes) {
+    for (const a of alertesValidablesEnBloc(alertes)) {
       const ok = await resoudreAlerteSansRecharger(a.id, decision, '');
       if (!ok) erreurs++;
     }
@@ -1180,7 +1195,11 @@
   const JAUGEAGE_NOM = 'Jaugeage Carburant';
 
   function construireSynthese(produitsActifs, comptages, jaugeageActif, quart, alertesOuvertes) {
-    const requis = jaugeageActif ? produitsActifs : produitsActifs.filter(p => !p.inventaire_categories || p.inventaire_categories.nom !== JAUGEAGE_NOM);
+    // 06/11/2026 (lot 0, décision de Frédéric) : une seule référence de « produits attendus à la
+    // clôture » — les produits de la zone piste, comme la fonction serveur
+    // run_scheduled_inventory_reviews. Les produits boutique ne sont pas obligatoires pour l'instant.
+    const produitsPiste = produitsActifs.filter(p => p.inventaire_zones && p.inventaire_zones.code === 'piste');
+    const requis = jaugeageActif ? produitsPiste : produitsPiste.filter(p => !p.inventaire_categories || p.inventaire_categories.nom !== JAUGEAGE_NOM);
     // Une fois l'ouverture terminée, c'est la clôture qui est la phase de
     // comptage active pour ce quart — sinon "produits comptés" resterait
     // bloqué à 100% dès l'ouverture close alors que la clôture reste à faire.
@@ -1970,10 +1989,10 @@
     const estDemarque = a.type_alerte === 'demarque_ventes';
     const estClotureIncomplete = a.type_alerte === 'cloture_incomplete';
     const produit = estClotureIncomplete ? 'Ensemble du quart' : (a.inventaire_zone_produit ? a.inventaire_zone_produit.designation : 'Produit');
-    const ecart = (a.valeur_constatee != null && a.valeur_attendue != null) ? (a.valeur_constatee - a.valeur_attendue) : null;
+    const ecart = (!estClotureIncomplete && a.valeur_constatee != null && a.valeur_attendue != null) ? (a.valeur_constatee - a.valeur_attendue) : null;
     const libelleType = LIBELLES_TYPE_ALERTE[a.type_alerte] || a.type_alerte;
-    const labelAttendu = estDemarque ? 'Vendu (Decenium)' : (estClotureIncomplete ? 'Produits requis' : 'Transmis');
-    const labelConstate = estDemarque ? 'Écoulement physique' : (estClotureIncomplete ? 'Produits comptés' : 'Compté');
+    const labelAttendu = estDemarque ? 'Vendu (Decenium)' : 'Transmis';
+    const labelConstate = estDemarque ? 'Écoulement physique' : 'Compté';
     const blocCycle = renderBlocCycleObservation(a);
     // Sous observation : purement informatif, jamais de décision proposée
     // (cf. doctrine — un premier écart mis en observation n'est pas encore
@@ -1989,9 +2008,12 @@
           <span class="badge-gravite ${a.gravite}">${a.gravite}</span>
         </div>
         <div class="alerte-valeurs">
-          <span>${labelAttendu} : <b>${fmtNum(a.valeur_attendue)}</b></span>
+          ${estClotureIncomplete
+            // valeur_constatee = nombre de produits NON comptés ; valeur_attendue = obligatoires (absente des anciennes alertes).
+            ? `<span>Non comptés : <b>${fmtNum(a.valeur_constatee)}</b>${a.valeur_attendue != null ? ` sur <b>${fmtNum(a.valeur_attendue)}</b> obligatoires` : ''}</span>`
+            : `<span>${labelAttendu} : <b>${fmtNum(a.valeur_attendue)}</b></span>
           <span>${labelConstate} : <b>${fmtNum(a.valeur_constatee)}</b></span>
-          ${ecart !== null ? `<span>Écart : <b>${ecart > 0 ? '+' : ''}${fmtNum(ecart)}</b></span>` : ''}
+          ${ecart !== null ? `<span>Écart : <b>${ecart > 0 ? '+' : ''}${fmtNum(ecart)}</b></span>` : ''}`}
         </div>
         ${a.resolution ? `<div class="alerte-note">Note : « ${a.resolution} »</div>` : ''}
         ${blocCycle || ''}
@@ -3279,7 +3301,9 @@
     }));
     const btnToutValider = document.getElementById('btnToutValider');
     if (btnToutValider) btnToutValider.addEventListener('click', async () => {
-      if (!confirm(`Valider les ${alertesOuvertes.length} alerte(s) ouverte(s) de ce quart ? Cette action ne peut pas être annulée.`)) return;
+      const nbEnBloc = alertesValidablesEnBloc(alertesOuvertes).length;
+      const nbReservees = alertesOuvertes.length - nbEnBloc;
+      if (!confirm(`Valider les ${nbEnBloc} alerte(s) ouverte(s) de ce quart ?${nbReservees > 0 ? ` ${nbReservees} alerte(s) (clôture incomplète, démarque) restent à traiter une par une.` : ''} Cette action ne peut pas être annulée.`)) return;
       btnToutValider.disabled = true;
       btnToutValider.textContent = 'Validation en cours…';
       await validerToutesAlertes(alertesOuvertes);
