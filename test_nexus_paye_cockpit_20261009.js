@@ -57,6 +57,7 @@ vm.runInContext(fs.readFileSync(path.join(__dirname, 'nexus-ecarts-donnees.js'),
 if (!ctx.URLSearchParams) ctx.URLSearchParams = URLSearchParams;
 vm.runInContext(fs.readFileSync(path.join(__dirname, 'nexus-paye-moteur.js'), 'utf8'), ctx);
 vm.runInContext(fs.readFileSync(path.join(__dirname, 'nexus-banniere-station.js'), 'utf8'), ctx);
+vm.runInContext(fs.readFileSync(path.join(__dirname, 'nexus-paye-validation.js'), 'utf8'), ctx);
 vm.runInContext(script[1], ctx);
 
 // ── Recette : août 2026, cinq salariés et tous les cas de la §9 ──────────
@@ -168,7 +169,8 @@ verifier('le salarié hors paie reste visible dans son onglet, en retrait',
 vm.runInContext("FILTRE = 'inclus'; render();", ctx);
 
 // ── §4 — panneau latéral ────────────────────────────────────────────────
-verifier('le panneau latéral a trois onglets', dans(ecran(), 'role="tablist"') && compter(ecran(), /data-onglet="/g) >= 3);
+// 06/11 : « Transmettre » n'ouvre plus l'onglet Dossier (il transmet le mois) : deux entrées d'onglet dans l'en-tête, plus « + Nouvelle saisie ».
+verifier('le panneau latéral a trois onglets', dans(ecran(), 'role="tablist"') && compter(ecran(), /data-onglet="/g) >= 2 && dans(ecran(), 'id="toggleSaisie"'));
 verifier('les trois volets sont nommés',
   dans(ecran(), 'id="ficheSection"') && dans(ecran(), 'id="reviewSection"') && dans(ecran(), 'id="accountantSection"'));
 // La fiche est en onglets : chaque contenu vit dans son onglet.
