@@ -638,7 +638,13 @@
   //    dans SOURCES_DONNEES tant qu'ils ne sont pas branchés.
   // ------------------------------------------------------------
   // Le calcul vit dans nexus-jours-feries.js (partagé avec Paye) : un seul endroit.
-  const JF = (typeof NexusJoursFeries !== 'undefined') ? NexusJoursFeries : require('./nexus-jours-feries.js');
+  // Repli sans exception : une page qui oublie le module n'affiche aucun férié (et le dit en console).
+  const JF = (function () {
+    if (typeof NexusJoursFeries !== 'undefined') return NexusJoursFeries;
+    try { if (typeof require === 'function') return require('./nexus-jours-feries.js'); } catch (e) {}
+    if (typeof console !== 'undefined') console.error('nexus-jours-feries.js non chargé : fériés indisponibles');
+    return { datePaques: () => null, joursFeries: () => [], estJourFerie: () => false, joursFeriesMartinique: () => [], estJourFerieMartinique: () => false };
+  })();
   const { datePaques, joursFeries, estJourFerie, joursFeriesMartinique, estJourFerieMartinique } = JF;
 
   // ------------------------------------------------------------
