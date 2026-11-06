@@ -63,13 +63,9 @@
   async function init(){
     try{
       const e=await nexusRequireAuth(); if(!e||!['manager','gerant'].includes(e.role)) return;
-      if(page==='NEXUS-Inventaire-Manager-v1.html'){
-        let essais=0;
-        const tenter=()=>{if(ajouterAccesManager()||essais++>40)return;setTimeout(tenter,150)};
-        tenter();
-      }else{
-        ajouterAccesInventaire();
-      }
+      // Page Manager : l'accès « Stock par emplacement » est le bouton #btnStockEmplacement de son en-tête ;
+      // la carte qui doublait ce bouton et chevauchait la bannière n'est plus injectée.
+      if(page!=='NEXUS-Inventaire-Manager-v1.html') ajouterAccesInventaire();
     }catch(err){console.error('Accès stock localisé:',err)}
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
