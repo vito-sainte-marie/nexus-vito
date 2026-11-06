@@ -86,7 +86,7 @@
       { variable: 'Heures supplémentaires', valeur: v.heuresSupplementaires.heures ? `${heures(v.heuresSupplementaires.heures)} (comprises dans la présence)` : 'aucune' },
       { variable: 'Heures supplémentaires en attente d’arbitrage', valeur: v.heuresSupplementaires.enAttente ? nombre(v.heuresSupplementaires.enAttente, 'élément') : 'aucun' },
       { variable: 'Détail par date (normales / sup.)', valeur: (v.presence.detailJours || []).length ? v.presence.detailJours.map(j => `${j.date} ${j.normales} h + ${j.supplementaires} h`).join(' ; ') : 'aucune journée' },
-      { variable: 'Jours fériés travaillés', valeur: nombre(v.joursFeries.jours, 'jour') },
+      { variable: 'Jours fériés travaillés', valeur: nombre(v.joursFeries.jours, 'jour') + ((v.joursFeries.dates || []).length ? ` (${v.joursFeries.dates.join(', ')})` : '') },
       { variable: 'Acomptes', valeur: v.financier.acompteCentimes ? euros(v.financier.acompteCentimes) : '—' },
       { variable: 'Dettes / avances', valeur: v.financier.detteCentimes ? euros(v.financier.detteCentimes) : '—' },
       { variable: 'Retenues sur écart de caisse', valeur: v.financier.retenueEcartCentimes ? euros(v.financier.retenueEcartCentimes) : '—' },

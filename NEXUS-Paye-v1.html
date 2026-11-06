@@ -741,6 +741,9 @@ function section(titre,tuiles){
 // heure : c'est une liste de choses à regarder, pas un blocage.
 // Indicateur unique « 23 h · dont 2 h sup. » : la présence n'est jamais comptée deux fois,
 // les supplémentaires sont une PART de la présence, pas un ajout.
+// Fériés travaillés retenus d'office par NEXUS (constatés par Verify ou le pointage) : le manager peut seulement les retirer.
+function feriesAuto(f){return ((f&&f.items)||[]).filter(i=>i.typeItem==='jour_ferie'&&i.retenuAuto);}
+function jourMoisFR(d){return d?new Date(`${d}T12:00:00`).toLocaleDateString('fr-FR',{day:'numeric',month:'long'}):'';}
 function libelleHeures(v){const h=v.presence.heures,sp=v.heuresSupplementaires.heures;return `${hFr(h)}`+(sp?` · dont ${hFr(sp)} sup.`:'');}
 // Heures supplémentaires jour par jour (Frédéric, 05/11/2026) : la 8e heure du barème de chaque journée,
 // plus les heures validées par le manager à leur date (hors décision « déjà incluse », jamais ajoutée deux fois).
@@ -760,7 +763,8 @@ function sommeH(d,k){return Math.round(d.reduce((s,j)=>s+Math.round(Number(j[k]|
 function renderHeures(v,f){
  const {jours:d,total}=suppParJour(v,f);
  const att=v.heuresSupplementaires.enAttente?`<p class="meta">${pluriel(v.heuresSupplementaires.enAttente,'élément')} d’heures supplémentaires en attente d’arbitrage.</p>`:'';
- const lignes=d.map(j=>`<tr><td>${ECHAPPE(jourCourt(j.date))}</td><td>${ECHAPPE(j.poste||(j.manuelle?'heures validées':'sans poste'))}</td><td>${hFr(j.presence)}</td><td>${hFr(j.normales)}</td><td>${j.supp?`<b>${hFr(j.supp)}</b>`:'0'}</td></tr>`).join('');
+ const fer=new Map(feriesAuto(f).filter(i=>i.statut==='valide'||i.statut==='information').map(i=>[i.date,i.nomFerie||'']));
+ const lignes=d.map(j=>`<tr><td>${ECHAPPE(jourCourt(j.date))}${fer.has(j.date)?` <span class="pill amber">Férié${fer.get(j.date)?` · ${ECHAPPE(fer.get(j.date))}`:''}</span>`:''}</td><td>${ECHAPPE(j.poste||(j.manuelle?'heures validées':'sans poste'))}</td><td>${hFr(j.presence)}</td><td>${hFr(j.normales)}</td><td>${j.supp?`<b>${hFr(j.supp)}</b>`:'0'}</td></tr>`).join('');
  return `<section class="heures"><h4>Heures : ${libelleHeures(v)}</h4>${att}`
   +(d.length?`<table class="heures-detail"><thead><tr><th>Date</th><th>Poste</th><th>Présence</th><th>Normales</th><th>Heures supp.</th></tr></thead><tbody>${lignes}</tbody><tfoot><tr class="total-mois"><td colspan="2"><b>Total du mois</b></td><td><b>${hFr(sommeH(d,'presence'))}</b></td><td><b>${hFr(sommeH(d,'normales'))}</b></td><td><b>${hFr(total)}</b></td></tr></tfoot></table>`:'<p class="meta">Aucune journée confirmée sur ce mois.</p>')
   +`</section>`;
@@ -776,7 +780,7 @@ function lignesComptable(v,f){
   L.push({k:'Temps',h:`${pluriel(jm,'jour')} · ${hFr(norm)} normales${total?` · <b>${hFr(total)} supp.</b> <button type="button" class="lien-texte" data-ftab="journees">Voir le détail</button>`:''}`});
  }
  const ev=[];
- if(v.joursFeries.jours)ev.push(`${pluriel(v.joursFeries.jours,'férié')} travaillé${v.joursFeries.jours>1?'s':''}`);
+ if(v.joursFeries.jours){const dt=(v.joursFeries.dates||[]).map(jourMoisFR).filter(Boolean);ev.push(`Férié travaillé : ${v.joursFeries.jours} j${dt.length?` · ${ECHAPPE(dt.join(', '))}`:''}`);}
  [v.congesPayes,v.maladieMaternite,v.autresAbsences].forEach(g=>g.detail.forEach(e=>ev.push(`${ECHAPPE(e.libelle||'Absence')}${e.debut?` du ${ECHAPPE(e.debut)}${e.fin&&e.fin!==e.debut?` au ${ECHAPPE(e.fin)}`:''}`:''}`)));
  if(v.absence.jours)ev.push(`${pluriel(v.absence.jours,'jour')} d’absence retenu${v.absence.jours>1?'s':''}`);
  if(v.retards.minutes)ev.push(`retards retenus ${v.retards.minutes} min`);
@@ -910,8 +914,9 @@ function renderFiche(f){
  const ecarts=items.filter(i=>i.typeItem==='ecart_caisse');
  // Même compte que la ligne du tableau : un écart de caisse à valider est aussi une décision.
  const aTraiter=itemsEnAttente(f).length+conf.length;
- const evt=items.filter(i=>i.typeItem!=='ecart_caisse'&&(/^(conge|arret|absence|retard)/.test(i.typeItem)||i.evenementRH));
- const reste=items.filter(i=>i.typeItem!=='ecart_caisse'&&!evt.includes(i));
+ const feries=feriesAuto(f);
+ const evt=items.filter(i=>i.typeItem!=='ecart_caisse'&&!feries.includes(i)&&(/^(conge|arret|absence|retard)/.test(i.typeItem)||i.evenementRH));
+ const reste=items.filter(i=>i.typeItem!=='ecart_caisse'&&!evt.includes(i)&&!feries.includes(i));
  const lien=lienPlanningSecurise(), hp=horsPlanning(f), jours=f.joursConfirmes?f.joursConfirmes.size:0;
  const src=(RAPPORT.planningOfficiel&&RAPPORT.planningOfficiel.source)||'nexus';
  const tete=`<button type="button" class="btn retour-liste">‹ Paye</button><div class="fiche-tete">${avatar(f.employee)}<div><h2>${ECHAPPE(f.employee.nom)}</h2><div class="meta"><span class="capsule">${ECHAPPE(f.employee.role||'Poste non renseigné')}</span></div></div>${pillListe(f)}</div>`
@@ -936,6 +941,7 @@ function renderFiche(f){
  const journees=renderHeures(v,f)+section('Ventilation des heures',tuiles.temps)+`<div class="lignes"><div class="ligne">Jours constatés<b>${jm}</b></div><div class="ligne${hp?'':' muet'}">Jours travaillés hors planning<b>${hp}</b></div><div class="ligne">Source du planning<b>${src==='google_sheets'?'Google Sheets (officiel)':'Planning NEXUS'}</b></div></div>${lien?`<div class="help"><a href="${ECHAPPE(lien)}" target="_blank" rel="noopener" style="color:var(--green)">Ouvrir le planning officiel ↗</a></div>`:''}`;
  const evenements=`<div class="bloc-titre">Absences, congés et retards du mois${evt.length?` · ${evt.length}`:''}</div>`
   +`${evt.length?evt.map(i=>renderItem(f,i)).join(''):'<div class="ok">Aucun événement ce mois.</div>'}`
+  +(feries.length?`<div class="bloc-titre">Jours fériés travaillés · ${feries.length}</div>${feries.map(i=>renderFerie(f,i)).join('')}`:'')
   +section('Absences retenues en paie',tuiles.absences)
   +`${ecarts.length?`<div class="bloc-titre">Écarts de caisse et régularisations · ${ecarts.length} ${infoBtn('regularisation','écarts et régularisations')}</div>${ecarts.map(i=>renderItem(f,i)).join('')}`:''}`;
  const variables=renderVariables(v,f);
@@ -986,6 +992,20 @@ function blocQualification(i){
   </div>
   <div style="font-size:10px;opacity:.6">Une seule confirmation couvre toute la période, y compris les mois suivants.</div>
  </div>`}
+async function retirerFerie(btn){
+ const item=trouver(btn.dataset.emp,btn.dataset.key); if(!item)return;
+ if(!await nexusConfirmer('Retirer ce férié travaillé ?',`${item.libelle}\n${jourCourt(item.date)}\n\nÀ faire seulement si la journée a été saisie par erreur. Le retrait est tracé à votre nom.`,'Retirer',true))return;
+ btn.disabled=true;
+ try{await NexusPayeDonnees.enregistrerDecision(nexusClient,{siteId:SITE,employeeId:btn.dataset.emp,periode:MOIS,item,statut:'exclu',impactPaye:false,montantCentimes:null,note:`Férié travaillé retiré par le manager : ${item.libelle}`,actorId:EMPLOYEE.id});await reload();}
+ catch(e){console.error('NEXUS PAYE — retrait du férié :',e);btn.disabled=false;nexusErreur('Retrait impossible',`NEXUS n'a pas pu enregistrer ce retrait : ${messageErreur(e)}\n\nRien n'a été modifié.`);}
+}
+function renderFerie(f,i){
+ const emp=(f&&f.employee&&f.employee.id)||i.employeeId||'', retire=i.statut==='exclu';
+ return `<div class="item ${retire?'exclu':'valide'}"><div class="item-top"><div class="item-title">${ECHAPPE(i.libelle)}</div><div class="item-date">${ECHAPPE(jourCourt(i.date))}</div></div>`
+  +`<div class="item-meta">${retire?'Retiré par le manager':'Constaté et retenu automatiquement'} · aucune majoration calculée par NEXUS : le comptable l’applique.</div>`
+  +(retire?'':`<div class="item-actions"><button type="button" class="btn ferie-retirer" data-emp="${emp}" data-key="${ECHAPPE(i.sourceCle)}">Retirer (saisi par erreur)</button></div>`)
+  +`</div>`;
+}
 function renderItem(f,i){
  const emp=i.employeeId||(f&&f.employee.id)||'',periode=i.origine==='indisponibilite',
   ecart=i.typeItem==='ecart_caisse',
@@ -1208,7 +1228,7 @@ function bind(){
  document.getElementById('infoModal').onclick=e=>{if(e.target.id==='infoModal')e.currentTarget.hidden=true};
  document.querySelectorAll('.employee-head').forEach(x=>x.onclick=()=>x.parentElement.classList.toggle('open'));
  document.querySelectorAll('.configure').forEach(b=>b.onclick=async e=>{e.stopPropagation();const f=RAPPORT.employes.find(x=>x.employee.id===b.dataset.id);const choix=await ouvrirDialogue({titre:`Rattachement de ${f.employee.nom}`,texte:'Réglage permanent, pas un arbitrage du mois : il vaut pour tous les mois suivants tant que vous ne le changez pas.',champs:[{cle:'mode',label:'Ce salarié figure-t-il dans le dossier de paie ?',type:'select',valeur:f.reglage.inclus?(f.reglage.modePresence==='manuel'?'manuel':'automatique'):'exclu',options:[['automatique','Inclus — heures calculées par NEXUS'],['manuel','Inclus — heures saisies manuellement'],['exclu','Hors paie de la station']],aide:'« Heures saisies manuellement » convient à un salarié dont ni le planning ni Verify ne couvrent le temps de travail.'}],libelleValider:'Enregistrer le rattachement'});if(!choix)return;await NexusPayeDonnees.enregistrerReglageEmploye(nexusClient,{siteId:SITE,employeeId:f.employee.id,inclusPaye:choix.mode!=='exclu',modePresence:choix.mode,commentaire:null,actorId:EMPLOYEE.id});reload()});
- document.querySelectorAll('.validate').forEach(b=>b.onclick=async()=>decision(b,true));document.querySelectorAll('.exclude').forEach(b=>b.onclick=async()=>decision(b,false));document.querySelectorAll('.verify-signal').forEach(b=>b.onclick=async()=>verifierSignalement(b));
+ document.querySelectorAll('.validate').forEach(b=>b.onclick=async()=>decision(b,true));document.querySelectorAll('.exclude').forEach(b=>b.onclick=async()=>decision(b,false));document.querySelectorAll('.verify-signal').forEach(b=>b.onclick=async()=>verifierSignalement(b));document.querySelectorAll('.ferie-retirer').forEach(b=>b.onclick=async()=>retirerFerie(b));
  document.getElementById('manualDateDebut').onchange=e=>{const fin=document.getElementById('manualDateFin');fin.min=e.target.value||MOIS;if(!fin.value||fin.value<e.target.value)fin.value=e.target.value;majPeriodeManuelle()};
  document.getElementById('manualDateFin').onchange=majPeriodeManuelle;
  document.getElementById('addManual').onclick=addManual;
