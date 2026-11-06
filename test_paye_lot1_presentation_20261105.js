@@ -276,4 +276,17 @@ const syn = JSON.parse(ev(apres, `(function(){
 verifier('heures supp. par jour : barème + heures validées du manager, refusées et déjà incluses ignorées; total = somme des lignes',
   syn.total === 1.5 && syn.n === 2 && syn.j4 === 0.5);
 
+// Finition 3 (Guardian 6673519479)
+const f3i = src.indexOf('/* Finition 3 (06/11/2026');
+const fin3 = src.slice(f3i, src.indexOf('</style>', f3i));
+verifier('finition 3 : iPhone, bouton « i » de 44 px, liste sans défilement interne, Menu dans le flux sous le bandeau',
+  /\.info-btn\{width:44px;height:44px/.test(fin3) && /\.tablescroll\{overflow:visible;max-height:none\}/.test(fin3) && /\.haut-page \.menu\{position:static\}/.test(fin3));
+verifier('Journées : dates courtes (jeu. 8 oct.) et Total du mois sur Présence, Normales et Heures supp.',
+  /ECHAPPE\(jourCourt\(j\.date\)\)/.test(src) && /sommeH\(d,'presence'\)/.test(src) && /sommeH\(d,'normales'\)/.test(src));
+const prim = ev(apres, `(function(){const f=RAPPORT.employes.find(x=>x.employee.id==='e1');const v=NexusPayeMoteur.variablesComptables(f);
+  const g=Object.assign({},f,{items:(f.items||[]).concat([{typeItem:'autre',statut:'valide',libelle:'Prime de fin de mois',montantCentimes:5000},{typeItem:'autre',statut:'exclu',libelle:'Prime refusée',montantCentimes:9900}])});
+  return renderPourComptable(v,g);})()`);
+verifier('« Argent » montre les variables « autre » validées (libellé + montant) et ignore les refusées',
+  /Prime de fin de mois/.test(prim) && /50/.test(prim) && !/Prime refusée/.test(prim) && !/Aucune absence/.test(prim));
+
 console.log(`\n${ok} contrôles passent.`);

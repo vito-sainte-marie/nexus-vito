@@ -341,6 +341,15 @@ table.sal th,table.sal td{border-bottom:1px solid var(--line)}
  .capsule{height:auto;padding:0;background:none;font-size:13px;color:var(--mid)}
  .capsule [aria-hidden]{display:none}
 }
+/* Finition 3 (06/11/2026, Guardian 6673519479) */
+@media(max-width:820px){
+ .info-btn{width:44px;height:44px;border:0;background:none;position:relative;font-size:0}
+ .info-btn::before{content:'i';position:absolute;left:11px;top:11px;width:22px;height:22px;border:1px solid rgba(79,195,217,.35);border-radius:50%;background:rgba(79,195,217,.09);display:flex;align-items:center;justify-content:center;font:700 13px var(--mono);color:var(--cyan)}
+ .info-btn::after{inset:0}
+ .tablescroll{overflow:visible;max-height:none}
+ .tablewrap{overflow:visible}
+}
+.haut-page .menu{position:static}
 /* Pour le comptable (06/11/2026, Frédéric) */
 .pour-comptable{margin:12px 0}
 .pour-comptable .ligne{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--line);font:400 15px var(--sans)}
@@ -746,15 +755,17 @@ function suppParJour(v,f){
  const total=Math.round(jours.reduce((s,j)=>s+Math.round(j.supp*100)/100,0)*100)/100;
  return {jours,total};
 }
+function sommeH(d,k){return Math.round(d.reduce((s,j)=>s+Math.round(Number(j[k]||0)*100)/100,0)*100)/100;}
 function renderHeures(v,f){
  const {jours:d,total}=suppParJour(v,f);
  const att=v.heuresSupplementaires.enAttente?`<p class="meta">${pluriel(v.heuresSupplementaires.enAttente,'élément')} d’heures supplémentaires en attente d’arbitrage.</p>`:'';
- const lignes=d.map(j=>`<tr><td>${ECHAPPE(j.date)}</td><td>${ECHAPPE(j.poste||(j.manuelle?'heures validées':'sans poste'))}</td><td>${hFr(j.presence)}</td><td>${hFr(j.normales)}</td><td>${j.supp?`<b>${hFr(j.supp)}</b>`:'0'}</td></tr>`).join('');
+ const lignes=d.map(j=>`<tr><td>${ECHAPPE(jourCourt(j.date))}</td><td>${ECHAPPE(j.poste||(j.manuelle?'heures validées':'sans poste'))}</td><td>${hFr(j.presence)}</td><td>${hFr(j.normales)}</td><td>${j.supp?`<b>${hFr(j.supp)}</b>`:'0'}</td></tr>`).join('');
  return `<section class="heures"><h4>Heures : ${libelleHeures(v)}</h4>${att}`
-  +(d.length?`<table class="heures-detail"><thead><tr><th>Date</th><th>Poste</th><th>Présence</th><th>Normales</th><th>Heures supp.</th></tr></thead><tbody>${lignes}</tbody><tfoot><tr class="total-mois"><td colspan="4"><b>Total du mois</b></td><td><b>${hFr(total)}</b></td></tr></tfoot></table>`:'<p class="meta">Aucune journée confirmée sur ce mois.</p>')
+  +(d.length?`<table class="heures-detail"><thead><tr><th>Date</th><th>Poste</th><th>Présence</th><th>Normales</th><th>Heures supp.</th></tr></thead><tbody>${lignes}</tbody><tfoot><tr class="total-mois"><td colspan="2"><b>Total du mois</b></td><td><b>${hFr(sommeH(d,'presence'))}</b></td><td><b>${hFr(sommeH(d,'normales'))}</b></td><td><b>${hFr(total)}</b></td></tr></tfoot></table>`:'<p class="meta">Aucune journée confirmée sur ce mois.</p>')
   +`</section>`;
 }
 // Bloc « Pour le comptable » : mêmes chiffres que variablesComptables / lignesExport, une ligne seulement si elle a une valeur.
+function varsAutres(f){return ((f&&f.items)||[]).filter(i=>i.typeItem==='autre'&&i.statut==='valide'&&(i.montantCentimes!=null||Number(i.quantiteMinutes)>0));}
 function lignesComptable(v,f){
  const {total}=suppParJour(v,f);
  const jm=v.presence.joursMesures+v.presence.joursReconstitues;
@@ -773,12 +784,13 @@ function lignesComptable(v,f){
  if(fin.acompteCentimes)ar.push(`acomptes ${euros(fin.acompteCentimes)}`);
  if(fin.detteCentimes)ar.push(`avances / dettes ${euros(fin.detteCentimes)}`);
  if(fin.retenueEcartCentimes)ar.push(`écart retenu ${euros(fin.retenueEcartCentimes)}`);
+ varsAutres(f).forEach(i=>ar.push(`${ECHAPPE(i.libelle||'Autre variable')} ${i.montantCentimes!=null?euros(i.montantCentimes):hFr(Number(i.quantiteMinutes)/60)}`));
  if(ar.length)L.push({k:'Argent',h:ar.join(' · ')});
  return L;
 }
 function renderPourComptable(v,f){
  const L=lignesComptable(v,f);
- const sansVariable=!v.joursFeries.jours&&!v.congesPayes.jours&&!v.maladieMaternite.jours&&!v.autresAbsences.jours&&!v.absence.jours&&!v.retards.minutes&&!v.financier.acompteCentimes&&!v.financier.detteCentimes&&!v.financier.retenueEcartCentimes;
+ const sansVariable=!v.joursFeries.jours&&!v.congesPayes.jours&&!v.maladieMaternite.jours&&!v.autresAbsences.jours&&!v.absence.jours&&!v.retards.minutes&&!v.financier.acompteCentimes&&!v.financier.detteCentimes&&!v.financier.retenueEcartCentimes&&!varsAutres(f).length;
  return `<section class="pour-comptable"><div class="bloc-titre">Pour le comptable · ${ECHAPPE(moisLabel())}</div>`
   +L.map(l=>`<div class="ligne"><span>${l.k}</span><span>${l.h}</span></div>`).join('')
   +(sansVariable?'<div class="ok">Aucune absence, aucun retard, aucune variable.</div>':'')+`</section>`;
