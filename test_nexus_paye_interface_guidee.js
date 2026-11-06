@@ -9,7 +9,8 @@ assert.ok(html.includes('Traiter les'));
 assert.ok(html.includes('Informations sans impact paie'));
 assert.ok(html.includes('Transmettre à la comptabilité') && html.includes('Sans impact paie'));
 assert.ok(html.includes('Écart de caisse') && html.includes('ne devient jamais automatiquement une dette'));
-assert.ok(html.includes('Initial') && html.includes('Final validé') && html.includes('Impact paie'));
+// Affichage court du 05/11/2026 : l'écart n'a plus de cases Initial / Final validé / Impact paie dans Paye.
+assert.ok(!html.includes('<span>Final validé</span>'));
 assert.ok(html.includes('infoModal') && html.includes('data-info='));
 assert.ok(html.includes("Corriger l’attribution dans"));
 assert.ok(html.includes("['employe','type','date','source','ecart_initial','ecart_final','statut'"));

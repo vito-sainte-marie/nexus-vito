@@ -209,7 +209,7 @@ async function chargement(fuseau, echec) {
     !dans(html, '<span>Régularisations encaissées</span>'));
   vm.runInContext('SELECTION = "b2"; ONGLET = "fiche"; render();', ctx);
   verifier('un écart non corrigé n’affiche aucune correction à la validation',
-    dans(ecran(), '<span>Correction à la validation</span><b>—</b>'));
+    !dans(ecran(), '<span>Correction à la validation</span>'));
   verifier('aucune retenue sur salaire n’est générée',
     vm.runInContext("NexusPayeMoteur.variablesComptables(RAPPORT.employes.find(f=>f.employee.id==='b2')).financier.retenueEcartCentimes", ctx) === 0);
 

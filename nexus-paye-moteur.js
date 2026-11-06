@@ -966,6 +966,7 @@
       fiche.items.push(...manuels);
       regrouperPlanningNonRenseigne(fiche, employee, periode);
       fiche.items.sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')) || a.typeItem.localeCompare(b.typeItem));
+      fiche.ecartsCaisseMois = cumulEcartsCaisseMois((entree.ecarts || []).filter(e => e.employeeId === employee.id && dateDansMois(e.date, periode)));
       itemsGlobaux.push(...fiche.items.map(i => Object.assign({ employeeId: employee.id, employeeNom: employee.nom }, i)));
       employes.push(fiche);
     });
@@ -1077,6 +1078,13 @@
         quantite_minutes: Math.round(j.presence * 60), montant_euros: '', impact_paye: 'information',
         commentaire: `${j.poste || 'sans poste'} · ${j.normales} h normales · ${j.supplementaires} h sup.${j.autres ? ` · ${j.autres} h exceptionnelles` : ''}`,
       }));
+      // Une seule valeur d'écarts de caisse transmise pour le mois (06/11/2026), sans détail par origine.
+      const ecm = f.ecartsCaisseMois;
+      if (ecm && ecm.totalCentimes) lignes.push({
+        employe: f.employee.nom, type: 'ecarts_caisse_mois', date: '', quantite_minutes: '',
+        montant_euros: (ecm.totalCentimes / 100).toFixed(2), impact_paye: 'information',
+        commentaire: 'Écarts de caisse du mois (cumul transmis)',
+      });
       valides.forEach(i => lignes.push({
         employe: f.employee.nom, type: i.typeItem, date: i.date || '', source: i.origine || '',
         ecart_initial: i.ecartInitialCentimes == null ? '' : (i.ecartInitialCentimes / 100).toFixed(2),
@@ -1108,6 +1116,24 @@
   function enHeures(minutes) { return Math.round((Number(minutes || 0) / 60) * 100) / 100; }
   function sommeMinutes(liste) { return liste.reduce((s, i) => s + Number(i.quantiteMinutes || 0), 0); }
   function sommeCentimes(liste) { return liste.reduce((s, i) => s + Number(i.montantCentimes || 0), 0); }
+
+  // Cumul mensuel des écarts de caisse transmis au comptable (05/11/2026, décision de Frédéric).
+  // Boutique et Piste : somme des seuls écarts négatifs du mois (un positif n'est jamais
+  // compensé). FDJ : somme algébrique du mois ; si elle est positive, 0 est transmis.
+  // Montant pris : l'écart final, ou à défaut l'initial — un écart « à vérifier » compte donc sur
+  // son montant du moment, puis sur son montant ajusté une fois vérifié.
+  function cumulEcartsCaisseMois(lignes) {
+    let boutique = 0, piste = 0, fdj = 0;
+    (lignes || []).forEach(l => {
+      const brut = l.ecartFinal != null ? l.ecartFinal : l.ecartInitial;
+      if (brut == null || !Number.isFinite(Number(brut))) return;
+      const c = Math.round(Number(brut) * 100);
+      if (l.activite === 'fdj') fdj += c;
+      else if (c < 0) { if (l.activite === 'piste') piste += c; else boutique += c; }
+    });
+    if (fdj > 0) fdj = 0;
+    return { boutiqueCentimes: boutique, pisteCentimes: piste, fdjCentimes: fdj, totalCentimes: boutique + piste + fdj };
+  }
 
   function variablesComptables(fiche) {
     const items = fiche.items || [];
@@ -1186,6 +1212,7 @@
         acompteCentimes: sommeCentimes(acomptes),
         detteCentimes: sommeCentimes(dettes),
         retenueEcartCentimes: sommeCentimes(ecartsRetenus),
+        ecartsCaisseMois: fiche.ecartsCaisseMois || { boutiqueCentimes: 0, pisteCentimes: 0, fdjCentimes: 0, totalCentimes: 0 },
         ecartsInformatifs: ecartsInformatifs.length,
         enAttente: enAttente('acompte') + enAttente('dette') + attente.filter(i => i.typeItem === 'ecart_caisse').length,
         lignes: [...acomptes, ...dettes, ...ecartsRetenus].map(i => ({
@@ -1280,12 +1307,13 @@
         acompteCentimes: total(v => v.financier.acompteCentimes),
         detteCentimes: total(v => v.financier.detteCentimes),
         retenueEcartCentimes: total(v => v.financier.retenueEcartCentimes),
+        ecartsCaisseMoisCentimes: total(v => (v.financier.ecartsCaisseMois || {}).totalCentimes),
         elementsEnAttente: total(v => v.elementsEnAttente),
       },
       ecartsNonAttribues: (rapport.ecartsNonAttribues || []).length,
     };
   }
 
-  global.NexusPayeMoteur = { heuresParDefautJour, posteDuJour, reglesHeures, dureeNetteHeures, minutesHoraire, DUREES_REFERENCE_DEFAUT, HEURES_RENFORT_DEFAUT, moisISO, finMoisISO, dateDansMois, extraireEmployeeIds, reglageEmploye, construireRapport, lignesExport,
+  global.NexusPayeMoteur = { cumulEcartsCaisseMois, heuresParDefautJour, posteDuJour, reglesHeures, dureeNetteHeures, minutesHoraire, DUREES_REFERENCE_DEFAUT, HEURES_RENFORT_DEFAUT, moisISO, finMoisISO, dateDansMois, extraireEmployeeIds, reglageEmploye, construireRapport, lignesExport,
     MOTIFS_INDISPO, TYPES_ITEM_EVENEMENT_RH, LIBELLE_STATUT_SALARIE, LIBELLE_POSTE, RUBRIQUE_ECART, variablesComptables, sansIncidencePaie, statutSalarie, statutGlobal, dossierComptable };
 })(typeof window !== 'undefined' ? window : globalThis);

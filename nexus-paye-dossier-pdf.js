@@ -41,6 +41,12 @@
     return `${v > 0 ? '+' : ''}${v.toFixed(2).replace('.', ',')} €`;
   }
 
+  // « -6,53 € » : une seule valeur, même ligne que le bloc « Pour le comptable » (pas de détail par origine).
+  function ecartsMois(m) {
+    if (!m || (!m.totalCentimes && !m.boutiqueCentimes && !m.pisteCentimes && !m.fdjCentimes)) return '—';
+    return euros(m.totalCentimes);
+  }
+
   function heures(valeur) {
     const v = Number(valeur || 0);
     return `${(Math.round(v * 100) / 100).toString().replace('.', ',')} h`;
@@ -89,7 +95,9 @@
       { variable: 'Jours fériés travaillés', valeur: nombre(v.joursFeries.jours, 'jour') + ((v.joursFeries.dates || []).length ? ` (${v.joursFeries.dates.join(', ')})` : '') },
       { variable: 'Acomptes', valeur: v.financier.acompteCentimes ? euros(v.financier.acompteCentimes) : '—' },
       { variable: 'Dettes / avances', valeur: v.financier.detteCentimes ? euros(v.financier.detteCentimes) : '—' },
-      { variable: 'Retenues sur écart de caisse', valeur: v.financier.retenueEcartCentimes ? euros(v.financier.retenueEcartCentimes) : '—' },
+      // Le cumul du mois est automatique : une retenue n'apparaît que si elle vient d'une décision antérieure (lecture seule).
+      ...(v.financier.retenueEcartCentimes ? [{ variable: 'Retenue sur écart de caisse (décision antérieure)', valeur: euros(v.financier.retenueEcartCentimes) }] : []),
+      { variable: 'Écarts de caisse du mois', valeur: ecartsMois(v.financier.ecartsCaisseMois) },
     ];
     return lignes;
   }
@@ -193,7 +201,8 @@
     rapport.ligneCle('Jours fériés travaillés', String(dossier.synthese.joursFeries));
     rapport.ligneCle('Acomptes', euros(dossier.synthese.acompteCentimes));
     rapport.ligneCle('Dettes / avances', euros(dossier.synthese.detteCentimes));
-    rapport.ligneCle('Retenues sur écart de caisse', euros(dossier.synthese.retenueEcartCentimes));
+    if (dossier.synthese.retenueEcartCentimes) rapport.ligneCle('Retenues sur écart de caisse (décision antérieure)', euros(dossier.synthese.retenueEcartCentimes));
+    rapport.ligneCle('Écarts de caisse du mois', euros(dossier.synthese.ecartsCaisseMoisCentimes || 0));
 
     rapport.sectionTitre('Récapitulatif par salarié');
     rapport.tableau(

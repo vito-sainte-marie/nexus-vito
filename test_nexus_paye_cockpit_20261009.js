@@ -194,20 +194,14 @@ verifier('une anomalie d’heures offre Confirmer, Ne pas retenir et Corriger',
 // vocabulaire reste celui de la doctrine PAYE — on transmet un montant
 // saisi, ou l'on déclare l'écart sans impact paie.
 vm.runInContext(`SELECTION = 'e5'; ONGLET = 'fiche'; render();`, ctx);
-verifier('un écart offre Sans impact paie, Transmettre à la comptabilité et sa source',
-  dans(ecran(), '>Sans impact paie<') && dans(ecran(), '>Transmettre à la comptabilité<')
-  && dans(ecran(), 'Voir le contrôle Verify ↗'));
-// L'écart se lit depuis la fiche du salarié ET depuis la liste du mois :
-// deux chemins de lecture, une seule décision. Ce qui est interdit, c'est
-// deux boutons pour la même décision DANS LE MÊME volet.
+// Cumul automatique (Guardian 6682186743) : plus de décision manuelle sur l'écart, donc aucun bouton.
+verifier('un écart n’offre plus ni Sans impact paie ni Transmettre, mais garde sa source',
+  !dans(ecran(), '>Sans impact paie<') && dans(ecran(), 'Voir le contrôle Verify ↗')
+  && !/(validate|exclude)" data-emp="e5" data-key="ecart:ec1"/.test(ecran()));
 vm.runInContext(`FICHE_ONGLET = 'evenements'; render();`, ctx);
 const volets = ecran().split('id="reviewSection"');
-verifier('chaque volet n’offre qu’une paire d’actions par élément',
-  volets.length === 2
-  && compter(volets[0], /validate" data-emp="e5" data-key="ecart:ec1"/g) === 1
-  && compter(volets[0], /exclude" data-emp="e5" data-key="ecart:ec1"/g) === 1
-  && compter(volets[1], /validate" data-emp="e5" data-key="ecart:ec1"/g) === 1
-  && compter(volets[1], /exclude" data-emp="e5" data-key="ecart:ec1"/g) === 1);
+verifier('aucun volet n’offre d’action sur l’écart',
+  volets.length === 2 && !/(validate|exclude)" data-emp="e5" data-key="ecart:ec1"/.test(ecran()));
 
 // ── §5 — l’écart initial reste ; aucun versement n’est fabriqué ──────────
 // Les versements réels et le solde viennent de NexusPayeRegularisations
@@ -219,11 +213,11 @@ verifier('les totaux ne fabriquent plus de versement ni de solde',
 verifier('aucune retenue sur salaire n’est générée automatiquement', t.retenu === 0);
 verifier('… et le moteur ne retient rien non plus',
   vm.runInContext("NexusPayeMoteur.variablesComptables(RAPPORT.employes.find(f=>f.employee.id==='e5')).financier.retenueEcartCentimes", ctx) === 0);
-verifier('l’écart se lit en quatre cases',
-  dans(ecran(), '<span>Initial</span>') && dans(ecran(), '<span>Correction à la validation</span>')
-  && !dans(ecran(), '<span>Régularisations encaissées</span>')
-  && dans(ecran(), '<span>Final validé</span>') && dans(ecran(), '<span>Impact paie</span>'));
-verifier('… avec les montants du mandat', dans(ecran(), '-50.00 €') && dans(ecran(), '+30.00 €') && dans(ecran(), '-20.00 €'));
+// Affichage court décidé le 05/11/2026 (Guardian, #160) : date · origine · montant final, sans historique.
+verifier('l’écart se lit en format court : plus d’historique ni de cases',
+  !dans(ecran(), '<span>Initial</span>') && !dans(ecran(), '<span>Correction à la validation</span>')
+  && !dans(ecran(), '<span>Régularisations encaissées</span>') && !dans(ecran(), '<span>Impact paie</span>'));
+verifier('… et montre le montant final', dans(ecran(), '-20.00 €'));
 verifier('la correction à la validation est final − initial, et rien sans les deux',
   vm.runInContext("correctionValidationCentimes({ecartInitialCentimes:-5000,ecartFinalCentimes:-2000})", ctx) === 3000
   && vm.runInContext("correctionValidationCentimes({ecartInitialCentimes:null,ecartFinalCentimes:-2000})", ctx) === null
