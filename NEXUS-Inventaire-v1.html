@@ -14,6 +14,7 @@
 <meta name="apple-mobile-web-app-title" content="NEXUS">
 <meta name="theme-color" content="#0B0F14">
 <script src="nexus-theme.js"></script>
+<script src="nexus-banniere-station.js"></script>
 <title>NEXUS — Inventaire</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -307,6 +308,23 @@
   .calc-actions .btn-ghost, .calc-actions .btn-primary{margin-top:0;}
 
   footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
+
+  /* En-tête illustré du fil pompiste (lot 6706558761) : même image en Jour et en Sombre, hauteur contenue pour garder le bouton principal visible. */
+  .ent-illustre{padding:0}
+  .ent-illustre .am-banniere{position:relative;height:120px;overflow:hidden;border-radius:14px;border:1px solid var(--hairline)}
+  .ent-illustre .am-banniere img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:85% 50%}
+  .ent-illustre .am-banniere::after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(to right,var(--bg) 0%,transparent 55%);opacity:.55}
+  .ent-illustre .am-banniere img.am-fondu{opacity:0;transition:opacity 800ms ease}
+  .ent-illustre .am-banniere img.am-fondu-visible{opacity:1}
+  @media (prefers-reduced-motion:reduce){.ent-illustre .am-banniere img.am-fondu{transition:none}}
+  .ent-illustre{margin:0 0 4px}
+  .inv-cat-icone{width:28px;height:28px;flex:none;color:var(--cyan);margin-right:12px}
+  .inv-cat-gauche{display:flex;align-items:center;min-width:0}
+  .inv-cat-entete{display:flex;align-items:center;gap:10px;margin:0 0 10px;font-weight:600}
+  .precomptage-icone{width:44px;height:44px;color:var(--cyan);margin:0 auto 12px;display:block}
+  .choix-icone .inv-cat-icone{margin:0;width:30px;height:30px}
+  .titre-missions{display:flex;align-items:center;gap:8px;font-weight:600;margin-bottom:2px}
+  .titre-missions .inv-cat-icone{width:20px;height:20px;margin:0}
 /* Fil « Mon début de quart » : pas de retour vers le catalogue des catégories. */
 .fil-revue-cat{font-weight:600; margin-bottom:6px;}
 .fil-revue-ligne{display:flex !important; justify-content:space-between; gap:12px; text-align:left; font-size:14px !important; color:var(--text) !important; border-top:1px solid var(--hairline) !important;}
@@ -1362,6 +1380,24 @@
     const d = filDate();
     if (d && employeeCourant) FIL.atteindre(localStorage, employeeCourant.id, d, filEtape);
   }
+  // Pictogrammes du kit assets/inventaire/icones/ (colorés par currentColor), même règle de choix que le Manager (iconeCategorie).
+  const ICONES_KIT = {
+    cigarettes: '<rect x="15" y="14" width="34" height="40" rx="4"/><path d="M15 27h34M24 27v19M32 27v19M40 27v19M20 19h24"/>',
+    gaz: '<rect x="22" y="19" width="20" height="36" rx="5"/><path d="M27 19v-8h10v8M26 11h12M28 30h8M28 40h8"/><path d="M17 27v19M47 27v19"/>',
+    glacons: '<path d="m32 8 22 12v24L32 56 10 44V20Z M10 20l22 12 22-12M32 32v24M21 14l22 12"/>',
+    stock: '<path d="m9 22 23-12 23 12v25L32 59 9 47Z M9 22l23 13 23-13M32 35v24M21 16l23 13"/>',
+    comptage: '<rect x="17" y="13" width="30" height="39" rx="5"/><path d="M25 13v-4h14v4M25 25h14M25 34h6M25 43h6"/><path d="m35 34 3 3 6-7m-9 13 3 3 6-7"/>',
+    anomalies: '<path d="M32 9 58 52H6Z"/><path d="M32 25v12M32 44v1"/>'
+  };
+  function svgKit(cle, classe) {
+    return '<svg class="' + classe + '" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">' + ICONES_KIT[cle] + '</g></svg>';
+  }
+  function iconeCategorie(nom) {
+    const n = String(nom || '').toLowerCase();
+    const cle = n.indexOf('cigar') !== -1 ? 'cigarettes' : n.indexOf('gaz') !== -1 ? 'gaz' : (n.indexOf('gla') !== -1 ? 'glacons' : 'stock');
+    return svgKit(cle, 'inv-cat-icone');
+  }
+  function enteteCategorie(groupe) { return '<div class="inv-cat-entete">' + iconeCategorie(groupe.nom) + '<span>' + groupe.nom + '</span></div>'; }
   function filInstallerBarre() {
     document.body.classList.add('fil-actif');
     const menu = document.querySelector('.header .menu-btn');
@@ -1373,6 +1409,11 @@
       + `<a id="filSortie" href="${FIL.ACCUEIL}" style="color:var(--cyan);text-decoration:none;">← ${FIL.LIBELLE_SORTIE}</a>`;
     const phone = document.querySelector('.phone');
     phone.insertBefore(barre, phone.firstChild);
+    // En-tête illustré (inventaire) au-dessus de la barre du fil, qui reste visible dessous.
+    try {
+      const ban = NexusBanniereStation.html(employeeCourant.site_id, { apercu: NexusBanniereStation.apercuDemande(), photos: { jour: 'assets/inventaire/inventaire-banniere-sombre.webp', nuit: 'assets/inventaire/inventaire-banniere-sombre.webp' }, alt: 'Inventaire des produits de la station' });
+      if (ban) { const w = document.createElement('div'); w.className = 'ent-illustre'; w.id = 'entIllustre'; w.setAttribute('data-entete', 'inventaire'); w.innerHTML = ban; phone.insertBefore(w, barre); NexusBanniereStation.suivreTheme(); }
+    } catch (e) { /* présentation seulement */ }
     document.getElementById('filSortie').addEventListener('click', filSauverAvantSortie);
   }
   function filTerminer() {
@@ -1583,7 +1624,7 @@
     }).join('');
     return `
       <div class="etat-banner">
-        <div style="font-weight:600; margin-bottom:2px;">🎯 Mes missions aujourd'hui</div>
+        <div class="titre-missions">${svgKit('comptage', 'inv-cat-icone')}<span>Mes missions aujourd'hui</span></div>
         ${blocs}
       </div>
     `;
@@ -1788,14 +1829,14 @@
         </div>
         ${mouvementEnCoursPossible ? `
         <div class="choix-card" id="carteMouvementRapide">
-          <div class="choix-icone" style="background:var(--cyan-fonce, #0b4a5a);">📦</div>
+          <div class="choix-icone" style="background:var(--cyan-fonce, #0b4a5a);">${svgKit('stock', 'inv-cat-icone')}</div>
           <div style="flex:1;">
             <div class="choix-titre">+ Ajouter un mouvement</div>
             <div class="choix-sub">Nouvelle fournée, casse, retour, retrait — enregistré tout de suite, sans attendre la clôture.</div>
           </div>
         </div>
         <div class="choix-card" id="carteReceptionRapide">
-          <div class="choix-icone" style="background:var(--cyan-fonce, #0b4a5a);">📥</div>
+          <div class="choix-icone" style="background:var(--cyan-fonce, #0b4a5a);">${svgKit('stock', 'inv-cat-icone')}</div>
           <div style="flex:1;">
             <div class="choix-titre">Réception marchandise</div>
             <div class="choix-sub">Plusieurs produits reçus en une seule livraison, en un seul geste.</div>
@@ -1858,7 +1899,7 @@
       return `
         <div class="choix-grid" style="margin-bottom:10px;">
           <div class="choix-card fait" style="cursor:default;">
-            <div class="choix-icone" style="background:var(--surface-vert);">⛽</div>
+            <div class="choix-icone" style="background:var(--surface-vert);">${svgKit('comptage', 'inv-cat-icone')}</div>
             <div style="flex:1;">
               <div class="choix-titre">Jaugeage carburants</div>
               <div class="choix-statut fait">✅ Effectué à ${heure}</div>
@@ -1872,7 +1913,7 @@
       return `
         <div class="choix-grid" style="margin-bottom:10px;">
           <div class="choix-card" style="cursor:default; opacity:0.85;">
-            <div class="choix-icone" style="background:var(--surface-ambre);">⚠️</div>
+            <div class="choix-icone" style="background:var(--surface-ambre);">${svgKit('anomalies', 'inv-cat-icone')}</div>
             <div style="flex:1;">
               <div class="choix-titre">Jaugeage carburants</div>
               <div class="choix-sub">Signalé impossible aujourd'hui (${libelleMotifImpossible(statutJaugeageJour.motif_impossible)}). Le contrôle carburant du jour reste provisoire.</div>
@@ -2203,7 +2244,7 @@
     if (precomptageDejaVu()) { demarrerOuvertureComptage(); return; }
     document.getElementById('content').innerHTML = `
       <div class="precomptage-card">
-        <div class="precomptage-emoji">🎯</div>
+        ${svgKit('comptage', 'precomptage-icone')}
         <div class="precomptage-titre">Un comptage juste fait gagner du temps à toute l'équipe.</div>
         <div class="precomptage-texte">Une erreur fausse les écarts, déclenche des contrôles inutiles et peut masquer une perte réelle.</div>
         <div class="precomptage-regle">Comptez le réel, ne recopiez jamais le stock précédent.</div>
@@ -2616,10 +2657,10 @@
           : 'non requis pour ce quart';
         return `
           <div class="categorie-row desactive" data-cat="${g.nom}">
-            <div>
+            <div class="inv-cat-gauche">${iconeCategorie(g.nom)}<div>
               <div class="categorie-nom">${g.nom}</div>
               <div class="categorie-count">${g.items.length} produit${g.items.length > 1 ? 's' : ''} · ${raison}</div>
-            </div>
+            </div></div>
             <div class="categorie-etat desactivee">Désactivé</div>
           </div>
         `;
@@ -2633,10 +2674,10 @@
       else if (prioritaire) { etatTexte = 'Prioritaire'; etatClasse = 'prioritaire'; }
       return `
         <div class="categorie-row" data-cat="${g.nom}">
-          <div>
+          <div class="inv-cat-gauche">${iconeCategorie(g.nom)}<div>
             <div class="categorie-nom">${g.nom}</div>
             <div class="categorie-count">${g.items.length} produit${g.items.length > 1 ? 's' : ''}</div>
-          </div>
+          </div></div>
           <div class="categorie-etat ${etatClasse}">${etatTexte}</div>
         </div>
       `;
@@ -2886,6 +2927,7 @@
 
     document.getElementById('content').innerHTML = `
       ${renderBarreProgression(groupe)}
+      ${enteteCategorie(groupe)}
       <div class="card">
         ${groupe.items.map(p => renderLigneOuverture(p)).join('')}
       </div>

@@ -74,6 +74,8 @@ testSync('jaugePerimetre — même fonction générique pour jauge de mission ET
     'let planQuartActif = null;',
     'let missionsDuJour = [];',
     'const NexusInventaireMoteur = globalThis.__moteur;',
+    script.slice(script.indexOf('const ICONES_KIT = {'), script.indexOf('};', script.indexOf('const ICONES_KIT = {')) + 2),
+    extraireFonction('svgKit'),
     extraireFonction('comptesFaitsDuPlan'),
     extraireFonction('renderBlocMesMissions'),
     `globalThis.__test = {
