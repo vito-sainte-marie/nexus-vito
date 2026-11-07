@@ -24,7 +24,7 @@ const NexusComposantsPilotage = (function () {
     const info = o.info ? infoBtn(o.info, o.libelle) : '';
     return '<div class="np-tuile"><button type="button" class="np-tuile-corps" data-cible="' + ECHAPPE(o.cible || '') + '">'
       + ring + '<span class="np-tuile-texte"><span class="np-tuile-valeur">' + ECHAPPE(o.valeur) + '</span>'
-      + '<span class="np-tuile-libelle">' + ECHAPPE(o.libelle) + '</span>'
+      + '<span class="np-tuile-libelle">' + (o.icone || '') + ECHAPPE(o.libelle) + '</span>'
       + (o.pastille ? o.pastille : '') + '</span></button>' + info + '</div>';
   }
   const CSS = [
@@ -43,6 +43,7 @@ const NexusComposantsPilotage = (function () {
     '.np-tuile-texte{display:flex;flex-direction:column;gap:2px;min-width:0}',
     '.np-tuile-valeur{font:700 20px var(--mono)}',
     '.np-tuile-libelle{font-size:13px;color:var(--mid)}',
+    '.np-tuile-ico{width:16px;height:16px;flex:none;vertical-align:-3px;margin-right:6px;color:var(--cyan)}',
     '.np-info{position:fixed;inset:0;z-index:2000;display:flex;align-items:center;justify-content:center;padding:20px;background:var(--veil,rgba(0,0,0,.6))}',
     '.np-info[hidden]{display:none}',
     '.np-info-carte{max-width:420px;width:100%;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;color:var(--text);font-family:var(--sans)}',
