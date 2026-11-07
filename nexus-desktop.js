@@ -61,21 +61,21 @@ const NEXUS_SIDEBAR_GROUPES = [
       // automatiquement. V1 : Chapitres 1 (Synthèse dirigeant) + 2 (Santé de
       // l'entreprise) seulement — les 10 autres chapitres du cadrage restent
       // à construire.
-      { label: 'Rapport NEXUS', href: 'NEXUS-Rapport-v1.html', icon: null, emoji: '📑', desc: 'Compare une période choisie à une référence pour l’entreprise.' },
-      { label: 'Cockpit', href: 'NEXUS-Cockpit-v2.html', icon: 'assets/icons/icon-home.png', desc: 'Votre plan d’action opérationnel du jour.' },
+      { label: 'Rapport NEXUS', module: 'mod-rapport', href: 'NEXUS-Rapport-v1.html', icon: null, emoji: '📑', desc: 'Compare une période choisie à une référence pour l’entreprise.' },
+      { label: 'Cockpit', module: 'mod-cockpit', href: 'NEXUS-Cockpit-v2.html', icon: 'assets/icons/icon-home.png', desc: 'Votre plan d’action opérationnel du jour.' },
       { label: 'Journal', module: 'mod-journal', href: 'NEXUS-Journal-v1.html', icon: 'assets/icons/icon-journal-nexus.png', desc: 'Historique des faits, actions et événements NEXUS.' },
       { label: 'Capital NEXUS', module: 'mod-capital', href: 'NEXUS-Capital-v1.html', icon: 'assets/icons/icon-capital.png', desc: 'Valeur économique générée ou sécurisée par vos décisions.' },
-      { label: 'Scanner NEXUS', href: 'NEXUS-Scanner-v1.html', icon: 'assets/icons/icon-scanner.png', desc: 'Détecte les anomalies, écarts et opportunités commerciales.' },
-      { label: 'Radar du Manager', href: 'NEXUS-Radar-Manager-v1.html', icon: 'assets/icons/icon-radar.png', desc: 'Vue rapide des zones qui nécessitent votre attention.' },
+      { label: 'Scanner NEXUS', module: 'mod-scanner', href: 'NEXUS-Scanner-v1.html', icon: 'assets/icons/icon-scanner.png', desc: 'Détecte les anomalies, écarts et opportunités commerciales.' },
+      { label: 'Radar du Manager', module: 'mod-radar', href: 'NEXUS-Radar-Manager-v1.html', icon: 'assets/icons/icon-radar.png', desc: 'Vue rapide des zones qui nécessitent votre attention.' },
     ],
   },
   {
     nom: 'Performer',
     items: [
       { label: 'Produits', module: 'mod-produits', href: 'NEXUS-Produits-v1.html', icon: 'assets/icons/icon-produits.png', desc: 'Analyse les ventes, rotations et performances produits.' },
-      { label: 'Tempo', href: 'NEXUS-Tempo-v1.html', icon: 'assets/icons/icon-nexus-tempo.png', desc: 'Repère les jours et périodes à renforcer.' },
-      { label: 'Campagnes', href: 'NEXUS-Campagne-v1.html', icon: 'assets/icons/icon-campagne-nexus.png', desc: 'Suit la performance de vos actions commerciales.' },
-      { label: 'Scanner Stock', href: 'NEXUS-Scanner-Stock-v1.html', icon: 'assets/icons/icon-scanner-stock.png', desc: 'Repère les écarts et références à recompter.' },
+      { label: 'Tempo', module: 'mod-tempo', href: 'NEXUS-Tempo-v1.html', icon: 'assets/icons/icon-nexus-tempo.png', desc: 'Repère les jours et périodes à renforcer.' },
+      { label: 'Campagnes', module: 'mod-campagnes', href: 'NEXUS-Campagne-v1.html', icon: 'assets/icons/icon-campagne-nexus.png', desc: 'Suit la performance de vos actions commerciales.' },
+      { label: 'Scanner Stock', module: 'mod-scanner-stock', href: 'NEXUS-Scanner-Stock-v1.html', icon: 'assets/icons/icon-scanner-stock.png', desc: 'Repère les écarts et références à recompter.' },
     ],
   },
   {
@@ -133,7 +133,7 @@ const NEXUS_SIDEBAR_GROUPES = [
   {
     nom: 'Équipe',
     items: [
-      { label: 'Évaluations', href: 'NEXUS-Evaluation-Employe-v1.html', icon: 'assets/icons/icon-evaluation.png', desc: 'Évalue la réalisation et la qualité du travail.' },
+      { label: 'Évaluations', module: 'mod-evaluations', href: 'NEXUS-Evaluation-Employe-v1.html', icon: 'assets/icons/icon-evaluation.png', desc: 'Évalue la réalisation et la qualité du travail.' },
       { label: 'Résultats', module: 'mod-resultats', href: 'NEXUS-Resultats-Equipe-v1.html', icon: 'assets/icons/icon-resultats-equipe.png', desc: 'Suit la progression et les performances de l’équipe.' },
       // Paye (09/10/2026, demande de Frédéric) : l'écran n'était joignable que
       // par le menu ☰ de l'accueil. Pas d'icône dédiée dans assets/icons.
@@ -149,7 +149,7 @@ const NEXUS_SIDEBAR_GROUPES = [
       // 👥 harmonisé avec le tiroir Explorer NEXUS (qui utilisait 🧾) le
       // 20/08/2026 — pas d'icône dédiée dans le pack NEXUS pour ce domaine.
       { label: 'Comptes Clients', module: 'mod-comptes-clients', href: 'NEXUS-Comptes-Clients-v1.html', icon: null, emoji: '👥', desc: 'Gère les comptes clients à crédit et leurs mouvements.' },
-      { label: 'Boîte de réception', href: 'NEXUS-Boite-Reception-v1.html', icon: null, emoji: '📥', desc: 'Centralise les demandes des comptes clients.' },
+      { label: 'Boîte de réception', module: 'mod-boite-reception', href: 'NEXUS-Boite-Reception-v1.html', icon: null, emoji: '📥', desc: 'Centralise les demandes des comptes clients.' },
       // Icône pack NEXUS (20/08/2026, uniformisation) : icon-parametres-24.png.
       { label: 'Paramètres Comptes Clients', href: 'NEXUS-Parametres-Comptes-Clients-v1.html', icon: 'assets/icons/icon-parametres-24.png', desc: 'Configure les règles et plafonds des comptes clients.' },
     ],
@@ -168,7 +168,7 @@ const NEXUS_SIDEBAR_GROUPES = [
   {
     nom: 'Administrer',
     items: [
-      { label: 'Imports', href: 'NEXUS-Import-v1.html', icon: 'assets/icons/icon-import.png', desc: 'Importe vos données externes dans NEXUS.' },
+      { label: 'Imports', module: 'mod-imports', href: 'NEXUS-Import-v1.html', icon: 'assets/icons/icon-import.png', desc: 'Importe vos données externes dans NEXUS.' },
       // Icône pack NEXUS (20/08/2026, uniformisation) : icon-parametres-24.png,
       // même icône sur les 4 écrans "Paramètres…" (Station, Comptes Clients,
       // Inventaire, FDJ) — un seul concept visuel pour un seul concept métier.
@@ -179,7 +179,7 @@ const NEXUS_SIDEBAR_GROUPES = [
       // Paramètres FDJ (10/08/2026, audit "Paramétrage autonome & multi-
       // site", étape 3) : rejoint Paramètres Inventaire, même logique.
       { label: 'Paramètres FDJ', href: 'NEXUS-FDJ-Parametres-v1.html', icon: 'assets/icons/icon-parametres-24.png', desc: 'Configure les seuils et réglages du module FDJ.' },
-      { label: 'Rappels', href: 'NEXUS-Parametres-Rappels-v1.html', icon: 'assets/icons/icon-rappels.png', desc: 'Gère les rappels officiels FDJ à traiter.' },
+      { label: 'Rappels', module: 'mod-rappels', href: 'NEXUS-Parametres-Rappels-v1.html', icon: 'assets/icons/icon-rappels.png', desc: 'Gère les rappels officiels FDJ à traiter.' },
     ],
   },
 ];
@@ -221,7 +221,7 @@ function nexusConstruireSidebarHTML() {
     </a>
     <div class="nexus-sidebar-scroll">
       <a class="nexus-sidebar-link${pageActuelle === 'NEXUS-App-v1.html' ? ' active' : ''}" href="NEXUS-App-v1.html" style="margin-bottom:8px;">
-        <img src="assets/icons/icon-home.png" alt="">
+        ${window.NexusIcones ? window.NexusIcones.img('mod-accueil', 16, { decoratif: true, ancien: '<img src="assets/icons/icon-home.png" alt="">' }) : '<img src="assets/icons/icon-home.png" alt="">'}
         <span>Accueil</span>
       </a>
       ${groupesHTML}

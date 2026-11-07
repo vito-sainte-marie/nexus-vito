@@ -318,7 +318,7 @@
       exempleConcret: "Votre marge boissons diminue depuis trois semaines. Brief NEXUS vous alerte. Le Centre d'Intelligence vous permet ensuite d'en rechercher les causes. Produits vous montre les références responsables.",
     },
     {
-      id: 'cockpit', groupe: 'piloter', icone: '🏠', nom: 'Cockpit', href: 'NEXUS-Cockpit-v2.html',
+      id: 'cockpit', module: 'mod-cockpit', groupe: 'piloter', icone: '🏠', nom: 'Cockpit', href: 'NEXUS-Cockpit-v2.html',
       role: 'Tous', forfait: null, intentions: ['comprendre-activite', 'controler-caisses'],
       aQuoiCaSert: "Vous ne savez pas par quoi commencer ? NEXUS vous indique ce qui mérite votre attention maintenant.",
       quandUtiliser: "Dès l'ouverture, ou dès que vous avez un moment dans la journée pour traiter des priorités concrètes — produits, caisse, stock, mélangés dans un seul plan d'action.",
@@ -346,7 +346,7 @@
       donneesSources: "Montant estimé au moment de la validation de chaque décision — jamais un chiffre d'affaires vérifié après coup, le vocabulaire reste toujours « valeur identifiée / estimée ».",
     },
     {
-      id: 'scanner', groupe: 'piloter', icone: '🔎', nom: 'Scanner NEXUS', href: 'NEXUS-Scanner-v1.html',
+      id: 'scanner', module: 'mod-scanner', groupe: 'piloter', icone: '🔎', nom: 'Scanner NEXUS', href: 'NEXUS-Scanner-v1.html',
       role: 'Manager', forfait: 'professional', intentions: ['augmenter-ventes', 'ameliorer-marge'],
       aQuoiCaSert: "Repérez en un coup d'œil ce qui rapporte vraiment dans votre magasin — quelles catégories, quels produits — et détectez les écarts de marge à corriger.",
       quandUtiliser: "Une fois par semaine ou par mois, pour prioriser où porter votre attention commerciale et générer une mission terrain directement depuis une opportunité repérée.",
@@ -354,7 +354,7 @@
       exempleConcret: "Un produit a une marge anormalement basse comparée à des produits similaires. Scanner NEXUS le signale dans « NEXUS Marge+ ». Vous créez une mission en un clic pour vérifier son prix ou sa mise en avant en rayon.",
     },
     {
-      id: 'radar', groupe: 'piloter', icone: '🧑‍🤝‍🧑', nom: 'Radar du Manager', href: 'NEXUS-Radar-Manager-v1.html',
+      id: 'radar', module: 'mod-radar', groupe: 'piloter', icone: '🧑‍🤝‍🧑', nom: 'Radar du Manager', href: 'NEXUS-Radar-Manager-v1.html',
       role: 'Manager', forfait: 'professional', intentions: ['comprendre-activite', 'piloter-equipe'],
       aQuoiCaSert: "Voyez en un instant où concentrer votre énergie de manager, sur 8 domaines de pilotage (résultats, équipe, exploitation, conformité...).",
       quandUtiliser: "Pour un état des lieux rapide de ce qui est réellement piloté avec de vraies données, et ce qui reste hors de portée de NEXUS pour l'instant.",
@@ -378,21 +378,21 @@
       donneesSources: "Ventes et marge par catégorie, comparées à la période précédente quand une comparaison fiable existe — sinon NEXUS l'affiche honnêtement plutôt que d'inventer une tendance.",
     },
     {
-      id: 'tempo', groupe: 'performer', icone: '📆', nom: 'Tempo', href: 'NEXUS-Tempo-v1.html',
+      id: 'tempo', module: 'mod-tempo', groupe: 'performer', icone: '📆', nom: 'Tempo', href: 'NEXUS-Tempo-v1.html',
       role: 'Manager', forfait: 'professional', intentions: ['augmenter-ventes'],
       aQuoiCaSert: "Sachez quels jours de la semaine portent vraiment votre commerce, et lesquels reculent.",
       quandUtiliser: "Pour organiser votre planning ou vos actions commerciales autour des jours qui comptent vraiment, plutôt que sur une simple impression.",
       donneesSources: "Audits de caisse quotidiens — aucune tendance n'est affichée sans un minimum de 14 jours d'historique global.",
     },
     {
-      id: 'campagnes', groupe: 'performer', icone: '📣', nom: 'Campagnes', href: 'NEXUS-Campagne-v1.html',
+      id: 'campagnes', module: 'mod-campagnes', groupe: 'performer', icone: '📣', nom: 'Campagnes', href: 'NEXUS-Campagne-v1.html',
       role: 'Manager', forfait: 'professional', intentions: ['augmenter-ventes'],
       aQuoiCaSert: "Sachez si une promotion a vraiment eu un impact sur votre chiffre d'affaires, avant/pendant.",
       quandUtiliser: "Après avoir lancé une promotion, pour mesurer son effet réel plutôt que de se fier à une impression du moment.",
       donneesSources: "Audits de caisse comparés avant/pendant la période de la promotion — la mesure reste volontairement au niveau du CA global, jamais par produit, pour ne jamais déguiser une estimation en fait mesuré.",
     },
     {
-      id: 'scanner-stock', groupe: 'performer', icone: '📉', nom: 'Scanner Stock', href: 'NEXUS-Scanner-Stock-v1.html',
+      id: 'scanner-stock', module: 'mod-scanner-stock', groupe: 'performer', icone: '📉', nom: 'Scanner Stock', href: 'NEXUS-Scanner-Stock-v1.html',
       role: 'Manager', forfait: null, intentions: ['maitriser-stocks', 'ameliorer-marge'],
       aQuoiCaSert: "Répondez à « où perdez-vous de l'argent en stock ? » — les écarts entre ce qui est compté et ce qui devrait être là.",
       quandUtiliser: "Pour prioriser vos prochains comptages plutôt que de tout recompter au hasard.",
@@ -467,7 +467,7 @@
 
     // ---- ÉQUIPE ----
     {
-      id: 'evaluations', groupe: 'equipe', icone: '📝', nom: 'Évaluations', href: 'NEXUS-Evaluation-Employe-v1.html',
+      id: 'evaluations', module: 'mod-evaluations', groupe: 'equipe', icone: '📝', nom: 'Évaluations', href: 'NEXUS-Evaluation-Employe-v1.html',
       role: 'Manager', forfait: 'professional', intentions: ['piloter-equipe'],
       aQuoiCaSert: "Notez la tenue et la performance d'un employé, avec un calcul de prime automatique selon un barème fixe.",
       quandUtiliser: "Selon votre rythme d'évaluation habituel, ou lors d'un contrôle de tenue ponctuel en quelques secondes.",
@@ -490,7 +490,7 @@
       donneesSources: "Fiches saisies par le manager, documents déposés via la Boîte de réception, journal d'audit de chaque action.",
     },
     {
-      id: 'boite-reception', groupe: 'comptes-clients', icone: '📥', nom: 'Boîte de réception', href: 'NEXUS-Boite-Reception-v1.html',
+      id: 'boite-reception', module: 'mod-boite-reception', groupe: 'comptes-clients', icone: '📥', nom: 'Boîte de réception', href: 'NEXUS-Boite-Reception-v1.html',
       role: 'Manager', forfait: 'professional', intentions: [],
       aQuoiCaSert: "Déposez une facture ou un bon — NEXUS le trie automatiquement et propose le bon client.",
       quandUtiliser: "Dès qu'un document arrive : facture fournisseur au format PDF, ou bon de livraison scanné/photographié.",
@@ -507,7 +507,7 @@
 
     // ---- ADMINISTRER ----
     {
-      id: 'imports', groupe: 'administrer', icone: '📤', nom: 'Imports', href: 'NEXUS-Import-v1.html',
+      id: 'imports', module: 'mod-imports', groupe: 'administrer', icone: '📤', nom: 'Imports', href: 'NEXUS-Import-v1.html',
       role: 'Manager', forfait: null, intentions: [],
       aQuoiCaSert: "Faites entrer vos vraies données dans NEXUS — ventes, catalogue, stock, campagnes.",
       quandUtiliser: "À chaque nouvel export de votre logiciel de caisse ou de gestion.",
@@ -528,7 +528,7 @@
       donneesSources: "Ce que vous configurez ici — reflété immédiatement dans l'écran de comptage employé.",
     },
     {
-      id: 'rappels', groupe: 'administrer', icone: '🔔', nom: 'Rappels', href: 'NEXUS-Parametres-Rappels-v1.html',
+      id: 'rappels', module: 'mod-rappels', groupe: 'administrer', icone: '🔔', nom: 'Rappels', href: 'NEXUS-Parametres-Rappels-v1.html',
       role: 'Manager', forfait: null, intentions: ['maitriser-stocks'],
       aQuoiCaSert: "N'oubliez plus une échéance récurrente — commande fournisseurs, jaugeage carburant.",
       quandUtiliser: "Chaque jour pour le jaugeage carburant (avec recommandation de commande automatique), à chaque échéance bimensuelle pour les fournisseurs.",
