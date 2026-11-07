@@ -33,7 +33,7 @@ function epreuvesApp(a) {
   assert(a.includes(".in('moment', [momentIndexDebut, momentIndexFin].filter(Boolean))"), 'relevé de fin lu');
   assert(a.includes('inventaire_quarts(date, quart, cloture_le'), 'quart lu');
   assert(a.includes('r.inventaire_quarts.quart === quartDuJour'), 'jugé sur le quart du service');
-  assert((a.match(/surQuartDeService\(r\)/g) || []).length === 2, 'filtre appliqué aux deux faits');
+  assert((a.match(/surQuartDeService\(r\)/g) || []).length === 3, 'filtre appliqué aux deux faits et aux lignes closes par le serveur');
   assert(a.includes('NexusFilDebutQuart.urlEtape(NexusFilDebutQuart.planSelonFaits(faitsFil)[0]'), 'repli : jamais d\'étape sans bouton');
   assert(a.includes('filLien, finQuartLien, finQuartFait,'), 'faits transmis au module');
 }
@@ -56,7 +56,7 @@ const tue = (nom, src, orig, ep, mk) => { assert.notStrictEqual(src, orig, 'muta
 [
   ['relevé de fin non lu', (s) => s.replace(".in('moment', [momentIndexDebut, momentIndexFin].filter(Boolean))", ".eq('moment', momentIndexDebut)")],
   ['inventaire sur le quart courant', (s) => s.replace('r.inventaire_quarts.quart === quartDuJour', 'true')],
-  ['filtre sur une seule lecture', (s) => s.replace('      surQuartDeService(r) &&\n      r.inventaire_quarts.is_simulation !== true &&\n      !r.inventaire_quarts.cloture_le', '      r.inventaire_quarts.is_simulation !== true &&\n      !r.inventaire_quarts.cloture_le')],
+  ['filtre sur une seule lecture', (s) => s.replace('      surQuartDeService(r) &&\n      r.inventaire_quarts.is_simulation !== true &&\n      // Ouvert, ou clos', '      r.inventaire_quarts.is_simulation !== true &&\n      // Ouvert, ou clos')],
   ['impasse : pas de repli', (s) => s.replace('|| NexusFilDebutQuart.urlEtape(NexusFilDebutQuart.planSelonFaits(faitsFil)[0]', '|| null && (NexusFilDebutQuart.planSelonFaits(faitsFil)[0]')],
   ['fin du mauvais moment', (s) => s.split('momentFinDuQuart(quartDuJour)').join('momentDebutDuQuart(quartDuJour)')],
   ['faits non transmis', (s) => s.replace('filLien, finQuartLien, finQuartFait,', 'filLien,')],

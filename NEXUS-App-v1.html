@@ -720,6 +720,7 @@
   .ap-etapes{list-style:none;margin:0 0 14px;padding:0;}
   .ap-etape{font-size:14px;color:var(--ap-text);padding:6px 0;}
   .ap-etape.ap-fait, .ap-etape.ap-sans_objet{color:var(--seg-plein);}
+  .ap-etape.ap-non-fait{color:var(--danger,#b3261e);font-weight:600;}
   .ap-marque{display:inline-block;width:22px;}
   .ap-sans-objet{font-size:12px;color:var(--ap-mid);}
   .ap-bouton{display:flex;align-items:center;justify-content:center;height:52px;border-radius:12px;background:var(--cyan);color:var(--on-cyan);font-size:16px;font-weight:600;text-decoration:none;margin-top:12px;}
@@ -2675,9 +2676,22 @@
       r.inventaire_quarts.date === todayISO &&
       surQuartDeService(r) &&
       r.inventaire_quarts.is_simulation !== true &&
-      // Clôture serveur du quart (PR #176) : sa propre validation de clôture suffit, sans attendre le passage du cron.
-      (!!r.inventaire_quarts.cloture_le || r.a_valide_cloture === true)
+      // « Fait » = CET employé a validé sa clôture. Un quart clos par le serveur (cron, délai dépassé) ne prouve pas qu'il a compté :
+      // cloture_le seul ne suffit plus (clôture honnête, Guardian 6711145725). Voir clotureServeurSansComptage.
+      r.a_valide_cloture === true
     );
+    // Quart du service clos par le serveur sans la validation de clôture de cet employé : état explicite, jamais « Quart terminé ».
+    const rowsClosServeur = (quartEmployeRows || []).filter(r =>
+      (r.responsable_comptage || r.a_valide_ouverture) && r.inventaire_quarts &&
+      r.inventaire_quarts.date === todayISO && surQuartDeService(r) &&
+      r.inventaire_quarts.is_simulation !== true && !!r.inventaire_quarts.cloture_le && r.a_valide_cloture !== true);
+    const clotureServeurSansComptage = (inventaireApplicable && !inventaireFait && rowsClosServeur.length)
+      ? { cloture_le: rowsClosServeur.map(r => r.inventaire_quarts.cloture_le).sort().pop(),
+          heure: (() => { const d = new Date(rowsClosServeur.map(r => r.inventaire_quarts.cloture_le).sort().pop()); if (isNaN(d.getTime())) return null;
+            const p = new Intl.DateTimeFormat('fr-FR', { timeZone: fuseauStation || undefined, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(d);
+            const h = (p.find(x => x.type === 'hour') || {}).value, m = (p.find(x => x.type === 'minute') || {}).value;
+            return h && m ? h + ' h ' + m : null; })() }
+      : null;
 
     // Ouverture faite (recette du 22/10) : l'inventaire d'ouverture validé
     // laisse le quart en statut « ouvert » jusqu'à la clôture de fin de quart.
@@ -2689,8 +2703,8 @@
       r.inventaire_quarts.date === todayISO &&
       surQuartDeService(r) &&
       r.inventaire_quarts.is_simulation !== true &&
-      !r.inventaire_quarts.cloture_le &&
-      r.inventaire_quarts.statut === 'ouvert'
+      // Ouvert, ou clos par le serveur : l'ouverture validée reste un fait, sinon l'accueil renverrait au fil d'ouverture d'un quart clos.
+      (r.inventaire_quarts.statut === 'ouvert' || !!r.inventaire_quarts.cloture_le)
     );
 
     const jaugeageApplicable = enService && jaugeagePertinentRole && !!jaugeageActifSite;
@@ -2722,7 +2736,7 @@
     // Heures réelles du récapitulatif de fin de quart, lues sur les faits déjà chargés : fin des relevés d'index (finalise_le) et
     // clôture de l'inventaire du quart de service. Une heure absente reste null et la ligne correspondante est omise.
     const heureReleve = (moment) => { const r = (relevesIndexRows || []).find(x => x.moment === moment && x.statut === 'final'); return r ? r.finalise_le : null; };
-    const clotureInventaire = ((quartEmployeRows || []).filter(r => r.inventaire_quarts && r.inventaire_quarts.date === todayISO && r.inventaire_quarts.is_simulation !== true && (r.inventaire_quarts.cloture_le || (r.a_valide_cloture && r.heure_depart))).filter(surQuartDeService).map(r => r.inventaire_quarts.cloture_le || r.heure_depart).sort().pop()) || null;
+    const clotureInventaire = ((quartEmployeRows || []).filter(r => r.inventaire_quarts && r.inventaire_quarts.date === todayISO && r.inventaire_quarts.is_simulation !== true && r.a_valide_cloture === true && (r.inventaire_quarts.cloture_le || r.heure_depart)).filter(surQuartDeService).map(r => r.inventaire_quarts.cloture_le || r.heure_depart).sort().pop()) || null;
     const recapQuart = { ouvertureDe: null, ouvertureA: heureReleve(momentIndexDebut), fermetureDe: heureReleve(momentIndexFin), fermetureA: clotureInventaire };
     if (enService && roleDuJour === 'pompiste' && fuseauStation && quartDuJour) {
       const horairesStation = await chargerHorairesStation(employee.site_id);
@@ -2744,10 +2758,10 @@
     if (piloteCaisse && fuseauStation && NexusFilCaisse.quartConcerneParFermeture(quartDuJour)) {
       fermetureCaisseDue = NexusFilCaisse.fermetureDueEnService({ station: NexusStation, horaires: await chargerHorairesStation(employee.site_id), quartDuJour, fuseau: fuseauStation });
     }
-    const filCaisseLien = NexusFilCaisse.lienEntree(piloteCaisse, roleDuJour, enService && inventaireApplicable, { ouvertureFaite: inventaireOuvertureFaite, clotureFaite: inventaireFait, fermetureDue: fermetureCaisseDue });
+    const filCaisseLien = NexusFilCaisse.lienEntree(piloteCaisse, roleDuJour, enService && inventaireApplicable, { ouvertureFaite: inventaireOuvertureFaite, clotureFaite: inventaireFait || !!clotureServeurSansComptage, fermetureDue: fermetureCaisseDue });
 
     return {
-      inventaireApplicable, inventaireFait, inventaireOuvertureFaite,
+      inventaireApplicable, inventaireFait, inventaireOuvertureFaite, clotureServeurSansComptage,
       jaugeageApplicable, jaugeageFait, indexApplicable, indexFait, indexLien, resteDuFil, faitsFil, filLien,
       finQuartFait, finQuartLien, finMinutes, maintenantMinutes, finIndexApplicable, finIndexFait, clotureInventaireFait,
       fermetureLien, recapQuart, piloteCaisse, fermetureCaisseDue, filCaisseLien,
@@ -2758,6 +2772,9 @@
   // Parcours du quart d'un manager EN SERVICE comme pompiste ou caissière (07/11/2026, Guardian 6708056326) : même calcul que
   // l'employé (calculerParcours), rendu dans la carte « Service en cours » de son accueil. Fonction à part : renderPrisePoste
   // ne lit rien et n'écrit rien. Pas de service du jour, renfort ou autre rôle : aucun bloc.
+  function libelleClotureServeur(c) {
+    return 'Inventaire de clôture non fait : quart clos automatiquement' + (c && c.heure ? ' à ' + c.heure : '');
+  }
   function modeleParcoursManager(roleDuJour, f) {
     // Heure d'ouverture de la fermeture : fin du quart lue dans station_config.horaires (finMinutes, régime du jour, fuseau du site)
     // moins le délai d'ouverture. Jamais écrite en dur ; sans fin connue, aucune heure n'est annoncée.
@@ -2771,6 +2788,7 @@
         return { texte: 'Faire mon début de quart (pompiste)', lien: f.filLien, progression: (total - restantes) + ' étape' + ((total - restantes) > 1 ? 's' : '') + ' sur ' + total + ' faite' + ((total - restantes) > 1 ? 's' : '') };
       }
       if (total === 0) return null;
+      if (f.clotureServeurSansComptage) return { texte: libelleClotureServeur(f.clotureServeurSansComptage), lien: f.fermetureLien || null, texteLien: 'Faire ma clôture (en retard)', progression: null };
       const fermetureFaite = (!f.finIndexApplicable || f.finIndexFait) && f.clotureInventaireFait;
       if (fermetureFaite) return { texte: 'Quart terminé ✓', lien: null, progression: null };
       if (f.fermetureLien && dueA(NexusAccueilPiste.DELAI_FERMETURE_MIN)) {
@@ -2785,6 +2803,7 @@
       }
       if (!(f.piloteCaisse && f.inventaireApplicable)) return null;
       // Fermeture de caisse : quart du soir seulement. Clôture faite, ou quart sans fermeture : tout est fait.
+      if (f.clotureServeurSansComptage) return { texte: libelleClotureServeur(f.clotureServeurSansComptage), lien: null, progression: null };
       if (f.inventaireFait || !f.fermetureCaisseApplicable) return { texte: 'Quart terminé ✓', lien: null, progression: null };
       return { texte: 'Début de quart terminé ✓', lien: null, progression: prochaine(NexusFilCaisse.DELAI_FERMETURE_MIN, 'Fermeture de caisse') };
     }
@@ -2814,7 +2833,7 @@
       const a = document.createElement('a');
       a.className = 'ap-bouton am-parcours-bouton';
       a.setAttribute('href', m.lien);
-      a.textContent = m.texte;
+      a.textContent = m.texteLien || m.texte;
       bloc.appendChild(a);
     } else {
       const p = document.createElement('div');
@@ -2982,7 +3001,7 @@
     // Faits du parcours du quart (jaugeage, index, inventaire, fermeture, caisse) : calcul commun à l'employé et au manager en service
     // (07/11/2026) — mêmes lectures, mêmes règles ; voir calculerParcours().
     const {
-      inventaireApplicable, inventaireFait, inventaireOuvertureFaite,
+      inventaireApplicable, inventaireFait, inventaireOuvertureFaite, clotureServeurSansComptage,
       jaugeageApplicable, jaugeageFait, indexApplicable, indexFait, indexLien, faitsFil, filLien,
       finQuartFait, finQuartLien, finMinutes, maintenantMinutes, finIndexApplicable, finIndexFait, clotureInventaireFait,
       fermetureLien, recapQuart, piloteCaisse, fermetureCaisseDue, filCaisseLien,
@@ -3098,7 +3117,7 @@
       prenom: employee.prenom || employee.nom, libelleRole, quart: serviceCourantJour && serviceCourantJour.quart,
       heureDebut: serviceCourantJour && serviceCourantJour.heure_debut, fuseau: fuseauStation,
       jaugeageApplicable, jaugeageFait, indexApplicable, indexFait,
-      inventaireApplicable, inventaireFait, inventaireOuvertureFaite,
+      inventaireApplicable, inventaireFait, inventaireOuvertureFaite, clotureServeurSansComptage,
       receptionApplicable, commandes: commandesRows || [], dateLocale: todayISO,
       missions: missionsInfo, points: missionsInfo.pointsAujourdhui, filLien, finQuartLien, finQuartFait,
       finMinutes, maintenantMinutes, finIndexApplicable, finIndexFait, clotureInventaireFait, fermetureLien,

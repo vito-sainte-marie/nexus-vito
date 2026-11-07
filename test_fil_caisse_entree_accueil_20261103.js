@@ -61,7 +61,7 @@ cas('Accueil : modules chargés, lecture seule du pilote, rôle caissière exig�
   assert.ok(/if \(error\)[^\n]*return false;/.test(f), 'erreur = pas pilote');
 });
 cas('Accueil : la carte utilise filCaisseLien sans écraser le lien pompiste', () => {
-  assert.ok(HTML.includes("const filCaisseLien = NexusFilCaisse.lienEntree(piloteCaisse, roleDuJour, enService && inventaireApplicable, { ouvertureFaite: inventaireOuvertureFaite, clotureFaite: inventaireFait, fermetureDue: fermetureCaisseDue });"));
+  assert.ok(HTML.includes("const filCaisseLien = NexusFilCaisse.lienEntree(piloteCaisse, roleDuJour, enService && inventaireApplicable, { ouvertureFaite: inventaireOuvertureFaite, clotureFaite: inventaireFait || !!clotureServeurSansComptage, fermetureDue: fermetureCaisseDue });"));
   assert.ok(HTML.includes("if (piloteCaisse && fuseauStation && NexusFilCaisse.quartConcerneParFermeture(quartDuJour)) {"), 'horaires lus seulement pour un pilote');
   assert.ok(/ctx\.inventaireOuvertureFaite && ctx\.filCaisseLien\) \{\s*return \{[^}]*lien: ctx\.filCaisseLien/.test(HTML), 'carte fermeture');
   assert.ok(/lien: ctx\.filLien \|\| ctx\.filCaisseLien \|\| 'NEXUS-Inventaire-v1\.html'/.test(HTML));
