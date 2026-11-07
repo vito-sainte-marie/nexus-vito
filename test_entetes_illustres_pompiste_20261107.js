@@ -56,3 +56,34 @@ t('aucune couleur hexadécimale brute ajoutée dans les styles de l\'en-tête', 
     assert.ok(!/#[0-9a-fA-F]{3,8}\b/.test(bloc), nom);
   }
 });
+// --- Pictogrammes Gaz (bleu) et Glaçons (cubes) : même tracé Manager / pompiste / kit ---
+(function () {
+  const man = fs.readFileSync(path.join(__dirname, 'NEXUS-Inventaire-Manager-v1.html'), 'utf8');
+  const pomp = fs.readFileSync(path.join(__dirname, 'NEXUS-Inventaire-v1.html'), 'utf8');
+  const trace = (src, cle) => { const m = src.match(new RegExp("\\n\\s+" + cle + ": '([^']*)'")); return m && m[1]; };
+  const svg = cle => fs.readFileSync(path.join(__dirname, `assets/inventaire/icones/${cle}.svg`), 'utf8');
+  t('Gaz : bouteille bleue (#2F7DF6, ombre #1E5BC6), sans currentColor dans le tracé', () => {
+    const g = trace(pomp, 'gaz');
+    assert.ok(g.includes('#2F7DF6') && g.includes('#1E5BC6'));
+    assert.ok(!g.includes('currentColor'));
+  });
+  t('Glaçons : cubes bleu glacier, différents du pictogramme stock', () => {
+    const i = trace(pomp, 'glacons');
+    assert.ok(i.includes('#7FD3FF') && i.includes('#3BA9E6'));
+    assert.ok(!i.includes('currentColor'));
+    assert.notStrictEqual(i, trace(pomp, 'stock'));
+  });
+  t('Gaz et Glaçons : même tracé dans le Manager, chez le pompiste et dans le kit', () => {
+    for (const cle of ['gaz', 'glacons']) {
+      assert.strictEqual(trace(man, cle), trace(pomp, cle), cle);
+      assert.ok(svg(cle).includes(trace(pomp, cle)), `${cle}.svg`);
+    }
+  });
+  t('Les autres pictogrammes ne changent pas (cigarettes, stock, comptage, anomalies)', () => {
+    for (const cle of ['cigarettes', 'stock', 'comptage', 'anomalies'])
+      assert.strictEqual(trace(man, cle), trace(pomp, cle), cle);
+  });
+  t('Inventaire pompiste : l\'en-tête a les mêmes marges que sur Piste', () => {
+    assert.ok(/\.ent-illustre\{margin:12px 16px 4px\}/.test(pomp));
+  });
+})();

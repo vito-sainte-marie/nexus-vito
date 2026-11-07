@@ -317,7 +317,7 @@
   .ent-illustre .am-banniere img.am-fondu{opacity:0;transition:opacity 800ms ease}
   .ent-illustre .am-banniere img.am-fondu-visible{opacity:1}
   @media (prefers-reduced-motion:reduce){.ent-illustre .am-banniere img.am-fondu{transition:none}}
-  .ent-illustre{margin:0 0 4px}
+  .ent-illustre{margin:12px 16px 4px}
   .inv-cat-icone{width:28px;height:28px;flex:none;color:var(--cyan);margin-right:12px}
   .inv-cat-gauche{display:flex;align-items:center;min-width:0}
   .inv-cat-entete{display:flex;align-items:center;gap:10px;margin:0 0 10px;font-weight:600}
@@ -1383,8 +1383,8 @@
   // Pictogrammes du kit assets/inventaire/icones/ (colorés par currentColor), même règle de choix que le Manager (iconeCategorie).
   const ICONES_KIT = {
     cigarettes: '<rect x="15" y="14" width="34" height="40" rx="4"/><path d="M15 27h34M24 27v19M32 27v19M40 27v19M20 19h24"/>',
-    gaz: '<rect x="22" y="19" width="20" height="36" rx="5"/><path d="M27 19v-8h10v8M26 11h12M28 30h8M28 40h8"/><path d="M17 27v19M47 27v19"/>',
-    glacons: '<path d="m32 8 22 12v24L32 56 10 44V20Z M10 20l22 12 22-12M32 32v24M21 14l22 12"/>',
+    gaz: '<rect x="19" y="21" width="26" height="36" rx="10" style="fill:var(--ico-2f7df6,#2F7DF6)" stroke="none"/><path d="M19 47h26a10 10 0 0 1-10 10H29a10 10 0 0 1-10-10Z" style="fill:var(--ico-1e5bc6,#1E5BC6)" stroke="none"/><rect x="26" y="12" width="12" height="10" rx="2" style="fill:var(--ico-1e5bc6,#1E5BC6)" stroke="none"/><rect x="21" y="6" width="22" height="6" rx="3" style="fill:var(--ico-1e5bc6,#1E5BC6)" stroke="none"/><rect x="24" y="28" width="4" height="14" rx="2" style="fill:var(--ico-fff,#fff)" fill-opacity=".6" stroke="none"/>',
+    glacons: '<rect x="8" y="32" width="26" height="24" rx="6" style="fill:var(--ico-3ba9e6,#3BA9E6)" stroke="none"/><rect x="8" y="32" width="26" height="17" rx="6" style="fill:var(--ico-7fd3ff,#7FD3FF)" stroke="none"/><rect x="31" y="36" width="25" height="20" rx="6" style="fill:var(--ico-3ba9e6,#3BA9E6)" stroke="none"/><rect x="31" y="36" width="25" height="14" rx="6" style="fill:var(--ico-7fd3ff,#7FD3FF)" stroke="none"/><rect x="19" y="8" width="26" height="24" rx="6" style="fill:var(--ico-3ba9e6,#3BA9E6)" stroke="none"/><rect x="19" y="8" width="26" height="17" rx="6" style="fill:var(--ico-7fd3ff,#7FD3FF)" stroke="none"/><path d="M24 14h8M12 38h6M36 42h6" style="stroke:var(--ico-fff,#fff)" stroke-width="3" stroke-linecap="round" stroke-opacity=".85"/>',
     stock: '<path d="m9 22 23-12 23 12v25L32 59 9 47Z M9 22l23 13 23-13M32 35v24M21 16l23 13"/>',
     comptage: '<rect x="17" y="13" width="30" height="39" rx="5"/><path d="M25 13v-4h14v4M25 25h14M25 34h6M25 43h6"/><path d="m35 34 3 3 6-7m-9 13 3 3 6-7"/>',
     anomalies: '<path d="M32 9 58 52H6Z"/><path d="M32 25v12M32 44v1"/>'
