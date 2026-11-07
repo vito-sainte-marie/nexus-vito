@@ -49,6 +49,10 @@ function clientFactice() {
     h => /manualMinutesField'\)\.hidden=absence/.test(h) && /manualAmountField'\)\.hidden=absence/.test(h) && /Une absence est enregistrée comme un événement RH unique\./.test(h),
     "manualAmountField').hidden=absence", "manualAmountField').hidden=false");
 
+  garde('la phrase « Une absence ou un congé ne se saisit pas ici » est masquée quand le type est Absence',
+    h => /id="manualAbsenceInterdit">Une absence ou un congé ne se saisit pas ici/.test(h) && /manualAbsenceInterdit'\)\.hidden=absence/.test(h),
+    "manualAbsenceInterdit').hidden=absence", "manualAbsenceInterdit').hidden=false");
+
   // ---- Données ----
   await ta('une absence crée UN seul événement RH sur la période', async () => {
     const c = clientFactice();
