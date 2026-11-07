@@ -65,6 +65,26 @@
     else code = 'alerte_prioritaire';
     return { code, ecart: e };
   }
+  // Référence ancienne : le dernier relevé validé date d'avant la veille (début de Q1) ou d'avant le jour (début de Q2).
+  // Les compteurs ont tourné depuis : le contrôle rapide sur 2 chiffres n'a plus de sens, on saisit les 7 chiffres.
+  function veilleDe(date) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(date || '')); if (!m) return null;
+    return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3] - 1)).toISOString().slice(0, 10);
+  }
+  function referenceAncienne(dateRef, date, moment) {
+    if (!dateRef || !date) return false;
+    if (moment === 'debut_q1') { const v = veilleDe(date); return !!v && String(dateRef) < v; }
+    if (moment === 'debut_q2') return String(dateRef) < String(date);
+    return false;
+  }
+  // « jeudi soir (05/11) » : jour, moment de la référence (fin de Q2 = soir, fin de Q1 = matin) et jj/mm.
+  function libelleReference(dateRef, momentRef) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dateRef || '')); if (!m) return '';
+    const jours = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+    const j = jours[new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])).getUTCDay()];
+    const qui = momentRef === 'fin_q2' ? ' soir' : momentRef === 'fin_q1' ? ' matin' : '';
+    return `${j}${qui} (${m[3]}/${m[2]})`;
+  }
   // Référence de début de quart. reference : sept chiffres validés ou null.
   // saisie : ce que le pompiste a tapé (2 chiffres, ou 7 si complet).
   // Retour : { statut, valeurSept, ecart, ok } ; jamais une preuve absolue
@@ -259,7 +279,7 @@
   const api = {
     MOMENTS_DEBUT, MOMENTS_FIN, estDebut, estFin, QUART_DU_MOMENT, normaliserQuart, momentsHabilites,
     momentDebutDuQuart, momentFinDuQuart, indexDebutFait,
-    TOLERANCE_NUIT_MAX, SEUIL_ALERTE_PRIORITAIRE, classerEcartNuit, evaluerDebut,
+    TOLERANCE_NUIT_MAX, SEUIL_ALERTE_PRIORITAIRE, classerEcartNuit, evaluerDebut, veilleDe, referenceAncienne, libelleReference,
     SEUIL_ECART_INDICATIF_L, GNR_INDEX_REFERENCE, MOMENTS, ORDRE_PHYSIQUE, POMPES,
     ordreRecopieDecenium, nettoyerSaisie, estSeptChiffres, convertirSeptVersSix,
     controlerIndex, confirmationExceptionnelleValide, comparerQ1Q2, revueAnomalies,
