@@ -52,7 +52,7 @@
   // plus une décision à prendre : c'est une information à reporter.
   const MOTIFS_INDISPO = { conge: 'Congé', conge_maternite: 'Congé maternité',
     arret_maladie: 'Arrêt maladie', conge_paternite: 'Congé paternité',
-    formation: 'Formation', autre: 'Absence qualifiée' };
+    formation: 'Formation', autre: 'Absence' };
 
   // Types d'item qui NE DOIVENT PLUS être créés journée par journée
   // (03/09/2026). Une absence longue, un congé, une maternité, une
@@ -63,7 +63,7 @@
   // manuelle par journée : le garde-fou est dans le code, pas seulement
   // dans la discipline de l'écran.
   const TYPES_ITEM_EVENEMENT_RH = ['conge_paye', 'arret_maladie', 'conge_maternite',
-    'conge_paternite', 'formation', 'absence_a_verifier', 'absence_a_qualifier', 'absence_qualifiee'];
+    'conge_paternite', 'formation', 'absence_a_verifier', 'absence_a_qualifier', 'absence_qualifiee', 'absence'];
 
   // Durées de référence de la journée travaillée, indexées par jour de la
   // semaine au sens de getDay() : dimanche 0 … samedi 6. Cahier des charges
