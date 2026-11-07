@@ -58,7 +58,7 @@ const tue = (nom, src, orig, ep, mk) => { assert.notStrictEqual(src, orig, 'muta
   ['inventaire sur le quart courant', (s) => s.replace('r.inventaire_quarts.quart === quartDuJour', 'true')],
   ['filtre sur une seule lecture', (s) => s.replace('      surQuartDeService(r) &&\n      r.inventaire_quarts.is_simulation !== true &&\n      !r.inventaire_quarts.cloture_le', '      r.inventaire_quarts.is_simulation !== true &&\n      !r.inventaire_quarts.cloture_le')],
   ['impasse : pas de repli', (s) => s.replace('|| NexusFilDebutQuart.urlEtape(NexusFilDebutQuart.planSelonFaits(faitsFil)[0]', '|| null && (NexusFilDebutQuart.planSelonFaits(faitsFil)[0]')],
-  ['fin du mauvais moment', (s) => s.replace('momentFinDuQuart(quartDuJour)', 'momentDebutDuQuart(quartDuJour)')],
+  ['fin du mauvais moment', (s) => s.split('momentFinDuQuart(quartDuJour)').join('momentDebutDuQuart(quartDuJour)')],
   ['faits non transmis', (s) => s.replace('filLien, finQuartLien, finQuartFait,', 'filLien,')],
 ].forEach(([n, m]) => tue(n, m(APP), APP, epreuvesApp, (x) => x));
 console.log('OK — mutations tuées');

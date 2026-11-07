@@ -89,13 +89,26 @@ function extraireFonction(entete, source, ou) {
   const i = src.indexOf(entete);
   assert.ok(i !== -1, `« ${entete} » introuvable dans ${ou || ECRAN}`);
   let prof = 0;
-  for (let k = src.indexOf('{', i); k < src.length; k++) {
+  // Saute d'abord la liste de paramètres (elle peut contenir des accolades de déstructuration).
+  let debut = i, parens = 0;
+  if (entete.endsWith('(')) {
+    for (let k = i + entete.length - 1; k < src.length; k++) {
+      if (src[k] === '(') parens++;
+      else if (src[k] === ')' && --parens === 0) { debut = k; break; }
+    }
+  }
+  for (let k = src.indexOf('{', debut); k < src.length; k++) {
     if (src[k] === '{') prof++;
     else if (src[k] === '}' && --prof === 0) return src.slice(i, k + 1);
   }
   throw new Error(`« ${entete} » n'est pas refermée`);
 }
-const SRC_INIT = extraireFonction('async function initAccueilEmploye(');
+const SRC_INIT_SEUL = extraireFonction('async function initAccueilEmploye(');
+// Le parcours (lectures + calcul des faits) est factorisé pour l'employé ET le manager en service (07/11/2026) :
+// les gardes de lecture seule / sans écriture / sans redirection portent sur les trois sources réunies.
+const SRC_LECTURES = extraireFonction('async function lirePourParcours(');
+const SRC_CALCUL = extraireFonction('async function calculerParcours(');
+const SRC_INIT = SRC_LECTURES + '\n' + SRC_CALCUL + '\n' + SRC_INIT_SEUL;
 const SRC_CHEMINS = extraireFonction('function renderPrisePoste(');
 
 // LE FUSEAU DE LA STATION (18/09/2026) — l'accueil n'en définit rien : il
@@ -264,7 +277,7 @@ async function executerAccueil({
   const vraiChoisir = valeurs[iTuiles];
   valeurs[iTuiles] = ctx => { rendus.ctx = ctx; return vraiChoisir(ctx); };
 
-  const init = new Function(...noms, `return ${SRC_INIT};`)(...valeurs);
+  const init = new Function(...noms, `${SRC_LECTURES}\n${SRC_CALCUL}\nreturn ${SRC_INIT_SEUL};`)(...valeurs);
   await init(employee, roleDuJour, pointageActifSite, quartDuJour, serviceCourant);
   return { rendus, journal };
 }

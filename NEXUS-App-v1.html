@@ -464,6 +464,11 @@
   body:has(.am-marqueur) .am-poste .ap-poste-nom{font-family:'Inter',-apple-system,sans-serif; font-size:18px; font-weight:700; color:var(--text);}
   body:has(.am-marqueur) .am-poste .ap-poste-texte{box-sizing:border-box; width:100%;}
   body:has(.am-marqueur) .am-poste::after{display:none;}
+  body:has(.am-marqueur):has(.am-parcours) .am-poste{height:auto; min-height:104px;}
+  .am-parcours{padding:0 0 4px;}
+  body:has(.am-marqueur) .am-parcours-bouton{margin-top:10px;}
+  body:has(.am-marqueur) .am-parcours-fait{margin-top:10px; font-size:15px; font-weight:600; color:var(--green);}
+  body:has(.am-marqueur) .am-parcours-progression{margin-top:6px; font-size:13px; color:var(--text-mid);}
   body:has(.am-marqueur) .am-poste-lien{display:block; margin-top:2px; color:var(--text-mid); font-family:'Inter',-apple-system,sans-serif; font-size:13px; text-decoration:underline;}
   body:has(.am-marqueur) .section-tag{font-family:'Inter',-apple-system,sans-serif; font-size:11px; font-weight:600; letter-spacing:0.08em; padding:24px 20px 10px;}
   body:has(.am-marqueur) .ma-progression-mini{margin-top:12px; padding:10px 18px; white-space:nowrap;}
@@ -2622,6 +2627,193 @@
     if (sortie) sortie.addEventListener('click', (e) => { e.preventDefault(); nexusLogout(); });
   }
 
+  // Lectures du parcours du quart (jaugeage d'ouverture, index de début/fin, inventaire du quart) — une seule définition pour l'accueil
+  // de l'employé et celui du manager en service (07/11/2026). Lecture seule ; les erreurs sont journalisées et laissent la tâche « à faire ».
+  async function lirePourParcours(employee, { roleDuJour, todayISO, jaugeagePertinentRole, momentIndexDebut, momentIndexFin }) {
+    const [
+      { data: quartEmployeRows, error: eI },
+      jaugeageActifSite,
+      statutJaugeageJour,
+      releveJaugeageJour,
+      { data: relevesIndexRows, error: eIdx },
+    ] = await Promise.all([
+      // Inventaire non applicable à un renfort (03/08/2026, même règle
+      // que l'ancienne mini-carte) : pas la peine d'interroger la table.
+      roleDuJour === 'renfort'
+        ? Promise.resolve({ data: [], error: null })
+        : nexusClient.from('inventaire_quart_employes').select('responsable_comptage, a_valide_ouverture, a_valide_cloture, heure_depart, inventaire_quarts(date, quart, cloture_le, is_simulation, statut)').eq('employee_id', employee.id),
+      jaugeagePertinentRole ? chargerJaugeageCarburantActifSite(employee.site_id) : Promise.resolve(false),
+      jaugeagePertinentRole ? NexusCarburantDonnees.chargerStatutJaugeageJour(nexusClient, employee.site_id, todayISO) : Promise.resolve(null),
+      // Lecture seule : un relevé du site et du jour compte comme jaugeage fait, quelle que soit son origine.
+      jaugeagePertinentRole ? NexusCarburantDonnees.chargerReleveDuJour(nexusClient, employee.site_id, todayISO) : Promise.resolve(null),
+      // Lecture seule : relevés du site, du jour et du moment de début de quart.
+      momentIndexDebut
+        ? nexusClient.from('carburant_index_releves').select('site, date, moment, statut, finalise_le').eq('site', employee.site_id).eq('date', todayISO).in('moment', [momentIndexDebut, momentIndexFin].filter(Boolean))
+        : Promise.resolve({ data: [], error: null }),
+    ]);
+    if (eI) console.error('Chargement inventaire_quart_employes (accueil employé):', eI);
+    if (eIdx) console.error('Chargement carburant_index_releves (accueil employé):', eIdx);
+    return { quartEmployeRows, jaugeageActifSite, statutJaugeageJour, releveJaugeageJour, relevesIndexRows };
+  }
+
+  // Faits du parcours du quart, calculés sur les lectures ci-dessus : applicabilités, étapes restantes, liens du fil (début, fermeture,
+  // caisse). Aucune règle propre à l'employé ou au manager : le service du jour et son rôle décident.
+  async function calculerParcours(employee, { roleDuJour, quartDuJour, todayISO, enService, fuseauStation, jaugeagePertinentRole, momentIndexDebut, momentIndexFin },
+    { quartEmployeRows, jaugeageActifSite, statutJaugeageJour, releveJaugeageJour, relevesIndexRows }) {
+    const inventaireApplicable = enService && roleDuJour !== 'renfort';
+    // Jugé sur le quart du SERVICE de l'employé (30/10/2026) : l'inventaire de clôture du matin ouvre un quart du
+    // soir ; lu sur « le quart courant de la station », il faisait repasser l'étape à faire pour le pompiste du matin.
+    const surQuartDeService = (r) => !quartDuJour || !r.inventaire_quarts.quart || r.inventaire_quarts.quart === quartDuJour;
+    const inventaireFait = (quartEmployeRows || []).some(r =>
+      (r.responsable_comptage || r.a_valide_ouverture) && r.inventaire_quarts &&
+      r.inventaire_quarts.date === todayISO &&
+      surQuartDeService(r) &&
+      r.inventaire_quarts.is_simulation !== true &&
+      // Clôture serveur du quart (PR #176) : sa propre validation de clôture suffit, sans attendre le passage du cron.
+      (!!r.inventaire_quarts.cloture_le || r.a_valide_cloture === true)
+    );
+
+    // Ouverture faite (recette du 22/10) : l'inventaire d'ouverture validé
+    // laisse le quart en statut « ouvert » jusqu'à la clôture de fin de quart.
+    // On lit la validation de l'employé (a_valide_ouverture), pas le responsable du comptage : un pompiste qui n'est pas responsable valide aussi l'ouverture.
+    // Sans cette distinction, l'accueil redisait « pas encore fait » juste
+    // après l'ouverture, alors que seule la clôture reste à faire.
+    const inventaireOuvertureFaite = inventaireApplicable && !inventaireFait && (quartEmployeRows || []).some(r =>
+      r.a_valide_ouverture && r.inventaire_quarts &&
+      r.inventaire_quarts.date === todayISO &&
+      surQuartDeService(r) &&
+      r.inventaire_quarts.is_simulation !== true &&
+      !r.inventaire_quarts.cloture_le &&
+      r.inventaire_quarts.statut === 'ouvert'
+    );
+
+    const jaugeageApplicable = enService && jaugeagePertinentRole && !!jaugeageActifSite;
+    const jaugeageFait = NexusCarburantDonnees.jaugeageDuJourFait(statutJaugeageJour, releveJaugeageJour);
+
+    // « Fait » = relevé FINAL du bon site, du bon jour et du bon début de quart.
+    // Une lecture en erreur n'invente pas un « fait » : la tâche reste à faire.
+    const indexApplicable = enService && !!momentIndexDebut;
+    const indexFait = indexApplicable && NexusRelevesPiste.indexDebutFait(relevesIndexRows,
+      { site: employee.site_id, date: todayISO, moment: momentIndexDebut });
+    const indexLien = momentIndexDebut ? `NEXUS-Releves-Piste-v1.html?moment=${momentIndexDebut}` : null;
+    const resteDuFil = (jaugeageApplicable && !jaugeageFait) || (indexApplicable && !indexFait) || (inventaireApplicable && !inventaireFait && !inventaireOuvertureFaite);
+    const faitsFil = { resteJaugeage: jaugeageApplicable && !jaugeageFait, resteIndex: indexApplicable && !indexFait, resteInventaire: inventaireApplicable && !inventaireFait && !inventaireOuvertureFaite };
+    // Jamais d'étape à faire sans bouton : si le fil est marqué fini localement alors qu'une étape reste, on rouvre l'étape restante.
+    const filLien = (enService && resteDuFil && roleDuJour === 'pompiste')
+      ? (NexusFilDebutQuart.urlRepriseSelonFaits(localStorage, employee.id, todayISO, momentIndexDebut, faitsFil)
+        || NexusFilDebutQuart.urlEtape(NexusFilDebutQuart.planSelonFaits(faitsFil)[0], momentIndexDebut, NexusFilDebutQuart.planSelonFaits(faitsFil)))
+      : null;
+    const finQuartFait = !!momentIndexFin && NexusRelevesPiste.indexDebutFait(relevesIndexRows,
+      { site: employee.site_id, date: todayISO, moment: momentIndexFin });
+    const finQuartLien = momentIndexFin ? `NEXUS-Releves-Piste-v1.html?moment=${momentIndexFin}` : null;
+
+    // Fermeture de la piste (lot FERMETURE-PISTE-20261031) : fin du quart lue dans station_config.horaires (régime normal/étendu
+    // du jour, fuseau de la station), jamais en constante. Même fil pour l'heure, le lien et le menu : fermetureLien.
+    let finMinutes = null; let maintenantMinutes = null; let fermetureLien = null;
+    const finIndexApplicable = !!momentIndexFin;
+    const finIndexFait = !finIndexApplicable || finQuartFait;
+    const clotureInventaireFait = !inventaireApplicable || !!inventaireFait;
+    // Heures réelles du récapitulatif de fin de quart, lues sur les faits déjà chargés : fin des relevés d'index (finalise_le) et
+    // clôture de l'inventaire du quart de service. Une heure absente reste null et la ligne correspondante est omise.
+    const heureReleve = (moment) => { const r = (relevesIndexRows || []).find(x => x.moment === moment && x.statut === 'final'); return r ? r.finalise_le : null; };
+    const clotureInventaire = ((quartEmployeRows || []).filter(r => r.inventaire_quarts && r.inventaire_quarts.date === todayISO && r.inventaire_quarts.is_simulation !== true && (r.inventaire_quarts.cloture_le || (r.a_valide_cloture && r.heure_depart))).filter(surQuartDeService).map(r => r.inventaire_quarts.cloture_le || r.heure_depart).sort().pop()) || null;
+    const recapQuart = { ouvertureDe: null, ouvertureA: heureReleve(momentIndexDebut), fermetureDe: heureReleve(momentIndexFin), fermetureA: clotureInventaire };
+    if (enService && roleDuJour === 'pompiste' && fuseauStation && quartDuJour) {
+      const horairesStation = await chargerHorairesStation(employee.site_id);
+      finMinutes = NexusStation.finDuQuartMinutes(horairesStation, quartDuJour === 'matin' ? 'quart1' : 'quart2', fuseauStation, new Date());
+      const hm = new Intl.DateTimeFormat('en-GB', { timeZone: fuseauStation, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date());
+      maintenantMinutes = Number(hm.find(x => x.type === 'hour').value) * 60 + Number(hm.find(x => x.type === 'minute').value);
+      const faitsFermeture = { resteIndex: finIndexApplicable && !finQuartFait, resteInventaire: inventaireApplicable && !inventaireFait };
+      fermetureLien = NexusFilFinQuart.urlRepriseSelonFaits(localStorage, employee.id, todayISO, momentIndexFin, faitsFermeture)
+        || (NexusFilFinQuart.planSelonFaits(faitsFermeture).length ? NexusFilFinQuart.urlEtape(NexusFilFinQuart.planSelonFaits(faitsFermeture)[0], momentIndexFin, NexusFilFinQuart.planSelonFaits(faitsFermeture)) : null);
+    }
+
+    // Entrée du fil « Ma caisse » (L1, incrément 3) : pilote + caissière du jour en service ; étape 2 (comptage) puis 3 (fermeture, 45 min avant la fin).
+    const piloteCaisse = (enService && roleDuJour === NexusFilCaisse.ROLE) ? await chargerPiloteCaisse(employee.site_id, employee.id) : false;
+    // Heure de fin du quart affichée dans le bandeau de la caissière (lecture seule des horaires, comme pour le pompiste).
+    if (enService && roleDuJour === NexusFilCaisse.ROLE && fuseauStation && (quartDuJour === 'matin' || quartDuJour === 'soir')) {
+      finMinutes = NexusStation.finDuQuartMinutes(await chargerHorairesStation(employee.site_id), quartDuJour === 'matin' ? 'quart1' : 'quart2', fuseauStation, new Date());
+    }
+    let fermetureCaisseDue = false;
+    if (piloteCaisse && fuseauStation && NexusFilCaisse.quartConcerneParFermeture(quartDuJour)) {
+      fermetureCaisseDue = NexusFilCaisse.fermetureDueEnService({ station: NexusStation, horaires: await chargerHorairesStation(employee.site_id), quartDuJour, fuseau: fuseauStation });
+    }
+    const filCaisseLien = NexusFilCaisse.lienEntree(piloteCaisse, roleDuJour, enService && inventaireApplicable, { ouvertureFaite: inventaireOuvertureFaite, clotureFaite: inventaireFait, fermetureDue: fermetureCaisseDue });
+
+    return {
+      inventaireApplicable, inventaireFait, inventaireOuvertureFaite,
+      jaugeageApplicable, jaugeageFait, indexApplicable, indexFait, indexLien, resteDuFil, faitsFil, filLien,
+      finQuartFait, finQuartLien, finMinutes, maintenantMinutes, finIndexApplicable, finIndexFait, clotureInventaireFait,
+      fermetureLien, recapQuart, piloteCaisse, fermetureCaisseDue, filCaisseLien,
+    };
+  }
+
+  // Parcours du quart d'un manager EN SERVICE comme pompiste ou caissière (07/11/2026, Guardian 6708056326) : même calcul que
+  // l'employé (calculerParcours), rendu dans la carte « Service en cours » de son accueil. Fonction à part : renderPrisePoste
+  // ne lit rien et n'écrit rien. Pas de service du jour, renfort ou autre rôle : aucun bloc.
+  function modeleParcoursManager(roleDuJour, f) {
+    if (roleDuJour === 'pompiste') {
+      const total = (f.jaugeageApplicable ? 1 : 0) + (f.indexApplicable ? 1 : 0) + (f.inventaireApplicable ? 1 : 0);
+      if (f.filLien) {
+        const restantes = [f.faitsFil.resteJaugeage, f.faitsFil.resteIndex, f.faitsFil.resteInventaire].filter(Boolean).length;
+        return { texte: 'Faire mon début de quart (pompiste)', lien: f.filLien, progression: (total - restantes) + ' étape' + ((total - restantes) > 1 ? 's' : '') + ' sur ' + total + ' faite' + ((total - restantes) > 1 ? 's' : '') };
+      }
+      if (f.fermetureLien && f.finMinutes != null && f.maintenantMinutes != null && f.maintenantMinutes >= f.finMinutes - NexusAccueilPiste.DELAI_FERMETURE_MIN) {
+        return { texte: 'Faire ma fermeture de piste', lien: f.fermetureLien, progression: null };
+      }
+      return total > 0 ? { texte: 'Parcours du quart terminé ✓', lien: null, progression: null } : null;
+    }
+    if (roleDuJour === 'caissiere') {
+      if (f.filCaisseLien) {
+        const fermeture = f.fermetureCaisseDue && f.inventaireOuvertureFaite;
+        return { texte: fermeture ? 'Faire ma fermeture de caisse' : 'Faire mon début de quart (caissière)', lien: f.filCaisseLien, progression: null };
+      }
+      return (f.piloteCaisse && f.inventaireApplicable) ? { texte: 'Parcours du quart terminé ✓', lien: null, progression: null } : null;
+    }
+    return null;
+  }
+
+  async function initParcoursManager(employee, roleDuJour, quartDuJour, serviceCourant) {
+    const carte = document.querySelector('.am-poste');
+    if (!carte || !serviceCourant || employee.consultation_externe) return;
+    if (roleDuJour !== 'pompiste' && roleDuJour !== 'caissiere') return;
+    const fuseauStation = await nexusFuseauSite(employee.site_id);
+    const todayISO = nexusJourDansFuseau(new Date(), fuseauStation);
+    if (!fuseauStation || !todayISO) return;
+    const serviceCourantJour = NexusPointageRegles.serviceDuJourSeulement(serviceCourant, todayISO, d => nexusJourDansFuseau(d, fuseauStation));
+    if (!serviceCourantJour) return;
+    const jaugeagePertinentRole = roleDuJour === 'pompiste' && quartDuJour === 'matin';
+    const momentIndexDebut = roleDuJour === 'pompiste' ? NexusRelevesPiste.momentDebutDuQuart(quartDuJour) : null;
+    const momentIndexFin = roleDuJour === 'pompiste' ? NexusRelevesPiste.momentFinDuQuart(quartDuJour) : null;
+    const params = { roleDuJour, quartDuJour, todayISO, enService: true, fuseauStation, jaugeagePertinentRole, momentIndexDebut, momentIndexFin };
+    const lectures = await lirePourParcours(employee, params);
+    const faits = await calculerParcours(employee, params, lectures);
+    const m = modeleParcoursManager(roleDuJour, faits);
+    if (!m) return;
+    const bloc = document.createElement('div');
+    bloc.className = 'am-parcours';
+    if (m.lien) {
+      const a = document.createElement('a');
+      a.className = 'ap-bouton am-parcours-bouton';
+      a.setAttribute('href', m.lien);
+      a.textContent = m.texte;
+      bloc.appendChild(a);
+    } else {
+      const p = document.createElement('div');
+      p.className = 'am-parcours-fait';
+      p.textContent = m.texte;
+      bloc.appendChild(p);
+    }
+    if (m.progression) {
+      const pr = document.createElement('div');
+      pr.className = 'am-parcours-progression';
+      pr.textContent = m.progression;
+      bloc.appendChild(pr);
+    }
+    const lien = carte.querySelector('.am-poste-lien');
+    if (lien) lien.parentNode.insertBefore(bloc, lien); else carte.appendChild(bloc);
+  }
+
   async function initAccueilEmploye(employee, roleDuJour, pointageActifSite, quartDuJour, serviceCourant) {
     document.getElementById('conseillerEmployeWrap').style.display = '';
     // Sans service ouvert, l'Accueil n'est que le choix du poste, puis « Ma
@@ -2727,13 +2919,9 @@
       { data: completionsRows, error: eM },
       forfait,
       receptionRole,
-      { data: quartEmployeRows, error: eI },
+      lecturesDuParcours,
       { data: fdjShiftsRows, error: eF },
       { data: snap, error: eSnap },
-      jaugeageActifSite,
-      statutJaugeageJour,
-      releveJaugeageJour,
-      { data: relevesIndexRows, error: eIdx },
       { data: serviceTermineRows, error: eST },
       { data: commandesRows, error: eCmd },
     ] = await Promise.all([
@@ -2749,21 +2937,9 @@
       nexusClient.from('mission_completions').select('mission_id, points, points_ajustement').eq('employee_id', employee.id).eq('date', todayISO),
       NexusForfait.chargerForfait(employee.site_id),
       chargerReceptionCarburantRole(employee.site_id),
-      // Inventaire non applicable à un renfort (03/08/2026, même règle
-      // que l'ancienne mini-carte) : pas la peine d'interroger la table.
-      roleDuJour === 'renfort'
-        ? Promise.resolve({ data: [], error: null })
-        : nexusClient.from('inventaire_quart_employes').select('responsable_comptage, a_valide_ouverture, a_valide_cloture, heure_depart, inventaire_quarts(date, quart, cloture_le, is_simulation, statut)').eq('employee_id', employee.id),
+      lirePourParcours(employee, { roleDuJour, todayISO, jaugeagePertinentRole, momentIndexDebut, momentIndexFin }),
       nexusClient.from('fdj_shifts').select('statut').eq('employee_id', employee.id).eq('site', employee.site_id).eq('date', todayISO),
       nexusClient.from('apprentissage_snapshots').select('nouveaute_en_attente').eq('employee_id', employee.id).maybeSingle(),
-      jaugeagePertinentRole ? chargerJaugeageCarburantActifSite(employee.site_id) : Promise.resolve(false),
-      jaugeagePertinentRole ? NexusCarburantDonnees.chargerStatutJaugeageJour(nexusClient, employee.site_id, todayISO) : Promise.resolve(null),
-      // Lecture seule : un relevé du site et du jour compte comme jaugeage fait, quelle que soit son origine.
-      jaugeagePertinentRole ? NexusCarburantDonnees.chargerReleveDuJour(nexusClient, employee.site_id, todayISO) : Promise.resolve(null),
-      // Lecture seule : relevés du site, du jour et du moment de début de quart.
-      momentIndexDebut
-        ? nexusClient.from('carburant_index_releves').select('site, date, moment, statut, finalise_le').eq('site', employee.site_id).eq('date', todayISO).in('moment', [momentIndexDebut, momentIndexFin].filter(Boolean))
-        : Promise.resolve({ data: [], error: null }),
       // Dernier service TERMINÉ de l'employé, seulement quand il n'est pas en
       // service (25/10/2026). La fin de journée ne se déduisait que des
       // pointages : sur un site où le pointage est désactivé, un service
@@ -2779,40 +2955,20 @@
     ]);
     if (eCmd) console.error('Chargement carburant_commandes (accueil employé):', eCmd);
     if (eST) console.error('Chargement services terminés (accueil employé):', eST);
-    if (eIdx) console.error('Chargement carburant_index_releves (accueil employé):', eIdx);
     if (eP) console.error('Chargement pointages (accueil employé):', eP);
     if (eC) console.error('Chargement mission_catalog (accueil employé):', eC);
     if (eM) console.error('Chargement mission_completions (accueil employé):', eM);
-    if (eI) console.error('Chargement inventaire_quart_employes (accueil employé):', eI);
     if (eF) console.error('Chargement fdj_shifts (accueil employé):', eF);
     if (eSnap) console.error('Lecture apprentissage_snapshots (App-v1):', eSnap);
 
-    const inventaireApplicable = enService && roleDuJour !== 'renfort';
-    // Jugé sur le quart du SERVICE de l'employé (30/10/2026) : l'inventaire de clôture du matin ouvre un quart du
-    // soir ; lu sur « le quart courant de la station », il faisait repasser l'étape à faire pour le pompiste du matin.
-    const surQuartDeService = (r) => !quartDuJour || !r.inventaire_quarts.quart || r.inventaire_quarts.quart === quartDuJour;
-    const inventaireFait = (quartEmployeRows || []).some(r =>
-      (r.responsable_comptage || r.a_valide_ouverture) && r.inventaire_quarts &&
-      r.inventaire_quarts.date === todayISO &&
-      surQuartDeService(r) &&
-      r.inventaire_quarts.is_simulation !== true &&
-      // Clôture serveur du quart (PR #176) : sa propre validation de clôture suffit, sans attendre le passage du cron.
-      (!!r.inventaire_quarts.cloture_le || r.a_valide_cloture === true)
-    );
-
-    // Ouverture faite (recette du 22/10) : l'inventaire d'ouverture validé
-    // laisse le quart en statut « ouvert » jusqu'à la clôture de fin de quart.
-    // On lit la validation de l'employé (a_valide_ouverture), pas le responsable du comptage : un pompiste qui n'est pas responsable valide aussi l'ouverture.
-    // Sans cette distinction, l'accueil redisait « pas encore fait » juste
-    // après l'ouverture, alors que seule la clôture reste à faire.
-    const inventaireOuvertureFaite = inventaireApplicable && !inventaireFait && (quartEmployeRows || []).some(r =>
-      r.a_valide_ouverture && r.inventaire_quarts &&
-      r.inventaire_quarts.date === todayISO &&
-      surQuartDeService(r) &&
-      r.inventaire_quarts.is_simulation !== true &&
-      !r.inventaire_quarts.cloture_le &&
-      r.inventaire_quarts.statut === 'ouvert'
-    );
+    // Faits du parcours du quart (jaugeage, index, inventaire, fermeture, caisse) : calcul commun à l'employé et au manager en service
+    // (07/11/2026) — mêmes lectures, mêmes règles ; voir calculerParcours().
+    const {
+      inventaireApplicable, inventaireFait, inventaireOuvertureFaite,
+      jaugeageApplicable, jaugeageFait, indexApplicable, indexFait, indexLien, faitsFil, filLien,
+      finQuartFait, finQuartLien, finMinutes, maintenantMinutes, finIndexApplicable, finIndexFait, clotureInventaireFait,
+      fermetureLien, recapQuart, piloteCaisse, fermetureCaisseDue, filCaisseLien,
+    } = await calculerParcours(employee, { roleDuJour, quartDuJour, todayISO, enService, fuseauStation, jaugeagePertinentRole, momentIndexDebut, momentIndexFin }, lecturesDuParcours);
 
     // FDJ applicable seulement si (a) le rôle du jour y a droit — un
     // pompiste ou un renfort n'y touchent jamais par défaut (matrice de
@@ -2826,59 +2982,6 @@
     // droit (pompiste/manager par défaut, jamais caissière/renfort par
     // défaut) ET le réglage du site doit l'autoriser côté employé.
     const receptionApplicable = enService && roleADroitModule('reception', roleDuJour) && (receptionRole === 'employe' || receptionRole === 'les_deux');
-
-    const jaugeageApplicable = enService && jaugeagePertinentRole && !!jaugeageActifSite;
-    const jaugeageFait = NexusCarburantDonnees.jaugeageDuJourFait(statutJaugeageJour, releveJaugeageJour);
-
-    // « Fait » = relevé FINAL du bon site, du bon jour et du bon début de quart.
-    // Une lecture en erreur n'invente pas un « fait » : la tâche reste à faire.
-    const indexApplicable = enService && !!momentIndexDebut;
-    const indexFait = indexApplicable && NexusRelevesPiste.indexDebutFait(relevesIndexRows,
-      { site: employee.site_id, date: todayISO, moment: momentIndexDebut });
-    const indexLien = momentIndexDebut ? `NEXUS-Releves-Piste-v1.html?moment=${momentIndexDebut}` : null;
-    const resteDuFil = (jaugeageApplicable && !jaugeageFait) || (indexApplicable && !indexFait) || (inventaireApplicable && !inventaireFait && !inventaireOuvertureFaite);
-    const faitsFil = { resteJaugeage: jaugeageApplicable && !jaugeageFait, resteIndex: indexApplicable && !indexFait, resteInventaire: inventaireApplicable && !inventaireFait && !inventaireOuvertureFaite };
-    // Jamais d'étape à faire sans bouton : si le fil est marqué fini localement alors qu'une étape reste, on rouvre l'étape restante.
-    const filLien = (enService && resteDuFil && roleDuJour === 'pompiste')
-      ? (NexusFilDebutQuart.urlRepriseSelonFaits(localStorage, employee.id, todayISO, momentIndexDebut, faitsFil)
-        || NexusFilDebutQuart.urlEtape(NexusFilDebutQuart.planSelonFaits(faitsFil)[0], momentIndexDebut, NexusFilDebutQuart.planSelonFaits(faitsFil)))
-      : null;
-    const finQuartFait = !!momentIndexFin && NexusRelevesPiste.indexDebutFait(relevesIndexRows,
-      { site: employee.site_id, date: todayISO, moment: momentIndexFin });
-    const finQuartLien = momentIndexFin ? `NEXUS-Releves-Piste-v1.html?moment=${momentIndexFin}` : null;
-
-    // Fermeture de la piste (lot FERMETURE-PISTE-20261031) : fin du quart lue dans station_config.horaires (régime normal/étendu
-    // du jour, fuseau de la station), jamais en constante. Même fil pour l'heure, le lien et le menu : fermetureLien.
-    let finMinutes = null; let maintenantMinutes = null; let fermetureLien = null;
-    const finIndexApplicable = !!momentIndexFin;
-    const finIndexFait = !finIndexApplicable || finQuartFait;
-    const clotureInventaireFait = !inventaireApplicable || !!inventaireFait;
-    // Heures réelles du récapitulatif de fin de quart, lues sur les faits déjà chargés : fin des relevés d'index (finalise_le) et
-    // clôture de l'inventaire du quart de service. Une heure absente reste null et la ligne correspondante est omise.
-    const heureReleve = (moment) => { const r = (relevesIndexRows || []).find(x => x.moment === moment && x.statut === 'final'); return r ? r.finalise_le : null; };
-    const clotureInventaire = ((quartEmployeRows || []).filter(r => r.inventaire_quarts && r.inventaire_quarts.date === todayISO && r.inventaire_quarts.is_simulation !== true && (r.inventaire_quarts.cloture_le || (r.a_valide_cloture && r.heure_depart))).filter(surQuartDeService).map(r => r.inventaire_quarts.cloture_le || r.heure_depart).sort().pop()) || null;
-    const recapQuart = { ouvertureDe: null, ouvertureA: heureReleve(momentIndexDebut), fermetureDe: heureReleve(momentIndexFin), fermetureA: clotureInventaire };
-    if (enService && roleDuJour === 'pompiste' && fuseauStation && quartDuJour) {
-      const horairesStation = await chargerHorairesStation(employee.site_id);
-      finMinutes = NexusStation.finDuQuartMinutes(horairesStation, quartDuJour === 'matin' ? 'quart1' : 'quart2', fuseauStation, new Date());
-      const hm = new Intl.DateTimeFormat('en-GB', { timeZone: fuseauStation, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date());
-      maintenantMinutes = Number(hm.find(x => x.type === 'hour').value) * 60 + Number(hm.find(x => x.type === 'minute').value);
-      const faitsFermeture = { resteIndex: finIndexApplicable && !finQuartFait, resteInventaire: inventaireApplicable && !inventaireFait };
-      fermetureLien = NexusFilFinQuart.urlRepriseSelonFaits(localStorage, employee.id, todayISO, momentIndexFin, faitsFermeture)
-        || (NexusFilFinQuart.planSelonFaits(faitsFermeture).length ? NexusFilFinQuart.urlEtape(NexusFilFinQuart.planSelonFaits(faitsFermeture)[0], momentIndexFin, NexusFilFinQuart.planSelonFaits(faitsFermeture)) : null);
-    }
-
-    // Entrée du fil « Ma caisse » (L1, incrément 3) : pilote + caissière du jour en service ; étape 2 (comptage) puis 3 (fermeture, 45 min avant la fin).
-    const piloteCaisse = (enService && roleDuJour === NexusFilCaisse.ROLE) ? await chargerPiloteCaisse(employee.site_id, employee.id) : false;
-    // Heure de fin du quart affichée dans le bandeau de la caissière (lecture seule des horaires, comme pour le pompiste).
-    if (enService && roleDuJour === NexusFilCaisse.ROLE && fuseauStation && (quartDuJour === 'matin' || quartDuJour === 'soir')) {
-      finMinutes = NexusStation.finDuQuartMinutes(await chargerHorairesStation(employee.site_id), quartDuJour === 'matin' ? 'quart1' : 'quart2', fuseauStation, new Date());
-    }
-    let fermetureCaisseDue = false;
-    if (piloteCaisse && fuseauStation && NexusFilCaisse.quartConcerneParFermeture(quartDuJour)) {
-      fermetureCaisseDue = NexusFilCaisse.fermetureDueEnService({ station: NexusStation, horaires: await chargerHorairesStation(employee.site_id), quartDuJour, fuseau: fuseauStation });
-    }
-    const filCaisseLien = NexusFilCaisse.lienEntree(piloteCaisse, roleDuJour, enService && inventaireApplicable, { ouvertureFaite: inventaireOuvertureFaite, clotureFaite: inventaireFait, fermetureDue: fermetureCaisseDue });
 
     const missionsInfo = calculerMissionsObligatoiresJour(catalogueRows, completionsRows, roleDuJour, maintenant);
     const controlesInfo = calculerControlesQuartJour(inventaireApplicable, inventaireFait, fdjApplicable, fdjFait, jaugeageApplicable, jaugeageFait, indexApplicable, indexFait);
@@ -3592,6 +3695,7 @@
 
       pointageRequisManager = await chargerPointageRequisManager(employee.site_id);
       await initPosteManager(employee);
+      try { await initParcoursManager(employee, roleDuJour, quartDuJour, serviceCourant); } catch (e) { console.error('Parcours du quart (manager):', e); }
       forfaitProfessional = await verrouillerNavForfait(employee.site_id);
       briefNexusInclus = await verrouillerNavBriefNexus(employee.site_id);
       const pointageActifManager = await chargerPointageActif(employee.site_id);
