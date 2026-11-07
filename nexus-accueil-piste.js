@@ -141,7 +141,7 @@
     const fermetureOuverte = f.finMinutes != null && maintenant >= debut;
     const stepsFermeture = [
       { libelle: 'Index de fin de quart', fait: !f.finIndexApplicable || !!f.finIndexFait },
-      // Quart clos par le serveur sans le comptage de cet employé : état explicite, sans bouton, jamais « fait ».
+      // Quart clos par le serveur sans le comptage de cet employé : état explicite, avec un lien de clôture tardive, jamais « fait ».
       f.clotureServeurSansComptage
         ? { libelle: 'Inventaire de clôture non fait : quart clos automatiquement' + (f.clotureServeurSansComptage.heure ? ' à ' + f.clotureServeurSansComptage.heure : ''), fait: false, nonFait: true }
         : { libelle: 'Inventaire de clôture zone piste', fait: !!f.clotureInventaireFait },
@@ -163,8 +163,9 @@
         etapes: stepsFermeture,
         // La barre se remplit de gauche à droite selon le nombre d'étapes faites, quel que soit l'ordre où elles le sont.
         segments: stepsFermeture.map((e, i) => i < fermetureFaites),
-        // Quart déjà clos par le serveur : plus de bouton vers la fermeture quand il ne reste que l'inventaire.
-        href: (f.clotureServeurSansComptage && (!f.finIndexApplicable || f.finIndexFait)) ? null : (f.fermetureLien || null),
+        // Quart clos par le serveur : le lien vers la clôture d'inventaire reste, libellé « en retard » (comptage tardif accepté).
+        href: f.fermetureLien || null,
+        tardive: !!f.clotureServeurSansComptage,
         commence: fermetureFaites > 0,
       } : null,
       termine: ecranTermine ? {
@@ -249,7 +250,7 @@
         + '<div class="ap-fil-compte">' + fe.faites + ' sur ' + fe.total + '</div><div class="ap-segments">'
         + fe.segments.map((x) => '<i class="' + (x ? 'ap-plein' : '') + '"></i>').join('') + '</div>'
         + '<ul class="ap-etapes" id="apEtapesFermeture">' + fe.etapes.map((e) => '<li class="ap-etape ' + (e.fait ? 'ap-fait' : 'ap-a_faire') + (e.nonFait ? ' ap-non-fait' : '') + '"><span class="ap-marque" aria-hidden="true">' + (e.fait ? '✓' : e.nonFait ? '!' : '○') + '</span>' + esc(e.libelle) + '</li>').join('') + '</ul>'
-        + (fe.href ? '<a class="ap-bouton" id="apBoutonFermeture" href="' + esc(fe.href) + '">' + (fe.commence ? 'Continuer la fermeture' : 'Commencer la fermeture') + '</a>' : '')
+        + (fe.href ? '<a class="ap-bouton" id="apBoutonFermeture" href="' + esc(fe.href) + '">' + (fe.tardive ? 'Faire ma clôture (en retard)' : fe.commence ? 'Continuer la fermeture' : 'Commencer la fermeture') + '</a>' : '')
         + '<div class="ap-fil-resume">' + (v.ouvertureFaiteA ? '✓ Ouverture faite à ' + esc(v.ouvertureFaiteA) : '✓ Ouverture faite') + '</div>'
         + (v.missions && v.missions.restantes > 0 ? '<div class="ap-fil-resume">' + v.missions.restantes + ' mission' + (v.missions.restantes > 1 ? 's' : '') + ' restante' + (v.missions.restantes > 1 ? 's' : '') + ' · <a href="' + URL_MISSIONS + '" id="apVoirMissions">Voir</a></div>' : '')
         + '</section>';

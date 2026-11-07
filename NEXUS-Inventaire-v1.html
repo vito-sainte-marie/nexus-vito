@@ -4199,6 +4199,19 @@
     // 07/11/2026 (Guardian #160 6711427025) : un comptage refusé ou perdu ne doit plus être silencieux.
     // Tant qu'un comptage n'est pas enregistré, le brouillon local reste et la clôture n'est pas déclarée validée.
     const echecsCloture = [];
+    // Anti-doublon durable (Guardian 6713854891) : clotureEnregistres vit en mémoire et se perd au rechargement.
+    // On relit donc les comptages de clôture déjà écrits pour ce quart et cet employé avant d'insérer ; aucune contrainte
+    // d'unicité n'existe en base sur ces lignes. Si la relecture échoue, on n'insère rien et le brouillon reste.
+    const { data: dejaCloture, error: errRelecture } = await nexusClient.from('inventaire_comptages').select('produit_id')
+      .eq('site', employeeCourant.site_id).eq('quart_id', quartRow.id).eq('employee_id', employeeCourant.id).eq('type_comptage', 'cloture');
+    if (errRelecture) {
+      console.error('Relecture clôture:', errRelecture);
+      btn.disabled = false; btn.textContent = 'Valider la clôture';
+      sauvegarderDraft('cloture');
+      alerterEnPage('Impossible de vérifier vos comptages déjà enregistrés. Rien n\'a été écrit et votre saisie est conservée : vérifiez le réseau puis appuyez de nouveau sur « Valider la clôture ».');
+      return;
+    }
+    (dejaCloture || []).forEach((r) => clotureEnregistres.add(r.produit_id));
     for (const p of produitsZone) {
       const saisie = comptagesSaisie[p.id];
       if (!saisie || saisie.compte === undefined) continue;

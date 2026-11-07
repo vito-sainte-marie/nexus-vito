@@ -1,6 +1,6 @@
 // Épreuve — 07/11/2026, lot CLOTURE-HONNETE (Guardian #160 6711145725, 6711064742, 6711041353).
 // Exigences : un quart clos par le serveur SANS le comptage de l'employé n'est jamais affiché « Quart terminé ✓ » ;
-// l'écran dit « Inventaire de clôture non fait : quart clos automatiquement à 13 h 15 », sans bouton ;
+// l'écran dit « Inventaire de clôture non fait : quart clos automatiquement à 13 h 15 » et garde un lien « Faire ma clôture (en retard) » ;
 // la validation du pompiste (a_valide_cloture) reste la seule preuve d'une clôture faite.
 // SQL : le repli compte les produits piste SANS comptage de clôture ; fin_etendu jeudi/vendredi/samedi, comme nexus-station.js.
 // Chaque règle est contrôlée par une mutation.
@@ -26,11 +26,15 @@ const EPREUVES = {
     assert.strictEqual(v.mode, 'fermeture');
     assert(!M.html(v).includes('Quart terminé'));
   },
-  'clôture serveur sans comptage : libellé explicite avec l\'heure, sans bouton': (M) => {
+  'clôture serveur sans comptage : libellé explicite avec l\'heure et lien de clôture tardive': (M) => {
     const h = M.html(M.modele(Object.assign({}, fait, { clotureServeurSansComptage: { heure: '13 h 15' } })));
     assert(h.includes('Inventaire de clôture non fait : quart clos automatiquement à 13 h 15'));
     assert(h.includes('ap-non-fait'));
-    assert(!h.includes('apBoutonFermeture') && !h.includes('class="ap-bouton"'));
+    assert(/id="apBoutonFermeture" href="NEXUS-Carburant-Index-v1\.html">Faire ma clôture \(en retard\)</.test(h), 'lien de clôture tardive même index de fin fait');
+  },
+  'clôture normale : libellé de bouton inchangé': (M) => {
+    const h = M.html(M.modele(Object.assign({}, fait, { finIndexFait: false })));
+    assert(h.includes('Commencer la fermeture') && !h.includes('en retard'));
   },
   'validation du pompiste : fait, quart terminé': (M) => {
     const v = M.modele(Object.assign({}, fait, { clotureInventaireFait: true }));
@@ -49,19 +53,20 @@ function epreuvesApp(src) {
   const bloc = src.slice(i, i + 900);
   assert(!/cloture_le \|\| /.test(bloc.split('\n').slice(0, 8).join('\n').replace(/rowsClos\w*/g, '')) || true);
   assert(/clotureServeurSansComptage = \(inventaireApplicable && !inventaireFait && rowsClosServeur\.length\)/.test(src), 'fait dérivé des lignes closes par le serveur sans validation');
-  assert(/resteInventaire: inventaireApplicable && !inventaireFait && !clotureServeurSansComptage/.test(src), 'pas de bouton vers un quart clos');
+  assert(/resteInventaire: inventaireApplicable && !inventaireFait \}/.test(src), 'le lien de fermeture vise l\'inventaire même si le serveur a clos le quart');
   assert(/clotureFaite: inventaireFait \|\| !!clotureServeurSansComptage/.test(src), 'le fil caisse ne renvoie pas vers un quart clos');
   assert((src.match(/if \(f\.clotureServeurSansComptage\) return \{ texte: libelleClotureServeur/g) || []).length === 2, 'manager pompiste et caissière');
   assert(/r\.a_valide_cloture === true && \(r\.inventaire_quarts\.cloture_le \|\| r\.heure_depart\)/.test(src), 'recapQuart.fermetureA : seulement une clôture validée');
   assert((src.match(/clotureServeurSansComptage,/g) || []).length >= 4, 'le fait est transmis à l\'accueil et au manager');
   // Guardian 6711427025 : le lien de clôture du manager suit l'accueil pompiste (gardé tant que l'index de fin reste à faire).
-  assert(/lien: \(!f\.finIndexApplicable \|\| f\.finIndexFait\) \? null : f\.fermetureLien/.test(src), 'manager pompiste : lien conservé tant que l\'index de fin reste à faire');
+  assert(/lien: f\.fermetureLien \|\| null, texteLien: 'Faire ma clôture \(en retard\)'/.test(src), 'manager pompiste : lien de clôture tardive toujours présent');
+  assert(/a\.textContent = m\.texteLien \|\| m\.texte/.test(src), 'le libellé tardif est affiché sur la carte manager');
 }
 // Inventaire : validerCloture ne perd plus un comptage en silence.
 function epreuvesInventaire(src) {
   const i = src.indexOf('async function validerCloture');
   assert(i > 0, 'validerCloture présent');
-  const corps = src.slice(i, i + 9000);
+  const corps = src.slice(i, i + 12000);
   const iEchec = corps.indexOf('if (echecsCloture.length)');
   const iValid = corps.indexOf("a_valide_cloture: true");
   const iEff = corps.indexOf("effacerDraft('cloture')");
@@ -69,6 +74,10 @@ function epreuvesInventaire(src) {
   const bloc = corps.slice(iEchec, iValid);
   assert(/sauvegarderDraft\('cloture'\)/.test(bloc) && /alerterEnPage\(/.test(bloc) && /return;/.test(bloc), 'échec : brouillon gardé, message visible, arrêt');
   assert(/if \(errValidation\)/.test(corps) && /sauvegarderDraft\('cloture'\)/.test(corps.slice(corps.indexOf('if (errValidation)'), iEff)), 'validation en échec : brouillon gardé');
+  const iRel = corps.indexOf(".eq('type_comptage', 'cloture')");
+  const iBoucle = corps.indexOf('for (const p of produitsZone)');
+  assert(iRel > 0 && iRel < iBoucle, 'relecture des comptages de clôture AVANT les insertions');
+  assert(/if \(errRelecture\)/.test(corps) && /dejaCloture \|\| \[\]\)\.forEach\(\(r\) => clotureEnregistres\.add\(r\.produit_id\)\)/.test(corps), 'relecture : échec = rien écrit, sinon doublons exclus');
   assert(/clotureEnregistres\.has\(p\.id\)/.test(corps) && /clotureEnregistres\.add\(p\.id\)/.test(corps), 'pas de doublon au nouvel appui');
 }
 epreuvesApp(APP);
@@ -102,7 +111,7 @@ assert.strictEqual(limite('2026-11-07', '13:15', null, 30), 13 * 60 + 45, 'samed
 // --- 4. Mutations ---
 const mutApp = [
   ['inventaireFait accepte cloture_le', (s) => s.replace(/(const inventaireFait = [^;]*?)r\.a_valide_cloture === true/, '$1(r.cloture_le || r.a_valide_cloture)')],
-  ['bouton vers quart clos', (s) => s.replace('inventaireApplicable && !inventaireFait && !clotureServeurSansComptage', 'inventaireApplicable && !inventaireFait')],
+  ['pas de lien vers quart clos', (s) => s.replace('inventaireApplicable && !inventaireFait };', 'inventaireApplicable && !inventaireFait && !clotureServeurSansComptage };')],
   ['fil caisse renvoie vers quart clos', (s) => s.replace('clotureFaite: inventaireFait || !!clotureServeurSansComptage', 'clotureFaite: inventaireFait')],
   ['recap compte la clôture serveur', (s) => s.replace('r.a_valide_cloture === true && (r.inventaire_quarts.cloture_le || r.heure_depart)', '(r.inventaire_quarts.cloture_le || r.heure_depart)')],
 ];
@@ -110,19 +119,24 @@ const mutInv = [
   ['échec de comptage ignoré', (s) => s.replace('if (echecsCloture.length) {', 'if (false) {')],
   ['brouillon non gardé en échec', (s) => s.replace(/(if \(echecsCloture\.length\) \{\s*btn\.disabled = false; btn\.textContent = 'Valider la clôture';\s*)sauvegarderDraft\('cloture'\);/, '$1')],
   ['pas de garde anti-doublon', (s) => s.replace('if (clotureEnregistres.has(p.id)) continue;', '')],
+  ['pas de relecture anti-doublon', (s) => s.replace("(dejaCloture || []).forEach((r) => clotureEnregistres.add(r.produit_id));", '')],
+  ['relecture en échec ignorée', (s) => s.replace('if (errRelecture) {', 'if (false) {')],
   ['validation sans contrôle', (s) => s.replace('if (errValidation) {', 'if (false) {')],
 ];
 for (const [nom, mut] of mutInv) {
   const s = mut(INV); assert.notStrictEqual(s, INV, 'mutation sans effet : ' + nom);
   assert.throws(() => epreuvesInventaire(s), 'mutation survivante : ' + nom);
 }
-mutApp.push(['lien manager pompiste supprimé', (s) => s.replace('lien: (!f.finIndexApplicable || f.finIndexFait) ? null : f.fermetureLien, progression: null };', 'lien: null, progression: null };')]);
+mutApp.push(['lien manager pompiste supprimé', (s) => s.replace("lien: f.fermetureLien || null, texteLien: 'Faire ma clôture (en retard)', progression: null };", 'lien: null, progression: null };')]);
+mutApp.push(['lien manager sans libellé tardif', (s) => s.replace('a.textContent = m.texteLien || m.texte;', 'a.textContent = m.texte;')]);
 for (const [nom, mut] of mutApp) {
   const s = mut(APP); assert.notStrictEqual(s, APP, 'mutation sans effet : ' + nom);
   assert.throws(() => epreuvesApp(s), 'mutation survivante : ' + nom);
 }
 const mutMod = [
   ['libellé « fait »', (s) => s.replace("f.clotureServeurSansComptage\n        ? {", "false\n        ? {")],
+  ['lien tardif retiré', (s) => s.replace("href: f.fermetureLien || null,\n        tardive", "href: (f.clotureServeurSansComptage && (!f.finIndexApplicable || f.finIndexFait)) ? null : (f.fermetureLien || null),\n        tardive")],
+  ['libellé tardif absent', (s) => s.replace("fe.tardive ? 'Faire ma clôture (en retard)' : ", '')],
   ['étape non fait comptée faite', (s) => s.replace('fait: false, nonFait: true', 'fait: true, nonFait: true')],
 ];
 for (const [nom, mut] of mutMod) {

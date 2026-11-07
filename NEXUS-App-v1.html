@@ -2737,7 +2737,7 @@
       finMinutes = NexusStation.finDuQuartMinutes(horairesStation, quartDuJour === 'matin' ? 'quart1' : 'quart2', fuseauStation, new Date());
       const hm = new Intl.DateTimeFormat('en-GB', { timeZone: fuseauStation, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date());
       maintenantMinutes = Number(hm.find(x => x.type === 'hour').value) * 60 + Number(hm.find(x => x.type === 'minute').value);
-      const faitsFermeture = { resteIndex: finIndexApplicable && !finQuartFait, resteInventaire: inventaireApplicable && !inventaireFait && !clotureServeurSansComptage };
+      const faitsFermeture = { resteIndex: finIndexApplicable && !finQuartFait, resteInventaire: inventaireApplicable && !inventaireFait };
       fermetureLien = NexusFilFinQuart.urlRepriseSelonFaits(localStorage, employee.id, todayISO, momentIndexFin, faitsFermeture)
         || (NexusFilFinQuart.planSelonFaits(faitsFermeture).length ? NexusFilFinQuart.urlEtape(NexusFilFinQuart.planSelonFaits(faitsFermeture)[0], momentIndexFin, NexusFilFinQuart.planSelonFaits(faitsFermeture)) : null);
     }
@@ -2782,7 +2782,7 @@
         return { texte: 'Faire mon début de quart (pompiste)', lien: f.filLien, progression: (total - restantes) + ' étape' + ((total - restantes) > 1 ? 's' : '') + ' sur ' + total + ' faite' + ((total - restantes) > 1 ? 's' : '') };
       }
       if (total === 0) return null;
-      if (f.clotureServeurSansComptage) return { texte: libelleClotureServeur(f.clotureServeurSansComptage), lien: (!f.finIndexApplicable || f.finIndexFait) ? null : f.fermetureLien, progression: null };
+      if (f.clotureServeurSansComptage) return { texte: libelleClotureServeur(f.clotureServeurSansComptage), lien: f.fermetureLien || null, texteLien: 'Faire ma clôture (en retard)', progression: null };
       const fermetureFaite = (!f.finIndexApplicable || f.finIndexFait) && f.clotureInventaireFait;
       if (fermetureFaite) return { texte: 'Quart terminé ✓', lien: null, progression: null };
       if (f.fermetureLien && dueA(NexusAccueilPiste.DELAI_FERMETURE_MIN)) {
@@ -2827,7 +2827,7 @@
       const a = document.createElement('a');
       a.className = 'ap-bouton am-parcours-bouton';
       a.setAttribute('href', m.lien);
-      a.textContent = m.texte;
+      a.textContent = m.texteLien || m.texte;
       bloc.appendChild(a);
     } else {
       const p = document.createElement('div');
