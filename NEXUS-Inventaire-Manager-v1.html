@@ -3370,6 +3370,12 @@
       if (cible) cible.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }));
     document.querySelectorAll('.np-tuile-corps').forEach(el => el.addEventListener('click', () => {
+      // iPhone : le panneau visé peut être masqué par l'onglet actif ; on active d'abord son onglet.
+      const ongletDe = { sectionAControler: 'decisions', sectionATerminer: 'comptages' }[el.dataset.cible];
+      if (ongletDe) {
+        const t = document.querySelector('.inv-onglet[data-onglet="' + ongletDe + '"]');
+        if (t) t.click();
+      }
       const cible = document.getElementById(el.dataset.cible);
       if (cible) cible.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }));

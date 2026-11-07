@@ -50,4 +50,24 @@ t('aucune couleur hexadécimale ajoutée hors :root', () => {
   const ajout = ['.inv-onglet', '.inv-barre', '.inv-titre-icone', '.np-tuile-ico'].every(k => !new RegExp(k.replace('.', '\\.') + '[^}]*#[0-9a-fA-F]{3,6}').test(horsRoot));
   assert(ajout);
 });
+t('la tuile « Anomalies à traiter » active son onglet iPhone avant de défiler', () => {
+  const m = html.match(/querySelectorAll\('\.np-tuile-corps'\)\.forEach\(el => el\.addEventListener\('click', \(\) => \{([\s\S]*?)\}\)\);/);
+  assert(m, 'gestionnaire .np-tuile-corps introuvable');
+  const corps = m[1];
+  assert(/sectionAControler:\s*'decisions'/.test(corps) && /sectionATerminer:\s*'comptages'/.test(corps));
+  assert(corps.indexOf('.click()') > -1 && corps.indexOf('.click()') < corps.indexOf('scrollIntoView'), 'onglet activé avant le défilement');
+  // simulation : le gestionnaire clique l'onglet visé puis défile
+  const journal = [];
+  const doc = {
+    querySelector: sel => ({ click: () => journal.push('onglet ' + sel) }),
+    getElementById: id => ({ scrollIntoView: () => journal.push('scroll ' + id) })
+  };
+  const ex = (cible) => { journal.length = 0; new Function('document', 'el', corps)(doc, { dataset: { cible } }); return journal.slice(); };
+  const a = ex('sectionAControler');
+  assert(/decisions/.test(a[0]) && a[1] === 'scroll sectionAControler', a.join('|'));
+  const b = ex('sectionATerminer');
+  assert(/comptages/.test(b[0]) && b[1] === 'scroll sectionATerminer', b.join('|'));
+  const c = ex('photoDeceniumCard');
+  assert(c.length === 1 && c[0] === 'scroll photoDeceniumCard', c.join('|'));
+});
 console.log(n + ' vérifications passées');
