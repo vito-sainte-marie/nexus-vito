@@ -857,6 +857,23 @@
       "objets_constates": [
         "run_scheduled_inventory_reviews"
       ]
+    },
+    "20261107100000": {
+      "etat": "atomique_ou_procedure_speciale",
+      "justification": "Migration remplacant le corps de run_scheduled_inventory_reviews() (base 20261106100000) : le repli compte les produits piste sans comptage de cloture au lieu du statut du plan, et la fin de quart prend fin_etendu les jeudi, vendredi, samedi (lot cloture honnete, PR #219). NON APPLIQUEE : GO de Frederic requis. Aucun DDL destructif, aucune table ni colonne creee, aucune donnee ecrite ; revoke execute de public, anon, authenticated conserve. Independante du code client de #219 (aucun ordre strict). Cette qualification documentaire ne constitue aucune autorisation de migration, de fusion ni de deploiement : chacun reste un GO distinct de Frederic. Limitee au blob 5b33b970dde0d9ef15bd6b60ffc6a9407c33e7d3 : un blob different fait tomber cette qualification.",
+      "procedure": "docs/deploiement/procedure-cloture-honnete-20261107.md",
+      "mesure": {
+        "source": "catalogue",
+        "le": "2026-11-07T12:00:00Z",
+        "cible": "udljdqxerrbbbajxubfn",
+        "par": "claude",
+        "outil": "execute_sql du connecteur Supabase sur le projet Test nexus-test, lecture seule du catalogue ; aucune ligne de donnee lue ; aucune lecture en Production",
+        "identite_constatee": "projet udljdqxerrbbbajxubfn (nexus-test) passe en argument de l appel",
+        "lecture_seule": "un select sur pg_proc, pg_namespace et supabase_migrations.schema_migrations uniquement",
+        "verdict": "NON APPLIQUEE SUR TEST — run_scheduled_inventory_reviews prosecdef vrai, corps 9852 car. (md5 d5e470ebe2ba7694c5ba3f923646d05e) sans fin_etendu ; estampille 20261107100000 = 0 ; derniere estampille 20261105170151. Production non mesuree (pas de GO de lecture).",
+        "blob_migration": "5b33b970dde0d9ef15bd6b60ffc6a9407c33e7d3"
+      },
+      "prochaine_action": "GO distinct de Frederic : application sur Test puis, plus tard, en Production avec relecture post-application (procedure). Aucune application par Claude."
     }
   },
   "prochaine_action": "Axe SS4 migration -> code : LEVE pour 20260919103000 (13/13 objets constates sur le catalogue le 01/10/2026) et pour 20261001160000 (ACL constatee fermee le 03/10/2026). Ces qualifications restent acquises tant que leur fichier de migration ne change pas : la garde compare mesure.blob_migration a l'empreinte du candidat, et une migration retouchee fait tomber sa qualification. Il n'y a plus d'echeance horaire (l'ancienne fraicheur de 72 h aurait fait retomber l'axe le 04/10/2026 sans que rien ne bouge). CE QUE LA GARDE NE VOIT PAS : une base modifiee sans que le depot bouge - c'est exactement ce que la relecture du 03/10 a trouve pour 20261001160000. Toute procedure d'application relit donc la base avant d'ecrire. CE QUE CELA N'AUTORISE PAS : aucune fusion ni aucun deploiement ; chacun reste un GO distinct de Frederic. RESTE A FAIRE, separement : (1) les 11 migrations du rail toujours non qualifiees ; (2) le cablage de garde-ordre-migration-code.js dans deploiement-production.yml. Lecture du verdict et table de decision : SS18.4 ; recit de la mesure : SS20. MISE A JOUR DU 04/10/2026 : les 13 migrations du candidat rebuild/fdj-62-20260922 sont qualifiees (12 atomiques en serie avant le code, 20261004120000 code d abord) ; ordre et gestes dans docs/deploiement/procedure-fdj-62-production.md."

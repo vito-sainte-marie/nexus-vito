@@ -2782,7 +2782,7 @@
         return { texte: 'Faire mon début de quart (pompiste)', lien: f.filLien, progression: (total - restantes) + ' étape' + ((total - restantes) > 1 ? 's' : '') + ' sur ' + total + ' faite' + ((total - restantes) > 1 ? 's' : '') };
       }
       if (total === 0) return null;
-      if (f.clotureServeurSansComptage) return { texte: libelleClotureServeur(f.clotureServeurSansComptage), lien: null, progression: null };
+      if (f.clotureServeurSansComptage) return { texte: libelleClotureServeur(f.clotureServeurSansComptage), lien: (!f.finIndexApplicable || f.finIndexFait) ? null : f.fermetureLien, progression: null };
       const fermetureFaite = (!f.finIndexApplicable || f.finIndexFait) && f.clotureInventaireFait;
       if (fermetureFaite) return { texte: 'Quart terminé ✓', lien: null, progression: null };
       if (f.fermetureLien && dueA(NexusAccueilPiste.DELAI_FERMETURE_MIN)) {

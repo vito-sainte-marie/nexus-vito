@@ -12,8 +12,8 @@ const APP = lire('NEXUS-App-v1.html');
 const STATION = lire('nexus-station.js');
 const MIG = lire('supabase/migrations/20261107100000_cloture_honnete_comptage_et_regime_etendu.sql');
 
-const fait = { enService: true, consultationExterne: false, roleDuJour: 'pompiste', prenom: 'Karim', libelleRole: 'Pompiste', quart: 'matin',
-  heureDebut: '2026-11-07T05:05:00Z', fuseau: 'Indian/Reunion', jaugeageApplicable: true, jaugeageFait: true, indexApplicable: true, indexFait: true,
+const fait = { enService: true, consultationExterne: false, roleDuJour: 'pompiste', prenom: 'Camille', libelleRole: 'Pompiste', quart: 'matin',
+  heureDebut: '2026-11-07T05:05:00Z', fuseau: 'America/Martinique', jaugeageApplicable: true, jaugeageFait: true, indexApplicable: true, indexFait: true,
   inventaireApplicable: true, inventaireFait: true, inventaireOuvertureFaite: true, receptionApplicable: false, commandes: [], dateLocale: '2026-11-07',
   missions: { total: 0, faites: 0 }, points: 0, filLien: null,
   finMinutes: 795, maintenantMinutes: 800, finIndexApplicable: true, finIndexFait: true, clotureInventaireFait: false, fermetureLien: 'NEXUS-Carburant-Index-v1.html' };
@@ -54,8 +54,26 @@ function epreuvesApp(src) {
   assert((src.match(/if \(f\.clotureServeurSansComptage\) return \{ texte: libelleClotureServeur/g) || []).length === 2, 'manager pompiste et caissière');
   assert(/r\.a_valide_cloture === true && \(r\.inventaire_quarts\.cloture_le \|\| r\.heure_depart\)/.test(src), 'recapQuart.fermetureA : seulement une clôture validée');
   assert((src.match(/clotureServeurSansComptage,/g) || []).length >= 4, 'le fait est transmis à l\'accueil et au manager');
+  // Guardian 6711427025 : le lien de clôture du manager suit l'accueil pompiste (gardé tant que l'index de fin reste à faire).
+  assert(/lien: \(!f\.finIndexApplicable \|\| f\.finIndexFait\) \? null : f\.fermetureLien/.test(src), 'manager pompiste : lien conservé tant que l\'index de fin reste à faire');
+}
+// Inventaire : validerCloture ne perd plus un comptage en silence.
+function epreuvesInventaire(src) {
+  const i = src.indexOf('async function validerCloture');
+  assert(i > 0, 'validerCloture présent');
+  const corps = src.slice(i, i + 9000);
+  const iEchec = corps.indexOf('if (echecsCloture.length)');
+  const iValid = corps.indexOf("a_valide_cloture: true");
+  const iEff = corps.indexOf("effacerDraft('cloture')");
+  assert(iEchec > 0 && iValid > iEchec && iEff > iValid, 'échec contrôlé AVANT la validation, brouillon effacé APRÈS');
+  const bloc = corps.slice(iEchec, iValid);
+  assert(/sauvegarderDraft\('cloture'\)/.test(bloc) && /alerterEnPage\(/.test(bloc) && /return;/.test(bloc), 'échec : brouillon gardé, message visible, arrêt');
+  assert(/if \(errValidation\)/.test(corps) && /sauvegarderDraft\('cloture'\)/.test(corps.slice(corps.indexOf('if (errValidation)'), iEff)), 'validation en échec : brouillon gardé');
+  assert(/clotureEnregistres\.has\(p\.id\)/.test(corps) && /clotureEnregistres\.add\(p\.id\)/.test(corps), 'pas de doublon au nouvel appui');
 }
 epreuvesApp(APP);
+const INV = lire('NEXUS-Inventaire-v1.html');
+epreuvesInventaire(INV);
 
 // --- 3. Migration ---
 const sansCommentaires = MIG.replace(/--[^\n]*/g, '');
@@ -88,6 +106,17 @@ const mutApp = [
   ['fil caisse renvoie vers quart clos', (s) => s.replace('clotureFaite: inventaireFait || !!clotureServeurSansComptage', 'clotureFaite: inventaireFait')],
   ['recap compte la clôture serveur', (s) => s.replace('r.a_valide_cloture === true && (r.inventaire_quarts.cloture_le || r.heure_depart)', '(r.inventaire_quarts.cloture_le || r.heure_depart)')],
 ];
+const mutInv = [
+  ['échec de comptage ignoré', (s) => s.replace('if (echecsCloture.length) {', 'if (false) {')],
+  ['brouillon non gardé en échec', (s) => s.replace(/(if \(echecsCloture\.length\) \{\s*btn\.disabled = false; btn\.textContent = 'Valider la clôture';\s*)sauvegarderDraft\('cloture'\);/, '$1')],
+  ['pas de garde anti-doublon', (s) => s.replace('if (clotureEnregistres.has(p.id)) continue;', '')],
+  ['validation sans contrôle', (s) => s.replace('if (errValidation) {', 'if (false) {')],
+];
+for (const [nom, mut] of mutInv) {
+  const s = mut(INV); assert.notStrictEqual(s, INV, 'mutation sans effet : ' + nom);
+  assert.throws(() => epreuvesInventaire(s), 'mutation survivante : ' + nom);
+}
+mutApp.push(['lien manager pompiste supprimé', (s) => s.replace('lien: (!f.finIndexApplicable || f.finIndexFait) ? null : f.fermetureLien, progression: null };', 'lien: null, progression: null };')]);
 for (const [nom, mut] of mutApp) {
   const s = mut(APP); assert.notStrictEqual(s, APP, 'mutation sans effet : ' + nom);
   assert.throws(() => epreuvesApp(s), 'mutation survivante : ' + nom);
@@ -112,4 +141,4 @@ for (const [nom, mut] of mutSql) {
   const rouge = /i\.statut = 'a_faire'/.test(sc) || (() => { const mm = /v_isodow_quart in \(([\d, ]+)\)/.exec(sc); return mm && mm[1].split(',').map((x) => Number(x)).sort().join() !== jsJours.join(); })();
   assert(rouge, 'mutation survivante : ' + nom);
 }
-console.log('OK — ' + Object.keys(EPREUVES).length + ' épreuves module, lecteurs App et migration contrôlés, ' + (mutApp.length + mutMod.length + mutSql.length) + ' mutations tuées');
+console.log('OK — ' + Object.keys(EPREUVES).length + ' épreuves module, lecteurs App et migration contrôlés, ' + (mutApp.length + mutInv.length + mutMod.length + mutSql.length) + ' mutations tuées');
