@@ -1,8 +1,10 @@
 // ------------------------------------------------------------
 // NEXUS — registre unique des icônes de modules v2 (07/11/2026, kit « nexus-icones-modules-v1.1 »)
 // ------------------------------------------------------------
-// Source de vérité des 8 icônes de modules : Verify, Inventaire, Contrôle inventaire, FDJ, Missions,
-// Planning, Paye, Carburants. Chaque surface (barre d'accueil, menu bureau, raccourcis, Documentation,
+// Source de vérité des 20 icônes de modules (lot 1 : Verify, Inventaire, Contrôle inventaire, FDJ, Missions,
+// Planning, Paye, Carburants ; lot 2, kit « nexus-icones-modules-lot2-v1.1 » : Carburants Performance, Capital,
+// Brief, Réception carburant, Assignations, FDJ Performance, Comptes Clients, Résultats, Journal, Progression,
+// Paramètres, Produits). Chaque surface (barre d'accueil, menu bureau, raccourcis, Documentation,
 // tuiles employé) passe par ici ; aucune ne connaît les chemins du kit.
 //
 // Pour chaque identifiant : version détaillée (WebP @1x/@2x/@3x, via srcset), version simplifiée
@@ -29,6 +31,18 @@
     'mod-planning':            { libelle: 'Planning' },
     'mod-paye':                { libelle: 'Paye' },
     'mod-carburants':          { libelle: 'Carburants' },
+    'mod-carburants-performance': { libelle: 'Carburants Performance' },
+    'mod-capital':             { libelle: 'Capital NEXUS' },
+    'mod-brief':               { libelle: 'Brief NEXUS' },
+    'mod-reception-carburant': { libelle: 'Réception carburant' },
+    'mod-assignations':        { libelle: 'Assignations' },
+    'mod-fdj-performance':     { libelle: 'FDJ Performance' },
+    'mod-comptes-clients':     { libelle: 'Comptes Clients' },
+    'mod-resultats':           { libelle: 'Résultats' },
+    'mod-journal':             { libelle: 'Journal' },
+    'mod-progression':         { libelle: 'Progression' },
+    'mod-parametres':          { libelle: 'Paramètres' },
+    'mod-produits':            { libelle: 'Produits' },
   };
 
   function esc(s) {

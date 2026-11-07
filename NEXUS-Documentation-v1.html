@@ -310,7 +310,7 @@
   const MOTEURS = [
     // ---- PILOTER ----
     {
-      id: 'brief', groupe: 'piloter', icone: '🧭', nom: 'Brief NEXUS', href: 'NEXUS-Brief-v1.html',
+      id: 'brief', module: 'mod-brief', groupe: 'piloter', icone: '🧭', nom: 'Brief NEXUS', href: 'NEXUS-Brief-v1.html',
       role: 'Manager', forfait: null, intentions: ['comprendre-activite'],
       aQuoiCaSert: "En 5 minutes, voyez où en est votre entreprise, ce qui va bien, ce qui nécessite votre attention et les décisions prioritaires à prendre.",
       quandUtiliser: "Le matin, avant de commencer votre journée — pour savoir tout de suite sur quoi porter votre attention, sans devoir ouvrir sept écrans différents.",
@@ -332,14 +332,14 @@
       donneesSources: "Détections d'anomalies commerciales, messages structurés Qualité/Caisse, et écarts de caisse cumulés du mois comparés au mois précédent.",
     },
     {
-      id: 'journal', groupe: 'piloter', icone: '📓', nom: 'Journal', href: 'NEXUS-Journal-v1.html',
+      id: 'journal', module: 'mod-journal', groupe: 'piloter', icone: '📓', nom: 'Journal', href: 'NEXUS-Journal-v1.html',
       role: 'Manager', forfait: 'professional', intentions: ['comprendre-activite', 'controler-caisses'],
       aQuoiCaSert: "Retrouvez chronologiquement les faits, actions, anomalies et événements enregistrés par NEXUS.",
       quandUtiliser: "Pour vérifier ce qui s'est vraiment passé un jour donné : qui a pointé, quelle décision a été validée, quelle mission a été terminée.",
       donneesSources: "Décisions validées, missions terminées et pointages du jour, directement depuis les tables NEXUS — jamais résumé ni interprété, comme une boîte noire.",
     },
     {
-      id: 'capital', groupe: 'piloter', icone: '💰', nom: 'Capital NEXUS', href: 'NEXUS-Capital-v1.html',
+      id: 'capital', module: 'mod-capital', groupe: 'piloter', icone: '💰', nom: 'Capital NEXUS', href: 'NEXUS-Capital-v1.html',
       role: 'Manager', forfait: 'professional', intentions: ['ameliorer-marge', 'augmenter-ventes'],
       aQuoiCaSert: "Mesurez la valeur économique identifiée ou générée par les décisions suivies dans NEXUS.",
       quandUtiliser: "Pour évaluer le retour sur investissement de votre abonnement Professional, ou présenter la valeur créée par NEXUS depuis sa mise en place.",
@@ -363,7 +363,7 @@
 
     // ---- PERFORMER ----
     {
-      id: 'produits', groupe: 'performer', icone: '📦', nom: 'Produits', href: 'NEXUS-Produits-v1.html',
+      id: 'produits', module: 'mod-produits', groupe: 'performer', icone: '📦', nom: 'Produits', href: 'NEXUS-Produits-v1.html',
       role: 'Manager', forfait: null, intentions: ['augmenter-ventes', 'ameliorer-marge'],
       aQuoiCaSert: "Ouvrez la fiche complète d'une référence précise — ce qu'elle vend, sa marge, où elle en est, et ce qu'il faut décider.",
       quandUtiliser: "Après une alerte du Scanner ou du Conseiller sur un produit précis, pour creuser avant d'agir — jamais pour parcourir le catalogue au hasard.",
@@ -451,7 +451,7 @@
       donneesSources: "Catalogue de missions filtré par rôle et fenêtre horaire, complétions enregistrées en temps réel — jamais un score gonflé par des missions pas encore confirmées.",
     },
     {
-      id: 'assignations', groupe: 'executer', icone: '🎯', nom: 'Assignations', href: 'NEXUS-Assignations-v1.html',
+      id: 'assignations', module: 'mod-assignations', groupe: 'executer', icone: '🎯', nom: 'Assignations', href: 'NEXUS-Assignations-v1.html',
       role: 'Manager', forfait: 'professional', intentions: ['piloter-equipe'],
       aQuoiCaSert: "Confiez une tâche précise à une personne ou un rôle, avec une échéance claire.",
       quandUtiliser: "Quand une action ne rentre pas dans le catalogue de missions habituel et nécessite un suivi individuel jusqu'à validation.",
@@ -474,7 +474,7 @@
       donneesSources: "La grille remplie par le manager — rien n'est déduit automatiquement, l'historique complet reste consultable pour préparer un bilan annuel.",
     },
     {
-      id: 'resultats', groupe: 'equipe', icone: '🏆', nom: 'Résultats Équipe', href: 'NEXUS-Resultats-Equipe-v1.html',
+      id: 'resultats', module: 'mod-resultats', groupe: 'equipe', icone: '🏆', nom: 'Résultats Équipe', href: 'NEXUS-Resultats-Equipe-v1.html',
       role: 'Manager', forfait: 'professional', intentions: ['piloter-equipe'],
       aQuoiCaSert: "Voyez qui progresse, qui a des retards, et gérez le classement de points de l'équipe.",
       quandUtiliser: "Chaque semaine, pour valoriser les employés qui avancent et repérer ceux qui décrochent — porte uniquement sur les employés, jamais sur les managers.",
@@ -483,7 +483,7 @@
 
     // ---- COMPTES CLIENTS ----
     {
-      id: 'comptes-clients', groupe: 'comptes-clients', icone: '👥', nom: 'Comptes Clients', href: 'NEXUS-Comptes-Clients-v1.html',
+      id: 'comptes-clients', module: 'mod-comptes-clients', groupe: 'comptes-clients', icone: '👥', nom: 'Comptes Clients', href: 'NEXUS-Comptes-Clients-v1.html',
       role: 'Manager', forfait: 'professional', intentions: [],
       aQuoiCaSert: "Centralisez vos clients en compte — qui ils sont, leurs contacts, leurs préférences documentaires.",
       quandUtiliser: "Pour gérer la relation avec vos clients professionnels, en dehors de la caisse du jour.",
@@ -514,7 +514,7 @@
       donneesSources: "Le fichier Excel/CSV que vous déposez, analysé entièrement dans votre navigateur avant tout envoi.",
     },
     {
-      id: 'parametres-station', groupe: 'administrer', icone: '⚙️', nom: 'Paramètres', href: 'NEXUS-Parametres-Station-v1.html',
+      id: 'parametres-station', module: 'mod-parametres', groupe: 'administrer', icone: '⚙️', nom: 'Paramètres', href: 'NEXUS-Parametres-Station-v1.html',
       role: 'Manager', forfait: null, intentions: [],
       aQuoiCaSert: "Réglez les fondations qui alimentent Pointage, Nexus Planner et Verify — horaires, prix carburant.",
       quandUtiliser: "À l'installation, ou dès qu'un horaire ou un prix carburant change.",
@@ -551,7 +551,7 @@
       donneesSources: "Le planning généré et publié par le manager via Nexus Planner.",
     },
     {
-      id: 'progression', groupe: 'employe', icone: '🌱', nom: 'Ma Progression', href: 'NEXUS-Progression-v1.html',
+      id: 'progression', module: 'mod-progression', groupe: 'employe', icone: '🌱', nom: 'Ma Progression', href: 'NEXUS-Progression-v1.html',
       role: 'Tous', forfait: null, intentions: [],
       aQuoiCaSert: "Comprenez vos propres écarts, comment les éviter demain, et voyez vos progrès réels.",
       quandUtiliser: "Régulièrement pour vous situer, ou avant un entretien avec votre manager.",

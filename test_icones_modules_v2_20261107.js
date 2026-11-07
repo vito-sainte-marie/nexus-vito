@@ -45,9 +45,9 @@ t('le README du kit est rangé', () => assert.ok(fs.existsSync(path.join(__dirna
 
 // ---- Le registre ----
 const R = charger(SRC);
-t('ICONES_V2 est vrai ; 8 modules, chacun avec un libellé accessible', () => {
+t('ICONES_V2 est vrai ; les 8 modules du lot 1 sont au registre (le lot 2 en ajoute 12), chacun avec un libellé accessible', () => {
   assert.strictEqual(R.ICONES_V2, true);
-  assert.deepStrictEqual(Object.keys(R.MODULES).sort(), IDS.slice().sort());
+  IDS.forEach(id => assert.ok(R.MODULES[id], id));
   IDS.forEach(id => assert.ok(R.MODULES[id].libelle));
 });
 t('jusqu\'à 24 px : version simplifiée ; au-delà : détaillée en srcset 1x/2x/3x', () => {
@@ -114,23 +114,23 @@ t('menu bureau : Verify, Carburants, Inventaire, Contrôle inventaire, FDJ, Miss
     assert.ok(DESK.includes("label: '" + l + "', module: '" + id + "'"), l));
 });
 t('menu bureau : FDJ Opérations/Performance, Carburants Performance, Réception carburant ne changent pas', () => {
-  ['FDJ Opérations', 'FDJ Performance', 'Performance carburants', 'Réception carburant'].forEach(l => {
+  ['FDJ Opérations', 'Performance carburants'].forEach(l => {
     const m = DESK.match(new RegExp("label: '" + l + "'[^\\n]*")); if (m) assert.ok(!/module:/.test(m[0]), l);
   });
 });
 t('raccourcis : Verify, Carburants, Missions, Contrôle inventaire portent un module', () => {
   [['Verify', 'mod-verify'], ['Carburants', 'mod-carburants'], ['Missions', 'mod-missions'], ['Contrôle inventaire', 'mod-controle-inventaire']].forEach(([l, id]) =>
     assert.ok(CAT.includes("label: '" + l + "', module: '" + id + "'"), l));
-  assert.strictEqual((CAT.match(/module:/g) || []).length, 4);
+  assert.strictEqual((CAT.match(/module:/g) || []).length, 10); // 4 du lot 1 + 6 du lot 2
 });
 t('tuiles employé : Missions, Inventaire, FDJ, Mon planning ; Relevés et Réception inchangés', () => {
   [['Missions', 'mod-missions'], ['Inventaire', 'mod-inventaire'], ['FDJ', 'mod-fdj'], ['Mon planning', 'mod-planning']].forEach(([l, id]) =>
     assert.ok(new RegExp("titre: '" + l + "'[^\\n]*module: '" + id + "'").test(APP), l));
   ['Relevés d’index', 'Réception'].forEach(l => assert.ok(!new RegExp("titre: '" + l + "'[^\\n]*module:").test(APP), l));
 });
-t('Documentation : 7 entrées (Planning deux fois), Carburants et Paye absents', () => {
-  assert.strictEqual((DOC.match(/id: '[^']+', module: 'mod-/g) || []).length, 7);
-  ['controle-fdj', 'tracabilite', 'assignations'].forEach(i => assert.ok(!new RegExp("id: '" + i + "', module:").test(DOC), i));
+t('Documentation : 16 entrées (7 du lot 1, 9 du lot 2), Carburants et Paye absents', () => {
+  assert.strictEqual((DOC.match(/id: '[^']+', module: 'mod-/g) || []).length, 16);
+  ['controle-fdj', 'tracabilite'].forEach(i => assert.ok(!new RegExp("id: '" + i + "', module:").test(DOC), i));
 });
 t('les écrans passent par le registre : barre d\'accueil, raccourcis (accueil et Paramètres), tuiles, bureau, Documentation', () => {
   assert.ok(/NexusIcones\.img\(cat\.module, 20/.test(APP) && /NexusIcones\.img\(t\.module, 19/.test(APP));
@@ -154,7 +154,7 @@ t('les lignes « valeur métier » à emoji ne sont pas touchées', () => {
 const ANCIENS = ['icon-nexus-verify.png', 'icon-inventaire-24.png', 'icon-fdj-24.png', 'icon-missions.png', 'icon-planner.png'];
 const balisesNav = () => APP.match(/<img data-nexus-icone="mod-[^>]*>/g) || [];
 t('barre d\'accueil : aucun des anciens PNG n\'est cité en src (ni srcset) dans le HTML statique', () => {
-  const bal = balisesNav(); assert.strictEqual(bal.length, 7);
+  const bal = balisesNav(); assert.strictEqual(bal.length, 15); // 7 du lot 1 + 8 du lot 2
   bal.forEach(b => {
     const src = (b.match(/\ssrc="([^"]*)"/) || [])[1], srcset = (b.match(/\ssrcset="([^"]*)"/) || [])[1] || '';
     assert.ok(/^assets\/icones\/v2\/mod-[a-z-]+\/mod-[a-z-]+@1x\.webp$/.test(src), 'src : ' + src);
