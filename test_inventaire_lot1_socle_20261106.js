@@ -57,13 +57,9 @@ cas('aucune couleur en dur hors :root (hors pictogrammes Excel)', () => {
   const reste = hors.split('\n').filter((l) => /#[0-9A-Fa-f]{3,8}\b|rgba?\(\s*\d/.test(l)).filter((l) => !/^\s*(\/\/|\/\*|\*)/.test(l)).filter((l) => !/<(path|rect|svg|g)\b[^>]*\bfill=|<stop\b[^>]*stop-color=/.test(l));
   assert.deepStrictEqual(reste.map((l) => l.trim().slice(0, 90)), []);
 });
-cas('Paye est inchangée vs origin/production', () => {
-  let avant; try { avant = execSync('git show origin/production:NEXUS-Paye-v1.html', { cwd: __dirname, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 1 << 26 }); } catch (e) { return; }
-  // Le CI exécute outils/build.sh avant les tests : il épingle et réécrit les balises <script src>. On les compare sans elles ;
-  // le reste de la page (styles, script en ligne) doit rester identique à origin/production.
-  const sansEpingle = (t) => t.replace(/<script src="[^"]*"><\/script>\n?/g, '');
-  assert.strictEqual(sansEpingle(paye), sansEpingle(avant));
-});
+// (Garde « Paye est inchangée vs origin/production » retirée le 07/11/2026 : elle valait pour le lot 1 Inventaire, qui ne devait
+// pas toucher Paye. Elle rougissait toute PR Paye légitime — ici le type « Absence ». Les cas ci-dessus continuent de prouver
+// que les composants partagés restent la copie exacte de ceux de Paye.)
 cas('kit graphique : bannières jour/nuit et pictogrammes présents, sans couleur en dur', () => {
   const B = require('./nexus-banniere-station.js');
   for (const f of ['inventaire-banniere-sombre.webp', 'inventaire-banniere-claire.webp']) assert.ok(fs.statSync(path.join(__dirname, 'assets/inventaire', f)).size > 10000, f);

@@ -205,6 +205,18 @@
     return data;
   }
 
+  // Type « Absence » de la carte « Ajouter une variable du mois » (07/11/2026).
+  // Ce n'est PAS une variable journalière : l'écran la route ici, vers UN seul
+  // événement RH du/au. Le motif en texte est obligatoire — NEXUS ne qualifie
+  // jamais une absence à la place du manager. Le code de motif en base reste
+  // `autre` (contrainte employee_indisponibilites_motif_check : aucune
+  // migration), libellé « Absence » partout.
+  async function declarerAbsenceDepuisVariable(client, { siteId, employeeId, dateDebut, dateFin, motifTexte, actorId }) {
+    const texte = String(motifTexte || '').trim();
+    if (!texte) throw new Error('Un motif est obligatoire pour une absence : NEXUS ne qualifie jamais une absence à votre place.');
+    return declarerIndisponibilite(client, { siteId, employeeId, dateDebut, dateFin: dateFin || dateDebut, motif: 'autre', finIndeterminee: false, commentaire: texte, actorId });
+  }
+
   // Clôture : le salarié a repris. La date de reprise prime sur date_fin et
   // referme la période — on ne réécrit jamais l'événement d'origine, on le
   // borne (même discipline que partout ailleurs dans NEXUS).
@@ -354,5 +366,5 @@
     if (error) throw error;
   }
 
-  global.NexusPayeDonnees = { declarerIndisponibilite, qualifierIndisponibilite, cloturerIndisponibilite, chargerRapport, enregistrerReglageEmploye, enregistrerDecision, ajouterItemManuel, ajouterItemsManuels, datesInclusives, enregistrerPeriode, refuserEvenementRHParJournee, sonderSaisiesManager, enregistrerHoraireExceptionnel, marquerTraitementAnomalie, STATUTS_TRAITEMENT };
+  global.NexusPayeDonnees = { declarerIndisponibilite, declarerAbsenceDepuisVariable, qualifierIndisponibilite, cloturerIndisponibilite, chargerRapport, enregistrerReglageEmploye, enregistrerDecision, ajouterItemManuel, ajouterItemsManuels, datesInclusives, enregistrerPeriode, refuserEvenementRHParJournee, sonderSaisiesManager, enregistrerHoraireExceptionnel, marquerTraitementAnomalie, STATUTS_TRAITEMENT };
 })(typeof window !== 'undefined' ? window : globalThis);
