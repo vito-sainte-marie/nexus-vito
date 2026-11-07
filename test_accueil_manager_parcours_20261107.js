@@ -23,7 +23,10 @@ function extraire(entete) {
     if (HTML[k] === '{') prof++; else if (HTML[k] === '}' && --prof === 0) return HTML.slice(i, k + 1);
   }
 }
-const modele = new Function('NexusAccueilPiste', extraire('function modeleParcoursManager(') + '\nreturn modeleParcoursManager;')({ DELAI_FERMETURE_MIN: 45 });
+// Vrais modules (pas de double) : un export oublié (DELAI_FERMETURE_MIN) rendait le seuil NaN sans qu'aucune épreuve ne rougisse.
+const Accueil = require('./nexus-accueil-piste.js');
+const Caisse = require('./nexus-fil-caisse.js');
+const modele = new Function('NexusAccueilPiste', 'NexusFilCaisse', extraire('function modeleParcoursManager(') + '\nreturn modeleParcoursManager;')(Accueil, Caisse);
 const base = { jaugeageApplicable: true, indexApplicable: true, inventaireApplicable: true,
   faitsFil: { resteJaugeage: false, resteIndex: true, resteInventaire: true }, filLien: 'NEXUS-Releves-Piste-v1.html?moment=debut_q1',
   fermetureLien: null, finMinutes: 840, maintenantMinutes: 480, piloteCaisse: false, fermetureCaisseDue: false, inventaireOuvertureFaite: false, filCaisseLien: null };
@@ -43,10 +46,50 @@ t('manager pompiste, fin de quart due : fermeture de piste', () => {
   assert.strictEqual(m.texte, 'Faire ma fermeture de piste');
   assert.strictEqual(m.lien, 'NEXUS-Releves-Piste-v1.html?moment=fin_q1');
 });
-t('manager pompiste, tout fait et fin pas due : parcours terminé, sans bouton', () => {
-  const m = modele('pompiste', { ...base, filLien: null, faitsFil: {}, fermetureLien: 'x', maintenantMinutes: 500 });
-  assert.strictEqual(m.texte, 'Parcours du quart terminé ✓');
+const debutFait = { ...base, filLien: null, faitsFil: {}, fermetureLien: 'x', finIndexApplicable: true, finIndexFait: false, clotureInventaireFait: false, maintenantMinutes: 500 };
+t('pompiste, début fait et fermeture pas due : « Début de quart terminé » et l\'heure de la fermeture', () => {
+  const m = modele('pompiste', debutFait);
+  assert.strictEqual(m.texte, 'Début de quart terminé ✓');
   assert.strictEqual(m.lien, null);
+  assert.strictEqual(m.progression, 'Fermeture de la piste à partir de 13 h 15');
+});
+t('pompiste, fermeture due : bouton de fermeture (seuil du vrai module)', () => {
+  const m = modele('pompiste', { ...debutFait, maintenantMinutes: 795 });
+  assert.strictEqual(m.texte, 'Faire ma fermeture de piste');
+  assert.strictEqual(m.lien, 'x');
+  assert.strictEqual(modele('pompiste', { ...debutFait, maintenantMinutes: 794 }).lien, null);
+});
+t('pompiste, fermeture faite : « Quart terminé » sans bouton, jamais « Parcours du quart terminé »', () => {
+  const m = modele('pompiste', { ...debutFait, fermetureLien: null, finIndexFait: true, clotureInventaireFait: true, maintenantMinutes: 830 });
+  assert.strictEqual(m.texte, 'Quart terminé ✓');
+  assert.strictEqual(m.lien, null);
+  assert.strictEqual(m.progression, null);
+  assert.ok(!/Parcours du quart terminé/.test(HTML), 'ancien libellé trompeur encore dans la source');
+});
+t('pompiste, index de fin non applicable : seule la clôture de l\'inventaire compte', () => {
+  assert.strictEqual(modele('pompiste', { ...debutFait, finIndexApplicable: false, clotureInventaireFait: true }).texte, 'Quart terminé ✓');
+  assert.strictEqual(modele('pompiste', { ...debutFait, finIndexApplicable: false, clotureInventaireFait: false }).texte, 'Début de quart terminé ✓');
+});
+t('l\'heure vient des horaires de la station : deux fins de quart, deux heures', () => {
+  assert.strictEqual(modele('pompiste', { ...debutFait, finMinutes: 840 }).progression, 'Fermeture de la piste à partir de 13 h 15');
+  assert.strictEqual(modele('pompiste', { ...debutFait, finMinutes: 780 }).progression, 'Fermeture de la piste à partir de 12 h 15');
+  assert.strictEqual(modele('pompiste', { ...debutFait, finMinutes: 1320 }).progression, 'Fermeture de la piste à partir de 21 h 15');
+  assert.strictEqual(modele('pompiste', { ...debutFait, finMinutes: null }).progression, null);
+});
+t('les horaires réels de la station (régime normal et étendu) donnent des heures différentes', () => {
+  global.window = global;
+  require('./nexus-station.js');
+  const Station = global.NexusStation_ || global.NexusStation;
+  const fuseau = 'Europe/Paris';
+  const mercredi = new Date('2026-11-04T10:00:00Z'), vendredi = new Date('2026-11-06T10:00:00Z');
+  const h1 = { quart1: { fin_normal: '13:00', fin_etendu: '14:00' } };
+  const h2 = { quart1: { fin_normal: '14:30', fin_etendu: '15:30' } };
+  const calc = (h, d) => Station.finDuQuartMinutes(h, 'quart1', fuseau, d);
+  assert.deepStrictEqual([calc(h1, mercredi), calc(h1, vendredi), calc(h2, mercredi)], [780, 840, 870]);
+  const prog = (min) => modele('pompiste', { ...debutFait, finMinutes: min }).progression;
+  assert.strictEqual(prog(calc(h1, mercredi)), 'Fermeture de la piste à partir de 12 h 15');
+  assert.strictEqual(prog(calc(h1, vendredi)), 'Fermeture de la piste à partir de 13 h 15');
+  assert.strictEqual(prog(calc(h2, mercredi)), 'Fermeture de la piste à partir de 13 h 45');
 });
 t('manager caissière : lien du fil caisse, fermeture après le comptage', () => {
   const debut = modele('caissiere', { ...base, filCaisseLien: 'NEXUS-Inventaire-v1.html?fil=caisse&etape=2', piloteCaisse: true });
@@ -55,8 +98,27 @@ t('manager caissière : lien du fil caisse, fermeture après le comptage', () =>
   const fin = modele('caissiere', { ...base, filCaisseLien: 'x', piloteCaisse: true, fermetureCaisseDue: true, inventaireOuvertureFaite: true });
   assert.strictEqual(fin.texte, 'Faire ma fermeture de caisse');
 });
-t('manager caissière, fil terminé : parcours terminé ; non pilote : rien', () => {
-  assert.strictEqual(modele('caissiere', { ...base, piloteCaisse: true }).lien, null);
+const caisseSoir = { ...base, piloteCaisse: true, fermetureCaisseApplicable: true, filCaisseLien: null, inventaireFait: false, finMinutes: 1320 };
+t('caissière du soir : début fait, heure de la fermeture, puis quart terminé', () => {
+  const m = modele('caissiere', caisseSoir);
+  assert.strictEqual(m.texte, 'Début de quart terminé ✓');
+  assert.strictEqual(m.lien, null);
+  assert.strictEqual(m.progression, 'Fermeture de caisse à partir de 21 h 15');
+  assert.strictEqual(modele('caissiere', { ...caisseSoir, finMinutes: 1260 }).progression, 'Fermeture de caisse à partir de 20 h 15');
+  const fin = modele('caissiere', { ...caisseSoir, inventaireFait: true });
+  assert.strictEqual(fin.texte, 'Quart terminé ✓');
+  assert.strictEqual(fin.progression, null);
+});
+t('caissière du matin : pas de fermeture de caisse, donc quart terminé après le comptage', () => {
+  assert.strictEqual(modele('caissiere', { ...caisseSoir, fermetureCaisseApplicable: false }).texte, 'Quart terminé ✓');
+});
+t('aucune heure littérale dans le modèle : tout vient des horaires de la station', () => {
+  const src = extraire('function modeleParcoursManager(');
+  assert.ok(!/\d{1,2}\s*h\s*\d{2}|\d{1,2}:\d{2}/.test(src), 'heure en dur dans modeleParcoursManager');
+  assert.ok(/finMinutes\s*-\s*NexusAccueilPiste\.DELAI_FERMETURE_MIN/.test(src) || /NexusAccueilPiste\.DELAI_FERMETURE_MIN/.test(src));
+  assert.ok(typeof Accueil.DELAI_FERMETURE_MIN === 'number' && typeof Accueil.heureDeMinutes === 'function', 'export manquant');
+});
+t('manager caissière non pilote : rien', () => {
   assert.strictEqual(modele('caissiere', base), null);
 });
 t('renfort, autre rôle ou rien à faire : aucun bloc', () => {

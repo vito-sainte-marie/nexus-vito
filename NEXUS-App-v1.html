@@ -2745,6 +2745,7 @@
       jaugeageApplicable, jaugeageFait, indexApplicable, indexFait, indexLien, resteDuFil, faitsFil, filLien,
       finQuartFait, finQuartLien, finMinutes, maintenantMinutes, finIndexApplicable, finIndexFait, clotureInventaireFait,
       fermetureLien, recapQuart, piloteCaisse, fermetureCaisseDue, filCaisseLien,
+      fermetureCaisseApplicable: !!piloteCaisse && NexusFilCaisse.quartConcerneParFermeture(quartDuJour),
     };
   }
 
@@ -2752,23 +2753,34 @@
   // l'employé (calculerParcours), rendu dans la carte « Service en cours » de son accueil. Fonction à part : renderPrisePoste
   // ne lit rien et n'écrit rien. Pas de service du jour, renfort ou autre rôle : aucun bloc.
   function modeleParcoursManager(roleDuJour, f) {
+    // Heure d'ouverture de la fermeture : fin du quart lue dans station_config.horaires (finMinutes, régime du jour, fuseau du site)
+    // moins le délai d'ouverture. Jamais écrite en dur ; sans fin connue, aucune heure n'est annoncée.
+    const prochaine = (delai, libelle) => (f.finMinutes != null)
+      ? libelle + ' à partir de ' + NexusAccueilPiste.heureDeMinutes(Number(f.finMinutes) - delai) : null;
+    const dueA = (delai) => f.finMinutes != null && f.maintenantMinutes != null && f.maintenantMinutes >= f.finMinutes - delai;
     if (roleDuJour === 'pompiste') {
       const total = (f.jaugeageApplicable ? 1 : 0) + (f.indexApplicable ? 1 : 0) + (f.inventaireApplicable ? 1 : 0);
       if (f.filLien) {
         const restantes = [f.faitsFil.resteJaugeage, f.faitsFil.resteIndex, f.faitsFil.resteInventaire].filter(Boolean).length;
         return { texte: 'Faire mon début de quart (pompiste)', lien: f.filLien, progression: (total - restantes) + ' étape' + ((total - restantes) > 1 ? 's' : '') + ' sur ' + total + ' faite' + ((total - restantes) > 1 ? 's' : '') };
       }
-      if (f.fermetureLien && f.finMinutes != null && f.maintenantMinutes != null && f.maintenantMinutes >= f.finMinutes - NexusAccueilPiste.DELAI_FERMETURE_MIN) {
+      if (total === 0) return null;
+      const fermetureFaite = (!f.finIndexApplicable || f.finIndexFait) && f.clotureInventaireFait;
+      if (fermetureFaite) return { texte: 'Quart terminé ✓', lien: null, progression: null };
+      if (f.fermetureLien && dueA(NexusAccueilPiste.DELAI_FERMETURE_MIN)) {
         return { texte: 'Faire ma fermeture de piste', lien: f.fermetureLien, progression: null };
       }
-      return total > 0 ? { texte: 'Parcours du quart terminé ✓', lien: null, progression: null } : null;
+      return { texte: 'Début de quart terminé ✓', lien: null, progression: prochaine(NexusAccueilPiste.DELAI_FERMETURE_MIN, 'Fermeture de la piste') };
     }
     if (roleDuJour === 'caissiere') {
       if (f.filCaisseLien) {
         const fermeture = f.fermetureCaisseDue && f.inventaireOuvertureFaite;
         return { texte: fermeture ? 'Faire ma fermeture de caisse' : 'Faire mon début de quart (caissière)', lien: f.filCaisseLien, progression: null };
       }
-      return (f.piloteCaisse && f.inventaireApplicable) ? { texte: 'Parcours du quart terminé ✓', lien: null, progression: null } : null;
+      if (!(f.piloteCaisse && f.inventaireApplicable)) return null;
+      // Fermeture de caisse : quart du soir seulement. Clôture faite, ou quart sans fermeture : tout est fait.
+      if (f.inventaireFait || !f.fermetureCaisseApplicable) return { texte: 'Quart terminé ✓', lien: null, progression: null };
+      return { texte: 'Début de quart terminé ✓', lien: null, progression: prochaine(NexusFilCaisse.DELAI_FERMETURE_MIN, 'Fermeture de caisse') };
     }
     return null;
   }

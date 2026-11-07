@@ -283,7 +283,7 @@
     return out;
   }
 
-  const api = { etapesOuverture, livraisonAttendue, heureLocale, modele, html, STATUTS_COMMANDE_ATTENDUE, URL_RECEPTION };
+  const api = { etapesOuverture, livraisonAttendue, heureLocale, heureDeMinutes, DELAI_FERMETURE_MIN, modele, html, STATUTS_COMMANDE_ATTENDUE, URL_RECEPTION };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NexusAccueilPiste = api;
 })(typeof self !== 'undefined' ? self : (typeof window !== 'undefined' ? window : null));
