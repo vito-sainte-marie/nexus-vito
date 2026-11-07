@@ -148,6 +148,11 @@
   :root[data-theme="jour"] .st.bad{background:var(--j-bad-bg);color:var(--j-bad-fg);border-color:var(--j-bad-fg)}
   :root[data-theme="jour"] .st.hp{color:var(--text-mid);border-color:var(--text-mid)}
   .entete-etat{margin-top:10px;min-height:30px}
+  /* Pastille d'état du quart : peut passer sur deux lignes (badge propre) ; limité à l'en-tête. */
+  .entete-etat .st{display:inline-block;max-width:100%;height:auto;min-height:30px;box-sizing:border-box;white-space:normal;line-height:1.35;padding:5px 12px;border-radius:12px;text-align:left}
+  .entete-etat .st-court{display:none}
+  body:not(.nexus-desktop) .entete-etat .st-court{display:inline}
+  body:not(.nexus-desktop) .entete-etat .st-long{display:none}
   .entete-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
   .entete-actions a,.entete-actions button{min-height:44px;display:inline-flex;align-items:center;padding:0 14px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--text);font:600 13px var(--sans);text-decoration:none;cursor:pointer}
   .entete-actions .principal{background:var(--cyan);color:var(--on-cyan);border-color:var(--cyan)}
@@ -675,6 +680,11 @@
       .then(r => { const n = r && r.data && r.data.nom_entreprise; if (n) document.getElementById('enteteStation').textContent = n; })
       .catch(() => {});
   }
+  // Vue mobile : « Quart clôturé · comptage de clôture incomplet (4 manquants) » → « Clôturé · incomplet (4 manquants) ».
+  function texteCourtEtat(texte) {
+    const m = /^Quart clôturé · comptage de clôture (complet|incomplet)(.*)$/.exec(texte);
+    return m ? 'Clôturé · ' + m[1] + m[2] : texte;
+  }
   function majEntete(q, synthese, etat) {
     document.getElementById('selDate').value = dateSelectionnee;
     document.querySelectorAll('#enteteSelecteur .quart-pill[data-quart]').forEach(el =>
@@ -684,7 +694,16 @@
     if (q && q.statut === 'cloture') ton = synthese && synthese.manquants > 0 ? 'todo' : 'ok';
     else if (etat && etat.urgence === 'retard') ton = 'bad';
     else if (etat && etat.urgence === 'proche') ton = 'todo';
-    document.getElementById('enteteEtat').innerHTML = NexusComposantsPilotage.pill(texte, ton);
+    const zoneEtat = document.getElementById('enteteEtat');
+    zoneEtat.innerHTML = NexusComposantsPilotage.pill(texte, ton);
+    const pastille = zoneEtat.firstElementChild;
+    if (pastille) {
+      // Libellé complet en vue bureau et dans title ; libellé court en vue mobile (mêmes nombres).
+      pastille.title = texte;
+      pastille.innerHTML = '<span class="st-long"></span><span class="st-court"></span>';
+      pastille.querySelector('.st-long').textContent = texte;
+      pastille.querySelector('.st-court').textContent = texteCourtEtat(texte);
+    }
     const b = document.getElementById('btnVoirManquants');
     const n = q && synthese ? synthese.manquants : 0;
     b.hidden = !(n > 0);
