@@ -72,16 +72,29 @@ t('Verify : aucun filtre ni style dans le rendu du registre', () => {
 t('Contrôle inventaire n\'a plus l\'icône d\'Inventaire', () => {
   assert.notStrictEqual(R.chemins('mod-controle-inventaire').simplifie, R.chemins('mod-inventaire').simplifie);
 });
-t('ICONES_V2 = false : img() rend l\'ancien balisage, appliquer() ne touche à rien', () => {
+t('ICONES_V2 = false : img() rend l\'ancien balisage fourni', () => {
   const F = charger(SRC.replace('const ICONES_V2 = true;', 'const ICONES_V2 = false;'));
   assert.strictEqual(F.ICONES_V2, false);
   assert.strictEqual(F.img('mod-paye', 34, { ancien: '<img src="ancien.png">' }), '<img src="ancien.png">');
   assert.strictEqual(F.img('mod-paye', 34), '');
-  assert.strictEqual(F.appliquer({ querySelectorAll() { throw new Error('ne doit rien parcourir'); } }), 0);
+});
+const elem = (tag, at) => ({ tagName: tag, textContent: '', getAttribute: k => at[k], hasAttribute: k => k in at, setAttribute: (k, v) => { at[k] = v; }, removeAttribute: k => { delete at[k]; }, at });
+t('ICONES_V2 = false : appliquer() restaure l\'ancien src, alt, filtre et emoji gardés en data-nexus-ancien-*', () => {
+  const F = charger(SRC.replace('const ICONES_V2 = true;', 'const ICONES_V2 = false;'));
+  const img = elem('IMG', { 'data-nexus-icone': 'mod-verify', src: 'assets/icones/v2/mod-verify/mod-verify@1x.webp', srcset: 'x 1x', width: '34', height: '34', alt: '', 'aria-hidden': 'true',
+    'data-nexus-ancien-src': 'assets/icons/icon-nexus-verify.png', 'data-nexus-ancien-alt': 'Verify', 'data-nexus-ancien-style': 'filter:sepia(1);' });
+  const div = elem('DIV', { 'data-nexus-icone': 'mod-carburants', 'data-nexus-ancien-emoji': '⛽' });
+  const sans = elem('IMG', { 'data-nexus-icone': 'mod-fdj', src: 'nouveau.webp' });
+  assert.strictEqual(F.appliquer({ querySelectorAll: () => [img, div, sans] }), 3);
+  assert.strictEqual(img.at.src, 'assets/icons/icon-nexus-verify.png');
+  assert.strictEqual(img.at.alt, 'Verify'); assert.strictEqual(img.at.style, 'filter:sepia(1);');
+  ['srcset', 'width', 'height', 'aria-hidden'].forEach(k => assert.ok(!(k in img.at), k));
+  assert.strictEqual(div.textContent, '⛽');
+  assert.strictEqual(sans.at.src, 'nouveau.webp');
 });
 t('appliquer() : remplace l\'image, retire le style (filtre) ; remplace l\'emoji d\'un conteneur', () => {
   const mk = (tag, id, taille) => { const at = { 'data-nexus-icone': id, 'data-nexus-taille': String(taille), 'data-nexus-decoratif': '1', style: 'filter:sepia(1)' };
-    return { tagName: tag, innerHTML: '⛽', getAttribute: k => at[k], setAttribute: (k, v) => { at[k] = v; }, removeAttribute: k => { delete at[k]; }, at }; };
+    return { tagName: tag, innerHTML: '⛽', getAttribute: k => at[k], hasAttribute: k => k in at, setAttribute: (k, v) => { at[k] = v; }, removeAttribute: k => { delete at[k]; }, at }; };
   const a = mk('IMG', 'mod-verify', 34), b = mk('DIV', 'mod-carburants', 34);
   const nb = R.appliquer({ querySelectorAll: () => [a, b] });
   assert.strictEqual(nb, 2);
@@ -138,8 +151,22 @@ t('toute page qui charge nexus-desktop.js charge d\'abord nexus-icones.js', () =
 t('les lignes « valeur métier » à emoji ne sont pas touchées', () => {
   ['🔥 À AGIR', '🟡 À SURVEILLER', '📈 OPPORTUNITÉ'].forEach(e => assert.ok(APP.includes(e), e));
 });
-t('aucun filtre ne subsiste côté Verify une fois le registre appliqué', () => {
-  assert.ok(/data-nexus-icone="mod-verify"[^>]*style="filter/.test(APP), 'l\'ancien filtre reste dans la source (retour arrière)');
+const ANCIENS = ['icon-nexus-verify.png', 'icon-inventaire-24.png', 'icon-fdj-24.png', 'icon-missions.png', 'icon-planner.png'];
+const balisesNav = () => APP.match(/<img data-nexus-icone="mod-[^>]*>/g) || [];
+t('barre d\'accueil : aucun des anciens PNG n\'est cité en src (ni srcset) dans le HTML statique', () => {
+  const bal = balisesNav(); assert.strictEqual(bal.length, 7);
+  bal.forEach(b => {
+    const src = (b.match(/\ssrc="([^"]*)"/) || [])[1], srcset = (b.match(/\ssrcset="([^"]*)"/) || [])[1] || '';
+    assert.ok(/^assets\/icones\/v2\/mod-[a-z-]+\/mod-[a-z-]+@1x\.webp$/.test(src), 'src : ' + src);
+    ANCIENS.forEach(a => assert.ok(!src.includes(a) && !srcset.includes(a), a + ' cité dans ' + b.slice(0, 60)));
+    assert.ok(/data-nexus-ancien-src="assets\/icons\/icon-/.test(b), 'ancien src gardé');
+  });
+  assert.ok(/<div class="nav-icon" data-nexus-icone="mod-carburants"[^>]*data-nexus-ancien-emoji="⛽"[^>]*><img src="assets\/icones\/v2\/mod-carburants\//.test(APP));
+  assert.ok(!/data-nexus-icone="mod-carburants"[^>]*>⛽</.test(APP), 'plus d\'emoji affiché dans le HTML');
+});
+t('Verify : le filtre n\'est plus que dans data-nexus-ancien-style, pas dans style', () => {
+  const v = balisesNav().find(b => b.includes('mod-verify'));
+  assert.ok(/data-nexus-ancien-style="filter:/.test(v) && !/\sstyle=/.test(v));
   assert.ok(/removeAttribute\('style'\)/.test(SRC));
 });
 
@@ -147,7 +174,10 @@ t('aucun filtre ne subsiste côté Verify une fois le registre appliqué', () =>
 garde('barre d\'accueil : Paye porte son module', APP, h => /data-nexus-icone="mod-paye"/.test(h), 'data-nexus-icone="mod-paye"', 'data-x="mod-paye"');
 garde('le bureau passe par le registre', DESK, h => /NexusIcones\.img\(item\.module, 16/.test(h), 'NexusIcones.img(item.module, 16', 'NexusIcones.img(item.autre, 16');
 garde('appliquer retire le style', SRC, h => /el\.removeAttribute\('style'\)/.test(h), "el.removeAttribute('style')", '');
-garde('le retour arrière existe', SRC, h => /const ICONES_V2 = true;/.test(h) && /if \(!ICONES_V2\) return 0;/.test(h), 'if (!ICONES_V2) return 0;', '');
+garde('le retour arrière existe', SRC, h => /const ICONES_V2 = true;/.test(h) && /if \(!ICONES_V2\) \{/.test(h), 'if (!ICONES_V2) {', 'if (false) {');
+garde('le retour arrière restaure l\'ancien src', SRC, h => /el\.setAttribute\('src', el\.getAttribute\('data-nexus-ancien-src'\)\)/.test(h), "el.getAttribute('data-nexus-ancien-src')", "el.getAttribute('data-nexus-x')");
+garde('le retour arrière restaure l\'emoji de Carburants', SRC, h => /el\.textContent = el\.getAttribute\('data-nexus-ancien-emoji'\)/.test(h), "el.textContent = el.getAttribute('data-nexus-ancien-emoji')", '');
+garde('le HTML statique ne cite aucun ancien PNG en src', APP, h => !/<img data-nexus-icone="mod-[^>]*\ssrc="assets\/icons\//.test(h), 'data-nexus-decoratif="1" src="assets/icones/v2/mod-fdj/mod-fdj@1x.webp"', 'data-nexus-decoratif="1" src="assets/icons/icon-fdj-24.png"');
 garde('le seuil du simplifié est 24 px', SRC, h => /SEUIL_SIMPLIFIE = 24/.test(h), 'SEUIL_SIMPLIFIE = 24', 'SEUIL_SIMPLIFIE = 0');
 
 console.log(n + ' épreuves OK');

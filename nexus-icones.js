@@ -72,31 +72,38 @@
   }
 
   // Pour le balisage statique : <img data-nexus-icone="mod-x" data-nexus-taille="24" …ancien src…> ou
-  // n'importe quel conteneur (ex. <div class="nav-icon" data-nexus-icone="mod-x">⛽</div>, l'emoji est alors remplacé).
-  // Remplace src/srcset/taille/alt, retire tout style d'ancienne icône (filtre compris). Sans effet si ICONES_V2 = false.
+  // n'importe quel conteneur. Le HTML statique porte déjà le NOUVEAU fichier (aucun ancien PNG n'est téléchargé) ;
+  // l'ancien rendu est gardé en data-nexus-ancien-src / -alt / -style / -emoji. ICONES_V2 = false : appliquer() restaure l'ancien.
   function appliquer(racine) {
-    if (!ICONES_V2) return 0;
     const doc = racine || (typeof document !== 'undefined' ? document : null);
     if (!doc || !doc.querySelectorAll) return 0;
     let n = 0;
     doc.querySelectorAll('[data-nexus-icone]').forEach(el => {
       const id = el.getAttribute('data-nexus-icone');
+      const estImg = String(el.tagName).toUpperCase() === 'IMG';
+      if (!ICONES_V2) { // retour arrière : on restaure l'ancien rendu gardé dans data-nexus-ancien-*
+        if (estImg) {
+          if (el.hasAttribute('data-nexus-ancien-src')) el.setAttribute('src', el.getAttribute('data-nexus-ancien-src'));
+          ['srcset', 'width', 'height', 'aria-hidden'].forEach(k => el.removeAttribute(k));
+          if (el.hasAttribute('data-nexus-ancien-alt')) el.setAttribute('alt', el.getAttribute('data-nexus-ancien-alt'));
+          if (el.hasAttribute('data-nexus-ancien-style')) el.setAttribute('style', el.getAttribute('data-nexus-ancien-style'));
+        } else if (el.hasAttribute('data-nexus-ancien-emoji')) {
+          el.textContent = el.getAttribute('data-nexus-ancien-emoji');
+        } else return;
+        n++; return;
+      }
       const taille = el.getAttribute('data-nexus-taille');
       const deco = el.getAttribute('data-nexus-decoratif') === '1';
       const a = attributs(id, taille, { decoratif: deco });
       if (!a) return;
-      if (String(el.tagName).toUpperCase() === 'IMG') {
-        Object.keys(a).forEach(k => el.setAttribute(k, a[k]));
-      } else {
-        el.innerHTML = img(id, taille, { decoratif: deco });
-      }
-      el.removeAttribute('style');
-      n++;
+      if (estImg) { Object.keys(a).forEach(k => el.setAttribute(k, a[k])); }
+      else { el.innerHTML = img(id, taille, { decoratif: deco }); }
+      el.removeAttribute('style'); n++;
     });
     return n;
   }
 
-  if (typeof document !== 'undefined' && ICONES_V2) {
+  if (typeof document !== 'undefined') {
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => appliquer());
     else appliquer();
   }
