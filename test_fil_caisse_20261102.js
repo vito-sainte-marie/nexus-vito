@@ -157,6 +157,6 @@ cas('page : validerCloture écrit la seule ligne de l\'employée, le quart est c
 cas('accueil : la clôture se juge aussi sur a_valide_cloture de l\'employé', () => {
   const app = fs.readFileSync(path.join(__dirname, 'NEXUS-App-v1.html'), 'utf8');
   assert.ok(/select\('responsable_comptage, a_valide_ouverture, a_valide_cloture, heure_depart, inventaire_quarts\(/.test(app));
-  assert.ok(/\(!!r\.inventaire_quarts\.cloture_le \|\| r\.a_valide_cloture === true\)/.test(app));
+  assert.ok(/r\.a_valide_cloture === true && \(r\.inventaire_quarts\.cloture_le \|\| r\.heure_depart\)/.test(app));
 });
 console.log(`\n${ok} contrôles OK`);
