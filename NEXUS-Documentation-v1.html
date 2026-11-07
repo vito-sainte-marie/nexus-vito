@@ -118,6 +118,7 @@
     font-family:var(--mono); font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center;
   }
   .parcours-icone{font-size:15px; flex-shrink:0;}
+  .parcours-icone img, .moteur-icone img{display:block;}
   .parcours-corps{flex:1; min-width:0;}
   .parcours-nom{font-size:12.5px; font-weight:600; color:var(--text);}
   .parcours-etape-texte{font-size:11px; color:var(--text-mid); margin-top:1px; line-height:1.4;}
@@ -181,6 +182,7 @@
 <script src="nexus-build.js"></script>
 <script src="nexus-auth.js?v=20260904-0104"></script>
 <script src="nexus-header-nav.js?v=20260904-0104"></script>
+<script src="nexus-icones.js?v=20260904-0104"></script>
 <script src="nexus-desktop.js?v=20260904-0104"></script>
 <script>
   // ============================================================
@@ -399,7 +401,7 @@
 
     // ---- EXÉCUTER ----
     {
-      id: 'verify', groupe: 'executer', icone: '🧾', nom: 'Verify', href: 'NEXUS-Verify-v1.html',
+      id: 'verify', module: 'mod-verify', groupe: 'executer', icone: '🧾', nom: 'Verify', href: 'NEXUS-Verify-v1.html',
       role: 'Manager', forfait: null, intentions: ['controler-caisses'],
       aQuoiCaSert: "Contrôlez la caisse du jour et faites ressortir les écarts à examiner.",
       quandUtiliser: "Chaque jour, à la clôture, pour rapprocher le rapport de recettes et les dépôts caisse réels.",
@@ -407,21 +409,21 @@
       exempleConcret: "Où dois-je aller pour analyser mes écarts de caisse ? → Verify centralise le contrôle des caisses, rapproche les justificatifs et fait ressortir les écarts à examiner.",
     },
     {
-      id: 'inventaire', groupe: 'executer', icone: '📋', nom: 'Inventaire — comptage', href: 'NEXUS-Inventaire-v1.html',
+      id: 'inventaire', module: 'mod-inventaire', groupe: 'executer', icone: '📋', nom: 'Inventaire — comptage', href: 'NEXUS-Inventaire-v1.html',
       role: 'Tous', forfait: null, intentions: ['maitriser-stocks'],
       aQuoiCaSert: "L'écran où chaque employé compte réellement ce qu'il voit — ouverture et clôture de son quart, catégorie par catégorie.",
       quandUtiliser: "À chaque prise et fin de poste — vocabulaire imposé : « stock transmis », « stock compté », jamais « ventes » ni « stock théorique ».",
       donneesSources: "La saisie directe de l'employé — NEXUS sécurise et structure les données en événements immuables, jamais un recalcul ou un écrasement silencieux à sa place.",
     },
     {
-      id: 'controle-inventaire', groupe: 'executer', icone: '🧭', nom: 'Contrôle inventaire', href: 'NEXUS-Inventaire-Manager-v1.html',
+      id: 'controle-inventaire', module: 'mod-controle-inventaire', groupe: 'executer', icone: '🧭', nom: 'Contrôle inventaire', href: 'NEXUS-Inventaire-Manager-v1.html',
       role: 'Manager', forfait: 'professional', intentions: ['maitriser-stocks'],
       aQuoiCaSert: "La vue manager sur l'inventaire terrain — ce qui manque, ce qui ne colle pas, et les décisions à trancher.",
       quandUtiliser: "Chaque jour ou semaine, pour ne laisser traîner aucun écart sans explication ni décision tracée.",
       donneesSources: "Comptages saisis par les employés dans Inventaire, comparés au stock transmis du quart précédent.",
     },
     {
-      id: 'fdj', groupe: 'executer', icone: '🎟️', nom: 'FDJ', href: 'NEXUS-FDJ-v1.html',
+      id: 'fdj', module: 'mod-fdj', groupe: 'executer', icone: '🎟️', nom: 'FDJ', href: 'NEXUS-FDJ-v1.html',
       role: 'Tous', forfait: 'professional', intentions: ['controler-caisses', 'maitriser-stocks'],
       aQuoiCaSert: "Le comptage de quart FDJ — grattage (stock initial, appro, stock final) et tirages (rapport journalier, temps réel), avec la caisse attendue et l'écart toujours calculés, jamais saisis.",
       quandUtiliser: "Chaque quart, pour remplacer la feuille papier CAISSE JOURNALIÈRE FDJ — les ventes et l'écart de caisse ne se saisissent jamais à la main.",
@@ -442,7 +444,7 @@
       donneesSources: "Lots créés lors de l'inventaire, règles de durée maximale de vente définies dans Paramètres Inventaire.",
     },
     {
-      id: 'missions', groupe: 'executer', icone: '✅', nom: 'Missions', href: 'NEXUS-Missions-v1.html',
+      id: 'missions', module: 'mod-missions', groupe: 'executer', icone: '✅', nom: 'Missions', href: 'NEXUS-Missions-v1.html',
       role: 'Tous', forfait: null, intentions: ['piloter-equipe'],
       aQuoiCaSert: "La checklist du jour pour chaque employé (55 procédures au catalogue), et les plans d'action recommandés pour le manager.",
       quandUtiliser: "Tout au long du service — c'est l'écran de travail quotidien de l'équipe, avec preuve photo obligatoire pour certaines étapes.",
@@ -456,7 +458,7 @@
       donneesSources: "Le catalogue de missions existant, appliqué à une cible et une échéance choisies par le manager.",
     },
     {
-      id: 'planner', groupe: 'executer', icone: '🗓️', nom: 'Nexus Planner', href: 'NEXUS-Planning-v1.html',
+      id: 'planner', module: 'mod-planning', groupe: 'executer', icone: '🗓️', nom: 'Nexus Planner', href: 'NEXUS-Planning-v1.html',
       role: 'Manager', forfait: 'professional', intentions: ['piloter-equipe'],
       aQuoiCaSert: "Générez le planning du mois en respectant les contraintes de chacun et les règles d'effectif minimum.",
       quandUtiliser: "Une fois par mois, avant que le mois suivant ne démarre — la génération ne touche jamais la semaine en cours ni le passé.",
@@ -542,7 +544,7 @@
       donneesSources: "L'horodatage du pointage, avec une photo si possible — le pointage est accepté même si la photo échoue pour une raison technique, jamais pénaliser un employé de bonne foi.",
     },
     {
-      id: 'mon-planning', groupe: 'employe', icone: '🗓️', nom: 'Mon Planning', href: 'NEXUS-Mon-Planning-v1.html',
+      id: 'mon-planning', module: 'mod-planning', groupe: 'employe', icone: '🗓️', nom: 'Mon Planning', href: 'NEXUS-Mon-Planning-v1.html',
       role: 'Tous', forfait: null, intentions: [],
       aQuoiCaSert: "Voyez vos jours de travail et de repos du mois, et le planning de toute l'équipe.",
       quandUtiliser: "Pour organiser votre vie autour de votre planning de travail publié.",
@@ -575,6 +577,13 @@
   };
   const ORDRE_GROUPES = ['piloter', 'performer', 'executer', 'equipe', 'comptes-clients', 'administrer', 'employe'];
 
+  // Icônes de modules v2 (07/11/2026) : via le registre nexus-icones.js ; ICONES_V2 = false → emoji d'avant.
+  function iconeMoteur(m, taille) {
+    return (m.module && window.NexusIcones)
+      ? window.NexusIcones.img(m.module, taille, { decoratif: true, ancien: m.icone })
+      : m.icone;
+  }
+
   function normaliser(s) {
     return (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
   }
@@ -592,7 +601,7 @@
     return `
       <details class="moteur" data-id="${m.id}" data-intentions="${(m.intentions || []).join(',')}" data-recherche="${texteRecherche(m)}">
         <summary>
-          <span class="moteur-icone">${m.icone}</span>
+          <span class="moteur-icone">${iconeMoteur(m, 17)}</span>
           <div class="moteur-titre-ligne">
             <div class="moteur-nom">${m.nom}</div>
             <div class="moteur-resume-court">${m.aQuoiCaSert.slice(0, 78)}${m.aQuoiCaSert.length > 78 ? '…' : ''}</div>
@@ -724,7 +733,7 @@
         return `
           <a class="parcours-etape" href="${m.href}">
             <span class="parcours-numero">${i + 1}</span>
-            <span class="parcours-icone">${m.icone}</span>
+            <span class="parcours-icone">${iconeMoteur(m, 15)}</span>
             <div class="parcours-corps">
               <div class="parcours-nom">${etape.nomAffiche || m.nom}</div>
               <div class="parcours-etape-texte">${etape.texte}</div>

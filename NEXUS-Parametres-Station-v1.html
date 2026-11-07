@@ -250,6 +250,7 @@
 <script src="nexus-build.js"></script>
 <script src="nexus-auth.js?v=20260904-0104"></script>
 <script src="nexus-header-nav.js?v=20260904-0104"></script>
+<script src="nexus-icones.js?v=20260904-0104"></script>
 <script src="nexus-desktop.js?v=20260904-0104"></script>
 <script src="nexus-forfait.js?v=20260904-0104"></script>
 <script src="nexus-raccourcis-catalogue.js?v=20260904-0104"></script>
@@ -2025,6 +2026,10 @@
   let SELECTION_RACCOURCIS = [];
 
   function iconeRaccourciMiniHTML(cat) {
+    if (cat.module && window.NexusIcones) {
+      const ancien = cat.icone ? `<img src="${cat.icone}" alt="" ${cat.filtreIcone ? `style="${cat.filtreIcone}"` : ''}>` : (cat.emoji || '🔗');
+      return window.NexusIcones.img(cat.module, 18, { decoratif: true, ancien });
+    }
     if (cat.icone) return `<img src="${cat.icone}" alt="" ${cat.filtreIcone ? `style="${cat.filtreIcone}"` : ''}>`;
     return cat.emoji || '🔗';
   }

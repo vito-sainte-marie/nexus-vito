@@ -81,11 +81,11 @@ const NEXUS_SIDEBAR_GROUPES = [
   {
     nom: 'Exécuter',
     items: [
-      { label: 'Verify', href: 'NEXUS-Verify-v1.html', icon: 'assets/icons/icon-nexus-verify.png', desc: 'Contrôle les caisses et rapproche les moyens de paiement.' },
+      { label: 'Verify', module: 'mod-verify', href: 'NEXUS-Verify-v1.html', icon: 'assets/icons/icon-nexus-verify.png', desc: 'Contrôle les caisses et rapproche les moyens de paiement.' },
       // Carburants (10/08/2026, demande de Frédéric) : rejoint Exécuter,
       // juste à côté de Verify — le litrage vendu qu'il consomme vient de
       // là (litrage_gazole/sp95/gnr), jamais ressaisi.
-      { label: 'Carburants', href: 'NEXUS-Carburants-v1.html', icon: null, emoji: '⛽', desc: 'Saisie et suivi des jaugeages carburant.' },
+      { label: 'Carburants', module: 'mod-carburants', href: 'NEXUS-Carburants-v1.html', icon: null, emoji: '⛽', desc: 'Saisie et suivi des jaugeages carburant.' },
       // Réception carburant (14/08/2026, audit "Réceptions, deltas et
       // effet économique du stock", P1) : parcours employé dédié à la
       // réception d'une livraison (jaugeage avant/après, BL, calcul NEXUS)
@@ -101,13 +101,13 @@ const NEXUS_SIDEBAR_GROUPES = [
       // Icône pack NEXUS (20/08/2026, uniformisation) : icon-inventaire-24.png
       // remplace l'ancienne icon-inventaire.png — même icône réutilisée sur
       // Contrôle inventaire juste en dessous (même domaine, cf. Article 11).
-      { label: 'Inventaire', href: 'NEXUS-Inventaire-v1.html', icon: 'assets/icons/icon-inventaire-24.png', desc: 'Guide les comptages terrain de l’équipe.' },
-      { label: 'Contrôle inventaire', href: 'NEXUS-Inventaire-Manager-v1.html', icon: 'assets/icons/icon-inventaire-24.png', desc: 'Analyse les écarts, anomalies et comptages à traiter.' },
+      { label: 'Inventaire', module: 'mod-inventaire', href: 'NEXUS-Inventaire-v1.html', icon: 'assets/icons/icon-inventaire-24.png', desc: 'Guide les comptages terrain de l’équipe.' },
+      { label: 'Contrôle inventaire', module: 'mod-controle-inventaire', href: 'NEXUS-Inventaire-Manager-v1.html', icon: 'assets/icons/icon-inventaire-24.png', desc: 'Analyse les écarts, anomalies et comptages à traiter.' },
       // NEXUS FDJ (09/08/2026, demande de Frédéric) : rejoint Exécuter,
       // juste à côté d'Inventaire — même logique de comptage de quart.
       // Icône pack NEXUS (20/08/2026, uniformisation) : icon-fdj-24.png,
       // réutilisée sur FDJ Opérations et FDJ Performance (même domaine).
-      { label: 'FDJ', href: 'NEXUS-FDJ-v1.html', icon: 'assets/icons/icon-fdj-24.png', desc: 'Grattage, tirages et caisse FDJ du quart.' },
+      { label: 'FDJ', module: 'mod-fdj', href: 'NEXUS-FDJ-v1.html', icon: 'assets/icons/icon-fdj-24.png', desc: 'Grattage, tirages et caisse FDJ du quart.' },
       // Contrôle FDJ → FDJ Opérations (24/08/2026, demande de Frédéric) :
       // "Contrôle FDJ" et "FDJ Pilotage" trop proches lexicalement pour des
       // fonctions très différentes — Opérations (registre quarts/caisse/
@@ -125,9 +125,9 @@ const NEXUS_SIDEBAR_GROUPES = [
       // Icône pack NEXUS (20/08/2026, uniformisation) : avatar_coach — sens
       // littéral "Coach".
       { label: 'Coach FDJ', href: 'NEXUS-Coach-FDJ-v1.html', icon: 'assets/icons/icon-avatar-coach-24.png', desc: 'Donne à l’employé une priorité FDJ claire et contextualisée.' },
-      { label: 'Missions', href: 'NEXUS-Missions-v1.html', icon: 'assets/icons/icon-missions.png', desc: 'Crée et suit les tâches opérationnelles.' },
+      { label: 'Missions', module: 'mod-missions', href: 'NEXUS-Missions-v1.html', icon: 'assets/icons/icon-missions.png', desc: 'Crée et suit les tâches opérationnelles.' },
       { label: 'Assignations', href: 'NEXUS-Assignations-v1.html', icon: 'assets/icons/icon-assignations.png', desc: 'Répartit les actions entre les membres de l’équipe.' },
-      { label: 'Planning', href: 'NEXUS-Planning-v1.html', icon: 'assets/icons/icon-planner.png', desc: 'Organise la présence et les horaires de l’équipe.' },
+      { label: 'Planning', module: 'mod-planning', href: 'NEXUS-Planning-v1.html', icon: 'assets/icons/icon-planner.png', desc: 'Organise la présence et les horaires de l’équipe.' },
     ],
   },
   {
@@ -137,7 +137,7 @@ const NEXUS_SIDEBAR_GROUPES = [
       { label: 'Résultats', href: 'NEXUS-Resultats-Equipe-v1.html', icon: 'assets/icons/icon-resultats-equipe.png', desc: 'Suit la progression et les performances de l’équipe.' },
       // Paye (09/10/2026, demande de Frédéric) : l'écran n'était joignable que
       // par le menu ☰ de l'accueil. Pas d'icône dédiée dans assets/icons.
-      { label: 'Paye', href: 'NEXUS-Paye-v1.html', icon: null, emoji: '💶', desc: 'Prépare les variables de paye du mois pour la comptabilité.' },
+      { label: 'Paye', module: 'mod-paye', href: 'NEXUS-Paye-v1.html', icon: null, emoji: '💶', desc: 'Prépare les variables de paye du mois pour la comptabilité.' },
     ],
   },
   {
@@ -195,9 +195,15 @@ function nexusEchapperAttribut(s) {
 
 function nexusConstruireSidebarHTML() {
   const pageActuelle = window.location.pathname.split('/').pop();
-  const lienIcone = (item) => item.icon
-    ? `<img src="${item.icon}" alt="">`
-    : `<span style="font-size:15px;">${item.emoji || '•'}</span>`;
+  const lienIcone = (item) => {
+    const ancien = item.icon
+      ? `<img src="${item.icon}" alt="">`
+      : `<span style="font-size:15px;">${item.emoji || '•'}</span>`;
+    // Icônes de modules v2 (07/11/2026) : via le registre nexus-icones.js ; ICONES_V2 = false → ancien rendu.
+    return (item.module && window.NexusIcones)
+      ? window.NexusIcones.img(item.module, 16, { decoratif: true, ancien })
+      : ancien;
+  };
   const groupesHTML = NEXUS_SIDEBAR_GROUPES.map(g => `
     <div class="nexus-sidebar-group">${g.nom}</div>
     ${g.items.map(item => `
