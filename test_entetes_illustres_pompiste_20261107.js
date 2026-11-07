@@ -25,13 +25,13 @@ t('Piste : l\'en-tête suit l\'écran affiché (appelé par rendre) et se place 
   assert.ok(piste.indexOf('id="entIllustre"') < piste.indexOf('id="app"'));
 });
 t('Piste : même image en Jour et en Sombre, module partagé et règles de site du Manager', () => {
-  assert.ok(piste.includes('<script src="nexus-banniere-station.js"></script>'));
+  assert.ok(/<script src="nexus-banniere-station\.js(\?v=[^"]*)?"><\/script>/.test(piste));
   assert.ok(/NexusBanniereStation\.html\(site, \{ apercu: NexusBanniereStation\.apercuDemande\(\)/.test(piste));
   assert.ok(/jaugeage:\s*\{ jour: '([^']+)', nuit: '\1'/.test(piste));
   assert.ok(/index:\s*\{ jour: '([^']+)', nuit: '\1'/.test(piste));
 });
 t('Inventaire : image de l\'inventaire, insérée avant la barre du fil', () => {
-  assert.ok(inv.includes('<script src="nexus-banniere-station.js"></script>'));
+  assert.ok(/<script src="nexus-banniere-station\.js(\?v=[^"]*)?"><\/script>/.test(inv));
   assert.ok(/inventaire-banniere-sombre\.webp/.test(inv));
   assert.ok(inv.indexOf('phone.insertBefore(w, barre)') > inv.indexOf('phone.insertBefore(barre, phone.firstChild)'));
 });
