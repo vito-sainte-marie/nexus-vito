@@ -53,7 +53,7 @@ const NEXUS_SIDEBAR_GROUPES = [
   {
     nom: 'Piloter',
     items: [
-      { label: 'Brief NEXUS', href: 'NEXUS-Brief-v1.html', icon: 'assets/icons/icon-brief-nexus.png', desc: 'Synthèse des priorités et décisions du moment.' },
+      { label: 'Brief NEXUS', module: 'mod-brief', href: 'NEXUS-Brief-v1.html', icon: 'assets/icons/icon-brief-nexus.png', desc: 'Synthèse des priorités et décisions du moment.' },
       // Rapport NEXUS (10/08/2026, cadrage développeur de Frédéric) : rejoint
       // Piloter juste après Brief NEXUS — Brief est l'instantané "aujourd'hui"
       // (toujours 1 page), Rapport compare une période calendaire choisie
@@ -63,8 +63,8 @@ const NEXUS_SIDEBAR_GROUPES = [
       // à construire.
       { label: 'Rapport NEXUS', href: 'NEXUS-Rapport-v1.html', icon: null, emoji: '📑', desc: 'Compare une période choisie à une référence pour l’entreprise.' },
       { label: 'Cockpit', href: 'NEXUS-Cockpit-v2.html', icon: 'assets/icons/icon-home.png', desc: 'Votre plan d’action opérationnel du jour.' },
-      { label: 'Journal', href: 'NEXUS-Journal-v1.html', icon: 'assets/icons/icon-journal-nexus.png', desc: 'Historique des faits, actions et événements NEXUS.' },
-      { label: 'Capital NEXUS', href: 'NEXUS-Capital-v1.html', icon: 'assets/icons/icon-capital.png', desc: 'Valeur économique générée ou sécurisée par vos décisions.' },
+      { label: 'Journal', module: 'mod-journal', href: 'NEXUS-Journal-v1.html', icon: 'assets/icons/icon-journal-nexus.png', desc: 'Historique des faits, actions et événements NEXUS.' },
+      { label: 'Capital NEXUS', module: 'mod-capital', href: 'NEXUS-Capital-v1.html', icon: 'assets/icons/icon-capital.png', desc: 'Valeur économique générée ou sécurisée par vos décisions.' },
       { label: 'Scanner NEXUS', href: 'NEXUS-Scanner-v1.html', icon: 'assets/icons/icon-scanner.png', desc: 'Détecte les anomalies, écarts et opportunités commerciales.' },
       { label: 'Radar du Manager', href: 'NEXUS-Radar-Manager-v1.html', icon: 'assets/icons/icon-radar.png', desc: 'Vue rapide des zones qui nécessitent votre attention.' },
     ],
@@ -72,7 +72,7 @@ const NEXUS_SIDEBAR_GROUPES = [
   {
     nom: 'Performer',
     items: [
-      { label: 'Produits', href: 'NEXUS-Produits-v1.html', icon: 'assets/icons/icon-produits.png', desc: 'Analyse les ventes, rotations et performances produits.' },
+      { label: 'Produits', module: 'mod-produits', href: 'NEXUS-Produits-v1.html', icon: 'assets/icons/icon-produits.png', desc: 'Analyse les ventes, rotations et performances produits.' },
       { label: 'Tempo', href: 'NEXUS-Tempo-v1.html', icon: 'assets/icons/icon-nexus-tempo.png', desc: 'Repère les jours et périodes à renforcer.' },
       { label: 'Campagnes', href: 'NEXUS-Campagne-v1.html', icon: 'assets/icons/icon-campagne-nexus.png', desc: 'Suit la performance de vos actions commerciales.' },
       { label: 'Scanner Stock', href: 'NEXUS-Scanner-Stock-v1.html', icon: 'assets/icons/icon-scanner-stock.png', desc: 'Repère les écarts et références à recompter.' },
@@ -91,13 +91,13 @@ const NEXUS_SIDEBAR_GROUPES = [
       // réception d'une livraison (jaugeage avant/après, BL, calcul NEXUS)
       // — juste à côté de Carburants, comme FDJ/FDJ Opérations.
       // Icône pack NEXUS (20/08/2026, uniformisation) : icon-reception-carburant-24.png
-      { label: 'Réception carburant', href: 'NEXUS-Carburant-Reception-v1.html', icon: 'assets/icons/icon-reception-carburant-24.png', desc: 'Contrôle les livraisons et les volumes réellement reçus.' },
+      { label: 'Réception carburant', module: 'mod-reception-carburant', href: 'NEXUS-Carburant-Reception-v1.html', icon: 'assets/icons/icon-reception-carburant-24.png', desc: 'Contrôle les livraisons et les volumes réellement reçus.' },
       // Carburants Performance (11/08/2026, Phase 1 de la montée en
       // puissance demandée par Frédéric ; renommé "Performance" le
       // 24/08/2026 pour se distinguer nettement de Carburants) : la couche
       // dirigeant, juste après le Relevé du jour — même position relative
       // que FDJ Performance après FDJ Opérations.
-      { label: 'Carburants Performance', href: 'NEXUS-Carburants-Pilotage-v1.html', icon: null, emoji: '📈', desc: 'Analyse volumes, autonomie, écarts et tendances carburant.' },
+      { label: 'Carburants Performance', module: 'mod-carburants-performance', href: 'NEXUS-Carburants-Pilotage-v1.html', icon: null, emoji: '📈', desc: 'Analyse volumes, autonomie, écarts et tendances carburant.' },
       // Icône pack NEXUS (20/08/2026, uniformisation) : icon-inventaire-24.png
       // remplace l'ancienne icon-inventaire.png — même icône réutilisée sur
       // Contrôle inventaire juste en dessous (même domaine, cf. Article 11).
@@ -118,7 +118,7 @@ const NEXUS_SIDEBAR_GROUPES = [
       // FDJ - Analyse (09/08/2026, Phase C de l'audit "Moteur de
       // clairvoyance manager") : moteur de statistiques/tendances/
       // décisions, juste après FDJ Opérations.
-      { label: 'FDJ Performance', href: 'NEXUS-FDJ-Analyse-v1.html', icon: null, emoji: '📊', desc: 'Analyse ventes, jeux, écarts et tendances FDJ.' },
+      { label: 'FDJ Performance', module: 'mod-fdj-performance', href: 'NEXUS-FDJ-Analyse-v1.html', icon: null, emoji: '📊', desc: 'Analyse ventes, jeux, écarts et tendances FDJ.' },
       // NEXUS Coach x FDJ Pilotage (09/08/2026, étape "écran employé" de
       // l'audit "Coach x FDJ Pilotage") : micro-coaching quotidien par
       // employé, juste après FDJ Performance.
@@ -126,7 +126,7 @@ const NEXUS_SIDEBAR_GROUPES = [
       // littéral "Coach".
       { label: 'Coach FDJ', href: 'NEXUS-Coach-FDJ-v1.html', icon: 'assets/icons/icon-avatar-coach-24.png', desc: 'Donne à l’employé une priorité FDJ claire et contextualisée.' },
       { label: 'Missions', module: 'mod-missions', href: 'NEXUS-Missions-v1.html', icon: 'assets/icons/icon-missions.png', desc: 'Crée et suit les tâches opérationnelles.' },
-      { label: 'Assignations', href: 'NEXUS-Assignations-v1.html', icon: 'assets/icons/icon-assignations.png', desc: 'Répartit les actions entre les membres de l’équipe.' },
+      { label: 'Assignations', module: 'mod-assignations', href: 'NEXUS-Assignations-v1.html', icon: 'assets/icons/icon-assignations.png', desc: 'Répartit les actions entre les membres de l’équipe.' },
       { label: 'Planning', module: 'mod-planning', href: 'NEXUS-Planning-v1.html', icon: 'assets/icons/icon-planner.png', desc: 'Organise la présence et les horaires de l’équipe.' },
     ],
   },
@@ -134,7 +134,7 @@ const NEXUS_SIDEBAR_GROUPES = [
     nom: 'Équipe',
     items: [
       { label: 'Évaluations', href: 'NEXUS-Evaluation-Employe-v1.html', icon: 'assets/icons/icon-evaluation.png', desc: 'Évalue la réalisation et la qualité du travail.' },
-      { label: 'Résultats', href: 'NEXUS-Resultats-Equipe-v1.html', icon: 'assets/icons/icon-resultats-equipe.png', desc: 'Suit la progression et les performances de l’équipe.' },
+      { label: 'Résultats', module: 'mod-resultats', href: 'NEXUS-Resultats-Equipe-v1.html', icon: 'assets/icons/icon-resultats-equipe.png', desc: 'Suit la progression et les performances de l’équipe.' },
       // Paye (09/10/2026, demande de Frédéric) : l'écran n'était joignable que
       // par le menu ☰ de l'accueil. Pas d'icône dédiée dans assets/icons.
       { label: 'Paye', module: 'mod-paye', href: 'NEXUS-Paye-v1.html', icon: null, emoji: '💶', desc: 'Prépare les variables de paye du mois pour la comptabilité.' },
@@ -148,7 +148,7 @@ const NEXUS_SIDEBAR_GROUPES = [
     items: [
       // 👥 harmonisé avec le tiroir Explorer NEXUS (qui utilisait 🧾) le
       // 20/08/2026 — pas d'icône dédiée dans le pack NEXUS pour ce domaine.
-      { label: 'Comptes Clients', href: 'NEXUS-Comptes-Clients-v1.html', icon: null, emoji: '👥', desc: 'Gère les comptes clients à crédit et leurs mouvements.' },
+      { label: 'Comptes Clients', module: 'mod-comptes-clients', href: 'NEXUS-Comptes-Clients-v1.html', icon: null, emoji: '👥', desc: 'Gère les comptes clients à crédit et leurs mouvements.' },
       { label: 'Boîte de réception', href: 'NEXUS-Boite-Reception-v1.html', icon: null, emoji: '📥', desc: 'Centralise les demandes des comptes clients.' },
       // Icône pack NEXUS (20/08/2026, uniformisation) : icon-parametres-24.png.
       { label: 'Paramètres Comptes Clients', href: 'NEXUS-Parametres-Comptes-Clients-v1.html', icon: 'assets/icons/icon-parametres-24.png', desc: 'Configure les règles et plafonds des comptes clients.' },
@@ -172,7 +172,7 @@ const NEXUS_SIDEBAR_GROUPES = [
       // Icône pack NEXUS (20/08/2026, uniformisation) : icon-parametres-24.png,
       // même icône sur les 4 écrans "Paramètres…" (Station, Comptes Clients,
       // Inventaire, FDJ) — un seul concept visuel pour un seul concept métier.
-      { label: 'Paramètres', href: 'NEXUS-Parametres-Station-v1.html', icon: 'assets/icons/icon-parametres-24.png', desc: 'Configure les réglages généraux de la station.' },
+      { label: 'Paramètres', module: 'mod-parametres', href: 'NEXUS-Parametres-Station-v1.html', icon: 'assets/icons/icon-parametres-24.png', desc: 'Configure les réglages généraux de la station.' },
       // Ajouté 07/08/2026, demande de Frédéric — rejoint aussi le tiroir
       // "Explorer NEXUS" (NEXUS-App-v1.html, groupe Administrer) le même jour.
       { label: 'Paramètres Inventaire', href: 'NEXUS-Parametres-Inventaire-v1.html', icon: 'assets/icons/icon-parametres-24.png', desc: 'Configure les règles et seuils de l’inventaire.' },
