@@ -89,7 +89,7 @@
   body:not(.nexus-desktop) .entete-actions a,body:not(.nexus-desktop) .entete-actions button{flex:1 1 auto;justify-content:center}
   /* Vue bureau : tuiles et Conseiller sur toute la largeur, les deux colonnes dessous. */
   body.nexus-desktop .desktop-grid>.indicateurs,body.nexus-desktop .desktop-grid>.conseiller-card{column-span:all}
-  body.nexus-desktop .indicateurs{grid-template-columns:repeat(3,minmax(0,1fr))}
+  body.nexus-desktop .indicateurs{grid-template-columns:repeat(4,minmax(0,1fr))}
   /* Lot 3 : vue Jour en grille CSS (et non en colonnes), Photo Decenium sur toute la largeur, puis Comptages | Décisions. */
   body.nexus-desktop #content.desktop-grid[data-vue="jour"]{display:grid;grid-template-columns:minmax(0,1fr);column-count:auto;gap:16px;align-items:start}
   body.nexus-desktop #content.desktop-grid[data-vue="jour"]>*{grid-column:1/-1;margin-bottom:0}
@@ -106,7 +106,24 @@
   .inv-cat-icone{width:28px;height:28px;flex:none;color:var(--cyan)}
   .inv-cat.termine .inv-cat-icone{color:var(--green)}
   .inv-cat-nom{flex:1;min-width:0;font-weight:600;color:var(--text)}
-  .inv-cat-nn{font-family:var(--mono);font-size:13px;color:var(--text-mid)}
+  .inv-cat-nn{display:block;font-family:var(--mono);font-size:13px;font-weight:400;color:var(--text-mid)}
+  .inv-titre-icone{width:20px;height:20px;flex:none;vertical-align:-4px;margin-right:8px;color:var(--cyan)}
+  .inv-panneau-titre .inv-titre-icone{width:22px;height:22px}
+  .inv-cat-top .categorie-manquante-chevron{font-size:18px;margin-left:0;flex:none}
+  .inv-onglets,.inv-barre-basse{display:none}
+  body:not(.nexus-desktop) .inv-onglets{display:flex;gap:8px;margin-bottom:12px}
+  .inv-onglet{flex:1;min-height:44px;border-radius:12px;border:1px solid var(--hairline);background:var(--panel);color:var(--text-mid);font:600 14px var(--sans);cursor:pointer}
+  .inv-onglet.actif{border-color:var(--cyan);color:var(--text)}
+  body:not(.nexus-desktop) .inv-panneaux[data-onglet="comptages"] #sectionAControler,body:not(.nexus-desktop) .inv-panneaux[data-onglet="decisions"] #sectionATerminer{display:none}
+  body:not(.nexus-desktop) .inv-barre-basse{display:flex;gap:8px;position:fixed;left:0;right:0;bottom:0;z-index:50;padding:10px 16px calc(10px + env(safe-area-inset-bottom));background:var(--panel);border-top:1px solid var(--hairline)}
+  .inv-barre-btn{flex:1;min-height:44px;border-radius:12px;border:1px solid var(--hairline);background:none;color:var(--text);font:600 13px var(--sans);cursor:pointer;display:flex;align-items:center;justify-content:center}
+  .inv-barre-btn .inv-titre-icone{margin-right:6px}
+  body:not(.nexus-desktop) #content{padding-bottom:84px}
+  body:not(.nexus-desktop) .indicateurs{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  body:not(.nexus-desktop) .np-tuile-valeur{font-size:17px;white-space:nowrap}
+  body:not(.nexus-desktop) .np-tuile .anneau{width:40px;height:40px}
+  body:not(.nexus-desktop) .np-tuile-corps{gap:8px;padding-left:10px}
+  body:not(.nexus-desktop) .np-tuile .info-btn{width:36px;margin-left:-8px}
   .inv-cat-barre{height:6px;border-radius:3px;background:var(--hairline);margin-top:8px;overflow:hidden}
   .inv-cat-barre>span{display:block;height:100%;background:var(--green)}
   .inv-cat.a-compter .inv-cat-barre>span{background:var(--amber)}
@@ -2760,7 +2777,7 @@
   // de clôture. Mêmes nombres que l'ancienne carte « Progression » (synthese.*) et mêmes règles de
   // clôture : aucun calcul nouveau. Avant : bannière de clôture cohérente avec l'état temporel
   // (normal/proche/retard), comme la carte État du quart.
-  function renderIndicateurs(s, etat, alertesOuvertes) {
+  function renderIndicateurs(s, etat, alertesOuvertes, decenium) {
     const urgence = etat ? etat.urgence : 'normal';
     let clotureClasse, clotureTexte;
     if (s.manquants === 0) {
@@ -2779,11 +2796,16 @@
     }
     const P = NexusComposantsPilotage;
     const nbAnomalies = alertesOuvertes.length;
+    const dec = decenium || {};
+    const dRef = dec.snapshotActif && dec.snapshotActif.snapshot_reference_at ? new Date(dec.snapshotActif.snapshot_reference_at) : null;
+    const refDec = dRef && !isNaN(dRef) ? dRef.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : null;
+    const ico = cle => svgKit(cle, 'np-tuile-ico');
     return `
       <div class="indicateurs">
-        ${P.tuile({pct: s.pourcentage, couleur: s.manquants ? 'var(--amber)' : 'var(--green)', valeur: `${s.comptes} / ${s.total}`, libelle: `Produits ${s.phase === 'clotures' ? 'comptés (clôture)' : 'comptés'}`, info: 'comptes', cible: 'sectionATerminer'})}
+        ${P.tuile({pct: s.pourcentage, couleur: s.manquants ? 'var(--amber)' : 'var(--green)', valeur: `${s.comptes} / ${s.total}`, icone: ico('comptage'), libelle: `Produits ${s.phase === 'clotures' ? 'comptés (clôture)' : 'comptés'}`, info: 'comptes', cible: 'sectionATerminer'})}
         ${P.tuile({valeur: s.manquants, libelle: 'Comptages manquants', pastille: P.pill(s.manquants ? 'À compter' : 'Complet', s.manquants ? 'todo' : 'ok'), info: 'manquants', cible: 'sectionATerminer'})}
-        ${P.tuile({valeur: nbAnomalies, libelle: 'Anomalies à traiter', pastille: P.pill(nbAnomalies ? 'À décider' : 'Aucune', nbAnomalies ? 'todo' : 'ok'), info: 'anomalies', cible: 'sectionAControler'})}
+        ${P.tuile({valeur: nbAnomalies, icone: ico('anomalies'), libelle: 'Anomalies à traiter', pastille: P.pill(nbAnomalies ? 'À décider' : 'Aucune', nbAnomalies ? 'todo' : 'ok'), info: 'anomalies', cible: 'sectionAControler'})}
+        ${P.tuile({valeur: dec.importFait ? 'Import OK' : 'Non importé', icone: ico('decenium'), libelle: 'Decenium', pastille: P.pill(refDec ? 'Réf. ' + refDec : 'Réf. absente', refDec ? 'ok' : 'hp'), info: 'photoDecenium', cible: 'photoDeceniumCard'})}
       </div>
       ${clotureClasse === 'attente' ? '' : `<div class="synthese-cloture ${clotureClasse}">${clotureTexte}</div>`}
     `;
@@ -2824,25 +2846,34 @@
     cigarettes: '<rect x="15" y="14" width="34" height="40" rx="4"/><path d="M15 27h34M24 27v19M32 27v19M40 27v19M20 19h24"/>',
     gaz: '<rect x="22" y="19" width="20" height="36" rx="5"/><path d="M27 19v-8h10v8M26 11h12M28 30h8M28 40h8"/><path d="M17 27v19M47 27v19"/>',
     glacons: '<path d="m32 8 22 12v24L32 56 10 44V20Z M10 20l22 12 22-12M32 32v24M21 14l22 12"/>',
-    stock: '<path d="m9 22 23-12 23 12v25L32 59 9 47Z M9 22l23 13 23-13M32 35v24M21 16l23 13"/>'
+    stock: '<path d="m9 22 23-12 23 12v25L32 59 9 47Z M9 22l23 13 23-13M32 35v24M21 16l23 13"/>',
+    // Lot 4 : autres pictogrammes du kit (comptage, anomalies, recomptage, decenium).
+    comptage: '<rect x="17" y="13" width="30" height="39" rx="5"/><path d="M25 13v-4h14v4M25 25h14M25 34h6M25 43h6"/><path d="m35 34 3 3 6-7m-9 13 3 3 6-7"/>',
+    anomalies: '<path d="M32 9 58 52H6Z"/><path d="M32 25v12M32 44v1"/>',
+    recomptage: '<path d="M15 23a20 20 0 0 1 35-5l5 6M55 15v9h-10M49 41a20 20 0 0 1-35 5l-5-6M9 49v-9h10"/><path d="M24 30h16M24 37h12"/>',
+    decenium: '<rect x="12" y="11" width="40" height="42" rx="5"/><path d="M20 22h24M20 31h24M20 40h24M30 22v25M40 22v25"/><path d="m17 48 3 3 5-6"/>'
   };
+  let ongletMobile = 'comptages';
+  function svgKit(cle, classe) {
+    return '<svg class="' + classe + '" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">' + ICONES_CATEGORIE[cle] + '</g></svg>';
+  }
   function iconeCategorie(nom) {
     const n = String(nom || '').toLowerCase();
     const cle = n.indexOf('cigar') !== -1 ? 'cigarettes' : n.indexOf('gaz') !== -1 ? 'gaz' : (n.indexOf('gla') !== -1 ? 'glacons' : 'stock');
-    return '<svg class="inv-cat-icone" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">' + ICONES_CATEGORIE[cle] + '</g></svg>';
+    return svgKit(cle, 'inv-cat-icone');
   }
   function renderLigneComptage(c) {
     const ouvert = categoriesOuvertes.has(c.nom);
     const reste = c.total - c.comptes;
     const pct = c.total > 0 ? Math.round((c.comptes / c.total) * 100) : 100;
-    const pastille = reste > 0 ? NexusComposantsPilotage.pill(reste + ' à compter', 'todo') : NexusComposantsPilotage.pill('Terminé', 'ok');
+    const pastille = reste > 0 ? NexusComposantsPilotage.pill('À compléter', 'todo') : NexusComposantsPilotage.pill('Terminé', 'ok');
     return `
       <div class="categorie-manquante inv-cat ${reste > 0 ? 'a-compter' : 'termine'}" data-cat="${c.nom}">
         <div class="inv-cat-top">
           ${iconeCategorie(c.nom)}
-          <span class="inv-cat-nom">${c.nom}<span class="categorie-manquante-chevron ${ouvert ? 'open' : ''}">›</span></span>
-          <span class="inv-cat-nn">${c.comptes} / ${c.total}</span>
+          <span class="inv-cat-nom">${c.nom}<span class="inv-cat-nn">${c.comptes} / ${c.total} · ${pct} %</span></span>
           ${pastille}
+          <span class="categorie-manquante-chevron ${ouvert ? 'open' : ''}" aria-hidden="true">›</span>
         </div>
         <div class="inv-cat-barre" role="presentation"><span style="width:${pct}%"></span></div>
         ${ouvert ? `
@@ -2859,7 +2890,7 @@
     const lignes = (synthese.categories || []).slice().sort((a, b) => ((b.total - b.comptes) > 0) - ((a.total - a.comptes) > 0));
     return `
       <section class="inv-panneau" id="sectionATerminer">
-        <h2 class="inv-panneau-titre">Comptages</h2>
+        <h2 class="inv-panneau-titre">${svgKit('comptage', 'inv-titre-icone')}Comptages</h2>
         ${lignes.length === 0
           ? '<div class="empty">Tous les comptages requis ont été effectués.</div>'
           : lignes.map(renderLigneComptage).join('')}
@@ -2880,7 +2911,7 @@
     const ecart = (!estCloture && a.valeur_constatee != null && a.valeur_attendue != null) ? (a.valeur_constatee - a.valeur_attendue) : null;
     const ouvert = fichesOuvertes.has(a.id);
     const chiffres = estCloture
-      ? `Non comptés ${fmtNum(a.valeur_constatee)}`
+      ? `Non comptés ${fmtNum(a.valeur_constatee)}${a.valeur_attendue == null || a.valeur_attendue === '' ? ' (périmètre antérieur)' : ''}`
       : `Transmis ${fmtNum(a.valeur_attendue)} · Compté ${fmtNum(a.valeur_constatee)}${ecart !== null ? ` · Écart ${ecart > 0 ? '+' : ''}${fmtNum(ecart)}` : ''}`;
     const etat = (typeof LIBELLES_STATUT_ALERTE !== 'undefined' && LIBELLES_STATUT_ALERTE[a.statut]) || String(a.statut || '').replace(/_/g, ' ');
     return `
@@ -2900,12 +2931,12 @@
     return `
       <section class="inv-panneau" id="sectionAControler">
         <div class="inv-panneau-entete">
-          <h2 class="inv-panneau-titre">Décisions</h2>
+          <h2 class="inv-panneau-titre">${svgKit('anomalies', 'inv-titre-icone')}Décisions</h2>
           ${alertesValidablesEnBloc(alertesOuvertes).length > 0 ? '<button class="btn-tout-valider" id="btnToutValider">Tout valider</button>' : ''}
         </div>
         ${alertesOuvertes.length === 0 ? '<div class="empty">Aucun écart ouvert.</div>' : alertesOuvertes.map(renderFicheAnomalie).join('')}
         ${decisionsQuart && nbDec > 0
-          ? `<details class="inv-historique"><summary>Historique des décisions du quart</summary>${renderResumeDecisionsQuart(decisionsQuart)}</details>`
+          ? `<details class="inv-historique"><summary>${svgKit('recomptage', 'inv-titre-icone')}Historique des décisions du quart</summary>${renderResumeDecisionsQuart(decisionsQuart)}</details>`
           : '<div class="inv-historique-vide">Aucune décision enregistrée pour ce quart.</div>'}
       </section>
     `;
@@ -3166,7 +3197,7 @@
 
     document.getElementById('content').innerHTML = `
       ${periodeSelectionnee === 'jour' ? `
-      ${quartRow ? renderIndicateurs(synthese, etat, alertesOuvertes) : ''}
+      ${quartRow ? renderIndicateurs(synthese, etat, alertesOuvertes, { importFait: ctx.importDeceniumFait, snapshotActif: ctx.snapshotActif }) : ''}
 
       <div class="conseiller-card" id="conseillerCard">
         <div class="conseiller-head">
@@ -3197,8 +3228,8 @@
       ${quartRow ? renderRapprochementParMission(missionsAvecRapprochement) : ''}
 
       ${quartRow ? `
-        <div class="section-titre">Photo Decenium</div>
-        <div class="ventes-card">
+        <div class="section-titre">${svgKit('decenium', 'inv-titre-icone')}Photo Decenium</div>
+        <div class="ventes-card" id="photoDeceniumCard">
           ${renderSnapshotBadge(ctx.snapshotActif)}
           <div class="ventes-desc ventes-statut" data-ventes="${statutVentes(quartRow, ctx.importDeceniumFait).cle}">Ventes du quart : <b>${statutVentes(quartRow, ctx.importDeceniumFait).texte}</b> ${NexusComposantsPilotage.infoBtn('photoDecenium', 'Photo Decenium')}</div>
           <div class="ventes-file-row">
@@ -3255,9 +3286,17 @@
           <div id="ventesJourneeResume"></div>
         </div>
 
-        <div class="inv-panneaux">
+        <div class="inv-onglets" role="tablist" aria-label="Comptages ou décisions">
+          <button type="button" role="tab" class="inv-onglet ${ongletMobile === 'comptages' ? 'actif' : ''}" data-onglet="comptages" aria-selected="${ongletMobile === 'comptages'}">Comptages</button>
+          <button type="button" role="tab" class="inv-onglet ${ongletMobile === 'decisions' ? 'actif' : ''}" data-onglet="decisions" aria-selected="${ongletMobile === 'decisions'}">Décisions${alertesOuvertes.length ? ' (' + alertesOuvertes.length + ')' : ''}</button>
+        </div>
+        <div class="inv-panneaux" data-onglet="${ongletMobile}">
           ${renderPanneauComptages(synthese)}
           ${renderPanneauDecisions(alertesOuvertes, decisionsQuart)}
+        </div>
+        <div class="inv-barre-basse">
+          <button type="button" class="inv-barre-btn" data-aller="photoDeceniumCard">${svgKit('decenium', 'inv-titre-icone')}Photo Decenium</button>
+          <button type="button" class="inv-barre-btn" data-aller="sectionATerminer" data-onglet-cible="comptages">${svgKit('comptage', 'inv-titre-icone')}Voir les manquants</button>
         </div>
       ` : ''}
 
@@ -3313,7 +3352,30 @@
       ct.dataset.ventes = statutVentes(quartRow, ctx.importDeceniumFait).cle;
     }
     majEntete(quartRow, synthese, etat);
+    document.querySelectorAll('.inv-onglet').forEach(b => b.addEventListener('click', () => {
+      ongletMobile = b.dataset.onglet;
+      document.querySelectorAll('.inv-onglet').forEach(x => {
+        x.classList.toggle('actif', x === b);
+        x.setAttribute('aria-selected', String(x === b));
+      });
+      const pan = document.querySelector('.inv-panneaux');
+      if (pan) pan.dataset.onglet = ongletMobile;
+    }));
+    document.querySelectorAll('.inv-barre-btn').forEach(b => b.addEventListener('click', () => {
+      if (b.dataset.ongletCible) {
+        const t = document.querySelector('.inv-onglet[data-onglet="' + b.dataset.ongletCible + '"]');
+        if (t) t.click();
+      }
+      const cible = document.getElementById(b.dataset.aller);
+      if (cible) cible.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }));
     document.querySelectorAll('.np-tuile-corps').forEach(el => el.addEventListener('click', () => {
+      // iPhone : le panneau visé peut être masqué par l'onglet actif ; on active d'abord son onglet.
+      const ongletDe = { sectionAControler: 'decisions', sectionATerminer: 'comptages' }[el.dataset.cible];
+      if (ongletDe) {
+        const t = document.querySelector('.inv-onglet[data-onglet="' + ongletDe + '"]');
+        if (t) t.click();
+      }
       const cible = document.getElementById(el.dataset.cible);
       if (cible) cible.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }));
