@@ -70,7 +70,8 @@ cas('kit graphique : bannières jour/nuit et pictogrammes présents, sans couleu
   for (const n of ['comptage', 'gaz', 'glacons', 'cigarettes', 'decenium', 'anomalies', 'stock', 'recomptage']) {
     const svg = lire('assets/inventaire/icones/' + n + '.svg');
     assert.ok(svg.includes('viewBox="0 0 64 64"') && svg.includes('currentColor'), n);
-    assert.ok(!/#[0-9a-f]{3,8}\b|rgba?\(/i.test(svg), 'couleur en dur : ' + n);
+    // Gaz et Glaçons (demande Frédéric 07/11) portent leurs couleurs : seulement en repli de var(--ico-…), jamais en littéral nu.
+    assert.ok(!/#[0-9a-f]{3,8}\b|rgba?\(/i.test(svg.replace(/var\(--ico-[0-9a-f]+,#[0-9a-f]{3,6}\)/gi, 'var(--x)')), 'couleur en dur : ' + n);
   }
   assert.ok(/photos: \{jour: 'assets\/inventaire\/inventaire-banniere-claire\.webp', nuit: 'assets\/inventaire\/inventaire-banniere-sombre\.webp'\}/.test(page));
   const h = B.html('vito-sainte-marie', { photos: { jour: 'a-jour.webp', nuit: 'a-nuit.webp' }, alt: 'x' });

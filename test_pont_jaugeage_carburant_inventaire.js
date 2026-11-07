@@ -264,6 +264,8 @@ function creerClientMock(reponses) {
   const srcParts = [
     'let jaugeageCarburantActif = false;',
     'let statutJaugeageJour = null;',
+    script.slice(script.indexOf('const ICONES_KIT = {'), script.indexOf('};', script.indexOf('const ICONES_KIT = {')) + 2),
+    extraireFonction('svgKit'),
     extraireFonction('libelleMotifImpossible'),
     extraireFonction('renderBlocJaugeageCarburant'),
     `globalThis.__test = {

@@ -171,7 +171,7 @@ muter('échec d\'écriture ignoré', "catch (e) { localEcrit = false; return fal
 muter('majEtat se remet à écrire', "    const srv = serveur.final", "    sauverLocal();\n    const srv = serveur.final", 'E2e');
 muter('lien supprimé', '<a class="sortie" id="sortie" data-act="sortie" href="NEXUS-App-v1.html">← Quitter et revenir à l\'Accueil</a>', '', 'E1a');
 muter('lien vers une autre page', 'data-act="sortie" href="NEXUS-App-v1.html"', 'data-act="sortie" href="NEXUS-Inventaire-v1.html"', 'E1b');
-muter('lien déplacé dans #app (effacé par rendre)', '<nav class="sortie-barre"><a class="sortie" id="sortie" data-act="sortie" href="NEXUS-App-v1.html">← Quitter et revenir à l\'Accueil</a></nav>\n<div class="phone" id="app">', '<div class="phone" id="app"><a class="sortie" id="sortie" data-act="sortie" href="NEXUS-App-v1.html">← Quitter et revenir à l\'Accueil</a>', 'E1c');
+muter('lien déplacé dans #app (effacé par rendre)', '<nav class="sortie-barre"><a class="sortie" id="sortie" data-act="sortie" href="NEXUS-App-v1.html">← Quitter et revenir à l\'Accueil</a></nav>\n<div class="ent-illustre-cadre"><div class="ent-illustre" id="entIllustre"></div></div>\n<div class="phone" id="app">', '<div class="phone" id="app"><a class="sortie" id="sortie" data-act="sortie" href="NEXUS-App-v1.html">← Quitter et revenir à l\'Accueil</a>', 'E1c');
 muter('lien masqué', 'class="sortie" id="sortie"', 'class="sortie" hidden id="sortie"', 'E1d');
 muter('sortie sans rangement du jaugeage', "if (emp && date) sauverJauge();", "", 'E1e');
 muter('sortie qui efface le brouillon', "if (moment) sauverLocal();", "if (moment) { sauverLocal(); localStorage.removeItem(cleBrouillon()); }", 'E1e');

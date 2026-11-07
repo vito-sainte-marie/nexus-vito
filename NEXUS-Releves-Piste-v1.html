@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#0B0F14">
 <script src="nexus-theme.js"></script>
+<script src="nexus-banniere-station.js"></script>
 <title>NEXUS : Relevés piste</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -72,11 +73,22 @@
   .pastille{display:inline-block;font-size:11px;border:1px solid var(--hair);border-radius:99px;padding:2px 8px;color:var(--mid)}
   .progres{color:var(--mid);font-size:13px;margin-bottom:8px}
   .sortie-barre{max-width:460px;margin:0 auto;padding:12px 16px 0}
+
+  /* En-tête illustré du fil pompiste (lot 6706558761) : même image en Jour et en Sombre, hauteur contenue pour garder le bouton principal visible. */
+  .ent-illustre{padding:0}
+  .ent-illustre .am-banniere{position:relative;height:120px;overflow:hidden;border-radius:14px;border:1px solid var(--hair)}
+  .ent-illustre .am-banniere img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:85% 50%}
+  .ent-illustre .am-banniere::after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(to right,var(--bg) 0%,transparent 55%);opacity:.55}
+  .ent-illustre .am-banniere img.am-fondu{opacity:0;transition:opacity 800ms ease}
+  .ent-illustre .am-banniere img.am-fondu-visible{opacity:1}
+  @media (prefers-reduced-motion:reduce){.ent-illustre .am-banniere img.am-fondu{transition:none}}
+  .ent-illustre-cadre{max-width:460px;margin:0 auto;padding:0 16px}
   .sortie{display:inline-flex;align-items:center;min-height:44px;color:var(--cyan);font-size:14px;font-weight:600;text-decoration:none}
 </style>
 </head>
 <body>
 <nav class="sortie-barre"><a class="sortie" id="sortie" data-act="sortie" href="NEXUS-App-v1.html">← Quitter et revenir à l'Accueil</a></nav>
+<div class="ent-illustre-cadre"><div class="ent-illustre" id="entIllustre"></div></div>
 <div class="phone" id="app"><div class="card">Chargement…</div></div>
 <div class="etat" id="etat">…</div>
 <script>
@@ -512,7 +524,27 @@
     else if (ecran === 'jaugeimpossible') vue = vueJaugeImpossible();
     else vue = vueFini();
     app.innerHTML = filBandeau() + vue;
+    majEntete();
     majEtat();
+  }
+  // En-tête illustré : jaugeage sur l'écran du jaugeage, relevé d'index partout ailleurs. Suit l'écran affiché ;
+  // l'image n'est reposée que si elle change (pas de rechargement à chaque saisie).
+  let enteteAffichee = null;
+  const ENTETES = {
+    jaugeage: { jour: 'assets/pompiste/jaugeage-1200.webp', nuit: 'assets/pompiste/jaugeage-1200.webp', alt: 'Jaugeage des cuves de carburant' },
+    index: { jour: 'assets/pompiste/releve-index-1200.webp', nuit: 'assets/pompiste/releve-index-1200.webp', alt: 'Relevé des index des pompes' }
+  };
+  function majEntete() {
+    const cadre = $('entIllustre');
+    if (!cadre || !emp) return;
+    const cle = (ecran === 'jauge' || ecran === 'jaugeimpossible') ? 'jaugeage' : 'index';
+    const site = emp.site_id;
+    const cleSite = cle + '|' + site;
+    if (enteteAffichee === cleSite) return;
+    enteteAffichee = cleSite;
+    const e = ENTETES[cle];
+    cadre.setAttribute('data-entete', cle);
+    cadre.innerHTML = NexusBanniereStation.html(site, { apercu: NexusBanniereStation.apercuDemande(), photos: { jour: e.jour, nuit: e.nuit }, alt: e.alt });
   }
 
   function vueChoix() {
@@ -754,6 +786,7 @@
   nexusRequireAuth().then(async (employee) => {
     if (!employee) return;
     emp = employee;
+    NexusBanniereStation.suivreTheme();
     // Le jour métier suit le fuseau du site (nexus-auth.js) ; sans fuseau, pas de jour et pas d'écran qui affirme.
     const fuseauSite = await nexusFuseauSite(employee.site_id);
     if (fuseauSite && typeof NexusTheme !== 'undefined') NexusTheme.definirFuseau(fuseauSite);
