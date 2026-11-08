@@ -38,7 +38,7 @@
     'NEXUS-Produits-v1.html': { label: 'Produits', module: 'mod-produits', icone: 'assets/icons/icon-produits.png', desc: 'Fiche complète par référence' },
     'NEXUS-Brief-v1.html': { label: 'Brief NEXUS', module: 'mod-brief', emoji: '🧭', desc: 'La synthèse du dirigeant' },
     'NEXUS-Rapport-v1.html': { label: 'Rapport NEXUS', module: 'mod-rapport', emoji: '📑', desc: 'CA, marge et décisions sur une période choisie' },
-    'NEXUS-Rayon-v1.html': { label: 'Rayon', emoji: '🗂️', desc: 'CA, marge, top ventes par catégorie' },
+    'NEXUS-Rayon-v1.html': { label: 'Rayon', module: 'mod-rayon', emoji: '🗂️', desc: 'CA, marge, top ventes par catégorie' },
     'NEXUS-Carburants-v1.html': { label: 'Carburants', module: 'mod-carburants', emoji: '⛽', desc: "Jaugeage à l'ouverture, théorique et écart" },
     'NEXUS-Carburants-Pilotage-v1.html': { label: 'Carburants Performance', module: 'mod-carburants-performance', emoji: '📈', desc: 'Volumes, mix et moteurs de performance' },
     'NEXUS-FDJ-Analyse-v1.html': { label: 'FDJ Performance', module: 'mod-fdj-performance', emoji: '📊', desc: 'Tendances, jeux, équipe, stock et écarts', forfait: 'professional' },
@@ -48,7 +48,7 @@
     'NEXUS-Capital-v1.html': { label: 'Capital NEXUS', module: 'mod-capital', emoji: '💎', desc: 'La valeur créée par vos décisions', forfait: 'professional' },
     'NEXUS-Scanner-v1.html': { label: 'Scanner NEXUS', module: 'mod-scanner', emoji: '🔎', desc: 'CA, marge et répartition ABC', forfait: 'professional' },
     'NEXUS-Radar-Manager-v1.html': { label: 'Radar du Manager', module: 'mod-radar', emoji: '🧭', desc: '8 domaines de responsabilité', forfait: 'professional' },
-    'NEXUS-Centre-Intelligence-v1.html': { label: "Centre d'Intelligence", emoji: '🧠', desc: 'Que détecte NEXUS dans mon commerce ?' },
+    'NEXUS-Centre-Intelligence-v1.html': { label: "Centre d'Intelligence", module: 'mod-centre-intelligence', emoji: '🧠', desc: 'Que détecte NEXUS dans mon commerce ?' },
     'NEXUS-Inventaire-Manager-v1.html': { label: 'Contrôle inventaire', module: 'mod-controle-inventaire', emoji: '🧮', desc: 'Écarts, comptages manquants', forfait: 'professional' },
     'NEXUS-Import-v1.html': { label: 'Import', module: 'mod-imports', emoji: '⬆️', desc: 'Ventes, catalogue ou stock instantané' },
   };

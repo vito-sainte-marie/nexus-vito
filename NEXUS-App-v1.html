@@ -1101,7 +1101,7 @@
         <div class="nav-arrow">›</div>
       </a>
       <a class="nav-item" data-role="manager" data-preview="true" href="NEXUS-Centre-Intelligence-v1.html">
-        <div class="nav-icon"><img src="assets/icons/icon-centre-intelligence.png" alt="Centre d'Intelligence NEXUS"></div>
+        <div class="nav-icon"><img data-nexus-icone="mod-centre-intelligence" data-nexus-taille="34" data-nexus-decoratif="1" src="assets/icones/v2/mod-centre-intelligence/mod-centre-intelligence@1x.webp" srcset="assets/icones/v2/mod-centre-intelligence/mod-centre-intelligence@1x.webp 1x, assets/icones/v2/mod-centre-intelligence/mod-centre-intelligence@2x.webp 2x, assets/icones/v2/mod-centre-intelligence/mod-centre-intelligence@3x.webp 3x" width="34" height="34" alt="" aria-hidden="true" data-nexus-ancien-src="assets/icons/icon-centre-intelligence.png" data-nexus-ancien-alt="Centre d'Intelligence NEXUS"></div>
         <div class="nav-body">
           <div class="nav-title">Centre d'Intelligence</div>
           <div class="nav-desc">Que détecte NEXUS dans mon commerce ?</div>
@@ -1160,7 +1160,7 @@
     <div class="section-label" data-role="manager" style="display:none;">Performer</div>
     <nav data-role="manager" data-group="performer" style="display:none;">
       <a class="nav-item" data-role="manager" data-preview="true" href="NEXUS-Rayon-v1.html">
-        <div class="nav-icon"><img src="assets/icons/icon-rayon.png" alt="Rayon"></div>
+        <div class="nav-icon"><img data-nexus-icone="mod-rayon" data-nexus-taille="34" data-nexus-decoratif="1" src="assets/icones/v2/mod-rayon/mod-rayon@1x.webp" srcset="assets/icones/v2/mod-rayon/mod-rayon@1x.webp 1x, assets/icones/v2/mod-rayon/mod-rayon@2x.webp 2x, assets/icones/v2/mod-rayon/mod-rayon@3x.webp 3x" width="34" height="34" alt="" aria-hidden="true" data-nexus-ancien-src="assets/icons/icon-rayon.png" data-nexus-ancien-alt="Rayon"></div>
         <div class="nav-body">
           <div class="nav-title">Rayon</div>
           <div class="nav-desc">CA, marge, top ventes par catégorie</div>
@@ -1330,7 +1330,7 @@
       <!-- Icône pack NEXUS (20/08/2026, uniformisation) : avatar_coach —
            sens littéral "Coach". -->
       <a class="nav-item" data-role="all" data-forfait="professional" href="NEXUS-Coach-FDJ-v1.html">
-        <div class="nav-icon"><img src="assets/icons/icon-avatar-coach-24.png" alt="Coach FDJ"></div>
+        <div class="nav-icon"><img data-nexus-icone="mod-coach-fdj" data-nexus-taille="34" data-nexus-decoratif="1" src="assets/icones/v2/mod-coach-fdj/mod-coach-fdj@1x.webp" srcset="assets/icones/v2/mod-coach-fdj/mod-coach-fdj@1x.webp 1x, assets/icones/v2/mod-coach-fdj/mod-coach-fdj@2x.webp 2x, assets/icones/v2/mod-coach-fdj/mod-coach-fdj@3x.webp 3x" width="34" height="34" alt="" aria-hidden="true" data-nexus-ancien-src="assets/icons/icon-avatar-coach-24.png" data-nexus-ancien-alt="Coach FDJ"></div>
         <div class="nav-body">
           <div class="nav-title">Coach FDJ <span class="nav-badge badge-premium">Professional</span></div>
           <div class="nav-desc">Votre conseil du jour, en une phrase</div>
@@ -1467,7 +1467,7 @@
     <nav data-role="manager" data-group="aide" style="display:none;">
       <!-- Icône pack NEXUS (20/08/2026, uniformisation) : icon-aide-24.png -->
       <a class="nav-item" data-role="manager" href="NEXUS-Documentation-v1.html">
-        <div class="nav-icon"><img src="assets/icons/icon-aide-24.png" alt="Comprendre NEXUS"></div>
+        <div class="nav-icon"><img data-nexus-icone="mod-aide" data-nexus-taille="34" data-nexus-decoratif="1" src="assets/icones/v2/mod-aide/mod-aide@1x.webp" srcset="assets/icones/v2/mod-aide/mod-aide@1x.webp 1x, assets/icones/v2/mod-aide/mod-aide@2x.webp 2x, assets/icones/v2/mod-aide/mod-aide@3x.webp 3x" width="34" height="34" alt="" aria-hidden="true" data-nexus-ancien-src="assets/icons/icon-aide-24.png" data-nexus-ancien-alt="Comprendre NEXUS"></div>
         <div class="nav-body">
           <div class="nav-title">Comprendre NEXUS</div>
           <div class="nav-desc">Quel moteur utiliser selon ce que vous voulez faire</div>
@@ -1487,7 +1487,7 @@
   <div class="groupe-wrap" data-groupe="administrer-createur">
     <nav data-role="createur" data-group="administrer-createur" style="display:none;">
       <a class="nav-item" data-role="createur" href="NEXUS-Admin-Sites-v1.html">
-        <div class="nav-icon">⚙️</div>
+        <div class="nav-icon" data-nexus-icone="mod-admin" data-nexus-taille="34" data-nexus-decoratif="1" data-nexus-ancien-emoji="⚙️"><img src="assets/icones/v2/mod-admin/mod-admin@1x.webp" srcset="assets/icones/v2/mod-admin/mod-admin@1x.webp 1x, assets/icones/v2/mod-admin/mod-admin@2x.webp 2x, assets/icones/v2/mod-admin/mod-admin@3x.webp 3x" width="34" height="34" alt="" aria-hidden="true"></div>
         <div class="nav-body">
           <div class="nav-title">Administration multi-site</div>
           <div class="nav-desc">Nom, logo et création de nouveaux sites</div>
@@ -2484,14 +2484,14 @@
     // Trois tuiles de repli, hors service (18/09/2026) : toutes trois en
     // catégorie `consultation` ou `sequence` dans nexus-auth.js, donc
     // réellement atteignables sans poste ouvert.
-    prisedeposte: { titre: 'Prendre mon poste', desc: 'Ouvrir mon service et choisir mon rôle', href: 'NEXUS-Prise-De-Poste-v1.html', icone: 'assets/icons/icon-prise-de-poste.png' },
+    prisedeposte: { titre: 'Prendre mon poste', desc: 'Ouvrir mon service et choisir mon rôle', href: 'NEXUS-Prise-De-Poste-v1.html', module: 'mod-prise-de-poste', icone: 'assets/icons/icon-prise-de-poste.png' },
     // Quatrième tuile de repli (18/09/2026, second lot) : en service, mais
     // arrivée non pointée. C'est CE geste qui débloque les quatre écrans
     // opérationnels, et `NEXUS-Pointage-v1.html` est en catégorie `sequence`
     // dans nexus-auth.js — il ne se garde pas lui-même, donc il s'ouvre.
-    pointage: { titre: 'Pointer mon arrivée', desc: 'Ouvrir mon quart et débloquer mes écrans', href: 'NEXUS-Pointage-v1.html', icone: 'assets/icons/icon-pointage.png' },
+    pointage: { titre: 'Pointer mon arrivée', desc: 'Ouvrir mon quart et débloquer mes écrans', href: 'NEXUS-Pointage-v1.html', module: 'mod-pointage', icone: 'assets/icons/icon-pointage.png' },
     planning: { titre: 'Mon planning', desc: 'Mes jours de travail et mes repos', href: 'NEXUS-Mon-Planning-v1.html', module: 'mod-planning', icone: 'assets/icons/icon-planner.png' },
-    evolution: { titre: 'Mon évolution', desc: 'Mes résultats et mon historique', href: 'NEXUS-Mon-Evolution-v1.html', icone: 'assets/icons/icon-evolution.png' },
+    evolution: { titre: 'Mon évolution', desc: 'Mes résultats et mon historique', href: 'NEXUS-Mon-Evolution-v1.html', module: 'mod-evolution', icone: 'assets/icons/icon-evolution.png' },
   };
   function choisirTuilesOutilsQuart(ctx) {
     // Hors service, les tuiles opérationnelles REBONDISSENT : Missions,

@@ -325,7 +325,7 @@
       donneesSources: "Ventes et marge du catalogue produits, écarts de caisse déjà détectés par Verify, priorités de comptage stock — rien n'est simulé.",
     },
     {
-      id: 'cin', groupe: 'piloter', icone: '💡', nom: "Centre d'Intelligence NEXUS", href: 'NEXUS-Centre-Intelligence-v1.html',
+      id: 'cin', module: 'mod-centre-intelligence', groupe: 'piloter', icone: '💡', nom: "Centre d'Intelligence NEXUS", href: 'NEXUS-Centre-Intelligence-v1.html',
       role: 'Manager', forfait: null, intentions: ['comprendre-activite'],
       aQuoiCaSert: "Comprenez pourquoi un résultat évolue, identifiez les causes probables et approfondissez les décisions à prendre.",
       quandUtiliser: "Quand une alerte ou un chiffre vous interpelle ailleurs (Brief, Cockpit, Scanner) et que vous voulez comprendre le « pourquoi » avant d'agir.",
@@ -371,7 +371,7 @@
       exempleConcret: "Le Scanner signale un écart de marge sur un produit. Vous ouvrez sa fiche Produits pour voir son historique de vente et vérifier son emplacement réel en rayon.",
     },
     {
-      id: 'rayon', groupe: 'performer', icone: '🗂️', nom: 'Rayon', href: 'NEXUS-Rayon-v1.html',
+      id: 'rayon', module: 'mod-rayon', groupe: 'performer', icone: '🗂️', nom: 'Rayon', href: 'NEXUS-Rayon-v1.html',
       role: 'Manager', forfait: null, intentions: ['augmenter-ventes', 'ameliorer-marge'],
       aQuoiCaSert: "Comprenez la performance d'une famille entière de produits (un rayon) — et si sa marge ou son évolution est normale compte tenu de son rôle.",
       quandUtiliser: "Pour juger si un rayon doit être poussé, surveillé, ou simplement laissé tel quel — notamment les rayons « de trafic » (cartes prépayées, presse) jugés différemment, car leur rôle n'est pas la marge.",
@@ -437,7 +437,7 @@
       donneesSources: "Quarts, comptages et rapprochements caisse enregistrés par FDJ — chaque correction manager reste tracée dans le journal d'audit, jamais un écrasement invisible.",
     },
     {
-      id: 'tracabilite', groupe: 'executer', icone: '🏷️', nom: 'Traçabilité', href: 'NEXUS-Tracabilite-v1.html',
+      id: 'tracabilite', module: 'mod-tracabilite', groupe: 'executer', icone: '🏷️', nom: 'Traçabilité', href: 'NEXUS-Tracabilite-v1.html',
       role: 'Manager', forfait: 'professional', intentions: ['maitriser-stocks'],
       aQuoiCaSert: "Suivez le cycle de vie complet des produits à durée de vie limitée (presse, SDD) — réception, suivi, retour fournisseur.",
       quandUtiliser: "Seulement si vous vendez ce type de produit et qu'il est configuré en « Durée de vie glissante » ou « Presse » — sinon, vous n'avez normalement jamais besoin d'y aller.",
@@ -537,7 +537,7 @@
 
     // ---- ESPACE EMPLOYÉ ----
     {
-      id: 'pointage', groupe: 'employe', icone: '⏱️', nom: 'Pointage', href: 'NEXUS-Pointage-v1.html',
+      id: 'pointage', module: 'mod-pointage', groupe: 'employe', icone: '⏱️', nom: 'Pointage', href: 'NEXUS-Pointage-v1.html',
       role: 'Tous', forfait: null, intentions: [],
       aQuoiCaSert: "Enregistrez votre arrivée, votre pause et votre départ.",
       quandUtiliser: "À chaque prise et fin de poste — un seul pointage par type et par jour.",
@@ -558,7 +558,7 @@
       donneesSources: "Vos missions et pointages, analysés par le Coach NEXUS — jamais un simple chiffre nu.",
     },
     {
-      id: 'apprentissage', groupe: 'employe', icone: '🧠', nom: 'Ce que NEXUS a appris sur moi', href: 'NEXUS-Apprentissage-v1.html',
+      id: 'apprentissage', module: 'mod-apprentissage', groupe: 'employe', icone: '🧠', nom: 'Ce que NEXUS a appris sur moi', href: 'NEXUS-Apprentissage-v1.html',
       role: 'Tous', forfait: null, intentions: [],
       aQuoiCaSert: "L'écran le plus personnel de NEXUS : la synthèse de ce que le Coach a observé de réel sur vous.",
       quandUtiliser: "Pour vous situer dans votre progression personnelle — qualités, habitudes, prochain objectif.",

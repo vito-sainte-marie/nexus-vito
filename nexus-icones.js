@@ -1,11 +1,12 @@
 // ------------------------------------------------------------
 // NEXUS — registre unique des icônes de modules v2 (07/11/2026, kit « nexus-icones-modules-v1.1 »)
 // ------------------------------------------------------------
-// Source de vérité des 32 icônes de modules (lot 1 : Verify, Inventaire, Contrôle inventaire, FDJ, Missions,
+// Source de vérité des 42 icônes de modules (lot 1 : Verify, Inventaire, Contrôle inventaire, FDJ, Missions,
 // Planning, Paye, Carburants ; lot 2, kit « nexus-icones-modules-lot2-v1.1 » : Carburants Performance, Capital,
 // Brief, Réception carburant, Assignations, FDJ Performance, Comptes Clients, Résultats, Journal, Progression,
 // Paramètres, Produits ; lot 3, kit « nexus-icones-modules-lot3-v1.1 » : Accueil, Cockpit, Rapport, Scanner,
-// Radar, Tempo, Campagnes, Scanner stock, Évaluations, Boîte de réception, Imports, Rappels). Chaque surface (barre d'accueil, menu bureau, raccourcis, Documentation,
+// Radar, Tempo, Campagnes, Scanner stock, Évaluations, Boîte de réception, Imports, Rappels ; lot 4, kit « nexus-icones-modules-lot4-v1.1 » : Administration, Aide, Apprentissage,
+// Centre d'intelligence, Coach FDJ, Évolution, Pointage, Prise de poste, Rayon, Traçabilité). Chaque surface (barre d'accueil, menu bureau, raccourcis, Documentation,
 // tuiles employé) passe par ici ; aucune ne connaît les chemins du kit.
 //
 // Pour chaque identifiant : version détaillée (WebP @1x/@2x/@3x, via srcset), version simplifiée
@@ -56,6 +57,16 @@
     'mod-boite-reception':     { libelle: 'Boîte de réception' },
     'mod-imports':             { libelle: 'Imports' },
     'mod-rappels':             { libelle: 'Rappels' },
+    'mod-admin':               { libelle: 'Administration' },
+    'mod-aide':                { libelle: 'Aide' },
+    'mod-apprentissage':       { libelle: 'Apprentissage' },
+    'mod-centre-intelligence': { libelle: "Centre d'intelligence" },
+    'mod-coach-fdj':           { libelle: 'Coach FDJ' },
+    'mod-evolution':           { libelle: 'Évolution' },
+    'mod-pointage':            { libelle: 'Pointage' },
+    'mod-prise-de-poste':      { libelle: 'Prise de poste' },
+    'mod-rayon':               { libelle: 'Rayon' },
+    'mod-tracabilite':         { libelle: 'Traçabilité' },
   };
 
   function esc(s) {
