@@ -83,4 +83,24 @@ garde('grands écrans : titre 15 px', css, c => /@media \(min-width:1600px\)\{[^
 garde('mouvement réduit : transition coupée', css, c => /prefers-reduced-motion:reduce\)\{[^@]*transition:none/.test(c), 'transition:none;}\n  }', 'transition:all;}\n  }');
 garde('transition de 150 ms', css, c => /\.nexus-sidebar-link\{[^}]*font-size 150ms ease/.test(c), 'font-size 150ms ease', 'font-size 0ms ease');
 
+// ---- Vignettes de l'avatar (Guardian 6715143323) : l'en-tête du menu ne charge plus le PNG de 1,67 Mo ----
+const APPH = lire('NEXUS-App-v1.html');
+t('vignettes d\'avatar 64/96/128 px présentes, carrées et légères', () => {
+  [64, 96, 128].forEach(px => {
+    const p = path.join(__dirname, 'assets/avatar/nexus-avatar-' + px + '.png');
+    assert.ok(fs.existsSync(p), px);
+    const b = fs.readFileSync(p);
+    assert.strictEqual(b.readUInt32BE(16), px); assert.strictEqual(b.readUInt32BE(20), px);
+    assert.ok(b.length <= 40 * 1024, px + ' px : ' + b.length + ' octets');
+  });
+});
+t('l\'en-tête du menu bureau et les deux avatars de l\'accueil utilisent les vignettes, plus le PNG pleine définition', () => {
+  assert.ok(/<a class="nexus-sidebar-brand"[^>]*>\s*<img src="assets\/avatar\/nexus-avatar-64\.png" srcset="[^"]*128w" sizes="30px"/.test(DESK));
+  assert.ok(!/nexus-sidebar-brand[^>]*>\s*<img src="nexus-avatar\.png"/.test(DESK));
+  assert.strictEqual((APPH.match(/class="conseiller-avatar" src="assets\/avatar\/nexus-avatar-96\.png" srcset=/g) || []).length, 2);
+  assert.ok(!/class="conseiller-avatar" src="assets\/nexus-avatar\.png"/.test(APPH));
+});
+garde('l\'en-tête du menu : vignette en srcset', DESK, c => /<img src="assets\/avatar\/nexus-avatar-64\.png" srcset="[^"]*128w"/.test(c), 'src="assets/avatar/nexus-avatar-64.png" srcset=', 'src="nexus-avatar.png" data-x=');
+garde('l\'accueil : avatars du conseiller en vignette', APPH, c => (c.match(/class="conseiller-avatar" src="assets\/avatar\/nexus-avatar-96\.png" srcset=/g) || []).length === 2, 'class="conseiller-avatar" src="assets/avatar/nexus-avatar-96.png" srcset=', 'class="conseiller-avatar" src="assets/nexus-avatar.png" data-x=');
+
 console.log(n + ' épreuves OK');

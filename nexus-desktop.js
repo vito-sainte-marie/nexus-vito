@@ -216,7 +216,7 @@ function nexusConstruireSidebarHTML() {
 
   return `
     <a class="nexus-sidebar-brand" href="NEXUS-App-v1.html" title="Retour à l'accueil NEXUS">
-      <img src="nexus-avatar.png" alt="NEXUS">
+      <img src="assets/avatar/nexus-avatar-64.png" srcset="assets/avatar/nexus-avatar-64.png 64w, assets/avatar/nexus-avatar-96.png 96w, assets/avatar/nexus-avatar-128.png 128w" sizes="30px" width="30" height="30" alt="NEXUS">
       <span>NEXUS</span>
     </a>
     <div class="nexus-sidebar-scroll">
