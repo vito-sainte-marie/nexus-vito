@@ -230,7 +230,7 @@ function nexusConstruireSidebarHTML() {
     <div class="nexus-sidebar-scroll">
       <a class="nexus-sidebar-link${pageActuelle === 'NEXUS-App-v1.html' ? ' active' : ''}" href="NEXUS-App-v1.html" style="margin-bottom:8px;">
         ${window.NexusIcones ? window.NexusIcones.img('mod-accueil', 16, { decoratif: true, ancien: '<img src="assets/icons/icon-home.png" alt="">' }) : '<img src="assets/icons/icon-home.png" alt="">'}
-        <span>Accueil</span>
+        <span class="nexus-sidebar-titre">Accueil</span>
       </a>
       ${groupesHTML}
     </div>
