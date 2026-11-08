@@ -6,7 +6,7 @@
 // Brief, Réception carburant, Assignations, FDJ Performance, Comptes Clients, Résultats, Journal, Progression,
 // Paramètres, Produits ; lot 3, kit « nexus-icones-modules-lot3-v1.1 » : Accueil, Cockpit, Rapport, Scanner,
 // Radar, Tempo, Campagnes, Scanner stock, Évaluations, Boîte de réception, Imports, Rappels ; lot 4, kit « nexus-icones-modules-lot4-v1.1 » : Administration, Aide, Apprentissage,
-// Centre d'intelligence, Coach FDJ, Évolution, Pointage, Prise de poste, Rayon, Traçabilité). Chaque surface (barre d'accueil, menu bureau, raccourcis, Documentation,
+// Centre d'intelligence, Coach FDJ, Évolution, Pointage, Prise de poste, Rayon, Traçabilité ; familles Catégories (11, kit « nexus-icones-categories-v1.1 ») et Rôles (5, kit « nexus-icones-roles-v1.0 »), 08/11/2026). Chaque surface (barre d'accueil, menu bureau, raccourcis, Documentation,
 // tuiles employé) passe par ici ; aucune ne connaît les chemins du kit.
 //
 // Pour chaque identifiant : version détaillée (WebP @1x/@2x/@3x, via srcset), version simplifiée
@@ -142,10 +142,143 @@
     return n;
   }
 
+  // ---- Familles « catégories » (11) et « rôles » (5), 08/11/2026 -------------------------------------
+  // Même registre, deux familles de plus, chacune avec son interrupteur. Une variante Jour (tuile vitrée
+  // glacier) existe pour chaque icône ; elle est choisie d'après html[data-theme] et suit le changement
+  // de thème (observateur plus bas). Jusqu'à 24 px : SVG simplifié (-24 / -24-jour), au-delà : WebP @1x/@2x/@3x.
+  const ICONES_CATEGORIES_V2 = true;
+  const ICONES_ROLES_V2 = true;
+
+  const CATEGORIES = {
+    'cat-gaz':             { libelle: 'Gaz' },
+    'cat-glacons':         { libelle: 'Glaçons' },
+    'cat-huiles':          { libelle: 'Huiles' },
+    'cat-boissons':        { libelle: 'Boissons' },
+    'cat-lave-glace':      { libelle: 'Lave-glace et liquide de refroidissement' },
+    'cat-viennoiserie':    { libelle: 'Viennoiserie' },
+    'cat-pains':           { libelle: 'Pains et sandwichs' },
+    'cat-journaux':        { libelle: 'Journaux' },
+    'cat-cbd':             { libelle: 'CBD' },
+    'cat-cigarettes':      { libelle: 'Cigarettes' },
+    'cat-petits-articles': { libelle: 'Petits articles caisse' },
+  };
+
+  const ROLES = {
+    'role-caissiere': { libelle: 'Caissière' },
+    'role-pompiste':  { libelle: 'Pompiste' },
+    'role-renfort':   { libelle: 'Renfort' },
+    'role-manager':   { libelle: 'Manager' },
+    'role-gerant':    { libelle: 'Gérant' },
+  };
+
+  const FAMILLES = {
+    cat:  { registre: CATEGORIES, actif: () => ICONES_CATEGORIES_V2 },
+    role: { registre: ROLES,      actif: () => ICONES_ROLES_V2 },
+  };
+
+  function normaliser(s) {
+    return String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+  }
+
+  // Nom de catégorie (inventaire_categories.nom) → identifiant, sans accents ni casse. Ordre significatif :
+  // « Lave-glace » passe avant « glaçons ». Nom inconnu → null (la surface garde son pictogramme).
+  function idCategorie(nom) {
+    const n = normaliser(nom);
+    if (!n) return null;
+    if (/\blave[- ]?glace\b|refroidissement/.test(n)) return 'cat-lave-glace';
+    if (/glacon/.test(n)) return 'cat-glacons';
+    if (/\bgaz\b/.test(n)) return 'cat-gaz';
+    if (/huile/.test(n)) return 'cat-huiles';
+    if (/biere|boisson/.test(n)) return 'cat-boissons';
+    if (/viennois/.test(n)) return 'cat-viennoiserie';
+    if (/\bpains?\b|sandwich/.test(n)) return 'cat-pains';
+    if (/journa/.test(n)) return 'cat-journaux';
+    if (/\bcbd\b/.test(n)) return 'cat-cbd';
+    if (/cigarette/.test(n)) return 'cat-cigarettes';
+    if (/petits? articles?/.test(n)) return 'cat-petits-articles';
+    return null;
+  }
+
+  // Code de rôle ou de poste (shifts.role, employees.role) → identifiant. « caissier » (masculin écrit par la
+  // base) vaut « caissiere ». polyvalent, vacataire, etc. : null, la surface garde son rendu.
+  const CODES_ROLE = { pompiste: 'role-pompiste', caissiere: 'role-caissiere', caissier: 'role-caissiere',
+    renfort: 'role-renfort', manager: 'role-manager', gerant: 'role-gerant' };
+  function idRole(code) {
+    const c = normaliser(code);
+    return Object.prototype.hasOwnProperty.call(CODES_ROLE, c) ? CODES_ROLE[c] : null;
+  }
+
+  function themeJour() {
+    return typeof document !== 'undefined' && document.documentElement
+      && document.documentElement.getAttribute('data-theme') === 'jour';
+  }
+
+  function cheminsFamille(id, jour) {
+    const d = BASE + id + '/' + id + (jour ? '-jour' : '');
+    return {
+      detail1x: d + '@1x.webp', detail2x: d + '@2x.webp', detail3x: d + '@3x.webp',
+      simplifie: BASE + id + '/' + id + '-24' + (jour ? '-jour' : '') + '.svg',
+      srcset: d + '@1x.webp 1x, ' + d + '@2x.webp 2x, ' + d + '@3x.webp 3x',
+    };
+  }
+
+  function attributsFamille(fam, id, taille, opts) {
+    const reg = FAMILLES[fam].registre;
+    if (!Object.prototype.hasOwnProperty.call(reg, id)) return null;
+    const o = opts || {};
+    const t = Number(taille) > 0 ? Number(taille) : SEUIL_SIMPLIFIE;
+    const jour = typeof o.jour === 'boolean' ? o.jour : themeJour();
+    const c = cheminsFamille(id, jour);
+    const a = SEUIL_SIMPLIFIE >= t ? { src: c.simplifie } : { src: c.detail1x, srcset: c.srcset };
+    a.width = t; a.height = t;
+    a.alt = o.decoratif ? '' : reg[id].libelle;
+    if (o.decoratif) a['aria-hidden'] = 'true';
+    a['data-nexus-icone-fam'] = fam;
+    a['data-nexus-icone-id'] = id;
+    a['data-nexus-taille'] = String(t);
+    return a;
+  }
+
+  function imgFamille(fam, id, taille, opts) {
+    const o = opts || {};
+    const a = FAMILLES[fam].actif() ? attributsFamille(fam, id, taille, o) : null;
+    if (!a) return o.ancien || '';
+    return '<img ' + Object.keys(a).map(k => k + '="' + esc(a[k]) + '"').join(' ') + '>';
+  }
+
+  const attributsCategorie = (id, taille, opts) => attributsFamille('cat', id, taille, opts);
+  const attributsRole = (id, taille, opts) => attributsFamille('role', id, taille, opts);
+  const imgCategorie = (id, taille, opts) => imgFamille('cat', id, taille, opts);
+  const imgRole = (id, taille, opts) => imgFamille('role', id, taille, opts);
+
+  // Changement de thème : nexus-theme.js ne diffuse aucun événement, il pose html[data-theme]. On observe cet
+  // attribut et on réécrit src / srcset des icônes de catégorie et de rôle déjà dans la page.
+  function rafraichirTheme(racine) {
+    const doc = racine || (typeof document !== 'undefined' ? document : null);
+    if (!doc || !doc.querySelectorAll) return 0;
+    let n = 0;
+    doc.querySelectorAll('img[data-nexus-icone-fam]').forEach(el => {
+      const fam = el.getAttribute('data-nexus-icone-fam');
+      if (!FAMILLES[fam]) return;
+      const a = attributsFamille(fam, el.getAttribute('data-nexus-icone-id'), el.getAttribute('data-nexus-taille'),
+        { decoratif: el.getAttribute('aria-hidden') === 'true' });
+      if (!a) return;
+      el.setAttribute('src', a.src);
+      if (a.srcset) el.setAttribute('srcset', a.srcset); else el.removeAttribute('srcset');
+      n++;
+    });
+    return n;
+  }
+  if (typeof document !== 'undefined' && typeof MutationObserver !== 'undefined' && document.documentElement) {
+    new MutationObserver(() => rafraichirTheme()).observe(document.documentElement,
+      { attributes: true, attributeFilter: ['data-theme'] });
+  }
+
   if (typeof document !== 'undefined') {
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => appliquer());
     else appliquer();
   }
 
-  global.NexusIcones = { ICONES_V2, MODULES, SEUIL_SIMPLIFIE, chemins, attributs, img, appliquer };
+  global.NexusIcones = { ICONES_V2, ICONES_CATEGORIES_V2, ICONES_ROLES_V2, MODULES, CATEGORIES, ROLES, SEUIL_SIMPLIFIE,
+    chemins, attributs, img, appliquer, idCategorie, idRole, attributsCategorie, attributsRole, imgCategorie, imgRole, rafraichirTheme };
 })(typeof window !== 'undefined' ? window : globalThis);

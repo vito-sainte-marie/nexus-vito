@@ -43,6 +43,13 @@
   let posteFrequent = null;
   let catalogue = [];
 
+  // Famille Rôles v2 (Guardian 6722548885), surfaces compactes seulement (récapitulatif, confirmation) : les grandes
+  // cartes de choix gardent leurs illustrations de poste. Rôle inconnu ou ICONES_ROLES_V2 = false → aucune icône.
+  function iconeRole(code, taille) {
+    if (!global.NexusIcones || !global.NexusIcones.idRole) return '';
+    const id = global.NexusIcones.idRole(code);
+    return id ? global.NexusIcones.imgRole(id, taille || 24, { decoratif: true, ancien: '' }).replace('<img ', '<img class="nexus-role-pict" ') + ' ' : '';
+  }
   function roleInfo(value) {
     return ROLES.find(r => r.value === value) || { value, label: value, icon: '❔' };
   }
@@ -197,6 +204,7 @@
 .pdp-erreur{padding:12px 0;line-height:1.55;font-size:14px;}
 .pdp-resume{background:var(--panel);border:1px solid var(--hairline);border-radius:14px;padding:14px 16px;}
 .pdp-resume-role{font-size:17px;font-weight:600;}
+.nexus-role-pict{vertical-align:middle;margin-right:4px;object-fit:contain;}
 .pdp-resume-quart{font-size:12.5px;color:var(--text-mid);margin-top:2px;}
 .pdp-ligne{display:flex;justify-content:space-between;font-size:13.5px;color:var(--text-mid);margin-top:10px;}
 .pdp-ligne b{color:var(--text);font-weight:600;}
@@ -364,7 +372,7 @@ body.nexus-desktop .pdp-corps{flex:0 0 auto;align-self:stretch;padding:14px 16px
       <div class="pdp" id="pdpConfirmation">
         <h2 class="pdp-titre">Un quart est déjà ouvert</h2>
         <p class="pdp-sous">Confirmez avant de changer de quart.</p>
-        <div class="pdp-securite" id="avertissementChangement">⚠️ <b>Votre quart en cours (${ancien.label}) sera clôturé définitivement.</b> Vous ne pourrez pas le rouvrir depuis votre espace. Votre nouvelle prise de poste (${nouveau.label}) sera enregistrée dans la même opération ; si elle échoue, votre quart en cours reste ouvert. Vos missions et justificatifs du jour sont conservés.</div>
+        <div class="pdp-securite" id="avertissementChangement">⚠️ <b>Votre quart en cours (${iconeRole(ancien.value, 20)}${ancien.label}) sera clôturé définitivement.</b> Vous ne pourrez pas le rouvrir depuis votre espace. Votre nouvelle prise de poste (${iconeRole(nouveau.value, 20)}${nouveau.label}) sera enregistrée dans la même opération ; si elle échoue, votre quart en cours reste ouvert. Vos missions et justificatifs du jour sont conservés.</div>
         <label class="pdp-sous" for="motifChangement">Motif (facultatif)</label>
         <select id="motifChangement" style="width:100%;margin:6px 0 10px;padding:10px;">
           <option value="">Aucun motif</option>
@@ -526,7 +534,7 @@ body.nexus-desktop .pdp-corps{flex:0 0 auto;align-self:stretch;padding:14px 16px
     const tempsTotal = missions.reduce((s, m) => s + (m.estimated_duration_min || 0), 0);
     hote.innerHTML = `
       <div class="pdp pdp-resume" id="pdpResume">
-        <div class="pdp-resume-role">${info.label}</div>
+        <div class="pdp-resume-role">${iconeRole(info.value, 24)}${info.label}</div>
         ${quartLibelle ? `<div class="pdp-resume-quart">${quartLibelle}</div>` : ''}
         <div class="pdp-ligne"><span>Missions prévues</span><b>${missions.length}</b></div>
         <div class="pdp-ligne"><span>Priorités (critique/haute)</span><b>${prioritaires}</b></div>

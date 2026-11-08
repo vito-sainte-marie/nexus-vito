@@ -785,6 +785,7 @@
   .ap-poste{position:relative;display:flex;height:104px;flex-shrink:0;border:1px solid var(--hairline);background:var(--panel);border-radius:16px;overflow:hidden;margin-bottom:12px;}
   .ap-poste-texte{position:relative;z-index:1;padding:16px;display:flex;flex-direction:column;justify-content:center;gap:2px;}
   .ap-poste-nom{font-size:18px;font-weight:700;color:var(--ap-text);}
+  .nexus-role-pict{vertical-align:middle;margin-right:4px;object-fit:contain}
   .ap-poste-sous{font-size:13px;color:var(--ap-mid);}
   .ap-poste-image{position:absolute;top:0;right:0;bottom:0;width:62%;background-size:cover;background-position:center;}
   .ap-poste::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,var(--panel) 38%,rgba(var(--panel-rgb),.85) 55%,rgba(var(--panel-rgb),0) 100%);}
@@ -1590,7 +1591,7 @@
 <script src="nexus-station.js?v=20260904-0104"></script>
 <script src="nexus-auth.js?v=20260904-0104"></script>
 <script src="nexus-pointage-regles.js?v=20260904-0104"></script>
-<script src="nexus-icones.js?v=20260904-0104"></script>
+<script src="nexus-icones.js?v=20261108-0001"></script>
 <script src="nexus-desktop.js?v=20260904-0104"></script>
 <script src="nexus-fil-debut-quart.js?v=20261021-0001"></script>
 <script src="nexus-fil-fin-quart.js?v=20261031-0001"></script>
@@ -2318,6 +2319,12 @@
     // Rôle du jour absent/inconnu (ex. consultation externe sans shift) :
     // ne jamais masquer par prudence plutôt qu'inventer un refus (Article 5).
     return true;
+  }
+  function iconeRole(code, taille) {
+    // Famille Rôles v2 (Guardian 6722548885), surfaces compactes seulement. Rôle inconnu ou ICONES_ROLES_V2 = false → rien.
+    if (!window.NexusIcones || !NexusIcones.idRole) return '';
+    const id = NexusIcones.idRole(code);
+    return id ? NexusIcones.imgRole(id, taille || 20, { decoratif: true, ancien: '' }).replace('<img ', '<img class="nexus-role-pict" ') + ' ' : '';
   }
   const LIBELLE_ROLE_JOUR = { pompiste: 'Pompiste', caissiere: 'Caissière', renfort: 'Renfort', manager: 'Manager', polyvalent: 'Polyvalent' };
 
@@ -3534,7 +3541,7 @@
         const lib = serviceCourant.role ? (LIBELLE_ROLE_JOUR[serviceCourant.role] || serviceCourant.role) : null;
         hote.innerHTML = entete + '<div class="ap-poste am-poste chemins-rappel"><div class="ap-poste-texte">'
           + '<div class="ap-poste-nom"><span class="chemins-point" aria-hidden="true"></span>Service en cours'
-          + (lib ? ' — ' + lib : '')
+          + (lib ? ' — ' + (typeof iconeRole === 'function' ? iconeRole(serviceCourant.role, 20) : '') + lib : '')
           + (serviceCourant.quart ? ' · ' + serviceCourant.quart : '') + '</div>'
           + '<a class="chemins-rappel-lien am-poste-lien" href="NEXUS-Prise-De-Poste-v1.html">'
           + 'Changer de rôle / refaire ma prise de poste</a></div>'
@@ -3555,7 +3562,7 @@
     if (serviceCourant) {
       const lib = serviceCourant.role ? (LIBELLE_ROLE_JOUR[serviceCourant.role] || serviceCourant.role) : null;
       hote.innerHTML = '<div class="chemins-rappel"><span class="chemins-point" aria-hidden="true"></span>Service en cours'
-        + (lib ? ' — ' + lib : '')
+        + (lib ? ' — ' + (typeof iconeRole === 'function' ? iconeRole(serviceCourant.role, 20) : '') + lib : '')
         + (serviceCourant.quart ? ' · ' + serviceCourant.quart : '')
         + '<div id="prisePosteRecap"></div>'
         + '<a class="chemins-rappel-lien" href="NEXUS-Prise-De-Poste-v1.html">'
