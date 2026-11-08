@@ -601,16 +601,18 @@
   .ecart-caveat:focus-visible,.carb-info-btn:focus-visible{outline:2px solid var(--cyan); outline-offset:2px;}
   .carb-info-btn{min-height:44px; min-width:44px;}
   .lecture-nexus-colonnes{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:8px;}
-  @media (max-width:820px){.lecture-nexus-colonnes{grid-template-columns:1fr;}}
+  .lecture-nexus-card{container-type:inline-size;}
+  @container (max-width:699px){.lecture-nexus-colonnes{grid-template-columns:1fr;}}
   .lecture-nexus-col{border:1px solid var(--hairline); border-radius:12px; padding:10px 12px; background:var(--panel-raised);}
   .lecture-nexus-col-titre{font-family:var(--mono); font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--text-dim); margin-bottom:6px;}
   .lecture-nexus-rien{font-size:11px; color:var(--text-dim);}
   .commande-actions{display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin:8px 20px 0;}
   .commande-actions .pointzero-toggle-wrap{margin:0; padding:0;}
   .grille-analyse{display:grid; grid-template-columns:1fr 1fr; gap:0 12px; align-items:start;}
-  @media (max-width:820px){.grille-analyse{grid-template-columns:1fr;}}
+  .analyse-conteneur{container-type:inline-size;}
+  @container (max-width:699px){.grille-analyse{grid-template-columns:1fr;}}
   .grille-analyse .accordion-card{margin-left:20px; margin-right:20px;}
-  @media (min-width:821px){.grille-analyse .accordion-card{margin-left:20px; margin-right:8px;}}
+  @container (min-width:700px){.grille-analyse .accordion-card{margin-left:20px; margin-right:8px;}}
   .periode-btn{min-height:44px;}
   /* ===== Refonte visuelle, 2e passe (Guardian 6724782750 / 6724791056) : presentation seulement ===== */
   .hero{container-type:inline-size;}
@@ -699,29 +701,16 @@
     .carb-carte2:hover{transform:none;}
   }
   /* Barre haute (Guardian 6726565151) : retour au menu + choix Sombre / Jour / Auto, comme la Paye et l'Accueil. */
-  .haut-page{display:flex; justify-content:flex-end; align-items:flex-start; gap:8px; padding:8px 20px 0; position:relative; z-index:5;}
-  .haut-page .menu{display:inline-flex; align-items:center; min-height:44px; padding:0 12px; font:600 12px var(--mono); color:var(--text-mid); text-decoration:none; border:1px solid var(--hairline); border-radius:12px; background:var(--panel); cursor:pointer;}
-  .haut-page .menu:focus-visible{outline:2px solid var(--cyan); outline-offset:2px;}
-  .haut-affichage{position:relative;}
-  .affichage-panneau{position:absolute; right:0; top:48px; width:260px; max-width:calc(100vw - 40px); background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:4px 0 6px; box-shadow:0 8px 24px rgba(var(--shadow-rgb,0,0,0),0.35);}
-  .affichage-panneau[hidden]{display:none;}
-  .affichage-panneau .mm-titre{font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--text-dim); padding:8px 12px 4px;}
-  .affichage-panneau .mm-theme{display:flex; gap:6px; padding:4px 12px 8px;}
-  .affichage-panneau .mm-theme-btn{flex:1; min-height:44px; border-radius:8px; border:1px solid var(--hairline); background:none; color:var(--text); font:inherit; font-size:14px; cursor:pointer;}
-  .affichage-panneau .mm-theme-btn.mm-theme-actif{border-color:var(--cyan); color:var(--cyan);}
-  @media (min-width:821px){.haut-page{padding:8px 40px 0;}}
+  /* « ☰ Menu » (Frédéric, 08/11) : sur l'illustration de l'en-tête, en haut à droite, pastille sombre translucide lisible sur la photo ; sans illustration, dans le cadre. */
+  .hero>.menu-pastille{position:absolute; top:10px; right:12px; z-index:3; display:inline-flex; align-items:center; min-height:44px; padding:0 14px; font:600 12px var(--mono); color:#fff; text-decoration:none; background:rgba(11,19,28,.62); -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px); border:1px solid rgba(255,255,255,.28); border-radius:12px; cursor:pointer;}
+  .hero>.menu-pastille:focus-visible{outline:2px solid #fff; outline-offset:2px;}
+  .hero .fil{padding-right:116px;}
 </style>
 </head>
 <body>
 <div class="phone">
-  <div class="haut-page">
-    <div class="haut-affichage">
-      <button type="button" class="menu" id="btnAffichage" aria-expanded="false" aria-controls="panneauAffichage">Affichage</button>
-      <div class="affichage-panneau" id="panneauAffichage" hidden></div>
-    </div>
-    <a class="menu" href="NEXUS-App-v1.html">☰ Menu</a>
-  </div>
   <header class="hero" id="heroCarburants">
+    <a class="menu-pastille" href="NEXUS-App-v1.html">☰ Menu</a>
     <div class="hero-haut">
       <div>
         <div class="fil"><a href="NEXUS-App-v1.html" class="menu-btn-fil">NEXUS</a> / Carburants</div>
@@ -860,6 +849,7 @@
        Santé du stock (rapprochement/écarts/autonomie) séparée de Dynamique
        commerciale (ventes/répartition/moteur), sans reflow fonctionnel —
        simple regroupement visuel des accordéons existants. -->
+  <div class="analyse-conteneur">
   <div class="grille-analyse">
 
   <!-- 4) Stock & autonomie -->
@@ -960,6 +950,7 @@
     </div>
   </div>
 
+  </div>
   </div>
   </section>
 
@@ -4921,16 +4912,6 @@
         const txt = new Date(y, m - 1, d).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
         pD.textContent = txt.charAt(0).toUpperCase() + txt.slice(1);
       }
-      // Choix Sombre / Jour / Auto : composant existant de nexus-theme.js, rien de recodé ici.
-      const bA = document.getElementById('btnAffichage'), pA = document.getElementById('panneauAffichage');
-      if (bA && pA && typeof NexusTheme !== 'undefined') {
-        pA.innerHTML = NexusTheme.menuHtml();
-        NexusTheme.brancherMenu(pA);
-        const basculerAff = (ouvert) => { pA.hidden = !ouvert; bA.setAttribute('aria-expanded', String(ouvert)); };
-        bA.addEventListener('click', (e) => { e.stopPropagation(); basculerAff(pA.hidden); });
-        document.addEventListener('click', (e) => { if (!pA.contains(e.target) && e.target !== bA) basculerAff(false); });
-        document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !pA.hidden) { basculerAff(false); bA.focus(); } });
-      } else if (bA) { bA.hidden = true; }
       const bI = document.getElementById('btnInfoPage'), pI = document.getElementById('infoPage');
       if (bI && pI) bI.addEventListener('click', () => { pI.hidden = !pI.hidden; bI.setAttribute('aria-expanded', String(!pI.hidden)); });
       try {
