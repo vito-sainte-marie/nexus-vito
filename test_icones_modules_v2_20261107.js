@@ -113,8 +113,8 @@ t('menu bureau : Verify, Carburants, Inventaire, Contrôle inventaire, FDJ, Miss
    ['FDJ', 'mod-fdj'], ['Missions', 'mod-missions'], ['Planning', 'mod-planning'], ['Paye', 'mod-paye']].forEach(([l, id]) =>
     assert.ok(DESK.includes("label: '" + l + "', module: '" + id + "'"), l));
 });
-t('menu bureau : FDJ Opérations/Performance, Carburants Performance, Réception carburant ne changent pas', () => {
-  ['FDJ Opérations', 'Performance carburants'].forEach(l => {
+t('menu bureau : Performance carburants ne change pas (FDJ Opérations est câblé par le lot FDJ Opérations)', () => {
+  ['Performance carburants'].forEach(l => {
     const m = DESK.match(new RegExp("label: '" + l + "'[^\\n]*")); if (m) assert.ok(!/module:/.test(m[0]), l);
   });
 });

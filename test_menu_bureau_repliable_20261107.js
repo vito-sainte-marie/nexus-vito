@@ -1,4 +1,4 @@
-// Menu bureau repliable « le rideau de verre et le filament » (Guardian 6715363735, 07/11/2026) : trois états (ouvert, rail, caché),
+// Menu bureau repliable « le rideau de verre et le filament » (Guardian 6715363735, 07/11/2026) : trois états (ouvert, rail, caché), un contrôle = un effet (Guardian 6715691902),
 // mémorisés sans casser si localStorage manque, raccourci ⌘/Ctrl+\ ignoré dans un champ, ARIA, mouvement réduit, écran tactile.
 const assert = require('assert');
 const fs = require('fs');
@@ -24,11 +24,22 @@ const CONST = "const NEXUS_MENU_ETATS = ['ouvert', 'rail', 'cache'];\nconst NEXU
 const fonctions = (src, noms, ctx = '') => new Function(ctx, CONST + noms.map(x => corps(src, 'function ' + x)).join('\n') + '; return {' + noms.join(',') + '};')(ctx);
 const F = fonctions(DESK, ['nexusEtatMenuSuivant', 'nexusLireEtatMenu', 'nexusEcrireEtatMenu', 'nexusRaccourciMenuValide']);
 
-t('machine à états : ouvert → rail → caché → ouvert', () => {
-  assert.strictEqual(F.nexusEtatMenuSuivant('ouvert'), 'rail');
-  assert.strictEqual(F.nexusEtatMenuSuivant('rail'), 'cache');
-  assert.strictEqual(F.nexusEtatMenuSuivant('cache'), 'ouvert');
-  assert.strictEqual(F.nexusEtatMenuSuivant('inconnu'), 'ouvert', 'état inconnu : retombe sur ouvert');
+t('un contrôle, une transition : pli ouvert→rail et rail→ouvert, masquer→caché, afficher→ouvert', () => {
+  const g = F.nexusEtatMenuSuivant;
+  assert.strictEqual(g('ouvert', 'pli'), 'rail', 'ouvert → rail');
+  assert.strictEqual(g('rail', 'pli'), 'ouvert', 'rail → ouvert (le « ›› » ouvre, il ne masque pas)');
+  assert.strictEqual(g('rail', 'masquer'), 'cache', 'rail → caché');
+  assert.strictEqual(g('cache', 'afficher'), 'ouvert', 'caché → ouvert directement, pas rail');
+  assert.strictEqual(g('inconnu', 'pli'), 'rail', 'état inconnu : traité comme ouvert');
+  assert.strictEqual(g('rail', 'inconnue'), 'rail', 'action inconnue : ne bouge pas');
+});
+t('clavier : ⌘/Ctrl+\\ bascule ouvert ↔ rail, ⌘/Ctrl+Maj+\\ bascule caché ↔ ouvert, pas de cycle à trois temps', () => {
+  const g = F.nexusEtatMenuSuivant;
+  assert.strictEqual(g('ouvert', 'raccourci'), 'rail'); assert.strictEqual(g('rail', 'raccourci'), 'ouvert');
+  assert.strictEqual(g('cache', 'raccourci'), 'ouvert', 'depuis caché, le raccourci simple ouvre');
+  assert.strictEqual(g('cache', 'raccourci-maj'), 'ouvert'); assert.strictEqual(g('ouvert', 'raccourci-maj'), 'cache');
+  assert.strictEqual(g('rail', 'raccourci-maj'), 'cache');
+  let e = 'ouvert'; for (let k = 0; k < 6; k++) { e = g(e, 'raccourci'); assert.notStrictEqual(e, 'cache', 'le raccourci simple ne masque jamais'); }
 });
 t('persistance : lecture et écriture avec un stockage normal', () => {
   const m = {}; const s = { getItem: k => (k in m ? m[k] : null), setItem: (k, v) => { m[k] = v; } };
@@ -44,7 +55,7 @@ t('persistance : localStorage qui lève ou absent ne casse rien', () => {
   assert.strictEqual(F.nexusEcrireEtatMenu('cache', casse), false);
   assert.strictEqual(F.nexusLireEtatMenu({}), 'ouvert', 'objet sans getItem');
 });
-t('raccourci : Ctrl ou ⌘ + \\ valide, ignoré dans un champ, avec Alt/Maj ou une autre touche', () => {
+t('raccourci : Ctrl ou ⌘ + \\ (avec ou sans Maj) valide, ignoré dans un champ, avec Alt ou une autre touche', () => {
   const ev = (o) => Object.assign({ key: '\\', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false, target: { tagName: 'DIV' } }, o);
   assert.strictEqual(F.nexusRaccourciMenuValide(ev({})), true);
   assert.strictEqual(F.nexusRaccourciMenuValide(ev({ ctrlKey: false, metaKey: true })), true);
@@ -52,41 +63,71 @@ t('raccourci : Ctrl ou ⌘ + \\ valide, ignoré dans un champ, avec Alt/Maj ou u
   assert.strictEqual(F.nexusRaccourciMenuValide(ev({ target: { tagName: 'DIV', isContentEditable: true } })), false);
   assert.strictEqual(F.nexusRaccourciMenuValide(ev({ ctrlKey: false })), false, 'sans modificateur');
   assert.strictEqual(F.nexusRaccourciMenuValide(ev({ altKey: true })), false);
-  assert.strictEqual(F.nexusRaccourciMenuValide(ev({ shiftKey: true })), false);
+  assert.strictEqual(F.nexusRaccourciMenuValide(ev({ shiftKey: true })), true, 'Maj+\\ : bascule caché ↔ ouvert');
+  assert.strictEqual(F.nexusRaccourciMenuValide(ev({ shiftKey: true, key: '|' })), true, 'clavier qui rend | avec Maj');
+  assert.strictEqual(F.nexusRaccourciMenuValide(ev({ shiftKey: true, key: 'a', code: 'KeyA' })), false);
+  assert.strictEqual(F.nexusRaccourciMenuValide(ev({ shiftKey: true, altKey: true })), false);
   assert.strictEqual(F.nexusRaccourciMenuValide(ev({ key: 'a' })), false);
   assert.strictEqual(F.nexusRaccourciMenuValide(null), false);
 });
 
 // ---- nexusAppliquerEtatMenu sur un DOM simulé ----
 function faux() {
-  const classes = new Set(); const attrs = []; const btns = [];
-  const mk = () => { const a = {}; return { a, setAttribute: (k, v) => { a[k] = v; } }; };
-  btns.push(mk(), mk());
+  const classes = new Set();
+  const mk = () => { const a = {}; return { a, title: '', setAttribute: (k, v) => { a[k] = v; } }; };
+  const pli = mk(), masque = mk(), fil = mk();
+  const sel = { '.nexus-sb-pli': pli, '.nexus-sb-masque': masque, '.nexus-sb-filament': fil };
   const menu = { inert: false, classList: { add() {}, remove() {} }, _nexusFinBouge: 0 };
   const corpsEl = { classList: { toggle: (c, on) => { on ? classes.add(c) : classes.delete(c); }, contains: c => classes.has(c) } };
-  const doc = { body: corpsEl, getElementById: () => menu, querySelectorAll: () => btns, querySelector: () => null };
+  const doc = { body: corpsEl, getElementById: () => menu, querySelectorAll: () => [], querySelector: q => sel[q] || null };
   const f = new Function('document', 'setTimeout', 'clearTimeout', corps(DESK, 'function nexusAppliquerEtatMenu') + '; return nexusAppliquerEtatMenu;')(doc, () => 0, () => {});
-  return { f, classes, menu, btns };
+  return { f, classes, menu, pli, masque, fil };
 }
-t('appliquer : classes du corps, inert et ARIA suivent l\'état', () => {
+t('appliquer : classes du corps et inert suivent l\'état', () => {
   const x = faux();
   x.f('rail', false);
   assert.ok(x.classes.has('nexus-menu-rail') && !x.classes.has('nexus-menu-cache') && x.menu.inert === false);
-  assert.strictEqual(x.btns[0].a['aria-expanded'], 'true'); assert.strictEqual(x.btns[0].a['aria-label'], 'Replier le menu');
   x.f('cache', false);
   assert.ok(x.classes.has('nexus-menu-cache') && !x.classes.has('nexus-menu-rail') && x.menu.inert === true, 'caché : liens hors tabulation');
-  x.btns.forEach(b => { assert.strictEqual(b.a['aria-expanded'], 'false'); assert.strictEqual(b.a['aria-label'], 'Afficher le menu'); });
   x.f('ouvert', false);
   assert.ok(!x.classes.has('nexus-menu-rail') && !x.classes.has('nexus-menu-cache') && x.menu.inert === false);
+});
+t('ARIA : l\'étiquette dit ce que le bouton fait, selon le symbole affiché (‹‹ Réduire, ›› Ouvrir)', () => {
+  const x = faux();
+  x.f('ouvert', false);
+  assert.strictEqual(x.pli.a['aria-label'], 'Réduire le menu'); assert.strictEqual(x.pli.a['aria-expanded'], 'true'); assert.ok(x.pli.title.startsWith('Réduire le menu'));
+  x.f('rail', false);
+  assert.strictEqual(x.pli.a['aria-label'], 'Ouvrir le menu'); assert.strictEqual(x.pli.a['aria-expanded'], 'false'); assert.ok(x.pli.title.startsWith('Ouvrir le menu'));
+  assert.strictEqual(x.masque.a['aria-expanded'], 'true', 'masquer : le menu est encore affiché');
+  x.f('cache', false);
+  assert.strictEqual(x.masque.a['aria-expanded'], 'false'); assert.strictEqual(x.fil.a['aria-expanded'], 'false');
+  x.f('ouvert', false);
+  assert.strictEqual(x.fil.a['aria-expanded'], 'true');
 });
 
 // ---- présence : HTML et CSS ----
 const css = DESK.slice(DESK.indexOf('.nexus-sb-barre{'));
-t('le bouton de pli : SVG, aria-controls, aria-expanded, aria-label ; le menu porte son identifiant', () => {
-  assert.ok(/<button type="button" class="nexus-sb-pli" aria-controls="nexus-sidebar-principal" aria-expanded="true" aria-label="Replier le menu"/.test(DESK));
+t('les boutons de pli et de masquage : SVG, aria-controls, aria-expanded, aria-label, infobulle ; le menu porte son identifiant', () => {
+  assert.ok(/<button type="button" class="nexus-sb-pli" aria-controls="nexus-sidebar-principal" aria-expanded="true" aria-label="Réduire le menu" title="Réduire le menu/.test(DESK));
+  assert.ok(/<button type="button" class="nexus-sb-masque" aria-controls="nexus-sidebar-principal" aria-expanded="true" aria-label="Masquer le menu" title="Masquer le menu/.test(DESK));
+  assert.ok(!/Replier le menu/.test(DESK), 'plus d\'étiquette « Replier » qui ne dit pas ce que fait le bouton');
   assert.ok(/<svg viewBox="0 0 16 16"[^>]*aria-hidden="true"/.test(DESK));
   assert.ok(DESK.includes("sidebar.id = 'nexus-sidebar-principal'"));
   assert.ok(DESK.includes('nexusInstallerPliMenuSidebar();\n    nexusVerifierAlertesFdj();'), 'installé à l\'init');
+});
+t('masquer : bouton séparé, visible en rail seulement, sous le bouton qui rouvre', () => {
+  assert.ok(/\.nexus-sb-masque\{display:none;/.test(css));
+  assert.ok(/body\.nexus-menu-rail \.nexus-sb-masque\{display:flex;\}/.test(css));
+  assert.ok(/body\.nexus-menu-rail #nexus-sidebar-principal \.nexus-sb-barre\{flex-direction:column/.test(css), 'empilés : le bouton « masquer » est sous le « ›› »');
+  assert.ok(/\.nexus-sb-masque\{[^}]*width:28px; height:24px/.test(css), 'cible ≥ 24 px');
+});
+t('l\'état caché n\'a qu\'un bouton d\'affichage : un filament, pas de second chevron (ni ::after)', () => {
+  assert.strictEqual((corps(DESK, 'function nexusInstallerPliMenuSidebar').match(/document\.createElement\('button'\)/g) || []).length, 1, 'un seul bouton d\'affichage créé');
+  assert.strictEqual((DESK.match(/class="nexus-sb-chev"/g) || []).length, 1);
+  assert.ok(!/\.nexus-sb-filament::after/.test(css), 'plus de chevron en pseudo-élément');
+  assert.ok(!/left:-4px/.test(css), 'plus de doublon de 14 px à x = −4');
+  assert.ok(/\.nexus-sb-chev\{[^}]*left:4px;[^}]*width:24px; height:24px/.test(css), 'chevron entièrement à l\'écran, 24 × 24 px');
+  assert.ok(DESK.includes("fil.setAttribute('aria-label', 'Afficher le menu')"));
 });
 t('le filament est un vrai bouton accessible, dégradé cyan qui respire (opacité 0,35 à 0,7, 4 s)', () => {
   assert.ok(DESK.includes("fil.className = 'nexus-sb-filament'") && DESK.includes("fil.type = 'button'"));
@@ -117,7 +158,7 @@ t('les info-bulles cèdent la place à la pastille en rail', () => {
   assert.ok(DESK.includes("if (document.body.classList.contains('nexus-menu-rail')) return;"));
 });
 t('aperçu au survol du filament seulement avec une vraie souris ; tactile : zone ≥ 24 px', () => {
-  assert.ok(/@media \(hover:hover\)\{\s*\.nexus-sb-filament:hover::before, \.nexus-sb-filament:hover::after\{transform:none; opacity:1;\}/.test(css));
+  assert.ok(/@media \(hover:hover\)\{\s*\.nexus-sb-filament:hover::before\{transform:none; opacity:1;\}/.test(css));
   assert.ok(/@media \(hover:none\)\{\s*\.nexus-sb-filament\{width:32px/.test(css));
 });
 t('Guardian 6715519682 : icônes du rail à 28 px, panneau de verre de 24 px en 180 ms, chevron 24 × 24 px visible, écart de 16 px', () => {
@@ -142,15 +183,25 @@ t('anti-flash : l\'état mémorisé est appliqué sans animation au chargement',
   assert.ok(DESK.includes('nexusAppliquerEtatMenu(etat, true);'));
 });
 
-garde('machine à états : le rail suit l\'ouvert', corps(DESK, 'function nexusEtatMenuSuivant'), c => /return NEXUS_MENU_ETATS\[\(i \+ 1\) % NEXUS_MENU_ETATS\.length\]/.test(c), '(i + 1) %', '(i + 2) %');
+const MACH = corps(DESK, 'function nexusEtatMenuSuivant');
+garde('pli : ouvert ↔ rail', MACH, c => /action === 'pli' \|\| action === 'raccourci'\) return e === 'ouvert' \? 'rail' : 'ouvert'/.test(c), "e === 'ouvert' ? 'rail' : 'ouvert'", "e === 'ouvert' ? 'rail' : 'cache'");
+garde('masquer : va à caché', MACH, c => /action === 'masquer'\) return 'cache'/.test(c), "action === 'masquer') return 'cache'", "action === 'masquer') return 'rail'");
+garde('afficher : va à ouvert, pas à rail', MACH, c => /action === 'afficher'\) return 'ouvert'/.test(c), "action === 'afficher') return 'ouvert'", "action === 'afficher') return 'rail'");
+garde('Maj+\\ : caché ↔ ouvert', MACH, c => /e === 'cache' \? 'ouvert' : 'cache'/.test(c), "e === 'cache' ? 'ouvert' : 'cache'", "e === 'cache' ? 'rail' : 'cache'");
 garde('persistance : lecture sous try/catch', corps(DESK, 'function nexusLireEtatMenu'), c => /try \{[\s\S]*\} catch \(e\) \{ return 'ouvert'; \}/.test(c), "catch (e) { return 'ouvert'; }", 'catch (e) { throw e; }');
 garde('persistance : écriture sous try/catch', corps(DESK, 'function nexusEcrireEtatMenu'), c => /catch \(e\) \{ return false; \}/.test(c), 'catch (e) { return false; }', 'catch (e) { throw e; }');
 garde('raccourci ignoré dans un champ', corps(DESK, 'function nexusRaccourciMenuValide'), c => /nom === 'INPUT'/.test(c) && /isContentEditable/.test(c), "nom === 'INPUT'", "nom === 'XINPUT'");
 garde('raccourci : touche antislash', corps(DESK, 'function nexusRaccourciMenuValide'), c => /ev\.key !== '\\\\'/.test(c), "ev.key !== '\\\\'", "ev.key !== '|'");
+garde('raccourci : Alt le refuse', corps(DESK, 'function nexusRaccourciMenuValide'), c => /\|\| ev\.altKey \|\|/.test(c), '|| ev.altKey ||', '|| ev.altKeyX ||');
 garde('menu caché : inert', corps(DESK, 'function nexusAppliquerEtatMenu'), c => /menu\.inert = cache/.test(c), 'menu.inert = cache', 'menu.inert = false');
-garde('ARIA : aria-expanded suit l\'état', corps(DESK, 'function nexusAppliquerEtatMenu'), c => /'aria-expanded', cache \? 'false' : 'true'/.test(c), "cache ? 'false' : 'true'", "cache ? 'true' : 'true'");
+garde('ARIA : le filament et « masquer » suivent l\'état', corps(DESK, 'function nexusAppliquerEtatMenu'), c => (c.match(/'aria-expanded', cache \? 'false' : 'true'/g) || []).length === 2, "fil.setAttribute('aria-expanded', cache ? 'false' : 'true')", "fil.setAttribute('aria-expanded', 'true')");
+garde('ARIA : « ›› » dit Ouvrir, « ‹‹ » dit Réduire', corps(DESK, 'function nexusAppliquerEtatMenu'), c => (c.match(/rail \? 'Ouvrir le menu' : 'Réduire le menu'/g) || []).length === 2, "setAttribute('aria-label', rail ? 'Ouvrir le menu' : 'Réduire le menu')", "setAttribute('aria-label', rail ? 'Réduire le menu' : 'Réduire le menu')");
 garde('le focus reste sur le bouton qui vient d\'agir', corps(DESK, 'function nexusInstallerPliMenuSidebar'), c => /if \(cible\) cible\.focus\(\)/.test(c), 'if (cible) cible.focus()', 'if (cible) cible.blur()');
-garde('le filament ouvre le menu au clic', corps(DESK, 'function nexusInstallerPliMenuSidebar'), c => /fil\.addEventListener\('click', \(\) => aller\('ouvert', 'fil'\)\)/.test(c), "aller('ouvert', 'fil')", "aller('rail', 'fil')");
+const INST = corps(DESK, 'function nexusInstallerPliMenuSidebar');
+garde('le filament ouvre le menu au clic', INST, c => /fil\.addEventListener\('click', \(\) => aller\('afficher', 'fil'\)\)/.test(c), "aller('afficher', 'fil')", "aller('pli', 'fil')");
+garde('le bouton « ›› / ‹‹ » fait pli (ouvert ↔ rail)', INST, c => /\.nexus-sb-pli'\)\.addEventListener\('click', \(\) => aller\('pli', 'pli'\)\)/.test(c), "aller('pli', 'pli')", "aller('masquer', 'pli')");
+garde('le bouton « masquer » masque', INST, c => /\.nexus-sb-masque'\)\.addEventListener\('click', \(\) => aller\('masquer', 'masque'\)\)/.test(c), "aller('masquer', 'masque')", "aller('pli', 'masque')");
+garde('clavier : Maj fait la bascule caché ↔ ouvert', INST, c => /aller\(ev\.shiftKey \? 'raccourci-maj' : 'raccourci', 'clavier'\)/.test(c), "ev.shiftKey ? 'raccourci-maj' : 'raccourci'", "false ? 'raccourci-maj' : 'raccourci'");
 garde('rail : 68 px', css, c => /body\.nexus-menu-rail #nexus-sidebar-principal[^{]*\{width:68px/.test(c), '{width:68px', '{width:230px');
 garde('filament : 3 px lumineux', css, c => /\.nexus-sb-fil\{[^}]*width:3px/.test(c), 'bottom:0; width:3px', 'bottom:0; width:0px');
 garde('respiration : 0,35 à 0,7', css, c => /nexus-sb-souffle\{0%,100%\{opacity:\.35;\} 50%\{opacity:\.7;\}\}/.test(c), '50%{opacity:.7;}', '50%{opacity:1;}');
@@ -159,7 +210,9 @@ garde('tactile : zone du filament élargie', css, c => /@media \(hover:none\)\{\
 garde('rail : icônes à 28 px', css, c => /nexus-sidebar-link img\{width:28px; height:28px;\}/.test(c), '.nexus-sidebar-link img{width:28px; height:28px;}', '.nexus-sidebar-link img{width:16px; height:16px;}');
 garde('filament : panneau de verre de 24 px', css, c => /\.nexus-sb-filament::before\{[^}]*width:24px/.test(c), 'bottom:0; width:24px; background:rgba(20,27,34,0.55)', 'bottom:0; width:4px; background:rgba(20,27,34,0.55)');
 garde('filament : lueur au survol', css, c => /:hover \.nexus-sb-fil\{animation:none; opacity:1; filter:drop-shadow/.test(c), 'animation:none; opacity:1; filter:drop-shadow(0 0 5px #4FC3D9)', 'animation:none; opacity:.4; filter:none');
-garde('chevron : 24 × 24 px visible', css, c => /\.nexus-sb-chev\{position:absolute; left:4px; top:12px; width:24px; height:24px/.test(c), 'left:4px; top:12px; width:24px; height:24px', 'left:-4px; top:12px; width:14px; height:24px');
+garde('chevron : 24 × 24 px visible, un seul', css, c => /\.nexus-sb-chev\{position:absolute; left:4px; top:12px; width:24px; height:24px/.test(c) && !/left:-4px/.test(c), 'left:4px; top:12px; width:24px; height:24px', 'left:-4px; top:12px; width:14px; height:24px');
+garde('pas de second chevron en pseudo-élément', css, c => !/\.nexus-sb-filament::after/.test(c), '.nexus-sb-filament::before{', '.nexus-sb-filament::after{');
+garde('« masquer » visible en rail seulement', css, c => /body\.nexus-menu-rail \.nexus-sb-masque\{display:flex;\}/.test(c), 'body.nexus-menu-rail .nexus-sb-masque{display:flex;}', 'body.nexus-menu-rail .nexus-sb-masque{display:none;}');
 garde('écart de 16 px pour le bouton ☰', css, c => /nexus-menu-cache > \.app\{margin-left:16px;\}/.test(c), '> .app{margin-left:16px;}', '> .app{margin-left:0;}');
 garde('aperçu au survol : seulement avec une vraie souris', css, c => /@media \(hover:hover\)\{\s*\.nexus-sb-filament:hover/.test(c), '@media (hover:hover){', '@media all{');
 garde('cascade plafonnée (rail et caché)', css, c => (c.match(/min\(var\(--nl-i, 0\), 24\)/g) || []).length >= 3, 'min(var(--nl-i, 0), 24) * 12ms', 'var(--nl-i, 0) * 12ms');

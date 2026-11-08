@@ -106,14 +106,14 @@ const NEXUS_SIDEBAR_GROUPES = [
       // NEXUS FDJ (09/08/2026, demande de Frédéric) : rejoint Exécuter,
       // juste à côté d'Inventaire — même logique de comptage de quart.
       // Icône pack NEXUS (20/08/2026, uniformisation) : icon-fdj-24.png,
-      // réutilisée sur FDJ Opérations et FDJ Performance (même domaine).
+      // réutilisée sur FDJ (FDJ Opérations a désormais sa propre icône v2, mod-fdj-operations, 07/11/2026).
       { label: 'FDJ', module: 'mod-fdj', href: 'NEXUS-FDJ-v1.html', icon: 'assets/icons/icon-fdj-24.png', desc: 'Grattage, tirages et caisse FDJ du quart.' },
       // Contrôle FDJ → FDJ Opérations (24/08/2026, demande de Frédéric) :
       // "Contrôle FDJ" et "FDJ Pilotage" trop proches lexicalement pour des
       // fonctions très différentes — Opérations (registre quarts/caisse/
       // stock/mouvements) vs Performance (analyse/décision), vocabulaire
       // figé par Frédéric.
-      { label: 'FDJ Opérations', href: 'NEXUS-FDJ-Manager-v1.html', icon: 'assets/icons/icon-fdj-24.png', desc: 'Gère quarts, caisse, carnets et mouvements FDJ.' },
+      { label: 'FDJ Opérations', module: 'mod-fdj-operations', href: 'NEXUS-FDJ-Manager-v1.html', icon: 'assets/icons/icon-fdj-24.png', desc: 'Gère quarts, caisse, carnets et mouvements FDJ.' },
       // FDJ Pilotage → FDJ Performance (24/08/2026, même demande) : NEXUS
       // FDJ - Analyse (09/08/2026, Phase C de l'audit "Moteur de
       // clairvoyance manager") : moteur de statistiques/tendances/
@@ -216,8 +216,11 @@ function nexusConstruireSidebarHTML() {
 
   return `
     <div class="nexus-sb-barre">
-      <button type="button" class="nexus-sb-pli" aria-controls="nexus-sidebar-principal" aria-expanded="true" aria-label="Replier le menu" title="Replier le menu (Ctrl+\\)">
+      <button type="button" class="nexus-sb-pli" aria-controls="nexus-sidebar-principal" aria-expanded="true" aria-label="Réduire le menu" title="Réduire le menu (Ctrl+\\)">
         <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false"><path d="M8 3 3.5 8 8 13M13 3 8.5 8 13 13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button type="button" class="nexus-sb-masque" aria-controls="nexus-sidebar-principal" aria-expanded="true" aria-label="Masquer le menu" title="Masquer le menu (Maj+Ctrl+\\)">
+        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false"><path d="M11 3 6 8l5 5M3 3v10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
     </div>
     <a class="nexus-sidebar-brand" href="NEXUS-App-v1.html" title="Retour à l'accueil NEXUS">
@@ -343,6 +346,11 @@ const NEXUS_DESKTOP_CSS = `
   .nexus-sb-pli:hover, .nexus-sb-pli:focus-visible{color:#4FC3D9; background:rgba(79,195,217,0.1);}
   .nexus-sb-pli:focus-visible{outline:2px solid #4FC3D9; outline-offset:1px;}
   body.nexus-menu-rail .nexus-sb-pli{rotate:180deg;}
+  /* Bouton « Masquer le menu » (Guardian 6715691902) : visible seulement en rail, sous le bouton qui rouvre. */
+  .nexus-sb-masque{display:none; width:28px; height:24px; align-items:center; justify-content:center; border:0; border-radius:6px; background:transparent; color:#7C8A99; cursor:pointer; transition:color .15s ease, background-color .15s ease; -webkit-tap-highlight-color:transparent;}
+  .nexus-sb-masque:hover, .nexus-sb-masque:focus-visible{color:#4FC3D9; background:rgba(79,195,217,0.1);}
+  .nexus-sb-masque:focus-visible{outline:2px solid #4FC3D9; outline-offset:1px;}
+  body.nexus-menu-rail .nexus-sb-masque{display:flex;}
   #nexus-sidebar-principal{transition:width 420ms cubic-bezier(.2,.9,.25,1.15);}
   #nexus-sidebar-principal::after{content:""; position:absolute; inset:0; pointer-events:none; opacity:0; background:rgba(13,19,26,0.15); -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px);}
   #nexus-sidebar-principal.nexus-sb-bouge{will-change:width; overflow:hidden;}
@@ -364,7 +372,7 @@ const NEXUS_DESKTOP_CSS = `
   body.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-link .nexus-sidebar-emoji{font-size:24px !important; width:28px;}
   body.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-brand{justify-content:center; padding:6px 0 14px;}
   body.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-brand span{display:none;}
-  body.nexus-menu-rail #nexus-sidebar-principal .nexus-sb-barre{justify-content:center; padding:8px 0 0;}
+  body.nexus-menu-rail #nexus-sidebar-principal .nexus-sb-barre{flex-direction:column; align-items:center; gap:4px; padding:8px 0 0;}
   body.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-group{font-size:0; height:1px; padding:0; margin:10px 14px; background:#242e38;}
   body.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-foot{display:none;}
   body.nexus-menu-cache #nexus-sidebar-principal, body.nexus-menu-cache #nexus-sidebar-principal.nexus-sidebar{width:0; border-right-width:0; overflow:hidden; visibility:hidden; transition:width 420ms cubic-bezier(.2,.9,.25,1.15), visibility 0s linear 440ms;}
@@ -376,7 +384,6 @@ const NEXUS_DESKTOP_CSS = `
   /* Panneau de verre du filament (Guardian 6715519682) : 24 px de large sur toute la hauteur, flouté, liseré cyan, chevron centré ;
      il sort de la gauche en 180 ms (transform + opacity seulement). */
   .nexus-sb-filament::before{content:""; position:absolute; left:0; top:0; bottom:0; width:24px; background:rgba(20,27,34,0.55); -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px); border-right:1px solid rgba(79,195,217,0.7); transform:translateX(-100%); opacity:0; transition:transform 180ms ease, opacity 180ms ease;}
-  .nexus-sb-filament::after{content:"›"; position:absolute; left:0; top:50%; width:24px; margin-top:-12px; height:24px; line-height:22px; text-align:center; color:#4FC3D9; font-size:20px; transform:translateX(-100%); opacity:0; transition:transform 180ms ease, opacity 180ms ease;}
   .nexus-sb-fil{position:absolute; left:0; top:0; bottom:0; width:3px; background:linear-gradient(180deg, #4FC3D9, rgba(79,195,217,0)); opacity:.35; animation:nexus-sb-souffle 4s ease-in-out infinite; overflow:hidden; transition:filter 180ms ease;}
   .nexus-sb-fil::after{content:""; position:absolute; left:0; right:0; top:-30%; height:30%; background:linear-gradient(180deg, transparent, #EAFBFF, transparent); opacity:0;}
   .nexus-sb-filament.nexus-sb-eclat .nexus-sb-fil::after{animation:nexus-sb-eclat 900ms ease-out 1 both;}
@@ -389,16 +396,16 @@ const NEXUS_DESKTOP_CSS = `
   /* En état caché, le contenu de la page s'écarte de 16 px : le bouton ☰ de l'en-tête reste à au moins 16 px du filament et du chevron. */
   body.nexus-desktop.nexus-menu-cache > .phone, body.nexus-desktop.nexus-menu-cache > .app{margin-left:16px;}
   @media (hover:hover){
-    .nexus-sb-filament:hover::before, .nexus-sb-filament:hover::after{transform:none; opacity:1;}
+    .nexus-sb-filament:hover::before{transform:none; opacity:1;}
     .nexus-sb-filament:hover .nexus-sb-fil{animation:none; opacity:1; filter:drop-shadow(0 0 5px #4FC3D9);}
-    .nexus-sb-filament:hover .nexus-sb-chev{opacity:0;}
+    .nexus-sb-filament:hover .nexus-sb-chev{opacity:1; background:rgba(79,195,217,0.18);}
   }
   @media (hover:none){
     .nexus-sb-filament{width:32px;}
   }
   [data-theme="jour"] .nexus-sb-pastille{background:rgba(255,255,255,0.72); color:#0F172A; border-color:rgba(11,114,133,0.45); box-shadow:0 6px 20px rgba(15,23,42,0.18);}
-  [data-theme="jour"] .nexus-sb-pli{color:#475569;}
-  [data-theme="jour"] .nexus-sb-pli:hover, [data-theme="jour"] .nexus-sb-pli:focus-visible{color:#0B7285; background:rgba(11,114,133,0.1);}
+  [data-theme="jour"] .nexus-sb-pli, [data-theme="jour"] .nexus-sb-masque{color:#475569;}
+  [data-theme="jour"] .nexus-sb-pli:hover, [data-theme="jour"] .nexus-sb-pli:focus-visible, [data-theme="jour"] .nexus-sb-masque:hover, [data-theme="jour"] .nexus-sb-masque:focus-visible{color:#0B7285; background:rgba(11,114,133,0.1);}
   [data-theme="jour"] .nexus-sb-fil{background:linear-gradient(180deg, #0B7285, rgba(11,114,133,0));}
   [data-theme="jour"] .nexus-sb-chev{color:#0B7285;}
   @media (prefers-reduced-motion:reduce) and (min-width:0px){
@@ -406,8 +413,8 @@ const NEXUS_DESKTOP_CSS = `
     body.nexus-menu-cache #nexus-sidebar-principal{transition:opacity 120ms linear, visibility 0s linear 120ms;}
     #nexus-sidebar-principal.nexus-sb-bouge::after, .nexus-sb-fil, .nexus-sb-filament.nexus-sb-eclat .nexus-sb-fil::after{animation:none;}
     .nexus-sb-fil{opacity:.55;}
-    .nexus-sb-pastille, .nexus-sb-filament, .nexus-sb-chev, .nexus-sb-pli{transition:opacity 120ms linear;}
-    .nexus-sb-filament::before, .nexus-sb-filament::after{transform:none; transition:opacity 120ms linear;}
+    .nexus-sb-pastille, .nexus-sb-filament, .nexus-sb-chev, .nexus-sb-pli, .nexus-sb-masque{transition:opacity 120ms linear;}
+    .nexus-sb-filament::before{transform:none; transition:opacity 120ms linear;}
     .nexus-sb-pli{rotate:0deg !important;}
   }
 
@@ -759,12 +766,18 @@ function nexusInstallerReplisIconesSidebar() {
 }
 
 // ---- Menu repliable (07/11/2026, Guardian 6715363735) ----
-// Trois états, mémorisés par personne : 'ouvert' → 'rail' (icônes seules) → 'cache' (filament seul) → 'ouvert'.
+// Trois états, mémorisés par personne : 'ouvert', 'rail' (icônes seules), 'cache' (filament seul). Chaque contrôle fait ce qu'il montre
+// (Guardian 6715691902) : « pli » ouvert ↔ rail ; « masquer » → caché ; « afficher » (filament) → ouvert ; ⌘/Ctrl+\ ouvert ↔ rail ;
+// ⌘/Ctrl+Maj+\ caché ↔ ouvert. Plus de cycle à trois temps.
 const NEXUS_MENU_ETATS = ['ouvert', 'rail', 'cache'];
 const NEXUS_MENU_CLE = 'nexus_menu_etat_v1';
-function nexusEtatMenuSuivant(etat) {
-  const i = NEXUS_MENU_ETATS.indexOf(etat);
-  return NEXUS_MENU_ETATS[(i + 1) % NEXUS_MENU_ETATS.length];
+function nexusEtatMenuSuivant(etat, action) {
+  const e = NEXUS_MENU_ETATS.indexOf(etat) >= 0 ? etat : 'ouvert';
+  if (action === 'pli' || action === 'raccourci') return e === 'ouvert' ? 'rail' : 'ouvert';
+  if (action === 'masquer') return 'cache';
+  if (action === 'afficher') return 'ouvert';
+  if (action === 'raccourci-maj') return e === 'cache' ? 'ouvert' : 'cache';
+  return e;
 }
 // Lecture / écriture tolérantes : localStorage peut manquer ou lever (navigation privée, données bloquées) ; valeur inconnue = ouvert.
 function nexusLireEtatMenu(stockage) {
@@ -776,9 +789,9 @@ function nexusLireEtatMenu(stockage) {
 function nexusEcrireEtatMenu(etat, stockage) {
   try { (stockage || window.localStorage).setItem(NEXUS_MENU_CLE, etat); return true; } catch (e) { return false; }
 }
-// ⌘+\ (Mac) ou Ctrl+\ (ailleurs) ; ignoré dans un champ de saisie, avec Alt ou Maj.
+// ⌘+\ (Mac) ou Ctrl+\ (ailleurs), avec ou sans Maj ; ignoré dans un champ de saisie ou avec Alt.
 function nexusRaccourciMenuValide(ev) {
-  if (!ev || ev.key !== '\\' || ev.altKey || ev.shiftKey || !(ev.metaKey || ev.ctrlKey)) return false;
+  if (!ev || (ev.key !== '\\' && !(ev.shiftKey && (ev.key === '|' || ev.code === 'Backslash'))) || ev.altKey || !(ev.metaKey || ev.ctrlKey)) return false;
   const c = ev.target;
   const nom = c && c.tagName ? String(c.tagName).toUpperCase() : '';
   if (nom === 'INPUT' || nom === 'TEXTAREA' || nom === 'SELECT' || (c && c.isContentEditable)) return false;
@@ -797,12 +810,17 @@ function nexusAppliquerEtatMenu(etat, animer) {
   corps.classList.toggle('nexus-menu-cache', etat === 'cache');
   const cache = etat === 'cache';
   menu.inert = cache; // liens hors de l'ordre de tabulation et du lecteur d'écran quand le menu est masqué
-  const etiquette = cache ? 'Afficher le menu' : 'Replier le menu';
-  document.querySelectorAll('.nexus-sb-pli, .nexus-sb-filament').forEach(b => {
-    b.setAttribute('aria-expanded', cache ? 'false' : 'true');
-    b.setAttribute('aria-label', etiquette);
-  });
+  const pli = document.querySelector('.nexus-sb-pli');
+  if (pli) { // ouvert : « Réduire » (‹‹) ; rail : « Ouvrir » (››)
+    const rail = etat === 'rail';
+    pli.setAttribute('aria-expanded', rail ? 'false' : 'true');
+    pli.setAttribute('aria-label', rail ? 'Ouvrir le menu' : 'Réduire le menu');
+    pli.title = (rail ? 'Ouvrir le menu' : 'Réduire le menu') + ' (Ctrl+\\)';
+  }
+  const masque = document.querySelector('.nexus-sb-masque');
+  if (masque) masque.setAttribute('aria-expanded', cache ? 'false' : 'true');
   const fil = document.querySelector('.nexus-sb-filament');
+  if (fil) fil.setAttribute('aria-expanded', cache ? 'false' : 'true');
   if (fil && cache && animer) {
     fil.classList.remove('nexus-sb-eclat'); void fil.offsetWidth; fil.classList.add('nexus-sb-eclat');
   }
@@ -818,26 +836,27 @@ function nexusInstallerPliMenuSidebar() {
   fil.setAttribute('aria-controls', 'nexus-sidebar-principal');
   fil.setAttribute('aria-expanded', 'false');
   fil.setAttribute('aria-label', 'Afficher le menu');
-  fil.title = 'Afficher le menu (Ctrl+\\)';
-  fil.innerHTML = '<span class="nexus-sb-fil"></span><span class="nexus-sb-chev" aria-hidden="true">›</span>';
+  fil.title = 'Afficher le menu (Maj+Ctrl+\\)';
+  fil.innerHTML = '<span class="nexus-sb-fil"></span><span class="nexus-sb-chev" aria-hidden="true">›</span>'; // un seul bouton d'affichage
   document.body.appendChild(fil);
 
   let etat = nexusLireEtatMenu();
   nexusAppliquerEtatMenu(etat, false);
-  function aller(nouveau, depuis) {
-    etat = nouveau;
+  function aller(action, depuis) {
+    etat = nexusEtatMenuSuivant(etat, action);
     nexusEcrireEtatMenu(etat);
     nexusAppliquerEtatMenu(etat, true);
     // Le focus reste sur le bouton qui vient d'agir (ou sur le filament quand le menu disparaît).
     const cible = etat === 'cache' ? fil : (depuis === 'fil' || depuis === 'clavier') ? menu.querySelector('.nexus-sb-pli') : null;
     if (cible) cible.focus();
   }
-  menu.querySelector('.nexus-sb-pli').addEventListener('click', () => aller(nexusEtatMenuSuivant(etat), 'pli'));
-  fil.addEventListener('click', () => aller('ouvert', 'fil')); // depuis le filament, un clic ouvre le menu
+  menu.querySelector('.nexus-sb-pli').addEventListener('click', () => aller('pli', 'pli')); // ouvert → rail, rail → ouvert
+  menu.querySelector('.nexus-sb-masque').addEventListener('click', () => aller('masquer', 'masque'));
+  fil.addEventListener('click', () => aller('afficher', 'fil')); // depuis le filament, un clic ouvre le menu (pas le rail)
   document.addEventListener('keydown', ev => {
     if (!nexusRaccourciMenuValide(ev)) return;
     ev.preventDefault();
-    aller(nexusEtatMenuSuivant(etat), 'clavier');
+    aller(ev.shiftKey ? 'raccourci-maj' : 'raccourci', 'clavier');
   });
 
   // Pastille de verre : en rail, le titre apparaît à droite de l'icône (survol souris ou focus clavier).
