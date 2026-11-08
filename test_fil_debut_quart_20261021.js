@@ -161,7 +161,7 @@ function epreuves(S) {
     assert.ok(/app\.innerHTML = filBandeau\(\) \+ vue;/.test(R), 'bandeau absent des vues');
     assert.ok(/data-act="filcontinuer"/.test(R) && /FIL\.libelleContinuer\(filEtape, filPlan\)/.test(R), 'bouton absent');
     assert.ok(/if \(a === 'filcontinuer'\) \{\s*if \(!enFil\(\)\) return; sauverAvantSortie\(\);/.test(R), 'la continuation ne range pas les brouillons');
-    assert.ok(/const vers = FIL\.urlApres\(filEtape, filDebut, filPlan\);/.test(R) && /location\.href = vers;/.test(R), 'la continuation n\'ouvre pas la suite');
+    assert.ok(/const vers = FIL\.urlApres\(filEtape, filDebut, filPlan, FIL\.cibleDe \? FIL\.cibleDe\(location\.search\) : null\);/.test(R) && /location\.href = vers;/.test(R), 'la continuation n\'ouvre pas la suite');
     assert.ok(/FIL\.libelleProgression\(filEtape, filPlan\)/.test(R) && /const filPlan = FIL\.planDe\(location\.search\);/.test(R), 'le plan n\'est pas lu');
   });
   eprouve('R4 Relevés piste : pas de « Retour » ni de sortie interne qui ramène au menu', () => {
@@ -311,7 +311,7 @@ muter('Inventaire : progression figée', 'inv', "FIL.libelleProgression(filEtape
 muter('menu interne atteignable en fil', 'releves', "if (enFil() && ecran === 'choix') ecran = 'filhors';", "", 'R2');
 muter('bandeau absent', 'releves', "app.innerHTML = filBandeau() + vue;", "app.innerHTML = vue;", 'R3');
 muter('continuer sans ranger les brouillons', 'releves', "if (!enFil()) return; sauverAvantSortie();\n      const vers", "if (!enFil()) return;\n      const vers", 'R3');
-muter('continuer n\'ouvre pas la suite', 'releves', "const vers = FIL.urlApres(filEtape, filDebut, filPlan);", "const vers = 'NEXUS-App-v1.html';", 'R3');
+muter('continuer n\'ouvre pas la suite', 'releves', "const vers = FIL.urlApres(filEtape, filDebut, filPlan, FIL.cibleDe ? FIL.cibleDe(location.search) : null);", "const vers = 'NEXUS-App-v1.html';", 'R3');
 muter('la sortie n\'enregistre pas l\'étape', 'releves', "if (enFil() && emp && date) FIL.atteindre(localStorage, emp.id, date, filEtape);", "", 'R5');
 muter('Missions reste la destination', 'pdp', "return NexusFilDebutQuart.ACCUEIL_DEMARRAGE;", "return 'NEXUS-Missions-v1.html';", 'P1');
 muter('moment de début faux', 'app', "NexusRelevesPiste.momentDebutDuQuart(quartDuJour)", "'debut_q1'", 'P2');

@@ -235,6 +235,7 @@ const sandbox = {
 // global du contexte et le bac à sable sont un seul et même objet, exactement
 // comme dans un navigateur.
 sandbox.window = sandbox;
+sandbox.addEventListener = () => {};
 vm.createContext(sandbox);
 
 // L'écran ne vit jamais seul : sa page charge d'abord les modules dont son
