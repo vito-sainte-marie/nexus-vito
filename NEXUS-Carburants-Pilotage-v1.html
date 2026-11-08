@@ -162,7 +162,7 @@
      (comme la v1 de cette carte), mais avec le nouveau contenu par
      rangées introduit dans la refonte précédente — jamais les deux à la
      fois avant ce correctif. */
-  .situation-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:8px; padding:0 20px;}
+  .situation-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr)); gap:8px; padding:0 20px;}
   .carb-carte{background:var(--panel); border:1px solid var(--hairline); border-radius:16px; padding:12px 8px 13px; display:flex; flex-direction:column; align-items:center; transition:border-color .2s;}
   .carb-carte.statut-corriger{border-color:rgba(240,87,90,0.45);}
   .carb-carte.statut-surveiller{border-color:rgba(245,166,35,0.4);}
@@ -186,6 +186,8 @@
   .lecture-nexus-card{margin:10px 20px 14px; padding:11px 13px; border-radius:12px; background:var(--panel); border:1px solid var(--hairline);}
   .lecture-nexus-tete{display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;}
   .lecture-nexus-titre{font-family:var(--mono); font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-dim); margin-bottom:0;}
+  .lecture-nexus-badge-signalements.niv-rouge{color:var(--red); border-color:var(--red);}
+  .lecture-nexus-badge-signalements.niv-orange{color:var(--amber,#E8A33D); border-color:var(--amber,#E8A33D);}
   .lecture-nexus-badge-signalements{font-family:var(--mono); font-size:11px; font-weight:600; color:var(--text-mid); background:var(--panel-raised); border:1px solid var(--hairline); border-radius:20px; padding:2px 8px;}
   .lecture-nexus-ligne{display:flex; align-items:flex-start; gap:7px; font-size:11.5px; line-height:1.45; padding:2px 0; color:var(--text);}
   .lecture-nexus-emoji{flex-shrink:0; font-size:11px; line-height:1.5;}
@@ -527,9 +529,10 @@
   .carb-autonomie-bloc .lbl{color:var(--text-mid); display:block; margin-bottom:2px;}
   .carb-autonomie-bloc .val{font-weight:700; color:var(--text); font-size:11.5px;}
   .carb-fiab-row{display:flex; align-items:center; justify-content:space-between; gap:6px; padding-top:8px; margin-top:2px; border-top:1px solid var(--hairline); font-size:11px; font-weight:600;}
+  .carb-fiab-badge:empty{display:none;}
   .carb-fiab-badge{width:19px; height:19px; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:11px; flex-shrink:0;}
   .carb-rapprochement-libelle{display:flex; align-items:center; gap:6px; min-width:0;}
-  .carb-info-btn{appearance:none; border:1px solid var(--hairline); border-radius:999px; background:var(--panel-raised); color:var(--text-mid); padding:2px 7px; font:600 9.5px/1.25 var(--sans); cursor:pointer; white-space:nowrap;}
+  .carb-info-btn{appearance:none; border:1px solid var(--hairline); border-radius:999px; background:var(--panel-raised); color:var(--text-mid); padding:3px 12px; font:600 11px/1.25 var(--sans); cursor:pointer; white-space:nowrap;}
   .carb-info-btn:hover,.carb-info-btn:focus-visible{color:var(--cyan); border-color:var(--cyan); outline:none;}
   .carb-rapprochement-info{margin-top:6px; padding:8px 9px; border:1px solid var(--hairline); border-radius:8px; background:var(--panel-raised); color:var(--text-mid); font-size:11px; line-height:1.45;}
   .carb-rapprochement-info b{color:var(--text);}
@@ -540,7 +543,7 @@
   :root[data-theme="jour"]{--bg:#F4F6F8; --panel:#FFFFFF; --panel-raised:#EEF2F5; --hairline:#D5DCE3; --text:#0F172A; --text-mid:#475569; --text-dim:#5F6B78; --cyan:#0B7285; --green:#0B7A54; --amber:#B45309;}
   :root:not([data-theme="jour"]){--text-dim:#808C9B;}
   body.nexus-desktop .phone{max-width:1180px;}
-  .hero{position:relative; padding:16px 20px 10px;}
+  .hero{position:relative; padding:16px 20px 10px; margin:0 20px 8px; background:var(--surf); border:1px solid var(--hairline); border-radius:18px; overflow:hidden;}
   .hero-haut{position:relative; display:block; min-height:150px;}
   .hero-haut>.am-banniere{position:absolute; top:-16px; bottom:-4px; right:-20px; width:62%; overflow:hidden; z-index:0; -webkit-mask-image:linear-gradient(to right,transparent 0%,#000 45%,#000 60%,transparent 100%),linear-gradient(to bottom,transparent 0%,#000 35%,#000 60%,transparent 100%); -webkit-mask-composite:source-in; mask-image:linear-gradient(to right,transparent 0%,#000 45%,#000 60%,transparent 100%),linear-gradient(to bottom,transparent 0%,#000 35%,#000 60%,transparent 100%); mask-composite:intersect;}
   .hero-haut>.am-banniere img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:60% 35%;}
@@ -624,7 +627,7 @@
         <h1 class="title">Carburants Performance</h1>
         <div class="sous" id="sousTitre">État des cuves, contrôle du jour et ventes</div>
         <div class="selecteurs">
-          <span class="pastille" id="pastilleSite"></span>
+          <span class="pastille nexus-nom-commerce" id="pastilleSite"></span>
           <span class="pastille" id="pastilleDate"></span>
           <span class="relever-statut" id="releveStatutJour"></span>
           <button type="button" class="info-btn" id="btnInfoPage" aria-label="À propos de cette page" aria-expanded="false" aria-controls="infoPage">i</button>
@@ -1002,7 +1005,7 @@
   // ligne "Fiabilité du contrôle" (capture d'écran de Frédéric — coche
   // verte dans un carré arrondi). Mêmes 4 niveaux que NIVEAU_COULEUR,
   // jamais une 5e catégorie inventée.
-  const ICONE_NIVEAU = { ok: '✓', attention: '!', alerte: '✕', attente: '…' };
+  const ICONE_NIVEAU = { ok: '✓', attention: '!', alerte: '✕', attente: '' };
 
   // ------------------------------------------------------------
   // ACCORDÉONS (14/08/2026, refonte visuelle) — état d'ouverture par
@@ -1711,8 +1714,8 @@
             <div class="carb-soustexte">Estimation par quart, distincte de la moyenne vendue</div>
           </div>
           <div class="carb-pills">
-          <div class="carb-fiab-row" ${statutCourt.titre ? `title="${statutCourt.titre}"` : ''}><span style="color:${couleurFiab.c};">Situation stock : ${statutCourt.texte}</span><span class="carb-fiab-badge" style="background:${couleurFiab.f}; color:${couleurFiab.c};">${ICONE_NIVEAU[niveauFiabiliteAffiche] || '?'}</span></div>
-          <div class="carb-fiab-row"><span class="carb-rapprochement-libelle"><span style="color:${couleurQualite.c};">Rapprochement : ${qualite.texte}</span><button type="button" class="carb-info-btn" data-rapprochement-info="${cle}" aria-expanded="false" aria-controls="rapprochementInfo_${cle}">ⓘ Infos</button></span><span class="carb-fiab-badge" style="background:${couleurQualite.f}; color:${couleurQualite.c};">${ICONE_NIVEAU[qualite.niveau] || '?'}</span></div>
+          <div class="carb-fiab-row" ${statutCourt.titre ? `title="${statutCourt.titre}"` : ''}><span style="color:${couleurFiab.c};">Situation stock : ${statutCourt.texte}</span><span class="carb-fiab-badge" style="background:${couleurFiab.f}; color:${couleurFiab.c};">${ICONE_NIVEAU[niveauFiabiliteAffiche] || ''}</span></div>
+          <div class="carb-fiab-row"><span class="carb-rapprochement-libelle"><span style="color:${couleurQualite.c};">Rapprochement : ${qualite.texte}</span><button type="button" class="carb-info-btn" data-rapprochement-info="${cle}" aria-expanded="false" aria-controls="rapprochementInfo_${cle}">ⓘ Infos</button></span><span class="carb-fiab-badge" style="background:${couleurQualite.f}; color:${couleurQualite.c};">${ICONE_NIVEAU[qualite.niveau] || ''}</span></div>
           <div class="carb-rapprochement-info" id="rapprochementInfo_${cle}" style="display:none;"></div>
           </div>
         </div>`;
@@ -2000,6 +2003,12 @@
     if (CONTROLE_CTX.aucunReleve) { zone.innerHTML = ''; return; }
     const lignes = [ligneLectureStock(), ligneLectureRapprochement(), ligneLectureAutonomie(), ligneLectureCommerce()];
     const { messages, sousTitre } = construireMessagesActuels();
+    // Guardian 6724544198 : le badge suit le niveau le plus haut réellement présent dans les colonnes
+    // (À contrôler = rouge/orange ; seulement « En attente » = neutre), sans changer le nombre.
+    const niveauxLignes = lignes.map(l => l.niveau);
+    const classeBadgeSignalements = niveauxLignes.includes('alerte') ? 'niv-rouge' : (niveauxLignes.includes('attention') ? 'niv-orange' : '');
+    const badgeSousTitre = messages.length && !classeBadgeSignalements
+      ? sousTitre.replace(/^\S+\s/, '') : sousTitre;
     const detailHTML = messages.length
       ? messages.map(m => `<div class="message-carte ${m.type}"><span class="message-icone">${ICONE_MESSAGE[m.type] || 'ℹ️'}</span><span>${m.texte}</span></div>`).join('')
       : `<div class="message-carte info"><span class="message-icone">ℹ️</span><span>Aucun signalement prioritaire.</span></div>`;
@@ -2011,13 +2020,13 @@
     const ligneHTML = l => `<div class="lecture-nexus-ligne"><span class="lecture-nexus-emoji">${EMOJI_NIVEAU_LECTURE[l.niveau] || '🟢'}</span><span>${l.texte}</span></div>`;
     const colonnesHTML = COLONNES_LECTURE.map(col => {
       const items = lignes.filter(l => col.niveaux.includes(l.niveau));
-      return `<div class="lecture-nexus-col"><div class="lecture-nexus-col-titre">${col.titre}</div>${items.length ? items.map(ligneHTML).join('') : '<div class="lecture-nexus-rien">Rien</div>'}</div>`;
+      return `<div class="lecture-nexus-col"><div class="lecture-nexus-col-titre">${col.titre}</div>${items.length ? items.map(ligneHTML).join('') : '<div class="lecture-nexus-rien">Rien à signaler</div>'}</div>`;
     }).join('');
     zone.innerHTML = `
       <div class="lecture-nexus-card">
         <div class="lecture-nexus-tete">
           <div class="lecture-nexus-titre">Synthèse</div>
-          <span class="lecture-nexus-badge-signalements">${sousTitre}</span>
+          <span class="lecture-nexus-badge-signalements ${classeBadgeSignalements}">${badgeSousTitre}</span>
         </div>
         <div class="lecture-nexus-colonnes">${colonnesHTML}</div>
         <div class="sous-accordion lecture-nexus-detail-toggle">
@@ -4804,7 +4813,7 @@
     SITE_ID = employee.site_id;
     MANAGER_COURANT = employee;
     (function initialiserEnteteRefonte() {
-      const pS = document.getElementById('pastilleSite'); if (pS) pS.textContent = SITE_ID;
+      
       const pD = document.getElementById('pastilleDate');
       if (pD) { const [y, m, d] = todayISO().split('-'); pD.textContent = `${d}/${m}/${y}`; }
       const bI = document.getElementById('btnInfoPage'), pI = document.getElementById('infoPage');

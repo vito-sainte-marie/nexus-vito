@@ -2,7 +2,6 @@
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
 let n = 0;
 function t(nom, f) { f(); n++; console.log('OK ' + nom); }
 const lire = f => fs.readFileSync(path.join(__dirname, f), 'utf8');
@@ -94,11 +93,17 @@ t('aucune requête ni écriture ajoutée : un seul callback, mêmes filtres site
   const f = bloc(D, 'async function chargerConsommationJournaliereMoyenne');
   assert.ok(/surLignes/.test(D));
   assert.ok(/\.eq\('site', siteId\)/.test(D));
-  assert.strictEqual((D.match(/\.from\(/g) || []).length, (execSync('git show origin/production:nexus-carburant-donnees.js', { cwd: __dirname }).toString().match(/\.from\(/g) || []).length);
-  const diff = execSync('git diff origin/production -- NEXUS-Carburants-Pilotage-v1.html nexus-carburant-donnees.js', { cwd: __dirname, maxBuffer: 1 << 28 }).toString();
-  const ajout = diff.split('\n').filter(l => l.startsWith('+') && !l.startsWith('+++'));
-  assert.ok(!ajout.some(l => /\.(insert|update|upsert|delete|rpc)\(/.test(l)), 'aucun appel d\'écriture ajouté');
-  assert.ok(!ajout.some(l => /\.from\(/.test(l)), 'aucune nouvelle requête');
+  // Valeurs figées (CI sans origin/production) : décomptes du fichier de données à la base de cette PR.
+  const nb = re => (D.match(re) || []).length;
+  assert.strictEqual(nb(/\.from\(/g), 49);
+  assert.strictEqual(nb(/\.insert\(/g), 6);
+  assert.strictEqual(nb(/\.update\(/g), 3);
+  assert.strictEqual(nb(/\.upsert\(/g), 4);
+  ['function syntheseVentesCarburant', 'function htmlBlocVentes'].forEach(e => {
+    const c = bloc(H, e);
+    assert.ok(c.length > 50, e);
+    assert.ok(!/\.(insert|update|upsert|delete|rpc|from)\(/.test(c), 'aucun appel base dans ' + e);
+  });
 });
 t('Lecture NEXUS en trois colonnes par niveau existant', () => {
   assert.ok(/niveaux: \['alerte', 'attention'\]/.test(H) && /niveaux: \['attente'\]/.test(H) && /niveaux: \['ok'\]/.test(H));
@@ -120,16 +125,42 @@ t('grille d\'analyse deux colonnes, repliée en une sous 820 px', () => {
   assert.ok(/@media \(max-width:820px\)\{\.grille-analyse\{grid-template-columns:1fr/.test(H));
   assert.ok(/\.periode-btn\{min-height:44px/.test(H));
 });
-t('pas d\'em dash dans le texte affiché ajouté', () => {
-  const diff = execSync('git diff origin/production -- NEXUS-Carburants-Pilotage-v1.html', { cwd: __dirname, maxBuffer: 1 << 28 }).toString();
-  const ajout = diff.split('\n').filter(l => l.startsWith('+') && !l.startsWith('+++')).filter(l => !/^\+\s*(\/\/|\/\*|\*)/.test(l));
-  const retrait = diff.split('\n').filter(l => l.startsWith('-') && !l.startsWith('---'));
-  const nb = ls => ls.reduce((a, l) => a + (l.match(/—/g) || []).length, 0);
-  assert.ok(nb(ajout) <= nb(retrait), 'tirets longs ajoutés : ' + nb(ajout) + ' pour ' + nb(retrait) + ' retirés');
+t('pas d\'em dash dans le texte affiché des nouveaux blocs', () => {
+  const entete = H.slice(H.indexOf('<header class="hero"'), H.indexOf('</header>', H.indexOf('<header class="hero"')));
+  const corps = [entete, bloc(H, 'function syntheseVentesCarburant'), bloc(H, 'function htmlBlocVentes')].join('\n')
+    .split('\n').filter(l => !/^\s*(\/\/|\/\*|\*)/.test(l));
+  assert.ok(!corps.some(l => /—/.test(l.replace(/'—'|"—"|`—`/g, ''))), corps.filter(l => /—/.test(l))[0]);
 });
-t('aucune migration dans le diff', () => {
-  const noms = execSync('git diff --name-only origin/production', { cwd: __dirname }).toString();
-  assert.ok(!/migrations?\//.test(noms), noms);
+
+// ---- Réponse à Guardian 6724544198 / 6724526676 ----
+t('grille de cartes : colonnes auto-adaptées, une seule colonne en largeur étroite, pas de 3e colonne vide', () => {
+  assert.ok(/\.situation-grid\{[^}]*grid-template-columns:repeat\(auto-fit,minmax\(min\(100%,260px\),1fr\)\)/.test(H));
+  assert.ok(!/\.situation-grid\{[^}]*repeat\(3,1fr\)/.test(H));
+});
+t('bouton ⓘ Infos : 11 px minimum, forme de pastille, cible de 44 px', () => {
+  assert.ok(/\.carb-info-btn\{[^}]*border-radius:999px[^}]*font:600 11px/.test(H));
+  assert.ok(/\.carb-info-btn\{min-height:44px/.test(H));
+});
+t('Lecture NEXUS : « Rien à signaler » ; badge coloré par le niveau présent, neutre si seulement En attente', () => {
+  assert.ok(H.includes('>Rien à signaler</div>') && !H.includes('>Rien</div>'));
+  assert.ok(/classeBadgeSignalements = niveauxLignes\.includes\('alerte'\) \? 'niv-rouge' : \(niveauxLignes\.includes\('attention'\) \? 'niv-orange' : ''\)/.test(H));
+  assert.ok(/class="lecture-nexus-badge-signalements \$\{classeBadgeSignalements\}"/.test(H));
+});
+t('badges de statut des cartes : aucun « … » ni « ? » affiché, badge vide masqué', () => {
+  assert.ok(/ICONE_NIVEAU = \{ ok: '✓', attention: '!', alerte: '✕', attente: '' \}/.test(H));
+  assert.ok(!/ICONE_NIVEAU\[[^\]]*\] \|\| '\?'/.test(H));
+  assert.ok(/\.carb-fiab-badge:empty\{display:none;\}/.test(H));
+});
+t('en-tête : cadre façon Paye (fond, bordure, rayon 18 px) même sans bannière', () => {
+  assert.ok(/\.hero\{[^}]*background:var\(--surf\)[^}]*border:1px solid var\(--hairline\)[^}]*border-radius:18px/.test(H));
+});
+t('pastille du site : nom du commerce par le mécanisme existant, plus d\'identifiant technique', () => {
+  assert.ok(/<span class="pastille nexus-nom-commerce" id="pastilleSite"><\/span>/.test(H));
+  assert.ok(!/pastilleSite'\)[^\n]*textContent\s*=\s*SITE_ID/.test(H));
+});
+t('les ⓘ d\'écart et d\'estimation sont des boutons natifs', () => {
+  assert.ok(/<button type="button" class="ecart-caveat"[^>]*data-ecart-diag=/.test(H));
+  assert.ok(/<button type="button" class="ecart-caveat"[^>]*data-estimation-info=/.test(H));
 });
 
 garde('mutée : ⓘ redevenu span', H, h => !/<span class="ecart-caveat"/.test(h), '<button type="button" class="ecart-caveat" aria-label="Diagnostic de l\'écart"', '<span class="ecart-caveat"');
@@ -143,4 +174,12 @@ garde('mutée : filtre site retiré', D, d => { const i = d.indexOf('async funct
 garde('mutée : navigation sans sticky', H, h => /@media \(max-width:820px\)\{\.quick-nav\{position:sticky/.test(h), '.quick-nav{position:sticky', '.quick-nav{position:static');
 garde('mutée : colonne Lecture NEXUS', H, h => /niveaux: \['ok'\]/.test(h), "niveaux: ['ok']", "niveaux: []");
 garde('mutée : message page ⓘ', H, h => h.includes('identifie le produit, pas un niveau'), 'identifie le produit, pas un niveau', 'identifie');
+garde('grille : auto-fit retiré', H, h => /\.situation-grid\{[^}]*repeat\(auto-fit/.test(h), 'repeat(auto-fit,minmax(min(100%,260px),1fr))', 'repeat(3,1fr)');
+garde('ⓘ Infos : police 11 px', H, h => /\.carb-info-btn\{[^}]*font:600 11px/.test(h), 'font:600 11px/1.25', 'font:600 9.5px/1.25');
+garde('Rien à signaler', H, h => h.includes('>Rien à signaler</div>'), '>Rien à signaler</div>', '>Rien</div>');
+garde('badge : niveau rouge selon alerte', H, h => /includes\('alerte'\) \? 'niv-rouge'/.test(h), "includes('alerte') ? 'niv-rouge'", "includes('ok') ? 'niv-rouge'");
+garde('badge « … » masqué', H, h => /attente: '' \}/.test(h), "attente: '' }", "attente: '…' }");
+garde('cadre de l\'en-tête', H, h => /\.hero\{[^}]*border-radius:18px/.test(h), '.hero{position:relative; padding:16px 20px 10px; margin:0 20px 8px; background:var(--surf); border:1px solid var(--hairline); border-radius:18px', '.hero{position:relative; padding:16px 20px 10px; margin:0 20px 8px; background:var(--surf); border:1px solid var(--hairline); border-radius:0');
+garde('nom du commerce sur la pastille', H, h => /class="pastille nexus-nom-commerce" id="pastilleSite"/.test(h), 'class="pastille nexus-nom-commerce" id="pastilleSite"', 'class="pastille" id="pastilleSite"');
+
 console.log(n + ' épreuves OK');
