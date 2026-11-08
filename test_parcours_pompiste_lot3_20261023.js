@@ -17,7 +17,7 @@ function epreuves(I, M) {
   eprouve('L1 le plan et les réglages sont lus dans une seule fonction, mémoïsée par site|date|quart', () => {
     assert.strictEqual((I.match(/P\.chargerOuGenererPlan\(/g) || []).length, 1, 'le plan doit n\'avoir qu\'un seul point de lecture');
     const f = bloc(I, 'async function chargerEtAppliquerPlanQuart', 'async function ');
-    assert.ok(/memoPlanInit/.test(f) && /\$\{site\}\|\$\{dateISO\(\)\}\|\$\{quartActuel\}/.test(f), 'mémo absent ou clé sans quart');
+    assert.ok(/memoPlanInit/.test(f) && /\$\{site\}\|\$\{dateDuQuart\(\)\}\|\$\{quartActuel\}/.test(f), 'mémo absent ou clé sans quart');
     assert.ok(/memo\.get\(cle\)/.test(f) && /memo\.set\(cle, chargement\)/.test(f), 'le mémo n\'est ni lu ni alimenté');
     assert.ok(/lirePlanEtReglagesDuQuart\(P, site, quartActuel\)/.test(f), 'lecture non déléguée');
   });

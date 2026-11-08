@@ -45,16 +45,25 @@
   function libelleContinuer(n, plan) { const s = suivante(n, plan); return s ? LIBELLES_VERS[s] : LIBELLE_TERMINER; }
 
   // momentFin : fin_q1 / fin_q2, porté par `moment` à chaque étape.
-  function urlEtape(n, momentFin, plan) {
+  // cible : le quart et le jour que ce fil ferme ({ quart: 'matin'|'soir', jour: 'AAAA-MM-JJ' }). Portée par l'URL à chaque étape, pour que
+  // l'inventaire de clôture ouvert depuis l'index vise CE quart, même déjà clos ou passé minuit, et non celui que l'horloge désignerait.
+  function cibleValide(c) { return !!c && (c.quart === 'matin' || c.quart === 'soir') && /^\d{4}-\d{2}-\d{2}$/.test(c.jour || ''); }
+  function cibleDe(search) {
+    if (!estActif(search)) return null;
+    const p = parametres(search);
+    const c = { quart: p.get('quart'), jour: p.get('jour') };
+    return cibleValide(c) ? c : null;
+  }
+  function urlEtape(n, momentFin, plan, cible) {
     if (!etapeValide(n)) return ACCUEIL;
-    const q = `fil=fin-quart&etape=${n}${momentFin ? `&moment=${momentFin}` : ''}${plan && plan.length ? `&plan=${plan.join('.')}` : ''}`;
+    const q = `fil=fin-quart&etape=${n}${momentFin ? `&moment=${momentFin}` : ''}${plan && plan.length ? `&plan=${plan.join('.')}` : ''}${cibleValide(cible) ? `&quart=${cible.quart}&jour=${cible.jour}` : ''}`;
     return `${PAGES[n]}?${q}`;
   }
   function momentDebutDe(search) {
     const p = parametres(search);
     return p.get('moment') || null;
   }
-  function urlApres(n, momentFin, plan) { const s = suivante(n, plan); return s ? urlEtape(s, momentFin, planOuComplet(plan)) : ACCUEIL; }
+  function urlApres(n, momentFin, plan, cible) { const s = suivante(n, plan); return s ? urlEtape(s, momentFin, planOuComplet(plan), cible) : ACCUEIL; }
 
   const cle = (empId, date) => `nexus_fil_fin_quart_${empId}_${date}`;
   function lire(stockage, empId, date) {
@@ -78,14 +87,14 @@
   }
   function terminer(stockage, empId, date) { return ecrire(stockage, empId, date, { etape: NOMBRE_ETAPES, fini: true }); }
   // null : plus rien à faire, ou fil terminé. Sinon la première étape restante au moins égale à l'étape mémorisée.
-  function urlRepriseSelonFaits(stockage, empId, date, momentFin, faits) {
+  function urlRepriseSelonFaits(stockage, empId, date, momentFin, faits, cible) {
     const e = lire(stockage, empId, date);
     if (e.fini) return null;
     const plan = planSelonFaits(faits);
     if (!plan.length) return null;
     const etape = plan.find(x => x >= e.etape) || plan[0];
-    return urlEtape(etape, momentFin, plan);
+    return urlEtape(etape, momentFin, plan, cible);
   }
 
-  return { NOMBRE_ETAPES, ACCUEIL, LIBELLE_SORTIE, estActif, etapeDe, planDe, planSelonFaits, momentDebutDe, libelleProgression, libelleContinuer, urlEtape, urlApres, lire, ecrire, atteindre, terminer, urlRepriseSelonFaits };
+  return { NOMBRE_ETAPES, ACCUEIL, LIBELLE_SORTIE, estActif, etapeDe, planDe, planSelonFaits, momentDebutDe, cibleDe, libelleProgression, libelleContinuer, urlEtape, urlApres, lire, ecrire, atteindre, terminer, urlRepriseSelonFaits };
 });

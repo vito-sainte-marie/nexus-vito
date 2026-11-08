@@ -959,6 +959,9 @@
     return r.quart === '1' ? 'matin' : r.quart === '2' ? 'soir' : null;
   }
 
+  // Jour du quart visé : celui que porte l'URL du fil de fermeture (quart déjà clos ou passé minuit), sinon aujourd'hui.
+  let jourQuartFil = null;
+  function dateDuQuart() { return jourQuartFil || dateISO(); }
   function dateISO() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -1101,16 +1104,16 @@
     const site = employeeCourant.site_id;
     if (modeTestInventaireActif()) return {
       id: '00000000-0000-4000-8000-000000000101', site,
-      date: dateISO(), quart: quartActuel, statut: 'simulation',
+      date: dateDuQuart(), quart: quartActuel, statut: 'simulation',
       ouvert_le: new Date().toISOString(), is_simulation: true,
     };
     const { data: existant, error: e1 } = await nexusClient
-      .from('inventaire_quarts').select('*').eq('site', site).eq('date', dateISO()).eq('quart', quartActuel).maybeSingle();
+      .from('inventaire_quarts').select('*').eq('site', site).eq('date', dateDuQuart()).eq('quart', quartActuel).maybeSingle();
     if (e1) { console.error('Lecture quart:', e1); }
     if (existant) return existant;
 
     const { data: cree, error: e2 } = await nexusClient
-      .from('inventaire_quarts').insert({ site, date: dateISO(), quart: quartActuel, statut: 'ouverture_en_cours', ouvert_le: new Date().toISOString() })
+      .from('inventaire_quarts').insert({ site, date: dateDuQuart(), quart: quartActuel, statut: 'ouverture_en_cours', ouvert_le: new Date().toISOString() })
       .select().single();
     if (e2) { console.error('Création quart:', e2); return null; }
     return cree;
@@ -1320,7 +1323,7 @@
     if (!P) { console.error('NexusInventaireProductionDonnees non chargé — recommandations indisponibles.'); return; }
     const cibles = produitsZone.filter(p => profilParProduit[p.id] === 'production_journaliere');
     for (const p of cibles) {
-      const r = await P.obtenirOuCalculerRecommandation(nexusClient, employeeCourant.site_id, p.id, dateISO(), quartActuel, quartRow ? quartRow.id : null);
+      const r = await P.obtenirOuCalculerRecommandation(nexusClient, employeeCourant.site_id, p.id, dateDuQuart(), quartActuel, quartRow ? quartRow.id : null);
       if (r) recommandationsParProduit[p.id] = r;
     }
   }
@@ -1512,7 +1515,7 @@
     // init (`memoPlanInit` nul), chaque appel relit, comme avant : un plan
     // ne doit jamais être servi périmé après un comptage.
     const memo = memoPlanInit;
-    const cle = `${site}|${dateISO()}|${quartActuel}`;
+    const cle = `${site}|${dateDuQuart()}|${quartActuel}`;
     let chargement = memo && memo.get(cle);
     if (!chargement) {
       chargement = lirePlanEtReglagesDuQuart(P, site, quartActuel);
@@ -1569,13 +1572,13 @@
     const M = typeof NexusInventaireMoteur !== 'undefined' ? NexusInventaireMoteur : null;
     if (!D || !roleDuJour) { missionsDuJour = []; return; }
     try {
-      const missions = await D.chargerMissionsPourRole(nexusClient, employeeCourant.site_id, dateISO(), quartActuel, roleDuJour);
+      const missions = await D.chargerMissionsPourRole(nexusClient, employeeCourant.site_id, dateDuQuart(), quartActuel, roleDuJour);
       if (M && MR) {
         try {
-          const employesParRole = await MR.chargerEmployesPresentsParRole(nexusClient, employeeCourant.site_id, dateISO(), quartActuel);
+          const employesParRole = await MR.chargerEmployesPresentsParRole(nexusClient, employeeCourant.site_id, dateDuQuart(), quartActuel);
           const collegues = (employesParRole && employesParRole[roleDuJour]) || [];
           missions.forEach(m => {
-            const seed = `${employeeCourant.site_id}|${dateISO()}|${quartActuel}|${m.mission_rule_id}|${m.moment_code}`;
+            const seed = `${employeeCourant.site_id}|${dateDuQuart()}|${quartActuel}|${m.mission_rule_id}|${m.moment_code}`;
             m.produit_ids = M.repartirPerimetreParEmploye(m.produit_ids || [], collegues, employeeCourant.id, seed);
           });
         } catch (eRep) {
@@ -4213,6 +4216,10 @@
       return;
     }
     (dejaCloture || []).forEach((r) => clotureEnregistres.add(r.produit_id));
+    // A3 (Guardian 6721931366) : les comptages de clôture passent par la même file idempotente que l'ouverture.
+    // Écriture par upsert sur idempotency_key : une relance ne double jamais une ligne. Hors ligne, le comptage reste dans la file locale
+    // ET dans le brouillon ; il repart tout seul au retour du réseau, puis la clôture se termine d'elle-même.
+    const enAttente = [];
     for (const p of produitsZone) {
       const saisie = comptagesSaisie[p.id];
       if (!saisie || saisie.compte === undefined) continue;
@@ -4220,52 +4227,95 @@
       if (clotureEnregistres.has(p.id)) continue; // déjà écrit lors d'un essai précédent : pas de doublon au nouvel appui
       const caisseUniquement = estCigaretteCaisseEmploye(p);
       compteurTapsSession++; // Sprint 8, INV2-19 : geste réel de validation produit (clôture), même logique que l'ouverture
-      const { error } = await nexusClient.from('inventaire_comptages').insert({
+      const payload = {
         site: employeeCourant.site_id, quart_id: quartRow.id, produit_id: p.id,
         type_comptage: 'cloture', quantite: saisie.compte, employee_id: employeeCourant.id, source: 'manuel', statut: 'valide',
         quantite_depot: caisseUniquement ? null : (saisie.compteDepot !== undefined ? saisie.compteDepot : null),
         quantite_boutique: caisseUniquement ? saisie.compte : (saisie.compteBoutique !== undefined ? saisie.compteBoutique : null),
-      });
-      if (error) { console.error('Comptage clôture:', error); echecsCloture.push(p); } else { clotureEnregistres.add(p.id); }
+      };
+      const ok = await ecrireComptageCloture(payload);
+      if (ok) clotureEnregistres.add(p.id); else enAttente.push(p);
     }
-    if (echecsCloture.length) {
-      btn.disabled = false; btn.textContent = 'Valider la clôture';
+    const terminerCloture = async () => {
+      // Quart déjà clos par le serveur : la clôture est acceptée tardivement (heure_depart postérieure à cloture_le), sans rejeu automatique.
+      const { error: errValidation } = await nexusClient.from('inventaire_quart_employes').update({ a_valide_cloture: true, heure_depart: new Date().toISOString() }).eq('id', quartEmployeRow.id);
+      if (errValidation) {
+        console.error('Validation clôture:', errValidation);
+        btn.disabled = false; btn.textContent = 'Valider la clôture';
+        sauvegarderDraft('cloture');
+        alerterEnPage('Vos comptages sont enregistrés mais la validation de la clôture a échoué. Votre saisie est conservée : appuyez de nouveau sur « Valider la clôture ».');
+        return;
+      }
+      // Le quart n'est plus clos ici : seule la ligne de l'employé(e) est écrite. Le serveur clôt le quart quand toute la population a validé,
+      // ou à la fin planifiée + délai (run_scheduled_inventory_reviews).
+      // Flush final des mesures d'adoption (18/08/2026, Sprint 8, INV2-19) —
+      // même logique que validerOuverture ci-dessus.
+      await flusherMesuresAdoption();
+      quartEmployeRow.a_valide_cloture = true;
+      effacerDraft('cloture');
+
+      // Alerte critique si la clôture a été validée très incomplète
+      // (02/08/2026, demande de Frédéric) : jamais silencieux — le manager la
+      // voit dans À contrôler sur Contrôle inventaire, avec le nombre réel de
+      // produits manquants, et peut rouvrir la clôture depuis État du quart.
+      if (clotureIncomplete) {
+        await nexusClient.from('inventaire_alertes').insert({
+          site: employeeCourant.site_id, quart_id: quartRow.id, type_alerte: 'cloture_incomplete',
+          gravite: 'critique', valeur_attendue: requis.length, valeur_constatee: nbClotures,
+          resolution: `Clôture validée par ${employeeCourant.nom} avec ${manquants.length} produit(s) sur ${requis.length} non comptés.`,
+        });
+      }
+
+      renderFinalCloture(nbClotures);
+    };
+    if (enAttente.length) {
+      // Le brouillon reste la source tant que l'écriture n'a pas abouti ; la file locale porte les lignes à renvoyer.
       sauvegarderDraft('cloture');
-      alerterEnPage(`${echecsCloture.length} comptage${echecsCloture.length > 1 ? 's' : ''} de clôture n'${echecsCloture.length > 1 ? 'ont' : 'a'} pas pu être enregistré${echecsCloture.length > 1 ? 's' : ''}. Votre saisie est conservée sur cet appareil : vérifiez le réseau puis appuyez de nouveau sur « Valider la clôture ». Si le message revient, prévenez le manager.`);
+      clotureReprise = { terminer: terminerCloture, btn, nb: enAttente.length };
+      btn.disabled = true; btn.textContent = 'En attente du réseau…';
+      afficherMessageClotureHorsLigne(enAttente.length);
+      armerReprise();
       return;
     }
-
-    // Quart déjà clos par le serveur : la clôture est acceptée tardivement (heure_depart postérieure à cloture_le), sans rejeu automatique.
-    const { error: errValidation } = await nexusClient.from('inventaire_quart_employes').update({ a_valide_cloture: true, heure_depart: new Date().toISOString() }).eq('id', quartEmployeRow.id);
-    if (errValidation) {
-      console.error('Validation clôture:', errValidation);
-      btn.disabled = false; btn.textContent = 'Valider la clôture';
-      sauvegarderDraft('cloture');
-      alerterEnPage('Vos comptages sont enregistrés mais la validation de la clôture a échoué. Votre saisie est conservée : appuyez de nouveau sur « Valider la clôture ».');
-      return;
-    }
-    // Le quart n'est plus clos ici : seule la ligne de l'employé(e) est écrite. Le serveur clôt le quart quand toute la population a validé,
-    // ou à la fin planifiée + délai (run_scheduled_inventory_reviews).
-    // Flush final des mesures d'adoption (18/08/2026, Sprint 8, INV2-19) —
-    // même logique que validerOuverture ci-dessus.
-    await flusherMesuresAdoption();
-    quartEmployeRow.a_valide_cloture = true;
-    effacerDraft('cloture');
-
-    // Alerte critique si la clôture a été validée très incomplète
-    // (02/08/2026, demande de Frédéric) : jamais silencieux — le manager la
-    // voit dans À contrôler sur Contrôle inventaire, avec le nombre réel de
-    // produits manquants, et peut rouvrir la clôture depuis État du quart.
-    if (clotureIncomplete) {
-      await nexusClient.from('inventaire_alertes').insert({
-        site: employeeCourant.site_id, quart_id: quartRow.id, type_alerte: 'cloture_incomplete',
-        gravite: 'critique', valeur_attendue: requis.length, valeur_constatee: nbClotures,
-        resolution: `Clôture validée par ${employeeCourant.nom} avec ${manquants.length} produit(s) sur ${requis.length} non comptés.`,
-      });
-    }
-
-    renderFinalCloture(nbClotures);
+    await terminerCloture();
   }
+
+  // Reprise automatique de la clôture (A3) : retour du réseau + minuterie de secours. Le brouillon n'est effacé qu'à la fin.
+  let clotureReprise = null, clotureRepriseEnCours = false, clotureRepriseMinuteur = null;
+  async function ecrireComptageCloture(payload) {
+    const idempotencyKey = cleIdempotenceComptage(payload.quart_id, payload.produit_id, payload.type_comptage, payload.quantite);
+    if (modeTestInventaireActif()) return true;
+    try {
+      const { error } = await nexusClient.from('inventaire_comptages')
+        .upsert({ ...payload, idempotency_key: idempotencyKey }, { onConflict: 'idempotency_key', ignoreDuplicates: true });
+      if (error) throw error;
+      retirerFileSync(idempotencyKey);
+      return true;
+    } catch (e) {
+      console.error('Comptage clôture (mis en file d\'attente):', e);
+      ajouterFileSync({ idempotencyKey, payload, ajouteLe: new Date().toISOString() });
+      return false;
+    }
+  }
+  function afficherMessageClotureHorsLigne(nb) {
+    alerterEnPage(`Pas de réseau : ${nb} comptage${nb > 1 ? 's' : ''} de clôture ${nb > 1 ? 'sont gardés' : 'est gardé'} sur cet appareil. Ne fermez pas la page : l'envoi reprendra tout seul dès que le réseau revient, puis la clôture se terminera.`);
+  }
+  async function reprendreCloture() {
+    if (!clotureReprise || clotureRepriseEnCours) return;
+    clotureRepriseEnCours = true;
+    try {
+      const tout = await tenterSynchronisationFileAttente();
+      if (!tout) return; // toujours hors ligne : on retentera
+      const r = clotureReprise; clotureReprise = null;
+      if (clotureRepriseMinuteur) { clearInterval(clotureRepriseMinuteur); clotureRepriseMinuteur = null; }
+      r.btn.textContent = 'Nous traitons vos informations…';
+      await r.terminer();
+    } finally { clotureRepriseEnCours = false; }
+  }
+  function armerReprise() {
+    if (!clotureRepriseMinuteur) clotureRepriseMinuteur = setInterval(reprendreCloture, 15000);
+  }
+  window.addEventListener('online', reprendreCloture);
 
   function renderFinalCloture(nbClotures) {
     document.getElementById('titre').textContent = 'Inventaire de clôture validé';
@@ -4557,6 +4607,12 @@
       // (quart, quart-employé, missions, plan). L'heure de la station ne choisit jamais le quart d'un employé en service :
       // le samedi (horaires étendus) un pompiste du matin qui clôt à 14 h 15 se retrouvait sur un quart du soir créé à vide.
       if (enFil() && quartDuShift) quartActuel = quartDuShift;
+    }
+    // Fil de fermeture : le quart ET le jour portés par l'URL priment sur l'horloge et sur le service (A3). Ainsi l'inventaire ouvert depuis
+    // l'index de fin de quart vise le quart qu'on ferme, même si l'heure a basculé sur l'autre quart ou sur le jour suivant.
+    if (filFermeture) {
+      const cibleFil = window.NexusFilFinQuart.cibleDe(location.search);
+      if (cibleFil) { quartActuel = cibleFil.quart; jourQuartFil = cibleFil.jour; }
     }
 
     // Pont Jaugeage carburant (19/08/2026, étendu le 19/08/2026) — la

@@ -2744,8 +2744,9 @@
       const hm = new Intl.DateTimeFormat('en-GB', { timeZone: fuseauStation, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date());
       maintenantMinutes = Number(hm.find(x => x.type === 'hour').value) * 60 + Number(hm.find(x => x.type === 'minute').value);
       const faitsFermeture = { resteIndex: finIndexApplicable && !finQuartFait, resteInventaire: inventaireApplicable && !inventaireFait };
-      fermetureLien = NexusFilFinQuart.urlRepriseSelonFaits(localStorage, employee.id, todayISO, momentIndexFin, faitsFermeture)
-        || (NexusFilFinQuart.planSelonFaits(faitsFermeture).length ? NexusFilFinQuart.urlEtape(NexusFilFinQuart.planSelonFaits(faitsFermeture)[0], momentIndexFin, NexusFilFinQuart.planSelonFaits(faitsFermeture)) : null);
+      const cibleFermeture = { quart: quartDuJour, jour: todayISO };
+      fermetureLien = NexusFilFinQuart.urlRepriseSelonFaits(localStorage, employee.id, todayISO, momentIndexFin, faitsFermeture, cibleFermeture)
+        || (NexusFilFinQuart.planSelonFaits(faitsFermeture).length ? NexusFilFinQuart.urlEtape(NexusFilFinQuart.planSelonFaits(faitsFermeture)[0], momentIndexFin, NexusFilFinQuart.planSelonFaits(faitsFermeture), cibleFermeture) : null);
     }
 
     // Entrée du fil « Ma caisse » (L1, incrément 3) : pilote + caissière du jour en service ; étape 2 (comptage) puis 3 (fermeture, 45 min avant la fin).

@@ -700,7 +700,7 @@
     if (a === 'sortie') { sauverAvantSortie(); return; }
     if (a === 'filcontinuer') {
       if (!enFil()) return; sauverAvantSortie();
-      const vers = FIL.urlApres(filEtape, filDebut, filPlan);
+      const vers = FIL.urlApres(filEtape, filDebut, filPlan, FIL.cibleDe ? FIL.cibleDe(location.search) : null);
       if (vers === FIL.ACCUEIL) FIL.terminer(localStorage, emp.id, date); else FIL.atteindre(localStorage, emp.id, date, FIL.etapeDe(vers.slice(vers.indexOf('?'))));
       location.href = vers; return;
     }

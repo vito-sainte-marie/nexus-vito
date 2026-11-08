@@ -214,6 +214,7 @@ function mockClientPresence(quartExiste, presences) {
         'const NexusInventaireMissionRulesDonnees = globalThis.__missionRulesDonnees;',
         'const NexusInventaireMoteur = globalThis.__moteur;',
         'function dateISO() { return "2026-08-29"; }',
+        'function dateDuQuart() { return dateISO(); }',
         extraireFonction('chargerMissionsDuJour'),
         `globalThis.__test = {
           setEnv: (env) => { roleDuJour = env.roleDuJour; quartActuel = env.quartActuel; },

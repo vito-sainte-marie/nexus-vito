@@ -67,13 +67,15 @@ function epreuvesInventaire(src) {
   const i = src.indexOf('async function validerCloture');
   assert(i > 0, 'validerCloture présent');
   const corps = src.slice(i, i + 12000);
-  const iEchec = corps.indexOf('if (echecsCloture.length)');
+  // A3 (08/11/2026) : la validation vit dans terminerCloture, lancée seulement quand plus aucun comptage n'attend (file idempotente).
+  const iTerm = corps.indexOf('const terminerCloture = async () =>');
+  const iEchec = corps.indexOf('if (enAttente.length)');
   const iValid = corps.indexOf("a_valide_cloture: true");
   const iEff = corps.indexOf("effacerDraft('cloture')");
-  assert(iEchec > 0 && iValid > iEchec && iEff > iValid, 'échec contrôlé AVANT la validation, brouillon effacé APRÈS');
-  const bloc = corps.slice(iEchec, iValid);
-  assert(/sauvegarderDraft\('cloture'\)/.test(bloc) && /alerterEnPage\(/.test(bloc) && /return;/.test(bloc), 'échec : brouillon gardé, message visible, arrêt');
-  assert(/if \(errValidation\)/.test(corps) && /sauvegarderDraft\('cloture'\)/.test(corps.slice(corps.indexOf('if (errValidation)'), iEff)), 'validation en échec : brouillon gardé');
+  assert(iTerm > 0 && iEchec > iTerm && iValid > iTerm && iValid < iEchec && iEff > iValid && iEff < iEchec, 'terminerCloture : validation puis brouillon effacé');
+  const bloc = corps.slice(iEchec, iEchec + 700);
+  assert(/sauvegarderDraft\('cloture'\)/.test(bloc) && /afficherMessageClotureHorsLigne\(/.test(bloc) && /return;/.test(bloc) && !/effacerDraft/.test(bloc), 'attente : brouillon gardé, message visible, arrêt sans effacer');
+  assert(/if \(errValidation\)/.test(corps) && /sauvegarderDraft\('cloture'\)/.test(corps.slice(corps.indexOf('if (errValidation)'), iEff + 40)), 'validation en échec : brouillon gardé');
   const iRel = corps.indexOf(".eq('type_comptage', 'cloture')");
   const iBoucle = corps.indexOf('for (const p of produitsZone)');
   assert(iRel > 0 && iRel < iBoucle, 'relecture des comptages de clôture AVANT les insertions');
@@ -116,8 +118,8 @@ const mutApp = [
   ['recap compte la clôture serveur', (s) => s.replace('r.a_valide_cloture === true && (r.inventaire_quarts.cloture_le || r.heure_depart)', '(r.inventaire_quarts.cloture_le || r.heure_depart)')],
 ];
 const mutInv = [
-  ['échec de comptage ignoré', (s) => s.replace('if (echecsCloture.length) {', 'if (false) {')],
-  ['brouillon non gardé en échec', (s) => s.replace(/(if \(echecsCloture\.length\) \{\s*btn\.disabled = false; btn\.textContent = 'Valider la clôture';\s*)sauvegarderDraft\('cloture'\);/, '$1')],
+  ['échec de comptage ignoré', (s) => s.replace('if (enAttente.length) {', 'if (false) {')],
+  ['brouillon non gardé en échec', (s) => s.replace(/(if \(enAttente\.length\) \{\s*[^\n]*\n\s*)sauvegarderDraft\('cloture'\);/, '$1')],
   ['pas de garde anti-doublon', (s) => s.replace('if (clotureEnregistres.has(p.id)) continue;', '')],
   ['pas de relecture anti-doublon', (s) => s.replace("(dejaCloture || []).forEach((r) => clotureEnregistres.add(r.produit_id));", '')],
   ['relecture en échec ignorée', (s) => s.replace('if (errRelecture) {', 'if (false) {')],
