@@ -535,6 +535,74 @@
   .intention-demarrage .id-texte{font-size:11px; color:var(--text-mid); margin-top:2px; line-height:1.45;}
   .intention-demarrage .id-fleche{color:var(--cyan); font-family:var(--mono); font-size:14px; flex-shrink:0;}
 
+  /* Cartes de l'accueil = boutons qu'on va presser (Guardian 6721323193, 08/11/2026).
+     Mêmes règles pour les 6 « Que voulez-vous faire ? », le bandeau « Vous ne savez pas où commencer ? »
+     et les raccourcis (.outil-card, .outil-quart-card). Toutes sont de vraies balises <a> : Tab et Entrée marchent. */
+  .intention-card, .outil-card, .outil-quart-card, .intention-demarrage{
+    position:relative; cursor:pointer;
+    transition:transform 160ms ease-out, box-shadow 160ms ease-out, border-color 160ms ease-out, background-color 160ms ease-out;
+  }
+  .intention-card::after, .outil-card::after, .outil-quart-card::after{
+    content:'→'; position:absolute; top:12px; right:14px; color:var(--cyan); font-family:var(--mono); font-size:14px; line-height:1;
+    opacity:0; transition:opacity 160ms ease-out; pointer-events:none;
+  }
+  .intention-icon, .outil-icon{transition:transform 160ms ease-out;}
+  .intention-title, .outil-title{transition:color 160ms ease-out;}
+  .intention-demarrage .id-fleche{transition:transform 160ms ease-out;}
+  /* Survol (souris) et focus clavier : même rendu. */
+  @media (hover:hover){
+    .intention-card:hover, .outil-card:hover, .outil-quart-card:hover, .intention-demarrage:hover{
+      transform:translateY(-3px); border-color:rgba(var(--cyan-rgb),0.55);
+      box-shadow:0 10px 24px rgba(var(--shadow-rgb),0.35), inset 0 0 0 1px rgba(var(--cyan-rgb),0.25);
+    }
+    .intention-card:hover, .outil-card:hover, .outil-quart-card:hover{background:color-mix(in srgb, var(--text) 4%, var(--panel));}
+    .intention-demarrage:hover{background:rgba(var(--cyan-rgb),0.12);}
+    .intention-card:hover .intention-icon, .outil-card:hover .outil-icon{transform:scale(1.08);}
+    .intention-card:hover .intention-title, .outil-card:hover .outil-title, .intention-demarrage:hover .id-titre{color:var(--titre-survol,#fff);}
+    .intention-card:hover::after, .outil-card:hover::after, .outil-quart-card:hover::after{opacity:1;}
+    .intention-demarrage:hover .id-fleche{transform:translateX(4px);}
+  }
+  .intention-card:focus-visible, .outil-card:focus-visible, .outil-quart-card:focus-visible, .intention-demarrage:focus-visible{
+    transform:translateY(-3px); border-color:rgba(var(--cyan-rgb),0.55);
+    box-shadow:0 10px 24px rgba(var(--shadow-rgb),0.35), inset 0 0 0 1px rgba(var(--cyan-rgb),0.25);
+    outline:2px solid var(--cyan); outline-offset:3px;
+  }
+  .intention-card:focus-visible, .outil-card:focus-visible, .outil-quart-card:focus-visible{background:color-mix(in srgb, var(--text) 4%, var(--panel));}
+  .intention-demarrage:focus-visible{background:rgba(var(--cyan-rgb),0.12);}
+  .intention-card:focus-visible .intention-icon, .outil-card:focus-visible .outil-icon{transform:scale(1.08);}
+  .intention-card:focus-visible .intention-title, .outil-card:focus-visible .outil-title, .intention-demarrage:focus-visible .id-titre{color:var(--titre-survol,#fff);}
+  .intention-card:focus-visible::after, .outil-card:focus-visible::after, .outil-quart-card:focus-visible::after{opacity:1;}
+  .intention-demarrage:focus-visible .id-fleche{transform:translateX(4px);}
+  /* Pression : retour à plat puis enfoncé, plus rapide (80 ms). Seul effet au toucher. */
+  .intention-card:active, .outil-card:active, .outil-quart-card:active, .intention-demarrage:active{
+    transform:translateY(0) scale(.985); box-shadow:0 2px 6px rgba(var(--shadow-rgb),0.25);
+    transition-duration:80ms;
+  }
+  /* Thème Jour : mêmes effets, ombre plus douce, cyan du thème clair, titre foncé (pas de blanc sur fond clair). */
+  [data-theme="jour"] .intention-card:focus-visible, [data-theme="jour"] .outil-card:focus-visible, [data-theme="jour"] .outil-quart-card:focus-visible, [data-theme="jour"] .intention-demarrage:focus-visible{
+    box-shadow:0 8px 18px rgba(var(--shadow-rgb),0.14), inset 0 0 0 1px rgba(var(--cyan-rgb),0.25);
+  }
+  [data-theme="jour"] .intention-card:focus-visible, [data-theme="jour"] .outil-card:focus-visible, [data-theme="jour"] .outil-quart-card:focus-visible{background:color-mix(in srgb, var(--cyan) 6%, var(--panel));}
+  [data-theme="jour"] .intention-card:focus-visible .intention-title, [data-theme="jour"] .outil-card:focus-visible .outil-title, [data-theme="jour"] .intention-demarrage:focus-visible .id-titre{color:var(--text);}
+  @media (hover:hover){
+    [data-theme="jour"] .intention-card:hover, [data-theme="jour"] .outil-card:hover, [data-theme="jour"] .outil-quart-card:hover, [data-theme="jour"] .intention-demarrage:hover{
+      box-shadow:0 8px 18px rgba(var(--shadow-rgb),0.14), inset 0 0 0 1px rgba(var(--cyan-rgb),0.25);
+    }
+    [data-theme="jour"] .intention-card:hover, [data-theme="jour"] .outil-card:hover, [data-theme="jour"] .outil-quart-card:hover{background:color-mix(in srgb, var(--cyan) 6%, var(--panel));}
+    [data-theme="jour"] .intention-card:hover .intention-title, [data-theme="jour"] .outil-card:hover .outil-title, [data-theme="jour"] .intention-demarrage:hover .id-titre{color:var(--text);}
+  }
+  [data-theme="jour"] .intention-card:active, [data-theme="jour"] .outil-card:active, [data-theme="jour"] .outil-quart-card:active, [data-theme="jour"] .intention-demarrage:active{box-shadow:0 2px 6px rgba(var(--shadow-rgb),0.12);}
+  /* Mouvement réduit : ni déplacement ni échelle, seuls la couleur, le contour et l'ombre changent. */
+  @media (prefers-reduced-motion:reduce){
+    .intention-card, .outil-card, .outil-quart-card, .intention-demarrage{transition:border-color 0ms, box-shadow 0ms, background-color 0ms;}
+    .intention-card:hover, .outil-card:hover, .outil-quart-card:hover, .intention-demarrage:hover,
+    .intention-card:focus-visible, .outil-card:focus-visible, .outil-quart-card:focus-visible, .intention-demarrage:focus-visible,
+    .intention-card:active, .outil-card:active, .outil-quart-card:active, .intention-demarrage:active{transform:none;}
+    .intention-card:hover .intention-icon, .outil-card:hover .outil-icon, .intention-card:focus-visible .intention-icon, .outil-card:focus-visible .outil-icon,
+    .intention-demarrage:hover .id-fleche, .intention-demarrage:focus-visible .id-fleche{transform:none;}
+    .intention-icon, .outil-icon, .intention-demarrage .id-fleche, .intention-card::after, .outil-card::after, .outil-quart-card::after{transition:none;}
+  }
+
   /* Refonte du 26/07/2026 (demande de Frédéric) — "État global" : badge de
      statut + Indice sur une seule ligne, une phrase de synthèse, puis 4
      domaines (Commerce/Valeur/Opérations/Équipe) plutôt que deux colonnes
