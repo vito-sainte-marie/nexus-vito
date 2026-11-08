@@ -2736,8 +2736,14 @@
     // Heures réelles du récapitulatif de fin de quart, lues sur les faits déjà chargés : fin des relevés d'index (finalise_le) et
     // clôture de l'inventaire du quart de service. Une heure absente reste null et la ligne correspondante est omise.
     const heureReleve = (moment) => { const r = (relevesIndexRows || []).find(x => x.moment === moment && x.statut === 'final'); return r ? r.finalise_le : null; };
-    const clotureInventaire = ((quartEmployeRows || []).filter(r => r.inventaire_quarts && r.inventaire_quarts.date === todayISO && r.inventaire_quarts.is_simulation !== true && r.a_valide_cloture === true && (r.inventaire_quarts.cloture_le || r.heure_depart)).filter(surQuartDeService).map(r => r.inventaire_quarts.cloture_le || r.heure_depart).sort().pop()) || null;
-    const recapQuart = { ouvertureDe: null, ouvertureA: heureReleve(momentIndexDebut), fermetureDe: heureReleve(momentIndexFin), fermetureA: clotureInventaire };
+    // Clôture tardive (Guardian 6721931366, A1) : quand l'employé valide APRÈS la clôture du serveur (heure_depart > cloture_le), l'heure
+    // du serveur n'est pas son geste. On affiche son heure réelle (heure_depart) et on marque « en retard ».
+    const rowsCloture = (quartEmployeRows || []).filter(r => r.inventaire_quarts && r.inventaire_quarts.date === todayISO && r.inventaire_quarts.is_simulation !== true && r.a_valide_cloture === true && (r.inventaire_quarts.cloture_le || r.heure_depart)).filter(surQuartDeService);
+    const clotureTardiveDe = (r) => !!(r.inventaire_quarts.cloture_le && r.heure_depart && new Date(r.heure_depart).getTime() > new Date(r.inventaire_quarts.cloture_le).getTime());
+    const heureClotureDe = (r) => clotureTardiveDe(r) ? r.heure_depart : (r.inventaire_quarts.cloture_le || r.heure_depart);
+    const derniereCloture = rowsCloture.slice().sort((a, b) => String(heureClotureDe(a)).localeCompare(String(heureClotureDe(b)))).pop() || null;
+    const clotureInventaire = derniereCloture ? heureClotureDe(derniereCloture) : null;
+    const recapQuart = { ouvertureDe: null, ouvertureA: heureReleve(momentIndexDebut), fermetureDe: heureReleve(momentIndexFin), fermetureA: clotureInventaire, fermetureTardive: !!derniereCloture && clotureTardiveDe(derniereCloture) };
     if (enService && roleDuJour === 'pompiste' && fuseauStation && quartDuJour) {
       const horairesStation = await chargerHorairesStation(employee.site_id);
       finMinutes = NexusStation.finDuQuartMinutes(horairesStation, quartDuJour === 'matin' ? 'quart1' : 'quart2', fuseauStation, new Date());
