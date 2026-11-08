@@ -171,7 +171,10 @@
       termine: ecranTermine ? {
         apresMidi: f.quart === 'matin',
         ouverture: plage(heureLocale(rc.ouvertureDe, f.fuseau), heureOuvertureFin),
-        fermeture: plage(heureLocale(bornes(rc.fermetureDe, rc.fermetureA)[0], f.fuseau), heureLocale(bornes(rc.fermetureDe, rc.fermetureA)[1], f.fuseau)),
+        // Clôture validée après celle du serveur : l'heure réelle seule, marquée « en retard » (pas une plage avec l'heure du serveur).
+        fermeture: rc.fermetureTardive === true && rc.fermetureA && heureLocale(rc.fermetureA, f.fuseau)
+          ? heureLocale(rc.fermetureA, f.fuseau) + ' (en retard)'
+          : plage(heureLocale(bornes(rc.fermetureDe, rc.fermetureA)[0], f.fuseau), heureLocale(bornes(rc.fermetureDe, rc.fermetureA)[1], f.fuseau)),
         missions: m.total > 0 ? m.faites + ' sur ' + m.total : null,
         missionsToutes: m.total > 0 && m.faites >= m.total,
         // Le pointage de départ n'existe que si la station l'active ; sinon la sortie est la déconnexion.
