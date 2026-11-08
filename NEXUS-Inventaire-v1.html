@@ -962,6 +962,12 @@
   // Jour du quart visé : celui que porte l'URL du fil de fermeture (quart déjà clos ou passé minuit), sinon aujourd'hui.
   let jourQuartFil = null;
   function dateDuQuart() { return jourQuartFil || dateISO(); }
+  function jourCibleAdmis(jour) {
+    const auj = filDate() || dateISO();
+    const [y, m, d] = auj.split('-').map(Number);
+    const h = new Date(Date.UTC(y, m - 1, d - 1)).toISOString().slice(0, 10);
+    return jour === auj || jour === h;
+  }
   function dateISO() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -4612,7 +4618,8 @@
     // l'index de fin de quart vise le quart qu'on ferme, même si l'heure a basculé sur l'autre quart ou sur le jour suivant.
     if (filFermeture) {
       const cibleFil = window.NexusFilFinQuart.cibleDe(location.search);
-      if (cibleFil) { quartActuel = cibleFil.quart; jourQuartFil = cibleFil.jour; }
+      // Garde (revue Guardian 6723924331) : un lien ancien rouvert plus tard ne vise pas un jour lointain. Seuls aujourd'hui et la veille (heure de la station) sont admis.
+      if (cibleFil && jourCibleAdmis(cibleFil.jour)) { quartActuel = cibleFil.quart; jourQuartFil = cibleFil.jour; }
     }
 
     // Pont Jaugeage carburant (19/08/2026, étendu le 19/08/2026) — la

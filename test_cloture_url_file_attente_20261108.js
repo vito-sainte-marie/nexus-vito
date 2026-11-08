@@ -87,4 +87,18 @@ garde('minuterie de secours', INV, c => /setInterval\(reprendreCloture, 15000\)/
 garde('la reprise attend la file vidée avant de terminer', INV, c => /if \(!tout\) return;/.test(c), 'if (!tout) return;', '');
 garde('un échec ne passe plus pour un succès', INV, c => /if \(ok\) clotureEnregistres\.add\(p\.id\); else enAttente\.push\(p\);/.test(c), 'if (ok) clotureEnregistres.add(p.id); else enAttente.push(p);', 'clotureEnregistres.add(p.id);');
 
+// ---- Garde du jour (revue Guardian 6723924331) : seuls aujourd'hui et la veille, à l'heure de la station ----
+t('jourCibleAdmis : aujourd\'hui et la veille passent, un jour ancien ou futur est ignoré (frontière de mois et d\'année)', () => {
+  const src = corps(INV, 'function jourCibleAdmis');
+  const f = (auj, jour) => new Function('filDate', 'dateISO', 'const fn = function jourCibleAdmis(jour) {' + src + '}; return fn(' + JSON.stringify(jour) + ');')(() => auj, () => '2000-01-01');
+  assert.strictEqual(f('2026-11-08', '2026-11-08'), true);
+  assert.strictEqual(f('2026-11-08', '2026-11-07'), true);
+  assert.strictEqual(f('2026-11-08', '2026-11-06'), false);
+  assert.strictEqual(f('2026-11-08', '2026-11-09'), false);
+  assert.strictEqual(f('2026-01-01', '2025-12-31'), true);
+  assert.strictEqual(f('2026-03-01', '2026-02-28'), true);
+});
+garde('Inventaire : la cible hors fenêtre est ignorée', INV, c => /if \(cibleFil && jourCibleAdmis\(cibleFil\.jour\)\)/.test(c), 'if (cibleFil && jourCibleAdmis(cibleFil.jour))', 'if (cibleFil)');
+garde('Inventaire : la veille est admise', INV, c => /jour === auj \|\| jour === h/.test(c), 'jour === auj || jour === h', 'jour === auj');
+
 console.log(n + ' épreuves OK');
