@@ -234,4 +234,18 @@ t('en rail, une entrée avec pastille : titre masqué par sa classe (même si la
 garde('rail : le titre est masqué par sa classe', DESK, h => /nexus-menu-rail #nexus-sidebar-principal \.nexus-sidebar-link > \.nexus-sidebar-titre\{max-width:0/.test(h), 'link > .nexus-sidebar-titre{max-width:0', 'link > span:last-child{max-width:0');
 garde('rail : la pastille est en surimpression', DESK, h => /nexus-sidebar-dot\{position:absolute; left:calc\(50% \+ 6px\)/.test(h), 'nexus-sidebar-dot{position:absolute;', 'nexus-sidebar-dot{position:static;');
 
+
+// ---- Toutes les entrées du menu : exactement un titre portant la classe (Guardian 6715947837, lien Accueil) ----
+const entreesMenu = src => (src.match(/<a class="nexus-sidebar-link[\s\S]*?<\/a>/g) || []);
+t('chaque entrée de #nexus-sidebar-principal a exactement un titre portant la classe, aucun <span> nu', () => {
+  const liens = entreesMenu(DESK);
+  assert.ok(liens.length >= 2, 'gabarit + lien Accueil au minimum : ' + liens.length);
+  liens.forEach(l => {
+    assert.strictEqual((l.match(/<span class="nexus-sidebar-titre">/g) || []).length, 1, l.slice(0, 120));
+    assert.ok(!/<span(?![^>]*nexus-sidebar-(titre|emoji))[^>]*>/.test(l.replace(/<span class="nexus-sidebar-dot"[^>]*>/g, '')), 'span sans classe : ' + l.slice(0, 120));
+  });
+  assert.ok(liens.some(l => l.includes('href="NEXUS-App-v1.html"') && l.includes('>Accueil</span>')), 'le lien Accueil est bien examiné');
+});
+garde('le lien Accueil porte la classe du titre', DESK, h => entreesMenu(h).every(l => /<span class="nexus-sidebar-titre">/.test(l)), '<span class="nexus-sidebar-titre">Accueil</span>', '<span>Accueil</span>');
+
 console.log(n + ' épreuves OK');
