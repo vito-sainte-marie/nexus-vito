@@ -79,7 +79,8 @@ function epreuvesInventaire(src) {
   const iRel = corps.indexOf(".eq('type_comptage', 'cloture')");
   const iBoucle = corps.indexOf('for (const p of produitsZone)');
   assert(iRel > 0 && iRel < iBoucle, 'relecture des comptages de clôture AVANT les insertions');
-  assert(/if \(errRelecture\)/.test(corps) && /dejaCloture \|\| \[\]\)\.forEach\(\(r\) => clotureEnregistres\.add\(r\.produit_id\)\)/.test(corps), 'relecture : échec = rien écrit, sinon doublons exclus');
+  assert(/if \(errRelecture\)/.test(corps) && /dejaCloture \|\| \[\]\)\.forEach\(\(r\) => clotureEnregistres\.add\(r\.produit_id\)\)/.test(corps), 'relecture : doublons exclus');
+  assert(!/if \(errRelecture\) \{/.test(corps), 'relecture en échec : jamais d\'arrêt anticipé (Guardian 6724044540)');
   assert(/clotureEnregistres\.has\(p\.id\)/.test(corps) && /clotureEnregistres\.add\(p\.id\)/.test(corps), 'pas de doublon au nouvel appui');
 }
 epreuvesApp(APP);
@@ -122,7 +123,7 @@ const mutInv = [
   ['brouillon non gardé en échec', (s) => s.replace(/(if \(enAttente\.length\) \{\s*[^\n]*\n\s*)sauvegarderDraft\('cloture'\);/, '$1')],
   ['pas de garde anti-doublon', (s) => s.replace('if (clotureEnregistres.has(p.id)) continue;', '')],
   ['pas de relecture anti-doublon', (s) => s.replace("(dejaCloture || []).forEach((r) => clotureEnregistres.add(r.produit_id));", '')],
-  ['relecture en échec ignorée', (s) => s.replace('if (errRelecture) {', 'if (false) {')],
+  ['relecture en échec : arrêt anticipé rétabli', (s) => s.replace("if (errRelecture) console.error(", "if (errRelecture) { return; } console.error(")],
   ['validation sans contrôle', (s) => s.replace('if (errValidation) {', 'if (false) {')],
 ];
 for (const [nom, mut] of mutInv) {

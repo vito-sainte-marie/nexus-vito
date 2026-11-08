@@ -101,4 +101,16 @@ t('jourCibleAdmis : aujourd\'hui et la veille passent, un jour ancien ou futur e
 garde('Inventaire : la cible hors fenêtre est ignorée', INV, c => /if \(cibleFil && jourCibleAdmis\(cibleFil\.jour\)\)/.test(c), 'if (cibleFil && jourCibleAdmis(cibleFil.jour))', 'if (cibleFil)');
 garde('Inventaire : la veille est admise', INV, c => /jour === auj \|\| jour === h/.test(c), 'jour === auj || jour === h', 'jour === auj');
 
+// ---- Réseau déjà coupé à la validation (Guardian 6724044540) : la relecture échoue, la file prend le relais ----
+t('relecture en échec : pas de return anticipé, tout part dans la file', () => {
+  const c = corps(INV, 'async function validerCloture');
+  const i = c.indexOf('if (errRelecture)');
+  assert.ok(i > 0);
+  const suite = c.slice(i, c.indexOf('forEach((r) => clotureEnregistres.add'));
+  assert.ok(!/return/.test(suite), suite);
+  assert.ok(c.indexOf('if (errRelecture)') < c.indexOf('for (const p of produitsZone)'));
+  assert.ok(/if \(ok\) clotureEnregistres\.add\(p\.id\); else enAttente\.push\(p\);/.test(c));
+});
+garde('relecture en échec : pas d\'arrêt anticipé', INV, c => !/if \(errRelecture\) \{\s*return/.test(c) && !/Impossible de vérifier vos comptages/.test(c), "if (errRelecture) console.error(", "if (errRelecture) { return; } console.error(");
+
 console.log(n + ' épreuves OK');
