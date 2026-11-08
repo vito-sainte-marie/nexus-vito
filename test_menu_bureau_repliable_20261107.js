@@ -93,7 +93,7 @@ t('le filament est un vrai bouton accessible, dégradé cyan qui respire (opacit
   assert.ok(DESK.includes("fil.setAttribute('aria-label', 'Afficher le menu')"));
   assert.ok(/\.nexus-sb-fil\{[^}]*width:3px;[^}]*linear-gradient\(180deg, #4FC3D9, rgba\(79,195,217,0\)\)/.test(css));
   assert.ok(/@keyframes nexus-sb-souffle\{0%,100%\{opacity:\.35;\} 50%\{opacity:\.7;\}\}/.test(css) && /nexus-sb-souffle 4s/.test(css));
-  assert.ok(/\.nexus-sb-filament\{[^}]*width:12px/.test(css), 'zone de survol de 12 px');
+  assert.ok(/\.nexus-sb-filament\{[^}]*width:28px/.test(css), 'zone cliquable de 28 px');
 });
 t('rail de 68 px, menu caché à largeur nulle, courbe élastique de 420 ms', () => {
   assert.ok(/body\.nexus-menu-rail #nexus-sidebar-principal[^{]*\{width:68px/.test(css));
@@ -117,8 +117,15 @@ t('les info-bulles cèdent la place à la pastille en rail', () => {
   assert.ok(DESK.includes("if (document.body.classList.contains('nexus-menu-rail')) return;"));
 });
 t('aperçu au survol du filament seulement avec une vraie souris ; tactile : zone ≥ 24 px', () => {
-  assert.ok(/@media \(hover:hover\)\{\s*\.nexus-sb-filament:hover\{width:20px/.test(css));
-  assert.ok(/@media \(hover:none\)\{\s*\.nexus-sb-filament\{width:28px/.test(css));
+  assert.ok(/@media \(hover:hover\)\{\s*\.nexus-sb-filament:hover::before, \.nexus-sb-filament:hover::after\{transform:none; opacity:1;\}/.test(css));
+  assert.ok(/@media \(hover:none\)\{\s*\.nexus-sb-filament\{width:32px/.test(css));
+});
+t('Guardian 6715519682 : icônes du rail à 28 px, panneau de verre de 24 px en 180 ms, chevron 24 × 24 px visible, écart de 16 px', () => {
+  assert.ok(/body\.nexus-menu-rail #nexus-sidebar-principal \.nexus-sidebar-link img\{width:28px; height:28px;\}/.test(css), 'icônes du rail à 28 px');
+  assert.ok(/\.nexus-sb-filament::before\{[^}]*width:24px;[^}]*blur\(10px\)[^}]*border-right:1px solid rgba\(79,195,217,0\.7\)[^}]*transition:transform 180ms ease, opacity 180ms ease/.test(css), 'panneau de verre');
+  assert.ok(/\.nexus-sb-filament:hover \.nexus-sb-fil\{animation:none; opacity:1; filter:drop-shadow\(0 0 5px #4FC3D9\);\}/.test(css), 'filament intensifié');
+  assert.ok(/\.nexus-sb-chev\{position:absolute; left:4px; top:12px; width:24px; height:24px;/.test(css), 'chevron 24 × 24 px, dans l\'écran');
+  assert.ok(/body\.nexus-desktop\.nexus-menu-cache > \.phone, body\.nexus-desktop\.nexus-menu-cache > \.app\{margin-left:16px;\}/.test(css), 'écart de 16 px');
 });
 t('mouvement réduit : ni cascade, ni flou, ni respiration, ni rebond ; fondu de 120 ms', () => {
   const R = corps(css, '@media (prefers-reduced-motion:reduce) and (min-width:0px)');
@@ -148,7 +155,12 @@ garde('rail : 68 px', css, c => /body\.nexus-menu-rail #nexus-sidebar-principal[
 garde('filament : 3 px lumineux', css, c => /\.nexus-sb-fil\{[^}]*width:3px/.test(c), 'bottom:0; width:3px', 'bottom:0; width:0px');
 garde('respiration : 0,35 à 0,7', css, c => /nexus-sb-souffle\{0%,100%\{opacity:\.35;\} 50%\{opacity:\.7;\}\}/.test(c), '50%{opacity:.7;}', '50%{opacity:1;}');
 garde('mouvement réduit : respiration coupée', css, c => /::after, \.nexus-sb-fil, [^{]*\{animation:none/.test(c), '::after, .nexus-sb-fil, .nexus-sb-filament.nexus-sb-eclat', '::after, .nexus-sb-fil-x, .nexus-sb-filament.nexus-sb-eclat');
-garde('tactile : zone du filament élargie', css, c => /@media \(hover:none\)\{\s*\.nexus-sb-filament\{width:28px/.test(c), '@media (hover:none){\n    .nexus-sb-filament{width:28px;}', '@media (hover:none){\n    .nexus-sb-filament{width:12px;}');
+garde('tactile : zone du filament élargie', css, c => /@media \(hover:none\)\{\s*\.nexus-sb-filament\{width:32px/.test(c), '@media (hover:none){\n    .nexus-sb-filament{width:32px;}', '@media (hover:none){\n    .nexus-sb-filament{width:12px;}');
+garde('rail : icônes à 28 px', css, c => /nexus-sidebar-link img\{width:28px; height:28px;\}/.test(c), '.nexus-sidebar-link img{width:28px; height:28px;}', '.nexus-sidebar-link img{width:16px; height:16px;}');
+garde('filament : panneau de verre de 24 px', css, c => /\.nexus-sb-filament::before\{[^}]*width:24px/.test(c), 'bottom:0; width:24px; background:rgba(20,27,34,0.55)', 'bottom:0; width:4px; background:rgba(20,27,34,0.55)');
+garde('filament : lueur au survol', css, c => /:hover \.nexus-sb-fil\{animation:none; opacity:1; filter:drop-shadow/.test(c), 'animation:none; opacity:1; filter:drop-shadow(0 0 5px #4FC3D9)', 'animation:none; opacity:.4; filter:none');
+garde('chevron : 24 × 24 px visible', css, c => /\.nexus-sb-chev\{position:absolute; left:4px; top:12px; width:24px; height:24px/.test(c), 'left:4px; top:12px; width:24px; height:24px', 'left:-4px; top:12px; width:14px; height:24px');
+garde('écart de 16 px pour le bouton ☰', css, c => /nexus-menu-cache > \.app\{margin-left:16px;\}/.test(c), '> .app{margin-left:16px;}', '> .app{margin-left:0;}');
 garde('aperçu au survol : seulement avec une vraie souris', css, c => /@media \(hover:hover\)\{\s*\.nexus-sb-filament:hover/.test(c), '@media (hover:hover){', '@media all{');
 garde('cascade plafonnée (rail et caché)', css, c => (c.match(/min\(var\(--nl-i, 0\), 24\)/g) || []).length >= 3, 'min(var(--nl-i, 0), 24) * 12ms', 'var(--nl-i, 0) * 12ms');
 

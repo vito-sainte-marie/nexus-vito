@@ -358,6 +358,10 @@ const NEXUS_DESKTOP_CSS = `
   body.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-link{justify-content:center; gap:0; padding:0;}
   body.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-link > span:last-child{max-width:0; opacity:0; translate:-6px 0; transition-delay:0ms;}
   body.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-link img, body.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-link .nexus-sidebar-emoji{transform-origin:center center;}
+  /* Icônes du rail à 28 px (Guardian 6715519682) : le -24.svg est vectoriel, la loupe se centre sur cette base. */
+  body.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-link img{width:28px; height:28px;}
+  body.nexus-sidebar-loupe.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-link img{transform:scale(min(var(--nl-icone, 1), 1.9));}
+  body.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-link .nexus-sidebar-emoji{font-size:24px !important; width:28px;}
   body.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-brand{justify-content:center; padding:6px 0 14px;}
   body.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-brand span{display:none;}
   body.nexus-menu-rail #nexus-sidebar-principal .nexus-sb-barre{justify-content:center; padding:8px 0 0;}
@@ -367,22 +371,30 @@ const NEXUS_DESKTOP_CSS = `
   body.nexus-menu-cache #nexus-sidebar-principal .nexus-sidebar-link{opacity:0; scale:.85; transition:opacity 180ms ease, scale 180ms ease; transition-delay:calc(min(var(--nl-i, 0), 24) * 12ms);}
   .nexus-sb-pastille{position:fixed; z-index:95; pointer-events:none; opacity:0; translate:-6px 0; padding:7px 13px; border-radius:10px; border:1px solid rgba(79,195,217,0.4); background:rgba(20,27,34,0.62); -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px); color:#EDF1F5; font-family:'IBM Plex Sans',sans-serif; font-size:13px; font-weight:600; white-space:nowrap; box-shadow:0 6px 20px rgba(0,0,0,0.35); transition:opacity 140ms ease, translate 180ms ease;}
   .nexus-sb-pastille.show{opacity:1; translate:0 0;}
-  .nexus-sb-filament{display:none; position:fixed; z-index:90; left:0; top:0; bottom:0; width:12px; padding:0; border:0; background:transparent; cursor:pointer; align-items:center; -webkit-tap-highlight-color:transparent; transition:width 220ms ease, background-color 220ms ease;}
+  .nexus-sb-filament{display:none; position:fixed; z-index:90; left:0; top:0; bottom:0; width:28px; padding:0; border:0; background:transparent; cursor:pointer; align-items:center; -webkit-tap-highlight-color:transparent; }
   body.nexus-menu-cache .nexus-sb-filament{display:flex;}
-  .nexus-sb-fil{position:absolute; left:0; top:0; bottom:0; width:3px; background:linear-gradient(180deg, #4FC3D9, rgba(79,195,217,0)); opacity:.35; animation:nexus-sb-souffle 4s ease-in-out infinite; overflow:hidden;}
+  /* Panneau de verre du filament (Guardian 6715519682) : 24 px de large sur toute la hauteur, flouté, liseré cyan, chevron centré ;
+     il sort de la gauche en 180 ms (transform + opacity seulement). */
+  .nexus-sb-filament::before{content:""; position:absolute; left:0; top:0; bottom:0; width:24px; background:rgba(20,27,34,0.55); -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px); border-right:1px solid rgba(79,195,217,0.7); transform:translateX(-100%); opacity:0; transition:transform 180ms ease, opacity 180ms ease;}
+  .nexus-sb-filament::after{content:"›"; position:absolute; left:0; top:50%; width:24px; margin-top:-12px; height:24px; line-height:22px; text-align:center; color:#4FC3D9; font-size:20px; transform:translateX(-100%); opacity:0; transition:transform 180ms ease, opacity 180ms ease;}
+  .nexus-sb-fil{position:absolute; left:0; top:0; bottom:0; width:3px; background:linear-gradient(180deg, #4FC3D9, rgba(79,195,217,0)); opacity:.35; animation:nexus-sb-souffle 4s ease-in-out infinite; overflow:hidden; transition:filter 180ms ease;}
   .nexus-sb-fil::after{content:""; position:absolute; left:0; right:0; top:-30%; height:30%; background:linear-gradient(180deg, transparent, #EAFBFF, transparent); opacity:0;}
   .nexus-sb-filament.nexus-sb-eclat .nexus-sb-fil::after{animation:nexus-sb-eclat 900ms ease-out 1 both;}
   @keyframes nexus-sb-souffle{0%,100%{opacity:.35;} 50%{opacity:.7;}}
   @keyframes nexus-sb-eclat{0%{top:-30%; opacity:1;} 100%{top:100%; opacity:0;}}
-  .nexus-sb-chev{margin-left:5px; color:#4FC3D9; font-size:15px; opacity:0; transition:opacity 180ms ease;}
-  .nexus-sb-filament:focus-visible{outline:2px solid #4FC3D9; outline-offset:-2px; width:20px;}
+  /* Bouton chevron toujours visible en état caché : 24 × 24 px, entièrement dans l'écran, collé au filament, en haut (Guardian 6715519682). */
+  .nexus-sb-chev{position:absolute; left:4px; top:12px; width:24px; height:24px; display:flex; align-items:center; justify-content:center; box-sizing:border-box; border-radius:8px; border:1px solid rgba(79,195,217,0.5); background:rgba(20,27,34,0.7); color:#4FC3D9; font-size:16px; line-height:1; opacity:.9; transition:opacity 180ms ease, background-color 180ms ease;}
+  .nexus-sb-filament:focus-visible{outline:2px solid #4FC3D9; outline-offset:-2px;}
   .nexus-sb-filament:focus-visible .nexus-sb-chev{opacity:1;}
+  /* En état caché, le contenu de la page s'écarte de 16 px : le bouton ☰ de l'en-tête reste à au moins 16 px du filament et du chevron. */
+  body.nexus-desktop.nexus-menu-cache > .phone, body.nexus-desktop.nexus-menu-cache > .app{margin-left:16px;}
   @media (hover:hover){
-    .nexus-sb-filament:hover{width:20px; background:rgba(20,27,34,0.55); -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px);}
-    .nexus-sb-filament:hover .nexus-sb-chev{opacity:1;}
+    .nexus-sb-filament:hover::before, .nexus-sb-filament:hover::after{transform:none; opacity:1;}
+    .nexus-sb-filament:hover .nexus-sb-fil{animation:none; opacity:1; filter:drop-shadow(0 0 5px #4FC3D9);}
+    .nexus-sb-filament:hover .nexus-sb-chev{opacity:0;}
   }
   @media (hover:none){
-    .nexus-sb-filament{width:28px;}
+    .nexus-sb-filament{width:32px;}
   }
   [data-theme="jour"] .nexus-sb-pastille{background:rgba(255,255,255,0.72); color:#0F172A; border-color:rgba(11,114,133,0.45); box-shadow:0 6px 20px rgba(15,23,42,0.18);}
   [data-theme="jour"] .nexus-sb-pli{color:#475569;}
@@ -395,6 +407,7 @@ const NEXUS_DESKTOP_CSS = `
     #nexus-sidebar-principal.nexus-sb-bouge::after, .nexus-sb-fil, .nexus-sb-filament.nexus-sb-eclat .nexus-sb-fil::after{animation:none;}
     .nexus-sb-fil{opacity:.55;}
     .nexus-sb-pastille, .nexus-sb-filament, .nexus-sb-chev, .nexus-sb-pli{transition:opacity 120ms linear;}
+    .nexus-sb-filament::before, .nexus-sb-filament::after{transform:none; transition:opacity 120ms linear;}
     .nexus-sb-pli{rotate:0deg !important;}
   }
 
