@@ -611,10 +611,46 @@
   .grille-analyse .accordion-card{margin-left:20px; margin-right:20px;}
   @media (min-width:821px){.grille-analyse .accordion-card{margin-left:20px; margin-right:8px;}}
   .periode-btn{min-height:44px;}
-  @media (max-width:820px){
-    .hero-haut>.am-banniere{position:relative; top:auto; bottom:auto; right:auto; width:calc(100% + 40px); height:120px; margin:-16px -20px 8px; -webkit-mask-image:linear-gradient(to bottom,#000 55%,transparent 100%); mask-image:linear-gradient(to bottom,#000 55%,transparent 100%); -webkit-mask-composite:source-over; mask-composite:add;}
+  /* ===== Refonte visuelle, 2e passe (Guardian 6724782750 / 6724791056) : presentation seulement ===== */
+  .hero{container-type:inline-size;}
+  .pastille{font-family:var(--sans); font-size:13px; padding:6px 12px;}
+  .statut-ligne{display:inline-flex; align-items:center; gap:2px; max-width:100%; flex-wrap:nowrap;}
+  .selecteurs .relever-statut{font-family:var(--sans); font-size:13px; padding:6px 12px; white-space:normal;}
+  .selecteurs .relever-statut.saisi{background:rgba(52,199,89,.14); border-color:rgba(52,199,89,.5); color:var(--green);}
+  .selecteurs .relever-statut.a-completer,.selecteurs .relever-statut.a-valider{background:rgba(245,166,35,.14); border-color:rgba(245,166,35,.5); color:var(--amber);}
+  .selecteurs .relever-statut.non-saisi{background:var(--panel-raised); color:var(--text-mid);}
+  .selecteurs .relever-statut.non-realise{background:rgba(240,87,90,.12); border-color:rgba(240,87,90,.45);}
+  :root[data-theme="jour"] .selecteurs .relever-statut.saisi{background:#E4F4EC; border-color:#9ED3BB;}
+  :root[data-theme="jour"] .selecteurs .relever-statut.a-completer,:root[data-theme="jour"] .selecteurs .relever-statut.a-valider{background:#FDF0DD; border-color:#E8C48A;}
+  .btn-cta{background:linear-gradient(135deg,#22D3EE 0%,#0891B2 100%); border-color:transparent; justify-content:center;}
+  .btn-sec{justify-content:center;}
+  .am-banniere{border-radius:18px 18px 0 0;}
+  @container (max-width:699px){
+    .hero-haut>.am-banniere{position:relative; top:auto; bottom:auto; right:auto; width:calc(100% + 40px); height:140px; margin:-16px -20px 10px; -webkit-mask-image:linear-gradient(to bottom,#000 55%,transparent 100%); mask-image:linear-gradient(to bottom,#000 55%,transparent 100%);}
     .hero-haut{min-height:0;}
+    .topacts{display:grid; grid-template-columns:1fr 1fr;}
+    .btn-cta,.btn-sec{width:100%; padding:0 8px;}
   }
+  .sec-titre{font-size:12px; font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:var(--text-mid);}
+  .sec-titre .badge-regime{letter-spacing:.08em; text-transform:uppercase;}
+  .a-traiter{display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; padding:10px 14px;}
+  .a-traiter-titre{flex:none;}
+  :root[data-theme="jour"] .a-traiter-titre{color:#8A3F06;}
+  .a-traiter .rattrapage-chips{margin-top:0; flex:1 1 auto;}
+  .a-traiter .rattrapage-texte{flex-basis:100%; order:5; font-size:11px; color:var(--text-dim); margin:0;}
+  .a-traiter .lien-discret{position:relative; margin-left:auto; min-height:32px; padding:0 12px; border:1px solid var(--cyan); border-radius:10px; text-decoration:none; font-weight:600;}
+  .a-traiter .lien-discret::before{content:''; position:absolute; inset:-6px;}
+  .carb-carte2,.carb-carte2.statut-corriger,.carb-carte2.statut-surveiller{border:1px solid var(--hairline); border-top:4px solid var(--carb-couleur, var(--hairline)); box-shadow:none; padding:12px 14px 14px;}
+  .carb-carte2.statut-corriger{border-left-color:rgba(240,87,90,.55); border-right-color:rgba(240,87,90,.55); border-bottom-color:rgba(240,87,90,.55);}
+  .carb-carte2.statut-surveiller{border-left-color:rgba(245,166,35,.5); border-right-color:rgba(245,166,35,.5); border-bottom-color:rgba(245,166,35,.5);}
+  .carb-carte2-titre{display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; color:var(--text); font-size:15px; font-weight:700;}
+  .carb-carte2-nom{display:inline-flex; align-items:center; gap:8px;}
+  .carb-pastille-ronde{width:12px; height:12px; border-radius:50%; background:var(--carb-couleur, var(--text-dim)); flex:none;}
+  .carb-ref-court{font-size:11px; font-weight:400; color:var(--text-dim); margin-left:auto; text-align:right;}
+  .carb-bloc-niveau .carb-icon-circle{display:none;}
+  .carb-info-btn,.ecart-caveat{position:relative; min-height:28px; min-width:0;}
+  .carb-info-btn::before,.ecart-caveat::before{content:''; position:absolute; inset:-8px;}
+  .carb-bloc-autonomie .carb-autonomie-bloc{border-top:0; padding-top:0;}
   @media (min-width:821px){.situation-grid{padding:0 20px;}}
 </style>
 </head>
@@ -629,8 +665,8 @@
         <div class="selecteurs">
           <span class="pastille nexus-nom-commerce" id="pastilleSite"></span>
           <span class="pastille" id="pastilleDate"></span>
-          <span class="relever-statut" id="releveStatutJour"></span>
-          <button type="button" class="info-btn" id="btnInfoPage" aria-label="À propos de cette page" aria-expanded="false" aria-controls="infoPage">i</button>
+          <span class="statut-ligne"><span class="relever-statut" id="releveStatutJour"></span>
+          <button type="button" class="info-btn" id="btnInfoPage" aria-label="À propos de cette page" aria-expanded="false" aria-controls="infoPage">i</button></span>
         </div>
         <div class="info-panneau" id="infoPage" hidden>La couleur du carburant identifie le produit, pas un niveau d'alerte. Les chiffres de vente sont en lecture seule : la moyenne vendue est celle des 7 derniers jours avec données, l'autonomie est une estimation par quart. Les écarts et le rapprochement gardent leurs règles habituelles.</div>
       </div>
@@ -1379,10 +1415,10 @@
 
     zone.innerHTML = `
       ${alerte ? `<div class="a-traiter" role="status">
-        <div class="a-traiter-titre">À traiter : ${jours.length} jaugeage${jours.length > 1 ? 's' : ''} en attente</div>
-        <div class="rattrapage-texte">Ces jours n'ont pas encore de relevé enregistré, les écarts se recalculent automatiquement une fois complétés.</div>
+        <div class="a-traiter-titre">${jours.length} jaugeage${jours.length > 1 ? 's' : ''} en attente</div>
         <div class="rattrapage-chips">${chips}</div>
         <button type="button" class="lien-discret" id="btnRattrapageAutreDate" aria-expanded="false" aria-controls="rattrapageManuel">Choisir une autre date</button>
+        <div class="rattrapage-texte">Ces jours n'ont pas encore de relevé enregistré, les écarts se recalculent automatiquement une fois complétés.</div>
       </div>` : ''}
       <div class="rattrapage-manuel-panneau" id="rattrapageManuel" hidden>
         <div class="rattrapage-manuel">
@@ -1689,7 +1725,7 @@
       const refHeureTxt = formaterDateHeureFr(r.referencePhysiqueHeure);
       return `
         <div class="carb-carte2 ${classeStatutCarte(r.statut)}" style="--carb-couleur:${couleurCarb}; cursor:pointer;" title="${detailCuves} — capacité ${capacite.toLocaleString('fr-FR')} L — voir le relevé de contrôle" data-releve-controle="${cle}" tabindex="0">
-          <div class="carb-carte2-titre">${COURT_CARBURANT[cle]}</div>
+          <div class="carb-carte2-titre"><span class="carb-carte2-nom"><span class="carb-pastille-ronde" aria-hidden="true"></span>${COURT_CARBURANT[cle]}</span>${refTxt ? `<span class="carb-ref-court" title="Référence physique : ${refTxt}">${refTxt === 'jaugeage post-livraison' ? 'Livraison' : 'Ouverture'}${refHeureTxt ? ` · ${refHeureTxt.replace(' à ', ' ')}` : ''}</span>` : ''}</div>
           <div class="carb-bloc carb-bloc-niveau">
           <div class="carb-carte2-tete">
             <div class="carb-icon-circle"></div>
@@ -1700,7 +1736,6 @@
             <div class="carb-bar-remplissage" data-pct="${pctStock != null ? Math.round(pctStock * 100) : 0}" style="width:0%; background:${couleurCarb};"></div>
             ${pctTheo != null ? `<div class="carb-bar-marqueur" style="left:${Math.round(pctTheo * 100)}%;"></div>` : ''}
           </div>
-          ${refTxt ? `<div class="carb-ref-physique" style="font-size:11px; color:var(--text-dim); margin:-2px 0 4px;">Référence physique : ${refTxt}${refHeureTxt ? ` · ${refHeureTxt}` : ''}</div>` : ''}
           </div>
           <div class="carb-bloc carb-bloc-ventes">${htmlBlocVentes(cle, ctx)}</div>
           <div class="carb-bloc carb-bloc-controle"><div class="carb-bloc-titre">Contrôle du jour</div>
@@ -1848,11 +1883,11 @@
     // les deux). Signal visible ICI, sans avoir à ouvrir "Relevé de
     // contrôle" pour le découvrir.
     if (ctx.releveDuJour.origine === 'terrain_pompiste') {
-      el.textContent = heureTxt ? `Saisi à ${heureTxt} — à valider` : 'Saisi — à valider';
+      el.textContent = heureTxt ? `Relevé saisi à ${heureTxt.replace(':', ' h ')} — à valider` : 'Relevé saisi — à valider';
       el.className = 'relever-statut a-valider';
       return;
     }
-    el.textContent = heureTxt ? `Saisi à ${heureTxt}` : 'Saisi';
+    el.textContent = heureTxt ? `Relevé du jour saisi à ${heureTxt.replace(':', ' h ')}` : 'Relevé du jour saisi';
     el.className = 'relever-statut saisi';
   }
 
@@ -4815,14 +4850,18 @@
     (function initialiserEnteteRefonte() {
       
       const pD = document.getElementById('pastilleDate');
-      if (pD) { const [y, m, d] = todayISO().split('-'); pD.textContent = `${d}/${m}/${y}`; }
+      if (pD) {
+        const [y, m, d] = todayISO().split('-').map(Number);
+        const txt = new Date(y, m - 1, d).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+        pD.textContent = txt.charAt(0).toUpperCase() + txt.slice(1);
+      }
       const bI = document.getElementById('btnInfoPage'), pI = document.getElementById('infoPage');
       if (bI && pI) bI.addEventListener('click', () => { pI.hidden = !pI.hidden; bI.setAttribute('aria-expanded', String(!pI.hidden)); });
       try {
-        if (window.NexusBanniereStation && NexusBanniereStation.siteAvecBanniere(SITE_ID, NexusBanniereStation.apercuDemande())) {
+        if (typeof NexusBanniereStation !== 'undefined' && NexusBanniereStation.siteAvecBanniere(SITE_ID, NexusBanniereStation.apercuDemande())) {
           const haut = document.querySelector('#heroCarburants .hero-haut');
           const b = 'assets/pompiste/jaugeage';
-          haut.insertAdjacentHTML('afterbegin', `<div class="am-banniere"><img src="${b}-800.webp" srcset="${b}-800.webp 800w, ${b}-1200.webp 1200w, ${b}-1600.webp 1600w" sizes="(max-width:820px) 100vw, 50vw" width="800" height="450" alt="" decoding="async" onerror="this.parentNode.remove()"></div>`);
+          haut.insertAdjacentHTML('afterbegin', `<div class="am-banniere" data-photo-jour="${b}-1200.webp" data-photo-nuit="${b}-1200.webp"><img src="${b}-800.webp" srcset="${b}-800.webp 800w, ${b}-1200.webp 1200w, ${b}-1600.webp 1600w" sizes="(max-width:820px) 100vw, 50vw" width="800" height="450" alt="" decoding="async" onerror="this.parentNode.remove()"></div>`);
           if (NexusBanniereStation.suivreTheme) NexusBanniereStation.suivreTheme();
         }
       } catch (_) { /* la banniere est decorative */ }
