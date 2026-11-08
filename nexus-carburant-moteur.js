@@ -1139,7 +1139,7 @@
   // l'ancien libellé unique "Non comparable" confondait.
   const LIBELLE_QUALITE_CONTROLE = {
     fiable: { texte: 'Fiable', niveau: 'ok' },
-    provisoire: { texte: 'A confirmer', niveau: 'attention' },
+    provisoire: { texte: 'À confirmer', niveau: 'attention' },
     non_comparable: { texte: 'Comparaison partielle', niveau: 'attente' },
   };
   const CAUSES_HISTORIQUE_INSUFFISANT = new Set(['reference_absente', 'reference_incomplete']);

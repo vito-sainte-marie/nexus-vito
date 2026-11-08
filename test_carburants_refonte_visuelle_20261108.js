@@ -120,9 +120,9 @@ t('simulateur : lien discret, id et panneau conservés ; point zéro à côté d
   assert.ok(/<button type="button" class="lien-discret" id="btnSimulateurCommandeToggle">Rejouer la recommandation pour une autre date<\/button>/.test(H));
   assert.ok(H.indexOf('id="btnPointZeroToggle"') < H.indexOf('id="sec-livraisons"') && H.indexOf('id="commandeCarburantZone"') < H.indexOf('id="btnPointZeroToggle"'));
 });
-t('grille d\'analyse deux colonnes, repliée en une sous 820 px', () => {
+t('grille d\'analyse deux colonnes, repliée en une sous 700 px de conteneur', () => {
   assert.ok(/\.grille-analyse\{display:grid; grid-template-columns:1fr 1fr/.test(H));
-  assert.ok(/@media \(max-width:820px\)\{\.grille-analyse\{grid-template-columns:1fr/.test(H));
+  assert.ok(/@container \(max-width:699px\)\{\.grille-analyse\{grid-template-columns:1fr/.test(H));
   assert.ok(/\.periode-btn\{min-height:44px/.test(H));
 });
 t('pas d\'em dash dans le texte affiché des nouveaux blocs', () => {

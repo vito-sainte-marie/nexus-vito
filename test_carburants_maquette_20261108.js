@@ -43,8 +43,9 @@ t('À traiter : titre, puces et bouton sur une ligne, titre foncé en Jour', () 
 t('titres de section en petites capitales espacées', () => {
   assert.ok(/\.sec-titre\{[^}]*letter-spacing:\.16em; text-transform:uppercase/.test(P2));
 });
-t('cartes : liseré de 4 px en haut, bordure fine ailleurs, titre dans la couleur du texte avec pastille ronde', () => {
-  assert.ok(/border:1px solid var\(--hairline\); border-top:4px solid var\(--carb-couleur/.test(P2));
+t('cartes : liseré de 3 px en haut (pseudo-élément qui suit l\'arrondi), bordure fine ailleurs, titre dans la couleur du texte avec pastille ronde', () => {
+  assert.ok(/\.carb-carte2::before\{content:''; position:absolute; top:0; left:0; right:0; height:3px; background:var\(--carb-couleur/.test(P2));
+  assert.ok(/border:1px solid var\(--hairline\); border-radius:16px; padding:20px;/.test(P2));
   assert.ok(/\.carb-carte2-titre\{[^}]*color:var\(--text\)/.test(P2));
   assert.ok(/\.carb-pastille-ronde\{[^}]*background:var\(--carb-couleur/.test(P2));
   assert.ok(H.includes('<span class="carb-pastille-ronde" aria-hidden="true"></span>${COURT_CARBURANT[cle]}'));
@@ -64,8 +65,8 @@ t('identifiants et sources inchangés', () => {
 
 garde('conteneur : container-type', P2, c => /\.hero\{container-type:inline-size;\}/.test(c), 'container-type:inline-size', 'container-type:normal');
 garde('conteneur : seuil 700 px', P2, c => /@container \(max-width:699px\)/.test(c), '@container (max-width:699px)', '@media (max-width:699px)');
-garde('liseré du haut 4 px', P2, c => /border-top:4px solid var\(--carb-couleur/.test(c), 'border-top:4px solid', 'border-top:1px solid');
-garde('titre de carte en couleur du texte', P2, c => /\.carb-carte2-titre\{[^}]*color:var\(--text\)/.test(c), 'color:var(--text); font-size:15px', 'color:var(--carb-couleur); font-size:15px');
+garde('liseré du haut 3 px', P2, c => /\.carb-carte2::before\{[^}]*height:3px; background:var\(--carb-couleur/.test(c), 'height:3px; background:var(--carb-couleur', 'height:0; background:var(--carb-couleur');
+garde('titre de carte en couleur du texte', P2, c => /\.carb-carte2-titre\{color:var\(--text\); font-size:15px/.test(c), '.carb-carte2-titre{color:var(--text); font-size:15px', '.carb-carte2-titre{color:var(--carb-couleur); font-size:15px');
 garde('zone tactile 44 px conservée', P2, c => /::before\{content:''; position:absolute; inset:-8px;\}/.test(c), 'inset:-8px', 'inset:0');
 garde('titre À traiter foncé en Jour', P2, c => /jour"\] \.a-traiter-titre\{color:#8A3F06/.test(c), '#8A3F06', 'var(--amber)');
 garde('ⓘ sur la même ligne que le statut', H, c => /<span class="statut-ligne"><span class="relever-statut"/.test(c), '<span class="statut-ligne">', '<span class="statut-x">');
