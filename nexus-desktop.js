@@ -124,7 +124,7 @@ const NEXUS_SIDEBAR_GROUPES = [
       // employé, juste après FDJ Performance.
       // Icône pack NEXUS (20/08/2026, uniformisation) : avatar_coach — sens
       // littéral "Coach".
-      { label: 'Coach FDJ', href: 'NEXUS-Coach-FDJ-v1.html', icon: 'assets/icons/icon-avatar-coach-24.png', desc: 'Donne à l’employé une priorité FDJ claire et contextualisée.' },
+      { label: 'Coach FDJ', module: 'mod-coach-fdj', href: 'NEXUS-Coach-FDJ-v1.html', icon: 'assets/icons/icon-avatar-coach-24.png', desc: 'Donne à l’employé une priorité FDJ claire et contextualisée.' },
       { label: 'Missions', module: 'mod-missions', href: 'NEXUS-Missions-v1.html', icon: 'assets/icons/icon-missions.png', desc: 'Crée et suit les tâches opérationnelles.' },
       { label: 'Assignations', module: 'mod-assignations', href: 'NEXUS-Assignations-v1.html', icon: 'assets/icons/icon-assignations.png', desc: 'Répartit les actions entre les membres de l’équipe.' },
       { label: 'Planning', module: 'mod-planning', href: 'NEXUS-Planning-v1.html', icon: 'assets/icons/icon-planner.png', desc: 'Organise la présence et les horaires de l’équipe.' },
@@ -162,7 +162,7 @@ const NEXUS_SIDEBAR_GROUPES = [
     nom: 'Aide',
     items: [
       // Icône pack NEXUS (20/08/2026, uniformisation) : icon-aide-24.png.
-      { label: 'Comprendre NEXUS', href: 'NEXUS-Documentation-v1.html', icon: 'assets/icons/icon-aide-24.png', desc: 'Explique à quoi sert chaque écran NEXUS.' },
+      { label: 'Comprendre NEXUS', module: 'mod-aide', href: 'NEXUS-Documentation-v1.html', icon: 'assets/icons/icon-aide-24.png', desc: 'Explique à quoi sert chaque écran NEXUS.' },
     ],
   },
   {

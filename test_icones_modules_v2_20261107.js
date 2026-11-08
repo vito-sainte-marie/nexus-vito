@@ -128,9 +128,9 @@ t('tuiles employé : Missions, Inventaire, FDJ, Mon planning ; Relevés et Réce
     assert.ok(new RegExp("titre: '" + l + "'[^\\n]*module: '" + id + "'").test(APP), l));
   ['Relevés d’index', 'Réception'].forEach(l => assert.ok(!new RegExp("titre: '" + l + "'[^\\n]*module:").test(APP), l));
 });
-t('Documentation : 16 entrées (7 du lot 1, 9 du lot 2), Carburants et Paye absents', () => {
+t('Documentation : 16 entrées (7 du lot 1, 9 du lot 2), Carburants et Paye absents (Traçabilité : lot 4)', () => {
   assert.ok((DOC.match(/id: '[^']+', module: 'mod-/g) || []).length >= 16);
-  ['controle-fdj', 'tracabilite'].forEach(i => assert.ok(!new RegExp("id: '" + i + "', module:").test(DOC), i));
+  ['controle-fdj'].forEach(i => assert.ok(!new RegExp("id: '" + i + "', module:").test(DOC), i));
 });
 t('les écrans passent par le registre : barre d\'accueil, raccourcis (accueil et Paramètres), tuiles, bureau, Documentation', () => {
   assert.ok(/NexusIcones\.img\(cat\.module, 20/.test(APP) && /NexusIcones\.img\(t\.module, 19/.test(APP));
