@@ -271,7 +271,7 @@ const M = global.NexusCarburantMoteur;
   // confirmer / Historique insuffisant / Comparaison partielle — "A
   // confirmer" et "Comparaison partielle" remplacent les anciens
   // "Provisoire" / "Non comparable".
-  assert.deepStrictEqual(M.libelleQualiteControle('provisoire'), { texte: 'A confirmer', niveau: 'attention' }, 'provisoire -> "A confirmer" (§3 grammaire NEXUS), niveau attention');
+  assert.deepStrictEqual(M.libelleQualiteControle('provisoire'), { texte: 'À confirmer', niveau: 'attention' }, 'provisoire -> "À confirmer" (§3 grammaire NEXUS), niveau attention');
   assert.deepStrictEqual(M.libelleQualiteControle('non_comparable'), { texte: 'Comparaison partielle', niveau: 'attente' }, 'non_comparable -> "Comparaison partielle" (§3 grammaire NEXUS), niveau attente (neutre), jamais alerte (Article 5)');
   assert.deepStrictEqual(M.libelleQualiteControle(null), { texte: 'Non calculé', niveau: 'attente' }, 'Aucun contrôle -> "Non calculé", jamais une exception');
   assert.deepStrictEqual(M.libelleQualiteControle('valeur_inconnue'), { texte: 'Non calculé', niveau: 'attente' }, 'Valeur inconnue -> repli neutre, jamais une exception');

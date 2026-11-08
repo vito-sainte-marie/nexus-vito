@@ -57,6 +57,7 @@
     --green:#34D399; --green-dim:#153629;
     --amber:#F5A623; --amber-dim:#3A2E14;
     --red:#F0575A; --red-dim:#3A1D1F;
+    --surf:#0D202E;
     --cyan:#4FC3D9; --gold:#D4AF37;
     /* 27/08/2026, nouvelle règle de Frédéric — 4 états d'alerte
        🟢/🟡/🟠/🔴 distincts (carte "Prochaine commande" uniquement, voir
@@ -540,7 +541,7 @@
   .carb-rapprochement-info li + li{margin-top:3px;}
 
   /* ===== Refonte visuelle (Guardian 6723914835) : presentation seulement ===== */
-  :root[data-theme="jour"]{--bg:#F4F6F8; --panel:#FFFFFF; --panel-raised:#EEF2F5; --hairline:#D5DCE3; --text:#0F172A; --text-mid:#475569; --text-dim:#5F6B78; --cyan:#0B7285; --green:#0B7A54; --amber:#B45309; --yellow:#8A6A00; --yellow-dim:#FEF3C7;}
+  :root[data-theme="jour"]{--bg:#F4F6F8; --panel:#FFFFFF; --panel-raised:#EEF2F5; --hairline:#D5DCE3; --text:#0F172A; --text-mid:#475569; --text-dim:#5F6B78; --cyan:#0B7285; --green:#0B7A54; --amber:#B45309; --yellow:#8A6A00; --yellow-dim:#FEF3C7; --surf:#FFFFFF;}
   :root:not([data-theme="jour"]){--text-dim:#808C9B;}
   body.nexus-desktop .phone{max-width:1180px;}
   .hero{position:relative; padding:16px 20px 10px; margin:0 20px 8px; background:var(--surf); border:1px solid var(--hairline); border-radius:18px; overflow:hidden;}
@@ -640,9 +641,7 @@
   .a-traiter .rattrapage-texte{flex-basis:100%; order:5; font-size:11px; color:var(--text-dim); margin:0;}
   .a-traiter .lien-discret{position:relative; margin-left:auto; min-height:32px; padding:0 12px; border:1px solid var(--cyan); border-radius:10px; text-decoration:none; font-weight:600;}
   .a-traiter .lien-discret::before{content:''; position:absolute; inset:-6px;}
-  .carb-carte2,.carb-carte2.statut-corriger,.carb-carte2.statut-surveiller{border:1px solid var(--hairline); border-top:4px solid var(--carb-couleur, var(--hairline)); box-shadow:none; padding:12px 14px 14px;}
-  .carb-carte2.statut-corriger{border-left-color:rgba(240,87,90,.55); border-right-color:rgba(240,87,90,.55); border-bottom-color:rgba(240,87,90,.55);}
-  .carb-carte2.statut-surveiller{border-left-color:rgba(245,166,35,.5); border-right-color:rgba(245,166,35,.5); border-bottom-color:rgba(245,166,35,.5);}
+  /* Finition des cartes (Guardian 6726640433) : voir le bloc « Cartes carburant — finition » plus bas. */
   .carb-carte2-titre{display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; color:var(--text); font-size:15px; font-weight:700;}
   .carb-carte2-nom{display:inline-flex; align-items:center; gap:8px;}
   .carb-pastille-ronde{width:12px; height:12px; border-radius:50%; background:var(--carb-couleur, var(--text-dim)); flex:none;}
@@ -652,6 +651,53 @@
   .carb-info-btn::before,.ecart-caveat::before{content:''; position:absolute; inset:-8px;}
   .carb-bloc-autonomie .carb-autonomie-bloc{border-top:0; padding-top:0;}
   @media (min-width:821px){.situation-grid{padding:0 20px;}}
+  /* ---- Cartes carburant — finition « premium » (Guardian 6726640433) : présentation seule, mêmes données, mêmes textes. ---- */
+  .carb-carte2,.carb-carte2.statut-corriger,.carb-carte2.statut-surveiller{
+    --ombre-carte:0 6px 18px rgba(0,0,0,.18); --halo-statut:0 0 0 0 transparent;
+    position:relative; overflow:hidden; display:flex; flex-direction:column;
+    border:1px solid var(--hairline); border-radius:16px; padding:20px;
+    background:linear-gradient(180deg, color-mix(in srgb, var(--panel) 92%, var(--text)) 0, var(--panel) 70%);
+    box-shadow:inset 0 1px 0 color-mix(in srgb, var(--text) 10%, transparent), var(--ombre-carte), var(--halo-statut);
+  }
+  .carb-carte2::before{content:''; position:absolute; top:0; left:0; right:0; height:3px; background:var(--carb-couleur, var(--hairline)); pointer-events:none;}
+  .carb-carte2.statut-corriger{--halo-statut:0 0 16px color-mix(in srgb, var(--red) 28%, transparent);}
+  .carb-carte2.statut-surveiller{--halo-statut:0 0 16px color-mix(in srgb, var(--amber) 26%, transparent);}
+  .carb-carte2-titre{color:var(--text); font-size:15px; font-weight:700; margin-bottom:0;}
+  .carb-carte2-nom{display:inline-flex; align-items:center; gap:8px;}
+  .carb-pastille-ronde{width:12px; height:12px; border-radius:50%; background:var(--carb-couleur, var(--text-dim)); flex:none;}
+  .carb-ref-court{font-size:11px; font-weight:400; color:var(--text-dim); margin-left:auto; text-align:right;}
+  .carb-bloc-niveau .carb-icon-circle{display:none;}
+  .carb-bloc{padding:14px 0; border-top:1px solid var(--hairline);}
+  .carb-bloc:first-of-type,.carb-carte2-titre + .carb-bloc{border-top:0;}
+  .carb-bloc-titre{display:block; font-family:var(--mono); font-size:11px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--text-dim); margin:0 0 8px;}
+  .carb-bloc-niveau .carb-carte2-tete{display:flex; align-items:baseline; gap:10px; margin-bottom:10px;}
+  .carb-pct2{display:inline-flex; align-items:baseline; font-family:var(--mono); font-size:30px; line-height:1.1; font-weight:700; font-variant-numeric:tabular-nums; color:var(--text);}
+  .carb-pct-signe{font-size:.55em; font-weight:600; margin-left:2px; color:var(--text-mid);}
+  .carb-litres{font-family:var(--mono); font-size:13px; font-variant-numeric:tabular-nums; color:var(--text-mid);}
+  .carb-stat-row,.carb-ventes-ligne{display:flex; flex-wrap:nowrap; align-items:center; justify-content:space-between; gap:8px; min-height:32px; padding:0; margin:0; border-top:0; font-size:13px;}
+  .carb-stat-row + .carb-stat-row{border-top:0;}
+  .carb-stat-row .lbl,.carb-ventes-ligne > span:first-child{font-family:var(--sans); font-size:13px; font-weight:400; color:var(--text-mid);}
+  .carb-stat-row .val,.carb-ventes-ligne .val{display:inline-flex; align-items:center; gap:4px; font-family:var(--mono); font-size:13px; font-weight:700; font-variant-numeric:tabular-nums; color:var(--text); text-align:right; white-space:nowrap;}
+  .carb-ventes-ligne .val{font-weight:400;}
+  .carb-stat-row .ecart-caveat{height:24px; min-height:24px; line-height:1; padding:0 4px; margin:0; font-size:13px;}
+  .carb-bloc-autonomie .carb-autonomie-bloc{padding:0; border-top:0; font-size:13px;}
+  .carb-bloc-autonomie .carb-autonomie-bloc .val{font-family:var(--sans); font-size:13px; font-weight:600; color:var(--text);}
+  .carb-pills{margin-top:auto; padding-top:14px; gap:8px;}
+  .carb-pills .carb-fiab-row{display:flex; align-items:center; gap:8px; height:40px; min-height:40px; margin:0; padding:0 12px; border:1px solid var(--hairline); border-radius:10px; font-size:12px;}
+  .carb-pills .carb-rapprochement-libelle{flex:1 1 auto;}
+  .carb-pills .carb-fiab-row > span:first-child{flex:1 1 auto; min-width:0;}
+  .carb-pills .carb-info-btn{flex:none; margin-left:auto; height:28px; min-height:28px; padding:0 10px;}
+  .carb-fiab-badge{width:20px; height:20px; border-radius:50%; font-size:11px;}
+  .section-note.carb-legende{margin:12px 20px 0; font-size:12px;}
+  .jauge-legende{margin-top:12px; padding-top:0; font-size:12px;}
+  @media (hover:hover) and (min-width:821px){
+    .carb-carte2{transition:transform .15s ease, box-shadow .15s ease;}
+    .carb-carte2:hover{transform:translateY(-2px);}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .carb-carte2{transition:none;}
+    .carb-carte2:hover{transform:none;}
+  }
   /* Barre haute (Guardian 6726565151) : retour au menu + choix Sombre / Jour / Auto, comme la Paye et l'Accueil. */
   .haut-page{display:flex; justify-content:flex-end; align-items:flex-start; gap:8px; padding:8px 20px 0; position:relative; z-index:5;}
   .haut-page .menu{display:inline-flex; align-items:center; min-height:44px; padding:0 12px; font:600 12px var(--mono); color:var(--text-mid); text-decoration:none; border:1px solid var(--hairline); border-radius:12px; background:var(--panel); cursor:pointer;}
@@ -1748,7 +1794,7 @@
           <div class="carb-bloc carb-bloc-niveau">
           <div class="carb-carte2-tete">
             <div class="carb-icon-circle"></div>
-            <div class="carb-pct2">${pctStock != null ? `${Math.round(pctStock * 100)} %` : '—'}</div>
+            <div class="carb-pct2">${pctStock != null ? `<span class="carb-pct-num">${Math.round(pctStock * 100)}</span><span class="carb-pct-signe">%</span>` : '—'}</div>
             <div class="carb-litres">${fmtL(r.stockPhysiqueAffiche)}</div>
           </div>
           <div class="carb-bar-piste">
@@ -1764,12 +1810,13 @@
           <div class="carb-ecart-diagnostic" id="ecartInfo_${cle}" style="display:none; font-size:11px; line-height:1.4; color:var(--text-mid); margin:-2px 0 6px; padding:6px 8px; background:var(--panel-raised); border-radius:8px;"></div>
           </div>
           <div class="carb-bloc carb-bloc-autonomie">
-          <div class="carb-autonomie-bloc"><span class="lbl">Autonomie</span><span class="val">${formaterAutonomieOperationnelle(cle)}</span></div>
+          <div class="carb-bloc-titre">Autonomie</div>
+          <div class="carb-autonomie-bloc"><span class="val">${formaterAutonomieOperationnelle(cle)}</span></div>
             <div class="carb-soustexte">Estimation par quart, distincte de la moyenne vendue</div>
           </div>
           <div class="carb-pills">
           <div class="carb-fiab-row" ${statutCourt.titre ? `title="${statutCourt.titre}"` : ''}><span style="color:${couleurFiab.c};">Situation stock : ${statutCourt.texte}</span><span class="carb-fiab-badge" style="background:${couleurFiab.f}; color:${couleurFiab.c};">${ICONE_NIVEAU[niveauFiabiliteAffiche] || ''}</span></div>
-          <div class="carb-fiab-row"><span class="carb-rapprochement-libelle"><span style="color:${couleurQualite.c};">Rapprochement : ${qualite.texte}</span><button type="button" class="carb-info-btn" data-rapprochement-info="${cle}" aria-expanded="false" aria-controls="rapprochementInfo_${cle}">ⓘ Infos</button></span><span class="carb-fiab-badge" style="background:${couleurQualite.f}; color:${couleurQualite.c};">${ICONE_NIVEAU[qualite.niveau] || ''}</span></div>
+          <div class="carb-fiab-row"><span class="carb-rapprochement-libelle"><span style="color:${couleurQualite.c};">Rapprochement : ${qualite.texte}</span></span><button type="button" class="carb-info-btn" data-rapprochement-info="${cle}" aria-expanded="false" aria-controls="rapprochementInfo_${cle}">ⓘ Infos</button><span class="carb-fiab-badge" style="background:${couleurQualite.f}; color:${couleurQualite.c};">${ICONE_NIVEAU[qualite.niveau] || ''}</span></div>
           <div class="carb-rapprochement-info" id="rapprochementInfo_${cle}" style="display:none;"></div>
           </div>
         </div>`;
@@ -1804,7 +1851,7 @@
       : (refJour && refJour.source === 'reception' && refJour.heure)
       ? `Écart calculé depuis le jaugeage post-livraison du ${formaterDateHeureFr(refJour.heure)}.`
       : (ctx.dateDernierReleve ? `Écart calculé depuis le dernier relevé du ${ctx.dateDernierReleve.split('-').reverse().join('/')}.` : '');
-    zone.innerHTML = `${bandeauReference}<div class="situation-grid">${cartes}</div>${lienNeutralisation}${libelleReference ? `<div class="section-note">${libelleReference} Autonomie estimée sur la consommation moyenne des 7 derniers jours avec données.</div>` : ''}`;
+    zone.innerHTML = `${bandeauReference}<div class="situation-grid">${cartes}</div>${lienNeutralisation}${libelleReference ? `<div class="section-note carb-legende">${libelleReference} Autonomie estimée sur la consommation moyenne des 7 derniers jours avec données.</div>` : ''}`;
     legende.style.display = 'flex';
     const lienEl = document.getElementById('lienHistoriqueNeutralise');
     if (lienEl) {
