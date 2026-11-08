@@ -302,6 +302,25 @@ const NEXUS_DESKTOP_CSS = `
   @media (prefers-reduced-motion:reduce){
     .nexus-sidebar-link, .nexus-sidebar-link img, .nexus-sidebar-link .nexus-sidebar-emoji{transition:none;}
   }
+  /* Effet de loupe façon Dock macOS (07/11/2026, Guardian 6715331183) : l'échelle de l'icône et du titre dépend de la DISTANCE
+     du pointeur (en lignes), calculée en JS au mousemove (nexusEchelleLoupe). transform: scale() ne touche pas à la mise en page :
+     la hauteur des lignes reste fixe. Actif seulement quand la classe .nexus-sidebar-loupe est posée (souris + mouvement autorisé) ;
+     elle remplace alors l'agrandissement simple du survol par le transform. Le focus clavier garde l'agrandissement simple. */
+  .nexus-sidebar-loupe .nexus-sidebar-link img, .nexus-sidebar-loupe .nexus-sidebar-link .nexus-sidebar-emoji{
+    transform:scale(var(--nl-icone, 1)); transform-origin:left center; transition:transform 120ms ease-out, opacity 120ms ease-out;}
+  .nexus-sidebar-loupe .nexus-sidebar-link > span:last-child{
+    transform:translateX(var(--nl-dec, 0px)) scale(var(--nl-titre, 1)); transform-origin:left center; transition:transform 120ms ease-out;}
+  .nexus-sidebar-loupe .nexus-sidebar-link:hover{font-size:12.5px;}
+  .nexus-sidebar-loupe .nexus-sidebar-link:hover img{width:16px; height:16px;}
+  .nexus-sidebar-loupe .nexus-sidebar-link:hover .nexus-sidebar-emoji{font-size:15px !important; width:16px;}
+  @media (min-width:1600px){
+    .nexus-sidebar-loupe .nexus-sidebar-link:hover{font-size:15.0px;}
+    .nexus-sidebar-loupe .nexus-sidebar-link:hover img{height:20px; width:20px;}
+    .nexus-sidebar-loupe .nexus-sidebar-link:hover .nexus-sidebar-emoji{font-size:18px !important; width:20px;}
+  }
+  @media (prefers-reduced-motion:reduce), (hover:none){
+    .nexus-sidebar-loupe .nexus-sidebar-link img, .nexus-sidebar-loupe .nexus-sidebar-link .nexus-sidebar-emoji, .nexus-sidebar-loupe .nexus-sidebar-link > span:last-child{transform:none; transition:none;}
+  }
   .nexus-sidebar-foot{padding:14px 16px 18px; border-top:1px solid #242e38;}
   .nexus-sidebar-toggle{width:100%; padding:8px 10px; border-radius:8px; border:1px solid rgba(79,195,217,0.3); background:rgba(79,195,217,0.08); color:#4FC3D9; font-family:'IBM Plex Mono',monospace; font-size:10.5px; font-weight:600; text-align:center; cursor:pointer; -webkit-tap-highlight-color:transparent;}
   .nexus-sidebar-toggle:active{background:rgba(79,195,217,0.16);}
@@ -563,6 +582,67 @@ function nexusInstallerTooltipsSidebar() {
   if (scrollEl) scrollEl.addEventListener('scroll', masquer, { passive: true });
 }
 
+// Effet de loupe façon Dock (07/11/2026, Guardian 6715331183). Fonction PURE : distance au pointeur (en lignes) -> échelle de l'icône.
+// Ancres : 0 ligne = x1,7 ; 1 = x1,35 ; 2 = x1,12 ; 3 et au-delà = x1. Entre deux ancres, interpolation en cosinus (courbe lisse,
+// sans cassure de pente aux lignes). Le titre grossit moins : x1,15 au maximum (nexusEchelleTitreLoupe).
+function nexusEchelleLoupe(distanceLignes) {
+  const ANCRES = [1.7, 1.35, 1.12, 1];
+  const d = Math.max(0, Number(distanceLignes) || 0);
+  if (d >= ANCRES.length - 1) return 1;
+  const i = Math.floor(d);
+  const e = (1 - Math.cos(Math.PI * (d - i))) / 2;
+  return ANCRES[i] + (ANCRES[i + 1] - ANCRES[i]) * e;
+}
+function nexusEchelleTitreLoupe(echelleIcone) {
+  return 1 + (echelleIcone - 1) * (0.15 / 0.7);
+}
+
+// Installe la loupe sur le menu. Pas d'effet (et pas de classe) pour un écran tactile ou un utilisateur qui demande moins de mouvement :
+// l'agrandissement simple du survol et du focus suffit alors. Mise à jour par requestAnimationFrame, mesurée sur le pointeur dans tout
+// le menu (pas seulement la ligne survolée) ; le défilement relance le calcul avec la dernière position du pointeur.
+function nexusInstallerLoupeSidebar() {
+  const scrollEl = document.querySelector('.nexus-sidebar-scroll');
+  const sidebar = document.querySelector('.nexus-sidebar');
+  if (!scrollEl || !sidebar || !window.matchMedia) return;
+  const mqSouris = window.matchMedia('(hover:hover) and (pointer:fine)');
+  const mqCalme = window.matchMedia('(prefers-reduced-motion:reduce)');
+  if (!mqSouris.matches || mqCalme.matches) return;
+  sidebar.classList.add('nexus-sidebar-loupe');
+  let y = null, planifie = false;
+  const liens = () => scrollEl.querySelectorAll('.nexus-sidebar-link');
+  function appliquer() {
+    planifie = false;
+    const tous = liens();
+    if (!tous.length) return;
+    const pas = tous[0].offsetHeight + 2;
+    tous.forEach(lien => {
+      let echelle = 1, titre = 1, dec = 0;
+      if (y !== null) {
+        const r = lien.getBoundingClientRect();
+        echelle = nexusEchelleLoupe(Math.abs(y - (r.top + r.height / 2)) / pas);
+        titre = nexusEchelleTitreLoupe(echelle);
+        const icone = lien.querySelector('img, .nexus-sidebar-emoji');
+        // Évite que l'icône agrandie (origine à gauche) recouvre le titre : on pousse le titre de ce qui dépasse l'espace de 8 px.
+        dec = icone ? Math.max(0, (echelle - 1) * icone.offsetWidth - 8) : 0;
+      }
+      const cle = echelle.toFixed(3) + '|' + dec.toFixed(1);
+      if (lien._nlCle === cle) return;
+      lien._nlCle = cle;
+      lien.style.setProperty('--nl-icone', echelle.toFixed(3));
+      lien.style.setProperty('--nl-titre', titre.toFixed(3));
+      lien.style.setProperty('--nl-dec', dec.toFixed(1) + 'px');
+    });
+  }
+  function planifier() {
+    if (planifie) return;
+    planifie = true;
+    requestAnimationFrame(appliquer);
+  }
+  scrollEl.addEventListener('mousemove', e => { y = e.clientY; planifier(); }, { passive: true });
+  scrollEl.addEventListener('scroll', () => { if (y !== null) planifier(); }, { passive: true });
+  scrollEl.addEventListener('mouseleave', () => { y = null; planifier(); });
+}
+
 // Repli si une icône PNG du menu ne charge pas (24/08/2026 — constat de
 // Frédéric : plusieurs icônes du menu bureau manquantes dans
 // assets/icons/, ex. icon-home.png, icon-journal-nexus.png,
@@ -601,6 +681,7 @@ function nexusInitVueBureau() {
     nexusInstallerCurseurSidebar();
     nexusInstallerTooltipsSidebar();
     nexusInstallerReplisIconesSidebar();
+    nexusInstallerLoupeSidebar();
     nexusVerifierAlertesFdj();
   } else {
     const bouton = document.createElement('button');
