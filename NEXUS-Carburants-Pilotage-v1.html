@@ -340,7 +340,8 @@
   #stockZone .stock-mobile-wrap{display:none;}
   .stock-mobile-carte{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:11px 14px; margin:0 20px 8px;}
   .stock-mobile-titre{font-size:13px; font-weight:700; margin-bottom:4px;}
-  @media (max-width:600px){
+  /* Tableau -> fiches selon la largeur du CONTENEUR (.analyse-conteneur), pas de la fenêtre : en colonne étroite sur grand écran le tableau était coupé (Guardian 6726845037). */
+  @container (max-width:599px){
     #stockZone .stock-table-wrap{display:none;}
     #stockZone .stock-mobile-wrap{display:block;}
   }
@@ -1123,7 +1124,9 @@
     // demande, pas la vue par défaut de l'écran.
     // Sprint C8 "Économie" (17/08/2026) : repliée par défaut, même
     // logique — approfondissement économique, pas la vue par défaut.
-    analyse: false, economie: false, historique: true,
+    analyse: false, economie: false,
+    // Historique replié par défaut (Frédéric, 08/11) ; ouvrirHistoriqueEtCentrer() l'ouvre quand un lien y renvoie.
+    historique: false,
   };
   function majChevronId(key) {
     return 'chevron' + key.charAt(0).toUpperCase() + key.slice(1);
