@@ -24,7 +24,7 @@
 <script src="nexus-auth.js?v=20260904-0104"></script>
 <script src="nexus-pointage-regles.js?v=20260904-0104"></script>
 <script src="nexus-header-nav.js?v=20260904-0104"></script>
-<script src="nexus-icones.js?v=20260904-0104"></script>
+<script src="nexus-icones.js?v=20261108-0001"></script>
 <script src="nexus-desktop.js?v=20260904-0104"></script>
 <script src="nexus-inventaire-moteur.js?v=20260904-0104"></script>
 <script src="nexus-inventaire-plan-donnees.js?v=20260904-0104"></script>
@@ -320,6 +320,8 @@
   @media (prefers-reduced-motion:reduce){.ent-illustre .am-banniere img.am-fondu{transition:none}}
   .ent-illustre{margin:12px 16px 4px}
   .inv-cat-icone{width:28px;height:28px;flex:none;color:var(--cyan);margin-right:12px}
+  .inv-cat-pict{flex:none;margin-right:12px;object-fit:contain}
+  .inv-cat-entete .inv-cat-pict{margin-right:0}
   .inv-cat-gauche{display:flex;align-items:center;min-width:0}
   .inv-cat-entete{display:flex;align-items:center;gap:10px;margin:0 0 10px;font-weight:600}
   .precomptage-icone{width:44px;height:44px;color:var(--cyan);margin:0 auto 12px;display:block}
@@ -1394,12 +1396,16 @@
   function svgKit(cle, classe) {
     return '<svg class="' + classe + '" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">' + ICONES_KIT[cle] + '</g></svg>';
   }
-  function iconeCategorie(nom) {
+  function iconeCategorie(nom, taille) {
     const n = String(nom || '').toLowerCase();
     const cle = n.indexOf('cigar') !== -1 ? 'cigarettes' : n.indexOf('gaz') !== -1 ? 'gaz' : (n.indexOf('gla') !== -1 ? 'glacons' : 'stock');
-    return svgKit(cle, 'inv-cat-icone');
+    const ancien = svgKit(cle, 'inv-cat-icone');
+    // Famille Catégories v2 (Guardian 6722511613) : nom inconnu ou ICONES_CATEGORIES_V2 = false → on garde l'ancien pictogramme.
+    if (!window.NexusIcones || !NexusIcones.idCategorie) return ancien;
+    const id = NexusIcones.idCategorie(nom);
+    return id ? NexusIcones.imgCategorie(id, taille || 40, { decoratif: true, ancien: ancien }).replace('<img ', '<img class="inv-cat-pict" ') : ancien;
   }
-  function enteteCategorie(groupe) { return '<div class="inv-cat-entete">' + iconeCategorie(groupe.nom) + '<span>' + groupe.nom + '</span></div>'; }
+  function enteteCategorie(groupe) { return '<div class="inv-cat-entete">' + iconeCategorie(groupe.nom, 24) + '<span>' + groupe.nom + '</span></div>'; }
   function filInstallerBarre() {
     document.body.classList.add('fil-actif');
     const menu = document.querySelector('.header .menu-btn');

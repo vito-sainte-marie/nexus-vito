@@ -65,10 +65,12 @@
   .source-entree-lien{display:inline-block; font-family:var(--mono); font-size:11px; color:var(--text-mid); text-decoration:none; border:1px solid var(--hairline); border-radius:6px; padding:7px 11px;}
 
   footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
+  .nexus-role-pict{vertical-align:middle;margin-right:4px;object-fit:contain}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
 <script src="nexus-auth.js?v=20260904-0104"></script>
+<script src="nexus-icones.js?v=20261108-0001"></script>
 </head>
 <body>
 <div class="phone" id="app">
@@ -157,13 +159,20 @@
     }
 
     const TACHE_LABEL = { piste: 'Piste', caisse: 'Caisse' };
+    // Famille Rôles v2 (Guardian 6722548885) : petite icône pour les statuts manager et renfort seulement. Autre statut ou
+    // ICONES_ROLES_V2 = false → rien.
+    function iconeRoleStatut(statut) {
+      if ((statut !== 'manager' && statut !== 'renfort') || !window.NexusIcones || !NexusIcones.idRole) return '';
+      const id = NexusIcones.idRole(statut);
+      return id ? NexusIcones.imgRole(id, 16, { decoratif: true, ancien: '' }).replace('<img ', '<img class="nexus-role-pict" ') : '';
+    }
     function chip(ps, estMoi) {
       const s = STATUT_STYLE[ps.statut] || STATUT_STYLE.travail_normal;
       const heures = (ps.heure_debut && ps.heure_fin) ? `<small>${heureCourte(ps.heure_debut)}-${heureCourte(ps.heure_fin)}</small>` : '';
       const site = ps.site_transfert ? ` (${ps.site_transfert})` : '';
       const tache = (ps.statut === 'travail_normal' && ps.tache) ? ` <small>· ${TACHE_LABEL[ps.tache] || ps.tache}</small>` : '';
       const nom = ps._nom || '';
-      return `<span class="chip${estMoi ? ' chip-moi' : ''}" style="background:${s.bg}; border-color:${s.bd}; color:${s.fg};">${nom}${site}${tache}${heures}</span>`;
+      return `<span class="chip${estMoi ? ' chip-moi' : ''}" style="background:${s.bg}; border-color:${s.bd}; color:${s.fg};">${iconeRoleStatut(ps.statut)}${nom}${site}${tache}${heures}</span>`;
     }
 
     // ------------------------------------------------------------
@@ -218,7 +227,7 @@
             const label = STATUT_LABEL[r.statut] || '';
             const tacheLabel = (r.statut === 'travail_normal' && r.tache) ? (' · ' + (TACHE_LABEL[r.tache] || r.tache)) : '';
             const heures = (r.heure_debut && r.heure_fin) ? `<small>${heureCourte(r.heure_debut)}-${heureCourte(r.heure_fin)}</small>` : '';
-            return `<span class="chip" style="background:${s.bg}; border-color:${s.bd}; color:${s.fg};">${QUART_LABEL[r.quart] || r.quart}${label ? ' · ' + label : ''}${tacheLabel}${heures}</span>`;
+            return `<span class="chip" style="background:${s.bg}; border-color:${s.bd}; color:${s.fg};">${iconeRoleStatut(r.statut)}${QUART_LABEL[r.quart] || r.quart}${label ? ' · ' + label : ''}${tacheLabel}${heures}</span>`;
           }).join('');
         } else {
           chipsHtml = '<span class="chip-vide">—</span>';

@@ -27,7 +27,7 @@
 <script src="nexus-auth.js?v=20260904-0104"></script>
 <script src="nexus-header-nav.js?v=20260904-0104"></script>
 <script src="nexus-forfait.js?v=20260904-0104"></script>
-<script src="nexus-icones.js?v=20260904-0104"></script>
+<script src="nexus-icones.js?v=20261108-0001"></script>
 <script src="nexus-desktop.js?v=20260904-0104"></script>
 <script src="nexus-inventaire-moteur.js?v=20260904-0104"></script>
 <script src="nexus-inventaire-snapshot-moteur.js?v=20260904-0104"></script>
@@ -105,6 +105,7 @@
   .inv-cat:first-of-type{border-top:0}
   .inv-cat-top{display:flex;align-items:center;gap:10px}
   .inv-cat-icone{width:28px;height:28px;flex:none;color:var(--cyan)}
+  .inv-cat-pict{flex:none;object-fit:contain}
   .inv-cat.termine .inv-cat-icone{color:var(--green)}
   .inv-cat-nom{flex:1;min-width:0;font-weight:600;color:var(--text)}
   .inv-cat-nn{display:block;font-family:var(--mono);font-size:13px;font-weight:400;color:var(--text-mid)}
@@ -2882,10 +2883,14 @@
   function svgKit(cle, classe) {
     return '<svg class="' + classe + '" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">' + ICONES_CATEGORIE[cle] + '</g></svg>';
   }
-  function iconeCategorie(nom) {
+  function iconeCategorie(nom, taille) {
     const n = String(nom || '').toLowerCase();
     const cle = n.indexOf('cigar') !== -1 ? 'cigarettes' : n.indexOf('gaz') !== -1 ? 'gaz' : (n.indexOf('gla') !== -1 ? 'glacons' : 'stock');
-    return svgKit(cle, 'inv-cat-icone');
+    const ancien = svgKit(cle, 'inv-cat-icone');
+    // Famille Catégories v2 (Guardian 6722511613) : nom inconnu ou ICONES_CATEGORIES_V2 = false → on garde l'ancien pictogramme.
+    if (!window.NexusIcones || !NexusIcones.idCategorie) return ancien;
+    const id = NexusIcones.idCategorie(nom);
+    return id ? NexusIcones.imgCategorie(id, taille || 24, { decoratif: true, ancien: ancien }).replace('<img ', '<img class="inv-cat-pict" ') : ancien;
   }
   function renderLigneComptage(c) {
     const ouvert = categoriesOuvertes.has(c.nom);
@@ -2895,7 +2900,7 @@
     return `
       <div class="categorie-manquante inv-cat ${reste > 0 ? 'a-compter' : 'termine'}" data-cat="${c.nom}">
         <div class="inv-cat-top">
-          ${iconeCategorie(c.nom)}
+          ${iconeCategorie(c.nom, 24)}
           <span class="inv-cat-nom">${c.nom}<span class="inv-cat-nn">${c.comptes} / ${c.total} · ${pct} %</span></span>
           ${pastille}
           <span class="categorie-manquante-chevron ${ouvert ? 'open' : ''}" aria-hidden="true">›</span>
