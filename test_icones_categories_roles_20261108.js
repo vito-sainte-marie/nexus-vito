@@ -168,7 +168,10 @@ t('feuilles de style : les icônes ne déforment pas leur ligne', () => {
 });
 t('toutes les pages câblées chargent le registre avec la version qui porte les nouvelles fonctions', () => {
   ['NEXUS-Inventaire-v1.html', 'NEXUS-Inventaire-Manager-v1.html', 'NEXUS-App-v1.html', 'NEXUS-Prise-De-Poste-v1.html', 'NEXUS-Mon-Planning-v1.html']
-    .forEach(f => assert.ok(lire(f).includes('nexus-icones.js?v=20261108-0001'), f));
+    .forEach(f => assert.ok(/nexus-icones\.js\?v=[\w-]+/.test(lire(f)), f));
+  // build.sh réécrit le ?v= : on ne fige pas sa valeur, on vérifie que le fichier servi porte les nouvelles fonctions.
+  const R = lire('nexus-icones.js');
+  assert.ok(/imgCategorie/.test(R) && /imgRole/.test(R));
 });
 
 garde('Inventaire : en-tête à 24 px', INV, c => c.includes('iconeCategorie(groupe.nom, 24)'), 'iconeCategorie(groupe.nom, 24)', 'iconeCategorie(groupe.nom, 40)');
