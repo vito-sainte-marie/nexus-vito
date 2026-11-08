@@ -381,6 +381,8 @@ const NEXUS_DESKTOP_CSS = `
   body.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-group{font-size:0; height:1px; padding:0; margin:10px 14px; background:#242e38;}
   body.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-foot{display:none;}
   body.nexus-menu-cache #nexus-sidebar-principal, body.nexus-menu-cache #nexus-sidebar-principal.nexus-sidebar{width:0; border-right-width:0; overflow:hidden; visibility:hidden; transition:width 420ms cubic-bezier(.2,.9,.25,1.15), visibility 0s linear 440ms;}
+  /* Menu masqué : la barre de boutons du panneau inerte disparaît tout à fait (Guardian 6715997121). */
+  body.nexus-menu-cache #nexus-sidebar-principal .nexus-sb-barre{visibility:hidden; transition:visibility 0s linear 440ms;}
   body.nexus-menu-cache #nexus-sidebar-principal .nexus-sidebar-link{opacity:0; scale:.85; transition:opacity 180ms ease, scale 180ms ease; transition-delay:calc(min(var(--nl-i, 0), 24) * 12ms);}
   .nexus-sb-pastille{position:fixed; z-index:95; pointer-events:none; opacity:0; translate:-6px 0; padding:7px 13px; border-radius:10px; border:1px solid rgba(79,195,217,0.4); background:rgba(20,27,34,0.62); -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px); color:#EDF1F5; font-family:'IBM Plex Sans',sans-serif; font-size:13px; font-weight:600; white-space:nowrap; box-shadow:0 6px 20px rgba(0,0,0,0.35); transition:opacity 140ms ease, translate 180ms ease;}
   .nexus-sb-pastille.show{opacity:1; translate:0 0;}
@@ -818,7 +820,7 @@ function nexusAppliquerEtatMenu(etat, animer) {
   const pli = document.querySelector('.nexus-sb-pli');
   if (pli) { // ouvert : « Réduire » (‹‹) ; rail : « Ouvrir » (››)
     const rail = etat === 'rail';
-    pli.setAttribute('aria-expanded', rail ? 'false' : 'true');
+    pli.setAttribute('aria-expanded', rail || cache ? 'false' : 'true');
     pli.setAttribute('aria-label', rail ? 'Ouvrir le menu' : 'Réduire le menu');
     pli.title = (rail ? 'Ouvrir le menu' : 'Réduire le menu') + ' (Ctrl+\\)';
   }

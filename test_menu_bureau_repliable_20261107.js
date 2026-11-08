@@ -248,4 +248,13 @@ t('chaque entrée de #nexus-sidebar-principal a exactement un titre portant la c
 });
 garde('le lien Accueil porte la classe du titre', DESK, h => entreesMenu(h).every(l => /<span class="nexus-sidebar-titre">/.test(l)), '<span class="nexus-sidebar-titre">Accueil</span>', '<span>Accueil</span>');
 
+
+// ---- Menu masqué : bouton « Réduire » du panneau inerte invisible, aria-expanded cohérent (Guardian 6715997121) ----
+t('menu masqué : la barre de boutons est visibility:hidden et le bouton « Réduire » n\'annonce plus aria-expanded="true"', () => {
+  assert.ok(/body\.nexus-menu-cache #nexus-sidebar-principal \.nexus-sb-barre\{visibility:hidden;/.test(DESK));
+  assert.ok(DESK.includes("pli.setAttribute('aria-expanded', rail || cache ? 'false' : 'true')"));
+});
+garde('menu masqué : barre de boutons cachée', DESK, h => /nexus-menu-cache #nexus-sidebar-principal \.nexus-sb-barre\{visibility:hidden;/.test(h), '.nexus-sb-barre{visibility:hidden;', '.nexus-sb-barre{visibility:visible;');
+garde('menu masqué : aria-expanded du bouton Réduire à false', DESK, h => h.includes("rail || cache ? 'false' : 'true')"), "rail || cache ? 'false'", "rail ? 'false'");
+
 console.log(n + ' épreuves OK');
