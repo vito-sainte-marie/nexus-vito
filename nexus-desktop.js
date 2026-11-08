@@ -220,7 +220,7 @@ function nexusConstruireSidebarHTML() {
         <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false"><path d="M8 3 3.5 8 8 13M13 3 8.5 8 13 13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
       <button type="button" class="nexus-sb-masque" aria-controls="nexus-sidebar-principal" aria-expanded="true" aria-label="Masquer le menu" title="Masquer le menu (Maj+Ctrl+\\)">
-        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false"><path d="M11 3 6 8l5 5M3 3v10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <svg viewBox="0 0 18 16" width="16" height="14" aria-hidden="true" focusable="false"><rect x="1.25" y="1.75" width="15.5" height="12.5" rx="2.75" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M6.25 1.75v12.5M12.25 5.5 10 8l2.25 2.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
     </div>
     <a class="nexus-sidebar-brand" href="NEXUS-App-v1.html" title="Retour à l'accueil NEXUS">
@@ -230,7 +230,7 @@ function nexusConstruireSidebarHTML() {
     <div class="nexus-sidebar-scroll">
       <a class="nexus-sidebar-link${pageActuelle === 'NEXUS-App-v1.html' ? ' active' : ''}" href="NEXUS-App-v1.html" style="margin-bottom:8px;">
         ${window.NexusIcones ? window.NexusIcones.img('mod-accueil', 16, { decoratif: true, ancien: '<img src="assets/icons/icon-home.png" alt="">' }) : '<img src="assets/icons/icon-home.png" alt="">'}
-        <span>Accueil</span>
+        <span class="nexus-sidebar-titre">Accueil</span>
       </a>
       ${groupesHTML}
     </div>
@@ -381,6 +381,8 @@ const NEXUS_DESKTOP_CSS = `
   body.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-group{font-size:0; height:1px; padding:0; margin:10px 14px; background:#242e38;}
   body.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-foot{display:none;}
   body.nexus-menu-cache #nexus-sidebar-principal, body.nexus-menu-cache #nexus-sidebar-principal.nexus-sidebar{width:0; border-right-width:0; overflow:hidden; visibility:hidden; transition:width 420ms cubic-bezier(.2,.9,.25,1.15), visibility 0s linear 440ms;}
+  /* Menu masqué : la barre de boutons du panneau inerte disparaît tout à fait (Guardian 6715997121). */
+  body.nexus-menu-cache #nexus-sidebar-principal .nexus-sb-barre{visibility:hidden; transition:visibility 0s linear 440ms;}
   body.nexus-menu-cache #nexus-sidebar-principal .nexus-sidebar-link{opacity:0; scale:.85; transition:opacity 180ms ease, scale 180ms ease; transition-delay:calc(min(var(--nl-i, 0), 24) * 12ms);}
   .nexus-sb-pastille{position:fixed; z-index:95; pointer-events:none; opacity:0; translate:-6px 0; padding:7px 13px; border-radius:10px; border:1px solid rgba(79,195,217,0.4); background:rgba(20,27,34,0.62); -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px); color:#EDF1F5; font-family:'IBM Plex Sans',sans-serif; font-size:13px; font-weight:600; white-space:nowrap; box-shadow:0 6px 20px rgba(0,0,0,0.35); transition:opacity 140ms ease, translate 180ms ease;}
   .nexus-sb-pastille.show{opacity:1; translate:0 0;}
@@ -818,7 +820,7 @@ function nexusAppliquerEtatMenu(etat, animer) {
   const pli = document.querySelector('.nexus-sb-pli');
   if (pli) { // ouvert : « Réduire » (‹‹) ; rail : « Ouvrir » (››)
     const rail = etat === 'rail';
-    pli.setAttribute('aria-expanded', rail ? 'false' : 'true');
+    pli.setAttribute('aria-expanded', rail || cache ? 'false' : 'true');
     pli.setAttribute('aria-label', rail ? 'Ouvrir le menu' : 'Réduire le menu');
     pli.title = (rail ? 'Ouvrir le menu' : 'Réduire le menu') + ' (Ctrl+\\)';
   }

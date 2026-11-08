@@ -207,6 +207,17 @@ garde('filament : 3 px lumineux', css, c => /\.nexus-sb-fil\{[^}]*width:3px/.tes
 garde('respiration : 0,35 à 0,7', css, c => /nexus-sb-souffle\{0%,100%\{opacity:\.35;\} 50%\{opacity:\.7;\}\}/.test(c), '50%{opacity:.7;}', '50%{opacity:1;}');
 garde('mouvement réduit : respiration coupée', css, c => /::after, \.nexus-sb-fil, [^{]*\{animation:none/.test(c), '::after, .nexus-sb-fil, .nexus-sb-filament.nexus-sb-eclat', '::after, .nexus-sb-fil-x, .nexus-sb-filament.nexus-sb-eclat');
 garde('tactile : zone du filament élargie', css, c => /@media \(hover:none\)\{\s*\.nexus-sb-filament\{width:32px/.test(c), '@media (hover:none){\n    .nexus-sb-filament{width:32px;}', '@media (hover:none){\n    .nexus-sb-filament{width:12px;}');
+const MASQUE = (DESK.match(/<button type="button" class="nexus-sb-masque"[\s\S]*?<\/button>/) || [''])[0];
+t('« masquer » : icône de panneau latéral (rectangle arrondi, séparation, « ‹ » fine), plus le tracé « ‹ » collé à une barre', () => {
+  assert.ok(MASQUE, 'bouton introuvable');
+  assert.ok(!MASQUE.includes('M11 3 6 8l5 5M3 3v10'), 'l\'ancien tracé (qui se lit « K ») ne revient pas');
+  assert.ok(/<rect [^>]*rx="2\.75"[^>]*stroke="currentColor" stroke-width="1\.5"/.test(MASQUE), 'rectangle arrondi, trait 1,5, couleur héritée');
+  assert.ok(/<path d="M6\.25 1\.75v12\.5M12\.25 5\.5 10 8l2\.25 2\.5"/.test(MASQUE), 'séparation au premier tiers + chevron dans la partie droite');
+  assert.ok(/aria-label="Masquer le menu" title="Masquer le menu \(Maj\+Ctrl\+\\\\\)"/.test(MASQUE), 'libellé et infobulle inchangés');
+  assert.ok(/\.nexus-sb-masque\{[^}]*width:28px; height:24px/.test(DESK.slice(DESK.indexOf('.nexus-sb-barre{'))), 'zone cliquable inchangée');
+});
+garde('« masquer » : le panneau latéral a sa séparation', MASQUE, c => /<rect /.test(c) && /M6\.25 1\.75v12\.5/.test(c), 'M6.25 1.75v12.5', 'M6.25 1.75');
+garde('« masquer » : pas de retour au tracé « K »', MASQUE, c => !c.includes('M11 3 6 8l5 5M3 3v10'), 'rx="2.75"', 'rx="2.75" data-x="M11 3 6 8l5 5M3 3v10"');
 garde('rail : icônes à 28 px', css, c => /nexus-sidebar-link img\{width:28px; height:28px;\}/.test(c), '.nexus-sidebar-link img{width:28px; height:28px;}', '.nexus-sidebar-link img{width:16px; height:16px;}');
 garde('filament : panneau de verre de 24 px', css, c => /\.nexus-sb-filament::before\{[^}]*width:24px/.test(c), 'bottom:0; width:24px; background:rgba(20,27,34,0.55)', 'bottom:0; width:4px; background:rgba(20,27,34,0.55)');
 garde('filament : lueur au survol', css, c => /:hover \.nexus-sb-fil\{animation:none; opacity:1; filter:drop-shadow/.test(c), 'animation:none; opacity:1; filter:drop-shadow(0 0 5px #4FC3D9)', 'animation:none; opacity:.4; filter:none');
@@ -233,5 +244,28 @@ t('en rail, une entrée avec pastille : titre masqué par sa classe (même si la
 });
 garde('rail : le titre est masqué par sa classe', DESK, h => /nexus-menu-rail #nexus-sidebar-principal \.nexus-sidebar-link > \.nexus-sidebar-titre\{max-width:0/.test(h), 'link > .nexus-sidebar-titre{max-width:0', 'link > span:last-child{max-width:0');
 garde('rail : la pastille est en surimpression', DESK, h => /nexus-sidebar-dot\{position:absolute; left:calc\(50% \+ 6px\)/.test(h), 'nexus-sidebar-dot{position:absolute;', 'nexus-sidebar-dot{position:static;');
+
+
+// ---- Toutes les entrées du menu : exactement un titre portant la classe (Guardian 6715947837, lien Accueil) ----
+const entreesMenu = src => (src.match(/<a class="nexus-sidebar-link[\s\S]*?<\/a>/g) || []);
+t('chaque entrée de #nexus-sidebar-principal a exactement un titre portant la classe, aucun <span> nu', () => {
+  const liens = entreesMenu(DESK);
+  assert.ok(liens.length >= 2, 'gabarit + lien Accueil au minimum : ' + liens.length);
+  liens.forEach(l => {
+    assert.strictEqual((l.match(/<span class="nexus-sidebar-titre">/g) || []).length, 1, l.slice(0, 120));
+    assert.ok(!/<span(?![^>]*nexus-sidebar-(titre|emoji))[^>]*>/.test(l.replace(/<span class="nexus-sidebar-dot"[^>]*>/g, '')), 'span sans classe : ' + l.slice(0, 120));
+  });
+  assert.ok(liens.some(l => l.includes('href="NEXUS-App-v1.html"') && l.includes('>Accueil</span>')), 'le lien Accueil est bien examiné');
+});
+garde('le lien Accueil porte la classe du titre', DESK, h => entreesMenu(h).every(l => /<span class="nexus-sidebar-titre">/.test(l)), '<span class="nexus-sidebar-titre">Accueil</span>', '<span>Accueil</span>');
+
+
+// ---- Menu masqué : bouton « Réduire » du panneau inerte invisible, aria-expanded cohérent (Guardian 6715997121) ----
+t('menu masqué : la barre de boutons est visibility:hidden et le bouton « Réduire » n\'annonce plus aria-expanded="true"', () => {
+  assert.ok(/body\.nexus-menu-cache #nexus-sidebar-principal \.nexus-sb-barre\{visibility:hidden;/.test(DESK));
+  assert.ok(DESK.includes("pli.setAttribute('aria-expanded', rail || cache ? 'false' : 'true')"));
+});
+garde('menu masqué : barre de boutons cachée', DESK, h => /nexus-menu-cache #nexus-sidebar-principal \.nexus-sb-barre\{visibility:hidden;/.test(h), '.nexus-sb-barre{visibility:hidden;', '.nexus-sb-barre{visibility:visible;');
+garde('menu masqué : aria-expanded du bouton Réduire à false', DESK, h => h.includes("rail || cache ? 'false' : 'true')"), "rail || cache ? 'false'", "rail ? 'false'");
 
 console.log(n + ' épreuves OK');
