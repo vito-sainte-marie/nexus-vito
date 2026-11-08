@@ -220,7 +220,7 @@ function nexusConstruireSidebarHTML() {
         <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false"><path d="M8 3 3.5 8 8 13M13 3 8.5 8 13 13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
       <button type="button" class="nexus-sb-masque" aria-controls="nexus-sidebar-principal" aria-expanded="true" aria-label="Masquer le menu" title="Masquer le menu (Maj+Ctrl+\\)">
-        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false"><path d="M11 3 6 8l5 5M3 3v10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <svg viewBox="0 0 18 16" width="16" height="14" aria-hidden="true" focusable="false"><rect x="1.25" y="1.75" width="15.5" height="12.5" rx="2.75" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M6.25 1.75v12.5M12.25 5.5 10 8l2.25 2.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
     </div>
     <a class="nexus-sidebar-brand" href="NEXUS-App-v1.html" title="Retour à l'accueil NEXUS">

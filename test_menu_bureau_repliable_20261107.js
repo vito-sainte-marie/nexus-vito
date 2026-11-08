@@ -207,6 +207,17 @@ garde('filament : 3 px lumineux', css, c => /\.nexus-sb-fil\{[^}]*width:3px/.tes
 garde('respiration : 0,35 à 0,7', css, c => /nexus-sb-souffle\{0%,100%\{opacity:\.35;\} 50%\{opacity:\.7;\}\}/.test(c), '50%{opacity:.7;}', '50%{opacity:1;}');
 garde('mouvement réduit : respiration coupée', css, c => /::after, \.nexus-sb-fil, [^{]*\{animation:none/.test(c), '::after, .nexus-sb-fil, .nexus-sb-filament.nexus-sb-eclat', '::after, .nexus-sb-fil-x, .nexus-sb-filament.nexus-sb-eclat');
 garde('tactile : zone du filament élargie', css, c => /@media \(hover:none\)\{\s*\.nexus-sb-filament\{width:32px/.test(c), '@media (hover:none){\n    .nexus-sb-filament{width:32px;}', '@media (hover:none){\n    .nexus-sb-filament{width:12px;}');
+const MASQUE = (DESK.match(/<button type="button" class="nexus-sb-masque"[\s\S]*?<\/button>/) || [''])[0];
+t('« masquer » : icône de panneau latéral (rectangle arrondi, séparation, « ‹ » fine), plus le tracé « ‹ » collé à une barre', () => {
+  assert.ok(MASQUE, 'bouton introuvable');
+  assert.ok(!MASQUE.includes('M11 3 6 8l5 5M3 3v10'), 'l\'ancien tracé (qui se lit « K ») ne revient pas');
+  assert.ok(/<rect [^>]*rx="2\.75"[^>]*stroke="currentColor" stroke-width="1\.5"/.test(MASQUE), 'rectangle arrondi, trait 1,5, couleur héritée');
+  assert.ok(/<path d="M6\.25 1\.75v12\.5M12\.25 5\.5 10 8l2\.25 2\.5"/.test(MASQUE), 'séparation au premier tiers + chevron dans la partie droite');
+  assert.ok(/aria-label="Masquer le menu" title="Masquer le menu \(Maj\+Ctrl\+\\\\\)"/.test(MASQUE), 'libellé et infobulle inchangés');
+  assert.ok(/\.nexus-sb-masque\{[^}]*width:28px; height:24px/.test(DESK.slice(DESK.indexOf('.nexus-sb-barre{'))), 'zone cliquable inchangée');
+});
+garde('« masquer » : le panneau latéral a sa séparation', MASQUE, c => /<rect /.test(c) && /M6\.25 1\.75v12\.5/.test(c), 'M6.25 1.75v12.5', 'M6.25 1.75');
+garde('« masquer » : pas de retour au tracé « K »', MASQUE, c => !c.includes('M11 3 6 8l5 5M3 3v10'), 'rx="2.75"', 'rx="2.75" data-x="M11 3 6 8l5 5M3 3v10"');
 garde('rail : icônes à 28 px', css, c => /nexus-sidebar-link img\{width:28px; height:28px;\}/.test(c), '.nexus-sidebar-link img{width:28px; height:28px;}', '.nexus-sidebar-link img{width:16px; height:16px;}');
 garde('filament : panneau de verre de 24 px', css, c => /\.nexus-sb-filament::before\{[^}]*width:24px/.test(c), 'bottom:0; width:24px; background:rgba(20,27,34,0.55)', 'bottom:0; width:4px; background:rgba(20,27,34,0.55)');
 garde('filament : lueur au survol', css, c => /:hover \.nexus-sb-fil\{animation:none; opacity:1; filter:drop-shadow/.test(c), 'animation:none; opacity:1; filter:drop-shadow(0 0 5px #4FC3D9)', 'animation:none; opacity:.4; filter:none');
