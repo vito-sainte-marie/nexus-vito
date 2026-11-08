@@ -717,8 +717,17 @@
 
   .outils-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:0 20px;}
   .outil-card{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:16px; text-decoration:none; color:var(--text); display:block;}
-  .outil-icon{width:36px; height:36px; border-radius:10px; background:var(--panel-raised); display:flex; align-items:center; justify-content:center; margin-bottom:10px; overflow:hidden;}
-  .outil-icon img{width:20px; height:20px; object-fit:contain;}
+  /* Icônes de « Vos raccourcis » agrandies (Guardian 6721554975, 08/11/2026) : 56 px sur bureau, 48 px sous 600 px, dans une
+     pastille de 72 px (64 px). L'icône est déjà une tuile du kit : la pastille n'a plus de fond propre (pas de tuile dans la tuile).
+     Plus grande que les pictogrammes des cartes du dessus. L'effet de survol de la PR précédente est inchangé. */
+  .outil-icon{width:72px; height:72px; border-radius:20px; background:transparent; display:flex; align-items:center; justify-content:center; margin-bottom:10px; overflow:hidden;}
+  .outil-icon img{width:56px; height:56px; object-fit:contain;}
+  .outil-icon > span{font-size:40px; line-height:1;}
+  @media (max-width:599px){
+    .outil-icon{width:64px; height:64px; border-radius:18px;}
+    .outil-icon img{width:48px; height:48px;}
+    .outil-icon > span{font-size:34px;}
+  }
   .outil-title{font-size:13.5px; font-weight:600;}
   .outil-desc{font-size:10.5px; color:var(--text-mid); margin-top:4px; line-height:1.4;}
 
@@ -1977,11 +1986,11 @@
   function iconeRaccourciHTML(cat) {
     // Icônes de modules v2 (07/11/2026) : via le registre nexus-icones.js. ICONES_V2 = false → ancien rendu.
     if (cat.module && window.NexusIcones) {
-      const ancien = cat.icone ? `<img src="${cat.icone}" alt="" ${cat.filtreIcone ? `style="${cat.filtreIcone}"` : ''}>` : `<span style="font-size:18px;">${cat.emoji || '🔗'}</span>`;
-      return window.NexusIcones.img(cat.module, 20, { decoratif: true, ancien });
+      const ancien = cat.icone ? `<img src="${cat.icone}" alt="" ${cat.filtreIcone ? `style="${cat.filtreIcone}"` : ''}>` : `<span>${cat.emoji || '🔗'}</span>`;
+      return window.NexusIcones.img(cat.module, 56, { decoratif: true, ancien });
     }
     if (cat.icone) return `<img src="${cat.icone}" alt="" ${cat.filtreIcone ? `style="${cat.filtreIcone}"` : ''}>`;
-    return `<span style="font-size:18px;">${cat.emoji || '🔗'}</span>`;
+    return `<span>${cat.emoji || '🔗'}</span>`;
   }
 
   // Ordre par urgence du jour (11/08/2026, demande de Frédéric — "le
