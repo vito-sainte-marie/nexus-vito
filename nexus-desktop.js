@@ -198,7 +198,7 @@ function nexusConstruireSidebarHTML() {
   const lienIcone = (item) => {
     const ancien = item.icon
       ? `<img src="${item.icon}" alt="">`
-      : `<span style="font-size:15px;">${item.emoji || '•'}</span>`;
+      : `<span class="nexus-sidebar-emoji" style="font-size:15px;">${item.emoji || '•'}</span>`;
     // Icônes de modules v2 (07/11/2026) : via le registre nexus-icones.js ; ICONES_V2 = false → ancien rendu.
     return (item.module && window.NexusIcones)
       ? window.NexusIcones.img(item.module, 16, { decoratif: true, ancien })
@@ -276,11 +276,32 @@ const NEXUS_DESKTOP_CSS = `
   }
   .nexus-sidebar-curseur-thumb:hover, .nexus-sidebar-curseur-thumb.glisse{ background:rgba(79,195,217,0.85); }
   .nexus-sidebar-group{font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:0.08em; text-transform:uppercase; color:#57626F; padding:14px 10px 6px;}
-  .nexus-sidebar-link{display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:8px; color:#8A96A5; text-decoration:none; font-size:12.5px; margin-bottom:2px;}
-  .nexus-sidebar-link:hover{background:#1A222C; color:#EDF1F5;}
+  /* Lisibilité au survol (07/11/2026, Guardian 6715088867) : la rangée a une HAUTEUR RÉSERVÉE (44 px, 48 px sur grand écran),
+     donc agrandir l'icône (16 → 24 px) et le titre (→ 16 px, semi-gras) au survol ou au focus clavier ne déplace aucune autre rangée.
+     L'icône v2 ≤ 24 px est déjà le -24.svg simplifié : le passage à 24 px ne l'agrandit pas à partir d'un 16 px flou. */
+  .nexus-sidebar-link{display:flex; align-items:center; gap:10px; height:44px; box-sizing:border-box; padding:0 10px; border-radius:8px; color:#8A96A5; text-decoration:none; font-size:12.5px; line-height:1.2; margin-bottom:2px;
+    transition:background-color 150ms ease, color 150ms ease, font-size 150ms ease;}
+  .nexus-sidebar-link > span:last-child{display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; min-width:0;}
+  .nexus-sidebar-link:hover, .nexus-sidebar-link:focus-visible{background:#222D3A; color:#EDF1F5; font-size:16px; font-weight:600;}
+  .nexus-sidebar-link:focus-visible{outline:2px solid #4FC3D9; outline-offset:-2px;}
   .nexus-sidebar-link.active{background:rgba(79,195,217,0.12); color:#4FC3D9; font-weight:600;}
-  .nexus-sidebar-link img{width:16px; height:16px; flex-shrink:0; opacity:0.85;}
+  .nexus-sidebar-link img{width:16px; height:16px; flex-shrink:0; opacity:0.85; transition:width 150ms ease, height 150ms ease, opacity 150ms ease;}
+  .nexus-sidebar-link .nexus-sidebar-emoji{display:inline-block; flex-shrink:0; width:16px; text-align:center; transition:font-size 150ms ease;}
+  .nexus-sidebar-link:hover img, .nexus-sidebar-link:focus-visible img{width:24px; height:24px; opacity:1;}
+  .nexus-sidebar-link:hover .nexus-sidebar-emoji, .nexus-sidebar-link:focus-visible .nexus-sidebar-emoji{font-size:22px !important; width:24px;}
   .nexus-sidebar-link.active img{opacity:1;}
+  /* Grands écrans (iMac) : tailles de base plus larges même sans survol. */
+  @media (min-width:1600px){
+    .nexus-sidebar{width:270px;}
+    .nexus-sidebar-link{height:48px; font-size:15px; line-height:1.3;}
+    .nexus-sidebar-link img{width:20px; height:20px;}
+    .nexus-sidebar-link .nexus-sidebar-emoji{font-size:18px !important; width:20px;}
+    .nexus-sidebar-link:hover, .nexus-sidebar-link:focus-visible{font-size:16px;}
+  }
+  /* Mouvement réduit : pas d'animation, seulement le changement d'état. */
+  @media (prefers-reduced-motion:reduce){
+    .nexus-sidebar-link, .nexus-sidebar-link img, .nexus-sidebar-link .nexus-sidebar-emoji{transition:none;}
+  }
   .nexus-sidebar-foot{padding:14px 16px 18px; border-top:1px solid #242e38;}
   .nexus-sidebar-toggle{width:100%; padding:8px 10px; border-radius:8px; border:1px solid rgba(79,195,217,0.3); background:rgba(79,195,217,0.08); color:#4FC3D9; font-family:'IBM Plex Mono',monospace; font-size:10.5px; font-weight:600; text-align:center; cursor:pointer; -webkit-tap-highlight-color:transparent;}
   .nexus-sidebar-toggle:active{background:rgba(79,195,217,0.16);}
@@ -365,7 +386,8 @@ const NEXUS_DESKTOP_CSS = `
   [data-theme="jour"] .nexus-sidebar-brand span{color:#0F172A;}
   [data-theme="jour"] .nexus-sidebar-group{color:#56657A;}
   [data-theme="jour"] .nexus-sidebar-link{color:#475569;}
-  [data-theme="jour"] .nexus-sidebar-link:hover{background:#EEF2F5; color:#0F172A;}
+  [data-theme="jour"] .nexus-sidebar-link:hover, [data-theme="jour"] .nexus-sidebar-link:focus-visible{background:#E3E9EE; color:#0F172A;}
+  [data-theme="jour"] .nexus-sidebar-link:focus-visible{outline-color:#0B7285;}
   [data-theme="jour"] .nexus-sidebar-link.active{background:#EAF4F6; color:#0B7285;}
   [data-theme="jour"] .nexus-sidebar-foot{border-top-color:#D5DCE3;}
   [data-theme="jour"] .nexus-sidebar-toggle{border-color:rgba(11,114,133,0.35); background:#EAF4F6; color:#0B7285;}
@@ -557,6 +579,7 @@ function nexusInstallerReplisIconesSidebar() {
   document.querySelectorAll('.nexus-sidebar-link img').forEach(img => {
     img.addEventListener('error', () => {
       const puce = document.createElement('span');
+      puce.className = 'nexus-sidebar-emoji';
       puce.style.fontSize = '15px';
       puce.textContent = '•';
       img.replaceWith(puce);
