@@ -1,10 +1,11 @@
 // ------------------------------------------------------------
 // NEXUS — registre unique des icônes de modules v2 (07/11/2026, kit « nexus-icones-modules-v1.1 »)
 // ------------------------------------------------------------
-// Source de vérité des 20 icônes de modules (lot 1 : Verify, Inventaire, Contrôle inventaire, FDJ, Missions,
+// Source de vérité des 32 icônes de modules (lot 1 : Verify, Inventaire, Contrôle inventaire, FDJ, Missions,
 // Planning, Paye, Carburants ; lot 2, kit « nexus-icones-modules-lot2-v1.1 » : Carburants Performance, Capital,
 // Brief, Réception carburant, Assignations, FDJ Performance, Comptes Clients, Résultats, Journal, Progression,
-// Paramètres, Produits). Chaque surface (barre d'accueil, menu bureau, raccourcis, Documentation,
+// Paramètres, Produits ; lot 3, kit « nexus-icones-modules-lot3-v1.1 » : Accueil, Cockpit, Rapport, Scanner,
+// Radar, Tempo, Campagnes, Scanner stock, Évaluations, Boîte de réception, Imports, Rappels). Chaque surface (barre d'accueil, menu bureau, raccourcis, Documentation,
 // tuiles employé) passe par ici ; aucune ne connaît les chemins du kit.
 //
 // Pour chaque identifiant : version détaillée (WebP @1x/@2x/@3x, via srcset), version simplifiée
@@ -43,6 +44,18 @@
     'mod-progression':         { libelle: 'Progression' },
     'mod-parametres':          { libelle: 'Paramètres' },
     'mod-produits':            { libelle: 'Produits' },
+    'mod-accueil':             { libelle: 'Accueil' },
+    'mod-cockpit':             { libelle: 'Cockpit' },
+    'mod-rapport':             { libelle: 'Rapport NEXUS' },
+    'mod-scanner':             { libelle: 'Scanner NEXUS' },
+    'mod-radar':               { libelle: 'Radar du Manager' },
+    'mod-tempo':               { libelle: 'Tempo' },
+    'mod-campagnes':           { libelle: 'Campagnes' },
+    'mod-scanner-stock':       { libelle: 'Scanner Stock' },
+    'mod-evaluations':         { libelle: 'Évaluations' },
+    'mod-boite-reception':     { libelle: 'Boîte de réception' },
+    'mod-imports':             { libelle: 'Imports' },
+    'mod-rappels':             { libelle: 'Rappels' },
   };
 
   function esc(s) {

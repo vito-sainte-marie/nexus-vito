@@ -48,7 +48,7 @@ t('les anciens PNG restent dans le dépôt (retour arrière)', () => {
 const R = charger(SRC);
 t('le registre porte les 12 modules du lot 2, chacun avec son libellé', () => {
   IDS.forEach(id => { assert.ok(R.MODULES[id], id); assert.strictEqual(R.MODULES[id].libelle, LOT2[id]); });
-  assert.strictEqual(Object.keys(R.MODULES).length, 20);
+  assert.ok(Object.keys(R.MODULES).length >= 20);
 });
 t('≤ 24 px : simplifié ; au-delà : détaillé en srcset 1x/2x/3x', () => {
   IDS.forEach(id => {

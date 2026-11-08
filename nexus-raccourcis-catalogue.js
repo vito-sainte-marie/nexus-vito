@@ -32,25 +32,25 @@
 
 (function (global) {
   const RACCOURCIS_CATALOGUE = {
-    'NEXUS-Cockpit-v2.html': { label: 'Cockpit', icone: 'assets/icons/icon-home.png', desc: "Le brief du matin, en un coup d'œil" },
+    'NEXUS-Cockpit-v2.html': { label: 'Cockpit', module: 'mod-cockpit', icone: 'assets/icons/icon-home.png', desc: "Le brief du matin, en un coup d'œil" },
     'NEXUS-Verify-v1.html': { label: 'Verify', module: 'mod-verify', icone: 'assets/icons/icon-nexus-verify.png', filtreIcone: 'filter:grayscale(1) brightness(1.05) contrast(1.05) sepia(1) hue-rotate(152deg) saturate(4);', desc: 'Contrôle caisse et écarts' },
-    'NEXUS-Tempo-v1.html': { label: 'Tempo', icone: 'assets/icons/icon-nexus-tempo.png', desc: 'Les jours qui portent votre station' },
+    'NEXUS-Tempo-v1.html': { label: 'Tempo', module: 'mod-tempo', icone: 'assets/icons/icon-nexus-tempo.png', desc: 'Les jours qui portent votre station' },
     'NEXUS-Produits-v1.html': { label: 'Produits', module: 'mod-produits', icone: 'assets/icons/icon-produits.png', desc: 'Fiche complète par référence' },
     'NEXUS-Brief-v1.html': { label: 'Brief NEXUS', module: 'mod-brief', emoji: '🧭', desc: 'La synthèse du dirigeant' },
-    'NEXUS-Rapport-v1.html': { label: 'Rapport NEXUS', emoji: '📑', desc: 'CA, marge et décisions sur une période choisie' },
+    'NEXUS-Rapport-v1.html': { label: 'Rapport NEXUS', module: 'mod-rapport', emoji: '📑', desc: 'CA, marge et décisions sur une période choisie' },
     'NEXUS-Rayon-v1.html': { label: 'Rayon', emoji: '🗂️', desc: 'CA, marge, top ventes par catégorie' },
     'NEXUS-Carburants-v1.html': { label: 'Carburants', module: 'mod-carburants', emoji: '⛽', desc: "Jaugeage à l'ouverture, théorique et écart" },
     'NEXUS-Carburants-Pilotage-v1.html': { label: 'Carburants Performance', module: 'mod-carburants-performance', emoji: '📈', desc: 'Volumes, mix et moteurs de performance' },
     'NEXUS-FDJ-Analyse-v1.html': { label: 'FDJ Performance', module: 'mod-fdj-performance', emoji: '📊', desc: 'Tendances, jeux, équipe, stock et écarts', forfait: 'professional' },
-    'NEXUS-Scanner-Stock-v1.html': { label: 'Scanner Stock', emoji: '📦', desc: "Où vous perdez de l'argent, quoi recompter" },
+    'NEXUS-Scanner-Stock-v1.html': { label: 'Scanner Stock', module: 'mod-scanner-stock', emoji: '📦', desc: "Où vous perdez de l'argent, quoi recompter" },
     'NEXUS-Missions-v1.html': { label: 'Missions', module: 'mod-missions', emoji: '✅', desc: '55 procédures · checklist interactive' },
     'NEXUS-Journal-v1.html': { label: 'Journal', module: 'mod-journal', emoji: '📓', desc: "Qu'est-ce qui a été fait aujourd'hui ?", forfait: 'professional' },
     'NEXUS-Capital-v1.html': { label: 'Capital NEXUS', module: 'mod-capital', emoji: '💎', desc: 'La valeur créée par vos décisions', forfait: 'professional' },
-    'NEXUS-Scanner-v1.html': { label: 'Scanner NEXUS', emoji: '🔎', desc: 'CA, marge et répartition ABC', forfait: 'professional' },
-    'NEXUS-Radar-Manager-v1.html': { label: 'Radar du Manager', emoji: '🧭', desc: '8 domaines de responsabilité', forfait: 'professional' },
+    'NEXUS-Scanner-v1.html': { label: 'Scanner NEXUS', module: 'mod-scanner', emoji: '🔎', desc: 'CA, marge et répartition ABC', forfait: 'professional' },
+    'NEXUS-Radar-Manager-v1.html': { label: 'Radar du Manager', module: 'mod-radar', emoji: '🧭', desc: '8 domaines de responsabilité', forfait: 'professional' },
     'NEXUS-Centre-Intelligence-v1.html': { label: "Centre d'Intelligence", emoji: '🧠', desc: 'Que détecte NEXUS dans mon commerce ?' },
     'NEXUS-Inventaire-Manager-v1.html': { label: 'Contrôle inventaire', module: 'mod-controle-inventaire', emoji: '🧮', desc: 'Écarts, comptages manquants', forfait: 'professional' },
-    'NEXUS-Import-v1.html': { label: 'Import', emoji: '⬆️', desc: 'Ventes, catalogue ou stock instantané' },
+    'NEXUS-Import-v1.html': { label: 'Import', module: 'mod-imports', emoji: '⬆️', desc: 'Ventes, catalogue ou stock instantané' },
   };
 
   const RACCOURCIS_DEFAUT = ['NEXUS-Cockpit-v2.html', 'NEXUS-Verify-v1.html', 'NEXUS-Tempo-v1.html', 'NEXUS-Produits-v1.html'];

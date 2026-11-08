@@ -1,6 +1,6 @@
 NEXUS — Icônes modules v1.1
 
-20 modules (lot 1 : 8, lot 2 : 12), un dossier par module. Chaque dossier contient : SVG principal, WebP 48/96/144 px, SVG simplifié et PNG simplifié 48 px.
+32 modules (lot 1 : 8, lot 2 : 12, lot 3 : 12), un dossier par module. Chaque dossier contient : SVG principal, WebP 48/96/144 px, SVG simplifié et PNG simplifié 48 px.
 
 Changements v1.0 → v1.1 :
 - Grandes versions redessinées en objets givrés avec relief, tuile bleu pétrole et liseré cyan. Le rendu WebP est rasterisé depuis le SVG.
