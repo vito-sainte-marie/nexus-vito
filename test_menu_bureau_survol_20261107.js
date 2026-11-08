@@ -64,7 +64,7 @@ t('l\'icône v2 ≤ 24 px reste le -24.svg simplifié (pas de srcset flou) : le 
   assert.ok(/SEUIL_SIMPLIFIE\s*=\s*24/.test(R));
 });
 t('titre long : au plus deux lignes dans la hauteur réservée', () => {
-  assert.ok(/\.nexus-sidebar-link > span:last-child\{[^}]*-webkit-line-clamp:2[^}]*overflow:hidden/.test(css));
+  assert.ok(/\.nexus-sidebar-link > .nexus-sidebar-titre\{[^}]*-webkit-line-clamp:2[^}]*overflow:hidden/.test(css));
 });
 t('thème Jour : survol et focus ont leur surcharge, contraste conservé', () => {
   assert.ok(/\[data-theme="jour"\] \.nexus-sidebar-link:hover, \[data-theme="jour"\] \.nexus-sidebar-link:focus-visible\{background:#E3E9EE; color:#0F172A/.test(css));

@@ -62,7 +62,7 @@ t('titre décalé de (échelle - 1) x largeur de l\'icône, sans retrait ; marge
 });
 t('aucun décalage de mise en page : transform scale, origine à gauche, hauteur de ligne non touchée', () => {
   assert.ok(/\.nexus-sidebar-loupe \.nexus-sidebar-link img[^{]*\{\s*transform:scale\(var\(--nl-icone, 1\)\); transform-origin:left center/.test(DESK));
-  assert.ok(/> span:last-child\{\s*transform:translateX\(var\(--nl-dec, 0px\)\) scale\(var\(--nl-titre, 1\)\); transform-origin:left center/.test(DESK));
+  assert.ok(/> .nexus-sidebar-titre\{\s*transform:translateX\(var\(--nl-dec, 0px\)\) scale\(var\(--nl-titre, 1\)\); transform-origin:left center/.test(DESK));
   assert.ok(!/nexus-sidebar-loupe[^{]*\{[^}]*(?:^|[^-])height:\s*\d/.test(DESK.replace(/img\{width:\d+px; height:\d+px;\}/g, '')), 'la loupe ne change aucune hauteur de ligne');
 });
 t('transition d\'environ 120 ms', () => {

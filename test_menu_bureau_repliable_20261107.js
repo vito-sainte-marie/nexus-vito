@@ -217,4 +217,21 @@ garde('écart de 16 px pour le bouton ☰', css, c => /nexus-menu-cache > \.app\
 garde('aperçu au survol : seulement avec une vraie souris', css, c => /@media \(hover:hover\)\{\s*\.nexus-sb-filament:hover/.test(c), '@media (hover:hover){', '@media all{');
 garde('cascade plafonnée (rail et caché)', css, c => (c.match(/min\(var\(--nl-i, 0\), 24\)/g) || []).length >= 3, 'min(var(--nl-i, 0), 24) * 12ms', 'var(--nl-i, 0) * 12ms');
 
+
+// ---- Titre ciblé par sa classe, pastille d'alerte en rail (Guardian 6715869527) ----
+t('le titre porte .nexus-sidebar-titre ; aucune règle ni JS ne s\'appuie sur span:last-child', () => {
+  assert.ok(DESK.includes('<span class="nexus-sidebar-titre">${item.label}</span>'));
+  assert.ok(!/span:last-child|:first-of-type/.test(DESK), 'plus de sélecteur positionnel');
+  assert.ok(/body\.nexus-menu-rail #nexus-sidebar-principal \.nexus-sidebar-link > \.nexus-sidebar-titre\{max-width:0; opacity:0/.test(DESK));
+  assert.ok(DESK.includes("lien.querySelector('.nexus-sidebar-titre')"));
+});
+t('en rail, une entrée avec pastille : titre masqué par sa classe (même si la pastille est le dernier enfant) et pastille visible sur le coin de l\'icône', () => {
+  assert.ok(/nexus-menu-rail #nexus-sidebar-principal \.nexus-sidebar-link \.nexus-sidebar-dot\{position:absolute; left:calc\(50% \+ 6px\); top:4px;[^}]*width:8px; height:8px; border:2px solid #0D131A/.test(DESK));
+  assert.ok(/nexus-menu-rail #nexus-sidebar-principal \.nexus-sidebar-link\{position:relative;\}/.test(DESK));
+  assert.ok(!/nexus-menu-rail[^{]*nexus-sidebar-dot\{[^}]*(display:none|opacity:0)/.test(DESK));
+  assert.ok(/nexus-sidebar-loupe\.nexus-menu-rail #nexus-sidebar-principal \.nexus-sidebar-link \.nexus-sidebar-dot\{translate:/.test(DESK), 'suit la loupe');
+});
+garde('rail : le titre est masqué par sa classe', DESK, h => /nexus-menu-rail #nexus-sidebar-principal \.nexus-sidebar-link > \.nexus-sidebar-titre\{max-width:0/.test(h), 'link > .nexus-sidebar-titre{max-width:0', 'link > span:last-child{max-width:0');
+garde('rail : la pastille est en surimpression', DESK, h => /nexus-sidebar-dot\{position:absolute; left:calc\(50% \+ 6px\)/.test(h), 'nexus-sidebar-dot{position:absolute;', 'nexus-sidebar-dot{position:static;');
+
 console.log(n + ' épreuves OK');

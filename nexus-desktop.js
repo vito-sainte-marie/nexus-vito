@@ -209,7 +209,7 @@ function nexusConstruireSidebarHTML() {
     ${g.items.map(item => `
       <a class="nexus-sidebar-link${item.href === pageActuelle ? ' active' : ''}" href="${item.href}"${item.desc ? ` data-tooltip="${nexusEchapperAttribut(item.label)}" data-tooltip-desc="${nexusEchapperAttribut(item.desc)}"` : ''}>
         ${lienIcone(item)}
-        <span>${item.label}</span>
+        <span class="nexus-sidebar-titre">${item.label}</span>
       </a>
     `).join('')}
   `).join('');
@@ -289,7 +289,7 @@ const NEXUS_DESKTOP_CSS = `
      L'icône v2 ≤ 24 px est déjà le -24.svg simplifié : le passage à 24 px ne l'agrandit pas à partir d'un 16 px flou. */
   .nexus-sidebar-link{display:flex; align-items:center; gap:10px; height:44px; box-sizing:border-box; padding:0 10px; border-radius:8px; color:#8A96A5; text-decoration:none; font-size:12.5px; line-height:1.2; margin-bottom:2px;
     transition:background-color 150ms ease, color 150ms ease, font-size 150ms ease;}
-  .nexus-sidebar-link > span:last-child{display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; min-width:0;}
+  .nexus-sidebar-link > .nexus-sidebar-titre{display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; min-width:0;}
   .nexus-sidebar-link:hover, .nexus-sidebar-link:focus-visible{background:#222D3A; color:#EDF1F5; font-size:16px; font-weight:600;}
   .nexus-sidebar-link:focus-visible{outline:2px solid #4FC3D9; outline-offset:-2px;}
   .nexus-sidebar-link.active{background:rgba(79,195,217,0.12); color:#4FC3D9; font-weight:600;}
@@ -316,7 +316,7 @@ const NEXUS_DESKTOP_CSS = `
      elle remplace alors l'agrandissement simple du survol par le transform. Le focus clavier garde l'agrandissement simple. */
   .nexus-sidebar-loupe .nexus-sidebar-link img, .nexus-sidebar-loupe .nexus-sidebar-link .nexus-sidebar-emoji{
     transform:scale(var(--nl-icone, 1)); transform-origin:left center; transition:transform 120ms ease-out, opacity 120ms ease-out;}
-  .nexus-sidebar-loupe .nexus-sidebar-link > span:last-child{
+  .nexus-sidebar-loupe .nexus-sidebar-link > .nexus-sidebar-titre{
     transform:translateX(var(--nl-dec, 0px)) scale(var(--nl-titre, 1)); transform-origin:left center; transition:transform 120ms ease-out;}
   /* Plus prononcé (Guardian 6715419690) : marge à droite réservée pour que le titre agrandi (x1,25 + décalage) ne soit jamais coupé,
      et interligne élargi de 4 px sur TOUTES les lignes tant que le pointeur est dans le menu (classe .nexus-sidebar-loupe-actif). */
@@ -331,7 +331,7 @@ const NEXUS_DESKTOP_CSS = `
     .nexus-sidebar-loupe .nexus-sidebar-link:hover .nexus-sidebar-emoji{font-size:18px !important; width:20px;}
   }
   @media (prefers-reduced-motion:reduce), (hover:none){
-    .nexus-sidebar-loupe .nexus-sidebar-link img, .nexus-sidebar-loupe .nexus-sidebar-link .nexus-sidebar-emoji, .nexus-sidebar-loupe .nexus-sidebar-link > span:last-child{transform:none; transition:none;}
+    .nexus-sidebar-loupe .nexus-sidebar-link img, .nexus-sidebar-loupe .nexus-sidebar-link .nexus-sidebar-emoji, .nexus-sidebar-loupe .nexus-sidebar-link > .nexus-sidebar-titre{transform:none; transition:none;}
   }
   .nexus-sidebar-foot{padding:14px 16px 18px; border-top:1px solid #242e38;}
   .nexus-sidebar-toggle{width:100%; padding:8px 10px; border-radius:8px; border:1px solid rgba(79,195,217,0.3); background:rgba(79,195,217,0.08); color:#4FC3D9; font-family:'IBM Plex Mono',monospace; font-size:10.5px; font-weight:600; text-align:center; cursor:pointer; -webkit-tap-highlight-color:transparent;}
@@ -356,7 +356,7 @@ const NEXUS_DESKTOP_CSS = `
   #nexus-sidebar-principal.nexus-sb-bouge{will-change:width; overflow:hidden;}
   #nexus-sidebar-principal.nexus-sb-bouge::after{animation:nexus-sb-rideau 420ms ease both;}
   @keyframes nexus-sb-rideau{0%{opacity:0;} 40%{opacity:1;} 100%{opacity:0;}}
-  #nexus-sidebar-principal .nexus-sidebar-link > span:last-child{
+  #nexus-sidebar-principal .nexus-sidebar-link > .nexus-sidebar-titre{
     max-width:200px; transition:transform 120ms ease-out, opacity 220ms ease, max-width 260ms ease, translate 260ms cubic-bezier(.2,.9,.25,1.15);
     transition-delay:0ms, calc(120ms + min(var(--nl-i, 0), 24) * 12ms), 0ms, calc(120ms + min(var(--nl-i, 0), 24) * 12ms);}
   #nexus-sidebar-principal .nexus-sidebar-link img, #nexus-sidebar-principal .nexus-sidebar-link .nexus-sidebar-emoji{
@@ -364,8 +364,13 @@ const NEXUS_DESKTOP_CSS = `
   body.nexus-menu-rail #nexus-sidebar-principal, body.nexus-menu-rail #nexus-sidebar-principal.nexus-sidebar{width:68px; overflow:hidden;}
   body.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-scroll{padding:0 6px 16px;}
   body.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-link{justify-content:center; gap:0; padding:0;}
-  body.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-link > span:last-child{max-width:0; opacity:0; translate:-6px 0; transition-delay:0ms;}
+  body.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-link > .nexus-sidebar-titre{max-width:0; opacity:0; translate:-6px 0; transition-delay:0ms;}
   body.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-link img, body.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-link .nexus-sidebar-emoji{transform-origin:center center;}
+  /* Pastille d'alerte en rail : en surimpression sur le coin haut droit de l'icône (le titre est masqué par sa classe, pas par sa position). */
+  body.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-link{position:relative;}
+  body.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-link .nexus-sidebar-dot{position:absolute; left:calc(50% + 6px); top:4px; margin:0; box-sizing:content-box; width:8px; height:8px; border:2px solid #0D131A;}
+[data-theme="jour"] body.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-link .nexus-sidebar-dot{border-color:#F4F7F9;}
+  body.nexus-sidebar-loupe.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-link .nexus-sidebar-dot{translate:calc((min(var(--nl-icone, 1), 1.9) - 1) * 10px) calc((min(var(--nl-icone, 1), 1.9) - 1) * -10px);}
   /* Icônes du rail à 28 px (Guardian 6715519682) : le -24.svg est vectoriel, la loupe se centre sur cette base. */
   body.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-link img{width:28px; height:28px;}
   body.nexus-sidebar-loupe.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-link img{transform:scale(min(var(--nl-icone, 1), 1.9));}
@@ -409,7 +414,7 @@ const NEXUS_DESKTOP_CSS = `
   [data-theme="jour"] .nexus-sb-fil{background:linear-gradient(180deg, #0B7285, rgba(11,114,133,0));}
   [data-theme="jour"] .nexus-sb-chev{color:#0B7285;}
   @media (prefers-reduced-motion:reduce) and (min-width:0px){
-    #nexus-sidebar-principal, #nexus-sidebar-principal .nexus-sidebar-link > span:last-child, #nexus-sidebar-principal .nexus-sidebar-link img, #nexus-sidebar-principal .nexus-sidebar-link .nexus-sidebar-emoji, body.nexus-menu-cache #nexus-sidebar-principal .nexus-sidebar-link{transition:opacity 120ms linear; transition-delay:0ms;}
+    #nexus-sidebar-principal, #nexus-sidebar-principal .nexus-sidebar-link > .nexus-sidebar-titre, #nexus-sidebar-principal .nexus-sidebar-link img, #nexus-sidebar-principal .nexus-sidebar-link .nexus-sidebar-emoji, body.nexus-menu-cache #nexus-sidebar-principal .nexus-sidebar-link{transition:opacity 120ms linear; transition-delay:0ms;}
     body.nexus-menu-cache #nexus-sidebar-principal{transition:opacity 120ms linear, visibility 0s linear 120ms;}
     #nexus-sidebar-principal.nexus-sb-bouge::after, .nexus-sb-fil, .nexus-sb-filament.nexus-sb-eclat .nexus-sb-fil::after{animation:none;}
     .nexus-sb-fil{opacity:.55;}
@@ -866,7 +871,7 @@ function nexusInstallerPliMenuSidebar() {
   document.body.appendChild(pastille);
   function montrer(lien) {
     if (!document.body.classList.contains('nexus-menu-rail')) return;
-    const t = lien.querySelector('span:last-child');
+    const t = lien.querySelector('.nexus-sidebar-titre');
     if (!t) return;
     pastille.textContent = t.textContent.trim();
     const r = lien.getBoundingClientRect();
