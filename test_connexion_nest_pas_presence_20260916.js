@@ -571,7 +571,10 @@ t('cas 14 — les deux chemins tiennent sur un écran de téléphone', () => {
   const mq = /@media[^{]*\{((?:[^{}]*\{[^}]*\})*)\s*\}/g;
   let m;
   while ((m = mq.exec(src))) {
-    const presentation = /^@media\s*\((?:hover:\s*hover|prefers-reduced-motion:\s*reduce)\)\s*$/.test(m[0].slice(0, m[0].indexOf('{')).trim());
+    const entete = m[0].slice(0, m[0].indexOf('{')).trim();
+    // 08/11/2026 : taille des icônes de « Vos raccourcis » sous 600 px (taille seule, aucune règle ne masque rien : vérifié plus bas).
+    const tailleIconesMobile = /^@media\s*\(max-width:\s*599px\)\s*$/.test(entete) && /^\s*(\.outil-icon(?: img| > span)?\{[^}]*\}\s*)+$/.test(m[1]);
+    const presentation = tailleIconesMobile || /^@media\s*\((?:hover:\s*hover|prefers-reduced-motion:\s*reduce)\)\s*$/.test(entete);
     assert.ok(presentation || /^\s*(body(?:\.nexus-desktop)?:has\(\.am-marqueur\)[^{]*\{[^}]*\}\s*)+$/.test(m[1]),
       'une media query hors du bloc dirigeant pourrait masquer un chemin selon la largeur — à réexaminer');
     assert.ok(!/display:\s*none|visibility:\s*hidden|opacity:\s*0\b|height:\s*0\b/.test(m[1]),

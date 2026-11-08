@@ -133,7 +133,7 @@ t('Documentation : 16 entrées (7 du lot 1, 9 du lot 2), Carburants et Paye abse
   ['controle-fdj'].forEach(i => assert.ok(!new RegExp("id: '" + i + "', module:").test(DOC), i));
 });
 t('les écrans passent par le registre : barre d\'accueil, raccourcis (accueil et Paramètres), tuiles, bureau, Documentation', () => {
-  assert.ok(/NexusIcones\.img\(cat\.module, 20/.test(APP) && /NexusIcones\.img\(t\.module, 19/.test(APP));
+  assert.ok(/NexusIcones\.img\(cat\.module, 56/.test(APP) && /NexusIcones\.img\(t\.module, 19/.test(APP));
   assert.ok(/NexusIcones\.img\(cat\.module, 18/.test(PAR));
   assert.ok(/NexusIcones\.img\(item\.module, 16/.test(DESK));
   assert.ok(/NexusIcones\.img\(m\.module, taille/.test(DOC));
