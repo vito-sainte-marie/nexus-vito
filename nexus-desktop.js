@@ -315,6 +315,10 @@ const NEXUS_DESKTOP_CSS = `
     transform:scale(var(--nl-icone, 1)); transform-origin:left center; transition:transform 120ms ease-out, opacity 120ms ease-out;}
   .nexus-sidebar-loupe .nexus-sidebar-link > span:last-child{
     transform:translateX(var(--nl-dec, 0px)) scale(var(--nl-titre, 1)); transform-origin:left center; transition:transform 120ms ease-out;}
+  /* Plus prononcé (Guardian 6715419690) : marge à droite réservée pour que le titre agrandi (x1,25 + décalage) ne soit jamais coupé,
+     et interligne élargi de 4 px sur TOUTES les lignes tant que le pointeur est dans le menu (classe .nexus-sidebar-loupe-actif). */
+  .nexus-sidebar-loupe .nexus-sidebar-link{padding-right:46px; transition:background-color .15s ease, color .15s ease, font-size .15s ease, margin-bottom 120ms ease-out;}
+  .nexus-sidebar-loupe-actif .nexus-sidebar-link{margin-bottom:6px;}
   .nexus-sidebar-loupe .nexus-sidebar-link:hover{font-size:12.5px;}
   .nexus-sidebar-loupe .nexus-sidebar-link:hover img{width:16px; height:16px;}
   .nexus-sidebar-loupe .nexus-sidebar-link:hover .nexus-sidebar-emoji{font-size:15px !important; width:16px;}
@@ -653,18 +657,20 @@ function nexusInstallerTooltipsSidebar() {
 }
 
 // Effet de loupe façon Dock (07/11/2026, Guardian 6715331183). Fonction PURE : distance au pointeur (en lignes) -> échelle de l'icône.
-// Ancres : 0 ligne = x1,7 ; 1 = x1,35 ; 2 = x1,12 ; 3 et au-delà = x1. Entre deux ancres, interpolation en cosinus (courbe lisse,
-// sans cassure de pente aux lignes). Le titre grossit moins : x1,15 au maximum (nexusEchelleTitreLoupe).
+// Ancres (Guardian 6715419690) : 0 ligne = x2,2 ; 1 = x1,6 ; 2 = x1,25 ; 3 = x1,08 ; 3,5 lignes et au-delà = x1. Entre deux ancres,
+// interpolation en cosinus (courbe lisse). Le titre grossit moins : x1,25 au maximum, ~x1,1 sur les lignes voisines (nexusEchelleTitreLoupe).
 function nexusEchelleLoupe(distanceLignes) {
-  const ANCRES = [1.7, 1.35, 1.12, 1];
+  const ANCRES = [2.2, 1.6, 1.25, 1.08, 1];
+  const POSITIONS = [0, 1, 2, 3, 3.5];
   const d = Math.max(0, Number(distanceLignes) || 0);
-  if (d >= ANCRES.length - 1) return 1;
-  const i = Math.floor(d);
-  const e = (1 - Math.cos(Math.PI * (d - i))) / 2;
+  if (d >= POSITIONS[POSITIONS.length - 1]) return 1;
+  let i = 0;
+  while (d >= POSITIONS[i + 1]) i++;
+  const e = (1 - Math.cos(Math.PI * (d - POSITIONS[i]) / (POSITIONS[i + 1] - POSITIONS[i]))) / 2;
   return ANCRES[i] + (ANCRES[i + 1] - ANCRES[i]) * e;
 }
 function nexusEchelleTitreLoupe(echelleIcone) {
-  return 1 + (echelleIcone - 1) * (0.15 / 0.7);
+  return 1 + 0.25 * Math.pow(Math.max(0, echelleIcone - 1) / 1.2, 1.3);
 }
 
 // Installe la loupe sur le menu. Pas d'effet (et pas de classe) pour un écran tactile ou un utilisateur qui demande moins de mouvement :
@@ -684,7 +690,9 @@ function nexusInstallerLoupeSidebar() {
     planifie = false;
     const tous = liens();
     if (!tous.length) return;
-    const pas = tous[0].offsetHeight + 2;
+    sidebar.classList.toggle('nexus-sidebar-loupe-actif', y !== null);
+    // Pas entre deux lignes = hauteur + interligne (2 px au repos, 6 px tant que le pointeur est dans le menu).
+    const pas = tous[0].offsetHeight + (y !== null ? 6 : 2);
     tous.forEach(lien => {
       let echelle = 1, titre = 1, dec = 0;
       if (y !== null) {
@@ -692,8 +700,8 @@ function nexusInstallerLoupeSidebar() {
         echelle = nexusEchelleLoupe(Math.abs(y - (r.top + r.height / 2)) / pas);
         titre = nexusEchelleTitreLoupe(echelle);
         const icone = lien.querySelector('img, .nexus-sidebar-emoji');
-        // Évite que l'icône agrandie (origine à gauche) recouvre le titre : on pousse le titre de ce qui dépasse l'espace de 8 px.
-        dec = icone ? Math.max(0, (echelle - 1) * icone.offsetWidth - 8) : 0;
+        // Écart constant entre l'icône agrandie (origine à gauche) et le titre : on pousse le titre de (échelle - 1) x largeur de l'icône.
+        dec = icone ? Math.max(0, (echelle - 1) * icone.offsetWidth) : 0;
       }
       const cle = echelle.toFixed(3) + '|' + dec.toFixed(1);
       if (lien._nlCle === cle) return;
