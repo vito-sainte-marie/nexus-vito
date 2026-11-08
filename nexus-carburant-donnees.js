@@ -578,16 +578,19 @@
   // derniers ne doit pas voir sa moyenne diluée par 4 jours à zéro qui
   // n'existent pas). Retourne null pour un carburant sans aucune donnée
   // sur la fenêtre.
-  async function chargerConsommationJournaliereMoyenne(client, siteId, dateFinExclusive, joursFenetre = 7) {
+  async function chargerConsommationJournaliereMoyenne(client, siteId, dateFinExclusive, joursFenetre = 7, surLignes = null) {
     const fin = new Date(`${dateFinExclusive}T00:00:00`);
     const debut = new Date(fin);
     debut.setDate(debut.getDate() - joursFenetre);
     const debutISO = `${debut.getFullYear()}-${String(debut.getMonth() + 1).padStart(2, '0')}-${String(debut.getDate()).padStart(2, '0')}`;
     const { data, error } = await client.from('audits_caisse')
-      .select('date,litrage_gazole,litrage_sp95,litrage_gnr')
+      .select('date,quart,litrage_gazole,litrage_sp95,litrage_gnr')
       .eq('site', siteId).gte('date', debutISO).lt('date', dateFinExclusive);
     if (error) { console.error('Chargement consommation moyenne carburant:', error); return { go: null, sp95: null, gnr: null }; }
     const lignes = data || [];
+    // Refonte visuelle Carburants (08/11/2026) : les lignes déjà lues sont rendues
+    // à l'appelant qui le demande (bloc « Ventes »), sans nouvelle requête.
+    if (typeof surLignes === 'function') surLignes(lignes);
     const champs = { go: 'litrage_gazole', sp95: 'litrage_sp95', gnr: 'litrage_gnr' };
     const resultat = {};
     Object.entries(champs).forEach(([cle, champ]) => {
