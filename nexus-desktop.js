@@ -215,6 +215,11 @@ function nexusConstruireSidebarHTML() {
   `).join('');
 
   return `
+    <div class="nexus-sb-barre">
+      <button type="button" class="nexus-sb-pli" aria-controls="nexus-sidebar-principal" aria-expanded="true" aria-label="Replier le menu" title="Replier le menu (Ctrl+\\)">
+        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false"><path d="M8 3 3.5 8 8 13M13 3 8.5 8 13 13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
     <a class="nexus-sidebar-brand" href="NEXUS-App-v1.html" title="Retour à l'accueil NEXUS">
       <img src="assets/avatar/nexus-avatar-64.png" srcset="assets/avatar/nexus-avatar-64.png 64w, assets/avatar/nexus-avatar-96.png 96w, assets/avatar/nexus-avatar-128.png 128w" sizes="30px" width="30" height="30" alt="NEXUS">
       <span>NEXUS</span>
@@ -324,6 +329,70 @@ const NEXUS_DESKTOP_CSS = `
   .nexus-sidebar-foot{padding:14px 16px 18px; border-top:1px solid #242e38;}
   .nexus-sidebar-toggle{width:100%; padding:8px 10px; border-radius:8px; border:1px solid rgba(79,195,217,0.3); background:rgba(79,195,217,0.08); color:#4FC3D9; font-family:'IBM Plex Mono',monospace; font-size:10.5px; font-weight:600; text-align:center; cursor:pointer; -webkit-tap-highlight-color:transparent;}
   .nexus-sidebar-toggle:active{background:rgba(79,195,217,0.16);}
+
+  /* Menu repliable (07/11/2026, Guardian 6715363735) : « le rideau de verre et le filament ». Trois états posés en classe sur <body> :
+     (rien) = ouvert ; .nexus-menu-rail = rail d'icônes de 68 px ; .nexus-menu-cache = menu masqué, seul reste le filament lumineux.
+     Seuls transform / opacity / filtre sont animés (plus la largeur du menu, pour que le contenu suive). Les sélecteurs passent par l'identifiant
+     #nexus-sidebar-principal pour l'emporter sur la loupe sans toucher à ses règles. */
+  .nexus-sb-barre{display:flex; justify-content:flex-end; padding:8px 10px 0;}
+  .nexus-sb-pli{width:28px; height:24px; display:flex; align-items:center; justify-content:center; border:0; border-radius:6px; background:transparent; color:#7C8A99; cursor:pointer; transition:color 150ms ease, background-color 150ms ease, rotate 260ms ease; -webkit-tap-highlight-color:transparent;}
+  .nexus-sb-pli:hover, .nexus-sb-pli:focus-visible{color:#4FC3D9; background:rgba(79,195,217,0.1);}
+  .nexus-sb-pli:focus-visible{outline:2px solid #4FC3D9; outline-offset:1px;}
+  body.nexus-menu-rail .nexus-sb-pli{rotate:180deg;}
+  #nexus-sidebar-principal{transition:width 420ms cubic-bezier(.2,.9,.25,1.15);}
+  #nexus-sidebar-principal::after{content:""; position:absolute; inset:0; pointer-events:none; opacity:0; background:rgba(13,19,26,0.15); -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px);}
+  #nexus-sidebar-principal.nexus-sb-bouge{will-change:width; overflow:hidden;}
+  #nexus-sidebar-principal.nexus-sb-bouge::after{animation:nexus-sb-rideau 420ms ease both;}
+  @keyframes nexus-sb-rideau{0%{opacity:0;} 40%{opacity:1;} 100%{opacity:0;}}
+  #nexus-sidebar-principal .nexus-sidebar-link > span:last-child{
+    max-width:200px; transition:transform 120ms ease-out, opacity 220ms ease, max-width 260ms ease, translate 260ms cubic-bezier(.2,.9,.25,1.15);
+    transition-delay:0ms, calc(120ms + min(var(--nl-i, 0), 24) * 12ms), 0ms, calc(120ms + min(var(--nl-i, 0), 24) * 12ms);}
+  #nexus-sidebar-principal .nexus-sidebar-link img, #nexus-sidebar-principal .nexus-sidebar-link .nexus-sidebar-emoji{
+    transition:transform 120ms ease-out, opacity 220ms ease, scale 260ms ease, width 150ms ease, height 150ms ease;}
+  body.nexus-menu-rail #nexus-sidebar-principal, body.nexus-menu-rail #nexus-sidebar-principal.nexus-sidebar{width:68px; overflow:hidden;}
+  body.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-scroll{padding:0 6px 16px;}
+  body.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-link{justify-content:center; gap:0; padding:0;}
+  body.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-link > span:last-child{max-width:0; opacity:0; translate:-6px 0; transition-delay:0ms;}
+  body.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-link img, body.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-link .nexus-sidebar-emoji{transform-origin:center center;}
+  body.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-brand{justify-content:center; padding:6px 0 14px;}
+  body.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-brand span{display:none;}
+  body.nexus-menu-rail #nexus-sidebar-principal .nexus-sb-barre{justify-content:center; padding:8px 0 0;}
+  body.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-group{font-size:0; height:1px; padding:0; margin:10px 14px; background:#242e38;}
+  body.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-foot{display:none;}
+  body.nexus-menu-cache #nexus-sidebar-principal, body.nexus-menu-cache #nexus-sidebar-principal.nexus-sidebar{width:0; border-right-width:0; overflow:hidden; visibility:hidden; transition:width 420ms cubic-bezier(.2,.9,.25,1.15), visibility 0s linear 440ms;}
+  body.nexus-menu-cache #nexus-sidebar-principal .nexus-sidebar-link{opacity:0; scale:.85; transition:opacity 180ms ease, scale 180ms ease; transition-delay:calc(min(var(--nl-i, 0), 24) * 12ms);}
+  .nexus-sb-pastille{position:fixed; z-index:95; pointer-events:none; opacity:0; translate:-6px 0; padding:7px 13px; border-radius:10px; border:1px solid rgba(79,195,217,0.4); background:rgba(20,27,34,0.62); -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px); color:#EDF1F5; font-family:'IBM Plex Sans',sans-serif; font-size:13px; font-weight:600; white-space:nowrap; box-shadow:0 6px 20px rgba(0,0,0,0.35); transition:opacity 140ms ease, translate 180ms ease;}
+  .nexus-sb-pastille.show{opacity:1; translate:0 0;}
+  .nexus-sb-filament{display:none; position:fixed; z-index:90; left:0; top:0; bottom:0; width:12px; padding:0; border:0; background:transparent; cursor:pointer; align-items:center; -webkit-tap-highlight-color:transparent; transition:width 220ms ease, background-color 220ms ease;}
+  body.nexus-menu-cache .nexus-sb-filament{display:flex;}
+  .nexus-sb-fil{position:absolute; left:0; top:0; bottom:0; width:3px; background:linear-gradient(180deg, #4FC3D9, rgba(79,195,217,0)); opacity:.35; animation:nexus-sb-souffle 4s ease-in-out infinite; overflow:hidden;}
+  .nexus-sb-fil::after{content:""; position:absolute; left:0; right:0; top:-30%; height:30%; background:linear-gradient(180deg, transparent, #EAFBFF, transparent); opacity:0;}
+  .nexus-sb-filament.nexus-sb-eclat .nexus-sb-fil::after{animation:nexus-sb-eclat 900ms ease-out 1 both;}
+  @keyframes nexus-sb-souffle{0%,100%{opacity:.35;} 50%{opacity:.7;}}
+  @keyframes nexus-sb-eclat{0%{top:-30%; opacity:1;} 100%{top:100%; opacity:0;}}
+  .nexus-sb-chev{margin-left:5px; color:#4FC3D9; font-size:15px; opacity:0; transition:opacity 180ms ease;}
+  .nexus-sb-filament:focus-visible{outline:2px solid #4FC3D9; outline-offset:-2px; width:20px;}
+  .nexus-sb-filament:focus-visible .nexus-sb-chev{opacity:1;}
+  @media (hover:hover){
+    .nexus-sb-filament:hover{width:20px; background:rgba(20,27,34,0.55); -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px);}
+    .nexus-sb-filament:hover .nexus-sb-chev{opacity:1;}
+  }
+  @media (hover:none){
+    .nexus-sb-filament{width:28px;}
+  }
+  [data-theme="jour"] .nexus-sb-pastille{background:rgba(255,255,255,0.72); color:#0F172A; border-color:rgba(11,114,133,0.45); box-shadow:0 6px 20px rgba(15,23,42,0.18);}
+  [data-theme="jour"] .nexus-sb-pli{color:#475569;}
+  [data-theme="jour"] .nexus-sb-pli:hover, [data-theme="jour"] .nexus-sb-pli:focus-visible{color:#0B7285; background:rgba(11,114,133,0.1);}
+  [data-theme="jour"] .nexus-sb-fil{background:linear-gradient(180deg, #0B7285, rgba(11,114,133,0));}
+  [data-theme="jour"] .nexus-sb-chev{color:#0B7285;}
+  @media (prefers-reduced-motion:reduce) and (min-width:0px){
+    #nexus-sidebar-principal, #nexus-sidebar-principal .nexus-sidebar-link > span:last-child, #nexus-sidebar-principal .nexus-sidebar-link img, #nexus-sidebar-principal .nexus-sidebar-link .nexus-sidebar-emoji, body.nexus-menu-cache #nexus-sidebar-principal .nexus-sidebar-link{transition:opacity 120ms linear; transition-delay:0ms;}
+    body.nexus-menu-cache #nexus-sidebar-principal{transition:opacity 120ms linear, visibility 0s linear 120ms;}
+    #nexus-sidebar-principal.nexus-sb-bouge::after, .nexus-sb-fil, .nexus-sb-filament.nexus-sb-eclat .nexus-sb-fil::after{animation:none;}
+    .nexus-sb-fil{opacity:.55;}
+    .nexus-sb-pastille, .nexus-sb-filament, .nexus-sb-chev, .nexus-sb-pli{transition:opacity 120ms linear;}
+    .nexus-sb-pli{rotate:0deg !important;}
+  }
 
   /* Bouton flottant "passer en vue bureau" — jamais affiché sous 900px de
      large : un vrai téléphone ne le verra donc jamais, seul un écran
@@ -563,6 +632,7 @@ function nexusInstallerTooltipsSidebar() {
 
   liens.forEach(lien => {
     lien.addEventListener('mouseenter', () => {
+      if (document.body.classList.contains('nexus-menu-rail')) return; // en rail, la pastille de verre remplace l'info-bulle
       minuteur = setTimeout(() => {
         titreEl.textContent = lien.dataset.tooltip;
         descEl.textContent = lien.dataset.tooltipDesc;
@@ -667,6 +737,112 @@ function nexusInstallerReplisIconesSidebar() {
   });
 }
 
+// ---- Menu repliable (07/11/2026, Guardian 6715363735) ----
+// Trois états, mémorisés par personne : 'ouvert' → 'rail' (icônes seules) → 'cache' (filament seul) → 'ouvert'.
+const NEXUS_MENU_ETATS = ['ouvert', 'rail', 'cache'];
+const NEXUS_MENU_CLE = 'nexus_menu_etat_v1';
+function nexusEtatMenuSuivant(etat) {
+  const i = NEXUS_MENU_ETATS.indexOf(etat);
+  return NEXUS_MENU_ETATS[(i + 1) % NEXUS_MENU_ETATS.length];
+}
+// Lecture / écriture tolérantes : localStorage peut manquer ou lever (navigation privée, données bloquées) ; valeur inconnue = ouvert.
+function nexusLireEtatMenu(stockage) {
+  try {
+    const v = (stockage || window.localStorage).getItem(NEXUS_MENU_CLE);
+    return NEXUS_MENU_ETATS.indexOf(v) >= 0 ? v : 'ouvert';
+  } catch (e) { return 'ouvert'; }
+}
+function nexusEcrireEtatMenu(etat, stockage) {
+  try { (stockage || window.localStorage).setItem(NEXUS_MENU_CLE, etat); return true; } catch (e) { return false; }
+}
+// ⌘+\ (Mac) ou Ctrl+\ (ailleurs) ; ignoré dans un champ de saisie, avec Alt ou Maj.
+function nexusRaccourciMenuValide(ev) {
+  if (!ev || ev.key !== '\\' || ev.altKey || ev.shiftKey || !(ev.metaKey || ev.ctrlKey)) return false;
+  const c = ev.target;
+  const nom = c && c.tagName ? String(c.tagName).toUpperCase() : '';
+  if (nom === 'INPUT' || nom === 'TEXTAREA' || nom === 'SELECT' || (c && c.isContentEditable)) return false;
+  return true;
+}
+function nexusAppliquerEtatMenu(etat, animer) {
+  const corps = document.body;
+  const menu = document.getElementById('nexus-sidebar-principal');
+  if (!menu) return;
+  if (animer) {
+    menu.classList.add('nexus-sb-bouge');
+    clearTimeout(menu._nexusFinBouge);
+    menu._nexusFinBouge = setTimeout(() => menu.classList.remove('nexus-sb-bouge'), 460);
+  }
+  corps.classList.toggle('nexus-menu-rail', etat === 'rail');
+  corps.classList.toggle('nexus-menu-cache', etat === 'cache');
+  const cache = etat === 'cache';
+  menu.inert = cache; // liens hors de l'ordre de tabulation et du lecteur d'écran quand le menu est masqué
+  const etiquette = cache ? 'Afficher le menu' : 'Replier le menu';
+  document.querySelectorAll('.nexus-sb-pli, .nexus-sb-filament').forEach(b => {
+    b.setAttribute('aria-expanded', cache ? 'false' : 'true');
+    b.setAttribute('aria-label', etiquette);
+  });
+  const fil = document.querySelector('.nexus-sb-filament');
+  if (fil && cache && animer) {
+    fil.classList.remove('nexus-sb-eclat'); void fil.offsetWidth; fil.classList.add('nexus-sb-eclat');
+  }
+}
+function nexusInstallerPliMenuSidebar() {
+  const menu = document.getElementById('nexus-sidebar-principal');
+  if (!menu) return;
+  menu.querySelectorAll('.nexus-sidebar-link').forEach((l, i) => l.style.setProperty('--nl-i', String(i)));
+
+  const fil = document.createElement('button');
+  fil.type = 'button';
+  fil.className = 'nexus-sb-filament';
+  fil.setAttribute('aria-controls', 'nexus-sidebar-principal');
+  fil.setAttribute('aria-expanded', 'false');
+  fil.setAttribute('aria-label', 'Afficher le menu');
+  fil.title = 'Afficher le menu (Ctrl+\\)';
+  fil.innerHTML = '<span class="nexus-sb-fil"></span><span class="nexus-sb-chev" aria-hidden="true">›</span>';
+  document.body.appendChild(fil);
+
+  let etat = nexusLireEtatMenu();
+  nexusAppliquerEtatMenu(etat, false);
+  function aller(nouveau, depuis) {
+    etat = nouveau;
+    nexusEcrireEtatMenu(etat);
+    nexusAppliquerEtatMenu(etat, true);
+    // Le focus reste sur le bouton qui vient d'agir (ou sur le filament quand le menu disparaît).
+    const cible = etat === 'cache' ? fil : (depuis === 'fil' || depuis === 'clavier') ? menu.querySelector('.nexus-sb-pli') : null;
+    if (cible) cible.focus();
+  }
+  menu.querySelector('.nexus-sb-pli').addEventListener('click', () => aller(nexusEtatMenuSuivant(etat), 'pli'));
+  fil.addEventListener('click', () => aller('ouvert', 'fil')); // depuis le filament, un clic ouvre le menu
+  document.addEventListener('keydown', ev => {
+    if (!nexusRaccourciMenuValide(ev)) return;
+    ev.preventDefault();
+    aller(nexusEtatMenuSuivant(etat), 'clavier');
+  });
+
+  // Pastille de verre : en rail, le titre apparaît à droite de l'icône (survol souris ou focus clavier).
+  const pastille = document.createElement('div');
+  pastille.className = 'nexus-sb-pastille';
+  pastille.setAttribute('aria-hidden', 'true');
+  document.body.appendChild(pastille);
+  function montrer(lien) {
+    if (!document.body.classList.contains('nexus-menu-rail')) return;
+    const t = lien.querySelector('span:last-child');
+    if (!t) return;
+    pastille.textContent = t.textContent.trim();
+    const r = lien.getBoundingClientRect();
+    pastille.style.left = (r.right + 8) + 'px';
+    pastille.style.top = (r.top + r.height / 2 - 17) + 'px';
+    pastille.classList.add('show');
+  }
+  const cacher = () => pastille.classList.remove('show');
+  menu.addEventListener('mouseover', ev => { const l = ev.target.closest && ev.target.closest('.nexus-sidebar-link'); if (l) montrer(l); });
+  menu.addEventListener('mouseout', cacher);
+  menu.addEventListener('focusin', ev => { const l = ev.target.closest && ev.target.closest('.nexus-sidebar-link'); if (l) montrer(l); });
+  menu.addEventListener('focusout', cacher);
+  const defil = menu.querySelector('.nexus-sidebar-scroll');
+  if (defil) defil.addEventListener('scroll', cacher, { passive: true });
+}
+
 function nexusInitVueBureau() {
   const style = document.createElement('style');
   style.textContent = NEXUS_DESKTOP_CSS;
@@ -676,12 +852,14 @@ function nexusInitVueBureau() {
     document.body.classList.add('nexus-desktop');
     const sidebar = document.createElement('div');
     sidebar.className = 'nexus-sidebar';
+    sidebar.id = 'nexus-sidebar-principal';
     sidebar.innerHTML = nexusConstruireSidebarHTML();
     document.body.insertBefore(sidebar, document.body.firstChild);
     nexusInstallerCurseurSidebar();
     nexusInstallerTooltipsSidebar();
     nexusInstallerReplisIconesSidebar();
     nexusInstallerLoupeSidebar();
+    nexusInstallerPliMenuSidebar();
     nexusVerifierAlertesFdj();
   } else {
     const bouton = document.createElement('button');
