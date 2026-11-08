@@ -540,7 +540,7 @@
   .carb-rapprochement-info li + li{margin-top:3px;}
 
   /* ===== Refonte visuelle (Guardian 6723914835) : presentation seulement ===== */
-  :root[data-theme="jour"]{--bg:#F4F6F8; --panel:#FFFFFF; --panel-raised:#EEF2F5; --hairline:#D5DCE3; --text:#0F172A; --text-mid:#475569; --text-dim:#5F6B78; --cyan:#0B7285; --green:#0B7A54; --amber:#B45309;}
+  :root[data-theme="jour"]{--bg:#F4F6F8; --panel:#FFFFFF; --panel-raised:#EEF2F5; --hairline:#D5DCE3; --text:#0F172A; --text-mid:#475569; --text-dim:#5F6B78; --cyan:#0B7285; --green:#0B7A54; --amber:#B45309; --yellow:#8A6A00; --yellow-dim:#FEF3C7;}
   :root:not([data-theme="jour"]){--text-dim:#808C9B;}
   body.nexus-desktop .phone{max-width:1180px;}
   .hero{position:relative; padding:16px 20px 10px; margin:0 20px 8px; background:var(--surf); border:1px solid var(--hairline); border-radius:18px; overflow:hidden;}
@@ -652,10 +652,29 @@
   .carb-info-btn::before,.ecart-caveat::before{content:''; position:absolute; inset:-8px;}
   .carb-bloc-autonomie .carb-autonomie-bloc{border-top:0; padding-top:0;}
   @media (min-width:821px){.situation-grid{padding:0 20px;}}
+  /* Barre haute (Guardian 6726565151) : retour au menu + choix Sombre / Jour / Auto, comme la Paye et l'Accueil. */
+  .haut-page{display:flex; justify-content:flex-end; align-items:flex-start; gap:8px; padding:8px 20px 0; position:relative; z-index:5;}
+  .haut-page .menu{display:inline-flex; align-items:center; min-height:44px; padding:0 12px; font:600 12px var(--mono); color:var(--text-mid); text-decoration:none; border:1px solid var(--hairline); border-radius:12px; background:var(--panel); cursor:pointer;}
+  .haut-page .menu:focus-visible{outline:2px solid var(--cyan); outline-offset:2px;}
+  .haut-affichage{position:relative;}
+  .affichage-panneau{position:absolute; right:0; top:48px; width:260px; max-width:calc(100vw - 40px); background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:4px 0 6px; box-shadow:0 8px 24px rgba(var(--shadow-rgb,0,0,0),0.35);}
+  .affichage-panneau[hidden]{display:none;}
+  .affichage-panneau .mm-titre{font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--text-dim); padding:8px 12px 4px;}
+  .affichage-panneau .mm-theme{display:flex; gap:6px; padding:4px 12px 8px;}
+  .affichage-panneau .mm-theme-btn{flex:1; min-height:44px; border-radius:8px; border:1px solid var(--hairline); background:none; color:var(--text); font:inherit; font-size:14px; cursor:pointer;}
+  .affichage-panneau .mm-theme-btn.mm-theme-actif{border-color:var(--cyan); color:var(--cyan);}
+  @media (min-width:821px){.haut-page{padding:8px 40px 0;}}
 </style>
 </head>
 <body>
 <div class="phone">
+  <div class="haut-page">
+    <div class="haut-affichage">
+      <button type="button" class="menu" id="btnAffichage" aria-expanded="false" aria-controls="panneauAffichage">Affichage</button>
+      <div class="affichage-panneau" id="panneauAffichage" hidden></div>
+    </div>
+    <a class="menu" href="NEXUS-App-v1.html">☰ Menu</a>
+  </div>
   <header class="hero" id="heroCarburants">
     <div class="hero-haut">
       <div>
@@ -4855,6 +4874,16 @@
         const txt = new Date(y, m - 1, d).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
         pD.textContent = txt.charAt(0).toUpperCase() + txt.slice(1);
       }
+      // Choix Sombre / Jour / Auto : composant existant de nexus-theme.js, rien de recodé ici.
+      const bA = document.getElementById('btnAffichage'), pA = document.getElementById('panneauAffichage');
+      if (bA && pA && typeof NexusTheme !== 'undefined') {
+        pA.innerHTML = NexusTheme.menuHtml();
+        NexusTheme.brancherMenu(pA);
+        const basculerAff = (ouvert) => { pA.hidden = !ouvert; bA.setAttribute('aria-expanded', String(ouvert)); };
+        bA.addEventListener('click', (e) => { e.stopPropagation(); basculerAff(pA.hidden); });
+        document.addEventListener('click', (e) => { if (!pA.contains(e.target) && e.target !== bA) basculerAff(false); });
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !pA.hidden) { basculerAff(false); bA.focus(); } });
+      } else if (bA) { bA.hidden = true; }
       const bI = document.getElementById('btnInfoPage'), pI = document.getElementById('infoPage');
       if (bI && pI) bI.addEventListener('click', () => { pI.hidden = !pI.hidden; bI.setAttribute('aria-expanded', String(!pI.hidden)); });
       try {
