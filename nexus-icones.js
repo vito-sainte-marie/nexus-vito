@@ -1,7 +1,7 @@
 // ------------------------------------------------------------
 // NEXUS — registre unique des icônes de modules v2 (07/11/2026, kit « nexus-icones-modules-v1.1 »)
 // ------------------------------------------------------------
-// Source de vérité des 42 icônes de modules (lot 1 : Verify, Inventaire, Contrôle inventaire, FDJ, Missions,
+// Source de vérité des 43 icônes de modules (lot 1 : Verify, Inventaire, Contrôle inventaire, FDJ, Missions,
 // Planning, Paye, Carburants ; lot 2, kit « nexus-icones-modules-lot2-v1.1 » : Carburants Performance, Capital,
 // Brief, Réception carburant, Assignations, FDJ Performance, Comptes Clients, Résultats, Journal, Progression,
 // Paramètres, Produits ; lot 3, kit « nexus-icones-modules-lot3-v1.1 » : Accueil, Cockpit, Rapport, Scanner,
@@ -38,6 +38,7 @@
     'mod-brief':               { libelle: 'Brief NEXUS' },
     'mod-reception-carburant': { libelle: 'Réception carburant' },
     'mod-assignations':        { libelle: 'Assignations' },
+    'mod-fdj-operations':      { libelle: 'FDJ Opérations' },
     'mod-fdj-performance':     { libelle: 'FDJ Performance' },
     'mod-comptes-clients':     { libelle: 'Comptes Clients' },
     'mod-resultats':           { libelle: 'Résultats' },

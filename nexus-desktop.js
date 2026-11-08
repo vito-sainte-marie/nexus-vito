@@ -106,14 +106,14 @@ const NEXUS_SIDEBAR_GROUPES = [
       // NEXUS FDJ (09/08/2026, demande de Frédéric) : rejoint Exécuter,
       // juste à côté d'Inventaire — même logique de comptage de quart.
       // Icône pack NEXUS (20/08/2026, uniformisation) : icon-fdj-24.png,
-      // réutilisée sur FDJ Opérations et FDJ Performance (même domaine).
+      // réutilisée sur FDJ (FDJ Opérations a désormais sa propre icône v2, mod-fdj-operations, 07/11/2026).
       { label: 'FDJ', module: 'mod-fdj', href: 'NEXUS-FDJ-v1.html', icon: 'assets/icons/icon-fdj-24.png', desc: 'Grattage, tirages et caisse FDJ du quart.' },
       // Contrôle FDJ → FDJ Opérations (24/08/2026, demande de Frédéric) :
       // "Contrôle FDJ" et "FDJ Pilotage" trop proches lexicalement pour des
       // fonctions très différentes — Opérations (registre quarts/caisse/
       // stock/mouvements) vs Performance (analyse/décision), vocabulaire
       // figé par Frédéric.
-      { label: 'FDJ Opérations', href: 'NEXUS-FDJ-Manager-v1.html', icon: 'assets/icons/icon-fdj-24.png', desc: 'Gère quarts, caisse, carnets et mouvements FDJ.' },
+      { label: 'FDJ Opérations', module: 'mod-fdj-operations', href: 'NEXUS-FDJ-Manager-v1.html', icon: 'assets/icons/icon-fdj-24.png', desc: 'Gère quarts, caisse, carnets et mouvements FDJ.' },
       // FDJ Pilotage → FDJ Performance (24/08/2026, même demande) : NEXUS
       // FDJ - Analyse (09/08/2026, Phase C de l'audit "Moteur de
       // clairvoyance manager") : moteur de statistiques/tendances/
@@ -209,15 +209,18 @@ function nexusConstruireSidebarHTML() {
     ${g.items.map(item => `
       <a class="nexus-sidebar-link${item.href === pageActuelle ? ' active' : ''}" href="${item.href}"${item.desc ? ` data-tooltip="${nexusEchapperAttribut(item.label)}" data-tooltip-desc="${nexusEchapperAttribut(item.desc)}"` : ''}>
         ${lienIcone(item)}
-        <span>${item.label}</span>
+        <span class="nexus-sidebar-titre">${item.label}</span>
       </a>
     `).join('')}
   `).join('');
 
   return `
     <div class="nexus-sb-barre">
-      <button type="button" class="nexus-sb-pli" aria-controls="nexus-sidebar-principal" aria-expanded="true" aria-label="Replier le menu" title="Replier le menu (Ctrl+\\)">
+      <button type="button" class="nexus-sb-pli" aria-controls="nexus-sidebar-principal" aria-expanded="true" aria-label="Réduire le menu" title="Réduire le menu (Ctrl+\\)">
         <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false"><path d="M8 3 3.5 8 8 13M13 3 8.5 8 13 13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button type="button" class="nexus-sb-masque" aria-controls="nexus-sidebar-principal" aria-expanded="true" aria-label="Masquer le menu" title="Masquer le menu (Maj+Ctrl+\\)">
+        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false"><path d="M11 3 6 8l5 5M3 3v10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
     </div>
     <a class="nexus-sidebar-brand" href="NEXUS-App-v1.html" title="Retour à l'accueil NEXUS">
@@ -286,7 +289,7 @@ const NEXUS_DESKTOP_CSS = `
      L'icône v2 ≤ 24 px est déjà le -24.svg simplifié : le passage à 24 px ne l'agrandit pas à partir d'un 16 px flou. */
   .nexus-sidebar-link{display:flex; align-items:center; gap:10px; height:44px; box-sizing:border-box; padding:0 10px; border-radius:8px; color:#8A96A5; text-decoration:none; font-size:12.5px; line-height:1.2; margin-bottom:2px;
     transition:background-color 150ms ease, color 150ms ease, font-size 150ms ease;}
-  .nexus-sidebar-link > span:last-child{display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; min-width:0;}
+  .nexus-sidebar-link > .nexus-sidebar-titre{display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; min-width:0;}
   .nexus-sidebar-link:hover, .nexus-sidebar-link:focus-visible{background:#222D3A; color:#EDF1F5; font-size:16px; font-weight:600;}
   .nexus-sidebar-link:focus-visible{outline:2px solid #4FC3D9; outline-offset:-2px;}
   .nexus-sidebar-link.active{background:rgba(79,195,217,0.12); color:#4FC3D9; font-weight:600;}
@@ -313,7 +316,7 @@ const NEXUS_DESKTOP_CSS = `
      elle remplace alors l'agrandissement simple du survol par le transform. Le focus clavier garde l'agrandissement simple. */
   .nexus-sidebar-loupe .nexus-sidebar-link img, .nexus-sidebar-loupe .nexus-sidebar-link .nexus-sidebar-emoji{
     transform:scale(var(--nl-icone, 1)); transform-origin:left center; transition:transform 120ms ease-out, opacity 120ms ease-out;}
-  .nexus-sidebar-loupe .nexus-sidebar-link > span:last-child{
+  .nexus-sidebar-loupe .nexus-sidebar-link > .nexus-sidebar-titre{
     transform:translateX(var(--nl-dec, 0px)) scale(var(--nl-titre, 1)); transform-origin:left center; transition:transform 120ms ease-out;}
   /* Plus prononcé (Guardian 6715419690) : marge à droite réservée pour que le titre agrandi (x1,25 + décalage) ne soit jamais coupé,
      et interligne élargi de 4 px sur TOUTES les lignes tant que le pointeur est dans le menu (classe .nexus-sidebar-loupe-actif). */
@@ -328,7 +331,7 @@ const NEXUS_DESKTOP_CSS = `
     .nexus-sidebar-loupe .nexus-sidebar-link:hover .nexus-sidebar-emoji{font-size:18px !important; width:20px;}
   }
   @media (prefers-reduced-motion:reduce), (hover:none){
-    .nexus-sidebar-loupe .nexus-sidebar-link img, .nexus-sidebar-loupe .nexus-sidebar-link .nexus-sidebar-emoji, .nexus-sidebar-loupe .nexus-sidebar-link > span:last-child{transform:none; transition:none;}
+    .nexus-sidebar-loupe .nexus-sidebar-link img, .nexus-sidebar-loupe .nexus-sidebar-link .nexus-sidebar-emoji, .nexus-sidebar-loupe .nexus-sidebar-link > .nexus-sidebar-titre{transform:none; transition:none;}
   }
   .nexus-sidebar-foot{padding:14px 16px 18px; border-top:1px solid #242e38;}
   .nexus-sidebar-toggle{width:100%; padding:8px 10px; border-radius:8px; border:1px solid rgba(79,195,217,0.3); background:rgba(79,195,217,0.08); color:#4FC3D9; font-family:'IBM Plex Mono',monospace; font-size:10.5px; font-weight:600; text-align:center; cursor:pointer; -webkit-tap-highlight-color:transparent;}
@@ -343,12 +346,17 @@ const NEXUS_DESKTOP_CSS = `
   .nexus-sb-pli:hover, .nexus-sb-pli:focus-visible{color:#4FC3D9; background:rgba(79,195,217,0.1);}
   .nexus-sb-pli:focus-visible{outline:2px solid #4FC3D9; outline-offset:1px;}
   body.nexus-menu-rail .nexus-sb-pli{rotate:180deg;}
+  /* Bouton « Masquer le menu » (Guardian 6715691902) : visible seulement en rail, sous le bouton qui rouvre. */
+  .nexus-sb-masque{display:none; width:28px; height:24px; align-items:center; justify-content:center; border:0; border-radius:6px; background:transparent; color:#7C8A99; cursor:pointer; transition:color .15s ease, background-color .15s ease; -webkit-tap-highlight-color:transparent;}
+  .nexus-sb-masque:hover, .nexus-sb-masque:focus-visible{color:#4FC3D9; background:rgba(79,195,217,0.1);}
+  .nexus-sb-masque:focus-visible{outline:2px solid #4FC3D9; outline-offset:1px;}
+  body.nexus-menu-rail .nexus-sb-masque{display:flex;}
   #nexus-sidebar-principal{transition:width 420ms cubic-bezier(.2,.9,.25,1.15);}
   #nexus-sidebar-principal::after{content:""; position:absolute; inset:0; pointer-events:none; opacity:0; background:rgba(13,19,26,0.15); -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px);}
   #nexus-sidebar-principal.nexus-sb-bouge{will-change:width; overflow:hidden;}
   #nexus-sidebar-principal.nexus-sb-bouge::after{animation:nexus-sb-rideau 420ms ease both;}
   @keyframes nexus-sb-rideau{0%{opacity:0;} 40%{opacity:1;} 100%{opacity:0;}}
-  #nexus-sidebar-principal .nexus-sidebar-link > span:last-child{
+  #nexus-sidebar-principal .nexus-sidebar-link > .nexus-sidebar-titre{
     max-width:200px; transition:transform 120ms ease-out, opacity 220ms ease, max-width 260ms ease, translate 260ms cubic-bezier(.2,.9,.25,1.15);
     transition-delay:0ms, calc(120ms + min(var(--nl-i, 0), 24) * 12ms), 0ms, calc(120ms + min(var(--nl-i, 0), 24) * 12ms);}
   #nexus-sidebar-principal .nexus-sidebar-link img, #nexus-sidebar-principal .nexus-sidebar-link .nexus-sidebar-emoji{
@@ -356,15 +364,20 @@ const NEXUS_DESKTOP_CSS = `
   body.nexus-menu-rail #nexus-sidebar-principal, body.nexus-menu-rail #nexus-sidebar-principal.nexus-sidebar{width:68px; overflow:hidden;}
   body.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-scroll{padding:0 6px 16px;}
   body.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-link{justify-content:center; gap:0; padding:0;}
-  body.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-link > span:last-child{max-width:0; opacity:0; translate:-6px 0; transition-delay:0ms;}
+  body.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-link > .nexus-sidebar-titre{max-width:0; opacity:0; translate:-6px 0; transition-delay:0ms;}
   body.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-link img, body.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-link .nexus-sidebar-emoji{transform-origin:center center;}
+  /* Pastille d'alerte en rail : en surimpression sur le coin haut droit de l'icône (le titre est masqué par sa classe, pas par sa position). */
+  body.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-link{position:relative;}
+  body.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-link .nexus-sidebar-dot{position:absolute; left:calc(50% + 6px); top:4px; margin:0; box-sizing:content-box; width:8px; height:8px; border:2px solid #0D131A;}
+[data-theme="jour"] body.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-link .nexus-sidebar-dot{border-color:#F4F7F9;}
+  body.nexus-sidebar-loupe.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-link .nexus-sidebar-dot{translate:calc((min(var(--nl-icone, 1), 1.9) - 1) * 10px) calc((min(var(--nl-icone, 1), 1.9) - 1) * -10px);}
   /* Icônes du rail à 28 px (Guardian 6715519682) : le -24.svg est vectoriel, la loupe se centre sur cette base. */
   body.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-link img{width:28px; height:28px;}
   body.nexus-sidebar-loupe.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-link img{transform:scale(min(var(--nl-icone, 1), 1.9));}
   body.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-link .nexus-sidebar-emoji{font-size:24px !important; width:28px;}
   body.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-brand{justify-content:center; padding:6px 0 14px;}
   body.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-brand span{display:none;}
-  body.nexus-menu-rail #nexus-sidebar-principal .nexus-sb-barre{justify-content:center; padding:8px 0 0;}
+  body.nexus-menu-rail #nexus-sidebar-principal .nexus-sb-barre{flex-direction:column; align-items:center; gap:4px; padding:8px 0 0;}
   body.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-group{font-size:0; height:1px; padding:0; margin:10px 14px; background:#242e38;}
   body.nexus-menu-rail #nexus-sidebar-principal .nexus-sidebar-foot{display:none;}
   body.nexus-menu-cache #nexus-sidebar-principal, body.nexus-menu-cache #nexus-sidebar-principal.nexus-sidebar{width:0; border-right-width:0; overflow:hidden; visibility:hidden; transition:width 420ms cubic-bezier(.2,.9,.25,1.15), visibility 0s linear 440ms;}
@@ -376,7 +389,6 @@ const NEXUS_DESKTOP_CSS = `
   /* Panneau de verre du filament (Guardian 6715519682) : 24 px de large sur toute la hauteur, flouté, liseré cyan, chevron centré ;
      il sort de la gauche en 180 ms (transform + opacity seulement). */
   .nexus-sb-filament::before{content:""; position:absolute; left:0; top:0; bottom:0; width:24px; background:rgba(20,27,34,0.55); -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px); border-right:1px solid rgba(79,195,217,0.7); transform:translateX(-100%); opacity:0; transition:transform 180ms ease, opacity 180ms ease;}
-  .nexus-sb-filament::after{content:"›"; position:absolute; left:0; top:50%; width:24px; margin-top:-12px; height:24px; line-height:22px; text-align:center; color:#4FC3D9; font-size:20px; transform:translateX(-100%); opacity:0; transition:transform 180ms ease, opacity 180ms ease;}
   .nexus-sb-fil{position:absolute; left:0; top:0; bottom:0; width:3px; background:linear-gradient(180deg, #4FC3D9, rgba(79,195,217,0)); opacity:.35; animation:nexus-sb-souffle 4s ease-in-out infinite; overflow:hidden; transition:filter 180ms ease;}
   .nexus-sb-fil::after{content:""; position:absolute; left:0; right:0; top:-30%; height:30%; background:linear-gradient(180deg, transparent, #EAFBFF, transparent); opacity:0;}
   .nexus-sb-filament.nexus-sb-eclat .nexus-sb-fil::after{animation:nexus-sb-eclat 900ms ease-out 1 both;}
@@ -389,25 +401,25 @@ const NEXUS_DESKTOP_CSS = `
   /* En état caché, le contenu de la page s'écarte de 16 px : le bouton ☰ de l'en-tête reste à au moins 16 px du filament et du chevron. */
   body.nexus-desktop.nexus-menu-cache > .phone, body.nexus-desktop.nexus-menu-cache > .app{margin-left:16px;}
   @media (hover:hover){
-    .nexus-sb-filament:hover::before, .nexus-sb-filament:hover::after{transform:none; opacity:1;}
+    .nexus-sb-filament:hover::before{transform:none; opacity:1;}
     .nexus-sb-filament:hover .nexus-sb-fil{animation:none; opacity:1; filter:drop-shadow(0 0 5px #4FC3D9);}
-    .nexus-sb-filament:hover .nexus-sb-chev{opacity:0;}
+    .nexus-sb-filament:hover .nexus-sb-chev{opacity:1; background:rgba(79,195,217,0.18);}
   }
   @media (hover:none){
     .nexus-sb-filament{width:32px;}
   }
   [data-theme="jour"] .nexus-sb-pastille{background:rgba(255,255,255,0.72); color:#0F172A; border-color:rgba(11,114,133,0.45); box-shadow:0 6px 20px rgba(15,23,42,0.18);}
-  [data-theme="jour"] .nexus-sb-pli{color:#475569;}
-  [data-theme="jour"] .nexus-sb-pli:hover, [data-theme="jour"] .nexus-sb-pli:focus-visible{color:#0B7285; background:rgba(11,114,133,0.1);}
+  [data-theme="jour"] .nexus-sb-pli, [data-theme="jour"] .nexus-sb-masque{color:#475569;}
+  [data-theme="jour"] .nexus-sb-pli:hover, [data-theme="jour"] .nexus-sb-pli:focus-visible, [data-theme="jour"] .nexus-sb-masque:hover, [data-theme="jour"] .nexus-sb-masque:focus-visible{color:#0B7285; background:rgba(11,114,133,0.1);}
   [data-theme="jour"] .nexus-sb-fil{background:linear-gradient(180deg, #0B7285, rgba(11,114,133,0));}
   [data-theme="jour"] .nexus-sb-chev{color:#0B7285;}
   @media (prefers-reduced-motion:reduce) and (min-width:0px){
-    #nexus-sidebar-principal, #nexus-sidebar-principal .nexus-sidebar-link > span:last-child, #nexus-sidebar-principal .nexus-sidebar-link img, #nexus-sidebar-principal .nexus-sidebar-link .nexus-sidebar-emoji, body.nexus-menu-cache #nexus-sidebar-principal .nexus-sidebar-link{transition:opacity 120ms linear; transition-delay:0ms;}
+    #nexus-sidebar-principal, #nexus-sidebar-principal .nexus-sidebar-link > .nexus-sidebar-titre, #nexus-sidebar-principal .nexus-sidebar-link img, #nexus-sidebar-principal .nexus-sidebar-link .nexus-sidebar-emoji, body.nexus-menu-cache #nexus-sidebar-principal .nexus-sidebar-link{transition:opacity 120ms linear; transition-delay:0ms;}
     body.nexus-menu-cache #nexus-sidebar-principal{transition:opacity 120ms linear, visibility 0s linear 120ms;}
     #nexus-sidebar-principal.nexus-sb-bouge::after, .nexus-sb-fil, .nexus-sb-filament.nexus-sb-eclat .nexus-sb-fil::after{animation:none;}
     .nexus-sb-fil{opacity:.55;}
-    .nexus-sb-pastille, .nexus-sb-filament, .nexus-sb-chev, .nexus-sb-pli{transition:opacity 120ms linear;}
-    .nexus-sb-filament::before, .nexus-sb-filament::after{transform:none; transition:opacity 120ms linear;}
+    .nexus-sb-pastille, .nexus-sb-filament, .nexus-sb-chev, .nexus-sb-pli, .nexus-sb-masque{transition:opacity 120ms linear;}
+    .nexus-sb-filament::before{transform:none; transition:opacity 120ms linear;}
     .nexus-sb-pli{rotate:0deg !important;}
   }
 
@@ -759,12 +771,18 @@ function nexusInstallerReplisIconesSidebar() {
 }
 
 // ---- Menu repliable (07/11/2026, Guardian 6715363735) ----
-// Trois états, mémorisés par personne : 'ouvert' → 'rail' (icônes seules) → 'cache' (filament seul) → 'ouvert'.
+// Trois états, mémorisés par personne : 'ouvert', 'rail' (icônes seules), 'cache' (filament seul). Chaque contrôle fait ce qu'il montre
+// (Guardian 6715691902) : « pli » ouvert ↔ rail ; « masquer » → caché ; « afficher » (filament) → ouvert ; ⌘/Ctrl+\ ouvert ↔ rail ;
+// ⌘/Ctrl+Maj+\ caché ↔ ouvert. Plus de cycle à trois temps.
 const NEXUS_MENU_ETATS = ['ouvert', 'rail', 'cache'];
 const NEXUS_MENU_CLE = 'nexus_menu_etat_v1';
-function nexusEtatMenuSuivant(etat) {
-  const i = NEXUS_MENU_ETATS.indexOf(etat);
-  return NEXUS_MENU_ETATS[(i + 1) % NEXUS_MENU_ETATS.length];
+function nexusEtatMenuSuivant(etat, action) {
+  const e = NEXUS_MENU_ETATS.indexOf(etat) >= 0 ? etat : 'ouvert';
+  if (action === 'pli' || action === 'raccourci') return e === 'ouvert' ? 'rail' : 'ouvert';
+  if (action === 'masquer') return 'cache';
+  if (action === 'afficher') return 'ouvert';
+  if (action === 'raccourci-maj') return e === 'cache' ? 'ouvert' : 'cache';
+  return e;
 }
 // Lecture / écriture tolérantes : localStorage peut manquer ou lever (navigation privée, données bloquées) ; valeur inconnue = ouvert.
 function nexusLireEtatMenu(stockage) {
@@ -776,9 +794,9 @@ function nexusLireEtatMenu(stockage) {
 function nexusEcrireEtatMenu(etat, stockage) {
   try { (stockage || window.localStorage).setItem(NEXUS_MENU_CLE, etat); return true; } catch (e) { return false; }
 }
-// ⌘+\ (Mac) ou Ctrl+\ (ailleurs) ; ignoré dans un champ de saisie, avec Alt ou Maj.
+// ⌘+\ (Mac) ou Ctrl+\ (ailleurs), avec ou sans Maj ; ignoré dans un champ de saisie ou avec Alt.
 function nexusRaccourciMenuValide(ev) {
-  if (!ev || ev.key !== '\\' || ev.altKey || ev.shiftKey || !(ev.metaKey || ev.ctrlKey)) return false;
+  if (!ev || (ev.key !== '\\' && !(ev.shiftKey && (ev.key === '|' || ev.code === 'Backslash'))) || ev.altKey || !(ev.metaKey || ev.ctrlKey)) return false;
   const c = ev.target;
   const nom = c && c.tagName ? String(c.tagName).toUpperCase() : '';
   if (nom === 'INPUT' || nom === 'TEXTAREA' || nom === 'SELECT' || (c && c.isContentEditable)) return false;
@@ -797,12 +815,17 @@ function nexusAppliquerEtatMenu(etat, animer) {
   corps.classList.toggle('nexus-menu-cache', etat === 'cache');
   const cache = etat === 'cache';
   menu.inert = cache; // liens hors de l'ordre de tabulation et du lecteur d'écran quand le menu est masqué
-  const etiquette = cache ? 'Afficher le menu' : 'Replier le menu';
-  document.querySelectorAll('.nexus-sb-pli, .nexus-sb-filament').forEach(b => {
-    b.setAttribute('aria-expanded', cache ? 'false' : 'true');
-    b.setAttribute('aria-label', etiquette);
-  });
+  const pli = document.querySelector('.nexus-sb-pli');
+  if (pli) { // ouvert : « Réduire » (‹‹) ; rail : « Ouvrir » (››)
+    const rail = etat === 'rail';
+    pli.setAttribute('aria-expanded', rail ? 'false' : 'true');
+    pli.setAttribute('aria-label', rail ? 'Ouvrir le menu' : 'Réduire le menu');
+    pli.title = (rail ? 'Ouvrir le menu' : 'Réduire le menu') + ' (Ctrl+\\)';
+  }
+  const masque = document.querySelector('.nexus-sb-masque');
+  if (masque) masque.setAttribute('aria-expanded', cache ? 'false' : 'true');
   const fil = document.querySelector('.nexus-sb-filament');
+  if (fil) fil.setAttribute('aria-expanded', cache ? 'false' : 'true');
   if (fil && cache && animer) {
     fil.classList.remove('nexus-sb-eclat'); void fil.offsetWidth; fil.classList.add('nexus-sb-eclat');
   }
@@ -818,26 +841,27 @@ function nexusInstallerPliMenuSidebar() {
   fil.setAttribute('aria-controls', 'nexus-sidebar-principal');
   fil.setAttribute('aria-expanded', 'false');
   fil.setAttribute('aria-label', 'Afficher le menu');
-  fil.title = 'Afficher le menu (Ctrl+\\)';
-  fil.innerHTML = '<span class="nexus-sb-fil"></span><span class="nexus-sb-chev" aria-hidden="true">›</span>';
+  fil.title = 'Afficher le menu (Maj+Ctrl+\\)';
+  fil.innerHTML = '<span class="nexus-sb-fil"></span><span class="nexus-sb-chev" aria-hidden="true">›</span>'; // un seul bouton d'affichage
   document.body.appendChild(fil);
 
   let etat = nexusLireEtatMenu();
   nexusAppliquerEtatMenu(etat, false);
-  function aller(nouveau, depuis) {
-    etat = nouveau;
+  function aller(action, depuis) {
+    etat = nexusEtatMenuSuivant(etat, action);
     nexusEcrireEtatMenu(etat);
     nexusAppliquerEtatMenu(etat, true);
     // Le focus reste sur le bouton qui vient d'agir (ou sur le filament quand le menu disparaît).
     const cible = etat === 'cache' ? fil : (depuis === 'fil' || depuis === 'clavier') ? menu.querySelector('.nexus-sb-pli') : null;
     if (cible) cible.focus();
   }
-  menu.querySelector('.nexus-sb-pli').addEventListener('click', () => aller(nexusEtatMenuSuivant(etat), 'pli'));
-  fil.addEventListener('click', () => aller('ouvert', 'fil')); // depuis le filament, un clic ouvre le menu
+  menu.querySelector('.nexus-sb-pli').addEventListener('click', () => aller('pli', 'pli')); // ouvert → rail, rail → ouvert
+  menu.querySelector('.nexus-sb-masque').addEventListener('click', () => aller('masquer', 'masque'));
+  fil.addEventListener('click', () => aller('afficher', 'fil')); // depuis le filament, un clic ouvre le menu (pas le rail)
   document.addEventListener('keydown', ev => {
     if (!nexusRaccourciMenuValide(ev)) return;
     ev.preventDefault();
-    aller(nexusEtatMenuSuivant(etat), 'clavier');
+    aller(ev.shiftKey ? 'raccourci-maj' : 'raccourci', 'clavier');
   });
 
   // Pastille de verre : en rail, le titre apparaît à droite de l'icône (survol souris ou focus clavier).
@@ -847,7 +871,7 @@ function nexusInstallerPliMenuSidebar() {
   document.body.appendChild(pastille);
   function montrer(lien) {
     if (!document.body.classList.contains('nexus-menu-rail')) return;
-    const t = lien.querySelector('span:last-child');
+    const t = lien.querySelector('.nexus-sidebar-titre');
     if (!t) return;
     pastille.textContent = t.textContent.trim();
     const r = lien.getBoundingClientRect();
