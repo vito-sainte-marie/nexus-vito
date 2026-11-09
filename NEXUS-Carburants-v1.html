@@ -39,7 +39,7 @@
   body{display:flex; justify-content:center; min-height:100vh;}
   .phone{width:100%; max-width:460px; min-height:100vh; display:flex; flex-direction:column; border-left:1px solid var(--hairline); border-right:1px solid var(--hairline); padding-top:env(safe-area-inset-top); padding-bottom:env(safe-area-inset-bottom);}
 
-  .header{--banniere-cadrage:85% 50%}
+  .header{--banniere-cadrage:85% 45%}
   .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--cyan);}
   .title{font-size:22px; font-weight:600; margin-top:4px;}
   .horodateur-discret{font-family:var(--mono); font-size:12px; color:var(--text-dim); margin-top:8px;}
@@ -1099,7 +1099,7 @@
     (function initialiserBanniereReleve() {
       try {
         if (typeof NexusBanniereStation !== 'undefined' && NexusBanniereStation.siteAvecBanniere(SITE_ID, NexusBanniereStation.apercuDemande())) {
-          const b = 'assets/pompiste/releve-index';
+          const b = 'assets/carburants/jaugeage-cuve';
           document.querySelector('.header').insertAdjacentHTML('afterbegin', `<div class="am-banniere" data-photo-jour="${b}-1200.webp" data-photo-nuit="${b}-1200.webp"><img src="${b}-800.webp" srcset="${b}-800.webp 800w, ${b}-1200.webp 1200w, ${b}-1600.webp 1600w" sizes="(max-width:460px) 100vw, 460px" width="800" height="267" alt="" decoding="async" onerror="this.parentNode.remove()"></div>`);
           if (NexusBanniereStation.suivreTheme) NexusBanniereStation.suivreTheme();
         }

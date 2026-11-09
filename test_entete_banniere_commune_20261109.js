@@ -19,7 +19,8 @@ const PAGES = {
   'NEXUS-Carburants-v1.html': 'releve',
   'NEXUS-Verify-v1.html': 'verify',
   'NEXUS-Carburants-Pilotage-v1.html': 'performance',
-  'NEXUS-Paye-v1.html': 'paye'
+  'NEXUS-Paye-v1.html': 'paye',
+  'NEXUS-FDJ-Manager-v1.html': 'fdj'
 };
 const src = {}; Object.keys(PAGES).forEach(p => { src[p] = lire(p); });
 
