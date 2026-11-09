@@ -11,6 +11,7 @@
 <script src="nexus-auth.js?v=20260904-0104"></script>
 <script src="nexus-periodes.js?v=20260904-0104"></script>
 <script src="nexus-conseiller.js?v=20260904-0104"></script>
+<script src="nexus-etats-conseiller.js"></script>
 <style>
   :root{
     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
@@ -293,7 +294,7 @@
     return `Cette contribution est structurelle : ${p.article} pèse <b>${(p.contribution*100).toFixed(1)} %</b> du rayon ${p.categorie} à chaque période, pas seulement celle-ci.`;
   }
 
-  const ETAT_CLASS = { "🔥 À AGIR": "etat-agir", "📈 OPPORTUNITÉ": "etat-opportunite", "🟡 À SURVEILLER": "etat-surveiller" };
+  const classeEtat = etat => NexusEtatsConseiller.classe(etat, 'centre');
 
   // Systeme de confiance (rapport strategique, section 12) — visible a l'ecran,
   // relie directement a la regle qui a produit la detection.
@@ -572,9 +573,9 @@
       return "Aucun signal ne justifie une analyse approfondie en ce moment. Je continue de surveiller en arrière-plan — un commerce calme un jour donné n'est pas un commerce sans opportunités, juste un jour sans urgence.";
     }
     const parEtat = {
-      agir: actives.filter(p => p.etat === '🔥 À AGIR'),
-      opportunite: actives.filter(p => p.etat === '📈 OPPORTUNITÉ'),
-      surveiller: actives.filter(p => p.etat === '🟡 À SURVEILLER'),
+      agir: actives.filter(p => NexusEtatsConseiller.est(p.etat, 'agir')),
+      opportunite: actives.filter(p => NexusEtatsConseiller.est(p.etat, 'opportunite')),
+      surveiller: actives.filter(p => NexusEtatsConseiller.est(p.etat, 'surveiller')),
     };
     const nbAgir = parEtat.agir.length;
 
@@ -915,9 +916,9 @@
   async function renderRoot() {
     const validees = await chargerValidees();
     const actives = TOUTES_DETECTIONS.filter(p => !validees.includes(p.candidate_id));
-    const nbAgir = actives.filter(p => p.etat === '🔥 À AGIR').length;
-    const nbOpp = actives.filter(p => p.etat === '📈 OPPORTUNITÉ').length;
-    const nbSurv = actives.filter(p => p.etat === '🟡 À SURVEILLER').length;
+    const nbAgir = actives.filter(p => NexusEtatsConseiller.est(p.etat, 'agir')).length;
+    const nbOpp = actives.filter(p => NexusEtatsConseiller.est(p.etat, 'opportunite')).length;
+    const nbSurv = actives.filter(p => NexusEtatsConseiller.est(p.etat, 'surveiller')).length;
     const valeurTotale = actives.reduce((s,p) => s + (p.impact_eur||0), 0);
 
     const root = document.getElementById('root');
@@ -998,7 +999,7 @@
 
   function renderListe(actives) {
     const el = document.getElementById('liste');
-    const filtrees = filtreActif === 'Toutes' ? actives : actives.filter(p => p.etat === filtreActif);
+    const filtrees = filtreActif === 'Toutes' ? actives : actives.filter(p => NexusEtatsConseiller.filtre(p.etat, filtreActif));
 
     if (filtrees.length === 0) {
       el.innerHTML = `<div class="empty-note">
@@ -1012,7 +1013,7 @@
     el.innerHTML = filtrees.map((p, i) => {
       const conf = CONFIANCE_PAR_RULE[p.rule_id] || { niveau: 'B', label: 'Très probable', desc: '' };
       return `
-      <div class="plan-card ${ETAT_CLASS[p.etat]||''}" id="det-${i}">
+      <div class="plan-card ${classeEtat(p.etat)}" id="det-${i}">
         <div class="plan-head" onclick="document.getElementById('det-${i}').classList.toggle('open')">
           <span class="plan-etat">${p.etat}</span>
           <span class="plan-action-teaser">${p.article}</span>

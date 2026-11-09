@@ -334,6 +334,7 @@
 <script src="nexus-verify-moteur.js?v=20260904-0104"></script>
 <script src="nexus-risques-moteur.js?v=20260904-0104"></script>
 <script src="nexus-conseiller.js?v=20260904-0104"></script>
+<script src="nexus-etats-conseiller.js"></script>
 <script src="nexus-conseiller-donnees.js?v=20260904-0104"></script>
 <script src="nexus-risques-donnees.js?v=20260904-0104"></script>
 <script src="nexus-brief-donnees.js?v=20260904-0104"></script>
@@ -364,14 +365,7 @@
   // notées en fin de fichier plutôt que bâclées sous pression de temps.
   // ============================================================
 
-  const ETAT_CLASS = {
-    "🔥 À AGIR": "etat-agir", "📈 OPPORTUNITÉ": "etat-opportunite",
-    "🟡 À SURVEILLER": "etat-surveiller", "💡 RECOMMANDATION": "etat-recommandation",
-    "🔴 CRITIQUE": "etat-agir", "🟡 À VÉRIFIER": "etat-surveiller",
-    "📦 À COMPTER": "etat-surveiller", "⚠️ RAPPEL EN RETARD": "etat-agir",
-    "📌 RAPPEL": "etat-recommandation", "🗓️ TEMPO": "etat-recommandation",
-    "📋 SIGNAL": "etat-recommandation",
-  };
+  const classeEtat = etat => NexusEtatsConseiller.classe(etat, 'brief');
   // MOTEUR_LABEL/MOTEUR_SOURCE (13/08/2026) : déplacés dans
   // nexus-moteurs-registre.js — registre central, une seule vérité sur "à
   // quoi correspond ce moteur" (cadrage "moteurs dynamiques", Frédéric).
@@ -973,8 +967,8 @@
       };
     }
 
-    const gain = decisions.filter(p => ['🔥 À AGIR', '📈 OPPORTUNITÉ', '💡 RECOMMANDATION'].includes(p.etat)).reduce((s, p) => s + (p.impact_eur || 0), 0);
-    const risque = decisions.filter(p => !['🔥 À AGIR', '📈 OPPORTUNITÉ', '💡 RECOMMANDATION'].includes(p.etat)).reduce((s, p) => s + (p.impact_eur || 0), 0);
+    const gain = decisions.filter(p => NexusEtatsConseiller.gain(p.etat)).reduce((s, p) => s + (p.impact_eur || 0), 0);
+    const risque = decisions.filter(p => !NexusEtatsConseiller.gain(p.etat)).reduce((s, p) => s + (p.impact_eur || 0), 0);
 
     const decisionsEnrichies = decisions.map(enrichirDecision);
     // La liste de vigilance passe par le même filtre de précision que les
@@ -1225,7 +1219,7 @@
     // quelle décision prendre en premier") — les 2 secondaires restent
     // repliées et visuellement plus compactes (classe .secondaire).
     return `
-      <div class="decision-card ${ETAT_CLASS[p.etat] || ''} ${estPriorite ? 'priorite open' : 'secondaire'}" id="decision-${i}">
+      <div class="decision-card ${classeEtat(p.etat)} ${estPriorite ? 'priorite open' : 'secondaire'}" id="decision-${i}">
         <div class="decision-head" onclick="document.getElementById('decision-${i}').classList.toggle('open')">
           <span class="decision-rank ${estPriorite ? '' : 'secondaire'}">${estPriorite ? '① PRIORITÉ' : `#${i + 1}`}</span>
           <span class="decision-teaser">${p.teaser}</span>
@@ -1343,11 +1337,10 @@
   // détachés — leur libellé nomme les décisions dont ils sont la somme, et
   // un clic déplie la répartition ligne par ligne pour vérifier qu'aucun
   // montant n'est décoratif.
-  const ETATS_GAIN = ['🔥 À AGIR', '📈 OPPORTUNITÉ', '💡 RECOMMANDATION'];
   function renderImpact(brief) {
     const sujet = p => (p.article || NexusMoteursRegistre.nomPublic(p.moteur) || p.decision || '').toString().slice(0, 42);
-    const gainItems = brief.decisions.filter(p => ETATS_GAIN.includes(p.etat) && p.impact_eur > 0);
-    const risqueItems = brief.decisions.filter(p => !ETATS_GAIN.includes(p.etat) && p.impact_eur > 0);
+    const gainItems = brief.decisions.filter(p => NexusEtatsConseiller.gain(p.etat) && p.impact_eur > 0);
+    const risqueItems = brief.decisions.filter(p => !NexusEtatsConseiller.gain(p.etat) && p.impact_eur > 0);
     const ligne = (p, signe) => `<div class="impact-meta-row"><span class="impact-meta-label">${sujet(p)}</span><span class="impact-meta-val">${signe}${Math.round(p.impact_eur).toLocaleString('fr-FR')} €</span></div>`;
     const breakdown = (items, signe, videTexte) => items.length ? items.map(p => ligne(p, signe)).join('') : `<div class="section-note" style="margin-top:0;">${videTexte}</div>`;
     return `

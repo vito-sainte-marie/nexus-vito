@@ -1617,6 +1617,7 @@
 <script src="nexus-carburant-donnees.js?v=20260904-0104"></script>
 <script src="nexus-releves-piste.js?v=20261013-2212"></script>
 <script src="nexus-conseiller.js?v=20260904-0104"></script>
+<script src="nexus-etats-conseiller.js"></script>
 <!-- nexus-verify-moteur.js (20/09/2026, P0-3, lot NEXUS-CONTINUITE-TERRAIN-1) :
      chargerControlesVerifyRestants (nexus-conseiller-donnees.js) délègue
      désormais à NexusVerifyMoteur.statutValidationQuart, la MÊME
@@ -2148,9 +2149,9 @@
     // réutilisées pour la carte Produits : ce sont les mêmes articles qui
     // justifient une action côté produit, donc le même chiffre est légitime
     // aux deux endroits plutôt qu'un second calcul inventé.
-    const nbPriorites = candidatsDisponibles.filter(c => c.etat === '🔥 À AGIR').length;
-    const nbASurveiller = candidatsDisponibles.filter(c => c.etat === '🟡 À SURVEILLER').length;
-    const opportunites = candidatsDisponibles.filter(c => c.etat === '📈 OPPORTUNITÉ');
+    const nbPriorites = candidatsDisponibles.filter(c => NexusEtatsConseiller.est(c.etat, 'agir')).length;
+    const nbASurveiller = candidatsDisponibles.filter(c => NexusEtatsConseiller.est(c.etat, 'surveiller')).length;
+    const opportunites = candidatsDisponibles.filter(c => NexusEtatsConseiller.est(c.etat, 'opportunite'));
     const meilleureOpportunite = opportunites.length ? opportunites[0].impact_eur : 0;
     renderOutilsGrid({
       nbPriorites, nbASurveiller, meilleureOpportunite, controlesVerify,
