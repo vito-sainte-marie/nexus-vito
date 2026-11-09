@@ -20,7 +20,8 @@ const PAGES = {
   'NEXUS-Verify-v1.html': 'verify',
   'NEXUS-Carburants-Pilotage-v1.html': 'performance',
   'NEXUS-Paye-v1.html': 'paye',
-  'NEXUS-FDJ-Manager-v1.html': 'fdj'
+  'NEXUS-FDJ-Manager-v1.html': 'fdj',
+  'NEXUS-Carburant-Reception-v1.html': 'reception'
 };
 const src = {}; Object.keys(PAGES).forEach(p => { src[p] = lire(p); });
 

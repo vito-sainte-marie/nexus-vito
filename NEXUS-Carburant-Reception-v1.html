@@ -23,6 +23,7 @@
 <script src="nexus-header-nav.js?v=20260904-0104"></script>
 <script src="nexus-icones.js?v=20260904-0104"></script>
 <script src="nexus-desktop.js?v=20260904-0104"></script>
+<script src="nexus-banniere-station.js"></script>
 <script src="nexus-reception-moteur.js?v=20260904-0104"></script>
 <script src="nexus-reception-donnees.js?v=20260904-0104"></script>
 <script src="nexus-carburant-moteur.js?v=20260904-0104"></script>
@@ -53,13 +54,7 @@
   .phone{width:100%; max-width:460px; min-height:100vh; display:flex; flex-direction:column; border-left:1px solid var(--hairline); border-right:1px solid var(--hairline); padding-top:env(safe-area-inset-top); padding-bottom:env(safe-area-inset-bottom);}
 
   .header{padding:24px 20px 14px; position:relative;}
-  .menu-btn{
-    position:absolute; top:18px; right:18px; display:flex; align-items:center; gap:6px;
-    font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase;
-    color:var(--cyan); background:var(--cyan-tint,rgba(var(--cyan-rgb),0.1)); border:1px solid rgba(var(--cyan-rgb),0.3);
-    border-radius:20px; padding:7px 12px; text-decoration:none; white-space:nowrap; z-index:5;
-  }
-  .menu-btn:active{background:rgba(var(--cyan-rgb),0.2);}
+  .header{--banniere-cadrage:70% 50%}
   .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--cyan);}
   .title{font-size:22px; font-weight:600; margin-top:4px;}
   .horodateur-discret{font-family:var(--mono); font-size:12px; color:var(--text-dim); margin-top:8px;}
@@ -284,10 +279,12 @@
 <div class="phone">
   <div class="header">
     <a href="NEXUS-App-v1.html" class="menu-btn">☰ Menu</a>
+    <div class="entete-texte">
     <div class="eyebrow">NEXUS · Carburants</div>
     <div class="title" id="titre">Chargement…</div>
     <div class="horodateur-discret" id="horodateurDiscret">--</div>
     <div class="sub" id="sousTitre"></div>
+    </div>
   </div>
   <div class="divider"></div>
 
@@ -1873,6 +1870,16 @@
     if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
     employeeCourant = employee;
     siteId = employee.site_id;
+    // Bannière décorative de l'en-tête : seulement sur les sites de la liste (et l'aperçu Test) ; jamais bloquante.
+    (function initialiserBanniereReception() {
+      try {
+        if (typeof NexusBanniereStation !== 'undefined' && NexusBanniereStation.siteAvecBanniere(siteId, NexusBanniereStation.apercuDemande())) {
+          const b = 'assets/carburants/reception-carburant';
+          document.querySelector('.header').insertAdjacentHTML('afterbegin', `<div class="am-banniere" data-photo-jour="${b}-1200.webp" data-photo-nuit="${b}-1200.webp"><img src="${b}-800.webp" srcset="${b}-800.webp 800w, ${b}-1200.webp 1200w, ${b}-1600.webp 1600w" sizes="(max-width:460px) 100vw, 50vw" width="800" height="267" alt="" decoding="async" onerror="this.parentNode.remove()"></div>`);
+          if (NexusBanniereStation.suivreTheme) NexusBanniereStation.suivreTheme();
+        }
+      } catch (_) { /* la banniere est decorative */ }
+    })();
     demarrerHorloge();
     [config, managersSite] = await Promise.all([
       NexusReceptionDonnees.chargerConfigReception(nexusClient, siteId),
