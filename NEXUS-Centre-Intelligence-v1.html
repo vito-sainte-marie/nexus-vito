@@ -64,14 +64,8 @@
   .collapse-body.open{display:block;}
 
   .plan-card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; margin-bottom:10px; overflow:hidden; border-left:3px solid var(--hairline);}
-  .plan-card.etat-agir{border-left-color:#F0575A;}
-  .plan-card.etat-opportunite{border-left-color:#34D399;}
-  .plan-card.etat-surveiller{border-left-color:#F5A623;}
   .plan-head{padding:14px 16px; cursor:pointer; display:flex; align-items:center; gap:12px;}
   .plan-etat{font-family:var(--mono); font-size:9.5px; letter-spacing:0.05em; padding:3px 9px; border-radius:20px; font-weight:700; white-space:nowrap;}
-  .etat-agir .plan-etat{background:#3A1D1F; color:#F0575A;}
-  .etat-opportunite .plan-etat{background:#153629; color:#34D399;}
-  .etat-surveiller .plan-etat{background:#3A2E14; color:#F5A623;}
   .plan-action-teaser{flex:1; font-size:13.5px; font-weight:600; line-height:1.4;}
   .plan-chevron{color:var(--text-dim); font-size:14px; transition:0.15s;}
   .plan-card.open .plan-chevron{transform:rotate(90deg);}
@@ -846,7 +840,7 @@
     el.innerHTML = MESSAGES_ADVISOR.map((m, i) => {
       const ruleCode = (m.advisor_rules && m.advisor_rules.code) || '';
       const peutAssigner = !!ASSIGNATEURS_ADVISOR[ruleCode] && m.status !== 'converti_action';
-      const prioClasse = (m.priority === 'critique' || m.priority === 'haute') ? 'etat-agir' : (m.priority === 'a_surveiller' ? 'etat-surveiller' : '');
+      const prioClasse = m.priority === 'critique' ? 'nbe-carte-critique' : (m.priority === 'haute' ? 'nbe-carte-agir' : 'nbe-carte-neutre');
       const dejaAssigne = m.status === 'converti_action';
       const preuves = EVIDENCE_PAR_MESSAGE[m.id] || [];
       const preuvesHtml = preuves.length === 0 ? '' : `
@@ -945,9 +939,9 @@
       <div class="card">
         <div class="section-label">Vue d'ensemble commerce</div>
         <div class="stat-row"><span class="stat-label">Signaux analysés</span><span class="stat-value" style="color:var(--cyan);">${actives.length}</span></div>
-        <div class="stat-row"><span class="stat-label">${NexusBadgeEtat.libelle('🔥 À AGIR')}</span><span class="stat-value" style="color:#F0575A;">${nbAgir}</span></div>
-        <div class="stat-row"><span class="stat-label">${NexusBadgeEtat.libelle('📈 OPPORTUNITÉ')}</span><span class="stat-value" style="color:#34D399;">${nbOpp}</span></div>
-        <div class="stat-row"><span class="stat-label">${NexusBadgeEtat.libelle('🟡 À SURVEILLER')}</span><span class="stat-value" style="color:#F5A623;">${nbSurv}</span></div>
+        <div class="stat-row"><span class="stat-label">${NexusBadgeEtat.libelle('🔥 À AGIR')}</span><span class="stat-value ${NexusBadgeEtat.classeCompteur('🔥 À AGIR')}">${nbAgir}</span></div>
+        <div class="stat-row"><span class="stat-label">${NexusBadgeEtat.libelle('📈 OPPORTUNITÉ')}</span><span class="stat-value ${NexusBadgeEtat.classeCompteur('📈 OPPORTUNITÉ')}">${nbOpp}</span></div>
+        <div class="stat-row"><span class="stat-label">${NexusBadgeEtat.libelle('🟡 À SURVEILLER')}</span><span class="stat-value ${NexusBadgeEtat.classeCompteur('🟡 À SURVEILLER')}">${nbSurv}</span></div>
         <div class="stat-row"><span class="stat-label">Valeur potentielle non traitée</span><span class="stat-value" style="color:var(--gold);">${Math.round(valeurTotale).toLocaleString('fr-FR')} €</span></div>
       </div>
       <div class="collapse-toggle ${commerceReduit ? '' : 'open'}" onclick="toggleCommerceDetail()">
@@ -1014,7 +1008,7 @@
     el.innerHTML = filtrees.map((p, i) => {
       const conf = CONFIANCE_PAR_RULE[p.rule_id] || { niveau: 'B', label: 'Très probable', desc: '' };
       return `
-      <div class="plan-card ${classeEtat(p.etat)}" id="det-${i}">
+      <div class="plan-card ${NexusBadgeEtat.classeCarte(p.etat)}" id="det-${i}">
         <div class="plan-head" onclick="document.getElementById('det-${i}').classList.toggle('open')">
           ${NexusBadgeEtat.rendu(p.etat)}
           <span class="plan-action-teaser">${p.article}</span>

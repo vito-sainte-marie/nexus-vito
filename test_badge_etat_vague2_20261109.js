@@ -85,3 +85,35 @@ t('Accueil : aucun emoji d\'état dans les compteurs, rien à convertir', () => 
   assert.ok(/NexusEtatsConseiller\.est\(/.test(bloc) && !EMO.test(bloc));
 });
 console.log(n + ' épreuves OK');
+
+// Guardian 6752793399 : la couleur d'une carte vient du composant (clé), jamais d'un rouge ou d'un vert local.
+{
+  const assertL = require('assert');
+  const fsL = require('fs');
+  const lireL = f => fsL.readFileSync(require('path').join(__dirname, f), 'utf8');
+  const BADGE = require('./nexus-badge-etat.js');
+  const ETATS = require('./nexus-etats-conseiller.js');
+  global.NexusEtatsConseiller = ETATS;
+  const PAGES4 = ['NEXUS-Brief-v1.html', 'NEXUS-Cockpit-v2.html', 'NEXUS-Centre-Intelligence-v1.html', 'NEXUS-Missions-v1.html'];
+  PAGES4.forEach(p => {
+    const H = lireL(p);
+    console.log('OK ' + p + ' : aucune bordure locale rouge ou verte sur une carte d\'état');
+    assertL.ok(!/\.(?:plan|decision)-card\.etat-[a-z]+\s*\{/.test(H), p + ' : règle locale de bordure par état');
+    assertL.ok(/classeCarte\(/.test(H) || /nbe-carte-/.test(H), p + ' : couleur de bordure du composant absente');
+  });
+  const ok = (e, c) => assertL.strictEqual(BADGE.classeCarte(e), c);
+  ok('🔴 CRITIQUE', 'nbe-carte-critique'); console.log('OK une carte critique reste rouge');
+  ok('🟡 À VÉRIFIER', 'nbe-carte-verifier');
+  ok('🔥 À AGIR', 'nbe-carte-agir');
+  ok('📈 OPPORTUNITÉ', 'nbe-carte-neutre'); ok('🟡 À SURVEILLER', 'nbe-carte-neutre'); ok('💡 RECOMMANDATION', 'nbe-carte-neutre');
+  console.log('OK opportunité, à surveiller et recommandation : bordure neutre');
+  const CSSB = BADGE._CSS;
+  assertL.ok(/nbe-carte-critique[^}]*var\(--nbe-critique\)/.test(CSSB) && /nbe-carte-agir[^}]*var\(--nbe-accent\)/.test(CSSB) && /nbe-carte-neutre[^}]*var\(--nbe-line\)/.test(CSSB));
+  const mut = CSSB.replace('.nbe-carte-neutre.nbe-carte-neutre{border-left-color:var(--nbe-line)}', '.nbe-carte-neutre.nbe-carte-neutre{border-left-color:#34D399}');
+  assertL.ok(!/nbe-carte-neutre[^}]*var\(--nbe-line\)/.test(mut)); console.log('OK mutation : une bordure neutre verte rougit la garde');
+  const C = lireL('NEXUS-Centre-Intelligence-v1.html');
+  assertL.ok(!/stat-value" style="color:#(?:F0575A|34D399|F5A623)/.test(C)); console.log('OK Centre : compteurs sans rouge ni vert');
+  assertL.strictEqual(BADGE.classeCompteur('🔥 À AGIR'), 'nbe-compteur-agir');
+  assertL.strictEqual(BADGE.classeCompteur('📈 OPPORTUNITÉ'), 'nbe-compteur-neutre');
+  console.log('OK compteurs : à agir en accent, le reste neutre');
+}

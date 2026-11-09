@@ -32,6 +32,12 @@
     '.nbe-consigne-agir{color:var(--nbe-accent);font-weight:600}',
     '.nbe-qualif{display:inline-flex;align-items:center;height:22px;padding:0 8px;border:1px solid var(--nbe-line);border-radius:6px;color:var(--nbe-secondary);font:500 11px/1 var(--sans,"IBM Plex Sans",sans-serif);white-space:nowrap}',
     '.nbe-rang{font:700 11px/1 var(--mono,"IBM Plex Mono",monospace);letter-spacing:.04em;color:var(--nbe-secondary);white-space:nowrap}',
+    '.nbe-carte-critique.nbe-carte-critique{border-left-color:var(--nbe-critique)}',
+    '.nbe-carte-verifier.nbe-carte-verifier{border-left-color:var(--nbe-verifier)}',
+    '.nbe-carte-agir.nbe-carte-agir{border-left-color:var(--nbe-accent)}',
+    '.nbe-carte-neutre.nbe-carte-neutre{border-left-color:var(--nbe-line)}',
+    '.nbe-compteur-agir{color:var(--nbe-accent)}',
+    '.nbe-compteur-neutre{color:var(--nbe-secondary)}',
     '.nbe-groupe-titre{margin:14px 0 8px;font:600 11px/1.2 var(--mono,"IBM Plex Mono",monospace);letter-spacing:.06em;text-transform:uppercase;color:var(--nbe-secondary)}'
   ].join('\n');
 
@@ -141,12 +147,29 @@
     return String(etat == null ? '' : etat).replace(/^[^A-Za-zÀ-ÿ0-9]+/, '').trim();
   }
 
+  // Couleur de bordure d'une carte, d'après la clé : critique, à vérifier, agir ; tout le reste est neutre.
+  function classeCarte(etat) {
+    var E = global.NexusEtatsConseiller;
+    if (E) {
+      if (E.est(etat, 'critique')) return 'nbe-carte-critique';
+      if (E.est(etat, 'verifier')) return 'nbe-carte-verifier';
+      if (E.est(etat, 'agir')) return 'nbe-carte-agir';
+    }
+    return 'nbe-carte-neutre';
+  }
+
+  // Couleur d'un compteur : « À agir » en accent, le reste en texte neutre.
+  function classeCompteur(etat) {
+    var E = global.NexusEtatsConseiller;
+    return (E && E.est(etat, 'agir')) ? 'nbe-compteur-agir' : 'nbe-compteur-neutre';
+  }
+
   injecterCss();
 
   global.NexusBadgeEtat = {
     libelle: libelle,
     gravite: gravite, traitement: traitement, action: action, qualification: qualification,
-    priorite: priorite, neutre: neutre, rendu: rendu, grouper: grouper, injecterCss: injecterCss, _CSS: CSS
+    classeCarte: classeCarte, classeCompteur: classeCompteur, priorite: priorite, neutre: neutre, rendu: rendu, grouper: grouper, injecterCss: injecterCss, _CSS: CSS
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = global.NexusBadgeEtat;
 })(typeof window !== 'undefined' ? window : globalThis);
