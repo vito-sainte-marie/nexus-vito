@@ -63,3 +63,10 @@ t('le CSS téléphone ne vaut que sous 600 px et seulement avec une source (.am-
 garde('module : garde mutée (le média n\'est plus limité au téléphone)', BAN, c => /MEDIA_TELEPHONE = '\(max-width:599px\)'/.test(c), "'(max-width:599px)';", "'(min-width:0px)';");
 t('la liste des sites du module n\'a pas bougé (Sainte-Marie seulement)', () => { assert.ok(/SITES_BANNIERE_VITO\s*=\s*\['vito-sainte-marie'\]/.test(BAN)); });
 t('Paye et Inventaire ne sont pas concernés', () => { ['NEXUS-Paye-v1.html', 'NEXUS-Inventaire-v1.html', 'NEXUS-Inventaire-Manager-v1.html'].forEach(f => assert.ok(!/sourceTelephone/.test(lire(f)), f)); });
+// Dégradé mobile (Guardian 6746102901) : le sujet reste visible, bureau inchangé.
+const degNuit = c => /body:not\(\.nexus-desktop\) \.header>\.am-banniere::after\{background:linear-gradient\(to right,var\(--bg\) 0%,var\(--bg\) 40%,transparent 80%\),linear-gradient\(to bottom,transparent 55%,var\(--bg\) 100%\)/.test(c);
+const degJour = c => /:root\[data-theme="jour"\] body:not\(\.nexus-desktop\) \.header>\.am-banniere::after\{background:linear-gradient\(to right,var\(--panel\) 0%,var\(--panel\) 42%,transparent 82%\),linear-gradient\(to bottom,transparent 55%,var\(--panel\) 100%\)/.test(c);
+t('dégradé mobile Nuit et Jour : opaque sur 40 % / 42 % seulement', () => { assert.ok(degNuit(BAN)); assert.ok(degJour(BAN)); });
+t('bureau : dégradé toujours supprimé', () => { assert.ok(/body\.nexus-desktop \.header>\.am-banniere::after,:root\[data-theme="jour"\] body\.nexus-desktop \.header>\.am-banniere::after\{background:none\}/.test(BAN)); });
+garde('dégradé Nuit muté', BAN, degNuit, 'var(--bg) 40%,transparent 80%', 'var(--bg) 55%,transparent 100%');
+garde('dégradé Jour muté', BAN, degJour, 'var(--panel) 42%,transparent 82%', 'var(--panel) 62%,transparent 100%');

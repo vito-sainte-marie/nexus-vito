@@ -126,11 +126,11 @@ const NexusBanniereStation = (function () {
     'body.nexus-desktop .header>.am-banniere{left:auto;right:0;width:clamp(560px,55%,900px);-webkit-mask-image:linear-gradient(to right,transparent 0,#000 35%),linear-gradient(to bottom,#000 70%,transparent 100%);mask-image:linear-gradient(to right,transparent 0,#000 35%),linear-gradient(to bottom,#000 70%,transparent 100%);-webkit-mask-composite:source-in;mask-composite:intersect}',
     'body.nexus-desktop .header>.am-banniere::after,:root[data-theme="jour"] body.nexus-desktop .header>.am-banniere::after{background:none}',
     'body:not(.nexus-desktop) .header>.am-banniere{inset:0 0 auto 0;height:170px}',
-    'body:not(.nexus-desktop) .header>.am-banniere::after{background:linear-gradient(to right,var(--bg) 0%,var(--bg) 55%,transparent 100%),linear-gradient(to bottom,transparent 45%,var(--bg) 100%);opacity:.95}',
+    'body:not(.nexus-desktop) .header>.am-banniere::after{background:linear-gradient(to right,var(--bg) 0%,var(--bg) 40%,transparent 80%),linear-gradient(to bottom,transparent 55%,var(--bg) 100%);opacity:.95}',
     'body:not(.nexus-desktop) .header>.entete-texte{max-width:none}',
     'body:not(.nexus-desktop) .header>.entete-texte .eyebrow{padding-right:96px}',
     ':root[data-theme="jour"] .header>.am-banniere::after{background:linear-gradient(to right,var(--panel) 0%,var(--panel) 50%,transparent 100%),linear-gradient(to bottom,transparent 45%,var(--panel) 100%);opacity:.96}',
-    ':root[data-theme="jour"] body:not(.nexus-desktop) .header>.am-banniere::after{background:linear-gradient(to right,var(--panel) 0%,var(--panel) 62%,transparent 100%),linear-gradient(to bottom,transparent 45%,var(--panel) 100%);opacity:.96}',
+    ':root[data-theme="jour"] body:not(.nexus-desktop) .header>.am-banniere::after{background:linear-gradient(to right,var(--panel) 0%,var(--panel) 42%,transparent 82%),linear-gradient(to bottom,transparent 55%,var(--panel) 100%);opacity:.96}',
     ':root[data-theme="jour"] .header>.menu-btn{background:var(--panel);border:1px solid var(--line);color:var(--text)}'
   ].join('\n');
   try {

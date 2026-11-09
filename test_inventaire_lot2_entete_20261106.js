@@ -66,7 +66,7 @@ verifier('retouche 3 : Matin | Soir en segment, sur une ligne au bureau, pleine 
 verifier('retouche 4 : bannière courte (≤ 180 px) dès que la vue bureau est absente, pas seulement sous 640 px', () => {
   const m = ban.match(/body:not\(\.nexus-desktop\) \.header>\.am-banniere\{[^}]*height:(\d+)px/);
   assert.ok(m && Number(m[1]) <= 180);
-  assert.ok(/body:not\(\.nexus-desktop\) \.header>\.am-banniere::after\{background:linear-gradient\(to right,var\(--bg\) 0%,var\(--bg\) 55%/.test(ban));
+  assert.ok(/body:not\(\.nexus-desktop\) \.header>\.am-banniere::after\{background:linear-gradient\(to right,var\(--bg\) 0%,var\(--bg\) 40%/.test(ban));
   assert.ok(!/@media \(max-width:640px\)\{\s*\.header>\.am-banniere/.test(ban));
 });
 verifier('retouches 2e série : bureau pleine largeur, date lisible, état sur une ligne, ligne de clôture résiduelle retirée', () => {
