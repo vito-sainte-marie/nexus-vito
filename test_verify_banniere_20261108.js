@@ -14,7 +14,7 @@ function garde(nom, src, regle, litteral, remplacement) {
 const H = fs.readFileSync(path.join(__dirname, 'NEXUS-Verify-v1.html'), 'utf8');
 const BAN = fs.readFileSync(path.join(__dirname, 'nexus-banniere-station.js'), 'utf8');
 
-const script = c => /<script src="nexus-station\.js[^"]*"><\/script>\s*<script src="nexus-banniere-station\.js"><\/script>/.test(c);
+const script = c => /<script src="nexus-station\.js[^"]*"><\/script>\s*<script src="nexus-banniere-station\.js[^"]*"><\/script>/.test(c);
 const gardeSite = c => /NexusBanniereStation\.siteAvecBanniere\(SITE_ACTUEL, NexusBanniereStation\.apercuDemande\(\)\)/.test(c);
 const apresAuth = c => { const i = c.indexOf('SITE_ACTUEL = employee.site_id;'); const j = c.indexOf('siteAvecBanniere(SITE_ACTUEL'); return i > 0 && j > i; };
 const theme = c => /NexusBanniereStation\.suivreTheme\(\)/.test(c);
@@ -53,7 +53,7 @@ t('thème Jour : photo atténuée pour garder le texte lisible', () => { assert.
 t('fondu de 800 ms, coupé en mouvement réduit', () => { assert.ok(fondu(H)); assert.ok(reduit(H)); });
 t('le bouton Menu reste positionné en absolu au-dessus', () => { assert.ok(/\.menu-btn\{[^}]*position:absolute;[^}]*z-index:5;/.test(H)); });
 
-garde('script du module', H, script, '<script src="nexus-banniere-station.js"></script>', '');
+garde('script du module', H, script, '<script src="nexus-banniere-station.js', '<script src="autre-module.js');
 garde('liste des sites', H, gardeSite, 'siteAvecBanniere(SITE_ACTUEL, ', 'siteAvecBanniere("x", ');
 garde('suivi de thème', H, theme, 'NexusBanniereStation.suivreTheme();', '');
 garde('même photo Jour et Nuit', H, unePhoto, 'data-photo-nuit="${bv}-1200.jpg"', 'data-photo-nuit="${bv}-nuit.jpg"');
