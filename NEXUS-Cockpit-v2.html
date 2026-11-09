@@ -367,6 +367,7 @@
 <script src="nexus-risques-moteur.js?v=20260904-0104"></script>
 <script src="nexus-conseiller.js?v=20260904-0104"></script>
 <script src="nexus-etats-conseiller.js"></script>
+<script src="nexus-badge-etat.js"></script>
 <script src="nexus-conseiller-donnees.js?v=20260904-0104"></script>
 <script src="nexus-risques-donnees.js?v=20260904-0104"></script>
 </head>
@@ -962,7 +963,7 @@
       el.innerHTML = aAfficher.map((p, i) => `
         <div class="plan-card ${classeEtat(p.etat)}" id="plan-${i}">
           <div class="plan-head" onclick="document.getElementById('plan-${i}').classList.toggle('open')">
-            <span class="plan-etat">${p.urgence && p.nature ? `${p.urgence.toUpperCase()} · ${p.nature}` : p.etat}</span>
+            ${p.urgence && p.nature ? `<span class="plan-etat">${p.urgence.toUpperCase()} · ${p.nature}</span>` : NexusBadgeEtat.rendu(p.etat)}
             <span class="plan-action-teaser">${p.decision}</span>
             <span class="plan-chevron">›</span>
           </div>

@@ -132,9 +132,19 @@
     return { gains: g, risques: r, autres: a };
   }
 
+  // Libellé texte sans emoji d'un état du Conseiller, pour un onglet ou un compteur (Centre, Accueil).
+  // Onglets et compteurs : « À agir », « Opportunités », « À surveiller ». Autre valeur : texte sans emoji.
+  var LIB_ONGLET = { agir: 'À agir', opportunite: 'Opportunités', surveiller: 'À surveiller' };
+  function libelle(etat) {
+    var E = global.NexusEtatsConseiller;
+    if (E) for (var k in LIB_ONGLET) if (has(LIB_ONGLET, k) && E.est(etat, k)) return LIB_ONGLET[k];
+    return String(etat == null ? '' : etat).replace(/^[^A-Za-zÀ-ÿ0-9]+/, '').trim();
+  }
+
   injecterCss();
 
   global.NexusBadgeEtat = {
+    libelle: libelle,
     gravite: gravite, traitement: traitement, action: action, qualification: qualification,
     priorite: priorite, neutre: neutre, rendu: rendu, grouper: grouper, injecterCss: injecterCss, _CSS: CSS
   };

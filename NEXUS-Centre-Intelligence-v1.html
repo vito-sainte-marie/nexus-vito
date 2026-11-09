@@ -12,6 +12,7 @@
 <script src="nexus-periodes.js?v=20260904-0104"></script>
 <script src="nexus-conseiller.js?v=20260904-0104"></script>
 <script src="nexus-etats-conseiller.js"></script>
+<script src="nexus-badge-etat.js"></script>
 <style>
   :root{
     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
@@ -944,13 +945,13 @@
       <div class="card">
         <div class="section-label">Vue d'ensemble commerce</div>
         <div class="stat-row"><span class="stat-label">Signaux analysés</span><span class="stat-value" style="color:var(--cyan);">${actives.length}</span></div>
-        <div class="stat-row"><span class="stat-label">🔥 À agir</span><span class="stat-value" style="color:#F0575A;">${nbAgir}</span></div>
-        <div class="stat-row"><span class="stat-label">📈 Opportunités</span><span class="stat-value" style="color:#34D399;">${nbOpp}</span></div>
-        <div class="stat-row"><span class="stat-label">🟡 À surveiller</span><span class="stat-value" style="color:#F5A623;">${nbSurv}</span></div>
+        <div class="stat-row"><span class="stat-label">${NexusBadgeEtat.libelle('🔥 À AGIR')}</span><span class="stat-value" style="color:#F0575A;">${nbAgir}</span></div>
+        <div class="stat-row"><span class="stat-label">${NexusBadgeEtat.libelle('📈 OPPORTUNITÉ')}</span><span class="stat-value" style="color:#34D399;">${nbOpp}</span></div>
+        <div class="stat-row"><span class="stat-label">${NexusBadgeEtat.libelle('🟡 À SURVEILLER')}</span><span class="stat-value" style="color:#F5A623;">${nbSurv}</span></div>
         <div class="stat-row"><span class="stat-label">Valeur potentielle non traitée</span><span class="stat-value" style="color:var(--gold);">${Math.round(valeurTotale).toLocaleString('fr-FR')} €</span></div>
       </div>
       <div class="collapse-toggle ${commerceReduit ? '' : 'open'}" onclick="toggleCommerceDetail()">
-        <span>🧾 Détail des détections commerce (${actives.length}${nbAgir > 0 ? ' · 🔥 ' + nbAgir : ''})</span>
+        <span>🧾 Détail des détections commerce (${actives.length}${nbAgir > 0 ? ' · ' + nbAgir + ' ' + NexusBadgeEtat.libelle('🔥 À AGIR').toLowerCase() : ''})</span>
         <span class="collapse-chevron">▾</span>
       </div>
       <div class="collapse-body ${commerceReduit ? '' : 'open'}">
@@ -971,7 +972,7 @@
     FILTRES.forEach(f => {
       const t = document.createElement('div');
       t.className = 'tab' + (f === filtreActif ? ' active' : '');
-      t.textContent = f;
+      t.textContent = f === 'Toutes' ? f : NexusBadgeEtat.libelle(f);
       t.onclick = async () => { filtreActif = f; await renderRoot(); };
       tabsEl.appendChild(t);
     });
@@ -1015,7 +1016,7 @@
       return `
       <div class="plan-card ${classeEtat(p.etat)}" id="det-${i}">
         <div class="plan-head" onclick="document.getElementById('det-${i}').classList.toggle('open')">
-          <span class="plan-etat">${p.etat}</span>
+          ${NexusBadgeEtat.rendu(p.etat)}
           <span class="plan-action-teaser">${p.article}</span>
           <span class="plan-chevron">›</span>
         </div>

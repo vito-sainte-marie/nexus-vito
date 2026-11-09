@@ -25,6 +25,7 @@
 <script src="nexus-periodes.js?v=20260904-0104"></script>
 <script src="nexus-conseiller.js?v=20260904-0104"></script>
 <script src="nexus-etats-conseiller.js"></script>
+<script src="nexus-badge-etat.js"></script>
 <script src="nexus-station.js?v=20260904-0104"></script>
 <script src="nexus-pilotes-inventaire.js?v=20261102-1"></script>
 <script src="nexus-fil-caisse.js?v=20261103-0002"></script>
@@ -951,7 +952,7 @@
     el.innerHTML = aAfficher.map((p, i) => `
       <div class="plan-card ${classeEtat(p.etat)}" id="planm-${i}">
         <div class="plan-head" onclick="document.getElementById('planm-${i}').classList.toggle('open')">
-          <span class="plan-etat">${p.etat}</span>
+          ${NexusBadgeEtat.rendu(p.etat)}
           <span class="plan-action-teaser">${p.recommandation}</span>
           <span class="plan-chevron">›</span>
         </div>
