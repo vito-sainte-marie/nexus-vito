@@ -39,22 +39,7 @@
   body{display:flex; justify-content:center; min-height:100vh;}
   .phone{width:100%; max-width:460px; min-height:100vh; display:flex; flex-direction:column; border-left:1px solid var(--hairline); border-right:1px solid var(--hairline); padding-top:env(safe-area-inset-top); padding-bottom:env(safe-area-inset-bottom);}
 
-  .header{padding:24px 20px 14px; position:relative;}
-  .menu-btn{
-    position:absolute; top:18px; right:18px; display:flex; align-items:center; gap:6px;
-    font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase;
-    color:#8FE3F3; background:#0F2F38; border:1px solid rgba(79,195,217,0.55); box-shadow:0 2px 8px rgba(0,0,0,0.45);
-    border-radius:20px; padding:7px 12px; text-decoration:none; white-space:nowrap; z-index:5;
-  }
-  .menu-btn:active{background:#16434F;}
-  /* Bannière « Relevé du jour » (Guardian 6730210604) : photo en haut, pleine largeur, « ☰ Menu » posé dessus (pastille opaque),
-     eyebrow et titre dessous. Même module que Carburants Performance ; Sainte-Marie seulement. Présentation seulement. */
-  .header>.am-banniere{position:relative; aspect-ratio:3/1; margin:-24px -20px 12px; overflow:hidden; pointer-events:none;
-    -webkit-mask-image:linear-gradient(to bottom,#000 70%,transparent 100%); mask-image:linear-gradient(to bottom,#000 70%,transparent 100%);}
-  .header>.am-banniere img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:50% 45%;}
-  .header>.am-banniere img.am-fondu{opacity:0; transition:opacity 800ms ease;}
-  .header>.am-banniere img.am-fondu-visible{opacity:1;}
-  @media (prefers-reduced-motion:reduce){.header>.am-banniere img.am-fondu{transition:none;}}
+  .header{--banniere-cadrage:50% 45%}
   .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--cyan);}
   .title{font-size:22px; font-weight:600; margin-top:4px;}
   .horodateur-discret{font-family:var(--mono); font-size:12px; color:var(--text-dim); margin-top:8px;}
@@ -148,10 +133,12 @@
 <div class="phone">
   <div class="header">
     <a href="NEXUS-App-v1.html" class="menu-btn">☰ Menu</a>
+    <div class="entete-texte">
     <div class="eyebrow" id="eyebrowTitre">NEXUS · CARBURANTS</div>
     <div class="title" id="titrePrincipal">Relevé du jour</div>
     <div class="horodateur-discret" id="horodateurDiscret">--</div>
     <div class="sub" id="sousTitre">Chargement…</div>
+    </div>
   </div>
   <div class="divider"></div>
 

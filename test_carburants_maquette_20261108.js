@@ -14,10 +14,9 @@ function garde(nom, src, regle, litteral, remplacement) {
 const H = fs.readFileSync(path.join(__dirname, 'NEXUS-Carburants-Pilotage-v1.html'), 'utf8');
 const P2 = H.slice(H.indexOf('2e passe (Guardian 6724782750'));
 
-t('bannière : la règle dépend du conteneur (.hero), plus de la largeur de la fenêtre', () => {
-  assert.ok(/\.hero\{container-type:inline-size;\}/.test(P2));
-  assert.ok(/@container \(max-width:699px\)\{\s*\.hero-haut>\.am-banniere\{position:relative/.test(P2));
-  assert.ok(!/@media \(max-width:820px\)\{\s*\.hero-haut>\.am-banniere/.test(H));
+t('bannière : règles dans le gabarit commun, plus de règle locale .hero-haut', () => {
+  assert.ok(!/\.hero-haut|\.hero\{container-type/.test(H));
+  assert.ok(/<header class="header hero" id="heroCarburants">/.test(H));
 });
 t('en-tête : pastilles lisibles (sans monospace), date en toutes lettres, ⓘ groupé avec le statut', () => {
   assert.ok(/\.pastille\{font-family:var\(--sans\)/.test(P2));
@@ -32,7 +31,7 @@ t('statut du relevé : pastille colorée par état, texte « Relevé du jour sai
 });
 t('boutons : dégradé cyan, largeur partagée à parts égales sur mobile', () => {
   assert.ok(/\.btn-cta\{background:linear-gradient\(135deg,#22D3EE/.test(P2));
-  assert.ok(/@container \(max-width:699px\)\{[^@]*\.topacts\{display:grid; grid-template-columns:1fr 1fr;\}/.test(P2));
+  assert.ok(/@media \(max-width:699px\)\{[^@]*\.topacts\{display:grid; grid-template-columns:1fr 1fr;\}/.test(P2));
 });
 t('À traiter : titre, puces et bouton sur une ligne, titre foncé en Jour', () => {
   assert.ok(/\.a-traiter\{display:flex; flex-wrap:wrap; align-items:center/.test(P2));
@@ -63,8 +62,7 @@ t('identifiants et sources inchangés', () => {
   assert.ok(/class="pastille nexus-nom-commerce" id="pastilleSite"/.test(H));
 });
 
-garde('conteneur : container-type', P2, c => /\.hero\{container-type:inline-size;\}/.test(c), 'container-type:inline-size', 'container-type:normal');
-garde('conteneur : seuil 700 px', P2, c => /@container \(max-width:699px\)/.test(c), '@container (max-width:699px)', '@media (max-width:699px)');
+garde('seuil mobile 700 px (boutons)', P2, c => /@media \(max-width:699px\)\{[^@]*\.topacts/.test(c), '@media (max-width:699px){', '@media (max-width:299px){');
 garde('liseré du haut 3 px', P2, c => /\.carb-carte2::before\{[^}]*height:3px; background:var\(--carb-couleur/.test(c), 'height:3px; background:var(--carb-couleur', 'height:0; background:var(--carb-couleur');
 garde('titre de carte en couleur du texte', P2, c => /\.carb-carte2-titre\{color:var\(--text\); font-size:15px/.test(c), '.carb-carte2-titre{color:var(--text); font-size:15px', '.carb-carte2-titre{color:var(--carb-couleur); font-size:15px');
 garde('zone tactile 44 px conservée', P2, c => /::before\{content:''; position:absolute; inset:-8px;\}/.test(c), 'inset:-8px', 'inset:0');

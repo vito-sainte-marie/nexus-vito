@@ -154,17 +154,10 @@ button.lien-salarie:focus-visible{outline:2px solid var(--cyan);outline-offset:2
 :root{--bg:#07131E;--panel:#0D202E;--raised:#0F2433;--line:#254354;--cyan:#24D8E3;--green:#29C98A;--amber:#F5A12A;--surf:#0D202E;--surf2:#0F2433;--trace:#17323F;--caps:#142B3B;--avbg:#0A1A26;--capt:#C9D6DF;--cta1:#36E7EE;--cta2:#1FC6D2;--ctat:#04222A;--glow:#0E2A3D}
 :root[data-theme="jour"]{--bg:#F4F6F8;--panel:#FFFFFF;--raised:#EEF2F5;--line:#D5DCE3;--text:#0F172A;--mid:#475569;--dim:#56657A;--cyan:#0B7285;--green:#047857;--amber:#B45309;--surf:#FFFFFF;--surf2:#F4F7FA;--trace:#E2E8EE;--caps:#EAF0F5;--avbg:#EEF3F7;--capt:#334155;--cta1:#14A3B5;--cta2:#0B7285;--ctat:#FFFFFF;--glow:#F4F6F8}
 body{background:radial-gradient(1200px 500px at 70% -10%,var(--glow) 0%,var(--bg) 60%) var(--bg);color:var(--text)}
-.hero{position:relative;overflow:hidden;border:1px solid var(--line);border-radius:18px;background:var(--surf);padding:16px 20px;margin-bottom:14px}
-.hero-haut{position:relative;min-height:112px;display:flex;align-items:center;gap:16px}
-.hero-haut>.am-banniere{position:absolute;top:-16px;bottom:-4px;right:-20px;width:62%;overflow:hidden;z-index:0;-webkit-mask-image:linear-gradient(to right,transparent 0%,#000 45%,#000 60%,transparent 100%),linear-gradient(to bottom,transparent 0%,#000 35%,#000 60%,transparent 100%);-webkit-mask-composite:source-in;mask-image:linear-gradient(to right,transparent 0%,#000 45%,#000 60%,transparent 100%),linear-gradient(to bottom,transparent 0%,#000 35%,#000 60%,transparent 100%);mask-composite:intersect}
-.hero-haut>.am-banniere img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:60% 35%}
-.hero-haut>.am-banniere img.am-fondu{opacity:0;transition:opacity 800ms ease}
-.hero-haut>.am-banniere img.am-fondu-visible{opacity:1}
-@media(prefers-reduced-motion:reduce){.hero-haut>.am-banniere img.am-fondu{transition:none}}
-.haut-page{display:flex;justify-content:flex-end;margin-bottom:8px}
-.haut-page .menu{font:600 12px var(--mono);color:var(--mid);text-decoration:none;border:1px solid var(--line);border-radius:12px;padding:6px 10px;background:var(--surf)}
+.header{--banniere-cadrage:60% 35%}
+.header.hero{margin-bottom:14px}
 .loading .menu{margin-left:12px}
-.hero-haut>*:not(.am-banniere),.hero>.topacts{position:relative;z-index:1}
+.hero>.topacts{position:relative;z-index:1}
 .hero>.topacts{margin-top:12px;justify-content:flex-start}
 .hero .fil{font-size:12px;color:var(--mid)}
 .hero h1{margin:2px 0 0;font-size:30px;line-height:1.1}
@@ -218,7 +211,7 @@ table.sal tr.selected{background:rgba(36,216,227,.10);box-shadow:inset 0 0 0 1px
 .retour-liste,.pied-mobile{display:none}
 @media(max-width:1180px){.kpi3{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:820px){
- .hero-haut{min-height:118px}.hero h1{font-size:24px}.kpi3{grid-template-columns:repeat(3,1fr);gap:8px}
+ .hero h1{font-size:24px}.kpi3{grid-template-columns:repeat(3,1fr);gap:8px}
  .kpi3 .kpi{padding:10px;flex-direction:column;align-items:flex-start}.kpi3 .kpi.discret{display:none}.kpi3 .anneau{display:none}.kpi3 .kpi b{font-size:22px}
  .workspace.fiche-ouverte .tablewrap{display:none}
  .workspace:not(.fiche-ouverte) .panel{display:none}
@@ -226,7 +219,6 @@ table.sal tr.selected{background:rgba(36,216,227,.10);box-shadow:inset 0 0 0 1px
  .pied-mobile{display:block;margin-top:12px}.pied-mobile .btn{width:100%;min-height:48px}.pied-mobile .btn:disabled{opacity:.5}
  .minis{grid-template-columns:1fr}
 }
-.haut-page .menu{text-decoration:none;display:inline-flex;align-items:center;min-height:44px;padding:0 10px;color:var(--mid)}
 .hero .topacts .btn .n{margin-left:6px;font:700 11px var(--mono);color:var(--amber)}
 .retour-panneau{margin-bottom:10px}
 .decision-zone{flex-direction:column;align-items:stretch}
@@ -249,7 +241,7 @@ body,button,input,select,textarea{font-family:var(--sans)}
 .hero>.topacts{gap:8px;margin-top:16px}
 .hero .topacts .btn .n{font:700 13px var(--mono)}
 .btn.lien-texte{background:none;border:0;color:var(--cyan);text-decoration:underline;text-underline-offset:3px;padding:0 8px}
-.hero{padding:24px;margin-bottom:24px}
+.header.hero{margin-bottom:24px}
 .hero .selecteurs{gap:8px}
 .eyebrow,.section-label,.bloc-titre,.sous-titre,.field label,.modal-champ label,.var span,.ecart-cell span,tr.grp td{font:600 13px var(--sans);letter-spacing:0;text-transform:none;color:var(--mid)}
 tr.grp td{padding:16px 24px 8px}
@@ -315,7 +307,6 @@ table.sal th,table.sal td{border-bottom:1px solid var(--line)}
 .fiche-pied{gap:8px;align-items:center}
 .pill,.flag,.summary-chip,.status{font-family:var(--sans);font-size:13px;font-weight:600}
 @media(max-width:820px){
- .hero{padding:16px}
  .hero h1{font-size:32px}
  .kpi3{gap:8px}
  .kpi3 button.kpi{padding:16px}
@@ -334,9 +325,6 @@ table.sal th,table.sal td{border-bottom:1px solid var(--line)}
 .kpi3 button.kpi.warn.actif{border:1px solid rgba(245,161,42,.45)}
 .info-btn{position:relative}
 @media(max-width:820px){
- .haut-page{margin-top:8px}
- .hero-haut{flex-direction:column;align-items:stretch;gap:8px;min-height:0}
- .hero-haut>.am-banniere{position:relative;top:auto;bottom:auto;right:auto;width:calc(100% + 32px);height:120px;margin:-16px -16px 0;-webkit-mask-image:linear-gradient(to bottom,#000 55%,transparent 100%);mask-image:linear-gradient(to bottom,#000 55%,transparent 100%);-webkit-mask-composite:source-over;mask-composite:add}
  .hero h1{font-size:32px}
  .hero .sous{display:none}
  .hero .selecteurs{margin-top:0;gap:8px}
@@ -369,7 +357,6 @@ table.sal th,table.sal td{border-bottom:1px solid var(--line)}
  .tablescroll{overflow:visible;max-height:none}
  .tablewrap{overflow:visible}
 }
-.haut-page .menu{position:static}
 /* Pour le comptable (06/11/2026, Frédéric) */
 .pour-comptable{margin:12px 0}
 .pour-comptable .ligne{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--line);font:400 15px var(--sans)}
@@ -809,11 +796,10 @@ function render(){
  if(!SELECTION||!trouverFiche(SELECTION))SELECTION=selectionParDefaut();
  const dec=nbATraiter();
  document.getElementById('app').innerHTML=`
- <div class="haut-page"><a class="menu" href="NEXUS-App-v1.html">☰ Menu</a></div>
- <header class="hero"><div class="hero-haut">
+ <header class="header hero"><a class="menu-btn" href="NEXUS-App-v1.html">☰ Menu</a>
   ${NexusBanniereStation.html(SITE,{apercu:NexusBanniereStation.apercuDemande(),sizes:'(max-width:820px) 100vw, 50vw'})}
-  <div><div class="fil">NEXUS / Gestion</div><h1>Paye</h1><div class="sous">Préparation des variables mensuelles</div>
-  <div class="selecteurs"><span class="station-sel">${ECHAPPE(COMMERCE||SITE||'Station non identifiée')}</span><span class="monthnav"><button type="button" id="prev" aria-label="Mois précédent">←</button><strong>${moisLabel()}</strong><button type="button" id="next" aria-label="Mois suivant">→</button></span><span class="status ${statut}">${etatDossier(statut)}</span>${infoBtn('dossier','dossier mensuel')}</div></div></div>
+  <div class="entete-texte"><div class="fil">NEXUS / Gestion</div><h1>Paye</h1><div class="sous">Préparation des variables mensuelles</div>
+  <div class="selecteurs"><span class="station-sel">${ECHAPPE(COMMERCE||SITE||'Station non identifiée')}</span><span class="monthnav"><button type="button" id="prev" aria-label="Mois précédent">←</button><strong>${moisLabel()}</strong><button type="button" id="next" aria-label="Mois suivant">→</button></span><span class="status ${statut}">${etatDossier(statut)}</span>${infoBtn('dossier','dossier mensuel')}</div></div>
   <div class="topacts"><button type="button" class="btn" data-onglet="decisions">Décisions${dec?`<span class="n">${dec}</span>`:''}</button><button type="button" class="btn" data-onglet="dossier">Dossier comptable</button><button type="button" class="btn nouveau" id="toggleSaisie" aria-label="Nouvelle saisie" aria-expanded="false" aria-controls="drawerSaisie">+ Nouvelle saisie</button>${boutonsValidation()}</div>${MENTION_VALIDATION?`<div class="mention-validation" role="status">${ECHAPPE(MENTION_VALIDATION)}</div>`:''}${etatValidation().elementApresTransmission?`<div class="mention-validation" role="status">Un élément est arrivé après la transmission. Rouvrez le dossier pour le retransmettre.</div>`:''}
  </header>
  ${renderKpis(s,ec,a)}

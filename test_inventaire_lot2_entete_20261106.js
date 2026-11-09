@@ -2,6 +2,7 @@
 const fs = require('fs');
 const assert = require('assert');
 const html = fs.readFileSync(__dirname + '/NEXUS-Inventaire-Manager-v1.html', 'utf8');
+const ban = fs.readFileSync(__dirname + '/nexus-banniere-station.js', 'utf8'); // en-tête commun (09/11) : règles dans le module
 const premium = fs.readFileSync(__dirname + '/nexus-inventaire-manager-premium-v2.js', 'utf8');
 const cas = [];
 const verifier = (nom, f) => cas.push([nom, f]);
@@ -38,7 +39,7 @@ verifier('les garde-fous existants sont intacts (Rouvrir la clôture, jamais « 
   ['btnRouvrirCloture', 'motifRouverture', 'btnConfirmerRouverture', 'btnAnnulerRouverture'].forEach(x => assert.ok(html.includes(x), x));
 });
 verifier('la bannière est derrière le texte et les cibles tactiles font 44 px', () => {
-  assert.ok(/\.header>\.am-banniere\{position:absolute;inset:0/.test(html));
+  assert.ok(/\.header>\.am-banniere\{position:absolute;inset:0/.test(ban));
   assert.ok(/\.btn-jour\{min-width:44px;min-height:44px/.test(html));
 });
 verifier('Conseiller : une ligne et « Pourquoi ? »', () => {
@@ -63,15 +64,15 @@ verifier('retouche 3 : Matin | Soir en segment, sur une ligne au bureau, pleine 
   assert.ok(/\.segment-quart\{flex:1 0 100%/.test(html));
 });
 verifier('retouche 4 : bannière courte (≤ 180 px) dès que la vue bureau est absente, pas seulement sous 640 px', () => {
-  const m = html.match(/body:not\(\.nexus-desktop\) \.header>\.am-banniere\{[^}]*height:(\d+)px/);
+  const m = ban.match(/body:not\(\.nexus-desktop\) \.header>\.am-banniere\{[^}]*height:(\d+)px/);
   assert.ok(m && Number(m[1]) <= 180);
-  assert.ok(/body:not\(\.nexus-desktop\) \.header>\.am-banniere::after\{background:linear-gradient\(to right,var\(--bg\) 0%,var\(--bg\) 55%/.test(html));
-  assert.ok(!/@media \(max-width:640px\)\{\s*\.header>\.am-banniere/.test(html));
+  assert.ok(/body:not\(\.nexus-desktop\) \.header>\.am-banniere::after\{background:linear-gradient\(to right,var\(--bg\) 0%,var\(--bg\) 55%/.test(ban));
+  assert.ok(!/@media \(max-width:640px\)\{\s*\.header>\.am-banniere/.test(ban));
 });
 verifier('retouches 2e série : bureau pleine largeur, date lisible, état sur une ligne, ligne de clôture résiduelle retirée', () => {
   assert.ok(/body\.nexus-desktop \.desktop-grid>\.indicateurs,body\.nexus-desktop \.desktop-grid>\.conseiller-card\{column-span:all\}/.test(html));
   assert.ok(/\.entete-selecteur \.date-input\{[^}]*min-width:(\d+)px/.test(html) && Number(html.match(/\.entete-selecteur \.date-input\{[^}]*min-width:(\d+)px/)[1]) >= 140);
-  assert.ok(Number(html.match(/\.entete-texte\{[^}]*max-width:(\d+)px/)[1]) >= 520);
+  assert.ok(Number(ban.match(/\.entete-texte\{[^}]*max-width:(\d+)px/)[1]) >= 520);
   assert.ok(html.includes("clotureClasse === 'attente' ? ''"));
 });
 verifier('mode Jour : textes ≥ 4,5:1 sur leurs fonds (pastilles, eyebrow, menu), mesurés', () => {
@@ -80,7 +81,7 @@ verifier('mode Jour : textes ≥ 4,5:1 sur leurs fonds (pastilles, eyebrow, menu
   const tok = n => html.match(new RegExp('--' + n + ':(#[0-9A-Fa-f]{6})'))[1];
   [['j-ok-fg', 'j-ok-bg'], ['j-att-fg', 'j-att-bg'], ['j-bad-fg', 'j-bad-bg']].forEach(([f, b]) => assert.ok(rap(tok(f), tok(b)) >= 4.5, f + ' ' + rap(tok(f), tok(b)).toFixed(2)));
   assert.ok(rap(tok('j-eyebrow'), '#FFFFFF') >= 4.5);
-  assert.ok(/:root\[data-theme="jour"\] \.menu-btn\{background:var\(--panel\);border:1px solid var\(--line\)/.test(html));
+  assert.ok(/:root\[data-theme="jour"\] \.header>\.menu-btn\{background:var\(--panel\);border:1px solid var\(--line\)/.test(ban));
 });
 
 let ko = 0;

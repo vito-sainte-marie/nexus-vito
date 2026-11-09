@@ -21,12 +21,10 @@ const JOUR = Object.assign({}, T.JOUR, T.JOUR_COMPLEMENT, JOUR_PAGE);
 const lum = h => { const c = [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 255).map(v => v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
 const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
 
-t('bouton « ☰ Menu » : dans l\'en-tête (sur l\'illustration), plus de rangée au-dessus du cadre, pastille 44 px', () => {
-  assert.ok(/<header class="hero" id="heroCarburants">\s*<a class="menu-pastille" href="NEXUS-App-v1\.html">☰ Menu<\/a>/.test(SRC));
+t('bouton « ☰ Menu » : dans l\'en-tête, lien vers l\'accueil, pastille du gabarit commun', () => {
+  assert.ok(/<header class="header hero" id="heroCarburants">\s*<a class="menu-btn" href="NEXUS-App-v1\.html">☰ Menu<\/a>/.test(SRC));
   assert.ok(!SRC.includes('haut-page'), 'plus de rangée .haut-page');
-  const r = (SRC.match(/\.hero>\.menu-pastille\{[^}]*\}/) || [''])[0];
-  assert.ok(/position:absolute; top:10px; right:12px; z-index:3/.test(r) && /min-height:44px/.test(r), r);
-  assert.ok(/background:rgba\(11,19,28,\.62\)/.test(r) && /backdrop-filter:blur\(8px\)/.test(r) && /color:#fff/.test(r), r);
+  assert.ok(!SRC.includes('menu-pastille'), 'plus de pastille locale');
 });
 t('Affichage retiré de cette page (le choix Sombre/Jour/Auto reste dans le menu de l\'Accueil)', () => {
   assert.ok(!SRC.includes('btnAffichage') && !SRC.includes('panneauAffichage') && !SRC.includes('affichage-panneau'));
@@ -60,11 +58,8 @@ t('identifiants et libellés métier inchangés (présentation seule)', () => {
   assert.ok(SRC.includes('id="heroCarburants"') && SRC.includes('id="btnInfoPage"'));
 });
 
-garde('bouton Menu : lien vers l\'accueil, dans l\'en-tête', SRC, c => /<header class="hero" id="heroCarburants">\s*<a class="menu-pastille" href="NEXUS-App-v1\.html">/.test(c), '<a class="menu-pastille" href="NEXUS-App-v1.html">', '<a class="menu-pastille" href="#">');
-garde('bouton Menu : 44 px', SRC, c => /\.hero>\.menu-pastille\{[^}]*min-height:44px/.test(c), 'min-height:44px; padding:0 14px', 'min-height:30px; padding:0 14px');
-garde('bouton Menu : fond sombre translucide + flou', SRC, c => /\.menu-pastille\{[^}]*rgba\(11,19,28,\.62\)[^}]*backdrop-filter:blur\(8px\)/.test(c), 'background:rgba(11,19,28,.62)', 'background:transparent');
-garde('bouton Menu : au-dessus de l\'illustration (z-index)', SRC, c => /\.menu-pastille\{[^}]*z-index:3/.test(c), 'right:12px; z-index:3', 'right:12px; z-index:0');
-garde('Affichage ne revient pas', SRC, c => !c.includes('btnAffichage'), '<a class="menu-pastille"', '<button id="btnAffichage"></button><a class="menu-pastille"');
+garde('bouton Menu : lien vers l\'accueil, dans l\'en-tête', SRC, c => /<header class="header hero" id="heroCarburants">\s*<a class="menu-btn" href="NEXUS-App-v1\.html">/.test(c), '<a class="menu-btn" href="NEXUS-App-v1.html">', '<a class="menu-btn" href="#">');
+garde('Affichage ne revient pas', SRC, c => !c.includes('btnAffichage'), '<a class="menu-btn"', '<button id="btnAffichage"></button><a class="menu-btn"');
 garde('grille d\'analyse pilotée par le conteneur', SRC, c => /@container \(max-width:699px\)\{\.grille-analyse\{/.test(c), '@container (max-width:699px){.grille-analyse{', '@media (max-width:820px){.grille-analyse{');
 garde('synthèse pilotée par le conteneur', SRC, c => /@container \(max-width:699px\)\{\.lecture-nexus-colonnes\{/.test(c), '@container (max-width:699px){.lecture-nexus-colonnes{', '@media (max-width:820px){.lecture-nexus-colonnes{');
 garde('le conteneur d\'analyse existe', SRC, c => /\.analyse-conteneur\{container-type:inline-size;\}/.test(c), '.analyse-conteneur{container-type:inline-size;}', '.analyse-conteneur{}');

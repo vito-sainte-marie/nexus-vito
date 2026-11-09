@@ -194,19 +194,20 @@ verifier('l’ancienne photo de Paye est retirée', !/station-crepuscule/.test(s
 verifier('photo de jour et de nuit, mêmes fichiers que l’Accueil', ['', '-nuit'].every(n => [800, 1200, 1600].every(w =>
   fs.existsSync(path.join(__dirname, `assets/accueil/accueil-station-vito${n}-${w}.webp`)))));
 const B = require('./nexus-banniere-station.js');
+const ban = fs.readFileSync(path.join(__dirname, 'nexus-banniere-station.js'), 'utf8'); // en-tête commun (09/11) : règles dans le module
 verifier('bannière : Sainte-Marie oui, autre site non, aperçu Test seulement avec le paramètre',
   B.html('vito-sainte-marie', { sizes: '100vw' }).includes('am-banniere') && B.html('autre-site', { sizes: '100vw' }) === ''
   && B.html('nexus-station-test', { sizes: '100vw' }) === '' && B.html('nexus-station-test', { apercu: true, sizes: '100vw' }).includes('am-banniere'));
-verifier('le fondu est coupé sous mouvement réduit', /prefers-reduced-motion:reduce\)\{\.hero-haut>\.am-banniere img\.am-fondu\{transition:none/.test(src));
-verifier('boutons d\u2019action sous le titre, hors de la photo', /<div class="hero-haut">[\s\S]*?<\/div><\/div><\/div>\s*<div class="topacts">/.test(src) && !/\.hero::after/.test(src));
-verifier('photo fondue sur tous les bords (masque horizontal x vertical, sans bordure ni ombre)',
-  /\.hero-haut>\.am-banniere\{[^}]*mask-image:linear-gradient\(to right,transparent 0%,#000 45%[^}]*to bottom[^}]*mask-composite:intersect/.test(src)
-  && /-webkit-mask-composite:source-in/.test(src) && !/\.am-banniere\{[^}]*(box-shadow|border)/.test(src));
+verifier('le fondu est coupé sous mouvement réduit', /prefers-reduced-motion:reduce\)\{\.header>\.am-banniere img\.am-fondu\{transition:none/.test(ban));
+verifier('boutons d\u2019action sous le titre, hors de la photo', /<div class="entete-texte">[\s\S]*?<\/div><\/div>\s*<div class="topacts">/.test(src) && !/\.hero::after/.test(src));
+verifier('photo fondue (masque vertical et dégradé du modèle commun, sans bordure ni ombre)',
+  /\.header>\.am-banniere\{[^}]*mask-image:linear-gradient\(to bottom/.test(ban) && /\.header>\.am-banniere::after\{[^}]*linear-gradient\(to right,var\(--bg\)/.test(ban)
+  && !/\.am-banniere\{[^}]*(box-shadow|border)/.test(src) && !/\.am-banniere\{[^}]*(box-shadow|border)/.test(ban));
 verifier('un seul nombre « à traiter » (salariés inclus - prêts, ou paramétrages à compléter si plus nombreux)', /const dec=nbATraiter\(\)/.test(src) && /atraiter=nbATraiter\(\)/.test(src));
 verifier('« 0 h » reste en minuscule dans les indicateurs', /button\.kpi span b,button\.kpi span small\{text-transform:none\}/.test(src));
 verifier('un seul bouton Configurer dans la fiche quand la zone de décision le porte', /\$\{reglage\?'':`<button class="btn configure"/.test(src));
-verifier('Menu hors de l\u2019en-tête, en haut à droite de la page', /<div class="haut-page"><a class="menu"[^>]*>☰ Menu<\/a><\/div>\s*<header class="hero">/.test(src) && !/<div class="topacts"><a class="menu"/.test(src) && /\.haut-page\{display:flex;justify-content:flex-end/.test(src));
-verifier('photo qui couvre le haut du cadre (fondu atteint le bord) et fondu droit large', /\.am-banniere\{position:absolute;top:-16px;bottom:-4px;right:-20px;width:62%/.test(src) && /#000 60%,transparent 100%/.test(src));
+verifier('Menu : pastille du modèle commun posée dans l\u2019en-tête, en haut à droite', /<header class="header hero"><a class="menu-btn" href="NEXUS-App-v1\.html">☰ Menu<\/a>/.test(src) && !/\.haut-page/.test(src) && /\.header>\.menu-btn\{position:absolute;top:18px;right:18px/.test(ban));
+verifier('photo qui couvre tout le cadre de l\u2019en-tête (modèle commun)', /\.header>\.am-banniere\{position:absolute;inset:0/.test(ban));
 verifier('avatars : une seule initiale, teinte stable par id, liseré et reflet, halo seulement sur la ligne choisie',
   /function initiales\(nom\)\{const m=String\(nom\|\|'\?'\)\.trim\(\)\[0\]/.test(src) && /TEINTES_AVATAR=\[/.test(src) && /hsl\(var\(--teinte\)/.test(src)
   && /table\.sal tr\.selected \.av\{[^}]*0 0 0 2px var\(--cyan\)/.test(src) && /\.fiche-tete \.av\{width:72px/.test(src) && (src.match(/\$\{avatar\(f\.employee\)\}/g) || []).length === 2);
@@ -240,7 +241,7 @@ const fin2 = src.slice(f2i, src.indexOf('</style>', f2i));
 verifier('finition 2 : onglets de la fiche sans débordement, mois en Sans, compteur actif sans bordure',
   /\.ftab\{flex:0 0 auto;font-size:13px;padding:0 12px\}/.test(fin2) && /\.monthnav strong\{font:600 15px var\(--sans\)/.test(fin2) && /\.kpi3 button\.kpi\.actif\{border:0/.test(fin2));
 verifier('finition 2 : iPhone, photo en bandeau au-dessus du titre (rien dessus), actions en barre fixe, « + » rond',
-  /\.hero-haut>\.am-banniere\{position:relative;[^}]*height:120px/.test(fin2) && /\.hero>\.topacts\{position:fixed;left:0;right:0;bottom:0/.test(fin2)
+  /body:not\(\.nexus-desktop\) \.header>\.am-banniere\{inset:0 0 auto 0;height:170px\}/.test(ban) && /\.hero>\.topacts\{position:fixed;left:0;right:0;bottom:0/.test(fin2)
   && /\.btn\.nouveau\{position:fixed;[^}]*border-radius:50%/.test(fin2) && /aria-label="Nouvelle saisie"/.test(src));
 verifier('finition 2 : iPhone, une ligne de 64 px par salarié (statut à droite), liens de source à 44 px',
   /min-height:64px/.test(fin2) && /td\[data-col="Statut"\]\{grid-column:3;grid-row:1 \/ 3/.test(fin2) && /<a class="source-link" href="\$\{ECHAPPE\(lienAnalyseEcarts\(\)\)\}"/.test(src));
@@ -274,7 +275,7 @@ verifier('heures supp. par jour : barème + heures validées du manager, refusé
 const f3i = src.indexOf('/* Finition 3 (06/11/2026');
 const fin3 = src.slice(f3i, src.indexOf('</style>', f3i));
 verifier('finition 3 : iPhone, bouton « i » de 44 px, liste sans défilement interne, Menu dans le flux sous le bandeau',
-  /\.info-btn\{width:44px;height:44px/.test(fin3) && /\.tablescroll\{overflow:visible;max-height:none\}/.test(fin3) && /\.haut-page \.menu\{position:static\}/.test(fin3));
+  /\.info-btn\{width:44px;height:44px/.test(fin3) && /\.tablescroll\{overflow:visible;max-height:none\}/.test(fin3) && /\.header\.hero\{margin-bottom:14px\}/.test(src));
 verifier('Journées : dates courtes (jeu. 8 oct.) et Total du mois sur Présence, Normales et Heures supp.',
   /ECHAPPE\(jourCourt\(j\.date\)\)/.test(src) && /sommeH\(d,'presence'\)/.test(src) && /sommeH\(d,'normales'\)/.test(src));
 const prim = ev(apres, `(function(){const f=RAPPORT.employes.find(x=>x.employee.id==='e1');const v=NexusPayeMoteur.variablesComptables(f);

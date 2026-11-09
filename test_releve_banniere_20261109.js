@@ -47,9 +47,11 @@ function executer(src, siteId, search) {
 }
 const gabarit = h => /<div class="am-banniere"[^>]*><img /.test(h);
 const module_ = c => /<script src="nexus-banniere-station\.js[^"]*"><\/script>/.test(c);
-const photo = c => /\.header>\.am-banniere\{position:relative; aspect-ratio:3\/1; margin:-24px -20px 12px;/.test(c);
-const pastille = c => /\.menu-btn\{[^}]*background:#0F2F38;[^}]*z-index:5;/.test(c);
-const photoSousMenu = c => /\.menu-btn\{[^}]*z-index:5;/.test(c) && /\.header>\.am-banniere\{[^}]*pointer-events:none/.test(c);
+const photo = c => /\.header\{--banniere-cadrage:50% 45%\}/.test(c) && !/\.am-banniere\{/.test(c);
+const photoModule = c => /\.header>\.am-banniere\{position:absolute;inset:0;z-index:0;overflow:hidden;/.test(c);
+const pastille = c => /'\.header>\.menu-btn\{[^}]*z-index:5;[^}]*background:var\(--panel\)/.test(c);
+const menuMarque = c => /<div class="header">\s*<a href="NEXUS-App-v1\.html" class="menu-btn">☰ Menu<\/a>/.test(c);
+const photoSousMenu = c => /\.header>\.menu-btn\{[^}]*z-index:5;/.test(c) && /\.header>\.am-banniere\{position:absolute;inset:0;z-index:0;/.test(c);
 
 t('Sainte-Marie : la bannière est posée', () => { assert.ok(gabarit(executer(HTML, 'vito-sainte-marie', ''))); });
 t('Test avec ?apercu_banniere=1 : la bannière est posée', () => { assert.ok(gabarit(executer(HTML, 'nexus-station-test', '?apercu_banniere=1'))); });
@@ -66,13 +68,13 @@ t('le module partagé est chargé avant le script de la page', () => {
   assert.ok(module_(HTML));
   assert.ok(HTML.search(/<script src="nexus-banniere-station\.js/) < HTML.indexOf('<script>', HTML.indexOf('nexus-banniere-station.js')));
 });
-t('photo pleine largeur en haut, Menu posé dessus, lien vers Carburants Performance conservé', () => {
-  assert.ok(photo(HTML)); assert.ok(photoSousMenu(HTML));
+t('photo en fond de l\u2019en-tête (modèle commun), Menu posé dessus, lien vers Carburants Performance conservé', () => {
+  assert.ok(photo(HTML)); assert.ok(photoModule(BAN)); assert.ok(photoSousMenu(BAN)); assert.ok(menuMarque(HTML));
   assert.ok(/id="lienPilotage"/.test(HTML) && /NEXUS-Carburants-Pilotage-v1\.html/.test(HTML));
 });
-t('mouvement réduit : plus de fondu animé', () => { assert.ok(/prefers-reduced-motion:reduce\)\{\.header>\.am-banniere img\.am-fondu\{transition:none;\}/.test(HTML)); });
+t('mouvement réduit : plus de fondu animé', () => { assert.ok(/prefers-reduced-motion:reduce\)\{\.header>\.am-banniere img\.am-fondu\{transition:none\}/.test(BAN)); });
 t('présentation seulement : l\'initialisation ne touche ni requête ni table', () => { assert.ok(!/supabase|\.from\(|fetch\(/.test(extraireInit(HTML))); });
-t('pastille « Menu » opaque sur Relevé du jour et sur Verify', () => { assert.ok(pastille(HTML)); assert.ok(pastille(VERIFY)); });
+t('pastille « Menu » opaque : une seule règle, celle du module commun', () => { assert.ok(pastille(BAN)); assert.ok(!/\.menu-btn\{/.test(HTML)); assert.ok(!/\.menu-btn\{/.test(VERIFY)); });
 t('plus de fond translucide sur le bouton Menu', () => {
   assert.ok(!/\.menu-btn\{[^}]*background:rgba\(79,195,217,0\.1\)/.test(HTML));
   assert.ok(!/\.menu-btn\{[^}]*background:rgba\(79,195,217,0\.1\)/.test(VERIFY));
@@ -83,8 +85,9 @@ garde('mutation : sans data-photo-nuit', HTML, s => executer(s, 'vito-sainte-mar
 garde('mutation : sans data-photo-jour', HTML, s => executer(s, 'vito-sainte-marie', '').includes('data-photo-jour="assets/pompiste/releve-index-1200.webp"'), ' data-photo-jour="${b}-1200.webp"', '');
 garde('mutation : autre photo', HTML, s => executer(s, 'vito-sainte-marie', '').includes('releve-index-800.webp 800w'), "'assets/pompiste/releve-index'", "'assets/pompiste/jaugeage'");
 garde('module partagé', HTML, module_, '<script src="nexus-banniere-station.js', '<script src="autre-module.js');
-garde('cadrage de la photo', HTML, photo, 'aspect-ratio:3/1; margin:-24px -20px 12px;', 'aspect-ratio:3/1; margin:0;');
-garde('pastille opaque Relevé du jour', HTML, pastille, 'background:#0F2F38;', 'background:rgba(79,195,217,0.1);');
-garde('pastille opaque Verify', VERIFY, pastille, 'background:#0F2F38;', 'background:rgba(79,195,217,0.1);');
-garde('Menu au-dessus de la photo', HTML, photoSousMenu, 'z-index:5;\n  }', 'z-index:0;\n  }');
+garde('cadrage de la photo', HTML, photo, '--banniere-cadrage:50% 45%', '--banniere-cadrage:0% 0%');
+garde('photo en fond de l\u2019en-tête', BAN, photoModule, '.header>.am-banniere{position:absolute;inset:0;z-index:0;', '.header>.am-banniere{position:relative;z-index:0;');
+garde('pastille opaque (module commun)', BAN, pastille, 'z-index:5;display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10.5px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;color:var(--cyan);background:var(--panel)', 'z-index:5;display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10.5px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;color:var(--cyan);background:rgba(79,195,217,0.1)');
+garde('Menu en pastille de l\u2019en-tête', HTML, menuMarque, '<a href="NEXUS-App-v1.html" class="menu-btn">', '<a href="NEXUS-App-v1.html" class="menu-x">');
+garde('Menu au-dessus de la photo', BAN, photoSousMenu, 'top:18px;right:18px;z-index:5;', 'top:18px;right:18px;z-index:0;');
 console.log(n + ' épreuves OK');

@@ -86,6 +86,35 @@ const NexusBanniereStation = (function () {
       + ' alt="La station ViTO de Sainte-Marie : auvent, totem et végétation tropicale"'
       + ' onerror="' + (o.surErreur || '') + 'this.parentNode.remove()"></div>';
   }
+  // En-tête commun aux cinq pages Manager (Guardian 6739596255, 09/11/2026) : modèle de Contrôle
+  // inventaire, posé UNE fois ici. Photo centrée derrière le texte, dégradé qui laisse lire le titre,
+  // pastille Menu opaque. Chaque page ne règle que son cadrage : .header{--banniere-cadrage:X% Y%}.
+  const CSS_ENTETE = [
+    '.header{padding:18px 20px 14px;position:relative;min-height:150px;overflow:hidden}',
+    '.header>.am-banniere{position:absolute;inset:0;z-index:0;overflow:hidden;-webkit-mask-image:linear-gradient(to bottom,black 70%,transparent 100%);mask-image:linear-gradient(to bottom,black 70%,transparent 100%)}',
+    '.header>.am-banniere img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:var(--banniere-cadrage,85% 58%)}',
+    '.header>.am-banniere::after{content:"";position:absolute;inset:0;background:linear-gradient(to right,var(--bg) 0%,var(--bg) 18%,transparent 75%);opacity:.92;pointer-events:none}',
+    '.header>.am-banniere img.am-fondu{opacity:0;transition:opacity 800ms ease}',
+    '.header>.am-banniere img.am-fondu-visible{opacity:1}',
+    '@media (prefers-reduced-motion:reduce){.header>.am-banniere img.am-fondu{transition:none}}',
+    '.header>.entete-texte{position:relative;z-index:1;max-width:600px}',
+    '.header>.menu-btn{position:absolute;top:18px;right:18px;z-index:5;display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10.5px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;color:var(--cyan);background:var(--panel);border:1px solid rgba(var(--cyan-rgb,34,211,238),.3);border-radius:20px;padding:7px 12px;text-decoration:none;white-space:nowrap}',
+    'body:not(.nexus-desktop) .header>.am-banniere{inset:0 0 auto 0;height:170px}',
+    'body:not(.nexus-desktop) .header>.am-banniere::after{background:linear-gradient(to right,var(--bg) 0%,var(--bg) 55%,transparent 100%),linear-gradient(to bottom,transparent 45%,var(--bg) 100%);opacity:.95}',
+    'body:not(.nexus-desktop) .header>.entete-texte{max-width:none}',
+    'body:not(.nexus-desktop) .header>.entete-texte .eyebrow{padding-right:96px}',
+    ':root[data-theme="jour"] .header>.am-banniere::after{background:linear-gradient(to right,var(--panel) 0%,var(--panel) 50%,transparent 100%),linear-gradient(to bottom,transparent 45%,var(--panel) 100%);opacity:.96}',
+    ':root[data-theme="jour"] body:not(.nexus-desktop) .header>.am-banniere::after{background:linear-gradient(to right,var(--panel) 0%,var(--panel) 62%,transparent 100%),linear-gradient(to bottom,transparent 45%,var(--panel) 100%);opacity:.96}',
+    ':root[data-theme="jour"] .header>.menu-btn{background:var(--panel);border:1px solid var(--line);color:var(--text)}'
+  ].join('\n');
+  try {
+    if (typeof document !== 'undefined' && document.head && !document.getElementById('nexus-entete-banniere')) {
+      const st = document.createElement('style');
+      st.id = 'nexus-entete-banniere';
+      st.textContent = CSS_ENTETE;
+      document.head.insertBefore(st, document.head.firstChild);
+    }
+  } catch (e) {}
   // Observe data-theme : à chaque changement, la photo suit le thème.
   let observe = false;
   function suivreTheme() {
@@ -96,6 +125,6 @@ const NexusBanniereStation = (function () {
         .observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
     } catch (e) {}
   }
-  return { SITES_BANNIERE_VITO, SITE_APERCU_BANNIERE, FONDU_MS, photoNuit, base, apercuDemande, siteAvecBanniere, changerPhoto, html, suivreTheme };
+  return { SITES_BANNIERE_VITO, SITE_APERCU_BANNIERE, FONDU_MS, photoNuit, base, apercuDemande, siteAvecBanniere, changerPhoto, html, suivreTheme, CSS_ENTETE };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = NexusBanniereStation;
