@@ -366,6 +366,7 @@
 <script src="nexus-verify-moteur.js?v=20260904-0104"></script>
 <script src="nexus-risques-moteur.js?v=20260904-0104"></script>
 <script src="nexus-conseiller.js?v=20260904-0104"></script>
+<script src="nexus-etats-conseiller.js"></script>
 <script src="nexus-conseiller-donnees.js?v=20260904-0104"></script>
 <script src="nexus-risques-donnees.js?v=20260904-0104"></script>
 </head>
@@ -879,17 +880,7 @@
       );
     }
     let PLANS_ACTION = [];
-    const ETAT_CLASS = {
-      "🔥 À AGIR": "etat-agir", "📈 OPPORTUNITÉ": "etat-opportunite",
-      "🟡 À SURVEILLER": "etat-surveiller", "🔴 À DÉCIDER": "etat-decider",
-      "💡 RECOMMANDATION": "etat-recommandation",
-      // Ajoutés le 28/07/2026 pour les candidats Caisse/Stock/Rappel
-      // (distribution de travail cross-domaine, voir NexusConseiller.
-      // normaliserCaissePersonne / normaliserStockRayon / normaliserRappel).
-      "🔴 CRITIQUE": "etat-agir", "🟡 À VÉRIFIER": "etat-surveiller",
-      "📦 À COMPTER": "etat-surveiller",
-      "⚠️ RAPPEL EN RETARD": "etat-agir", "📌 RAPPEL": "etat-recommandation",
-    };
+    const classeEtat = etat => NexusEtatsConseiller.classe(etat, 'cockpit');
     const MOTEUR_LABEL = { produits: 'Produits', marge: 'Marge+', tempo: 'Tempo', advisor: 'Signal', caisse: 'Caisse', stock: 'Stock', rappel: 'Rappel' };
     // Trace datee et chiffree de chaque decision validee — lue par Journal
     // NEXUS pour repondre a "qu'est-ce qui a ete fait aujourd'hui ?", et
@@ -969,7 +960,7 @@
       dernierAffichage = aAfficher;
       const el = document.getElementById('plansAction');
       el.innerHTML = aAfficher.map((p, i) => `
-        <div class="plan-card ${ETAT_CLASS[p.etat]||''}" id="plan-${i}">
+        <div class="plan-card ${classeEtat(p.etat)}" id="plan-${i}">
           <div class="plan-head" onclick="document.getElementById('plan-${i}').classList.toggle('open')">
             <span class="plan-etat">${p.urgence && p.nature ? `${p.urgence.toUpperCase()} · ${p.nature}` : p.etat}</span>
             <span class="plan-action-teaser">${p.decision}</span>
@@ -1086,12 +1077,11 @@
     // ligne compte uniquement les priorités identifiées, sans jugement sur
     // la santé globale de l'entreprise.
     // ------------------------------------------------------------
-    const ETATS_URGENTS = ['🔥 À AGIR', '🔴 CRITIQUE'];
     function renderBriefMini() {
       const el = document.getElementById('briefMini');
       if (!el) return;
       const total = dernierAffichage.length;
-      const nbUrgent = dernierAffichage.filter(p => ETATS_URGENTS.includes(p.etat)).length;
+      const nbUrgent = dernierAffichage.filter(p => NexusEtatsConseiller.urgent(p.etat)).length;
       const dateTexte = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase();
       let couleur, etatTexte;
       if (total === 0) {

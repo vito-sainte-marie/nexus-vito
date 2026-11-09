@@ -149,7 +149,11 @@ t('toute page qui charge nexus-desktop.js charge d\'abord nexus-icones.js', () =
   assert.ok(vues >= 40);
 });
 t('les lignes « valeur métier » à emoji ne sont pas touchées', () => {
-  ['🔥 À AGIR', '🟡 À SURVEILLER', '📈 OPPORTUNITÉ'].forEach(e => assert.ok(APP.includes(e), e));
+  // Lot 2 (Guardian 6747170262) : l'Accueil lit ces états par leur clé stable (nexus-etats-conseiller.js) ;
+  // les chaînes produites, emoji compris, restent celles du moteur.
+  ['agir', 'surveiller', 'opportunite'].forEach(k => assert.ok(new RegExp("NexusEtatsConseiller\\.est\\(c\\.etat, '" + k + "'\\)").test(APP), k));
+  const ENG = fs.readFileSync(path.join(__dirname, 'nexus-etats-conseiller.js'), 'utf8');
+  ['🔥 À AGIR', '🟡 À SURVEILLER', '📈 OPPORTUNITÉ'].forEach(e => assert.ok(ENG.includes(e), e));
 });
 const ANCIENS = ['icon-nexus-verify.png', 'icon-inventaire-24.png', 'icon-fdj-24.png', 'icon-missions.png', 'icon-planner.png'];
 const balisesNav = () => APP.match(/<img data-nexus-icone="mod-[^>]*>/g) || [];

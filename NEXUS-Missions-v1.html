@@ -24,6 +24,7 @@
 <script src="nexus-desktop.js?v=20260904-0104"></script>
 <script src="nexus-periodes.js?v=20260904-0104"></script>
 <script src="nexus-conseiller.js?v=20260904-0104"></script>
+<script src="nexus-etats-conseiller.js"></script>
 <script src="nexus-station.js?v=20260904-0104"></script>
 <script src="nexus-pilotes-inventaire.js?v=20261102-1"></script>
 <script src="nexus-fil-caisse.js?v=20261103-0002"></script>
@@ -905,11 +906,7 @@
   }
 
   let PLANS_ACTION = [];
-  const ETAT_CLASS = {
-    "🔥 À AGIR": "etat-agir", "📈 OPPORTUNITÉ": "etat-opportunite",
-    "🟡 À SURVEILLER": "etat-surveiller", "🔴 À DÉCIDER": "etat-decider",
-    "💡 RECOMMANDATION": "etat-recommandation",
-  };
+  const classeEtat = etat => NexusEtatsConseiller.classe(etat, 'missions');
   async function chargerValidees() {
     // Fenetre de 30 jours — meme regle que Centre d'Intelligence : une
     // recommandation validee reste masquee 30 jours, puis peut resurgir si la
@@ -952,7 +949,7 @@
     const aAfficher = disponibles.slice(0, 5);
 
     el.innerHTML = aAfficher.map((p, i) => `
-      <div class="plan-card ${ETAT_CLASS[p.etat]||''}" id="planm-${i}">
+      <div class="plan-card ${classeEtat(p.etat)}" id="planm-${i}">
         <div class="plan-head" onclick="document.getElementById('planm-${i}').classList.toggle('open')">
           <span class="plan-etat">${p.etat}</span>
           <span class="plan-action-teaser">${p.recommandation}</span>

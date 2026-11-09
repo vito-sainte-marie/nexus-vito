@@ -621,7 +621,7 @@
       urgence = 'Maintenant';
     }
     return {
-      candidate_id: c.candidate_id, ruleId: c.rule_id, rang: RANG_PRODUIT[c.etat] != null ? RANG_PRODUIT[c.etat] : 2,
+      candidate_id: c.candidate_id, ruleId: c.rule_id, rang: global.NexusEtatsConseiller ? global.NexusEtatsConseiller.rang(c.etat) : (RANG_PRODUIT[c.etat] != null ? RANG_PRODUIT[c.etat] : 2),
       moteur: 'produits',
       etat: c.etat, impact_eur: c.impact_eur, article: c.article, categorie: c.categorie,
       decision, pourquoi: `${c.verdict} ${c.situation}`,
