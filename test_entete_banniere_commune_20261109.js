@@ -53,8 +53,9 @@ Object.keys(PAGES).forEach(p => {
   });
 });
 
-const regleHauteur = c => /body\.nexus-desktop \.header\{min-height:220px\}/.test(c);
-t('le module fixe une hauteur minimale bureau commune de 220 px', () => { assert.ok(regleHauteur(BAN)); });
+const regleHauteur = c => /body\.nexus-desktop \.header\{min-height:260px\}/.test(c);
+const regleBureauDroite = c => /body\.nexus-desktop \.header>\.am-banniere\{left:auto;right:0;width:clamp\(560px,55%,900px\);[^}]*linear-gradient\(to right,transparent 0,#000 35%\)[^}]*mask-composite:intersect\}/.test(c);
+t('le module fixe une hauteur minimale bureau commune de 260 px', () => { assert.ok(regleHauteur(BAN)); });
 Object.keys(PAGES).forEach(p => {
   t(PAGES[p] + ' : .header sans bordure, rayon ni fond de carte', () => {
     const css = src[p].split('</style>').slice(0, -1).join('</style>').replace(/\/\*[\s\S]*?\*\//g, '');
@@ -69,7 +70,10 @@ t('Paye : actions bornées au bloc texte en bureau, pleine largeur en mobile', (
   assert.ok(/\.hero>\.topacts\{max-width:600px\}/.test(src['NEXUS-Paye-v1.html']));
   assert.ok(/\.hero>\.topacts\{max-width:none;position:fixed/.test(src['NEXUS-Paye-v1.html']));
 });
-garde('module : hauteur minimale bureau', BAN, regleHauteur, 'body.nexus-desktop .header{min-height:220px}', 'body.nexus-desktop .header{min-height:150px}');
+garde('module : hauteur minimale bureau', BAN, regleHauteur, 'body.nexus-desktop .header{min-height:260px}', 'body.nexus-desktop .header{min-height:150px}');
+t('module : en bureau, bannière bornée et ancrée à droite, bord gauche fondu', () => { assert.ok(regleBureauDroite(BAN)); });
+garde('module : largeur bornée en bureau', BAN, regleBureauDroite, 'left:auto;right:0;width:clamp(560px,55%,900px)', 'left:0;right:0;width:auto');
+garde('module : masques combinés en bureau (intersection)', BAN, regleBureauDroite, 'mask-composite:intersect}', 'mask-composite:add}');
 garde('Paye : plus de carte', src['NEXUS-Paye-v1.html'], c => /\.header\.hero\{[^}]*background:none;border:0;border-radius:0/.test(c), 'background:none;border:0;border-radius:0', 'background:none;border:1px solid var(--line);border-radius:13px');
 
 garde('module : bannière absolue pleine largeur', BAN, regleModule, '.header>.am-banniere{position:absolute;inset:0', '.header>.am-banniere{position:relative;inset:0');
