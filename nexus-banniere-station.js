@@ -99,6 +99,7 @@ const NexusBanniereStation = (function () {
     '@media (prefers-reduced-motion:reduce){.header>.am-banniere img.am-fondu{transition:none}}',
     '.header>.entete-texte{position:relative;z-index:1;max-width:600px}',
     '.header>.menu-btn{position:absolute;top:18px;right:18px;z-index:5;display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10.5px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;color:var(--cyan);background:var(--panel);border:1px solid rgba(var(--cyan-rgb,34,211,238),.3);border-radius:20px;padding:7px 12px;text-decoration:none;white-space:nowrap}',
+    'body.nexus-desktop .header{min-height:220px}',
     'body:not(.nexus-desktop) .header>.am-banniere{inset:0 0 auto 0;height:170px}',
     'body:not(.nexus-desktop) .header>.am-banniere::after{background:linear-gradient(to right,var(--bg) 0%,var(--bg) 55%,transparent 100%),linear-gradient(to bottom,transparent 45%,var(--bg) 100%);opacity:.95}',
     'body:not(.nexus-desktop) .header>.entete-texte{max-width:none}',

@@ -51,6 +51,25 @@ Object.keys(PAGES).forEach(p => {
   });
 });
 
+const regleHauteur = c => /body\.nexus-desktop \.header\{min-height:220px\}/.test(c);
+t('le module fixe une hauteur minimale bureau commune de 220 px', () => { assert.ok(regleHauteur(BAN)); });
+Object.keys(PAGES).forEach(p => {
+  t(PAGES[p] + ' : .header sans bordure, rayon ni fond de carte', () => {
+    const css = src[p].split('</style>').slice(0, -1).join('</style>').replace(/\/\*[\s\S]*?\*\//g, '');
+    const blocs = css.match(/(?:^|[},\n])\s*(?:\.header(?:\.hero)?)\s*\{[^}]*\}/g) || [];
+    blocs.forEach(b => { assert.ok(!/border(?:-radius)?\s*:\s*(?!0)/.test(b) && !/background\s*:\s*(?!none)/.test(b), 'carte résiduelle : ' + b.trim()); });
+  });
+});
+t('Paye : en-tête à plat (bordure, rayon et fond de la carte .hero neutralisés)', () => {
+  assert.ok(/\.header\.hero\{[^}]*background:none;border:0;border-radius:0/.test(src['NEXUS-Paye-v1.html']));
+});
+t('Paye : actions bornées au bloc texte en bureau, pleine largeur en mobile', () => {
+  assert.ok(/\.hero>\.topacts\{max-width:600px\}/.test(src['NEXUS-Paye-v1.html']));
+  assert.ok(/\.hero>\.topacts\{max-width:none;position:fixed/.test(src['NEXUS-Paye-v1.html']));
+});
+garde('module : hauteur minimale bureau', BAN, regleHauteur, 'body.nexus-desktop .header{min-height:220px}', 'body.nexus-desktop .header{min-height:150px}');
+garde('Paye : plus de carte', src['NEXUS-Paye-v1.html'], c => /\.header\.hero\{[^}]*background:none;border:0;border-radius:0/.test(c), 'background:none;border:0;border-radius:0', 'background:none;border:1px solid var(--line);border-radius:13px');
+
 garde('module : bannière absolue pleine largeur', BAN, regleModule, '.header>.am-banniere{position:absolute;inset:0', '.header>.am-banniere{position:relative;inset:0');
 garde('module : dégradé qui laisse lire le titre', BAN, regleModule, 'inset:0;background:linear-gradient(to right,var(--bg) 0%', 'inset:0;background:linear-gradient(to left,var(--bg) 0%');
 garde('module : cadrage lu dans la variable de page', BAN, regleModule, 'object-position:var(--banniere-cadrage', 'object-position:center var(--banniere-cadrage');

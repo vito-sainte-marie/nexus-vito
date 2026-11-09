@@ -47,7 +47,7 @@ function executer(src, siteId, search) {
 }
 const gabarit = h => /<div class="am-banniere"[^>]*><img /.test(h);
 const module_ = c => /<script src="nexus-banniere-station\.js[^"]*"><\/script>/.test(c);
-const photo = c => /\.header\{--banniere-cadrage:50% 45%\}/.test(c) && !/\.am-banniere\{/.test(c);
+const photo = c => /\.header\{--banniere-cadrage:85% 50%\}/.test(c) && !/\.am-banniere\{/.test(c);
 const photoModule = c => /\.header>\.am-banniere\{position:absolute;inset:0;z-index:0;overflow:hidden;/.test(c);
 const pastille = c => /'\.header>\.menu-btn\{[^}]*z-index:5;[^}]*background:var\(--panel\)/.test(c);
 const menuMarque = c => /<div class="header">\s*<a href="NEXUS-App-v1\.html" class="menu-btn">☰ Menu<\/a>/.test(c);
@@ -85,7 +85,7 @@ garde('mutation : sans data-photo-nuit', HTML, s => executer(s, 'vito-sainte-mar
 garde('mutation : sans data-photo-jour', HTML, s => executer(s, 'vito-sainte-marie', '').includes('data-photo-jour="assets/pompiste/releve-index-1200.webp"'), ' data-photo-jour="${b}-1200.webp"', '');
 garde('mutation : autre photo', HTML, s => executer(s, 'vito-sainte-marie', '').includes('releve-index-800.webp 800w'), "'assets/pompiste/releve-index'", "'assets/pompiste/jaugeage'");
 garde('module partagé', HTML, module_, '<script src="nexus-banniere-station.js', '<script src="autre-module.js');
-garde('cadrage de la photo', HTML, photo, '--banniere-cadrage:50% 45%', '--banniere-cadrage:0% 0%');
+garde('cadrage de la photo', HTML, photo, '--banniere-cadrage:85% 50%', '--banniere-cadrage:0% 0%');
 garde('photo en fond de l\u2019en-tête', BAN, photoModule, '.header>.am-banniere{position:absolute;inset:0;z-index:0;', '.header>.am-banniere{position:relative;z-index:0;');
 garde('pastille opaque (module commun)', BAN, pastille, 'z-index:5;display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10.5px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;color:var(--cyan);background:var(--panel)', 'z-index:5;display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10.5px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;color:var(--cyan);background:rgba(79,195,217,0.1)');
 garde('Menu en pastille de l\u2019en-tête', HTML, menuMarque, '<a href="NEXUS-App-v1.html" class="menu-btn">', '<a href="NEXUS-App-v1.html" class="menu-x">');

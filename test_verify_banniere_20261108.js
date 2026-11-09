@@ -30,7 +30,7 @@ const texteMarque = c => /<div class="entete-texte">/.test(c);
 const jour = c => /:root\[data-theme="jour"\] \.header>\.am-banniere::after\{/.test(c);
 const fondu = c => /img\.am-fondu\{opacity:0;transition:opacity 800ms ease\}/.test(c) && /img\.am-fondu-visible\{opacity:1\}/.test(c);
 const reduit = c => /prefers-reduced-motion:reduce\)\{\.header>\.am-banniere img\.am-fondu\{transition:none\}\}/.test(c);
-const cadrage = c => /\.header\{--banniere-cadrage:80% 40%\}/.test(c);
+const cadrage = c => /\.header\{--banniere-cadrage:78% 25%\}/.test(c);
 const menuMarque = c => /<div class="header">\s*<a href="NEXUS-App-v1\.html" class="menu-btn">☰ Menu<\/a>/.test(c);
 const menuCss = c => /\.header>\.menu-btn\{position:absolute;top:18px;right:18px;z-index:5;[^}]*background:var\(--panel\)/.test(c);
 
@@ -70,7 +70,7 @@ garde('bannière derrière le texte', BAN, css, 'inset:0;z-index:0;overflow:hidd
 garde('masque', BAN, masque, '-webkit-mask-image:linear-gradient(to bottom,black 70%,transparent 100%);mask-image:linear-gradient(to bottom,black 70%', '-webkit-mask-image:none;mask-image:none;x:linear-gradient(to bottom,black 70%');
 garde('texte au-dessus', BAN, texteDessus, '.header>.entete-texte{position:relative;z-index:1;', '.header>.entete-texte{position:relative;');
 garde('Jour : dégradé propre', BAN, jour, ':root[data-theme="jour"] .header>.am-banniere::after{', ':root[data-theme="jour"] .header>.x::after{');
-garde('cadrage Verify', H, cadrage, '--banniere-cadrage:80% 40%', '--banniere-cadrage:0% 0%');
+garde('cadrage Verify', H, cadrage, '--banniere-cadrage:78% 25%', '--banniere-cadrage:0% 0%');
 garde('Menu dans l\u2019en-tête', H, menuMarque, '<div class="header">\n    <a href="NEXUS-App-v1.html" class="menu-btn">', '<div class="header">\n    <a href="NEXUS-App-v1.html" class="menu-x">');
 garde('fondu', BAN, fondu, 'transition:opacity 800ms ease}', 'transition:none}');
 garde('mouvement réduit', BAN, reduit, '.am-fondu{transition:none}}', '.am-fondu{transition:opacity 800ms}}');

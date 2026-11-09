@@ -241,7 +241,7 @@ const fin2 = src.slice(f2i, src.indexOf('</style>', f2i));
 verifier('finition 2 : onglets de la fiche sans débordement, mois en Sans, compteur actif sans bordure',
   /\.ftab\{flex:0 0 auto;font-size:13px;padding:0 12px\}/.test(fin2) && /\.monthnav strong\{font:600 15px var\(--sans\)/.test(fin2) && /\.kpi3 button\.kpi\.actif\{border:0/.test(fin2));
 verifier('finition 2 : iPhone, photo en bandeau au-dessus du titre (rien dessus), actions en barre fixe, « + » rond',
-  /body:not\(\.nexus-desktop\) \.header>\.am-banniere\{inset:0 0 auto 0;height:170px\}/.test(ban) && /\.hero>\.topacts\{position:fixed;left:0;right:0;bottom:0/.test(fin2)
+  /body:not\(\.nexus-desktop\) \.header>\.am-banniere\{inset:0 0 auto 0;height:170px\}/.test(ban) && /\.hero>\.topacts\{max-width:none;position:fixed;left:0;right:0;bottom:0/.test(fin2)
   && /\.btn\.nouveau\{position:fixed;[^}]*border-radius:50%/.test(fin2) && /aria-label="Nouvelle saisie"/.test(src));
 verifier('finition 2 : iPhone, une ligne de 64 px par salarié (statut à droite), liens de source à 44 px',
   /min-height:64px/.test(fin2) && /td\[data-col="Statut"\]\{grid-column:3;grid-row:1 \/ 3/.test(fin2) && /<a class="source-link" href="\$\{ECHAPPE\(lienAnalyseEcarts\(\)\)\}"/.test(src));
