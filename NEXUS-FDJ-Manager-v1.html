@@ -51,7 +51,7 @@
   .phone{width:100%; max-width:460px; min-height:100vh; display:flex; flex-direction:column; border-left:1px solid var(--hairline); border-right:1px solid var(--hairline); padding-top:env(safe-area-inset-top); padding-bottom:env(safe-area-inset-bottom);}
 
   .header{padding:24px 20px 14px; position:relative;}
-  .header{--banniere-cadrage:72% 50%}
+  .header{--banniere-cadrage:72% 50%;--banniere-cadrage-tel:100% 50%}
   .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--cyan);}
   .title{font-size:22px; font-weight:600; margin-top:4px;}
   .horodateur-discret{font-family:var(--mono); font-size:12px; color:var(--text-dim); margin-top:8px;}
@@ -7029,6 +7029,7 @@
         if (typeof NexusBanniereStation !== 'undefined' && NexusBanniereStation.siteAvecBanniere(siteId, NexusBanniereStation.apercuDemande())) {
           const b = 'assets/fdj/fdj-operations';
           document.querySelector('.header').insertAdjacentHTML('afterbegin', `<div class="am-banniere" data-photo-jour="${b}-1200.webp" data-photo-nuit="${b}-1200.webp"><img src="${b}-800.webp" srcset="${b}-800.webp 800w, ${b}-1200.webp 1200w, ${b}-1600.webp 1600w" sizes="(max-width:460px) 100vw, 50vw" width="800" height="267" alt="" decoding="async" onerror="this.parentNode.remove()"></div>`);
+          if (NexusBanniereStation.sourceTelephone) NexusBanniereStation.sourceTelephone(document.querySelector('.header > .am-banniere, #heroCarburants > .am-banniere'), 'assets/telephone/fdj-operations-telephone.webp');
           if (NexusBanniereStation.suivreTheme) NexusBanniereStation.suivreTheme();
         }
       } catch (_) { /* la banniere est decorative */ }

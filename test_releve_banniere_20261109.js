@@ -47,7 +47,7 @@ function executer(src, siteId, search) {
 }
 const gabarit = h => /<div class="am-banniere"[^>]*><img /.test(h);
 const module_ = c => /<script src="nexus-banniere-station\.js[^"]*"><\/script>/.test(c);
-const photo = c => /\.header\{--banniere-cadrage:85% 12%\}/.test(c) && !/\.am-banniere\{/.test(c);
+const photo = c => /\.header\{--banniere-cadrage:85% 12%(?:;--banniere-cadrage-tel:\d+% \d+%)?\}/.test(c) && !/\.am-banniere\{/.test(c);
 const photoModule = c => /\.header>\.am-banniere\{position:absolute;inset:0;z-index:0;overflow:hidden;/.test(c);
 const pastille = c => /'\.header>\.menu-btn\{[^}]*z-index:5;[^}]*background:var\(--panel\)/.test(c);
 const menuMarque = c => /<div class="header">\s*<a href="NEXUS-App-v1\.html" class="menu-btn">☰ Menu<\/a>/.test(c);

@@ -44,7 +44,7 @@ function executer(src, siteId, search) {
   return posé.join('');
 }
 const gabarit = h => /<div class="am-banniere"[^>]*><img /.test(h);
-const cadrage = c => /\.header\{--banniere-cadrage:72% 50%\}/.test(c);
+const cadrage = c => /\.header\{--banniere-cadrage:72% 50%(?:;--banniere-cadrage-tel:\d+% \d+%)?\}/.test(c);
 const module_ = c => /<script src="nexus-banniere-station\.js[^"]*"><\/script>/.test(c);
 const photoJN = c => { const h = executer(c, 'vito-sainte-marie', ''); return h.includes('data-photo-jour="assets/fdj/fdj-operations-1200.webp"') && h.includes('data-photo-nuit="assets/fdj/fdj-operations-1200.webp"'); };
 

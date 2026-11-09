@@ -69,6 +69,28 @@ const NexusBanniereStation = (function () {
       pre.src = src;
     });
   }
+  // Source téléphone OPTIONNELLE d'une bannière d'en-tête (Guardian 6744785761, 09/11/2026) : une image
+  // recadrée pour l'écran étroit (960x480, sujet dans les 60 % de droite). Sans source, la bannière garde
+  // exactement son comportement actuel. Le bureau n'est pas touché : la source ne vaut que sous 600 px.
+  const MEDIA_TELEPHONE = '(max-width:599px)';
+  function sourceTelephone(ban, tel) {
+    try {
+      if (!ban || !tel) return false;
+      const img = ban.querySelector('img');
+      if (!img || (img.parentNode && img.parentNode.tagName === 'PICTURE')) return false;
+      const pic = document.createElement('picture');
+      const src = document.createElement('source');
+      src.setAttribute('media', MEDIA_TELEPHONE);
+      src.setAttribute('srcset', tel);
+      img.parentNode.insertBefore(pic, img);
+      pic.appendChild(src);
+      pic.appendChild(img);
+      // Le <picture> s'interpose : en cas d'échec de l'image, c'est toute la bannière qui est retirée.
+      img.setAttribute('onerror', "this.closest('.am-banniere').remove()");
+      ban.classList.add('am-tel');
+      return true;
+    } catch (e) { return false; }
+  }
   // Le HTML de la bannière : vide hors des sites de la liste (et hors aperçu Test).
   function html(siteId, o) {
     o = o || {};
@@ -99,6 +121,7 @@ const NexusBanniereStation = (function () {
     '@media (prefers-reduced-motion:reduce){.header>.am-banniere img.am-fondu{transition:none}}',
     '.header>.entete-texte{position:relative;z-index:1;max-width:600px}',
     '.header>.menu-btn{position:absolute;top:18px;right:18px;z-index:5;display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10.5px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;color:var(--cyan);background:var(--panel);border:1px solid rgba(var(--cyan-rgb,34,211,238),.3);border-radius:20px;padding:7px 12px;text-decoration:none;white-space:nowrap}',
+    '@media (max-width:599px){.header>.am-banniere.am-tel img{object-position:var(--banniere-cadrage-tel,100% 50%)}}',
     'body.nexus-desktop .header{min-height:260px}',
     'body.nexus-desktop .header>.am-banniere{left:auto;right:0;width:clamp(560px,55%,900px);-webkit-mask-image:linear-gradient(to right,transparent 0,#000 35%),linear-gradient(to bottom,#000 70%,transparent 100%);mask-image:linear-gradient(to right,transparent 0,#000 35%),linear-gradient(to bottom,#000 70%,transparent 100%);-webkit-mask-composite:source-in;mask-composite:intersect}',
     'body.nexus-desktop .header>.am-banniere::after,:root[data-theme="jour"] body.nexus-desktop .header>.am-banniere::after{background:none}',
@@ -128,6 +151,6 @@ const NexusBanniereStation = (function () {
         .observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
     } catch (e) {}
   }
-  return { SITES_BANNIERE_VITO, SITE_APERCU_BANNIERE, FONDU_MS, photoNuit, base, apercuDemande, siteAvecBanniere, changerPhoto, html, suivreTheme, CSS_ENTETE };
+  return { SITES_BANNIERE_VITO, SITE_APERCU_BANNIERE, FONDU_MS, photoNuit, base, apercuDemande, siteAvecBanniere, changerPhoto, html, suivreTheme, sourceTelephone, MEDIA_TELEPHONE, CSS_ENTETE };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = NexusBanniereStation;

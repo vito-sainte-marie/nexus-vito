@@ -25,7 +25,7 @@ const PAGES = {
 };
 const src = {}; Object.keys(PAGES).forEach(p => { src[p] = lire(p); });
 
-const regleModule = c => /CSS_ENTETE/.test(c) && /\.header>\.am-banniere\{position:absolute;inset:0/.test(c) && /\.header>\.am-banniere::after\{content:\"\";position:absolute;inset:0;background:linear-gradient\(to right,var\(--bg\) 0%/.test(c) && /object-position:var\(--banniere-cadrage/.test(c);
+const regleModule = c => /CSS_ENTETE/.test(c) && /\.header>\.am-banniere\{position:absolute;inset:0/.test(c) && /\.header>\.am-banniere::after\{content:\"\";position:absolute;inset:0;background:linear-gradient\(to right,var\(--bg\) 0%/.test(c) && /object-position:var\(--banniere-cadrage,/.test(c);
 const regleMenu = c => /\.header>\.menu-btn\{position:absolute;top:18px;right:18px;z-index:5/.test(c);
 const regleInjection = c => /id[=\s'"]*nexus-entete-banniere/.test(c) || /nexus-entete-banniere/.test(c);
 const regleTexte = c => /\.header>\.entete-texte\{position:relative;z-index:1/.test(c);
@@ -47,7 +47,7 @@ Object.keys(PAGES).forEach(p => {
     assert.ok(!/\.am-banniere\s*\{/.test(H), '.am-banniere local');
     assert.ok(!/\.hero-haut|\.menu-pastille|\.am-fondu/.test(H.replace(/<script[\s\S]*?<\/script>/g, s => s.includes('classList') ? '' : s).split('</style>')[0]), 'règle locale résiduelle');
   });
-  t(nom + ' : ne règle que son cadrage', () => { assert.ok(/\.header\{--banniere-cadrage:\d+% \d+%;?\}/.test(H)); });
+  t(nom + ' : ne règle que son cadrage', () => { assert.ok(/\.header\{--banniere-cadrage:\d+% \d+%(?:;--banniere-cadrage-tel:\d+% \d+%)?;?\}/.test(H)); });
   t(nom + ' : en-tête = pastille Menu puis bloc texte', () => {
     assert.ok(/<(?:header|div) class="header[^"]*"[^>]*>\s*<a (?:class="menu-btn" href="NEXUS-App-v1\.html"|href="NEXUS-App-v1\.html" class="menu-btn")>☰ Menu<\/a>[\s\S]{0,400}?<div class="entete-texte">/.test(H));
   });
@@ -81,6 +81,6 @@ garde('module : dégradé qui laisse lire le titre', BAN, regleModule, 'inset:0;
 garde('module : cadrage lu dans la variable de page', BAN, regleModule, 'object-position:var(--banniere-cadrage', 'object-position:center var(--banniere-cadrage');
 garde('module : pastille Menu en haut à droite, au-dessus', BAN, regleMenu, 'top:18px;right:18px;z-index:5', 'top:18px;right:18px;z-index:0');
 garde('module : texte au-dessus de la photo', BAN, regleTexte, '.header>.entete-texte{position:relative;z-index:1', '.header>.entete-texte{position:relative;z-index:0');
-garde('page Verify : cadrage propre', src['NEXUS-Verify-v1.html'], c => /\.header\{--banniere-cadrage:\d+% \d+%;?\}/.test(c), '--banniere-cadrage:', '--cadrage-x:');
+garde('page Verify : cadrage propre', src['NEXUS-Verify-v1.html'], c => /\.header\{--banniere-cadrage:\d+% \d+%(?:;--banniere-cadrage-tel:\d+% \d+%)?;?\}/.test(c), '--banniere-cadrage:', '--cadrage-x:');
 garde('page Paye : bloc texte', src['NEXUS-Paye-v1.html'], c => /<div class="entete-texte">/.test(c), '<div class="entete-texte">', '<div class="texte">');
 console.log(n + ' épreuves OK');
