@@ -92,11 +92,17 @@
   // manuel, toujours ce même libellé factuel — "vocabulaire à éviter" du
   // cadrage : jamais "faute", "dette", "anomalie employé", "manque
   // salarié").
-  function libelleEcartRestant(ecartFinal) {
+  function libelleEcartRestant(ecartFinal, statut) {
     if (ecartFinal === null || ecartFinal === undefined) return null;
+    // Le libellé suit le STATUT, jamais le signe seul : avant clôture
+    // l'écart est « à vérifier », après clôture sans cause il est « non
+    // expliqué ». Statut absent (appel historique) : « non expliqué ».
+    // Un excédent n'est jamais vert (ce n'est pas une bonne nouvelle) :
+    // ambre ; un manque reste rouge. Affichage seul : aucun calcul.
+    const aVerifier = statut === 'a_verifier';
     return ecartFinal > 0
-      ? { emoji: '🟢', texte: 'Excédent non expliqué', classe: 'green' }
-      : { emoji: '🔴', texte: 'Manque non expliqué', classe: 'red' };
+      ? { emoji: '', texte: aVerifier ? 'Excédent à vérifier' : 'Excédent non expliqué', classe: 'amber', couleur: 'var(--amber,#F5A623)' }
+      : { emoji: '', texte: aVerifier ? 'Manque à vérifier' : 'Manque non expliqué', classe: 'red', couleur: 'var(--red,#F0575A)' };
   }
 
   // ------------------------------------------------------------

@@ -108,12 +108,12 @@ function construireContexte() {
   // 'restant' : écart final non nul (positif) -> bandeau "Excédent non
   // expliqué", AUCUN select, jamais un choix forcé.
   const h3 = blocMotifValidationHtml('piste', 7, 15, 15);
-  assert.ok(h3.includes('🟢 Excédent non expliqué'), 'libellé exact "Excédent non expliqué" attendu (jamais "faute"/"dette"/"anomalie employé") : ' + h3);
+  assert.ok(h3.includes('Excédent à vérifier') && !h3.includes('🟢'), 'libellé « Excédent à vérifier » (formulaire avant clôture, jamais vert) attendu (jamais "faute"/"dette"/"anomalie employé") : ' + h3);
   assert.ok(!h3.includes('<select'), 'aucun menu déroulant pour un écart restant : jamais un choix forcé : ' + h3);
 
   // 'restant' négatif -> "Manque non expliqué".
   const h4 = blocMotifValidationHtml('boutique', 2, -9, -9);
-  assert.ok(h4.includes('🔴 Manque non expliqué'), 'libellé exact "Manque non expliqué" attendu : ' + h4);
+  assert.ok(h4.includes('Manque à vérifier'), 'libellé « Manque à vérifier » attendu : ' + h4);
 
   ok('blocMotifValidationHtml — 3 situations conformes au cadrage (aucun bloc / menu Verify propre + remboursement conditionnel / bandeau factuel jamais forcé)');
 }
@@ -145,7 +145,7 @@ function construireContexte() {
   // malgré tout (situation = 'restant' dès que le final est non nul).
   const auditRestantLegacy = { id: 'legacy2', ecart_piste: 6 };
   const out3 = renderFormValidationCaisse(auditRestantLegacy, 2, 'piste');
-  assert.ok(out3.includes('Excédent non expliqué'), 'écart restant toujours signalé même sans origine connue : ' + out3);
+  assert.ok(out3.includes('Excédent à vérifier'), 'écart restant toujours signalé même sans origine connue : ' + out3);
 
   ok('renderFormValidationCaisse — bloc motif intégré au rendu initial, origine immuable posée en attribut, jamais de fausse précision sur les audits antérieurs à la migration');
 }
@@ -174,7 +174,7 @@ function construireContexte() {
   // 'corrige_a_zero' puisque final=origine=12 ≠ 0).
   input.value = '12,00';
   majBlocMotifValidation('piste', 4);
-  assert.ok(zone.innerHTML.includes('Excédent non expliqué'), 'en repassant à 12,00 (= origine), la situation redevient "restant" (écart non nul) : ' + zone.innerHTML);
+  assert.ok(zone.innerHTML.includes('Excédent à vérifier'), 'en repassant à 12,00 (= origine), la situation redevient "restant" (écart non nul) : ' + zone.innerHTML);
 
   // Virgule française acceptée (numFR).
   input.dataset.origine = '-8';
