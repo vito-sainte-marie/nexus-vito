@@ -7,7 +7,7 @@ function garde(nom, src, regle, lit, rempl) { t(nom, () => { assert.ok(regle(src
 const F = 'NEXUS-Carburants-Pilotage-v1.html';
 const SRC = fs.readFileSync(path.join(__dirname, F), 'utf8');
 const SANS_COM = s => s.replace(/\/\*[\s\S]*?\*\//g, '');
-const INVARIANTS = new Set(['--safe-top', '--safe-bottom', '--mono', '--sans', '--icone-pompe', '--carb-couleur', '--ombre-carte', '--halo-statut']);
+const INVARIANTS = new Set(['--safe-top', '--safe-bottom', '--mono', '--sans', '--icone-pompe', '--carb-couleur', '--ombre-carte', '--halo-statut', '--teinte-moyenne']);
 const estCouleur = v => /#[0-9a-f]{3,8}\b|rgba?\(/i.test(v);
 function jetons(src, entete) {
   const out = {}; const s = SANS_COM(src);

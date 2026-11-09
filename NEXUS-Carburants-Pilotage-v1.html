@@ -685,6 +685,22 @@
   .carb-stat-row .ecart-caveat{height:24px; min-height:24px; line-height:1; padding:0 4px; margin:0; font-size:13px;}
   .carb-bloc-autonomie .carb-autonomie-bloc{padding:0; border-top:0; font-size:13px;}
   .carb-bloc-autonomie .carb-autonomie-bloc .val{font-family:var(--sans); font-size:13px; font-weight:600; color:var(--text);}
+  /* Autonomie (Guardian 6727381702) : la valeur ET tout élément intérieur (scénarios de livraison, spans en ligne) restent en sans ; seuls les chiffres des autres lignes sont en mono. */
+  .carb-bloc-autonomie .carb-autonomie-bloc .val,.carb-bloc-autonomie .carb-autonomie-bloc .val *{font-family:var(--sans);}
+  /* « Moyenne vendue » mise en évidence (Guardian 6727381702) : bandeau translucide teinté de la couleur du carburant, filet de 2 px à gauche, valeur à 15 px. La note de couverture reste dessous, hors du bandeau. */
+  .carb-ventes-ligne.carb-ventes-moyenne{--teinte-moyenne:8%; position:relative; overflow:hidden; box-sizing:border-box; min-height:38px; margin:6px 0 2px; padding:0 12px; border-left:2px solid var(--carb-couleur, var(--cyan)); border-radius:10px;
+    background:linear-gradient(90deg, color-mix(in srgb, var(--carb-couleur, var(--cyan)) var(--teinte-moyenne), transparent) 0, color-mix(in srgb, var(--carb-couleur, var(--cyan)) calc(var(--teinte-moyenne) * .3), transparent) 100%);}
+  :root[data-theme="jour"] .carb-ventes-ligne.carb-ventes-moyenne{--teinte-moyenne:10%;}
+  .carb-ventes-ligne.carb-ventes-moyenne > span:first-child{color:var(--text);}
+  .carb-ventes-ligne.carb-ventes-moyenne .val{font-size:15px; font-weight:700; color:var(--text);}
+  .carb-ventes-ligne.carb-ventes-moyenne::after{content:''; position:absolute; inset:0; pointer-events:none; opacity:0; background:linear-gradient(100deg, transparent 25%, color-mix(in srgb, var(--text) 9%, transparent) 50%, transparent 75%);}
+  @media (hover:hover) and (min-width:821px){
+    .carb-ventes-ligne.carb-ventes-moyenne::after{transition:opacity .25s ease;}
+    .carb-ventes-ligne.carb-ventes-moyenne:hover::after{opacity:1;}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .carb-ventes-ligne.carb-ventes-moyenne::after{transition:none; display:none;}
+  }
   .carb-pills{margin-top:auto; padding-top:14px; gap:8px;}
   .carb-pills .carb-fiab-row{display:flex; align-items:center; gap:8px; height:40px; min-height:40px; margin:0; padding:0 12px; border:1px solid var(--hairline); border-radius:10px; font-size:12px;}
   .carb-pills .carb-rapprochement-libelle{flex:1 1 auto;}
@@ -1670,7 +1686,7 @@
       ? `<div class="carb-ventes-couverture">7 derniers jours · ${v.jours} jour${v.jours > 1 ? 's' : ''} avec données, dont ${v.partiels} partiel${v.partiels > 1 ? 's' : ''}</div>` : '';
     return `<div class="carb-bloc-titre">Ventes</div>
             <div class="carb-ventes-ligne"><span>Vendu hier</span><span class="val">${hierTxt}</span></div>
-            <div class="carb-ventes-ligne"><span>Moyenne vendue</span><span class="val">${moyTxt}</span></div>
+            <div class="carb-ventes-ligne carb-ventes-moyenne"><span>Moyenne vendue</span><span class="val">${moyTxt}</span></div>
             ${couv}`;
   }
 
