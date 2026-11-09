@@ -117,13 +117,19 @@
     return neutre(etat);
   }
 
-  // Regroupe sans renuméroter : { gains, risques }, chaque élément garde son index d'origine et l'ordre relatif.
+  // Regroupe sans renuméroter : { gains, risques, autres }, chaque élément garde son index d'origine et l'ordre relatif.
+  // Affichage seulement : gains = gain() vrai ; risques = critique, verifier, surveiller, decider, exclu ;
+  // autres = tempo, signal, rappels, compter, variantes stock, inconnus. Les TOTAUX du Brief restent calculés
+  // par gain() seul (tout ce qui n'est pas un gain, « autres » compris, compte dans le risque).
   function grouper(decisions) {
-    var E = global.NexusEtatsConseiller, g = [], r = [];
+    var E = global.NexusEtatsConseiller, g = [], r = [], a = [];
     (decisions || []).forEach(function (p, i) {
-      (E && E.gain(p.etat) ? g : r).push({ p: p, i: i });
+      var x = { p: p, i: i };
+      if (E && E.gain(p.etat)) g.push(x);
+      else if (E && ['critique', 'verifier', 'surveiller', 'decider', 'exclu'].some(function (k) { return E.est(p.etat, k); })) r.push(x);
+      else a.push(x);
     });
-    return { gains: g, risques: r };
+    return { gains: g, risques: r, autres: a };
   }
 
   injecterCss();

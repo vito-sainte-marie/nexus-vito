@@ -1235,7 +1235,7 @@
           <div class="decision-chips">
             <span class="decision-chip">📅 ${p.quandAgir}</span>
             <span class="decision-chip ${p.niveauDeConfiance === 'Élevé' ? 'confiance-eleve' : 'confiance-moyen'}">Confiance : ${p.niveauDeConfiance}</span>
-            <span class="decision-chip">${NexusMoteursRegistre.nomPublic(p.moteur) || 'Signal'}</span>
+            ${(() => { const m = NexusMoteursRegistre.nomPublic(p.moteur) || 'Signal'; const entete = NexusBadgeEtat.rendu(p.etat, {}).replace(/<[^>]*>/g, '').trim().toLowerCase(); return m.trim().toLowerCase() === entete ? '' : `<span class="decision-chip">${m}</span>`; })()}
           </div>
           ${p.validable
             ? `<button class="decision-valider" data-id="${p.candidate_id}">✓ Accepter cette décision</button>`
@@ -1264,7 +1264,7 @@
         ${(() => {
           const g = NexusBadgeEtat.grouper(brief.decisions);
           const groupe = (titre, items) => items.length ? `<div class="nbe-groupe-titre">${titre}</div>` + items.map(x => decisionCardHTML(x.p, x.i, x.i === 0)).join('') : '';
-          return groupe('Gains', g.gains) + groupe('Risques', g.risques);
+          return groupe('Gains', g.gains) + groupe('Risques', g.risques) + groupe('Autres signaux', g.autres);
         })()}
         <div class="section-note">Classement partagé entre 7 moteurs NEXUS (Produits, Marge+, Tempo, Signaux Qualité/Caisse, Verify, Scanner Stock, Rappels), filtré aux décisions stratégiques ou transversales — jamais un simple tri par montant, qui favoriserait toujours le même moteur. Délai et confiance (<span class="badge badge-derived" style="padding:1px 6px;">dérivé</span>) sont déduits du rang de priorité, pas mesurés directement.</div>
       </div>`;
