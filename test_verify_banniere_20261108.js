@@ -30,7 +30,7 @@ const texteMarque = c => /<div class="entete-texte">/.test(c);
 const jour = c => /:root\[data-theme="jour"\] \.header>\.am-banniere::after\{/.test(c);
 const fondu = c => /img\.am-fondu\{opacity:0;transition:opacity 800ms ease\}/.test(c) && /img\.am-fondu-visible\{opacity:1\}/.test(c);
 const reduit = c => /prefers-reduced-motion:reduce\)\{\.header>\.am-banniere img\.am-fondu\{transition:none\}\}/.test(c);
-const cadrage = c => /\.header\{--banniere-cadrage:78% 25%\}/.test(c);
+const cadrage = c => /\.header\{--banniere-cadrage:78% 25%(?:;--banniere-cadrage-tel:\d+% \d+%)?\}/.test(c);
 const menuMarque = c => /<div class="header">\s*<a href="NEXUS-App-v1\.html" class="menu-btn">☰ Menu<\/a>/.test(c);
 const menuCss = c => /\.header>\.menu-btn\{position:absolute;top:18px;right:18px;z-index:5;[^}]*background:var\(--panel\)/.test(c);
 

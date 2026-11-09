@@ -537,7 +537,7 @@
   :root[data-theme="jour"]{--bg:#F4F6F8; --panel:#FFFFFF; --panel-raised:#EEF2F5; --hairline:#D5DCE3; --text:#0F172A; --text-mid:#475569; --text-dim:#5F6B78; --cyan:#0B7285; --green:#0B7A54; --amber:#B45309; --yellow:#8A6A00; --yellow-dim:#FEF3C7; --surf:#FFFFFF;}
   :root:not([data-theme="jour"]){--text-dim:#808C9B;}
   body.nexus-desktop .phone{max-width:1180px;}
-  .header{--banniere-cadrage:60% 35%;}
+  .header{--banniere-cadrage:60% 35%;--banniere-cadrage-tel:100% 55%}
   .hero>.topacts{position:relative; z-index:1;}
   .hero .fil{font-family:var(--mono); font-size:11px; letter-spacing:0.08em; color:var(--text-mid);}
   .hero .fil a{color:var(--cyan); text-decoration:none;}
@@ -4915,6 +4915,7 @@
           const haut = document.querySelector('#heroCarburants');
           const b = 'assets/pompiste/jaugeage';
           haut.insertAdjacentHTML('afterbegin', `<div class="am-banniere" data-photo-jour="${b}-1200.webp" data-photo-nuit="${b}-1200.webp"><img src="${b}-800.webp" srcset="${b}-800.webp 800w, ${b}-1200.webp 1200w, ${b}-1600.webp 1600w" sizes="(max-width:820px) 100vw, 50vw" width="800" height="450" alt="" decoding="async" onerror="this.parentNode.remove()"></div>`);
+          if (NexusBanniereStation.sourceTelephone) NexusBanniereStation.sourceTelephone(document.querySelector('.header > .am-banniere, #heroCarburants > .am-banniere'), 'assets/telephone/carburants-performance-telephone.webp');
           if (NexusBanniereStation.suivreTheme) NexusBanniereStation.suivreTheme();
         }
       } catch (_) { /* la banniere est decorative */ }
