@@ -126,7 +126,7 @@ garde('cible tactile 44 px', SRC, regleTactile, 'min-height:44px', 'min-height:3
 garde('action cliquable = bouton', SRC, regleBouton, `return '<button type="button"`, `return '<span type="button"`);
 garde('consigne écrite pour l\'action sans geste', SRC, regleConsigne, ">À faire : ' + lib", ">' + lib");
 garde('pictogramme masqué aux lecteurs d\'écran', SRC, c => (c.match(/aria-hidden="true"/g) || []).length >= 1, 'aria-hidden="true"', 'aria-hidden="false"');
-garde('Brief : composant chargé', BRIEF, regleBrief, '<script src="nexus-badge-etat.js"></script>', '');
+garde('Brief : composant chargé', BRIEF, regleBrief, 'nexus-badge-etat.js', 'nexus-badge-etat-X.js');
 t('Brief estampillé par build.sh : la balise reste reconnue', () => { assert.ok(regleBrief(BRIEF.replace('nexus-badge-etat.js"', 'nexus-badge-etat.js?v=abc123"'))); });
 garde('Brief : rang rendu par le composant', BRIEF, regleBrief, '${NexusBadgeEtat.priorite(i, estPriorite)}', '${i}');
 garde('Brief : badge rendu par le composant', BRIEF, regleBrief, 'NexusBadgeEtat.rendu(p.etat)', 'p.etat');
