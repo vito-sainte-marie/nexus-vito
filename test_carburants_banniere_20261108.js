@@ -34,7 +34,7 @@ function executer(src, siteId, search) {
     document: {
       documentElement: { getAttribute: () => 'sombre' },
       getElementById: () => null,
-      querySelector: sel => (sel === '#heroCarburants .hero-haut' ? haut : null),
+      querySelector: sel => (sel === '#heroCarburants' ? haut : null),
       querySelectorAll: () => [],
     },
   };

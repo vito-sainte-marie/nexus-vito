@@ -126,7 +126,7 @@ t('grille d\'analyse deux colonnes, repliée en une sous 700 px de conteneur', (
   assert.ok(/\.periode-btn\{min-height:44px/.test(H));
 });
 t('pas d\'em dash dans le texte affiché des nouveaux blocs', () => {
-  const entete = H.slice(H.indexOf('<header class="hero"'), H.indexOf('</header>', H.indexOf('<header class="hero"')));
+  const entete = H.slice(H.indexOf('<header class="header hero"'), H.indexOf('</header>', H.indexOf('<header class="header hero"')));
   const corps = [entete, bloc(H, 'function syntheseVentesCarburant'), bloc(H, 'function htmlBlocVentes')].join('\n')
     .split('\n').filter(l => !/^\s*(\/\/|\/\*|\*)/.test(l));
   assert.ok(!corps.some(l => /—/.test(l.replace(/'—'|"—"|`—`/g, ''))), corps.filter(l => /—/.test(l))[0]);
@@ -151,8 +151,8 @@ t('badges de statut des cartes : aucun « … » ni « ? » affiché, badge vide
   assert.ok(!/ICONE_NIVEAU\[[^\]]*\] \|\| '\?'/.test(H));
   assert.ok(/\.carb-fiab-badge:empty\{display:none;\}/.test(H));
 });
-t('en-tête : cadre façon Paye (fond, bordure, rayon 18 px) même sans bannière', () => {
-  assert.ok(/\.hero\{[^}]*background:var\(--surf\)[^}]*border:1px solid var\(--hairline\)[^}]*border-radius:18px/.test(H));
+t('en-tête : cadre fourni par le gabarit commun (.header)', () => {
+  assert.ok(/<header class="header hero" id="heroCarburants">/.test(H));
 });
 t('pastille du site : nom du commerce par le mécanisme existant, plus d\'identifiant technique', () => {
   assert.ok(/<span class="pastille nexus-nom-commerce" id="pastilleSite"><\/span>/.test(H));
@@ -179,7 +179,6 @@ garde('ⓘ Infos : police 11 px', H, h => /\.carb-info-btn\{[^}]*font:600 11px/.
 garde('Rien à signaler', H, h => h.includes('>Rien à signaler</div>'), '>Rien à signaler</div>', '>Rien</div>');
 garde('badge : niveau rouge selon alerte', H, h => /includes\('alerte'\) \? 'niv-rouge'/.test(h), "includes('alerte') ? 'niv-rouge'", "includes('ok') ? 'niv-rouge'");
 garde('badge « … » masqué', H, h => /attente: '' \}/.test(h), "attente: '' }", "attente: '…' }");
-garde('cadre de l\'en-tête', H, h => /\.hero\{[^}]*border-radius:18px/.test(h), '.hero{position:relative; padding:16px 20px 10px; margin:0 20px 8px; background:var(--surf); border:1px solid var(--hairline); border-radius:18px', '.hero{position:relative; padding:16px 20px 10px; margin:0 20px 8px; background:var(--surf); border:1px solid var(--hairline); border-radius:0');
 garde('nom du commerce sur la pastille', H, h => /class="pastille nexus-nom-commerce" id="pastilleSite"/.test(h), 'class="pastille nexus-nom-commerce" id="pastilleSite"', 'class="pastille" id="pastilleSite"');
 
 console.log(n + ' épreuves OK');

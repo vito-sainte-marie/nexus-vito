@@ -14,7 +14,7 @@ function garde(nom, src, regle, litteral, remplacement) {
 const H = fs.readFileSync(path.join(__dirname, 'NEXUS-Verify-v1.html'), 'utf8');
 const BAN = fs.readFileSync(path.join(__dirname, 'nexus-banniere-station.js'), 'utf8');
 
-const script = c => /<script src="nexus-station\.js[^"]*"><\/script>\s*<script src="nexus-banniere-station\.js[^"]*"><\/script>/.test(c);
+const script = c => { const i = c.search(/<script src="nexus-banniere-station\.js[^"]*"><\/script>/); const j = c.search(/<script>/); return i > 0 && j > i; };
 const gardeSite = c => /NexusBanniereStation\.siteAvecBanniere\(SITE_ACTUEL, NexusBanniereStation\.apercuDemande\(\)\)/.test(c);
 const apresAuth = c => { const i = c.indexOf('SITE_ACTUEL = employee.site_id;'); const j = c.indexOf('siteAvecBanniere(SITE_ACTUEL'); return i > 0 && j > i; };
 const theme = c => /NexusBanniereStation\.suivreTheme\(\)/.test(c);
@@ -23,12 +23,16 @@ const srcset = c => /srcset="\$\{bv\}-800\.jpg 800w, \$\{bv\}-1200\.jpg 1200w, \
 const erreur = c => /onerror="this\.parentNode\.remove\(\)"/.test(c);
 const decor = c => /<div class="am-banniere"[^>]*><img[^>]* alt=""/.test(c);
 const nonBloquant = c => /try \{\s*if \(typeof NexusBanniereStation !== 'undefined'[\s\S]*?\} catch \(_\) \{/.test(c);
-const css = c => /\.header>\.am-banniere\{position:absolute; inset:0; overflow:hidden; z-index:0; pointer-events:none;/.test(c);
-const masque = c => /\.header>\.am-banniere\{[^}]*mask-image:linear-gradient\(to right, transparent 0%[^}]*mask-composite:intersect/.test(c);
-const texteDessus = c => /\.header>\.brand-row,\.header>\.subtitle\{position:relative; z-index:1;\}/.test(c);
-const jour = c => /:root\[data-theme="jour"\] \.header>\.am-banniere\{opacity:\.55;\}/.test(c);
-const fondu = c => /img\.am-fondu\{opacity:0; transition:opacity 800ms ease;\}/.test(c) && /img\.am-fondu-visible\{opacity:1;\}/.test(c);
-const reduit = c => /prefers-reduced-motion:reduce\)\{\.header>\.am-banniere img\.am-fondu\{transition:none;\}\}/.test(c);
+const css = c => /\.header>\.am-banniere\{position:absolute;inset:0;z-index:0;overflow:hidden;/.test(c);
+const masque = c => /\.header>\.am-banniere\{[^}]*mask-image:linear-gradient\(to bottom,black 70%/.test(c);
+const texteDessus = c => /\.header>\.entete-texte\{position:relative;z-index:1;/.test(c);
+const texteMarque = c => /<div class="entete-texte">/.test(c);
+const jour = c => /:root\[data-theme="jour"\] \.header>\.am-banniere::after\{/.test(c);
+const fondu = c => /img\.am-fondu\{opacity:0;transition:opacity 800ms ease\}/.test(c) && /img\.am-fondu-visible\{opacity:1\}/.test(c);
+const reduit = c => /prefers-reduced-motion:reduce\)\{\.header>\.am-banniere img\.am-fondu\{transition:none\}\}/.test(c);
+const cadrage = c => /\.header\{--banniere-cadrage:78% 25%\}/.test(c);
+const menuMarque = c => /<div class="header">\s*<a href="NEXUS-App-v1\.html" class="menu-btn">☰ Menu<\/a>/.test(c);
+const menuCss = c => /\.header>\.menu-btn\{position:absolute;top:18px;right:18px;z-index:5;[^}]*background:var\(--panel\)/.test(c);
 
 t('le module partagé est chargé avant le script de la page', () => { assert.ok(script(H)); });
 t('la bannière n\'est posée que pour les sites autorisés, après l\'authentification', () => { assert.ok(gardeSite(H)); assert.ok(apresAuth(H)); });
@@ -48,10 +52,11 @@ t('les trois images existent et sont légères', () => {
 });
 t('décorative (alt vide), retirée si l\'image échoue, jamais bloquante', () => { assert.ok(decor(H)); assert.ok(erreur(H)); assert.ok(nonBloquant(H)); });
 t('le suivi de thème est branché', () => { assert.ok(theme(H)); });
-t('CSS : bannière derrière le texte, masque à gauche et en bas, sans capter les clics', () => { assert.ok(css(H)); assert.ok(masque(H)); assert.ok(texteDessus(H)); });
-t('thème Jour : photo atténuée pour garder le texte lisible', () => { assert.ok(jour(H)); });
-t('fondu de 800 ms, coupé en mouvement réduit', () => { assert.ok(fondu(H)); assert.ok(reduit(H)); });
-t('le bouton Menu reste positionné en absolu au-dessus', () => { assert.ok(/\.menu-btn\{[^}]*position:absolute;[^}]*z-index:5;/.test(H)); });
+t('CSS commun : bannière derrière le texte, masque vertical (module partagé)', () => { assert.ok(css(BAN)); assert.ok(masque(BAN)); assert.ok(texteDessus(BAN)); assert.ok(texteMarque(H)); });
+t('thème Jour : dégradé du module partagé', () => { assert.ok(jour(BAN)); });
+t('fondu de 800 ms, coupé en mouvement réduit', () => { assert.ok(fondu(BAN)); assert.ok(reduit(BAN)); });
+t('cadrage propre à la page : employée à droite', () => { assert.ok(cadrage(H)); });
+t('le bouton Menu est la pastille opaque commune, posée dans l\u2019en-tête', () => { assert.ok(menuMarque(H)); assert.ok(menuCss(BAN)); });
 
 garde('script du module', H, script, '<script src="nexus-banniere-station.js', '<script src="autre-module.js');
 garde('liste des sites', H, gardeSite, 'siteAvecBanniere(SITE_ACTUEL, ', 'siteAvecBanniere("x", ');
@@ -61,10 +66,12 @@ garde('srcset 1600', H, srcset, '${bv}-1600.jpg 1600w', '${bv}-1600.jpg 1599w');
 garde('retrait sur erreur', H, erreur, 'onerror="this.parentNode.remove()"', '');
 garde('alt vide', H, decor, ' alt="" decoding', ' alt="photo" decoding');
 garde('non bloquant', H, nonBloquant, '} catch (_) { /* la banniere', '} finally { /* la banniere');
-garde('bannière derrière le texte', H, css, 'z-index:0; pointer-events:none;', 'z-index:2;');
-garde('masque', H, masque, 'mask-composite:intersect', 'mask-composite:add');
-garde('texte au-dessus', H, texteDessus, '.header>.subtitle{position:relative; z-index:1;}', '.header>.subtitle{}');
-garde('Jour atténué', H, jour, 'opacity:.55;}', 'opacity:1;}');
-garde('fondu', H, fondu, 'transition:opacity 800ms ease;}', 'transition:none;}');
-garde('mouvement réduit', H, reduit, '.am-fondu{transition:none;}}', '.am-fondu{transition:opacity 800ms;}}');
+garde('bannière derrière le texte', BAN, css, 'inset:0;z-index:0;overflow:hidden', 'inset:0;z-index:2;overflow:hidden');
+garde('masque', BAN, masque, '-webkit-mask-image:linear-gradient(to bottom,black 70%,transparent 100%);mask-image:linear-gradient(to bottom,black 70%', '-webkit-mask-image:none;mask-image:none;x:linear-gradient(to bottom,black 70%');
+garde('texte au-dessus', BAN, texteDessus, '.header>.entete-texte{position:relative;z-index:1;', '.header>.entete-texte{position:relative;');
+garde('Jour : dégradé propre', BAN, jour, ':root[data-theme="jour"] .header>.am-banniere::after{', ':root[data-theme="jour"] .header>.x::after{');
+garde('cadrage Verify', H, cadrage, '--banniere-cadrage:78% 25%', '--banniere-cadrage:0% 0%');
+garde('Menu dans l\u2019en-tête', H, menuMarque, '<div class="header">\n    <a href="NEXUS-App-v1.html" class="menu-btn">', '<div class="header">\n    <a href="NEXUS-App-v1.html" class="menu-x">');
+garde('fondu', BAN, fondu, 'transition:opacity 800ms ease}', 'transition:none}');
+garde('mouvement réduit', BAN, reduit, '.am-fondu{transition:none}}', '.am-fondu{transition:opacity 800ms}}');
 console.log(n + ' épreuves OK');

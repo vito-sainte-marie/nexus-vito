@@ -33,31 +33,13 @@
   body{display:flex; justify-content:center; min-height:100vh;}
   .phone{width:100%; max-width:460px; min-height:100vh; display:flex; flex-direction:column; border-left:1px solid var(--hairline); border-right:1px solid var(--hairline); padding-top:env(safe-area-inset-top); padding-bottom:env(safe-area-inset-bottom);}
 
-  .header{padding:20px 20px 14px; position:relative;}
-  .menu-btn{
-    position:absolute; top:18px; right:18px; display:flex; align-items:center; gap:6px;
-    font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase;
-    color:#8FE3F3; background:#0F2F38; border:1px solid rgba(79,195,217,0.55); box-shadow:0 2px 8px rgba(0,0,0,0.45);
-    border-radius:20px; padding:7px 12px; text-decoration:none; white-space:nowrap; z-index:5;
-  }
+  .header{--banniere-cadrage:78% 25%}
   .brand-row{display:flex; align-items:center; gap:10px;}
   .brand-icon{width:34px; height:34px; border-radius:9px; flex-shrink:0;}
   .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--cyan);}
   .title{font-size:20px; font-weight:600;}
   .subtitle{font-family:var(--sans); font-size:12px; color:var(--text-mid); margin-top:4px; line-height:1.5;}
   .divider{height:1px; background:var(--hairline); margin:0 20px;}
-  /* Bannière de l'en-tête (photo de caisse, demandée par Frédéric le 08/11/2026) : même module que Carburants et Paye.
-     Posée derrière le texte, fondue vers la gauche et vers le bas ; une seule photo pour les deux thèmes. */
-  .header>.am-banniere{position:absolute; inset:0; overflow:hidden; z-index:0; pointer-events:none; opacity:.9;
-    -webkit-mask-image:linear-gradient(to right, transparent 0%, transparent 38%, rgba(0,0,0,.5) 62%, #000 88%), linear-gradient(to bottom, #000 60%, transparent 100%);
-    mask-image:linear-gradient(to right, transparent 0%, transparent 38%, rgba(0,0,0,.5) 62%, #000 88%), linear-gradient(to bottom, #000 60%, transparent 100%);
-    -webkit-mask-composite:source-in; mask-composite:intersect;}
-  :root[data-theme="jour"] .header>.am-banniere{opacity:.55;}
-  .header>.am-banniere img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:85% 40%;}
-  .header>.am-banniere img.am-fondu{opacity:0; transition:opacity 800ms ease;}
-  .header>.am-banniere img.am-fondu-visible{opacity:1;}
-  .header>.brand-row,.header>.subtitle{position:relative; z-index:1;}
-  @media (prefers-reduced-motion:reduce){.header>.am-banniere img.am-fondu{transition:none;}}
 
   .tabs{display:flex; gap:8px; padding:14px 20px 0;}
   /* v2.278 (retour de Frédéric — "Écarts" restait décalé après le premier
@@ -514,6 +496,7 @@
 <div class="phone" id="app">
   <div class="header">
     <a href="NEXUS-App-v1.html" class="menu-btn">☰ Menu</a>
+    <div class="entete-texte">
     <div class="brand-row">
       <img src="assets/icons/icon-nexus-verify.png" alt="Nexus Verify" class="brand-icon">
       <div>
@@ -522,6 +505,7 @@
       </div>
     </div>
     <div class="subtitle">Rapproche les chiffres de caisse, calcule les écarts par moyen de paiement, et vous dit ce qui mérite vérification.</div>
+    </div>
   </div>
   <div class="divider"></div>
 
