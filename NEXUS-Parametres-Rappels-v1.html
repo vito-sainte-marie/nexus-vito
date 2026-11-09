@@ -86,8 +86,10 @@
   .fuel-block.sp{background:rgba(52,211,153,0.08); border:1px solid rgba(52,211,153,0.3);}
   .fuel-block.go{background:rgba(245,166,35,0.08); border:1px solid rgba(245,166,35,0.3);}
   .fuel-block-title{font-family:var(--mono); font-size:11px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; margin-bottom:10px; display:flex; align-items:center; gap:6px;}
-  .fuel-block.sp .fuel-block-title{color:var(--green);}
-  .fuel-block.go .fuel-block-title{color:var(--amber);}
+  .fuel-block-title{color:var(--text);}
+  .fuel-marker{display:inline-block; width:8px; height:8px; border-radius:2px; background:#888; flex:0 0 auto;}
+  .fuel-block.sp .fuel-marker,.fuel-marker.sp{background:#34D399;}
+  .fuel-block.go .fuel-marker,.fuel-marker.go{background:#F5A623;}
   .fuel-block input{margin-bottom:8px;}
 
   footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
@@ -127,13 +129,13 @@
       <div class="info-box" style="margin-bottom:14px;">💰 <b style="color:var(--text);">Pourquoi le stock minimal, pas un camion complet :</b> le carburant est payé au comptant — chaque litre stocké immobilise de la trésorerie. Le prix étant indexé par la préfecture de Martinique (identique pour toutes les stations, concurrentes comprises), il n'y a aucun avantage commercial à sur-stocker. La seule règle non négociable : ne jamais tomber en rupture.</div>
 
       <div class="fuel-block sp">
-        <div class="fuel-block-title">🟢 Sans Plomb — cuve unique 30 000 L</div>
+        <div class="fuel-block-title"><span class="fuel-marker"></span>Sans Plomb — cuve unique 30 000 L</div>
         <input type="number" id="j_sp" placeholder="Jaugeage (litres) — ex: 22656">
         <input type="number" id="j_sp_livraison" placeholder="Livraison reçue depuis hier (litres, si applicable)">
       </div>
 
       <div class="fuel-block go">
-        <div class="fuel-block-title">🟡 Gasoil — deux cuves distinctes</div>
+        <div class="fuel-block-title"><span class="fuel-marker"></span>Gasoil — deux cuves distinctes</div>
         <input type="number" id="j_go1" placeholder="Cuve 20 000 L — ex: 14161">
         <input type="number" id="j_go2" placeholder="Cuve 10 000 L — ex: 6524">
         <input type="number" id="j_go_livraison" placeholder="Livraison reçue depuis hier (litres, si applicable)">
@@ -770,8 +772,8 @@
       <div style="font-size:11.5px; margin-top:8px;">${r.message}</div>`;
     if (r.action === 'COMMANDER') {
       html += `<div style="font-family:var(--mono); font-size:12px; margin-top:8px; font-weight:700;">📅 ${r.dateCommande} → livraison ${r.dateLivraison}<br>`;
-      if (r.qSP > 0) html += `🟢 Sans Plomb : ~${r.qSP.toLocaleString('fr-FR')} L<br>`;
-      if (r.qGO > 0) html += `🟡 Gasoil : ~${r.qGO.toLocaleString('fr-FR')} L<br>`;
+      if (r.qSP > 0) html += `<span class="fuel-marker sp"></span> Sans Plomb : ~${r.qSP.toLocaleString('fr-FR')} L<br>`;
+      if (r.qGO > 0) html += `<span class="fuel-marker go"></span> Gasoil : ~${r.qGO.toLocaleString('fr-FR')} L<br>`;
       html += `Total : ~${(r.qSP+r.qGO).toLocaleString('fr-FR')} L</div>
       <div class="fuel-caveat">Répartition exacte en compartiments à confirmer avec le fournisseur selon le camion disponible ce jour-là.</div>`;
     }

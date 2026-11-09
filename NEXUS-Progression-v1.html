@@ -763,7 +763,7 @@
     // statut = un montant), jamais plus de 6 tuiles, jamais deux activités
     // mélangées dans une même ligne d'historique.
     // ------------------------------------------------------------
-    const TENDANCE_LABEL = { ameliore: '📈 En amélioration', degrade: '📉 En hausse', stable: '➡️ Stable' };
+    const TENDANCE_LABEL = { ameliore: 'Tes écarts diminuent', degrade: 'Tes écarts augmentent', stable: 'Tes écarts sont stables' };
     const tendanceTexte = tendanceComb ? TENDANCE_LABEL[tendanceComb.evolution] : 'Données insuffisantes';
 
     const statItem = (valeur, label) => `<div class="stat-item"><div class="stat-value">${valeur}</div><div class="stat-label">${label}</div></div>`;

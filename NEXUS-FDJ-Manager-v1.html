@@ -5800,7 +5800,7 @@
     const situation = NexusFdjMoteur.situationVerificationEcart(ecart, ecartOrigine);
     if (situation === 'aucun_ecart') return '';
     if (situation === 'corrige_a_zero') return renderBlocMotifCorrige(ecartOrigine);
-    return renderBlocMotifRestant(ecart);
+    return renderBlocMotifRestant(ecart, ecartOrigine);
   }
 
   // Branche CORRIGÉ À 0 — l'écart initialement déclaré par l'employé a
@@ -5829,11 +5829,12 @@
   // choisir une fausse explication"), motif automatique "Origine non
   // identifiée" (posé par synchroniserMotifEcartAvecVerification), aucun
   // menu déroulant.
-  function renderBlocMotifRestant(ecart) {
-    const badge = ecart > 0 ? '🟢 Excédent non expliqué' : '🔴 Manque non expliqué';
+  function renderBlocMotifRestant(ecart, ecartOrigine) {
+    const statutEcart = NexusEcartsMoteur.deriverStatutEcart({ ecartInitial: ecartOrigine, ecartFinal: ecart, cloture: !!edition.resultatControle, causeConnue: false });
+    const lib = NexusEcartsMoteur.libelleEcartRestant(ecart, statutEcart);
     return `
       <div class="etat-banner" style="color:var(--text-mid);">
-        ${badge} : <b style="color:var(--text);">${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}</b><br>
+        <span style="color:${lib.couleur}; font-weight:700;">${lib.texte}</span> : <b style="color:var(--text);">${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}</b><br>
         Origine : Non identifiée — aucune cause vérifiée ne l'explique.
       </div>
       <label class="champ-label">Commentaire / justificatif (si nécessaire)</label>

@@ -23,6 +23,7 @@ const assert = require('assert');
 //    / motifEcartObligatoire (2 arguments).
 // ------------------------------------------------------------
 require(__dirname + '/nexus-fdj-moteur.js');
+require(__dirname + '/nexus-ecarts-moteur.js'); // appelé par renderBlocMotifRestant (lot emojis 1)
 const M = globalThis.NexusFdjMoteur;
 
 assert.strictEqual(M.situationVerificationEcart(0, 12), 'corrige_a_zero', 'Écart initial +12€, ramené à 0 -> corrigé à zéro');
@@ -99,7 +100,7 @@ function construireContexte(motifInitial) {
   ].join('\n\n');
 
   const vm = require('vm');
-  const ctx = { globalThis: {}, console, NexusFdjMoteur: M };
+  const ctx = { globalThis: {}, console, NexusFdjMoteur: M, NexusEcartsMoteur: (require(__dirname + '/nexus-ecarts-moteur.js'), globalThis.NexusEcartsMoteur) };
   ctx.globalThis = ctx;
   vm.runInNewContext(src, ctx);
   return ctx.__test;
@@ -133,7 +134,7 @@ console.log('OK — écran : écart corrigé à 0 (manque initial) -> « Verseme
 
 // 4) Restant, excédent -> badge "Excédent non expliqué", pas de <select>.
 bloc = t.renderBlocMotifEcart(2.00, null);
-assert.ok(bloc.includes('🟢 Excédent non expliqué'), 'Badge excédent non expliqué attendu');
+assert.ok(bloc.includes('Excédent à vérifier') && !bloc.includes('🟢'), 'Excédent avant clôture : « à vérifier », jamais vert');
 assert.ok(bloc.includes('Non identifiée'), 'Origine affichée comme non identifiée');
 assert.ok(!bloc.includes('<select'), 'Aucun menu déroulant forcé quand l\'écart persiste — jamais une fausse explication');
 console.log('OK — écran : écart restant positif -> "Excédent non expliqué", aucun choix forcé.');
@@ -141,7 +142,7 @@ console.log('OK — écran : écart restant positif -> "Excédent non expliqué"
 // 5) Restant, manque, même avec un écart initial connu (le manager n'a rien
 //    pu corriger) -> "Manque non expliqué", toujours pas de menu.
 bloc = t.renderBlocMotifEcart(-2.00, 12.00);
-assert.ok(bloc.includes('🔴 Manque non expliqué'), 'Badge manque non expliqué attendu');
+assert.ok(bloc.includes('Manque à vérifier'), 'Manque avant clôture : « à vérifier »');
 assert.ok(!bloc.includes('<select'), 'Toujours aucun menu déroulant tant que l\'écart persiste');
 console.log('OK — écran : écart restant négatif (même avec écart initial connu) -> "Manque non expliqué", aucun choix forcé.');
 
