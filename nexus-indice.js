@@ -40,9 +40,10 @@
   // Cockpit. Ne fait AUCUNE requête réseau : l'appelant fournit rowsBrut
   // (déjà chargé, filtré par site) pour rester compatible avec le
   // pattern fetchAllRows() propre à chaque écran.
-  function calculerFacteurs(rowsBrut) {
+  function calculerFacteurs(rowsBrut, options) {
+    const optPaire = Object.assign({}, options || {}, { appariement: 'dernieres' });
     const { periodeAffichage, rowsAffichage, paire, rowsPaireActuelle, rowsPairePrecedente, periodesTriees } =
-      global.NexusPeriodes.analyserPeriodes(rowsBrut);
+      global.NexusPeriodes.analyserPeriodes(rowsBrut, optPaire);
     if (!periodeAffichage) return null;
 
     const caTotalAffichage = rowsAffichage.reduce((s, r) => s + (r.ca || 0), 0);
@@ -55,7 +56,7 @@
       // Ventes moyennes par jour (T1 et T2 n'ont pas la même durée) et paire
       // fraîche (21 j) — règle commune NexusPeriodes (lot 1 Produits, PR B).
       // Pas de plancher de volume ici : c'est un indice magasin.
-      evolutionReelle: (paire && global.NexusPeriodes.paireFraiche(paire))
+      evolutionReelle: (paire && global.NexusPeriodes.paireFraiche(paire, optPaire))
         ? global.NexusPeriodes.evolutionVentesMoyennes(
             caPaireActuelleTotal, paire.actuelle.duree, caPairePrecedenteTotal, paire.precedente.duree)
         : null,

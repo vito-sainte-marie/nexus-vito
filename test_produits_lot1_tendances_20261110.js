@@ -73,4 +73,114 @@ t('seuils et messages du Conseiller inchangés', () => {
   assert.strictEqual(C.SEUIL_VOLUME_CA_EUR, 50);
 });
 
+// ---- Arbitrage du 10/11/2026 : appariement des deux dernières périodes, continuité, rapport de durées ----
+const mk = (d1, f1, d2, f2) => ({ precedente: { debut: d1, fin: f1, duree: P.joursEntre(d1, f1) }, actuelle: { debut: d2, fin: f2, duree: P.joursEntre(d2, f2) } });
+const gros = { caT1: 1000, quantiteT1: 100, caT2: 1200, quantiteT2: 120 };
+const OPT = { dateDuJour: '2026-11-05' };
+const evalPaire = (p, o) => P.tendanceArticle(gros, p, o || OPT);
+
+t('appariement « dernieres » : avant-dernière période contre dernière, sans écart de durée', () => {
+  const rows = [
+    { periode_debut: '2026-08-01', periode_fin: '2026-08-31', article: 'A', ca: 1 },
+    { periode_debut: '2026-09-05', periode_fin: '2026-09-20', article: 'A', ca: 1 },
+    { periode_debut: '2026-09-21', periode_fin: '2026-10-26', article: 'A', ca: 1 },
+  ];
+  const r = P.analyserPeriodes(rows, { appariement: 'dernieres' });
+  assert.strictEqual(r.paire.precedente.debut, '2026-09-05');
+  assert.strictEqual(r.paire.actuelle.debut, '2026-09-21');
+});
+
+t('rapport de durées : exactement 2 non signalé, 2,01 signalé', () => {
+  assert.strictEqual(P.RAPPORT_DUREES_MAX, 2);
+  const exact = evalPaire(mk('2026-10-01', '2026-10-10', '2026-10-11', '2026-10-30')); // 10 j / 20 j
+  assert.strictEqual(exact.rapport_durees, 2);
+  assert.strictEqual(exact.fiable, true);
+  const au_dessus = P.qualiteComparaison(mk('2026-10-01', '2026-10-10', '2026-10-11', '2026-10-31'), OPT); // 10 j / 21 j
+  assert.ok(au_dessus.rapport_durees > 2);
+  assert.ok(au_dessus.avertissements.includes('Comparaison à interpréter avec prudence'));
+});
+
+t('16 j contre 36 j = 2,25 : évolution affichée, avertissement, aucune recommandation', () => {
+  const r = evalPaire(mk('2026-09-05', '2026-09-20', '2026-09-21', '2026-10-26'));
+  assert.strictEqual(r.statut, 'qualifiee');
+  assert.ok(r.evolutionCA !== null, 'l\'évolution reste disponible');
+  assert.strictEqual(r.rapport_durees, 36 / 16);
+  assert.strictEqual(r.fiable, false);
+  assert.strictEqual(r.recommandable, false);
+  assert.ok(r.avertissements.includes('Comparaison à interpréter avec prudence'));
+  assert.strictEqual(r.libelle_evolution, 'ventes moyennes par jour');
+  assert.strictEqual(r.periodes.t1.duree, 16);
+  assert.strictEqual(r.periodes.t2.duree, 36);
+  assert.strictEqual(r.periodes.t1.ca, 1000);
+});
+
+t('période en cours : comparaison non fiable', () => {
+  const r = evalPaire(mk('2026-10-01', '2026-10-14', '2026-10-15', '2026-11-30'), { dateDuJour: '2026-11-30' });
+  assert.ok(P.qualiteComparaison(mk('2026-10-01', '2026-10-14', '2026-10-15', '2026-11-30'), { dateDuJour: '2026-11-30' }).partielle);
+  assert.strictEqual(r.recommandable, false);
+});
+
+t('jours non couverts : listés avec leurs dates, jamais comblés', () => {
+  const p = mk('2026-10-01', '2026-10-10', '2026-10-13', '2026-10-22');
+  const r = evalPaire(p);
+  assert.strictEqual(r.continuite.ok, false);
+  assert.deepStrictEqual(r.continuite.jours_non_couverts, ['2026-10-11', '2026-10-12']);
+  assert.strictEqual(r.recommandable, false);
+  assert.ok(r.avertissements.some(a => a.includes('2026-10-11') && a.includes('2026-10-12')));
+  assert.strictEqual(r.periodes.t1.duree, 10); // durées réelles, aucun jour ajouté
+});
+
+t('chevauchement : signalé, non fiable', () => {
+  const r = evalPaire(mk('2026-10-01', '2026-10-10', '2026-10-09', '2026-10-18'));
+  assert.deepStrictEqual(r.continuite.chevauchement, ['2026-10-09', '2026-10-10']);
+  assert.strictEqual(r.recommandable, false);
+});
+
+t('périodes contiguës de durées proches : recommandable', () => {
+  const r = evalPaire(mk('2026-10-01', '2026-10-14', '2026-10-15', '2026-10-28'));
+  assert.deepStrictEqual(r.continuite, { ok: true, jours_non_couverts: [], chevauchement: [] });
+  assert.strictEqual(r.fiable, true);
+  assert.strictEqual(r.recommandable, true);
+});
+
+t('plancher et fraîcheur : traitement inchangé, jamais recommandable', () => {
+  const ok = mk('2026-10-01', '2026-10-14', '2026-10-15', '2026-10-28');
+  const faible = P.tendanceArticle({ caT1: 4, quantiteT1: 4, caT2: 0, quantiteT2: 0 }, ok, OPT);
+  assert.strictEqual(faible.statut, 'insuffisante'); assert.strictEqual(faible.recommandable, false);
+  const vieux = P.tendanceArticle(gros, ok, { dateDuJour: '2027-02-01' });
+  assert.strictEqual(vieux.statut, 'perimee'); assert.strictEqual(vieux.recommandable, false);
+});
+
+// ---- Neutralisation module par module (Conseiller) ----
+const rowsT1 = [{ categorie: 'X', article: 'Monte', ca: 1000, quantite: 100 }, { categorie: 'X', article: 'Chute', ca: 1000, quantite: 100 }];
+const rowsT2 = [{ categorie: 'X', article: 'Monte', ca: 3000, quantite: 300 }, { categorie: 'X', article: 'Chute', ca: 300, quantite: 30 }];
+const brut = (pn, d, f) => rowsT1.map(r => ({ ...r, periode_debut: pn.precedente.debut, periode_fin: pn.precedente.fin }))
+  .concat(rowsT2.map(r => ({ ...r, periode_debut: pn.actuelle.debut, periode_fin: pn.actuelle.fin })));
+const peu = mk('2026-09-05', '2026-09-20', '2026-09-21', '2026-10-26');   // 16 j / 36 j
+const bon = mk('2026-09-23', '2026-10-06', '2026-10-07', '2026-10-20');   // 14 j / 14 j
+const cartes = (pn) => C.calculerCandidatsProduits(brut(pn), { dateDuJour: '2026-10-25' });
+const regles = (r) => (r.candidats || r || []).map(c => c.rule_id);
+
+t('Conseiller : R3-HAUSSE et R2-BAISSE absentes si comparaison non fiable, présentes sinon', () => {
+  const off = regles(cartes(peu)), on = regles(cartes(bon));
+  assert.ok(!off.includes('R3-HAUSSE') && !off.includes('R2-BAISSE'));
+  assert.ok(on.includes('R3-HAUSSE') && on.includes('R2-BAISSE'));
+});
+
+t('Conseiller : succès à féliciter et baisses neutralisés si non fiable', () => {
+  const off = C.analyserEvolutionsPaire(rowsT2, rowsT1, { paire: peu, dateDuJour: '2026-10-25' });
+  assert.ok(!off.meilleurSucces && off.produitsEnBaisse.length === 0);
+  const on = C.analyserEvolutionsPaire(rowsT2, rowsT1, { paire: bon, dateDuJour: '2026-10-25' });
+  assert.ok(on.meilleurSucces && on.meilleurSucces.article === 'Monte');
+  assert.ok(on.produitsEnBaisse.some(p => p.article === 'Chute'));
+});
+
+t('Conseiller : listes progression/régression des produits stratégiques neutralisées si non fiable', () => {
+  const off = C.analyserProduitsStrategiques(rowsT2, rowsT1, { paire: peu, dateDuJour: '2026-10-25' });
+  const flat = (r) => [].concat(...Object.values(r || {}).filter(Array.isArray));
+  assert.strictEqual(flat(off).length, 0);
+  const on = C.analyserProduitsStrategiques(rowsT2, rowsT1, { paire: bon, dateDuJour: '2026-10-25' });
+  assert.ok(on.progressionVolume.some(p => p.article === 'Monte'), 'cas fiable : la progression est bien listée');
+});
+
 console.log(n + ' tests OK');

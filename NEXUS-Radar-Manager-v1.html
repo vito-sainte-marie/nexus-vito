@@ -162,7 +162,8 @@
       .order('periode_debut', { ascending: false })
       .order('article', { ascending: true }));
     if (error || !rowsBrut || !rowsBrut.length) { console.error('Chargement products (Indice Marge):', error); return null; }
-    return NexusIndice.calculerFacteurs(rowsBrut);
+    const fuseau = (typeof nexusFuseauSite === 'function') ? await nexusFuseauSite(SITE_ACTUEL) : null;
+    return NexusIndice.calculerFacteurs(rowsBrut, { fuseau });
   }
 
   // Equipe (Presence, via retards) : lit desormais Supabase (pointages),

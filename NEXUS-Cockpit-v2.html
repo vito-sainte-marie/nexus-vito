@@ -772,6 +772,7 @@
       // NEXUS-Brief-v1.html, extrait le 11/08/2026 dans
       // NexusConseillerDonnees.chargerProduitsBrut (Article 11).
       const rowsBrut = await NexusConseillerDonnees.chargerProduitsBrut(nexusClient, SITE_ACTUEL);
+      const FUSEAU_TENDANCE = (typeof nexusFuseauSite === 'function') ? await nexusFuseauSite(SITE_ACTUEL) : null;
       if (!rowsBrut.length) { console.error('Chargement products (plans action) : aucune ligne exploitable.'); return []; }
       // ------------------------------------------------------------
       // CORRECTIF 23/07/2026 (audit général NEXUS) : comparer aveuglément
@@ -789,7 +790,7 @@
       // (moteur partagé NexusPeriodes, réutilisé aussi par renderBouclage()
       // pour la même règle de comparaison de durées.)
       // ------------------------------------------------------------
-      const { periodesTriees, periodeAffichage, rowsAffichage, paire, rowsPaireActuelle, rowsPairePrecedente } = NexusPeriodes.analyserPeriodes(rowsBrut);
+      const { periodesTriees, periodeAffichage, rowsAffichage, paire, rowsPaireActuelle, rowsPairePrecedente } = NexusPeriodes.analyserPeriodes(rowsBrut, { appariement: 'dernieres', fuseau: FUSEAU_TENDANCE });
       if (!periodeAffichage) { console.error('Aucune période exploitable dans products.'); return []; }
       TENDANCE_DISPONIBLE = !!paire;
       MEILLEUR_SUCCES = null; // reinitialise a chaque calcul, jamais garde d'une periode perimee
@@ -801,12 +802,12 @@
       // sans elle, aucune évolution n'est honnêtement calculable, donc
       // renderTopVentes() retombe sur le classement CA simple.
       PRODUITS_STRATEGIQUES = paire
-        ? NexusConseiller.analyserProduitsStrategiques(rowsPaireActuelle, rowsPairePrecedente, { paire })
+        ? NexusConseiller.analyserProduitsStrategiques(rowsPaireActuelle, rowsPairePrecedente, { paire, fuseau: FUSEAU_TENDANCE })
         : { disponible: false, tarifaire: [], progressionVolume: [], regressionVolume: [], margeEnProgression: [] };
       // R4-RENFORT-A / R3-HAUSSE / R2-BAISSE viennent désormais de
       // nexus-conseiller.js (26/07/2026, demande de Frédéric — Conseiller
       // cross-moteurs) — seule source du calcul, partagée avec App-v1.
-      const candidats = NexusConseiller.calculerCandidatsProduits(rowsBrut);
+      const candidats = NexusConseiller.calculerCandidatsProduits(rowsBrut, { fuseau: FUSEAU_TENDANCE });
       // Succès à féliciter / Vue d'ensemble des produits en baisse — stats
       // propres au Cockpit, sans lien avec le classement des candidats.
       // Extrait le 11/08/2026 (Article 11) dans
@@ -814,7 +815,7 @@
       // partagée avec NEXUS-Brief-v1.html pour "Succès à féliciter" (voir
       // ce fichier).
       if (paire) {
-        const { meilleurSucces, produitsEnBaisse } = NexusConseiller.analyserEvolutionsPaire(rowsPaireActuelle, rowsPairePrecedente, { paire });
+        const { meilleurSucces, produitsEnBaisse } = NexusConseiller.analyserEvolutionsPaire(rowsPaireActuelle, rowsPairePrecedente, { paire, fuseau: FUSEAU_TENDANCE });
         MEILLEUR_SUCCES = meilleurSucces;
         PRODUITS_EN_BAISSE = produitsEnBaisse;
       }

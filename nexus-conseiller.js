@@ -206,7 +206,7 @@
   // page appelante gère elle-même sa propre exclusion des candidate_id
   // déjà présents dans journal_decisions (VALIDEES_SITE), comme avant.
   function calculerCandidatsProduits(rowsBrut, options) {
-    const { periodeAffichage, rowsAffichage, paire, rowsPaireActuelle, rowsPairePrecedente } = global.NexusPeriodes.analyserPeriodes(rowsBrut);
+    const { periodeAffichage, rowsAffichage, paire, rowsPaireActuelle, rowsPairePrecedente } = global.NexusPeriodes.analyserPeriodes(rowsBrut, { ...options, appariement: 'dernieres' });
     if (!periodeAffichage) return [];
 
     const fmt = v => Math.round(v).toLocaleString('fr-FR');
@@ -262,6 +262,10 @@
         const tendance = global.NexusPeriodes.tendanceArticle(
           { caT1: caPrec, quantiteT1: precedentQuantiteParArticle[cle], caT2: p.ca, quantiteT2: p.quantite },
           paire, { ...options, seuilCA: SEUIL_VOLUME_CA_EUR });
+        // Comparaison non fiable (rapport de durées > 2, période en cours,
+        // jours non couverts ou chevauchement) : aucune carte fondée sur la
+        // seule tendance (arbitrage du 10/11/2026).
+        if (!tendance.recommandable) return;
         const evolution = tendance.statut === 'qualifiee' ? tendance.evolutionCA : null;
         if (evolution === null) return;
         if (evolution >= SEUIL_HAUSSE) {
@@ -270,7 +274,7 @@
           candidats.push({
             etat: '📈 OPPORTUNITÉ', rule_id: 'R3-HAUSSE', article: p.article,
             verdict: lang.verdictHausse(p.article),
-            situation: `Les ventes progressent de ${(evolution * 100).toFixed(1)} % sur la période.`,
+            situation: `Les ventes moyennes par jour progressent de ${(evolution * 100).toFixed(1)} % sur la période.`,
             contexte: "Cette progression est mesurée entre deux périodes de durée comparable.",
             analyse: "Cette dynamique dépasse une croissance ordinaire.",
             consequence: "Cette croissance peut être amplifiée si l'offre suit la demande.",
@@ -289,7 +293,7 @@
           candidats.push({
             etat: '🟡 À SURVEILLER', rule_id: 'R2-BAISSE', article: p.article,
             verdict: lang.verdictBaisse(p.article),
-            situation: `Les ventes chutent de ${(evolution * 100).toFixed(1)} % sur la période.`,
+            situation: `Les ventes moyennes par jour chutent de ${(evolution * 100).toFixed(1)} % sur la période.`,
             contexte: "NEXUS ne dispose pas de la donnée de stock pour cette référence.",
             analyse: "Je ne peux pas encore conclure à une vraie tendance sans vérification terrain.",
             consequence: "Une rupture non détectée expliquerait aussi bien cette baisse qu'un désintérêt réel.",
@@ -351,6 +355,8 @@
       const tendance = global.NexusPeriodes.tendanceArticle(
         { caT1: caPrec, quantiteT1: precedentQuantiteParArticle[cle], caT2: p.ca, quantiteT2: p.quantite },
         paire, { ...options, seuilCA: seuilBase });
+      // Comparaison non fiable : ni succès à féliciter ni baisse à traiter.
+      if (!tendance.recommandable) return;
       const evolution = tendance.statut === 'qualifiee' ? tendance.evolutionCA : null;
       if (evolution === null) return;
       if (evolution > 0) {
@@ -508,7 +514,7 @@
       const tendance = global.NexusPeriodes.tendanceArticle(
         { caT1: p.ca, quantiteT1: p.quantite, caT2: a.ca, quantiteT2: a.quantite },
         paire, { ...options, seuilCA: SEUIL_VOLUME_CA_EUR });
-      if (tendance.statut !== 'qualifiee') return;
+      if (tendance.statut !== 'qualifiee' || !tendance.recommandable) return;
       const evolutionCA = tendance.evolutionCA;
       const evolutionQuantite = tendance.evolutionQuantite;
       if (evolutionCA === null || evolutionQuantite === null) return;
