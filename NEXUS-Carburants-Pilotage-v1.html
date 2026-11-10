@@ -41,6 +41,8 @@
      être chargé avant nexus-carburant-commande-donnees.js. -->
 <script src="nexus-verify-moteur.js?v=20260904-0104"></script>
 <script src="nexus-carburant-commande-donnees.js?v=20260904-0104"></script>
+<!-- 10/11/2026 — marqueur calendrier de l'en-tête (affichage seul, lit inventaire_calendrier_site du site). -->
+<script src="nexus-carburant-marqueur-calendrier.js?v=20261110-2"></script>
 <!-- Cadrage risques Phase 5 (18/08/2026, tâche #234) — 1er écran Carburants
      à qualifier et enregistrer un signal NexusRisques (autonomie de stock).
      Inclus après nexus-carburant-moteur.js/nexus-carburant-donnees.js
@@ -729,6 +731,7 @@
         <button type="button" class="info-btn" id="btnInfoPage" aria-label="À propos de cette page" aria-expanded="false" aria-controls="infoPage">i</button></span>
       </div>
       <div class="info-panneau" id="infoPage" hidden>La couleur du carburant identifie le produit, pas un niveau d'alerte. Les chiffres de vente sont en lecture seule : la moyenne vendue est celle des 7 derniers jours avec données, l'autonomie est une estimation par quart. Les écarts et le rapprochement gardent leurs règles habituelles.</div>
+          <div class="marqueur-cal" id="marqueurCalendrier" hidden aria-live="polite"></div>
     </div>
     <div class="topacts">
       <a class="btn-cta" href="NEXUS-Carburants-v1.html">Relevé du jour</a>
@@ -2264,6 +2267,7 @@ function htmlEtatCommande(cle, opts) {
       COMMANDE_CTX = null;
     }
     renderCommandeCarburant(COMMANDE_CTX);
+    if (window.__rafraichirMarqueurCalendrier) window.__rafraichirMarqueurCalendrier();
     // 28/08/2026, point 1 — badge de régime à côté du titre "Situation
     // aujourd'hui" (Article 11 : même helper construireBadgeRegime que la
     // carte commande ci-dessus, aucun second calcul).
@@ -5029,6 +5033,15 @@ function htmlEtatCommande(cle, opts) {
       const { data: stationConfig, error: eFuseau } = await nexusClient.from('station_config').select('fuseau_horaire').eq('site', SITE_ID).maybeSingle();
       if (eFuseau) console.error('Chargement fuseau_horaire station:', eFuseau);
       if (stationConfig && stationConfig.fuseau_horaire) FUSEAU_STATION = stationConfig.fuseau_horaire;
+    }
+
+    // 10/11/2026 — marqueur calendrier de l'en-tête : affichage seul, indépendant du moteur de prévision.
+    // Fuseau et heure limite de la station ; la config vient de COMMANDE_CTX quand elle est chargée.
+    if (window.NexusCarburantMarqueurCalendrier) {
+      window.NexusCarburantMarqueurCalendrier.monter({
+        client: nexusClient, siteId: SITE_ID, conteneur: document.getElementById('marqueurCalendrier'),
+        fuseau: () => FUSEAU_STATION, config: () => (COMMANDE_CTX && COMMANDE_CTX.config) || null, search: location.search
+      }).then(r => { window.__rafraichirMarqueurCalendrier = r; }).catch(e => console.error('Marqueur calendrier:', e));
     }
 
     initAccordions();
