@@ -64,7 +64,7 @@
   var LIB_ACTION = { agir: 'Agir', decider: 'Décider', verifier: 'Vérifier', surveiller: 'Surveiller' };
   var LIB_QUALIF = { opportunite: 'Opportunité', recommandation: 'Recommandation' };
 
-  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   var has = function (o, k) { return Object.prototype.hasOwnProperty.call(o, k); };
 
   // opts.libelle : texte d'origine à garder à la place du libellé de l'axe (style de la gravité, mot du métier).
@@ -173,7 +173,7 @@
   global.NexusBadgeEtat = {
     libelle: libelle,
     gravite: gravite, traitement: traitement, action: action, qualification: qualification,
-    classeCarte: classeCarte, classeCompteur: classeCompteur, priorite: priorite, neutre: neutre, rendu: rendu, grouper: grouper, injecterCss: injecterCss, _CSS: CSS
+    classeCarte: classeCarte, classeCompteur: classeCompteur, priorite: priorite, neutre: neutre, rendu: rendu, grouper: grouper, injecterCss: injecterCss, esc: esc, _CSS: CSS
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = global.NexusBadgeEtat;
 })(typeof window !== 'undefined' ? window : globalThis);
