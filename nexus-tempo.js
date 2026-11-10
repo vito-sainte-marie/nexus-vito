@@ -701,7 +701,24 @@
     { nom: 'Grandes vacances (été 2027)', debut: '2027-07-03', fin: null },
   ];
 
+  // 10/11/2026 — Calendrier du site : quand l'appelant injecte les lignes `type='vacances'` de
+  // inventaire_calendrier_site (une ligne par jour : { date, libelle }), elles font foi ; la liste
+  // figée ci-dessus ne sert plus que de repli tant que rien n'a été injecté (ou si la table est vide).
+  // Aucun accès réseau ici : Tempo reste un module de calcul.
+  let vacancesDuSite = null;
+  function definirVacances(lignes) {
+    if (!Array.isArray(lignes)) { vacancesDuSite = null; return 0; }
+    const m = new Map();
+    lignes.forEach(l => { if (l && l.date && (l.type == null || l.type === 'vacances')) m.set(String(l.date).slice(0, 10), l.libelle || 'Vacances scolaires'); });
+    vacancesDuSite = m.size ? m : null;
+    return m.size;
+  }
+
   function estVacancesScolaires(dateStr) {
+    if (vacancesDuSite) {
+      const nom = vacancesDuSite.get(dateStr);
+      return { vacances: nom !== undefined, nom: nom !== undefined ? nom : null };
+    }
     const trouve = VACANCES_SCOLAIRES_MARTINIQUE.find(v => dateStr >= v.debut && (v.fin === null || dateStr <= v.fin));
     return { vacances: !!trouve, nom: trouve ? trouve.nom : null };
   }
@@ -1398,7 +1415,7 @@
     analyserEquipe, genererDecisionPrioritaire,
     calculerMaturite, calculerConfianceGlobale, joursFeries, estJourFerie, tagCalendaire,
     joursFeriesMartinique, estJourFerieMartinique, identifierPonts, estPont,
-    VACANCES_SCOLAIRES_MARTINIQUE, estVacancesScolaires, analyserVacancesScolaires, prochainsPonts,
+    VACANCES_SCOLAIRES_MARTINIQUE, estVacancesScolaires, definirVacances, analyserVacancesScolaires, prochainsPonts,
     analyserDebutFinMois, analyserSaisonnier, genererDecouvertes,
     croiserMeteo, analyserMeteo,
     agregerStockParJour, dernierEtatStock, croiserStock, analyserStock,

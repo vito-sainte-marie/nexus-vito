@@ -36,7 +36,7 @@
     const [{ data: regle, error: e1 }, { data: valeurSpeciale, error: e2 }, { data: jourCalendrier, error: e3 }] = await Promise.all([
       client.from('inventaire_production_regles').select('*').eq('site', site).eq('produit_id', produitId).maybeSingle(),
       client.from('inventaire_production_valeurs_speciales').select('*').eq('site', site).eq('produit_id', produitId).eq('date', dateISO).maybeSingle(),
-      client.from('inventaire_calendrier_site').select('*').eq('site', site).eq('date', dateISO).maybeSingle(),
+      client.from('inventaire_calendrier_site').select('*').eq('site', site).eq('date', dateISO),
     ]);
     if (e1) console.error('Chargement règle production:', e1);
     if (e2) console.error('Chargement valeur spéciale:', e2);
@@ -56,7 +56,12 @@
     // chargé sur cette page (Article 5 — jamais une exception pour une
     // dépendance optionnelle) : le calcul retombe alors sur semaine/week-end
     // comme avant ce lot.
-    let jourCalendrierEffectif = jourCalendrier || null;
+    // 10/11/2026 — la contrainte est désormais unique (site, date, type) : un même jour peut porter
+    // un férié ET des vacances. On lit donc TOUTES les lignes du jour et on en retient une seule :
+    // le férié l'emporte sur les vacances (un jour férié est fermé, quoi qu'il arrive en vacances).
+    // La table reste prioritaire sur Tempo, qui n'est plus que le repli quand elle est muette.
+    const lignesJour = Array.isArray(jourCalendrier) ? jourCalendrier : (jourCalendrier ? [jourCalendrier] : []);
+    let jourCalendrierEffectif = lignesJour.find(l => l && l.type === 'ferie') || lignesJour[0] || null;
     if (!jourCalendrierEffectif && global.NexusTempo && typeof global.NexusTempo.estVacancesScolaires === 'function') {
       const v = global.NexusTempo.estVacancesScolaires(dateISO);
       if (v && v.vacances) {

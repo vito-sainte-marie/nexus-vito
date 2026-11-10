@@ -312,6 +312,15 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
     if (e5) console.error('Chargement stock_releves:', e5);
     if (e6) console.error('Chargement products (jour le plus rentable):', e6);
 
+    // 10/11/2026 — Vacances : le calendrier du site (inventaire_calendrier_site, type 'vacances') fait foi ;
+    // la liste figée de nexus-tempo.js ne sert que de repli (table vide ou lecture impossible).
+    try {
+      const { data: vacRows, error: eVac } = await fetchAllRows(() => nexusClient.from('inventaire_calendrier_site')
+        .select('date, type, libelle').eq('site', siteId).eq('type', 'vacances').order('date', { ascending: true }));
+      if (eVac) console.error('Chargement calendrier vacances (repli sur la liste figée):', eVac);
+      else NexusTempo.definirVacances(vacRows || []);
+    } catch (eV) { console.error('Calendrier vacances indisponible (repli sur la liste figée):', eV); }
+
     const employesParId = {};
     (employesRows || []).forEach(e => { employesParId[e.id] = e; });
 

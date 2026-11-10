@@ -253,6 +253,7 @@
 <script src="nexus-icones.js?v=20260904-0104"></script>
 <script src="nexus-desktop.js?v=20260904-0104"></script>
 <script src="nexus-forfait.js?v=20260904-0104"></script>
+<script src="nexus-calendrier-site.js"></script>
 <script src="nexus-raccourcis-catalogue.js?v=20260904-0104"></script>
 <script src="nexus-carburant-moteur.js?v=20260904-0104"></script>
 <script src="nexus-carburant-donnees.js?v=20260904-0104"></script>
@@ -462,6 +463,21 @@
       <div class="note" id="noteDureeRenfortCalculee"></div>
       <button class="btn btn-primary" id="sauvegarderDurees" style="margin-top:12px;">Enregistrer les durées de référence</button>
       <div class="saved-note" id="savedNoteDurees">✓ Durées enregistrées, appliquées au prochain calcul de paie</div>
+    </div>
+
+        <div class="psec-subgroup-label" style="margin-top:20px;">Calendrier</div>
+
+    <!-- 10/11/2026 — Académie scolaire du site (station_config.academie_scolaire, texte, liste fermée des
+         académies de la source officielle ; NULL = vacances non suivies). Lue par le workflow mensuel des
+         vacances ; la liste vient du module partagé nexus-calendrier-site.js (une seule source). -->
+    <div class="card" id="cardAcademieScolaire">
+      <div class="section-label">Académie scolaire</div>
+      <div class="tr-text">
+        <label class="tr-title" for="academieScolaire">Académie dont on suit les vacances</label>
+        <div class="tr-desc">Les vacances scolaires officielles de cette académie sont inscrites chaque mois dans le calendrier du site. Choisissez « Non suivie » pour ne rien inscrire.</div>
+      </div>
+      <select id="academieScolaire" class="champ-recherche" style="margin-top:10px;max-width:320px;min-height:44px;"></select>
+      <div class="toggle-etat" id="academieScolaireEtat">Chargement…</div>
     </div>
 
         <div class="psec-subgroup-label" style="margin-top:20px;">Pointage</div>
@@ -2213,6 +2229,44 @@
     if (error) { console.error('Réinitialisation station_config:', error); alert('Erreur — réessayez.'); return; }
     CONFIG_HORAIRES_ACTUEL = HORAIRES_DEFAUT;
     remplirFormulaire(HORAIRES_DEFAUT);
+  });
+
+  // ------------------------------------------------------------
+  // Académie scolaire (10/11/2026) — station_config.academie_scolaire (NULL = non suivie).
+  // ------------------------------------------------------------
+  function majEtatAcademie(v) {
+    document.getElementById('academieScolaireEtat').innerHTML = v
+      ? 'Académie suivie : <b>' + v + '</b>.'
+      : 'Non suivie — aucune vacance scolaire n\'est inscrite automatiquement.';
+  }
+  (async function initAcademieScolaire() {
+    const sel = document.getElementById('academieScolaire');
+    const liste = (window.NexusCalendrierSite && window.NexusCalendrierSite.ACADEMIES) || [];
+    sel.innerHTML = '<option value="">Non suivie</option>' + liste.map(a => '<option value="' + a + '">' + a + '</option>').join('');
+    const { data, error } = await nexusClient.from('station_config').select('academie_scolaire').eq('site', employee.site_id).maybeSingle();
+    if (error) { console.error('Chargement academie_scolaire:', error); document.getElementById('academieScolaireEtat').textContent = 'Lecture impossible — réessayez.'; return; }
+    const v = (data && data.academie_scolaire) || '';
+    sel.value = v;
+    sel.dataset.avant = v;
+    majEtatAcademie(v);
+  })();
+  document.getElementById('academieScolaire').addEventListener('change', async (e) => {
+    const v = e.target.value || null;
+    const avant = e.target.dataset.avant || '';
+    e.target.disabled = true;
+    const { error } = await nexusClient.from('station_config').upsert(
+      { site: employee.site_id, academie_scolaire: v, updated_at: new Date().toISOString() },
+      { onConflict: 'site' }
+    );
+    e.target.disabled = false;
+    if (error) {
+      console.error('Enregistrement academie_scolaire:', error);
+      alert('Erreur — réessayez.');
+      e.target.value = avant;
+      return;
+    }
+    e.target.dataset.avant = v || '';
+    majEtatAcademie(v);
   });
 
   // ------------------------------------------------------------
