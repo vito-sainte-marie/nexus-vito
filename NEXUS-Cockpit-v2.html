@@ -266,11 +266,6 @@
     text-align:center; border-top:1px solid var(--hairline);
   }
   .plan-card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; margin-bottom:10px; overflow:hidden; border-left:3px solid var(--hairline);}
-  .plan-card.etat-agir{border-left-color:#F0575A;}
-  .plan-card.etat-opportunite{border-left-color:#34D399;}
-  .plan-card.etat-surveiller{border-left-color:#F5A623;}
-  .plan-card.etat-decider{border-left-color:#F0575A;}
-  .plan-card.etat-recommandation{border-left-color:#4FC3D9;}
   .plan-head{padding:14px 16px; cursor:pointer; display:flex; align-items:center; gap:12px;}
   .plan-etat{font-family:var(--mono); font-size:9.5px; letter-spacing:0.05em; padding:3px 9px; border-radius:20px; font-weight:700; white-space:nowrap;}
   .etat-agir .plan-etat{background:#3A1D1F; color:#F0575A;}
@@ -367,6 +362,7 @@
 <script src="nexus-risques-moteur.js?v=20260904-0104"></script>
 <script src="nexus-conseiller.js?v=20260904-0104"></script>
 <script src="nexus-etats-conseiller.js"></script>
+<script src="nexus-badge-etat.js"></script>
 <script src="nexus-conseiller-donnees.js?v=20260904-0104"></script>
 <script src="nexus-risques-donnees.js?v=20260904-0104"></script>
 </head>
@@ -960,9 +956,9 @@
       dernierAffichage = aAfficher;
       const el = document.getElementById('plansAction');
       el.innerHTML = aAfficher.map((p, i) => `
-        <div class="plan-card ${classeEtat(p.etat)}" id="plan-${i}">
+        <div class="plan-card ${classeEtat(p.etat)} ${NexusBadgeEtat.classeCarte(p.etat)}" id="plan-${i}">
           <div class="plan-head" onclick="document.getElementById('plan-${i}').classList.toggle('open')">
-            <span class="plan-etat">${p.urgence && p.nature ? `${p.urgence.toUpperCase()} · ${p.nature}` : p.etat}</span>
+            ${p.urgence && p.nature ? `<span class="plan-etat">${p.urgence.toUpperCase()} · ${p.nature}</span>` : NexusBadgeEtat.rendu(p.etat)}
             <span class="plan-action-teaser">${p.decision}</span>
             <span class="plan-chevron">›</span>
           </div>

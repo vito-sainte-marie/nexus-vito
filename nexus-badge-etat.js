@@ -32,6 +32,12 @@
     '.nbe-consigne-agir{color:var(--nbe-accent);font-weight:600}',
     '.nbe-qualif{display:inline-flex;align-items:center;height:22px;padding:0 8px;border:1px solid var(--nbe-line);border-radius:6px;color:var(--nbe-secondary);font:500 11px/1 var(--sans,"IBM Plex Sans",sans-serif);white-space:nowrap}',
     '.nbe-rang{font:700 11px/1 var(--mono,"IBM Plex Mono",monospace);letter-spacing:.04em;color:var(--nbe-secondary);white-space:nowrap}',
+    '.nbe-carte-critique.nbe-carte-critique{border-left-color:var(--nbe-critique)}',
+    '.nbe-carte-verifier.nbe-carte-verifier{border-left-color:var(--nbe-verifier)}',
+    '.nbe-carte-agir.nbe-carte-agir{border-left-color:var(--nbe-accent)}',
+    '.nbe-carte-neutre.nbe-carte-neutre{border-left-color:var(--nbe-line)}',
+    '.nbe-compteur-agir{color:var(--nbe-accent)}',
+    '.nbe-compteur-neutre{color:var(--nbe-secondary)}',
     '.nbe-groupe-titre{margin:14px 0 8px;font:600 11px/1.2 var(--mono,"IBM Plex Mono",monospace);letter-spacing:.06em;text-transform:uppercase;color:var(--nbe-secondary)}'
   ].join('\n');
 
@@ -43,14 +49,15 @@
     (document.head || document.documentElement).appendChild(s);
   }
 
-  var SVG = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">';
+  var SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">';
+  // Tracés du kit premium (NEXUS_Kit_Premium_v1/assets/etats, viewBox 24) : critique = octogone, à vérifier = triangle.
   var PICTO = {
-    'critique': SVG + '<path d="M8 2 14.5 13.5h-13z"/><path d="M8 6.5v3.2"/><path d="M8 11.8h.01"/></svg>',
-    'a-verifier': SVG + '<circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3.5 3.5"/></svg>',
-    'information': SVG + '<circle cx="8" cy="8" r="6"/><path d="M8 7.2v4"/><path d="M8 4.8h.01"/></svg>',
-    'conforme': SVG + '<circle cx="8" cy="8" r="6"/><path d="m5.2 8.2 2 2 3.6-4"/></svg>',
-    'en-attente': SVG + '<circle cx="8" cy="8" r="6"/><path d="M8 4.8V8l2.2 1.4"/></svg>',
-    'exclu': SVG + '<circle cx="8" cy="8" r="6"/><path d="m3.8 12.2 8.4-8.4"/></svg>'
+    'critique': SVG + '<path d="M8.3 3h7.4L21 8.3v7.4L15.7 21H8.3L3 15.7V8.3zM12 7.5v5m0 3.5v.2"/></svg>',
+    'a-verifier': SVG + '<path d="M12 3 2.8 20h18.4L12 3zM12 9v4m0 3.5v.2"/></svg>',
+    'information': SVG + '<circle cx="12" cy="12" r="9"/><path d="M12 10.8v6"/><path d="M12 7.2h.01"/></svg>',
+    'conforme': SVG + '<circle cx="12" cy="12" r="9"/><path d="m7.5 12 3 3 6-6"/></svg>',
+    'en-attente': SVG + '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+    'exclu': SVG + '<circle cx="12" cy="12" r="9"/><path d="m5.7 18.3 12.6-12.6"/></svg>'
   };
   var LIB_GRAVITE = { 'critique': 'Critique', 'a-verifier': 'À vérifier', 'information': 'Information', 'conforme': 'Conforme' };
   var LIB_TRAITEMENT = { 'en-attente': 'En attente', 'exclu': 'Exclu' };
@@ -132,11 +139,38 @@
     return { gains: g, risques: r, autres: a };
   }
 
+  // Libellé texte sans emoji d'un état du Conseiller, pour un onglet ou un compteur (Centre, Accueil).
+  // Onglets et compteurs : « À agir », « Opportunités », « À surveiller ». Autre valeur : texte sans emoji.
+  var LIB_ONGLET = { agir: 'À agir', opportunite: 'Opportunités', surveiller: 'À surveiller' };
+  function libelle(etat) {
+    var E = global.NexusEtatsConseiller;
+    if (E) for (var k in LIB_ONGLET) if (has(LIB_ONGLET, k) && E.est(etat, k)) return LIB_ONGLET[k];
+    return String(etat == null ? '' : etat).replace(/^[^A-Za-zÀ-ÿ0-9]+/, '').trim();
+  }
+
+  // Couleur de bordure d'une carte, d'après la clé : critique, à vérifier, agir ; tout le reste est neutre.
+  function classeCarte(etat) {
+    var E = global.NexusEtatsConseiller;
+    if (E) {
+      if (E.est(etat, 'critique')) return 'nbe-carte-critique';
+      if (E.est(etat, 'verifier')) return 'nbe-carte-verifier';
+      if (E.est(etat, 'agir')) return 'nbe-carte-agir';
+    }
+    return 'nbe-carte-neutre';
+  }
+
+  // Couleur d'un compteur : « À agir » en accent, le reste en texte neutre.
+  function classeCompteur(etat) {
+    var E = global.NexusEtatsConseiller;
+    return (E && E.est(etat, 'agir')) ? 'nbe-compteur-agir' : 'nbe-compteur-neutre';
+  }
+
   injecterCss();
 
   global.NexusBadgeEtat = {
+    libelle: libelle,
     gravite: gravite, traitement: traitement, action: action, qualification: qualification,
-    priorite: priorite, neutre: neutre, rendu: rendu, grouper: grouper, injecterCss: injecterCss, _CSS: CSS
+    classeCarte: classeCarte, classeCompteur: classeCompteur, priorite: priorite, neutre: neutre, rendu: rendu, grouper: grouper, injecterCss: injecterCss, _CSS: CSS
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = global.NexusBadgeEtat;
 })(typeof window !== 'undefined' ? window : globalThis);

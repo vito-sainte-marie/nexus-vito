@@ -25,6 +25,7 @@
 <script src="nexus-periodes.js?v=20260904-0104"></script>
 <script src="nexus-conseiller.js?v=20260904-0104"></script>
 <script src="nexus-etats-conseiller.js"></script>
+<script src="nexus-badge-etat.js"></script>
 <script src="nexus-station.js?v=20260904-0104"></script>
 <script src="nexus-pilotes-inventaire.js?v=20261102-1"></script>
 <script src="nexus-fil-caisse.js?v=20261103-0002"></script>
@@ -161,18 +162,8 @@
 
   footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
   .plan-card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; margin-bottom:10px; overflow:hidden; border-left:3px solid var(--hairline);}
-  .plan-card.etat-agir{border-left-color:#F0575A;}
-  .plan-card.etat-opportunite{border-left-color:#34D399;}
-  .plan-card.etat-surveiller{border-left-color:#F5A623;}
-  .plan-card.etat-decider{border-left-color:#F0575A;}
-  .plan-card.etat-recommandation{border-left-color:#4FC3D9;}
   .plan-head{padding:14px 16px; cursor:pointer; display:flex; align-items:center; gap:12px;}
   .plan-etat{font-family:var(--mono); font-size:9.5px; letter-spacing:0.05em; padding:3px 9px; border-radius:20px; font-weight:700; white-space:nowrap;}
-  .etat-agir .plan-etat{background:#3A1D1F; color:#F0575A;}
-  .etat-opportunite .plan-etat{background:#153629; color:#34D399;}
-  .etat-surveiller .plan-etat{background:#3A2E14; color:#F5A623;}
-  .etat-decider .plan-etat{background:#3A1D1F; color:#F0575A;}
-  .etat-recommandation .plan-etat{background:rgba(79,195,217,0.12); color:#4FC3D9;}
   .plan-action-teaser{flex:1; font-size:13.5px; font-weight:600; line-height:1.4;}
   .plan-chevron{color:var(--text-dim); font-size:14px; transition:0.15s;}
   .plan-card.open .plan-chevron{transform:rotate(90deg);}
@@ -949,9 +940,9 @@
     const aAfficher = disponibles.slice(0, 5);
 
     el.innerHTML = aAfficher.map((p, i) => `
-      <div class="plan-card ${classeEtat(p.etat)}" id="planm-${i}">
+      <div class="plan-card ${NexusBadgeEtat.classeCarte(p.etat)}" id="planm-${i}">
         <div class="plan-head" onclick="document.getElementById('planm-${i}').classList.toggle('open')">
-          <span class="plan-etat">${p.etat}</span>
+          ${NexusBadgeEtat.rendu(p.etat)}
           <span class="plan-action-teaser">${p.recommandation}</span>
           <span class="plan-chevron">›</span>
         </div>

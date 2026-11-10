@@ -189,10 +189,6 @@
   .decision-card.secondaire{border-left-width:2px; opacity:0.94;}
   .decision-card.secondaire .decision-head{padding:11px 14px;}
   .decision-card.secondaire .decision-teaser{font-size:12.5px; font-weight:500;}
-  .decision-card.etat-agir{border-left-color:#F0575A;}
-  .decision-card.etat-opportunite{border-left-color:#34D399;}
-  .decision-card.etat-surveiller{border-left-color:#F5A623;}
-  .decision-card.etat-recommandation{border-left-color:#4FC3D9;}
   .decision-head{padding:14px 16px; cursor:pointer; display:flex; align-items:center; gap:12px; flex-wrap:wrap;}
   .decision-etat{flex:none;}
   .decision-etat:empty{display:none;}
@@ -1219,7 +1215,7 @@
     // quelle décision prendre en premier") — les 2 secondaires restent
     // repliées et visuellement plus compactes (classe .secondaire).
     return `
-      <div class="decision-card ${classeEtat(p.etat)} ${estPriorite ? 'priorite open' : 'secondaire'}" id="decision-${i}">
+      <div class="decision-card ${NexusBadgeEtat.classeCarte(p.etat)} ${estPriorite ? 'priorite open' : 'secondaire'}" id="decision-${i}">
         <div class="decision-head" onclick="document.getElementById('decision-${i}').classList.toggle('open')">
           ${NexusBadgeEtat.priorite(i, estPriorite)}
           <span class="decision-etat">${NexusBadgeEtat.rendu(p.etat)}</span>
