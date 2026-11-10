@@ -117,3 +117,17 @@ console.log(n + ' épreuves OK');
   assertL.strictEqual(BADGE.classeCompteur('📈 OPPORTUNITÉ'), 'nbe-compteur-neutre');
   console.log('OK compteurs : à agir en accent, le reste neutre');
 }
+
+// Guardian 6755267511 : pictogrammes du kit premium (critique = octogone, à vérifier = triangle).
+{
+  const a = require('assert');
+  const B = require('./nexus-badge-etat.js');
+  const oct = 'M8.3 3h7.4L21 8.3v7.4L15.7 21H8.3L3 15.7V8.3zM12 7.5v5m0 3.5v.2';
+  const tri = 'M12 3 2.8 20h18.4L12 3zM12 9v4m0 3.5v.2';
+  const regle = (c, t) => c.indexOf('data-etat="critique"') >= 0 && c.indexOf(oct) >= 0 && t.indexOf('data-etat="a-verifier"') >= 0 && t.indexOf(tri) >= 0 && c.indexOf(tri) < 0 && t.indexOf(oct) < 0;
+  const C = B.gravite('critique'), T = B.gravite('a-verifier');
+  a.ok(regle(C, T)); console.log('OK critique = octogone, à vérifier = triangle');
+  a.ok(/viewBox="0 0 24 24"[^>]*stroke-width="1.8"/.test(C)); console.log('OK viewBox 24, trait 1,8');
+  a.ok(!regle(C.replace(oct, tri), T)); console.log('OK mutation : triangle sur critique rougit la garde');
+  a.ok(!regle(C, T.replace(tri, oct))); console.log('OK mutation : octogone sur à vérifier rougit la garde');
+}

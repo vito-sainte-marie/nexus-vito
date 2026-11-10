@@ -49,14 +49,15 @@
     (document.head || document.documentElement).appendChild(s);
   }
 
-  var SVG = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">';
+  var SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">';
+  // Tracés du kit premium (NEXUS_Kit_Premium_v1/assets/etats, viewBox 24) : critique = octogone, à vérifier = triangle.
   var PICTO = {
-    'critique': SVG + '<path d="M8 2 14.5 13.5h-13z"/><path d="M8 6.5v3.2"/><path d="M8 11.8h.01"/></svg>',
-    'a-verifier': SVG + '<circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3.5 3.5"/></svg>',
-    'information': SVG + '<circle cx="8" cy="8" r="6"/><path d="M8 7.2v4"/><path d="M8 4.8h.01"/></svg>',
-    'conforme': SVG + '<circle cx="8" cy="8" r="6"/><path d="m5.2 8.2 2 2 3.6-4"/></svg>',
-    'en-attente': SVG + '<circle cx="8" cy="8" r="6"/><path d="M8 4.8V8l2.2 1.4"/></svg>',
-    'exclu': SVG + '<circle cx="8" cy="8" r="6"/><path d="m3.8 12.2 8.4-8.4"/></svg>'
+    'critique': SVG + '<path d="M8.3 3h7.4L21 8.3v7.4L15.7 21H8.3L3 15.7V8.3zM12 7.5v5m0 3.5v.2"/></svg>',
+    'a-verifier': SVG + '<path d="M12 3 2.8 20h18.4L12 3zM12 9v4m0 3.5v.2"/></svg>',
+    'information': SVG + '<circle cx="12" cy="12" r="9"/><path d="M12 10.8v6"/><path d="M12 7.2h.01"/></svg>',
+    'conforme': SVG + '<circle cx="12" cy="12" r="9"/><path d="m7.5 12 3 3 6-6"/></svg>',
+    'en-attente': SVG + '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+    'exclu': SVG + '<circle cx="12" cy="12" r="9"/><path d="m5.7 18.3 12.6-12.6"/></svg>'
   };
   var LIB_GRAVITE = { 'critique': 'Critique', 'a-verifier': 'À vérifier', 'information': 'Information', 'conforme': 'Conforme' };
   var LIB_TRAITEMENT = { 'en-attente': 'En attente', 'exclu': 'Exclu' };
