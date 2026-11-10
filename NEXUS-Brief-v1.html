@@ -526,6 +526,8 @@
     }
 
     const rowsBrut = await NexusBriefDonnees.chargerProducts(nexusClient, SITE_ACTUEL);
+    // Fuseau du site : fraîcheur de la paire et période « en cours » mesurées dans le jour de la station.
+    const FUSEAU_TENDANCE = (typeof nexusFuseauSite === 'function') ? await nexusFuseauSite(SITE_ACTUEL) : null;
     // Coche "Ventes analysées" (secteur commerce) dès que sa seule et unique
     // source (rowsBrut) est arrivée — pas de Promise.all à attendre ici, ce
     // chargeur est résolu avant le reste (22/08/2026, écran de chargement
@@ -533,13 +535,13 @@
     // pas actif pour ce site (Article 5 — jamais une coche métier qui n'a
     // pas de sens ici).
     if (ANIMATION_CHARGEMENT) ANIMATION_CHARGEMENT.tickSecteur('commerce');
-    const { periodeAffichage, paire, rowsPaireActuelle, rowsPairePrecedente } = NexusPeriodes.analyserPeriodes(rowsBrut);
-    const facteurs = NexusIndice.calculerFacteurs(rowsBrut);
+    const { periodeAffichage, paire, rowsPaireActuelle, rowsPairePrecedente } = NexusPeriodes.analyserPeriodes(rowsBrut, { appariement: 'dernieres', fuseau: FUSEAU_TENDANCE });
+    const facteurs = NexusIndice.calculerFacteurs(rowsBrut, { fuseau: FUSEAU_TENDANCE });
     const periodeLabel = periodeAffichage
       ? `Période analysée : ${new Date(periodeAffichage.debut + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })} – ${new Date(periodeAffichage.fin + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}`
       : new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
-    const candidatsProduitsBrut = NexusConseiller.calculerCandidatsProduits(rowsBrut);
-    const produitsStrategiques = paire ? NexusConseiller.analyserProduitsStrategiques(rowsPaireActuelle, rowsPairePrecedente) : null;
+    const candidatsProduitsBrut = NexusConseiller.calculerCandidatsProduits(rowsBrut, { fuseau: FUSEAU_TENDANCE });
+    const produitsStrategiques = paire ? NexusConseiller.analyserProduitsStrategiques(rowsPaireActuelle, rowsPairePrecedente, { paire, fuseau: FUSEAU_TENDANCE }) : null;
 
     // Coches "réellement interrogées" (22/08/2026, écran de chargement
     // dynamique) : Opérations et FDJ agrègent chacun PLUSIEURS chargeurs
@@ -727,7 +729,7 @@
     // Succès à féliciter — extrait le 11/08/2026 (Article 11) dans
     // NexusConseiller.analyserEvolutionsPaire(), source unique désormais
     // partagée avec NEXUS-Cockpit-v2.html (MEILLEUR_SUCCES).
-    const meilleurSucces = paire ? NexusConseiller.analyserEvolutionsPaire(rowsPaireActuelle, rowsPairePrecedente).meilleurSucces : null;
+    const meilleurSucces = paire ? NexusConseiller.analyserEvolutionsPaire(rowsPaireActuelle, rowsPairePrecedente, { paire, fuseau: FUSEAU_TENDANCE }).meilleurSucces : null;
 
     const nbCritiquesCaisse = candidatsCaisseObj.raw.filter(c => c.statut === 'critique').length;
     const risqueStockTotal = candidatsStock.reduce((s, c) => s + (c.impact_eur || 0), 0);

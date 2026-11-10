@@ -50,7 +50,9 @@
       .order('periode_debut', { ascending: false })
       .order('article', { ascending: true }));
     if (error || !data || !data.length) return { disponible: false, raison: 'Aucune ligne products pour ce site.' };
-    const { rayons, magasin } = global.NexusRayonMoteur.construireRayonsDepuisLignes(data);
+    const { rayons, magasin } = global.NexusRayonMoteur.construireRayonsDepuisLignes(data, {
+      fuseau: (typeof nexusFuseauSite === 'function') ? await nexusFuseauSite(site) : null,
+    });
     if (!magasin) return { disponible: false, raison: 'Aucune période exploitable dans products.' };
     // rowsBrut (12/08/2026, lot P2.2 "effets observés") : `data` (toutes
     // les lignes products du site, déjà chargées ci-dessus, aucune requête

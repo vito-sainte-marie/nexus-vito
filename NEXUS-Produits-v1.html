@@ -122,6 +122,7 @@
   .histo-bar-track{flex:1; height:8px; background:var(--panel-raised); border-radius:4px; overflow:hidden;}
   .histo-bar{height:100%; background:var(--cyan); border-radius:4px;}
   .histo-val{font-family:var(--mono); font-size:11px; color:var(--text-mid); width:44px; text-align:right;}
+  .histo-val-large{width:auto; min-width:44px; flex:0 1 46%; white-space:normal;}
   .histo-empty{font-size:12px; color:var(--text-mid); line-height:1.5; padding:4px 0;}
 
   .gap-row{
@@ -414,6 +415,8 @@ nexusRequireAuth().then(async employee => {
   }
 
   async function construireProduitsLive() {
+    // Fuseau du site : fraîcheur de la paire et période « en cours » mesurées dans le jour de la station.
+    const FUSEAU_TENDANCE = (typeof nexusFuseauSite === 'function') ? await nexusFuseauSite(SITE_ACTUEL) : null;
     const { data, error } = await fetchAllRows(() => nexusClient
       .from('products')
       .select('categorie, article, ca, marge, prix_achat, prix_vente, quantite, periode_debut, periode_fin, code_barres')
@@ -431,7 +434,7 @@ nexusRequireAuth().then(async employee => {
     // sert à afficher toutes les fiches produit et leur contribution au rayon,
     // même si elle est encore en cours) de "paire comparable" (utilisée
     // uniquement pour calculer une évolution T1→T2).
-    const { periodeAffichage, rowsAffichage, paire, rowsPaireActuelle, rowsPairePrecedente, periodeEnCours } = NexusPeriodes.analyserPeriodes(data);
+    const { periodeAffichage, rowsAffichage, paire, rowsPaireActuelle, rowsPairePrecedente, periodeEnCours } = NexusPeriodes.analyserPeriodes(data, { appariement: 'dernieres', fuseau: FUSEAU_TENDANCE });
     if (!periodeAffichage) { console.error('Aucune période exploitable dans products.'); return []; }
 
     // CORRECTIF 24/07/2026 (incohérence signalée par Frédéric : "pourquoi T1
@@ -476,7 +479,15 @@ nexusRequireAuth().then(async employee => {
       // Évolution basée sur la paire comparable (pairPrec/pairAct), pas sur
       // la période affichée directement — même correctif que ci-dessus.
       let statut = null;
-      const evolution = (pairPrec && pairPrec.ca > 0 && pairAct) ? (pairAct.ca - pairPrec.ca) / pairPrec.ca : null;
+      // Tendance commune (lot 1 Produits, PR B) : ventes moyennes par jour,
+      // paire fraîche (21 j), plancher de volume. Sinon : pas de recommandation.
+      const tendance = (pairPrec && pairAct)
+        ? NexusPeriodes.tendanceArticle(
+            { caT1: pairPrec.ca, quantiteT1: pairPrec.quantite, caT2: pairAct.ca, quantiteT2: pairAct.quantite },
+            paire, { seuilCA: NexusConseiller.SEUIL_VOLUME_CA_EUR, fuseau: FUSEAU_TENDANCE })
+        : null;
+      // Une comparaison non fiable (durées > 2x, période en cours, jours non couverts) s'affiche, mais ne fonde aucune recommandation.
+      const evolution = (tendance && tendance.recommandable) ? tendance.evolutionCA : null;
       const lang = NexusConseiller.LANGAGE_ACTION[NexusConseiller.typeActionPourCategorie(p.categorie)];
       // Seuils repris de NexusConseiller (source unique, voir commentaire du
       // 08/08/2026 ci-dessous et nexus-conseiller.js) — plus jamais recopiés
@@ -513,7 +524,7 @@ nexusRequireAuth().then(async employee => {
         // Dates de la période actuelle — nécessaires pour estimer une vitesse
         // de vente quotidienne (rotation réelle), voir chargerStockGap().
         periode_debut: p.periode_debut, periode_fin: p.periode_fin,
-        pct_contrib, statut,
+        pct_contrib, statut, tendance, tendance_statut: tendance ? tendance.statut : null, tendance_message: tendance ? tendance.message : null,
       };
     });
   }
@@ -536,7 +547,8 @@ nexusRequireAuth().then(async employee => {
   // dormant (le plus objectif : aucune vente) > stratégique (poids fort
   // dans le rayon) > à surveiller (chute nette) > performant par défaut.
   function calculerStatutSimplifie(p) {
-    const evolution = p.ca_t1 > 0 ? (p.ca_t2_pair - p.ca_t1) / p.ca_t1 : null;
+    // Une seule tendance par article (NexusPeriodes.tendanceArticle) : jamais de recalcul local.
+    const evolution = (p.tendance && p.tendance.recommandable) ? p.tendance.evolutionCA : null;
     const lang = NexusConseiller.LANGAGE_ACTION[NexusConseiller.typeActionPourCategorie(p.categorie)];
     if (p.ca_t2 === 0) {
       return {
@@ -546,6 +558,15 @@ nexusRequireAuth().then(async employee => {
     }
     if (p.pct_contrib !== null && p.pct_contrib >= NexusConseiller.SEUIL_CONTRIBUTION_FORTE) {
       return { cle: 'strategique', label: 'Produit stratégique', action: lang.recoAgir(esc(p.article)) };
+    }
+    // Tendance existante mais non recommandable (prudence, insuffisante, périmée, indisponible) :
+    // statut neutre, jamais de jugement positif ni d'action de réassort (arbitrage 6781622583).
+    // Sans aucune période précédente (p.tendance absent), le comportement historique est conservé.
+    if (p.tendance && !p.tendance.recommandable) {
+      return {
+        cle: 'a-confirmer', label: 'Tendance à confirmer',
+        action: "Pas de recommandation tant que la comparaison n'est pas fiable. Les chiffres ci-dessus restent consultables.",
+      };
     }
     if (evolution !== null && evolution <= NexusConseiller.SEUIL_BAISSE) {
       return { cle: 'surveiller', label: 'À surveiller', action: lang.recoBaisse(esc(p.article)) };
@@ -746,9 +767,33 @@ nexusRequireAuth().then(async employee => {
     // (pairAct, via ca_t2_pair/qte_t2_pair) — pas la période affichée
     // directement, pour ne jamais sauter une période intermédiaire quand la
     // période affichée est encore trop récente pour faire partie de la paire.
-    const evolQte = p.qte_t1 ? (p.qte_t2_pair - p.qte_t1) / p.qte_t1 : 0;
-    const evolCa = p.ca_t1 ? (p.ca_t2_pair - p.ca_t1) / p.ca_t1 : 0;
-    const maxQte = Math.max(p.qte_t1, p.qte_t2_pair, 1);
+    // Tendance unique (tendanceArticle) : ventes moyennes par jour, jamais le CA total.
+    const tend = p.tendance || null;
+    const tendQualifiee = !!(tend && tend.statut === 'qualifiee');
+    const evolQte = tendQualifiee ? tend.evolutionQuantite : 0;
+    const evolCa = tendQualifiee ? tend.evolutionCA : 0;
+    const msgTendance = !tend ? null
+      : tend.statut === 'insuffisante' ? tend.message
+      : tend.statut === 'perimee' ? 'Comparaison périmée : la dernière période comparée est trop ancienne pour établir une tendance actuelle.'
+      : null;
+    const avertsTendance = (tend && tendQualifiee && tend.avertissements.length)
+      ? `<div class="avert-tendance">${tend.avertissements.map(esc).join(' · ')}</div>` : '';
+    // Durées et CA total réels de chaque période (arbitrage 6780846054) : l'évolution
+    // ci-dessous porte sur les ventes moyennes par jour, jamais sur le CA total.
+    const periodesTendance = (tend && tend.periodes)
+      ? (() => {
+          const t1 = tend.periodes.t1, t2 = tend.periodes.t2;
+          const lib = (t, nom) => `${nom} ${esc(fmtDate(t.debut))} → ${esc(fmtDate(t.fin))} (${esc(t.duree)} j) : CA ${fmtEur(t.ca || 0)}`;
+          return `<div class="histo-dates">${lib(t1, 'T1')} · ${lib(t2, 'T2')}</div>`;
+        })() : '';
+    // Histogramme en unités moyennes par jour (jamais en totaux bruts de durées différentes).
+    const tp = (tend && tend.periodes) ? tend.periodes : null;
+    const fmtJ = n => Number(n).toLocaleString('fr-FR', { maximumFractionDigits: 1 });
+    const barre = (t, brut) => tp
+      ? { v: Number(t.quantite_moyenne_jour) || 0, txt: `${fmtJ(t.quantite_moyenne_jour || 0)} u./j (${esc(t.quantite)} u. sur ${esc(t.duree)} j)` }
+      : { v: Number(brut) || 0, txt: `${esc(brut)} u.` };
+    const bT1 = barre(tp && tp.t1, p.qte_t1), bT2 = barre(tp && tp.t2, p.qte_t2_pair);
+    const maxQte = Math.max(bT1.v, bT2.v, 1e-9);
 
     // Statut simplifié + rang rayon : voir calculerStatutSimplifie() et
     // calculerRangRayon() — remplace l'ancien bloc "Décisions prioritaires"
@@ -805,20 +850,20 @@ nexusRequireAuth().then(async employee => {
     const histoHtml = p.pairDisponible ? `
       <div class="histo-row">
         <span class="histo-label">T1</span>
-        <div class="histo-bar-track"><div class="histo-bar" style="width:${Number(p.qte_t1/maxQte*100) || 0}%; background:var(--text-dim);"></div></div>
-        <span class="histo-val">${esc(p.qte_t1)} u.</span>
+        <div class="histo-bar-track"><div class="histo-bar" style="width:${Number(bT1.v/maxQte*100) || 0}%; background:var(--text-dim);"></div></div>
+        <span class="histo-val histo-val-large">${bT1.txt}</span>
       </div>
       <div class="histo-row">
         <span class="histo-label">T2</span>
-        <div class="histo-bar-track"><div class="histo-bar" style="width:${Number(p.qte_t2_pair/maxQte*100) || 0}%;"></div></div>
-        <span class="histo-val">${esc(p.qte_t2_pair)} u.</span>
+        <div class="histo-bar-track"><div class="histo-bar" style="width:${Number(bT2.v/maxQte*100) || 0}%;"></div></div>
+        <span class="histo-val histo-val-large">${bT2.txt}</span>
       </div>
-      <div class="histo-dates">T1 : ${esc(p.pairDates.debutT1)} → ${esc(p.pairDates.finT1)} · T2 : ${esc(p.pairDates.debutT2)} → ${esc(p.pairDates.finT2)}</div>
+      ${periodesTendance}
       <div class="kpi-grid">
         <div class="kpi-box"><div class="kl">CA cumulé (T1+T2)</div><div class="kv">${fmtEur(p.ca_s1)}</div></div>
-        <div class="kpi-box"><div class="kl">Évolution QTE</div><div class="kv ${p.qte_t1>0 ? (evolQte>=0?'up':'down') : ''}">${p.qte_t1>0 ? (evolQte>=0?'+':'')+fmtPct(evolQte) : 'Départ de zéro'}</div><div class="kl">${mentionPaire}</div></div>
+        <div class="kpi-box"><div class="kl">Évolution QTE</div><div class="kv ${tendQualifiee ? (evolQte>=0?'up':'down') : ''}">${tendQualifiee ? (evolQte>=0?'+':'')+fmtPct(evolQte) : (msgTendance || 'Tendance indisponible')}</div><div class="kl">${tendQualifiee ? 'ventes moyennes par jour (unités) · ' : ''}${mentionPaire}</div>${avertsTendance}</div>
       </div>
-      ${!p.pairEstPeriodeAffichee ? `<div class="histo-empty" style="margin-top:10px;">La période affichée en tête de fiche (${esc(p.periode_debut)} → ${esc(p.periode_fin)}) est encore trop récente pour être comparée équitablement — cette évolution porte donc sur la dernière paire de périodes complètes et de durée comparable.</div>` : ''}` : `
+      ${!p.pairEstPeriodeAffichee ? `<div class="histo-empty" style="margin-top:10px;">La période affichée en tête de fiche (${esc(p.periode_debut)} → ${esc(p.periode_fin)}) est encore trop récente pour être comparée équitablement — cette évolution porte donc sur les deux dernières périodes importées.</div>` : ''}` : `
       <div class="histo-empty">Aucune période précédente de durée comparable n'a encore été importée pour cette référence (période affichée : ${esc(p.periode_debut)} → ${esc(p.periode_fin)}, ${esc(p.qte_t2)} u. vendues) — NEXUS n'affiche pas d'évolution T1 → T2 plutôt que d'en fabriquer une trompeuse.</div>`;
 
     const tuile = (ico, label, val, sub, ids) => `
@@ -903,12 +948,12 @@ nexusRequireAuth().then(async employee => {
         explicationP = `Un ${NexusVocab.SIGNATURE.PRODUIT_DORMANT.toLowerCase()} n'indique pas forcément un problème de demande — cela peut aussi être une rupture ou un retrait de rayon non signalé.`;
       } else {
         const rentaTxt = NexusVocab.rentabilite(niveauRentaP, false, esc(p.article));
-        const tendanceTxt = p.ca_t1 > 0 ? NexusVocab.tendance(evolCa) : null;
+        const tendanceTxt = tendQualifiee ? (NexusVocab.tendance(evolCa) + ' (ventes moyennes par jour)' + (tend.fiable ? '' : ' — ' + tend.avertissements.map(esc).join(' · ') + '.')) : msgTendance;
         explicationP = [rentaTxt, tendanceTxt].filter(Boolean).join(' ')
           || 'Pas assez de recul pour conclure.';
-        if (p.ca_t1 <= 0) explicationP += ' Je n\'ai pas encore de période précédente pour elle.';
+        if (!tend || tend.statut === 'indisponible') explicationP += ' Je n\'ai pas encore de période précédente pour elle.';
       }
-      const explicationTendance = (p.ca_t2 !== 0 && p.ca_t1 > 0);
+      const explicationTendance = (p.ca_t2 !== 0 && !!tend && tend.statut !== 'indisponible');
 
       const decisionP = statutSimplifie.action;
 

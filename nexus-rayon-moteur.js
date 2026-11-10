@@ -53,14 +53,15 @@
    * l'appel réseau. rows = lignes `products` déjà chargées pour le site
    * (select: categorie, article, ca, marge, periode_debut, periode_fin).
    */
-  function construireRayonsDepuisLignes(rows) {
+  function construireRayonsDepuisLignes(rows, options) {
+    const optPaire = Object.assign({}, options || {}, { appariement: 'dernieres' });
     if (!rows || !rows.length) return { rayons: {}, magasin: null };
     if (!global.NexusPeriodes || !global.NexusPeriodes.analyserPeriodes) {
       throw new Error('nexus-rayon-moteur.js requiert NexusPeriodes.analyserPeriodes (nexus-periodes.js non chargé)');
     }
 
     const { periodeAffichage, rowsAffichage, paire, rowsPaireActuelle, rowsPairePrecedente, periodeEnCours } =
-      global.NexusPeriodes.analyserPeriodes(rows);
+      global.NexusPeriodes.analyserPeriodes(rows, optPaire);
     if (!periodeAffichage) return { rayons: {}, magasin: null };
 
     const caActuelleParCat = {}, caPrecedentParCat = {};
@@ -85,11 +86,16 @@
       let evolution_ca = null, raison_indisponible = null;
       if (!paire) {
         raison_indisponible = 'aucune_paire';
+      } else if (!global.NexusPeriodes.paireFraiche(paire, optPaire)) {
+        // Paire plus ancienne que 21 jours : pas de tendance « actuelle ».
+        raison_indisponible = 'paire_perimee';
       } else {
         const caPrec = caPrecedentParCat[nom];
         const caAct = caActuelleParCat[nom] || 0;
         if (caPrec && caPrec > 0) {
-          evolution_ca = (caAct - caPrec) / caPrec;
+          // Ventes moyennes par jour (règle commune NexusPeriodes, PR B).
+          evolution_ca = global.NexusPeriodes.evolutionVentesMoyennes(
+            caAct, paire.actuelle.duree, caPrec, paire.precedente.duree);
         } else {
           raison_indisponible = 'baseline_nulle';
         }
