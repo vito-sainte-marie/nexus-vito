@@ -155,7 +155,18 @@ t('carte : cas Verify = état « Proposition à confirmer », pas de chip Agir n
   assert.ok(/stCarteCle\.action/.test(b), 'le risque établi garde son badge');
 });
 t('carte : « Ouvrir Verify » ouvre bien Verify', () => { assert.ok(/\[data-cp-verify\]'\)\.forEach\(b => b\.addEventListener\('click', \(\) => \{ window\.location\.href = b\.getAttribute\('data-cp-verify'\)/.test(H)); });
-t('carte : cas consigne = Agir non cliquable', () => { assert.ok(/NexusBadgeEtat\.action\('agir', \{ clicable: false \}\)/.test(H)); });
+t('carte : cas consigne = consigne métier, pas « À faire : agir »', () => {
+  assert.ok(/consigneCommandeAujourdhui\(\) : ''/.test(H));
+  assert.ok(H.indexOf("Commande à passer aujourd\\'hui") >= 0);
+  assert.ok(!/NexusBadgeEtat\.action\('agir', \{ clicable: false \}\)/.test(H));
+});
+const regleLigne = c => /ETAT_COMMANDE_STYLE\[cle\]\.action && etatConfirmationDe\(ctx\) !== 'confirmee'/.test(c) && /\$\{etatLigneCommande\(ev\.etat, ctx\)\}/.test(c);
+t('lignes par carburant : pas de « Commander aujourd\'hui » ni Agir sans confirmation', () => { assert.ok(regleLigne(H)); assert.ok(/etatLigneCommande[\s\S]{0,400}Proposition à confirmer/.test(H)); });
+garde('lignes : la condition de confirmation est nécessaire', H, regleLigne, "etatConfirmationDe(ctx) !== 'confirmee'", "etatConfirmationDe(ctx) !== 'calcul_impossible'");
+const regleBouton = c => /ctx\.commandeRecommandee && etatConfirmationDe\(ctx\) !== 'confirmee'\s*\?\s*`<div[^`]*Voir la fiche de commande/.test(c);
+t('bouton : lien discret « Voir la fiche de commande » si non confirmée', () => { assert.ok(regleBouton(H)); assert.ok(/Préparer ma commande →<\/button>/.test(H)); });
+garde('bouton : le lien discret dépend de la confirmation', H, regleBouton, "etatConfirmationDe(ctx) !== 'confirmee'\n      ? `<div", "etatConfirmationDe(ctx) === 'zz'\n      ? `<div");
+t('Commande déjà passée hors NEXUS reste proposée', () => { assert.ok(H.indexOf('Commande déjà passée hors NEXUS') >= 0 && H.indexOf('lienFicheHorsNexus') >= 0); });
 garde('action : Verify seulement si à confirmer avec un contrôle', H, c => /etatConfirmation === 'proposition_a_confirmer' && avis\.length > 0/.test(c), "etatConfirmation === 'proposition_a_confirmer' && avis.length > 0", "etatConfirmation === 'proposition_a_confirmer' || avis.length > 0");
 garde('action : Commander aujourd\'hui seulement si confirmée', H, c => /etatConfirmation === 'confirmee' && ctx && ctx\.commandeRecommandee\) return \{ type: 'commander' \}/.test(c), "etatConfirmation === 'confirmee' && ctx", "etatConfirmation !== 'calcul_impossible' && ctx");
 garde('carte : Ouvrir Verify est un vrai bouton', H, c => /<button type="button" class="nbe-action nbe-action-agir"[^>]*data-cp-verify/.test(c), '<button type="button" class="nbe-action nbe-action-agir"', '<span class="nbe-action nbe-action-agir"');

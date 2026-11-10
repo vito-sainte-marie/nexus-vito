@@ -161,6 +161,7 @@ function ok(label) { n++; console.log('OK —', label); }
     },
     optimisation: { decision: 'commander', motif: null, volumesRetenus: { sp95: 23170 } },
     commandeRecommandee: { volumes: { sp95: 23170 }, total: 23170 },
+    etatConfirmationCommande: 'confirmee', // 10/11/2026 : « Commander aujourd'hui » n'existe que confirmée
   };
   render(evaluation);
   const out = zone.innerHTML;

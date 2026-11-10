@@ -2221,6 +2221,23 @@ function actionCarteCommande(ctx, etatConfirmation) {
   if (ctx && ctx.commandeRecommandee) return { type: 'consigne' };
   return { type: 'aucune' };
 }
+// Ligne par carburant : « Commander aujourd'hui » et Agir n'existent que si la commande est confirmée.
+// Sinon l'état d'action s'efface au profit de « Proposition à confirmer » ; un risque établi garde son badge.
+function etatConfirmationDe(ctx) {
+  const causes = (ctx && ctx.causesAConfirmer) || [];
+  return (ctx && ctx.etatConfirmationCommande)
+    || (causes.some(c => c.niveau === 'non_calculable') ? 'calcul_impossible' : 'proposition_a_confirmer');
+}
+function consigneCommandeAujourdhui() {
+  return '<span class="nbe-consigne nbe-consigne-agir" data-axe="action" data-etat="agir">Commande à passer aujourd\'hui</span>';
+}
+function etatLigneCommande(etat, ctx) {
+  const cle = etat in ETAT_COMMANDE_STYLE ? etat : 'non_calculable';
+  if (ETAT_COMMANDE_STYLE[cle].action && etatConfirmationDe(ctx) !== 'confirmee') {
+    return NexusBadgeEtat.gravite('a-verifier', { libelle: 'Proposition à confirmer' });
+  }
+  return htmlEtatCommande(cle);
+}
 function htmlEtatCommande(cle, opts) {
     opts = opts || {};
     const st = ETAT_COMMANDE_STYLE[cle] || ETAT_COMMANDE_STYLE.non_calculable;
@@ -2698,7 +2715,7 @@ function htmlEtatCommande(cle, opts) {
 
       return `
         <div class="commande-ligne-carburant">
-          <span class="commande-ligne-nom">${htmlEtatCommande(ev.etat in ETAT_COMMANDE_STYLE ? ev.etat : 'non_calculable')} ${COURT_CARBURANT[cle] || cle}</span>
+          <span class="commande-ligne-nom">${etatLigneCommande(ev.etat, ctx)} ${COURT_CARBURANT[cle] || cle}</span>
           <span class="commande-ligne-detail">
             ${ligneJaugeage ? `<div>${ligneJaugeage}</div>` : ''}
             ${couvertureTxt ? `<div>${couvertureTxt}</div>` : ''}
@@ -2715,7 +2732,9 @@ function htmlEtatCommande(cle, opts) {
         ? `<div class="section-note" style="margin:6px 0 0; padding:0;">${ctx.optimisation.motif}</div>`
         : '');
 
-    const boutonHTML = ctx.commandeRecommandee
+    const boutonHTML = ctx.commandeRecommandee && etatConfirmationDe(ctx) !== 'confirmee'
+      ? `<div style="margin-top:8px;"><a href="#" class="commande-lien-fiche" id="btnPreparerCommande" style="font-size:12px; color:var(--text-dim);">Voir la fiche de commande</a></div>`
+      : ctx.commandeRecommandee
       ? `<button type="button" class="commande-cta-btn" id="btnPreparerCommande" style="background:${stAffiche.c}; color:var(--bg);">${iconeModuleCP('mod-reception-carburant', 16, '🚚')} Préparer ma commande →</button>`
       : '';
 
@@ -2824,8 +2843,7 @@ function htmlEtatCommande(cle, opts) {
     // établie). Repli sur l'ancienne heuristique par niveau si le champ
     // venait à manquer (robustesse Article 5, jamais une exception).
     const causesAConfirmer = ctx.causesAConfirmer || [];
-    const etatConfirmation = ctx.etatConfirmationCommande
-      || (causesAConfirmer.some(c => c.niveau === 'non_calculable') ? 'calcul_impossible' : 'proposition_a_confirmer');
+    const etatConfirmation = etatConfirmationDe(ctx);
 
     // Action mise en avant dans la carte (arbitrage de Frédéric, 10/11/2026) : elle dépend de l'état de confirmation.
     // Un bouton n'existe que s'il ouvre réellement un flux ; sinon c'est une consigne écrite.
@@ -2845,7 +2863,7 @@ function htmlEtatCommande(cle, opts) {
     } else {
       // Rien à ouvrir : consigne écrite, sans aspect de bouton.
       badgeEtatCommandeHTML = htmlEtatCommande(cleAffiche, { libelle: badgeLibelle })
-        + ((!stCarteCle.action && ctx.commandeRecommandee) ? ' ' + NexusBadgeEtat.action('agir', { clicable: false }) : '');
+        + ((!stCarteCle.action && ctx.commandeRecommandee) ? ' ' + consigneCommandeAujourdhui() : '');
     }
     const LIBELLE_ETAT_CONFIRMATION = {
       confirmee: { libelle: 'Confirmée', couleur: 'var(--green)', fond: 'var(--green-dim)' },
@@ -2935,7 +2953,7 @@ function htmlEtatCommande(cle, opts) {
       </div>`;
 
     const btn = document.getElementById('btnPreparerCommande');
-    if (btn) btn.addEventListener('click', () => ouvrirFicheCommande(ctx));
+    if (btn) btn.addEventListener('click', (e) => { e.preventDefault(); ouvrirFicheCommande(ctx); });
     zone.querySelectorAll('[data-cp-verify]').forEach(b => b.addEventListener('click', () => { window.location.href = b.getAttribute('data-cp-verify'); }));
     zone.querySelectorAll('[data-cp-agir]').forEach(b => { if (b.tagName === 'BUTTON') b.addEventListener('click', () => ouvrirFicheCommande(ctx)); });
   }
