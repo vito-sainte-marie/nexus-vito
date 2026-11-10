@@ -67,14 +67,17 @@
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   var has = function (o, k) { return Object.prototype.hasOwnProperty.call(o, k); };
 
-  function gravite(niveau) {
+  // opts.libelle : texte d'origine à garder à la place du libellé de l'axe (style de la gravité, mot du métier).
+  function gravite(niveau, opts) {
     if (!has(LIB_GRAVITE, niveau)) return neutre(niveau);
-    return '<span class="nbe-badge nbe-gravite-' + niveau + '" data-axe="gravite" data-etat="' + niveau + '">' + PICTO[niveau] + '<span>' + LIB_GRAVITE[niveau] + '</span></span>';
+    var lib = opts && opts.libelle ? esc(opts.libelle) : LIB_GRAVITE[niveau];
+    return '<span class="nbe-badge nbe-gravite-' + niveau + '" data-axe="gravite" data-etat="' + niveau + '">' + PICTO[niveau] + '<span>' + lib + '</span></span>';
   }
 
-  function traitement(type) {
+  function traitement(type, opts) {
     if (!has(LIB_TRAITEMENT, type)) return neutre(type);
-    return '<span class="nbe-badge nbe-traitement" data-axe="traitement" data-etat="' + type + '">' + PICTO[type] + '<span>' + LIB_TRAITEMENT[type] + '</span></span>';
+    var lib = opts && opts.libelle ? esc(opts.libelle) : LIB_TRAITEMENT[type];
+    return '<span class="nbe-badge nbe-traitement" data-axe="traitement" data-etat="' + type + '">' + PICTO[type] + '<span>' + lib + '</span></span>';
   }
 
   // opts.clicable : vrai seulement si la carte offre réellement le geste ; opts.attrs : attributs du <button>.

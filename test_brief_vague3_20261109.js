@@ -28,12 +28,23 @@ const api = new Function('NexusBadgeEtat', 'NexusEtatsConseiller', 'NexusIcones'
 // Correspondance des statuts.
 const attendu = {
   'Sous contrôle': 'conforme', 'En progression': 'conforme',
-  'À surveiller': 'a-verifier', 'À corriger': 'critique'
+  'À surveiller': 'a-verifier', 'À corriger': 'critique', 'En repli': 'a-verifier'
 };
 Object.keys(attendu).forEach(s => t('statut « ' + s + ' » -> ' + attendu[s], () => {
   const r = api.etatStatut(s);
   assert.ok(r.badge.indexOf('data-etat="' + attendu[s] + '"') >= 0 && r.badge.indexOf('data-axe="gravite"') >= 0);
 }));
+// Guardian 6755799729 : style de la gravité, libellé d'origine conservé.
+['Sous contrôle', 'En progression', 'À surveiller', 'À corriger', 'En repli', 'À confirmer'].forEach(st => t('statut « ' + st + ' » : libellé d\'origine gardé', () => {
+  const r = api.etatStatut(st);
+  assert.ok(r.badge.indexOf('<span>' + st + '</span>') >= 0, r.badge);
+}));
+t('« Sous contrôle » et « En progression » restent distincts', () => {
+  assert.notStrictEqual(api.etatStatut('Sous contrôle').badge, api.etatStatut('En progression').badge);
+  assert.ok(api.etatStatut('Sous contrôle').badge.indexOf('>Conforme<') < 0);
+});
+t('le composant échappe le libellé d\'origine', () => { assert.ok(BA.gravite('conforme', { libelle: '<b>x' }).indexOf('<b>') < 0); });
+t('sans option, le libellé de l\'axe reste (signaux, risques)', () => { assert.ok(BA.gravite('critique').indexOf('<span>Critique</span>') >= 0); });
 t('statut « À confirmer » -> En attente', () => { const r = api.etatStatut('À confirmer'); assert.ok(/data-axe="traitement" data-etat="en-attente"/.test(r.badge)); });
 t('statut « Données insuffisantes » -> neutre, point neutre', () => {
   const r = api.etatStatut('Données insuffisantes');
@@ -91,6 +102,9 @@ garde('risques : badge de gravité', ZR, c => /NexusBadgeEtat\.gravite\(GRAVITE_
 garde('risques : l’urgence reste écrite', ZR, c => /Urgence \$\{/.test(c), 'Urgence ${', 'Etat ${');
 garde('signaux : badge de niveau', ZW, c => /badgeSignal\(p\.etat\)/.test(c), 'badgeSignal(p.etat)', 'p.etat');
 garde('secteurs : badge de statut', ZB, c => /\$\{etat\.badge\}/.test(c), '${etat.badge}', '${a.statut}');
+garde('statuts : libellé d\'origine passé au composant', H, c => /gravite\(g, \{ libelle: statut \}\)/.test(c), 'gravite(g, { libelle: statut })', 'gravite(g)');
+garde('statuts : « En repli » en style À vérifier', H, c => /'En repli': 'a-verifier'/.test(c), "'En repli': 'a-verifier'", "'En repli': 'critique'");
+garde('composant : option libelle', lire('nexus-badge-etat.js'), c => /opts\.libelle \? esc\(opts\.libelle\) : LIB_GRAVITE/.test(c), 'opts.libelle ? esc(opts.libelle) : LIB_GRAVITE', 'LIB_GRAVITE');
 garde('secteurs : point suit le badge', ZB, c => /background:\$\{etat\.couleur\}/.test(c), 'background:${etat.couleur}', 'background:${c.hex}');
 garde('secteurs : score conservé', ZB, c => /axe-score">\$\{a\.valeur\}\/100/.test(c), 'axe-score">${a.valeur}/100', 'axe-score">${a.valeur}');
 garde('radar : icône du kit passée au moteur', ZB, c => /iconeSvg:/.test(c), 'iconeSvg:', 'icone:');

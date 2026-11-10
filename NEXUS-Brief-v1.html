@@ -384,17 +384,17 @@
     const c = ICONE_SECTEUR[a.id] ? NexusIcones.chemins(ICONE_SECTEUR[a.id]) : null;
     return c ? c.simplifie : null;
   }
-  // Statut de secteur -> { badge, couleur } (gravité du composant ; neutre sans niveau).
+  // Statut de secteur -> { badge, couleur } : style de la gravité, libellé d'origine gardé (Guardian 6755799729) ; neutre sans niveau.
   const GRAVITE_STATUT = {
     'Sous contrôle': 'conforme', 'En progression': 'conforme', 'Référence certifiée': 'conforme',
     'À surveiller': 'a-verifier', 'À relancer': 'a-verifier',
-    'À corriger': 'critique', 'En repli': 'critique'
+    'À corriger': 'critique', 'En repli': 'a-verifier'
   };
   const COULEUR_GRAVITE = { 'conforme': 'var(--nbe-conforme)', 'a-verifier': 'var(--nbe-verifier)', 'critique': 'var(--nbe-critique)', 'en-attente': 'var(--nbe-attente)' };
   function etatStatut(statut) {
-    if (statut === 'À confirmer') return { badge: NexusBadgeEtat.traitement('en-attente'), couleur: COULEUR_GRAVITE['en-attente'] };
+    if (statut === 'À confirmer') return { badge: NexusBadgeEtat.traitement('en-attente', { libelle: statut }), couleur: COULEUR_GRAVITE['en-attente'] };
     const g = Object.prototype.hasOwnProperty.call(GRAVITE_STATUT, statut) ? GRAVITE_STATUT[statut] : null;
-    if (g) return { badge: NexusBadgeEtat.gravite(g), couleur: COULEUR_GRAVITE[g] };
+    if (g) return { badge: NexusBadgeEtat.gravite(g, { libelle: statut }), couleur: COULEUR_GRAVITE[g] };
     return { badge: NexusBadgeEtat.neutre(statut), couleur: 'var(--text-dim)' };
   }
   // Niveau d'un signal opérationnel, lu dans sa clé d'état (Conseiller) ; sans niveau : neutre.
