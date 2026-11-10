@@ -1,3 +1,17 @@
+
+// Lot 3 des emojis (vague 3) : renderCommandeCarburant passe par htmlEtatCommande et le composant partagé.
+// Le vrai code est extrait de la page et le vrai composant chargé, jamais recopiés (Article 11).
+function __etatCommandeSrc() {
+  const dep = script.indexOf('function htmlEtatCommande(');
+  let j = script.indexOf('{', dep) + 1, p = 1;
+  while (p > 0) { if (script[j] === '{') p++; else if (script[j] === '}') p--; j++; }
+  return script.match(/const escCP = [^\n]*\n/)[0] + '\nfunction iconeModuleCP(id, taille, ancien) { return ancien; }\n' + script.slice(script.indexOf('function actionCarteCommande('), j);
+}
+function __brancherBadge(ctx) {
+  ctx.NexusEtatsConseiller = require('./nexus-etats-conseiller.js');
+  ctx.NexusBadgeEtat = require('./nexus-badge-etat.js');
+  return ctx;
+}
 // Test — v2.262 (28/08/2026, retour de Frédéric sur une capture d'écran
 // réelle du 31/08/2026) : deux corrections sur la carte "Commande de
 // transition — fin de mois" / "Prochaine commande".
@@ -122,14 +136,14 @@ const src = [
 ].join('\n\n');
 
 function fabriquerZone() {
-  return { _html: '', get innerHTML() { return this._html; }, set innerHTML(v) { this._html = v; }, addEventListener() {} };
+  return { _html: '', get innerHTML() { return this._html; }, set innerHTML(v) { this._html = v; }, addEventListener() {}, querySelectorAll() { return []; } };
 }
 function construireRender() {
   const zone = fabriquerZone();
   const document = { getElementById: (id) => (id === 'commandeCarburantZone' ? zone : null) };
   const ctx = { globalThis: {}, console, document, NexusCarburantCommandeMoteur: MOTEUR_COMMANDE_REEL };
   ctx.globalThis = ctx;
-  vm.runInNewContext(src, ctx);
+  __brancherBadge(ctx); vm.runInNewContext(src + '\n' + __etatCommandeSrc(), ctx);
   return { zone, render: ctx.__test.renderCommandeCarburant };
 }
 
@@ -184,7 +198,7 @@ function construireRender() {
 
   // 2) Fiabilité visible sans clic — détail auto-ouvert.
   assert.ok(out.includes('commande-plan-card open'), 'le détail "Voir les calculs" doit être ouvert par défaut quand un carburant n\'est pas fiable : ' + out);
-  assert.ok(out.includes('🟠 À confirmer'), 'badge de fiabilité visible : ' + out);
+  assert.ok(/nbe-traitement[^>]*data-etat="en-attente"[^>]*>[\s\S]*?<span>À confirmer<\/span>/.test(out), 'badge de fiabilité visible (« À confirmer », charte En attente) : ' + out);
   assert.ok(out.includes('Vérifier les écarts'), 'raison précise visible sans clic : ' + out);
   assert.ok(out.includes('Ouvrir Verify →') && out.includes('NEXUS-Verify-v1.html'), 'lien vers Verify visible sans clic (demande explicite de Frédéric) : ' + out);
 

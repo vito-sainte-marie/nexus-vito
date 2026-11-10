@@ -1,3 +1,17 @@
+
+// Lot 3 des emojis (vague 3) : renderCommandeCarburant passe par htmlEtatCommande et le composant partagé.
+// Le vrai code est extrait de la page et le vrai composant chargé, jamais recopiés (Article 11).
+function __etatCommandeSrc() {
+  const dep = script.indexOf('function htmlEtatCommande(');
+  let j = script.indexOf('{', dep) + 1, p = 1;
+  while (p > 0) { if (script[j] === '{') p++; else if (script[j] === '}') p--; j++; }
+  return script.match(/const escCP = [^\n]*\n/)[0] + '\nfunction iconeModuleCP(id, taille, ancien) { return ancien; }\n' + script.slice(script.indexOf('function actionCarteCommande('), j);
+}
+function __brancherBadge(ctx) {
+  ctx.NexusEtatsConseiller = require('./nexus-etats-conseiller.js');
+  ctx.NexusBadgeEtat = require('./nexus-badge-etat.js');
+  return ctx;
+}
 // Test — Carte "🚚 Prochaine commande" : cutoff/livraison, fiabilité,
 // explication multi-produit, badge qualifié (25/08/2026, retour de Frédéric
 // sur v2.239, cahier "NEXUS Carburants — moteur de recommandation", points
@@ -104,11 +118,11 @@ const vm = require('vm');
 // jsdom (indisponible en sandbox, cf. tests carburant précédents) : seule
 // l'écriture de innerHTML est utile ici, pas la lecture d'inputs.
 function nouveauContexteDom() {
-  const zone = { _html: '', set innerHTML(v) { this._html = v; }, get innerHTML() { return this._html; }, addEventListener() {} };
+  const zone = { _html: '', set innerHTML(v) { this._html = v; }, get innerHTML() { return this._html; }, addEventListener() {}, querySelectorAll() { return []; } };
   const document = { getElementById: (id) => (id === 'commandeCarburantZone' ? zone : null) };
   const ctx = { globalThis: {}, console, document };
   ctx.globalThis = ctx;
-  vm.runInNewContext(src, ctx);
+  __brancherBadge(ctx); vm.runInNewContext(src + '\n' + __etatCommandeSrc(), ctx);
   return { zone, render: ctx.__test.renderCommandeCarburant, fmtL: ctx.__test.fmtL };
 }
 
@@ -147,6 +161,7 @@ function ok(label) { n++; console.log('OK —', label); }
     },
     optimisation: { decision: 'commander', motif: null, volumesRetenus: { sp95: 23170 } },
     commandeRecommandee: { volumes: { sp95: 23170 }, total: 23170 },
+    etatConfirmationCommande: 'confirmee', // 10/11/2026 : « Commander aujourd'hui » n'existe que confirmée
   };
   render(evaluation);
   const out = zone.innerHTML;
@@ -161,7 +176,7 @@ function ok(label) { n++; console.log('OK —', label); }
   // CARBURANT "🟢 Confirmée" (jamais de raisons/actions affichées pour ce
   // niveau — "À confirmer"/"Calcul suspendu" seuls doivent en montrer,
   // citation exacte de Frédéric).
-  assert.ok(out.includes('🟢 Confirmée'), 'badge fiabilité "🟢 Confirmée" attendu : ' + out);
+  assert.ok(/nbe-gravite-conforme[^>]*>[\s\S]*?<span>Confirmée<\/span>/.test(out), 'badge fiabilité « Confirmée » (charte Conforme) attendu : ' + out);
   assert.ok(!out.includes('fiabilite-raisons'), 'niveau fiable -> aucun bloc de raisons/actions affiché : ' + out);
   assert.ok(!out.includes('à confirmer'), 'aucune qualification "à confirmer" quand confiance=fiable : ' + out);
   // Libellé mis à jour le 27/08/2026 (nouvelle règle de Frédéric §9-10) —
@@ -233,12 +248,13 @@ function ok(label) { n++; console.log('OK —', label); }
   // Commande probable — à confirmer" ; le comportement de downgrade
   // (orange tant que la confiance n'est pas fiable) reste inchangé.
   assert.ok(out.includes('Risque de rupture probable — à confirmer'), 'badge orange dédié attendu (jamais un simple suffixe sur le rouge) : ' + out);
-  assert.ok(!out.includes('>Risque de rupture<'), 'le libellé rouge alarmiste ne doit plus apparaître quand la confiance n\'est pas fiable : ' + out);
-  assert.ok(out.includes('border-color:var(--amber)'), 'bordure de carte également basculée en orange (couleur ET libellé, jamais un correctif partiel) : ' + out);
+  const badgeCarte = (out.match(/<span class="cp-carte-etat"[\s\S]*?<\/div>/) || [''])[0];
+  assert.ok(badgeCarte && !badgeCarte.includes('>Risque de rupture<'), 'le libellé rouge alarmiste ne doit plus apparaître dans le badge de la carte quand la confiance n\'est pas fiable : ' + badgeCarte);
+  assert.ok(out.includes('border-color:var(--nbe-verifier)'), 'bordure de carte également basculée en « À vérifier » (jeton --nbe-verifier) (couleur ET libellé, jamais un correctif partiel) : ' + out);
   // 28/08/2026 (refonte qualitative v2.260) — badge "🟠 À confirmer" + raison
   // précise TOUJOURS visible (citation exacte de Frédéric : "à confirmer" ne
   // s'affiche jamais seul).
-  assert.ok(out.includes('🟠 À confirmer'), 'badge fiabilité "🟠 À confirmer" attendu : ' + out);
+  assert.ok(/nbe-traitement[^>]*data-etat="en-attente"[^>]*>[\s\S]*?<span>À confirmer<\/span>/.test(out), 'badge fiabilité « À confirmer » (charte En attente) attendu : ' + out);
   assert.ok(out.includes('ventes prévues encore incertaines'), 'raison de fiabilité à confirmer attendue : ' + out);
   assert.ok(out.includes('stock maintenant non calculable (quart en cours au jaugeage)'), 'stock maintenant non calculable affiché honnêtement, jamais un chiffre fabriqué (Article 5) : ' + out);
   ok('securite + confiance a_confirmer -> badge orange dédié "Risque de rupture probable — à confirmer" (couleur + libellé), fiabilité Moyenne, stock maintenant honnêtement non calculable si chevauchement (le calcul rouge/etatGlobal reste inchangé)');
