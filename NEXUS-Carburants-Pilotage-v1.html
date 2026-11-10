@@ -2236,6 +2236,10 @@ function etatLigneCommande(etat, ctx) {
   if (ETAT_COMMANDE_STYLE[cle].action && etatConfirmationDe(ctx) !== 'confirmee') {
     return NexusBadgeEtat.gravite('a-verifier', { libelle: 'Proposition à confirmer' });
   }
+  // Confirmée : le libellé métier seul, en cyan, sans aspect de bouton (jamais « À faire : agir »).
+  if (ETAT_COMMANDE_STYLE[cle].action) {
+    return '<span class="nbe-consigne nbe-consigne-agir cp-etat-libelle" data-axe="action" data-etat="agir">' + escCP(ETAT_COMMANDE_STYLE[cle].libelle) + '</span>';
+  }
   return htmlEtatCommande(cle);
 }
 function htmlEtatCommande(cle, opts) {

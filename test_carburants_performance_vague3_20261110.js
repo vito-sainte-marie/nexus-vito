@@ -170,4 +170,22 @@ t('Commande déjà passée hors NEXUS reste proposée', () => { assert.ok(H.inde
 garde('action : Verify seulement si à confirmer avec un contrôle', H, c => /etatConfirmation === 'proposition_a_confirmer' && avis\.length > 0/.test(c), "etatConfirmation === 'proposition_a_confirmer' && avis.length > 0", "etatConfirmation === 'proposition_a_confirmer' || avis.length > 0");
 garde('action : Commander aujourd\'hui seulement si confirmée', H, c => /etatConfirmation === 'confirmee' && ctx && ctx\.commandeRecommandee\) return \{ type: 'commander' \}/.test(c), "etatConfirmation === 'confirmee' && ctx", "etatConfirmation !== 'calcul_impossible' && ctx");
 garde('carte : Ouvrir Verify est un vrai bouton', H, c => /<button type="button" class="nbe-action nbe-action-agir"[^>]*data-cp-verify/.test(c), '<button type="button" class="nbe-action nbe-action-agir"', '<span class="nbe-action nbe-action-agir"');
+const regleLigneConfirmee = c => /Confirmée : le libellé métier seul[\s\S]{0,400}nbe-consigne nbe-consigne-agir cp-etat-libelle/.test(c);
+t('lignes confirmées : libellé métier seul, jamais « À faire : agir »', () => {
+  assert.ok(regleLigneConfirmee(H));
+  const i = H.indexOf('function etatLigneCommande('), j = H.indexOf('function htmlEtatCommande(');
+  assert.ok(i > 0 && j > i && !/NexusBadgeEtat\.action\(/.test(H.slice(i, j)), 'etatLigneCommande ne passe pas par action()');
+});
+garde('lignes confirmées : le libellé métier remplace la consigne de l\'axe', H, regleLigneConfirmee, 'nbe-consigne nbe-consigne-agir cp-etat-libelle', 'nbe-action nbe-action-agir cp-etat-libelle');
+t('lignes confirmées : rendu réel', () => {
+  const i = H.indexOf('function etatConfirmationDe('), j = H.indexOf('function htmlEtatCommande(');
+  const ETAT_COMMANDE_STYLE = { moment_ideal: { action: 'agir', libelle: "Commander aujourd'hui" }, confortable: { gravite: 'conforme', libelle: 'Rien à faire' } };
+  const escCP = x => String(x);
+  const NexusBadgeEtat = { gravite: (g, o) => '[' + g + ':' + o.libelle + ']', action: () => 'À faire : agir' };
+  const htmlEtatCommande = () => 'AUTRE';
+  const f = eval('(' + 'function(){' + H.slice(i, j).replace(/function htmlEtatCommande[\s\S]*$/, '') + ' return etatLigneCommande; }' + ')')();
+  const r = f('moment_ideal', { etatConfirmationCommande: 'confirmee' });
+  assert.ok(/Commander aujourd'hui/.test(r) && !/À faire/.test(r) && !/<button/.test(r));
+  assert.ok(/Proposition à confirmer/.test(f('moment_ideal', { etatConfirmationCommande: 'proposition_a_confirmer' })));
+});
 console.log(n + ' épreuves OK');
