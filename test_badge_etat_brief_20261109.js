@@ -106,7 +106,7 @@ t('Tempo et Signal : « Autres signaux », jamais « Risques »', () => {
   assert.strictEqual(g.risques.length, 0); assert.strictEqual(g.autres.length, 2);
 });
 t('Autres pages : seules celles des vagues 1 à 3 chargent le composant', () => {
-  fs.readdirSync(__dirname).filter(f => /^NEXUS-.*\.html$/.test(f) && !['NEXUS-Brief-v1.html', 'NEXUS-Cockpit-v2.html', 'NEXUS-Centre-Intelligence-v1.html', 'NEXUS-Missions-v1.html', 'NEXUS-Carburants-Pilotage-v1.html'].includes(f)).forEach(f => {
+  fs.readdirSync(__dirname).filter(f => /^NEXUS-.*\.html$/.test(f) && !['NEXUS-Brief-v1.html', 'NEXUS-Cockpit-v2.html', 'NEXUS-Centre-Intelligence-v1.html', 'NEXUS-Missions-v1.html', 'NEXUS-Carburants-Pilotage-v1.html', 'NEXUS-Produits-v1.html'].includes(f)).forEach(f => {
     assert.ok(lire(f).indexOf('nexus-badge-etat') < 0, f);
   });
 });

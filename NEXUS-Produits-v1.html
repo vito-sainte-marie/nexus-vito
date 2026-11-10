@@ -191,51 +191,181 @@
   .cycle-tag.tag-decision{color:var(--amber);}
 
   footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
+
+/* ===== Refonte visuelle phase 1 (presentation uniquement) ===== */
+:root[data-theme="jour"]{
+  --bg:#F4F6F8; --panel:#FFFFFF; --panel-raised:#EEF2F5; --hairline:#D5DCE3;
+  --text:#0F172A; --text-mid:#475569; --text-dim:#5F6B78;
+  --cyan:#0B7285; --green:#0B7A54; --amber:#B45309; --yellow:#8A6A00; --yellow-dim:#FEF3C7; --surf:#FFFFFF;
+  --red:#B91C1C; --purple:#6D28D9;
+  --green-dim:rgba(11,122,84,.12); --amber-dim:rgba(180,83,9,.12); --red-dim:rgba(185,28,28,.10); --purple-dim:rgba(109,40,217,.10);
+}
+:root:not([data-theme="jour"]){--text-dim:#808C9B;}
+body.nexus-desktop .phone{max-width:1180px;}
+.header{--banniere-cadrage:60% 50%;--banniere-cadrage-tel:100% 50%}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;}
+:focus-visible{outline:2px solid var(--cyan);outline-offset:2px;}
+.ico{width:1.15em;height:1.15em;flex:none;vertical-align:-0.2em;}
+
+/* Bandeau */
+.hero .fil{font-family:var(--mono);font-size:11px;letter-spacing:0.08em;color:var(--text-mid);}
+.hero h1.title{font-size:26px;font-weight:700;margin:6px 0 0;}
+.hero .sous{font-size:13px;color:var(--text-mid);margin-top:6px;line-height:1.5;max-width:46ch;}
+.selecteurs{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px;}
+.pastille{display:inline-block;padding:5px 11px;border:1px solid var(--hairline);border-radius:999px;background:var(--panel-raised);font-family:var(--mono);font-size:11px;color:var(--text-mid);}
+.pastille[hidden]{display:none;}
+.header .menu-btn{display:inline-flex;align-items:center;gap:6px;min-height:44px;min-width:44px;}
+body.nexus-desktop .pastille{font-family:var(--sans);font-size:13px;padding:6px 12px;}
+:root[data-theme="jour"] .menu-btn{background:#fff;border-color:var(--hairline);color:var(--cyan);}
+@media (max-width:640px){.hero .entete-texte .fil{padding-right:96px;}}
+
+/* Recherche (combobox) */
+.search-box{align-items:center;gap:10px;}
+.search-box .ico{color:var(--text-mid);width:20px;height:20px;}
+.search-box:focus-within{border-color:var(--cyan);box-shadow:0 0 0 2px rgba(79,195,217,.25);}
+.search-box input{min-height:44px;}
+.search-box input:focus-visible{outline:none;}
+.suggestions[hidden]{display:none;}
+button.suggestion-item{width:100%;text-align:left;font:inherit;font-size:13px;color:inherit;min-height:44px;}
+.suggestion-item.is-active,.suggestion-item:focus-visible{border-color:var(--cyan);background:var(--panel-raised);outline:2px solid var(--cyan);outline-offset:-2px;}
+
+/* Conseiller d'accueil (etat vide) */
+.empty-conseiller{margin:0 0 14px;padding:0;}
+
+/* Disposition fiche */
+.top-grid{display:grid;grid-template-columns:1fr;gap:12px;}
+.identite-card{display:grid;grid-template-columns:112px 1fr;grid-template-areas:"photo texte" "info info";gap:10px 14px;align-items:center;}
+.identite-card #photoCardZone{display:contents;}
+.identite-card .photo-box{grid-area:photo;width:112px;height:112px;aspect-ratio:auto;margin:0;border-radius:12px;background:#fff;border:1px solid var(--hairline);}
+.identite-card .photo-box img{width:100%;height:100%;object-fit:contain;background:#fff;}
+.identite-card .photo-info{grid-area:info;display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;}
+.identite-card .photo-info .photo-meta{margin:0;}
+.identite-texte{grid-area:texte;min-width:0;}
+.identite-texte .hero-nom{margin:0;overflow-wrap:anywhere;}
+.identite-texte .hero-cat{margin:4px 0 8px;}
+.photo-btn{display:inline-flex;align-items:center;gap:6px;min-height:44px;}
+:root[data-theme="jour"] .photo-btn{background:#fff;border-color:var(--cyan);color:var(--cyan);}
+.statut-repli{display:inline-block;padding:4px 10px;border:1px solid var(--hairline);border-radius:999px;font-size:12px;color:var(--text);}
+.conseiller-card h2{font-size:14px;margin:0;display:flex;align-items:center;gap:10px;}
+.conseiller-card .conseiller-avatar{width:36px;height:36px;}
+.conseiller-card .conseiller-bubble{margin-top:10px;}
+.hero-action .periode-tendance,.cycle-step .periode-tendance{display:block;margin-top:6px;font-family:var(--mono);font-size:11px;color:var(--text-mid);}
+.avert-tendance{display:block;margin-top:8px;font-size:12px;line-height:1.5;color:var(--amber);}
+:root[data-theme="jour"] .hero-action{background:var(--panel-raised);border-color:var(--hairline);}
+:root[data-theme="jour"] .conseiller-bubble{box-shadow:none;border-color:var(--hairline);}
+:root[data-theme="jour"] .conseiller-avatar{filter:none;}
+
+/* Indicateurs */
+.ind-niveau{display:grid;gap:8px;}
+.ind-principal{grid-template-columns:1fr 1fr;margin-bottom:8px;}
+.ind-principal .ind-tile:first-child{grid-column:1 / -1;}
+.ind-secondaire{grid-template-columns:1fr 1fr;}
+.ind-tile{background:var(--panel-raised);border:1px solid var(--hairline);border-radius:10px;padding:10px 12px;min-width:0;}
+.ind-label{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-mid);}
+.ind-val{font-family:var(--mono);font-size:18px;font-weight:700;margin-top:4px;white-space:nowrap;}
+.ind-principal .ind-val{font-size:22px;}
+.ind-sub{font-size:11px;color:var(--text-dim);margin-top:2px;line-height:1.4;}
+@media (min-width:640px){
+  .ind-principal{grid-template-columns:repeat(3,1fr);}
+  .ind-principal .ind-tile:first-child{grid-column:auto;}
+  .ind-secondaire{grid-template-columns:repeat(3,1fr);}
+}
+
+/* Sections repliables */
+details.sec{padding:0;}
+details.sec>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;min-height:44px;padding:10px 14px;font-weight:600;font-size:14px;}
+details.sec>summary::-webkit-details-marker{display:none;}
+details.sec>summary::after{content:"";margin-left:auto;width:8px;height:8px;border-right:2px solid var(--text-mid);border-bottom:2px solid var(--text-mid);transform:rotate(45deg);transition:transform .15s;}
+details.sec[open]>summary::after{transform:rotate(-135deg);}
+details.sec>.sec-corps{padding:0 14px 14px;}
+.sec-sous{font-size:12px;font-weight:600;color:var(--text-mid);margin:14px 0 6px;}
+button.emplacement-modifier{background:none;border:0;padding:0 4px;font:inherit;font-family:var(--mono);color:var(--cyan);text-decoration:underline;cursor:pointer;min-height:44px;}
+:root[data-theme="jour"] .emplacement-autre button{background:#fff;color:var(--cyan);border-color:var(--cyan);}
+
+/* Bureau */
+body.nexus-desktop #resultSection.desktop-grid{column-count:auto !important;display:block !important;}
+body.nexus-desktop #resultSection > *{margin-bottom:12px;}
+@media (min-width:900px){
+  body.nexus-desktop .top-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:start;}
+}
+.conseiller-tete{display:flex;align-items:center;gap:10px;}
+.statut-ligne{margin-top:8px;}
+.histo-dates{font-family:var(--mono);font-size:10px;color:var(--text-dim);margin-top:6px;}
+.photo-empty{font-size:11px;color:var(--text-mid);text-align:center;padding:6px;line-height:1.4;}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
+<script src="nexus-theme.js"></script>
 <script src="nexus-auth.js?v=20260904-0104"></script>
 <script src="nexus-icones.js?v=20260904-0104"></script>
 <script src="nexus-desktop.js?v=20260904-0104"></script>
 <script src="nexus-vocabulaire.js?v=20260904-0104"></script>
 <script src="nexus-periodes.js?v=20260904-0104"></script>
 <script src="nexus-conseiller.js?v=20260904-0104"></script>
+<script src="nexus-banniere-station.js"></script>
+<script src="nexus-badge-etat.js"></script>
 </head>
 <body>
 <div class="phone">
-  <div class="header">
-    <a href="NEXUS-App-v1.html" class="menu-btn">☰ Menu</a>
-    <div class="eyebrow">NEXUS · Produits</div>
-    <div class="title">Référentiel produit</div>
-  </div>
+  <header class="header hero" id="heroProduits">
+    <a href="NEXUS-App-v1.html" class="menu-btn" aria-label="Menu NEXUS"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M4 6h16M4 12h16M4 18h16"/></svg> Menu</a>
+    <div class="entete-texte">
+      <div class="fil">NEXUS · Produits</div>
+      <h1 class="title">Produits</h1>
+      <p class="sous">Recherchez une référence pour voir ses ventes, sa marge, son stock et le conseil NEXUS.</p>
+      <div class="selecteurs">
+        <span class="pastille nexus-nom-commerce" id="pastilleSite"></span>
+        <span class="pastille" id="pastillePeriode" hidden></span>
+        <span class="pastille" id="pastilleApercu" hidden>Aperçu — données fictives</span>
+      </div>
+    </div>
+  </header>
   <div class="divider"></div>
 
   <div class="search-wrap">
     <div class="search-box">
-      <span>🔍</span>
-      <input type="text" id="searchInput" placeholder="Rechercher un produit (ex: Heineken)">
+      <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      <input type="text" id="searchInput" role="combobox" aria-expanded="false" aria-controls="suggestions" aria-autocomplete="list" aria-label="Rechercher un produit par nom" autocomplete="off" placeholder="Rechercher un produit (nom)">
     </div>
-    <div class="suggestions" id="suggestions"></div>
-  </div>
-
-  <div class="conseiller-mini">
-    <img class="conseiller-avatar" src="assets/nexus-avatar.png" alt="Conseiller NEXUS">
-    <div class="conseiller-bubble">
-      <div class="conseiller-label">Conseiller NEXUS</div>
-      <div class="conseiller-text" id="conseillerProduitMsg">Recherchez une référence et je vous dis ce que les chiffres racontent vraiment dessus — pas ce qu'on croit en général.</div>
-    </div>
+    <div class="suggestions" id="suggestions" role="listbox" aria-label="Produits trouvés" hidden></div>
+    <div class="sr-only" id="rechercheStatut" role="status" aria-live="polite"></div>
   </div>
 
   <!-- desktop-grid (02/08/2026) : mise en colonnes en vue bureau (voir
-       nexus-desktop.js) — purement additif, aucun effet en mobile. -->
+       nexus-desktop.js) — neutralisée ici, la fiche a sa propre disposition. -->
   <div class="section desktop-grid" id="resultSection">
+    <div class="conseiller-mini empty-conseiller">
+      <img class="conseiller-avatar" src="assets/nexus-avatar.png" alt="Conseiller NEXUS">
+      <div class="conseiller-bubble">
+        <div class="conseiller-label">Conseiller NEXUS</div>
+        <div class="conseiller-text">Recherchez une référence et je vous dis ce que les chiffres racontent vraiment dessus — pas ce qu'on croit en général.</div>
+      </div>
+    </div>
     <div class="empty-state">Recherchez un produit ci-dessus pour afficher sa fiche complète — toutes les références importées sont disponibles.</div>
   </div>
 
-  <footer>NEXUS Produits v1 · Données réelles S1 2026 · Vito Sainte-Marie Usine</footer>
+  <footer>NEXUS Produits v1 · Données réelles S1 2026 · <span class="nexus-nom-commerce"></span></footer></footer>
 </div>
 
 <script>
+// Pictogrammes fonctionnels (kit : traits 24px, currentColor) — remplacent les emojis decoratifs.
+function svgIco(d) { return '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' + d + '</svg>'; }
+const ICO = {
+  camera: svgIco('<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>'),
+  search: svgIco('<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>'),
+  ca: svgIco('<path d="M4 19V5M4 19h16M8 15l4-4 3 3 5-6"/>'),
+  unites: svgIco('<path d="M3 7l9-4 9 4-9 4zM3 7v10l9 4 9-4V7M12 11v10"/>'),
+  marge: svgIco('<path d="M19 5L5 19"/><circle cx="7" cy="7" r="2.5"/><circle cx="17" cy="17" r="2.5"/>'),
+  prix: svgIco('<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.2"/>'),
+  pma: svgIco('<path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/>'),
+  part: svgIco('<path d="M12 3v9h9"/><path d="M20.5 15A9 9 0 1 1 9 3.5"/>'),
+  rang: svgIco('<path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0zM7 6H4v2a3 3 0 0 0 3 3M17 6h3v2a3 3 0 0 1-3 3"/>'),
+  stock: svgIco('<path d="M3 9l9-6 9 6v11H3zM9 20v-7h6v7"/>'),
+  rotation: svgIco('<path d="M20 11a8 8 0 0 0-14-4L4 9M4 4v5h5M4 13a8 8 0 0 0 14 4l2-2M20 20v-5h-5"/>'),
+  histo: svgIco('<path d="M12 7v5l3 2"/><circle cx="12" cy="12" r="9"/>'),
+  info: svgIco('<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/>')
+};
+const NEXUS_CLIENT_REEL = nexusClient;
 let SITE_ACTUEL = null; // jamais 'vito-sainte-marie' par defaut (de-Vito-isation, 11/08/2026) - toujours ecrase par employee.site_id apres nexusRequireAuth()
 
 nexusRequireAuth().then(async employee => {
@@ -245,6 +375,16 @@ nexusRequireAuth().then(async employee => {
     return;
   }
   SITE_ACTUEL = employee.site_id;
+  const APERCU = new URLSearchParams(location.search).get('apercu_produit') === '1' && employee.site_id === 'nexus-station-test';
+  const nexusClient = APERCU ? clientApercu() : NEXUS_CLIENT_REEL;
+  if (APERCU) { const pa = document.getElementById('pastilleApercu'); if (pa) pa.hidden = false; }
+    // Banniere commune (nexus-banniere-station.js) : meme illustration en Jour et Nuit.
+    try{ if(typeof NexusBanniereStation!=='undefined' && NexusBanniereStation.siteAvecBanniere(SITE_ACTUEL, NexusBanniereStation.apercuDemande())){
+      const haut=document.querySelector('#heroProduits'); const b='assets/produits/produits-banniere';
+      haut.insertAdjacentHTML('afterbegin', `<div class="am-banniere" data-photo-jour="${b}-1200.webp" data-photo-nuit="${b}-1200.webp"><img src="${b}-800.webp" srcset="${b}-800.webp 800w, ${b}-1200.webp 1200w, ${b}-1600.webp 1600w" sizes="(max-width:820px) 100vw, 50vw" width="800" height="450" alt="" decoding="async" onerror="this.parentNode.remove()"></div>`);
+      NexusBanniereStation.sourceTelephone(document.querySelector('.header > .am-banniere, #heroProduits > .am-banniere'),'assets/telephone/produits-telephone.webp');
+      NexusBanniereStation.suivreTheme();
+    }}catch(_){}
 
   let PRODUCTS = [];
   let PRODUCT_PHOTOS = {};
@@ -434,8 +574,14 @@ nexusRequireAuth().then(async employee => {
     return map;
   }
 
-  PRODUCTS = await construireProduitsLive();
-  PRODUCT_PHOTOS = await chargerPhotosProduits();
+  if (APERCU) {
+    PRODUCTS = produitsApercu(await construireProduitsLive());
+    PRODUCT_PHOTOS = {};
+    PRODUCT_PHOTOS[PRODUCTS[0].categorie + '|' + PRODUCTS[0].article] = { photo_url: photoApercu(), verifie_le: '2026-08-20' };
+  } else {
+    PRODUCTS = await construireProduitsLive();
+    PRODUCT_PHOTOS = await chargerPhotosProduits();
+  }
 
   const searchInput = document.getElementById('searchInput');
   const suggestionsBox = document.getElementById('suggestions');
@@ -450,22 +596,64 @@ nexusRequireAuth().then(async employee => {
     "Prix imposé — non applicable": "mission-fixe",
   };
 
+  // Recherche : meme moteur qu'avant (nom, sans accents ni code-barres, 8 resultats max) ;
+  // seule la presentation change : combobox accessible au clavier.
+  const rechercheStatut = document.getElementById('rechercheStatut');
+  let sugActif = -1;
+  function fermerSuggestions() {
+    suggestionsBox.innerHTML = '';
+    suggestionsBox.hidden = true;
+    searchInput.setAttribute('aria-expanded', 'false');
+    searchInput.removeAttribute('aria-activedescendant');
+    sugActif = -1;
+  }
+  function choisirSuggestion(article) {
+    showProduct(article);
+    fermerSuggestions();
+    searchInput.value = article;
+    if (rechercheStatut) rechercheStatut.textContent = 'Fiche affichée : ' + article;
+  }
+  function marquerActif(i) {
+    const items = suggestionsBox.querySelectorAll('.suggestion-item');
+    items.forEach((el, k) => { el.classList.toggle('is-active', k === i); el.setAttribute('aria-selected', k === i ? 'true' : 'false'); });
+    if (i >= 0 && items[i]) {
+      searchInput.setAttribute('aria-activedescendant', items[i].id);
+      items[i].scrollIntoView({ block: 'nearest' });
+    } else searchInput.removeAttribute('aria-activedescendant');
+    sugActif = i;
+  }
   searchInput.addEventListener('input', () => {
     const q = searchInput.value.trim().toLowerCase();
-    if (q.length < 2) { suggestionsBox.innerHTML = ''; return; }
+    if (q.length < 2) { fermerSuggestions(); return; }
     const matches = PRODUCTS.filter(p => p.article.toLowerCase().includes(q)).slice(0, 8);
-    suggestionsBox.innerHTML = matches.map(p => `
-      <div class="suggestion-item" data-article="${p.article.replace(/"/g,'&quot;')}">
-        <span>${p.article}</span>
-        <span class="cat">${p.classe || p.categorie}</span>
-      </div>`).join('');
-    suggestionsBox.querySelectorAll('.suggestion-item').forEach(el => {
-      el.addEventListener('click', () => {
-        showProduct(el.dataset.article);
-        suggestionsBox.innerHTML = '';
-        searchInput.value = el.dataset.article;
-      });
-    });
+    sugActif = -1;
+    searchInput.removeAttribute('aria-activedescendant');
+    if (!matches.length) {
+      suggestionsBox.innerHTML = '';
+      suggestionsBox.hidden = true;
+      searchInput.setAttribute('aria-expanded', 'false');
+      if (rechercheStatut) rechercheStatut.textContent = 'Aucun produit trouvé';
+      return;
+    }
+    suggestionsBox.innerHTML = matches.map((p, i) => `
+      <button type="button" role="option" id="sug-${i}" aria-selected="false" class="suggestion-item" data-article="${esc(p.article)}">
+        <span>${esc(p.article)}</span>
+        <span class="cat">${esc(p.classe || p.categorie)}</span>
+      </button>`).join('');
+    suggestionsBox.hidden = false;
+    searchInput.setAttribute('aria-expanded', 'true');
+    if (rechercheStatut) rechercheStatut.textContent = matches.length + ' produit(s) trouvé(s)';
+  });
+  suggestionsBox.addEventListener('click', (e) => {
+    const el = e.target.closest('.suggestion-item');
+    if (el) choisirSuggestion(el.dataset.article);
+  });
+  searchInput.addEventListener('keydown', (e) => {
+    const items = suggestionsBox.querySelectorAll('.suggestion-item');
+    if (e.key === 'ArrowDown' && items.length) { e.preventDefault(); marquerActif((sugActif + 1) % items.length); }
+    else if (e.key === 'ArrowUp' && items.length) { e.preventDefault(); marquerActif(sugActif <= 0 ? items.length - 1 : sugActif - 1); }
+    else if (e.key === 'Enter' && sugActif >= 0 && items[sugActif]) { e.preventDefault(); choisirSuggestion(items[sugActif].dataset.article); }
+    else if (e.key === 'Escape') { fermerSuggestions(); }
   });
 
   // Deep-link depuis le Conseiller NEXUS (accueil) — ?article=<nom exact>
@@ -481,6 +669,52 @@ nexusRequireAuth().then(async employee => {
 
   function fmtEur(v) { return v.toLocaleString('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' €'; }
   function fmtPct(v) { return (v*100).toFixed(1) + '%'; }
+  function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function fmtDate(d) {
+    if (!d) return '—';
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(d));
+    return m ? `${m[3]}/${m[2]}/${m[1]}` : String(d);
+  }
+  // ---- Apercu de recette (?apercu_produit=1, site nexus-station-test uniquement) ----
+  // Donnees fictives en memoire. Aucune ecriture, aucun appel reseau.
+  function clientApercu() {
+    const DEMO = {
+      stock_releves: [{ quantite_theorique: 24, quantite_reelle: 20, releve_le: '2026-08-20' }],
+      product_locations: [{ emplacement: 'Allée 3 · Rayon frais', source: 'auto_categorie', article: 'APERCU' }]
+    };
+    const refus = { data: null, error: { message: 'Aperçu : écriture désactivée' } };
+    function chaine(table) {
+      let ecriture = false;
+      const q = {};
+      ['select','eq','neq','in','is','not','gte','lte','gt','lt','like','ilike','order','limit','range','match','or','filter','contains'].forEach(m => { q[m] = () => q; });
+      ['insert','update','upsert','delete'].forEach(m => { q[m] = () => { ecriture = true; return q; }; });
+      const lignes = () => DEMO[table] || [];
+      q.maybeSingle = () => Promise.resolve(ecriture ? refus : { data: lignes()[0] || null, error: null });
+      q.single = q.maybeSingle;
+      q.then = (ok, ko) => Promise.resolve(ecriture ? refus : { data: lignes(), error: null }).then(ok, ko);
+      return q;
+    }
+    return {
+      from: chaine,
+      rpc: () => Promise.resolve(refus),
+      storage: { from: () => ({ upload: () => Promise.resolve(refus), createSignedUrl: () => Promise.resolve(refus), getPublicUrl: () => ({ data: { publicUrl: '' } }) }) },
+      functions: { invoke: () => Promise.resolve(refus) },
+      auth: { getSession: () => Promise.resolve({ data: { session: null }, error: null }) }
+    };
+  }
+  function produitsApercu(base) {
+    const ref = base[0] || {};
+    const demo = Object.assign({}, ref, {
+      article: 'APERÇU — Jus d\'orange 1 L', classe: 'Jus', categorie: 'Boissons',
+      ca_t2: 12345.67, qte_t2: 4210, ca_t1: 9800, qte_t1: 3500, ca_t2_pair: 11200, qte_t2_pair: 3900, ca_s1: 21000,
+      pu_ht: 2.93, pma: 1.78, marge_pct: 0.392, pct_contrib: 0.084,
+      periode_debut: '2026-08-24', periode_fin: '2026-09-23',
+      pairDisponible: true, pairEstPeriodeAffichee: false,
+      pairDates: { debutT1: '24/07/2026', finT1: '06/08/2026', debutT2: '07/08/2026', finT2: '23/08/2026' }
+    });
+    return [demo].concat(base.filter(x => x.categorie === 'Boissons').slice(0, 4));
+  }
+  function photoApercu() { return 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120"><rect width="120" height="120" fill="#f1f5f9"/><rect x="40" y="18" width="40" height="84" rx="8" fill="#F5A623"/><rect x="46" y="44" width="28" height="30" rx="4" fill="#fff"/></svg>'); }
 
   function showProduct(articleName) {
     const p = PRODUCTS.find(x => x.article === articleName);
@@ -501,56 +735,51 @@ nexusRequireAuth().then(async employee => {
     const rangRayon = calculerRangRayon(p);
 
     // ------------------------------------------------------------
-    // Conseiller — cycle Constat → Explication → Décision (vocabulaire
-    // NEXUS, demande de Frédéric le 23/07/2026, déjà appliqué à
-    // NEXUS-Rayon-v1.html). Les mots d'appréciation viennent de
-    // NexusVocab plutôt que d'adjectifs choisis au cas par cas ici, pour
-    // que le ton reste identique d'une fiche produit à l'autre et
-    // cohérent avec Rayon.
+    // Refonte visuelle phase 1 : aucune formule, aucun seuil, aucun statut
+    // metier modifie. Les valeurs viennent de p, calculerStatutSimplifie() et
+    // calculerRangRayon() exactement comme avant ; seule la mise en page change.
     // ------------------------------------------------------------
-    const conseillerMsg = document.getElementById('conseillerProduitMsg');
-    if (conseillerMsg) {
-      const niveauRentaP = p.marge_pct >= 0.40 ? 'tres_rentable' : p.marge_pct >= 0.25 ? 'correcte' : p.marge_pct >= 0.10 ? 'faible' : 'insuffisante';
+    const niveauRentaP = p.marge_pct >= 0.40 ? 'tres_rentable' : p.marge_pct >= 0.25 ? 'correcte' : p.marge_pct >= 0.10 ? 'faible' : 'insuffisante';
 
-      // --- Constat : le fait chiffré, sans jugement.
-      const constatP = p.pct_contrib !== null
-        ? `${p.article} pèse ${fmtPct(p.pct_contrib)} du CA de son rayon (${fmtEur(p.ca_t2)}), marge ${fmtPct(p.marge_pct)}.`
-        : `${p.article} a généré ${fmtEur(p.ca_t2)} sur la période, marge ${fmtPct(p.marge_pct)}.`;
+    // Periode de la paire comparable (T1 contre T2) : lue dans pairDates,
+    // jamais codee en dur. Toute tendance affichee la porte.
+    const periodePaire = (p.pairDisponible && p.pairDates)
+      ? `T1 ${fmtDate(p.pairDates.debutT1)} → ${fmtDate(p.pairDates.finT1)} contre T2 ${fmtDate(p.pairDates.debutT2)} → ${fmtDate(p.pairDates.finT2)}`
+      : '';
+    const mentionPaire = `<span class="periode-tendance">Comparaison : ${periodePaire || 'période de comparaison non précisée'}.</span>`;
+    const avertPaire = (p.pairDisponible && !p.pairEstPeriodeAffichee)
+      ? `<div class="avert-tendance">Cette tendance ne porte pas sur la période affichée (${fmtDate(p.periode_debut)} → ${fmtDate(p.periode_fin)}) : elle porte sur la dernière paire de périodes complètes et de durée comparable.</div>`
+      : '';
+    // La decision / l'action s'appuie sur la tendance pour performant et surveiller.
+    const actionDependTendance = (statutSimplifie.cle === 'performant' || statutSimplifie.cle === 'surveiller') && p.ca_t1 > 0;
 
-      // --- Explication : ce que ce chiffre révèle vraiment.
-      let explicationP;
-      if (p.ca_t2 === 0) {
-        explicationP = `Un ${NexusVocab.SIGNATURE.PRODUIT_DORMANT.toLowerCase()} n'indique pas forcément un problème de demande — cela peut aussi être une rupture ou un retrait de rayon non signalé.`;
-      } else {
-        const rentaTxt = NexusVocab.rentabilite(niveauRentaP, false, p.article);
-        const tendanceTxt = p.ca_t1 > 0 ? NexusVocab.tendance(evolCa) : null;
-        explicationP = [rentaTxt, tendanceTxt].filter(Boolean).join(' ')
-          || 'Pas assez de recul pour conclure.';
-        if (p.ca_t1 <= 0) explicationP += ' Je n\'ai pas encore de période précédente pour elle.';
-      }
-
-      // --- Décision : l'action attendue, déjà calculée par calculerStatutSimplifie().
-      const decisionP = statutSimplifie.action;
-
-      conseillerMsg.innerHTML = `
-        <div class="cycle-step"><span class="cycle-tag">Constat</span>${employee.nom}, ${constatP}</div>
-        <div class="cycle-step"><span class="cycle-tag">Explication</span>${explicationP}</div>
-        <div class="cycle-step"><span class="cycle-tag tag-decision">Décision</span>${decisionP}</div>
-      `;
+    // Pastille de periode (information, pas un selecteur)
+    const pastP = document.getElementById('pastillePeriode');
+    if (pastP) {
+      const dur = (() => {
+        const lire = (s) => {
+          const m = String(s || '').match(/^(\d{2})\/(\d{2})\/(\d{4})$/) || null;
+          if (m) return Date.UTC(+m[3], +m[2] - 1, +m[1]);
+          const i = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+          return i ? Date.UTC(+i[1], +i[2] - 1, +i[3]) : NaN;
+        };
+        const a = lire(p.periode_debut), b = lire(p.periode_fin);
+        return (isNaN(a) || isNaN(b) || b < a) ? '' : ` · ${Math.round((b - a) / 86400000) + 1} jours`;
+      })();
+      pastP.textContent = `Période : ${fmtDate(p.periode_debut)} → ${fmtDate(p.periode_fin)}${dur}`;
+      pastP.hidden = false;
     }
 
-    // CORRECTIF 24/07/2026 (bug signalé par Frédéric : "pourquoi T1 n'est pas
-    // enregistré ?", puis incohérence : "pourquoi Rayon a un T1 et pas
-    // Produits, avec les mêmes données ?"). Deux corrections combinées :
-    //   1) Si aucune paire comparable n'existe DU TOUT (pairDisponible =
-    //      false), pas de bloc T1/T2 — un message explique pourquoi, plutôt
-    //      que d'afficher une fausse barre à 0 et un faux "+0.0%".
-    //   2) Si une paire existe mais que la période affichée est encore trop
-    //      récente pour en faire partie (pairEstPeriodeAffichee = false),
-    //      NEXUS utilise quand même la dernière paire comparable trouvée
-    //      (comme NEXUS-Rayon-v1.html) au lieu d'abandonner toute
-    //      comparaison — avec ses propres dates affichées explicitement,
-    //      jamais confondues avec la période affichée en tête de fiche.
+    // Badge de statut : meme libelle, style de la charte (nexus-badge-etat.js)
+    const BE = window.NexusBadgeEtat;
+    let badgeStatut;
+    if (BE && typeof BE.gravite === 'function') {
+      const niv = { performant: 'conforme', surveiller: 'a-verifier', strategique: 'information' }[statutSimplifie.cle];
+      badgeStatut = niv ? BE.gravite(niv, { libelle: statutSimplifie.label }) : BE.neutre(statutSimplifie.label);
+    } else {
+      badgeStatut = `<span class="statut-repli">${esc(statutSimplifie.label)}</span>`;
+    }
+
     const histoHtml = p.pairDisponible ? `
       <div class="histo-row">
         <span class="histo-label">T1</span>
@@ -562,75 +791,116 @@ nexusRequireAuth().then(async employee => {
         <div class="histo-bar-track"><div class="histo-bar" style="width:${p.qte_t2_pair/maxQte*100}%;"></div></div>
         <span class="histo-val">${p.qte_t2_pair} u.</span>
       </div>
-      <div style="font-family:var(--mono); font-size:10px; color:var(--text-dim); margin-top:6px;">T1 : ${p.pairDates.debutT1} → ${p.pairDates.finT1} · T2 : ${p.pairDates.debutT2} → ${p.pairDates.finT2}</div>
+      <div class="histo-dates">T1 : ${p.pairDates.debutT1} → ${p.pairDates.finT1} · T2 : ${p.pairDates.debutT2} → ${p.pairDates.finT2}</div>
       <div class="kpi-grid">
         <div class="kpi-box"><div class="kl">CA cumulé (T1+T2)</div><div class="kv">${fmtEur(p.ca_s1)}</div></div>
-        <div class="kpi-box"><div class="kl">Évolution QTE</div><div class="kv ${p.qte_t1>0 ? (evolQte>=0?'up':'down') : ''}">${p.qte_t1>0 ? (evolQte>=0?'+':'')+fmtPct(evolQte) : 'Départ de zéro'}</div></div>
+        <div class="kpi-box"><div class="kl">Évolution QTE</div><div class="kv ${p.qte_t1>0 ? (evolQte>=0?'up':'down') : ''}">${p.qte_t1>0 ? (evolQte>=0?'+':'')+fmtPct(evolQte) : 'Départ de zéro'}</div><div class="kl">${mentionPaire}</div></div>
       </div>
       ${!p.pairEstPeriodeAffichee ? `<div class="histo-empty" style="margin-top:10px;">La période affichée en tête de fiche (${p.periode_debut} → ${p.periode_fin}) est encore trop récente pour être comparée équitablement — cette évolution porte donc sur la dernière paire de périodes complètes et de durée comparable.</div>` : ''}` : `
       <div class="histo-empty">Aucune période précédente de durée comparable n'a encore été importée pour cette référence (période affichée : ${p.periode_debut} → ${p.periode_fin}, ${p.qte_t2} u. vendues) — NEXUS n'affiche pas d'évolution T1 → T2 plutôt que d'en fabriquer une trompeuse.</div>`;
 
+    const tuile = (ico, label, val, sub, ids) => `
+      <div class="ind-tile">
+        <div class="ind-label">${ico}<span>${label}</span></div>
+        <div class="ind-val"${ids && ids.val ? ` id="${ids.val}"` : ''}>${val}</div>
+        ${sub !== null && sub !== undefined ? `<div class="ind-sub"${ids && ids.sub ? ` id="${ids.sub}"` : ''}>${sub}</div>` : ''}
+      </div>`;
+
     resultSection.innerHTML = `
-      <div class="card hero-card">
-        <div class="hero-nom">${p.article}</div>
-        <div class="hero-cat">${p.categorie}</div>
-        <div class="statut-pill st-${statutSimplifie.cle}"><span class="dot"></span>${statutSimplifie.label}</div>
-        <div class="hero-action st-${statutSimplifie.cle}">
-          <div class="ha-label">Action recommandée</div>
-          ${statutSimplifie.action}
-        </div>
-        <div class="hero-tiles">
-          <div class="hero-tile"><div class="ht-label">Rentabilité</div><div class="ht-val">${fmtPct(p.marge_pct)}</div></div>
-          <div class="hero-tile"><div class="ht-label">Rang dans le rayon</div><div class="ht-val">#${rangRayon.rang} / ${rangRayon.total}</div></div>
-          <div class="hero-tile"><div class="ht-label">CA généré (période)</div><div class="ht-val">${fmtEur(p.ca_t2)}</div></div>
-          <div class="hero-tile"><div class="ht-label">Unités vendues</div><div class="ht-val">${p.qte_t2} u.</div></div>
-          <div class="hero-tile">
-            <div class="ht-label">Rotation</div>
-            <div class="ht-val" id="heroRotationVal">…</div>
-            <div class="ht-sub" id="heroRotationSub">vérification…</div>
+      <div class="top-grid">
+        <section class="card identite-card" aria-label="Identité du produit">
+          <div id="photoCardZone"></div>
+          <div class="identite-texte">
+            <h2 class="hero-nom">${esc(p.article)}</h2>
+            <div class="hero-cat">${esc(p.categorie)}</div>
+            <div class="statut-ligne">${badgeStatut}</div>
           </div>
-          <div class="hero-tile">
-            <div class="ht-label">Stock (valeur)</div>
-            <div class="ht-val" id="heroStockVal">…</div>
-            <div class="ht-sub" id="heroStockSub">vérification…</div>
+        </section>
+
+        <section class="card conseiller-card" aria-label="Conseiller NEXUS">
+          <div class="conseiller-tete">
+            <img class="conseiller-avatar" src="assets/nexus-avatar.png" alt="" width="40" height="40" onerror="this.style.display='none'">
+            <h2>Conseiller NEXUS</h2>
           </div>
+          <div class="conseiller-bubble"><div class="conseiller-text" id="conseillerProduitMsg"></div></div>
+          <div class="hero-action st-${statutSimplifie.cle}">
+            <div class="ha-label">Action recommandée</div>
+            ${statutSimplifie.action}
+            ${actionDependTendance ? `<div>${mentionPaire}</div>` : ''}
+            ${actionDependTendance ? avertPaire : ''}
+          </div>
+        </section>
+      </div>
+
+      <section class="card indic-card" aria-label="Indicateurs">
+        <div class="ind-niveau ind-principal">
+          ${tuile(ICO.ca, 'CA généré (période)', fmtEur(p.ca_t2))}
+          ${tuile(ICO.unites, 'Unités vendues', p.qte_t2 + ' u.')}
+          ${tuile(ICO.marge, 'Marge', fmtPct(p.marge_pct))}
         </div>
-      </div>
-
-      <div class="card">
-        <div class="section-label">Détails tarifaires</div>
-        <div class="kpi-grid">
-          <div class="kpi-box"><div class="kl">Prix HT</div><div class="kv">${p.pu_ht !== null ? fmtEur(p.pu_ht) : '—'}</div></div>
-          <div class="kpi-box"><div class="kl">PMA</div><div class="kv">${p.pma !== null ? fmtEur(p.pma) : '—'}</div></div>
-          <div class="kpi-box"><div class="kl">Marge</div><div class="kv">${fmtPct(p.marge_pct)}</div></div>
-          <div class="kpi-box"><div class="kl">% CA rayon</div><div class="kv">${p.pct_contrib != null ? fmtPct(p.pct_contrib) : '—'}</div></div>
+        <div class="ind-niveau ind-secondaire">
+          ${tuile(ICO.prix, 'Prix HT', p.pu_ht !== null ? fmtEur(p.pu_ht) : '—')}
+          ${tuile(ICO.pma, 'PMA', p.pma !== null ? fmtEur(p.pma) : '—')}
+          ${tuile(ICO.part, 'Part du rayon', p.pct_contrib != null ? fmtPct(p.pct_contrib) : '—')}
+          ${tuile(ICO.rang, 'Classement', `#${rangRayon.rang} / ${rangRayon.total}`)}
+          ${tuile(ICO.stock, 'Stock (valeur)', '…', 'vérification…', { val: 'heroStockVal', sub: 'heroStockSub' })}
+          ${tuile(ICO.rotation, 'Rotation', '…', 'vérification…', { val: 'heroRotationVal', sub: 'heroRotationSub' })}
         </div>
-      </div>
+      </section>
 
-      <div class="card">
-        <div class="section-label">Photo produit</div>
-        <div id="photoCardZone"></div>
-      </div>
+      <details class="card sec" id="secHisto">
+        <summary>${ICO.histo}<span>Historique T1 → T2</span></summary>
+        <div class="sec-corps">${histoHtml}</div>
+      </details>
 
-      <div class="card">
-        <div class="section-label">Photo rayon (terrain)</div>
-        <div id="photoTerrainZone">Vérification…</div>
-      </div>
-
-      <div class="card">
-        <div class="section-label">Historique T1 → T2</div>
-        ${histoHtml}
-      </div>
-
-      <div class="card">
-        <div class="section-label">Fiabilité de ces données</div>
-        <div class="gap-row"><span class="gap-label">Stock</span><span class="gap-status" id="gapStockStatus">Vérification du dernier relevé…</span></div>
-        <div class="gap-row"><span class="gap-label">Rotation réelle</span><span class="gap-status" id="gapRotationStatus">Vérification…</span></div>
-        <div class="gap-row"><span class="gap-label">Emplacement</span><span class="gap-status" id="gapEmplacementStatus">Vérification…</span></div>
-        <div class="gap-row"><span class="gap-label">Facing actuel</span><span class="gap-status">Non disponible — pas de saisie des facings actuellement</span></div>
-        <div id="emplacementPickerZone"></div>
-      </div>
+      <details class="card sec" id="secInfos">
+        <summary>${ICO.info}<span>Informations complémentaires</span></summary>
+        <div class="sec-corps">
+          <div class="sec-sous">Photo rayon (terrain)</div>
+          <div id="photoTerrainZone">Vérification…</div>
+          <div class="sec-sous">Fiabilité de ces données</div>
+          <div class="gap-row"><span class="gap-label">Stock</span><span class="gap-status" id="gapStockStatus">Vérification du dernier relevé…</span></div>
+          <div class="gap-row"><span class="gap-label">Rotation réelle</span><span class="gap-status" id="gapRotationStatus">Vérification…</span></div>
+          <div class="gap-row"><span class="gap-label">Emplacement</span><span class="gap-status" id="gapEmplacementStatus">Vérification…</span></div>
+          <div class="gap-row"><span class="gap-label">Facing actuel</span><span class="gap-status">Non disponible — pas de saisie des facings actuellement</span></div>
+          <div id="emplacementPickerZone"></div>
+        </div>
+      </details>
     `;
+
+    // Sections repliees sur mobile, ouvertes sur grand ecran ; les elements
+    // restent dans le DOM dans tous les cas (les actions ne cassent pas).
+    const grandEcran = (window.matchMedia && window.matchMedia('(min-width:768px)').matches) || document.body.classList.contains('nexus-desktop');
+    if (grandEcran) resultSection.querySelectorAll('details.sec').forEach(d => { d.open = true; });
+
+    // Conseiller : cycle Constat -> Explication -> Decision (logique inchangee),
+    // ecrit apres la creation du DOM. La periode de comparaison accompagne la tendance.
+    const conseillerMsg = document.getElementById('conseillerProduitMsg');
+    if (conseillerMsg) {
+      const constatP = p.pct_contrib !== null
+        ? `${p.article} pèse ${fmtPct(p.pct_contrib)} du CA de son rayon (${fmtEur(p.ca_t2)}), marge ${fmtPct(p.marge_pct)}.`
+        : `${p.article} a généré ${fmtEur(p.ca_t2)} sur la période, marge ${fmtPct(p.marge_pct)}.`;
+
+      let explicationP;
+      if (p.ca_t2 === 0) {
+        explicationP = `Un ${NexusVocab.SIGNATURE.PRODUIT_DORMANT.toLowerCase()} n'indique pas forcément un problème de demande — cela peut aussi être une rupture ou un retrait de rayon non signalé.`;
+      } else {
+        const rentaTxt = NexusVocab.rentabilite(niveauRentaP, false, p.article);
+        const tendanceTxt = p.ca_t1 > 0 ? NexusVocab.tendance(evolCa) : null;
+        explicationP = [rentaTxt, tendanceTxt].filter(Boolean).join(' ')
+          || 'Pas assez de recul pour conclure.';
+        if (p.ca_t1 <= 0) explicationP += ' Je n\'ai pas encore de période précédente pour elle.';
+      }
+      const explicationTendance = (p.ca_t2 !== 0 && p.ca_t1 > 0);
+
+      const decisionP = statutSimplifie.action;
+
+      conseillerMsg.innerHTML = `
+        <div class="cycle-step"><span class="cycle-tag">Constat</span>${employee.nom}, ${constatP}</div>
+        <div class="cycle-step"><span class="cycle-tag">Explication</span>${explicationP}${explicationTendance ? ' ' + mentionPaire + avertPaire : ''}</div>
+        <div class="cycle-step"><span class="cycle-tag tag-decision">Décision</span>${decisionP}${actionDependTendance ? ' ' + mentionPaire : ''}</div>
+      `;
+    }
 
     renderPhotoCard(p);
     chargerStockGap(p);
@@ -686,7 +956,7 @@ nexusRequireAuth().then(async employee => {
     if (!zone.isConnected) return;
     zone.innerHTML = `
       ${statusHtml}
-      <button class="photo-btn" id="btnPrendrePhotoTerrain">📷 Prendre une photo</button>
+      <button type="button" class="photo-btn" id="btnPrendrePhotoTerrain">${ICO.camera} Prendre une photo</button>
       <input type="file" accept="image/*" capture="environment" id="inputPhotoTerrain" style="display:none;">
       <div id="photoTerrainMsg" style="font-family:var(--mono); font-size:10.5px; margin-top:8px; text-align:center;"></div>
     `;
@@ -738,7 +1008,7 @@ nexusRequireAuth().then(async employee => {
     } catch (e) {
       console.error('Envoi photo terrain (manager):', e);
       if (msg) { msg.style.color = 'var(--red)'; msg.textContent = "Erreur lors de l'envoi — réessayez."; }
-      if (btn) { btn.disabled = false; btn.textContent = '📷 Prendre une photo'; }
+      if (btn) { btn.disabled = false; btn.innerHTML = ICO.camera + ' Prendre une photo'; }
     }
   }
 
@@ -801,7 +1071,7 @@ nexusRequireAuth().then(async employee => {
         el.innerHTML = `${data.emplacement} · ${date} <span class="emplacement-modifier" id="btnModifierEmplacement">(modifier)</span>`;
       } else if (data && data.emplacement) {
         // source = 'auto_categorie' : suggestion non confirmée par un humain.
-        el.innerHTML = `🟡 Suggéré : ${data.emplacement} <span class="emplacement-modifier" id="btnModifierEmplacement">(confirmer/corriger)</span>`;
+        el.innerHTML = `${(window.NexusBadgeEtat ? NexusBadgeEtat.gravite('a-verifier', {libelle: 'À vérifier'}) : '<span class="statut-repli">À vérifier</span>')} ${esc(data.emplacement)} <button type="button" class="emplacement-modifier" id="btnModifierEmplacement">(confirmer/corriger)</button>`;
       } else {
         el.innerHTML = `Non renseigné <span class="emplacement-modifier" id="btnModifierEmplacement">(choisir)</span>`;
       }
@@ -1013,14 +1283,18 @@ nexusRequireAuth().then(async employee => {
     if (photo) {
       const dateConfirmee = photo.verifie_le ? new Date(photo.verifie_le).toLocaleDateString('fr-FR') : null;
       zone.innerHTML = `
-        <div class="photo-box"><img src="${photo.photo_url}" alt="${p.article}"></div>
-        <div class="photo-meta">${dateConfirmee ? `Confirmée le ${dateConfirmee} · Open Food Facts` : 'Open Food Facts'}</div>
-        <button class="photo-btn" id="btnRechercherPhoto">Chercher une autre photo</button>
+        <div class="photo-box"><img src="${esc(photo.photo_url)}" alt="${esc(p.article)}"></div>
+        <div class="photo-info">
+          <div class="photo-meta">${dateConfirmee ? `Confirmée le ${dateConfirmee} · Open Food Facts` : 'Open Food Facts'}</div>
+          <button type="button" class="photo-btn" id="btnRechercherPhoto">Chercher une autre photo</button>
+        </div>
       `;
     } else {
       zone.innerHTML = `
         <div class="photo-box"><div class="photo-empty">Aucune photo confirmée pour cette référence.</div></div>
-        <button class="photo-btn" id="btnRechercherPhoto">🔍 Chercher sur Open Food Facts</button>
+        <div class="photo-info">
+          <button type="button" class="photo-btn" id="btnRechercherPhoto">${ICO.search} Chercher sur Open Food Facts</button>
+        </div>
       `;
     }
     const btn = document.getElementById('btnRechercherPhoto');
