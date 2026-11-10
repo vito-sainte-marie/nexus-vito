@@ -1,4 +1,4 @@
--- Vacances scolaires officielles de l'académie de Martinique (une ligne par jour, début et fin inclus). Source : https://data.education.gouv.fr/api/explore/v2.1/catalog/datasets/fr-en-calendrier-scolaire/records (lue le 2026-11-10). Aucune date estimée : une période sans fin publiée (été 2027) n'est pas insérée.
+-- Vacances scolaires officielles de l'académie de Martinique (une ligne par jour : du premier jour de vacances au dernier, le jour de reprise des cours n'est pas inscrit ; end_date de la source = reprise). Source : https://data.education.gouv.fr/api/explore/v2.1/catalog/datasets/fr-en-calendrier-scolaire/records (lue le 2026-11-10). Aucune date estimée : une période sans fin publiée (été 2027) n'est pas insérée.
 -- Conditionnel : la base de Test n'a pas le site vito-sainte-marie (aucune ligne n'y est écrite).
 -- Idempotent : on conflict (site, date, type) do nothing ; jamais d'écrasement ni de suppression.
 do $$
@@ -22,7 +22,6 @@ begin
       ('vito-sainte-marie', '2026-01-02', 'vacances', 'Vacances de Noël'),
       ('vito-sainte-marie', '2026-01-03', 'vacances', 'Vacances de Noël'),
       ('vito-sainte-marie', '2026-01-04', 'vacances', 'Vacances de Noël'),
-      ('vito-sainte-marie', '2026-01-05', 'vacances', 'Vacances de Noël'),
       ('vito-sainte-marie', '2026-02-07', 'vacances', 'Vacances de Carnaval'),
       ('vito-sainte-marie', '2026-02-08', 'vacances', 'Vacances de Carnaval'),
       ('vito-sainte-marie', '2026-02-09', 'vacances', 'Vacances de Carnaval'),
@@ -39,7 +38,6 @@ begin
       ('vito-sainte-marie', '2026-02-20', 'vacances', 'Vacances de Carnaval'),
       ('vito-sainte-marie', '2026-02-21', 'vacances', 'Vacances de Carnaval'),
       ('vito-sainte-marie', '2026-02-22', 'vacances', 'Vacances de Carnaval'),
-      ('vito-sainte-marie', '2026-02-23', 'vacances', 'Vacances de Carnaval'),
       ('vito-sainte-marie', '2026-04-02', 'vacances', 'Vacances de Pâques'),
       ('vito-sainte-marie', '2026-04-03', 'vacances', 'Vacances de Pâques'),
       ('vito-sainte-marie', '2026-04-04', 'vacances', 'Vacances de Pâques'),
@@ -58,12 +56,10 @@ begin
       ('vito-sainte-marie', '2026-04-17', 'vacances', 'Vacances de Pâques'),
       ('vito-sainte-marie', '2026-04-18', 'vacances', 'Vacances de Pâques'),
       ('vito-sainte-marie', '2026-04-19', 'vacances', 'Vacances de Pâques'),
-      ('vito-sainte-marie', '2026-04-20', 'vacances', 'Vacances de Pâques'),
       ('vito-sainte-marie', '2026-05-14', 'vacances', 'Pont de l''Ascension'),
       ('vito-sainte-marie', '2026-05-15', 'vacances', 'Pont de l''Ascension'),
       ('vito-sainte-marie', '2026-05-16', 'vacances', 'Pont de l''Ascension'),
       ('vito-sainte-marie', '2026-05-17', 'vacances', 'Pont de l''Ascension'),
-      ('vito-sainte-marie', '2026-05-18', 'vacances', 'Pont de l''Ascension'),
       ('vito-sainte-marie', '2026-07-04', 'vacances', 'Vacances d''Été'),
       ('vito-sainte-marie', '2026-07-05', 'vacances', 'Vacances d''Été'),
       ('vito-sainte-marie', '2026-07-06', 'vacances', 'Vacances d''Été'),
@@ -123,7 +119,6 @@ begin
       ('vito-sainte-marie', '2026-08-29', 'vacances', 'Vacances d''Été'),
       ('vito-sainte-marie', '2026-08-30', 'vacances', 'Vacances d''Été'),
       ('vito-sainte-marie', '2026-08-31', 'vacances', 'Vacances d''Été'),
-      ('vito-sainte-marie', '2026-09-01', 'vacances', 'Vacances d''Été'),
       ('vito-sainte-marie', '2026-10-20', 'vacances', 'Vacances de la Toussaint'),
       ('vito-sainte-marie', '2026-10-21', 'vacances', 'Vacances de la Toussaint'),
       ('vito-sainte-marie', '2026-10-22', 'vacances', 'Vacances de la Toussaint'),
@@ -138,7 +133,6 @@ begin
       ('vito-sainte-marie', '2026-10-31', 'vacances', 'Vacances de la Toussaint'),
       ('vito-sainte-marie', '2026-11-01', 'vacances', 'Vacances de la Toussaint'),
       ('vito-sainte-marie', '2026-11-02', 'vacances', 'Vacances de la Toussaint'),
-      ('vito-sainte-marie', '2026-11-03', 'vacances', 'Vacances de la Toussaint'),
       ('vito-sainte-marie', '2026-12-19', 'vacances', 'Vacances de Noël'),
       ('vito-sainte-marie', '2026-12-20', 'vacances', 'Vacances de Noël'),
       ('vito-sainte-marie', '2026-12-21', 'vacances', 'Vacances de Noël'),
@@ -155,7 +149,6 @@ begin
       ('vito-sainte-marie', '2027-01-01', 'vacances', 'Vacances de Noël'),
       ('vito-sainte-marie', '2027-01-02', 'vacances', 'Vacances de Noël'),
       ('vito-sainte-marie', '2027-01-03', 'vacances', 'Vacances de Noël'),
-      ('vito-sainte-marie', '2027-01-04', 'vacances', 'Vacances de Noël'),
       ('vito-sainte-marie', '2027-02-06', 'vacances', 'Vacances de Carnaval'),
       ('vito-sainte-marie', '2027-02-07', 'vacances', 'Vacances de Carnaval'),
       ('vito-sainte-marie', '2027-02-08', 'vacances', 'Vacances de Carnaval'),
@@ -172,7 +165,6 @@ begin
       ('vito-sainte-marie', '2027-02-19', 'vacances', 'Vacances de Carnaval'),
       ('vito-sainte-marie', '2027-02-20', 'vacances', 'Vacances de Carnaval'),
       ('vito-sainte-marie', '2027-02-21', 'vacances', 'Vacances de Carnaval'),
-      ('vito-sainte-marie', '2027-02-22', 'vacances', 'Vacances de Carnaval'),
       ('vito-sainte-marie', '2027-03-24', 'vacances', 'Vacances de Pâques'),
       ('vito-sainte-marie', '2027-03-25', 'vacances', 'Vacances de Pâques'),
       ('vito-sainte-marie', '2027-03-26', 'vacances', 'Vacances de Pâques'),
@@ -181,12 +173,10 @@ begin
       ('vito-sainte-marie', '2027-03-29', 'vacances', 'Vacances de Pâques'),
       ('vito-sainte-marie', '2027-03-30', 'vacances', 'Vacances de Pâques'),
       ('vito-sainte-marie', '2027-03-31', 'vacances', 'Vacances de Pâques'),
-      ('vito-sainte-marie', '2027-04-01', 'vacances', 'Vacances de Pâques'),
       ('vito-sainte-marie', '2027-05-06', 'vacances', 'Pont de l''Ascension'),
       ('vito-sainte-marie', '2027-05-07', 'vacances', 'Pont de l''Ascension'),
       ('vito-sainte-marie', '2027-05-08', 'vacances', 'Pont de l''Ascension'),
-      ('vito-sainte-marie', '2027-05-09', 'vacances', 'Pont de l''Ascension'),
-      ('vito-sainte-marie', '2027-05-10', 'vacances', 'Pont de l''Ascension')
+      ('vito-sainte-marie', '2027-05-09', 'vacances', 'Pont de l''Ascension')
     on conflict (site, date, type) do nothing;
   end if;
 end

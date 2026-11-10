@@ -8,7 +8,8 @@
 // 2) Vacances : lues dans data.education.gouv.fr, jeu « fr-en-calendrier-scolaire ». Les dates y sont des
 //    minuits de Paris exprimés en UTC : on les reconvertit en date locale Europe/Paris.
 //    Jamais une date estimée : une période sans fin publiée est ignorée.
-//    Convention : début ET fin inclus (même convention que la liste figée de Tempo).
+//    Convention de la source : end_date est le jour de REPRISE des cours (minuit de Paris), donc exclu.
+//    Ici une période est [début, dernier jour de vacances] : début ET dernier jour inclus, la reprise n'en fait pas partie.
 (function (global) {
   'use strict';
 
@@ -63,7 +64,14 @@
     return parts; // en-CA donne déjà AAAA-MM-JJ
   }
 
+  // Veille d'une date AAAA-MM-JJ (arithmétique UTC pure).
+  function veille(iso) {
+    var a = iso.split('-');
+    return isoUTC(Date.UTC(+a[0], +a[1] - 1, +a[2]) - 86400000);
+  }
+
   // Périodes officielles d'une académie : [{ libelle, debut, fin }], dédoublonnées, triées.
+  // `fin` est le DERNIER jour de vacances : end_date de la source (jour de reprise) moins un jour.
   // Ignore : une autre académie, une population non retenue (Enseignants), une période sans fin publiée.
   function periodesDepuisSource(enregistrements, academie) {
     var vues = {}, sortie = [];
@@ -71,7 +79,7 @@
       if (!r || r.location !== academie) return;
       if (POPULATIONS_RETENUES.indexOf(r.population == null ? '-' : r.population) < 0) return;
       if (!r.start_date || !r.end_date || !r.description) return;
-      var p = { libelle: String(r.description), debut: dateParis(r.start_date), fin: dateParis(r.end_date) };
+      var p = { libelle: String(r.description), debut: dateParis(r.start_date), fin: veille(dateParis(r.end_date)) };
       if (p.fin < p.debut) return;
       var cle = p.libelle + '|' + p.debut + '|' + p.fin;
       if (vues[cle]) return;
@@ -81,7 +89,7 @@
     return sortie;
   }
 
-  // Une ligne par jour de chaque période (début et fin inclus).
+  // Une ligne par jour de chaque période (début et dernier jour de vacances inclus).
   function joursDesPeriodes(periodes) {
     var lignes = [];
     periodes.forEach(function (p) {

@@ -965,7 +965,7 @@
         "lecture_seule": "on",
         "moteur": "17.6",
         "verdict": "NON APPLIQUEE, PRECONDITION SATISFAITE — estampille absente de schema_migrations (derniere version appliquee 20261108010440) ; 0 ligne pour vito-sainte-marie dans inventaire_calendrier_site",
-        "blob_migration": "e7aa08ea13fc9ac6f0ffdc936580f0e5054e1a82"
+        "blob_migration": "3a103489c99a5eb91ded7f4520bce0785a79a7ad"
       },
       "objets_constates": [
         "inventaire_calendrier_site"

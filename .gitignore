@@ -32,3 +32,6 @@ supabase/.temp/
 # Produit à chaque déploiement, jamais versionné : le committer ferait vivre
 # deux copies de chaque écran, dont l'une vieillirait en silence.
 _site/
+
+# Généré au build par outils/generer-config.js (cible Test ou Production selon l environnement) : jamais versionné
+nexus-config.js

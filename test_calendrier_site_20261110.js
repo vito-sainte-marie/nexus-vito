@@ -79,9 +79,9 @@ const SRC = [
   { location: 'Martinique', population: 'Élèves', description: 'Grandes vacances', start_date: '2027-07-02T04:00:00+00:00', end_date: null },
   { location: 'Martinique', population: '-', description: 'Vacances de Noël', start_date: '2026-12-18T23:00:00+00:00', end_date: '2027-01-03T23:00:00+00:00' }
 ];
-t('source : dates Paris, fin inclusive, doublon fusionné, autre académie et Enseignants exclus', () => {
+t('source : dates Paris, dernier jour = veille de la reprise, doublon fusionné, autre académie et Enseignants exclus', () => {
   const p = C.periodesDepuisSource(SRC, 'Martinique');
-  assert.deepStrictEqual(p, [{ libelle: 'Vacances de Noël', debut: '2026-12-19', fin: '2027-01-04' }]);
+  assert.deepStrictEqual(p, [{ libelle: 'Vacances de Noël', debut: '2026-12-19', fin: '2027-01-03' }]);
 });
 t('source : une période sans fin publiée n\'est jamais inscrite', () => {
   assert.ok(!C.periodesDepuisSource(SRC, 'Martinique').some(p => p.libelle === 'Grandes vacances'));
@@ -99,16 +99,16 @@ t('fenêtre : seules les périodes qui la touchent', () => {
   const ps = [{ libelle: 'a', debut: '2025-01-01', fin: '2025-01-05' }, { libelle: 'b', debut: '2026-12-30', fin: '2027-01-05' }];
   assert.deepStrictEqual(C.periodesDansFenetre(ps, '2026-01-01', '2027-12-31').map(p => p.libelle), ['b']);
 });
-t('migration des vacances : 181 lignes type vacances, bornes 2025-12-20 et 2027-05-10, source citée', () => {
-  assert.strictEqual((mVacances.match(/'vacances'/g) || []).length, 181);
-  assert.ok(mVacances.indexOf("'2025-12-20', 'vacances'") > 0 && mVacances.indexOf("'2027-05-10', 'vacances'") > 0);
+t('migration des vacances : 171 lignes type vacances, bornes 2025-12-20 et 2027-05-09, source citée', () => {
+  assert.strictEqual((mVacances.match(/'vacances'/g) || []).length, 171);
+  assert.ok(mVacances.indexOf("'2025-12-20', 'vacances'") > 0 && mVacances.indexOf("'2027-05-09', 'vacances'") > 0);
   assert.ok(/data\.education\.gouv\.fr/.test(mVacances) && /2026-11-10/.test(mVacances));
   assert.ok(!/created_by/.test(mVacances));
 });
 t('migration des vacances = la source figée du 10/11/2026 (aucune date estimée)', () => {
-  const rec = JSON.parse(lire('cal_mq_fixture.json')).results;
+  const rec = JSON.parse(lire('outils/epreuve-calendrier-site-20261110/cal_mq_fixture.json')).results;
   const attendu = C.joursDesPeriodes(C.periodesDansFenetre(C.periodesDepuisSource(rec, 'Martinique'), '2026-01-01', '2027-12-31'));
-  assert.strictEqual(attendu.length, 181);
+  assert.strictEqual(attendu.length, 171);
   attendu.forEach(l => assert.ok(mVacances.indexOf("'" + l.date + "', 'vacances', '" + l.libelle.replace(/'/g, "''") + "'") >= 0, 'manque ' + l.date));
 });
 
@@ -163,19 +163,26 @@ t('Tempo : la table fait foi dès qu\'elle est injectée', () => {
   assert.strictEqual(T.estVacancesScolaires('2026-12-26').vacances, false);
   assert.strictEqual(T.estVacancesScolaires('2026-10-30').vacances, false);
 });
+// Guardian 6773840678 : end_date de la source est le jour de reprise, exclu de la période.
+t('02/11/2026 est un jour de vacances (Toussaint)', () => { assert.ok(mVacances.indexOf("'2026-11-02', 'vacances'") > 0); });
+t('03/11/2026 n\'est pas un jour de vacances (reprise des cours)', () => { assert.ok(mVacances.indexOf("'2026-11-03', 'vacances'") < 0); });
+t('31/08/2026 est un jour de vacances (dernier jour de l\'été)', () => { assert.ok(mVacances.indexOf("'2026-08-31', 'vacances'") > 0); });
+t('01/09/2026 n\'est pas un jour de vacances (reprise des cours)', () => { assert.ok(mVacances.indexOf("'2026-09-01', 'vacances'") < 0); });
 // Équivalence 2025-2027 : la table reprend la liste figée, hormis les écarts documentés (source officielle).
 const ECARTS = {
-  // jours que la liste figée de Tempo déclare en vacances et que la source ne publie pas
-  tempoSeul: ['2027-04-20..2027-05-03', '2027-07-03..2027-12-31'],
+  // jours que la liste figée de Tempo déclare en vacances et que la source ne publie pas :
+  // les jours de REPRISE des cours (la liste figée les compte en vacances), puis 2027 non publié
+  tempoSeul: ['2026-01-05', '2026-02-23', '2026-04-20', '2026-11-03', '2027-01-04', '2027-02-22', '2027-04-01',
+    '2027-04-20..2027-05-03', '2027-07-03..2027-12-31'],
   // jours que la source publie et que la liste figée ne couvre pas (ponts de l'Ascension)
-  sourceSeule: ['2026-05-14..2026-05-18', '2026-09-01', '2027-05-06..2027-05-10']
+  sourceSeule: ['2026-05-14..2026-05-17', '2027-05-06..2027-05-09']
 };
 function jours(du, au) { const r = []; for (let d = Date.UTC(+du.slice(0, 4), +du.slice(5, 7) - 1, +du.slice(8)); d <= Date.UTC(+au.slice(0, 4), +au.slice(5, 7) - 1, +au.slice(8)); d += 86400000) r.push(new Date(d).toISOString().slice(0, 10)); return r; }
 function etendre(l) { return l.reduce((a, s) => a.concat(s.indexOf('..') > 0 ? jours(s.split('..')[0], s.split('..')[1]) : [s]), []); }
 t('Tempo : équivalence 2026-2027 avec la liste figée, écarts documentés', () => {
   const lignes = []; const re = /\('vito-sainte-marie', '(\d{4}-\d{2}-\d{2})', 'vacances', '((?:[^']|'')*)'\)/g; let m;
   while ((m = re.exec(mVacances))) lignes.push({ date: m[1], type: 'vacances', libelle: m[2].replace(/''/g, "'") });
-  assert.strictEqual(lignes.length, 181);
+  assert.strictEqual(lignes.length, 171);
   const fige = tempo(), table = tempo(lignes);
   const tempoSeul = new Set(etendre(ECARTS.tempoSeul)), sourceSeule = new Set(etendre(ECARTS.sourceSeule));
   jours('2026-01-01', '2027-12-31').forEach(d => {
