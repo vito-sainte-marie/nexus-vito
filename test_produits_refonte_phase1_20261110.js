@@ -25,7 +25,7 @@ function extraire(src, signature) {
 // Aucune dépendance à git : la CI en checkout superficiel les mesure sur la source de la branche.
 const EMPREINTES = {
   'async function construireProduitsLive': '95667337c3f079c4af41056c555cc776bf0df90d724121e59a7c1e4d21cd9f26',
-  'function calculerStatutSimplifie': '9fdd91c935ae8dca117c5e0d63b04d56c683426bb163dad3c5f1ee6e43a4b939', // lot 1 PR B sur production après PR A : tendance unique + esc() de la PR A conservé
+  'function calculerStatutSimplifie': '4c266d296712f0aa725f0a09ed5826170939875af78946a5fc6e2cf4110c9458', // lot 1 PR B sur production après PR A : tendance unique + esc() de la PR A conservé
   'function calculerRangRayon': '6438804858c5a4a80a5923f43952a506f4704a8058df05a158930ce5182379ed',
   'async function chargerStockGap': 'e59c35cbce7871eec1f18724af1e56b6c1985a7f8fad062281daa183146a7c5b'
 };

@@ -122,6 +122,7 @@
   .histo-bar-track{flex:1; height:8px; background:var(--panel-raised); border-radius:4px; overflow:hidden;}
   .histo-bar{height:100%; background:var(--cyan); border-radius:4px;}
   .histo-val{font-family:var(--mono); font-size:11px; color:var(--text-mid); width:44px; text-align:right;}
+  .histo-val-large{width:auto; min-width:44px; flex:0 1 46%; white-space:normal;}
   .histo-empty{font-size:12px; color:var(--text-mid); line-height:1.5; padding:4px 0;}
 
   .gap-row{
@@ -558,6 +559,15 @@ nexusRequireAuth().then(async employee => {
     if (p.pct_contrib !== null && p.pct_contrib >= NexusConseiller.SEUIL_CONTRIBUTION_FORTE) {
       return { cle: 'strategique', label: 'Produit stratégique', action: lang.recoAgir(esc(p.article)) };
     }
+    // Tendance existante mais non recommandable (prudence, insuffisante, périmée, indisponible) :
+    // statut neutre, jamais de jugement positif ni d'action de réassort (arbitrage 6781622583).
+    // Sans aucune période précédente (p.tendance absent), le comportement historique est conservé.
+    if (p.tendance && !p.tendance.recommandable) {
+      return {
+        cle: 'a-confirmer', label: 'Tendance à confirmer',
+        action: "Pas de recommandation tant que la comparaison n'est pas fiable. Les chiffres ci-dessus restent consultables.",
+      };
+    }
     if (evolution !== null && evolution <= NexusConseiller.SEUIL_BAISSE) {
       return { cle: 'surveiller', label: 'À surveiller', action: lang.recoBaisse(esc(p.article)) };
     }
@@ -776,7 +786,14 @@ nexusRequireAuth().then(async employee => {
           const lib = (t, nom) => `${nom} ${esc(fmtDate(t.debut))} → ${esc(fmtDate(t.fin))} (${esc(t.duree)} j) : CA ${fmtEur(t.ca || 0)}`;
           return `<div class="histo-dates">${lib(t1, 'T1')} · ${lib(t2, 'T2')}</div>`;
         })() : '';
-    const maxQte = Math.max(p.qte_t1, p.qte_t2_pair, 1);
+    // Histogramme en unités moyennes par jour (jamais en totaux bruts de durées différentes).
+    const tp = (tend && tend.periodes) ? tend.periodes : null;
+    const fmtJ = n => Number(n).toLocaleString('fr-FR', { maximumFractionDigits: 1 });
+    const barre = (t, brut) => tp
+      ? { v: Number(t.quantite_moyenne_jour) || 0, txt: `${fmtJ(t.quantite_moyenne_jour || 0)} u./j (${esc(t.quantite)} u. sur ${esc(t.duree)} j)` }
+      : { v: Number(brut) || 0, txt: `${esc(brut)} u.` };
+    const bT1 = barre(tp && tp.t1, p.qte_t1), bT2 = barre(tp && tp.t2, p.qte_t2_pair);
+    const maxQte = Math.max(bT1.v, bT2.v, 1e-9);
 
     // Statut simplifié + rang rayon : voir calculerStatutSimplifie() et
     // calculerRangRayon() — remplace l'ancien bloc "Décisions prioritaires"
@@ -833,15 +850,14 @@ nexusRequireAuth().then(async employee => {
     const histoHtml = p.pairDisponible ? `
       <div class="histo-row">
         <span class="histo-label">T1</span>
-        <div class="histo-bar-track"><div class="histo-bar" style="width:${Number(p.qte_t1/maxQte*100) || 0}%; background:var(--text-dim);"></div></div>
-        <span class="histo-val">${esc(p.qte_t1)} u.</span>
+        <div class="histo-bar-track"><div class="histo-bar" style="width:${Number(bT1.v/maxQte*100) || 0}%; background:var(--text-dim);"></div></div>
+        <span class="histo-val histo-val-large">${bT1.txt}</span>
       </div>
       <div class="histo-row">
         <span class="histo-label">T2</span>
-        <div class="histo-bar-track"><div class="histo-bar" style="width:${Number(p.qte_t2_pair/maxQte*100) || 0}%;"></div></div>
-        <span class="histo-val">${esc(p.qte_t2_pair)} u.</span>
+        <div class="histo-bar-track"><div class="histo-bar" style="width:${Number(bT2.v/maxQte*100) || 0}%;"></div></div>
+        <span class="histo-val histo-val-large">${bT2.txt}</span>
       </div>
-      <div class="histo-dates">T1 : ${esc(p.pairDates.debutT1)} → ${esc(p.pairDates.finT1)} · T2 : ${esc(p.pairDates.debutT2)} → ${esc(p.pairDates.finT2)}</div>
       ${periodesTendance}
       <div class="kpi-grid">
         <div class="kpi-box"><div class="kl">CA cumulé (T1+T2)</div><div class="kv">${fmtEur(p.ca_s1)}</div></div>

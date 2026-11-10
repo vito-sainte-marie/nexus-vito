@@ -193,3 +193,44 @@ t('fiche : avertissements échappés, durées et CA total de chaque période aff
   assert.ok(!page.includes('tend.avertissements.map(a => a)'), 'insertion brute des avertissements');
   assert.ok(/periodesTendance/.test(page) && /\$\{esc\(t\.duree\)\} j\) : CA \$\{fmtEur\(t\.ca/.test(page), 'durée et CA total de chaque période absents');
 });
+
+// ---- Statut « Tendance à confirmer », histogramme en moyennes par jour (recette Guardian 6781594883, arbitrage 6781622583) ----
+{
+  const fs = require('fs'), path = require('path');
+  const page = fs.readFileSync(path.join(__dirname, 'NEXUS-Produits-v1.html'), 'utf8');
+  const m = fs.readFileSync(path.join(__dirname, 'test_produits_refonte_phase1_20261110.js'), 'utf8').match(/function extraire[\s\S]*?\n}\n/);
+  eval(m[0].replace('function extraire', 'global.extraire=function'));
+  global.esc = s => String(s);
+  const statut = new Function('NexusConseiller', 'esc', extraire(page, 'function calculerStatutSimplifie') + '; return calculerStatutSimplifie;')(C, global.esc);
+  const base = { article: 'X', categorie: C.LANGAGE_ACTION ? Object.keys({}).concat('Boissons')[0] : 'Boissons', ca_t2: 100, pct_contrib: 0 };
+  const tend = (statut, recommandable, evolutionCA) => ({ statut, recommandable, evolutionCA });
+  const ATTENDU = "Pas de recommandation tant que la comparaison n'est pas fiable. Les chiffres ci-dessus restent consultables.";
+  for (const [nom, td] of [
+    ['prudence en baisse', tend('qualifiee', false, -0.778)],
+    ['prudence en hausse', tend('qualifiee', false, 0.9)],
+    ['ventes insuffisantes', tend('insuffisante', false, null)],
+    ['périmée', tend('perimee', false, null)],
+    ['indisponible', tend('indisponible', false, null)],
+  ]) t('statut : ' + nom + ' → « Tendance à confirmer », neutre, sans réassort', () => {
+    const r = statut({ ...base, tendance: td });
+    assert.strictEqual(r.label, 'Tendance à confirmer');
+    assert.strictEqual(r.cle, 'a-confirmer');
+    assert.strictEqual(r.action, ATTENDU);
+  });
+  t('statut : dormant et stratégique ne dépendent pas de la tendance', () => {
+    assert.strictEqual(statut({ ...base, ca_t2: 0, tendance: tend('perimee', false, null) }).cle, 'dormant');
+    assert.strictEqual(statut({ ...base, pct_contrib: 1, tendance: tend('perimee', false, null) }).cle, 'strategique');
+  });
+  t('statut : sans période précédente (tendance absente), comportement conservé', () => {
+    assert.strictEqual(statut({ ...base, tendance: null }).cle, 'performant');
+  });
+  t('statut : tendance recommandable, baisse nette → à surveiller (inchangé)', () => {
+    assert.strictEqual(statut({ ...base, tendance: tend('qualifiee', true, -0.5) }).cle, 'surveiller');
+  });
+  t('fiche : histogramme en unités moyennes par jour, une seule ligne de dates', () => {
+    assert.ok(/quantite_moyenne_jour/.test(page) && /u\.\/j \(\$\{esc\(t\.quantite\)\} u\. sur \$\{esc\(t\.duree\)\} j\)/.test(page), 'barres en moyennes par jour absentes');
+    assert.ok(!page.includes('p.qte_t1/maxQte') && !page.includes('p.qte_t2_pair/maxQte'), 'barres encore en totaux bruts');
+    assert.ok(!page.includes('T1 : ${esc(p.pairDates.debutT1)}'), 'ancienne ligne de dates conservée');
+  });
+  console.log(n + ' tests OK (avec statut et histogramme)');
+}
