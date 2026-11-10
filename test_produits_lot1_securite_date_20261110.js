@@ -69,7 +69,9 @@ t('la page n\'utilise plus toISOString ni toTimeString pour la photo du rayon', 
   assert.ok(i > 0);
   const corps = PAGE.slice(i, i + 3500);
   assert.ok(!/toISOString\(\)\.slice\(0, 10\)/.test(corps) && !/toTimeString/.test(corps));
-  assert.ok(/dateHeureStation\(\)/.test(corps));
+  assert.ok(/await nexusFuseauSite\(employee\.site_id\)/.test(corps));
+  assert.ok(/dateHeureStation\(fuseauStation\)/.test(corps));
+  assert.strictEqual((corps.match(/dateHeureStation\(/g) || []).length, 1, 'un seul calcul pour date et heure');
 });
 t('la page réutilise esc du badge et charge le module', () => {
   assert.ok(/const esc = window\.NexusBadgeEtat\.esc;/.test(PAGE));
@@ -81,5 +83,16 @@ t('aucune insertion HTML brute des champs piégeables', () => {
    /\$\{nomEmp\}/, /\$\{data\.emplacement\}/, /\$\{employee\.nom\}/].forEach(re => {
     assert.ok(!re.test(PAGE), 'insertion brute : ' + re);
   });
+});
+t('dateHeureStation extraite de la page applique un fuseau non Martinique', () => {
+  const m = PAGE.match(/function dateHeureStation\(fuseau, instant\) \{[\s\S]*?\n  \}/);
+  assert.ok(m, 'fonction introuvable');
+  const dateHeureStation = new Function('NexusProduitsSecurite', m[0] + '; return dateHeureStation;')(Sec);
+  const instant = new Date('2026-11-11T00:30:00Z');
+  assert.deepStrictEqual(dateHeureStation('Europe/Paris', instant), { date: '2026-11-11', heure: '01:30' });
+  assert.deepStrictEqual(dateHeureStation('America/Martinique', instant), { date: '2026-11-10', heure: '20:30' });
+  // une promesse (ancien défaut) ne doit jamais être prise pour un fuseau, et le repli reste la Martinique
+  assert.deepStrictEqual(dateHeureStation(Promise.resolve('Europe/Paris'), instant), { date: '2026-11-10', heure: '20:30' });
+  assert.deepStrictEqual(dateHeureStation(null, instant), { date: '2026-11-10', heure: '20:30' });
 });
 console.log(n + ' tests OK');

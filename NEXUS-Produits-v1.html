@@ -683,10 +683,9 @@ nexusRequireAuth().then(async employee => {
   // = stockage Supabase). Sinon rien : pas d'image plutôt qu'une URL douteuse.
   function urlImageSure(u, hoteExige) { return NexusProduitsSecurite.urlImageSure(u, hoteExige, [photoApercu()]); }
   // Date et heure dans le fuseau de la station (jamais UTC ni le fuseau du navigateur).
-  function dateHeureStation(instant) {
-    let fuseau = null;
-    try { fuseau = (typeof nexusFuseauSite === 'function' && employee) ? nexusFuseauSite(employee.site_id) : null; } catch (e) { fuseau = null; }
-    return NexusProduitsSecurite.dateHeureDansFuseau(instant || new Date(), fuseau);
+  // `fuseau` est une chaîne IANA DÉJÀ résolue : `nexusFuseauSite` est asynchrone, l'appelant l'attend.
+  function dateHeureStation(fuseau, instant) {
+    return NexusProduitsSecurite.dateHeureDansFuseau(instant || new Date(), typeof fuseau === 'string' ? fuseau : null);
   }
   function hoteSupabase() { try { return new URL(NEXUS_SUPABASE_URL).hostname; } catch (e) { return ''; } }
   function imgSure(url, alt, hoteExige, cls) {
@@ -1015,12 +1014,16 @@ nexusRequireAuth().then(async employee => {
       // Complétion normale de la mission "photo-verification-rayon" (voir
       // migration-mission-photo-produit-v1.sql) — points = 5 (base
       // catalogue) + 2 (bonus preuve photo), même barème que côté Missions.
+      // Fuseau lu (await) puis UN SEUL calcul : date et heure viennent du même instant.
+      let fuseauStation = null;
+      try { fuseauStation = await nexusFuseauSite(employee.site_id); } catch (e) { fuseauStation = null; }
+      const maintenant = dateHeureStation(fuseauStation);
       const { error: erreurInsert } = await nexusClient
         .from('mission_completions')
         .insert({
           employee_id: employee.id, mission_id: 'photo-verification-rayon',
           titre: 'Photo de vérification rayon',
-          date: dateHeureStation().date, heure: dateHeureStation().heure,
+          date: maintenant.date, heure: maintenant.heure,
           photo_fournie: true, photo_url: signee.signedUrl, points: 7,
           article_cible: p.article, categorie_cible: p.categorie, site_id: SITE_ACTUEL,
         });
