@@ -7,3 +7,7 @@ Constat du 10/11/2026 (déploiement de #252, `b5b9eae6`, échoué 5 fois) : le d
 Déploiement Pages bloqué en `syncing_files` : ne pas relancer la même exécution, pousser un nouveau commit.
 
 L'identifiant du déploiement Pages est le SHA du commit : relancer la même exécution retombe sur le déploiement bloqué. Un nouveau commit sur `production` (PR minimale, sans code applicatif ni migration) produit un nouveau SHA et une nouvelle exécution, que Frédéric approuve.
+
+## Journal
+
+- 10/11, #254, b370dff5 : même blocage, relance par nouveau commit.
