@@ -310,6 +310,7 @@ body.nexus-desktop #resultSection > *{margin-bottom:12px;}
 <script src="nexus-conseiller.js?v=20260904-0104"></script>
 <script src="nexus-banniere-station.js"></script>
 <script src="nexus-badge-etat.js"></script>
+<script src="nexus-produits-securite.js"></script>
 </head>
 <body>
 <div class="phone">
@@ -540,20 +541,20 @@ nexusRequireAuth().then(async employee => {
     if (p.ca_t2 === 0) {
       return {
         cle: 'dormant', label: 'Produit dormant',
-        action: `Aucune vente enregistrée sur la dernière période pour ${p.article} — vérifiez sa présence en rayon ou envisagez un déréférencement.`,
+        action: `Aucune vente enregistrée sur la dernière période pour ${esc(p.article)} — vérifiez sa présence en rayon ou envisagez un déréférencement.`,
       };
     }
     if (p.pct_contrib !== null && p.pct_contrib >= NexusConseiller.SEUIL_CONTRIBUTION_FORTE) {
-      return { cle: 'strategique', label: 'Produit stratégique', action: lang.recoAgir(p.article) };
+      return { cle: 'strategique', label: 'Produit stratégique', action: lang.recoAgir(esc(p.article)) };
     }
     if (evolution !== null && evolution <= NexusConseiller.SEUIL_BAISSE) {
-      return { cle: 'surveiller', label: 'À surveiller', action: lang.recoBaisse(p.article) };
+      return { cle: 'surveiller', label: 'À surveiller', action: lang.recoBaisse(esc(p.article)) };
     }
     return {
       cle: 'performant', label: 'Produit performant',
       action: (evolution !== null && evolution >= NexusConseiller.SEUIL_HAUSSE)
-        ? lang.recoHausse(p.article)
-        : `Rien n'indique de risque particulier pour ${p.article} actuellement — maintenez le réassort habituel.`,
+        ? lang.recoHausse(esc(p.article))
+        : `Rien n'indique de risque particulier pour ${esc(p.article)} actuellement — maintenez le réassort habituel.`,
     };
   }
 
@@ -675,7 +676,23 @@ nexusRequireAuth().then(async employee => {
 
   function fmtEur(v) { return v.toLocaleString('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' €'; }
   function fmtPct(v) { return (v*100).toFixed(1).replace('.', ',') + '\u00a0%'; }
-  function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  // Échappement : UNE seule fonction, celle du composant badge (nexus-badge-etat.js).
+  // Valable pour un texte HTML et pour un attribut entre guillemets doubles.
+  const esc = window.NexusBadgeEtat.esc;
+  // URL d'image : https uniquement. `hoteExige` restreint à un hôte (photos NEXUS
+  // = stockage Supabase). Sinon rien : pas d'image plutôt qu'une URL douteuse.
+  function urlImageSure(u, hoteExige) { return NexusProduitsSecurite.urlImageSure(u, hoteExige, [photoApercu()]); }
+  // Date et heure dans le fuseau de la station (jamais UTC ni le fuseau du navigateur).
+  function dateHeureStation(instant) {
+    let fuseau = null;
+    try { fuseau = (typeof nexusFuseauSite === 'function' && employee) ? nexusFuseauSite(employee.site_id) : null; } catch (e) { fuseau = null; }
+    return NexusProduitsSecurite.dateHeureDansFuseau(instant || new Date(), fuseau);
+  }
+  function hoteSupabase() { try { return new URL(NEXUS_SUPABASE_URL).hostname; } catch (e) { return ''; } }
+  function imgSure(url, alt, hoteExige, cls) {
+    const u = urlImageSure(url, hoteExige);
+    return u ? `<img${cls ? ` class="${esc(cls)}"` : ''} src="${esc(u)}" alt="${esc(alt)}">` : '';
+  }
   function fmtDate(d) {
     if (!d) return '—';
     const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(d));
@@ -752,9 +769,9 @@ nexusRequireAuth().then(async employee => {
     const periodePaire = (p.pairDisponible && p.pairDates)
       ? `T1 ${fmtDate(p.pairDates.debutT1)} → ${fmtDate(p.pairDates.finT1)} contre T2 ${fmtDate(p.pairDates.debutT2)} → ${fmtDate(p.pairDates.finT2)}`
       : '';
-    const mentionPaire = `<span class="periode-tendance">Comparaison : ${periodePaire || 'période de comparaison non précisée'}.</span>`;
+    const mentionPaire = `<span class="periode-tendance">Comparaison : ${esc(periodePaire) || 'période de comparaison non précisée'}.</span>`;
     const avertPaire = (p.pairDisponible && !p.pairEstPeriodeAffichee)
-      ? `<div class="avert-tendance">Cette tendance ne porte pas sur la période affichée (${fmtDate(p.periode_debut)} → ${fmtDate(p.periode_fin)}) : elle porte sur la dernière paire de périodes complètes et de durée comparable.</div>`
+      ? `<div class="avert-tendance">Cette tendance ne porte pas sur la période affichée (${esc(fmtDate(p.periode_debut))} → ${esc(fmtDate(p.periode_fin))}) : elle porte sur la dernière paire de périodes complètes et de durée comparable.</div>`
       : '';
     // La decision / l'action s'appuie sur la tendance pour performant et surveiller.
     const actionDependTendance = (statutSimplifie.cle === 'performant' || statutSimplifie.cle === 'surveiller') && p.ca_t1 > 0;
@@ -789,21 +806,21 @@ nexusRequireAuth().then(async employee => {
     const histoHtml = p.pairDisponible ? `
       <div class="histo-row">
         <span class="histo-label">T1</span>
-        <div class="histo-bar-track"><div class="histo-bar" style="width:${p.qte_t1/maxQte*100}%; background:var(--text-dim);"></div></div>
-        <span class="histo-val">${p.qte_t1} u.</span>
+        <div class="histo-bar-track"><div class="histo-bar" style="width:${Number(p.qte_t1/maxQte*100) || 0}%; background:var(--text-dim);"></div></div>
+        <span class="histo-val">${esc(p.qte_t1)} u.</span>
       </div>
       <div class="histo-row">
         <span class="histo-label">T2</span>
-        <div class="histo-bar-track"><div class="histo-bar" style="width:${p.qte_t2_pair/maxQte*100}%;"></div></div>
-        <span class="histo-val">${p.qte_t2_pair} u.</span>
+        <div class="histo-bar-track"><div class="histo-bar" style="width:${Number(p.qte_t2_pair/maxQte*100) || 0}%;"></div></div>
+        <span class="histo-val">${esc(p.qte_t2_pair)} u.</span>
       </div>
-      <div class="histo-dates">T1 : ${p.pairDates.debutT1} → ${p.pairDates.finT1} · T2 : ${p.pairDates.debutT2} → ${p.pairDates.finT2}</div>
+      <div class="histo-dates">T1 : ${esc(p.pairDates.debutT1)} → ${esc(p.pairDates.finT1)} · T2 : ${esc(p.pairDates.debutT2)} → ${esc(p.pairDates.finT2)}</div>
       <div class="kpi-grid">
         <div class="kpi-box"><div class="kl">CA cumulé (T1+T2)</div><div class="kv">${fmtEur(p.ca_s1)}</div></div>
         <div class="kpi-box"><div class="kl">Évolution QTE</div><div class="kv ${p.qte_t1>0 ? (evolQte>=0?'up':'down') : ''}">${p.qte_t1>0 ? (evolQte>=0?'+':'')+fmtPct(evolQte) : 'Départ de zéro'}</div><div class="kl">${mentionPaire}</div></div>
       </div>
-      ${!p.pairEstPeriodeAffichee ? `<div class="histo-empty" style="margin-top:10px;">La période affichée en tête de fiche (${p.periode_debut} → ${p.periode_fin}) est encore trop récente pour être comparée équitablement — cette évolution porte donc sur la dernière paire de périodes complètes et de durée comparable.</div>` : ''}` : `
-      <div class="histo-empty">Aucune période précédente de durée comparable n'a encore été importée pour cette référence (période affichée : ${p.periode_debut} → ${p.periode_fin}, ${p.qte_t2} u. vendues) — NEXUS n'affiche pas d'évolution T1 → T2 plutôt que d'en fabriquer une trompeuse.</div>`;
+      ${!p.pairEstPeriodeAffichee ? `<div class="histo-empty" style="margin-top:10px;">La période affichée en tête de fiche (${esc(p.periode_debut)} → ${esc(p.periode_fin)}) est encore trop récente pour être comparée équitablement — cette évolution porte donc sur la dernière paire de périodes complètes et de durée comparable.</div>` : ''}` : `
+      <div class="histo-empty">Aucune période précédente de durée comparable n'a encore été importée pour cette référence (période affichée : ${esc(p.periode_debut)} → ${esc(p.periode_fin)}, ${esc(p.qte_t2)} u. vendues) — NEXUS n'affiche pas d'évolution T1 → T2 plutôt que d'en fabriquer une trompeuse.</div>`;
 
     const tuile = (ico, label, val, sub, ids) => `
       <div class="ind-tile">
@@ -879,14 +896,14 @@ nexusRequireAuth().then(async employee => {
     const conseillerMsg = document.getElementById('conseillerProduitMsg');
     if (conseillerMsg) {
       const constatP = p.pct_contrib !== null
-        ? `${p.article} pèse ${fmtPct(p.pct_contrib)} du CA de son rayon (${fmtEur(p.ca_t2)}), marge ${fmtPct(p.marge_pct)}.`
-        : `${p.article} a généré ${fmtEur(p.ca_t2)} sur la période, marge ${fmtPct(p.marge_pct)}.`;
+        ? `${esc(p.article)} pèse ${fmtPct(p.pct_contrib)} du CA de son rayon (${fmtEur(p.ca_t2)}), marge ${fmtPct(p.marge_pct)}.`
+        : `${esc(p.article)} a généré ${fmtEur(p.ca_t2)} sur la période, marge ${fmtPct(p.marge_pct)}.`;
 
       let explicationP;
       if (p.ca_t2 === 0) {
         explicationP = `Un ${NexusVocab.SIGNATURE.PRODUIT_DORMANT.toLowerCase()} n'indique pas forcément un problème de demande — cela peut aussi être une rupture ou un retrait de rayon non signalé.`;
       } else {
-        const rentaTxt = NexusVocab.rentabilite(niveauRentaP, false, p.article);
+        const rentaTxt = NexusVocab.rentabilite(niveauRentaP, false, esc(p.article));
         const tendanceTxt = p.ca_t1 > 0 ? NexusVocab.tendance(evolCa) : null;
         explicationP = [rentaTxt, tendanceTxt].filter(Boolean).join(' ')
           || 'Pas assez de recul pour conclure.';
@@ -897,7 +914,7 @@ nexusRequireAuth().then(async employee => {
       const decisionP = statutSimplifie.action;
 
       conseillerMsg.innerHTML = `
-        <div class="cycle-step"><span class="cycle-tag">Constat</span>${employee.nom}, ${constatP}</div>
+        <div class="cycle-step"><span class="cycle-tag">Constat</span>${esc(employee.nom)}, ${constatP}</div>
         <div class="cycle-step"><span class="cycle-tag">Explication</span>${explicationP}</div>
         <div class="cycle-step"><span class="cycle-tag tag-decision">Décision</span>${decisionP}</div>
       `;
@@ -944,14 +961,14 @@ nexusRequireAuth().then(async employee => {
       if (error) throw error;
       if (!zone.isConnected) return;
       if (!data || !data.length || !data[0].photo_url) {
-        statusHtml = `<div class="photo-empty">Aucune photo de rayon prise pour l'instant pour « ${p.article} ».</div>`;
+        statusHtml = `<div class="photo-empty">Aucune photo de rayon prise pour l'instant pour « ${esc(p.article)} ».</div>`;
       } else {
         const r = data[0];
         const date = new Date(r.created_at).toLocaleDateString('fr-FR');
         const nomEmp = r.employees && r.employees.nom ? r.employees.nom : 'un employé';
         statusHtml = `
-          <div class="photo-box"><img src="${r.photo_url}" alt="Photo rayon"></div>
-          <div class="photo-meta">Prise par ${nomEmp} le ${date}</div>
+          <div class="photo-box">${imgSure(r.photo_url, 'Photo rayon', hoteSupabase())}</div>
+          <div class="photo-meta">Prise par ${esc(nomEmp)} le ${esc(date)}</div>
         `;
       }
     } catch (e) {
@@ -1003,7 +1020,7 @@ nexusRequireAuth().then(async employee => {
         .insert({
           employee_id: employee.id, mission_id: 'photo-verification-rayon',
           titre: 'Photo de vérification rayon',
-          date: new Date().toISOString().slice(0, 10), heure: new Date().toTimeString().slice(0, 5),
+          date: dateHeureStation().date, heure: dateHeureStation().heure,
           photo_fournie: true, photo_url: signee.signedUrl, points: 7,
           article_cible: p.article, categorie_cible: p.categorie, site_id: SITE_ACTUEL,
         });
@@ -1073,7 +1090,7 @@ nexusRequireAuth().then(async employee => {
       if (!el.isConnected) return;
       if (data && data.emplacement && data.source === 'manuel') {
         const date = new Date(data.assigne_le).toLocaleDateString('fr-FR');
-        el.innerHTML = `${data.emplacement} · ${date} <span class="emplacement-modifier" id="btnModifierEmplacement">(modifier)</span>`;
+        el.innerHTML = `${esc(data.emplacement)} · ${esc(date)} <span class="emplacement-modifier" id="btnModifierEmplacement">(modifier)</span>`;
       } else if (data && data.emplacement) {
         // source = 'auto_categorie' : suggestion non confirmée par un humain.
         el.innerHTML = `${(window.NexusBadgeEtat ? NexusBadgeEtat.gravite('a-verifier', {libelle: 'À vérifier'}) : '<span class="statut-repli">À vérifier</span>')} ${esc(data.emplacement)} <button type="button" class="emplacement-modifier" id="btnModifierEmplacement">(confirmer/corriger)</button>`;
@@ -1302,9 +1319,9 @@ nexusRequireAuth().then(async employee => {
     if (photo) {
       const dateConfirmee = photo.verifie_le ? new Date(photo.verifie_le).toLocaleDateString('fr-FR') : null;
       zone.innerHTML = `
-        <div class="photo-box"><img src="${esc(photo.photo_url)}" alt="${esc(p.article)}"></div>
+        <div class="photo-box">${imgSure(photo.photo_url, p.article)}</div>
         <div class="photo-info">
-          <div class="photo-meta">${dateConfirmee ? `Confirmée le ${dateConfirmee} · Open Food Facts` : 'Open Food Facts'}</div>
+          <div class="photo-meta">${dateConfirmee ? `Confirmée le ${esc(dateConfirmee)} · Open Food Facts` : 'Open Food Facts'}</div>
           <button type="button" class="photo-btn" id="btnRechercherPhoto">Chercher une autre photo</button>
         </div>
       `;
@@ -1339,7 +1356,7 @@ nexusRequireAuth().then(async employee => {
     }
 
     const zone = document.getElementById('photoCardZone');
-    if (zone) zone.innerHTML = `<div class="photo-loading">Recherche par code-barres (${p.code_barres})…</div>`;
+    if (zone) zone.innerHTML = `<div class="photo-loading">Recherche par code-barres (${esc(p.code_barres)})…</div>`;
     try {
       const { data, error: erreurFn } = await nexusClient.functions.invoke('clever-endpoint', {
         body: { code: p.code_barres },
@@ -1383,12 +1400,12 @@ nexusRequireAuth().then(async employee => {
     const zone = document.getElementById('photoCardZone');
     if (!zone) return;
     zone.innerHTML = `
-      <div class="section-label" style="margin-bottom:8px;">Trouvé par code-barres (${candidat.code})</div>
+      <div class="section-label" style="margin-bottom:8px;">Trouvé par code-barres (${esc(candidat.code)})</div>
       <div class="photo-candidats" style="grid-template-columns:1fr;">
         <div class="photo-candidat" id="candidatUnique">
-          <img src="${candidat.vignette}" alt="${candidat.nom}">
-          <div class="pc-nom">${candidat.nom}</div>
-          ${candidat.marque ? `<div class="pc-marque">${candidat.marque}${candidat.quantite ? ' · ' + candidat.quantite : ''}</div>` : ''}
+          ${imgSure(candidat.vignette, candidat.nom)}
+          <div class="pc-nom">${esc(candidat.nom)}</div>
+          ${candidat.marque ? `<div class="pc-marque">${esc(candidat.marque)}${candidat.quantite ? ' · ' + esc(candidat.quantite) : ''}</div>` : ''}
         </div>
       </div>
       <div class="photo-annuler" id="annulerRecherchePhoto">Ce n'est pas la bonne référence — chercher par nom à la place</div>
@@ -1409,7 +1426,7 @@ nexusRequireAuth().then(async employee => {
     // sans photo / erreur technique) pour que Frédéric sache toujours d'où
     // viennent les résultats affichés, plutôt qu'un repli silencieux.
     const noteHtml = noteAvantRecherche
-      ? `<div class="photo-empty" style="padding:0 0 10px; border-bottom:1px solid var(--hairline); margin-bottom:10px;">${noteAvantRecherche}</div>`
+      ? `<div class="photo-empty" style="padding:0 0 10px; border-bottom:1px solid var(--hairline); margin-bottom:10px;">${esc(noteAvantRecherche)}</div>`
       : '';
     zone.innerHTML = `${noteHtml}<div class="photo-loading">Recherche par nom sur Open Food Facts…</div>`;
 
@@ -1488,14 +1505,14 @@ nexusRequireAuth().then(async employee => {
       // encore, Frederic peut nous dire exactement quoi, sans avoir besoin
       // d'ouvrir la console du navigateur.
       console.error('Recherche Open Food Facts:', e);
-      zone.innerHTML = `${noteHtml}<div class="photo-empty">Connexion à Open Food Facts impossible pour l'instant (${(e && e.message) || 'erreur réseau'}).</div>
+      zone.innerHTML = `${noteHtml}<div class="photo-empty">Connexion à Open Food Facts impossible pour l'instant (${esc((e && e.message) || 'erreur réseau')}).</div>
         <div class="photo-annuler" id="annulerRecherchePhoto">← Retour</div>`;
       document.getElementById('annulerRecherchePhoto').addEventListener('click', () => renderPhotoCard(p));
       return;
     }
 
     if (candidats.length === 0) {
-      zone.innerHTML = `${noteHtml}<div class="photo-empty">Aucune photo trouvée pour « ${requete} » sur Open Food Facts${requete !== p.article ? ` (recherché depuis « ${p.article} »)` : ''}.</div>
+      zone.innerHTML = `${noteHtml}<div class="photo-empty">Aucune photo trouvée pour « ${esc(requete)} » sur Open Food Facts${requete !== p.article ? ` (recherché depuis « ${esc(p.article)} »)` : ''}.</div>
         <div class="photo-annuler" id="annulerRecherchePhoto">← Retour</div>`;
       document.getElementById('annulerRecherchePhoto').addEventListener('click', () => renderPhotoCard(p));
       return;
@@ -1515,9 +1532,9 @@ nexusRequireAuth().then(async employee => {
           const aUneCorrespondance = signaux.length > 0;
           return `
           <div class="photo-candidat${aUneCorrespondance ? ' pc-match' : ''}" data-i="${i}">
-            <img src="${c.vignette}" alt="${c.nom}">
-            <div class="pc-nom">${c.nom}</div>
-            ${c.marque ? `<div class="pc-marque">${c.marque}${c.quantite ? ' · ' + c.quantite : ''}</div>` : ''}
+            ${imgSure(c.vignette, c.nom)}
+            <div class="pc-nom">${esc(c.nom)}</div>
+            ${c.marque ? `<div class="pc-marque">${esc(c.marque)}${c.quantite ? ' · ' + esc(c.quantite) : ''}</div>` : ''}
             ${aUneCorrespondance ? `<div class="pc-badge">Correspond : ${signaux.join(', ')}</div>` : ''}
           </div>`;
         }).join('')}
