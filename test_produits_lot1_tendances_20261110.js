@@ -184,3 +184,12 @@ t('Conseiller : listes progression/régression des produits stratégiques neutra
 });
 
 console.log(n + ' tests OK');
+
+// ---- Fiche Produits : échappement des avertissements, durées et CA totaux (relecture Guardian 6781315761) ----
+t('fiche : avertissements échappés, durées et CA total de chaque période affichés', () => {
+  const fs = require('fs');
+  const page = fs.readFileSync(require('path').join(__dirname, 'NEXUS-Produits-v1.html'), 'utf8');
+  assert.ok(page.includes("tend.avertissements.map(esc).join(' · ')"), 'avertissements non échappés');
+  assert.ok(!page.includes('tend.avertissements.map(a => a)'), 'insertion brute des avertissements');
+  assert.ok(/periodesTendance/.test(page) && /\$\{esc\(t\.duree\)\} j\) : CA \$\{fmtEur\(t\.ca/.test(page), 'durée et CA total de chaque période absents');
+});
