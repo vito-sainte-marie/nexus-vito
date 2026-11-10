@@ -5,7 +5,7 @@ function __etatCommandeSrc() {
   const dep = script.indexOf('function htmlEtatCommande(');
   let j = script.indexOf('{', dep) + 1, p = 1;
   while (p > 0) { if (script[j] === '{') p++; else if (script[j] === '}') p--; j++; }
-  return script.match(/const escCP = [^\n]*\n/)[0] + '\nfunction iconeModuleCP(id, taille, ancien) { return ancien; }\n' + script.slice(dep, j);
+  return script.match(/const escCP = [^\n]*\n/)[0] + '\nfunction iconeModuleCP(id, taille, ancien) { return ancien; }\n' + script.slice(script.indexOf('function actionCarteCommande('), j);
 }
 function __brancherBadge(ctx) {
   ctx.NexusEtatsConseiller = require('./nexus-etats-conseiller.js');

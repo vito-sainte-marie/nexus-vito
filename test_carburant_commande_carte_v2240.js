@@ -5,7 +5,7 @@ function __etatCommandeSrc() {
   const dep = script.indexOf('function htmlEtatCommande(');
   let j = script.indexOf('{', dep) + 1, p = 1;
   while (p > 0) { if (script[j] === '{') p++; else if (script[j] === '}') p--; j++; }
-  return script.match(/const escCP = [^\n]*\n/)[0] + '\nfunction iconeModuleCP(id, taille, ancien) { return ancien; }\n' + script.slice(dep, j);
+  return script.match(/const escCP = [^\n]*\n/)[0] + '\nfunction iconeModuleCP(id, taille, ancien) { return ancien; }\n' + script.slice(script.indexOf('function actionCarteCommande('), j);
 }
 function __brancherBadge(ctx) {
   ctx.NexusEtatsConseiller = require('./nexus-etats-conseiller.js');
@@ -247,7 +247,7 @@ function ok(label) { n++; console.log('OK —', label); }
   // Commande probable — à confirmer" ; le comportement de downgrade
   // (orange tant que la confiance n'est pas fiable) reste inchangé.
   assert.ok(out.includes('Risque de rupture probable — à confirmer'), 'badge orange dédié attendu (jamais un simple suffixe sur le rouge) : ' + out);
-  const badgeCarte = (out.match(/<span class="commande-carte-badge"[\s\S]*?<\/div>/) || [''])[0];
+  const badgeCarte = (out.match(/<span class="cp-carte-etat"[\s\S]*?<\/div>/) || [''])[0];
   assert.ok(badgeCarte && !badgeCarte.includes('>Risque de rupture<'), 'le libellé rouge alarmiste ne doit plus apparaître dans le badge de la carte quand la confiance n\'est pas fiable : ' + badgeCarte);
   assert.ok(out.includes('border-color:var(--nbe-verifier)'), 'bordure de carte également basculée en « À vérifier » (jeton --nbe-verifier) (couleur ET libellé, jamais un correctif partiel) : ' + out);
   // 28/08/2026 (refonte qualitative v2.260) — badge "🟠 À confirmer" + raison

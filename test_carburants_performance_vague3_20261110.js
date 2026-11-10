@@ -58,9 +58,10 @@ garde('messages : alerte reste critique', H, c => /alerte:\s*'critique'/.test(c)
 // Règle de Frédéric : action et risque coexistent
 t('Agir à côté du badge de risque, sans absorption', () => {
   assert.ok(/NexusBadgeEtat\.action\('agir', \{ clicable: true, attrs: 'data-cp-agir' \}\)/.test(H));
+  assert.ok(/actionCarte\.type === 'commander'[\s\S]{0,400}stCarteCle\.action \? '' : ' ' \+ NexusBadgeEtat\.action\('agir'/.test(H));
   assert.ok(/ctx\.commandeRecommandee/.test(H));
 });
-garde('chip Agir : ouvre la fiche de commande', H, c => /\[data-cp-agir\]'\)\.forEach[^;]*ouvrirFicheCommande\(ctx\)/.test(c), "ouvrirFicheCommande(ctx));\n    zone.querySelectorAll('[data-cp-agir]')", "ouvrirFicheCommande(ctx));\n    zone.querySelectorAll('[data-cp-x]')");
+garde('chip Agir : ouvre la fiche de commande', H, c => /\[data-cp-agir\]'\)\.forEach[^;]*ouvrirFicheCommande\(ctx\)/.test(c), "zone.querySelectorAll('[data-cp-agir]')", "zone.querySelectorAll('[data-cp-x]')");
 
 // Pas de valeur écrite modifiée : clés inchangées, aucun libellé affiché ne part en écriture
 t('clés d\'état inchangées', () => { ['confortable', 'a_anticiper', 'moment_ideal', 'securite', 'securite_probable', 'non_calculable'].forEach(k => assert.ok(new RegExp('\\b' + k + ':\\s*\\{').test(STYLE), k)); });
@@ -89,4 +90,73 @@ t('composants chargés dans le bon ordre', () => {
 });
 // Hors périmètre intact
 t('hors périmètre intact : ☰ Menu, ✕, 🎯', () => { assert.ok(H.indexOf('☰ Menu') >= 0); assert.ok(H.indexOf('✕') >= 0); assert.ok(H.indexOf('🎯') >= 0); });
+
+// Guardian 6768039739 + arbitrages de Frédéric 6769057864 (10/11/2026)
+const vm = require('vm');
+const CSSH = H.split('</style>')[0];
+const decl = sel => { const m = new RegExp('(?:^|\\n)\\s*' + sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*\\{([^}]*)\\}').exec(CSSH); assert.ok(m, sel); return m[1]; };
+t('libellé d\'état : police normale, retour à la ligne, min-width 0', () => {
+  const d = decl('.cp-etat-libelle');
+  assert.ok(/font-family:\s*var\(--sans\)/.test(d) && /white-space:\s*normal/.test(d) && /min-width:\s*0/.test(d));
+  assert.ok(!/nowrap|--mono/.test(d));
+  assert.ok(!/style="color:var\(--text\);"/.test(H.slice(H.indexOf('function htmlEtatCommande'), H.indexOf('function htmlEtatCommande') + 900)));
+});
+t('badge de gravité de la carte : se replie au lieu de déborder', () => { assert.ok(/white-space:\s*normal/.test(decl('.cp-carte-etat .nbe-badge')) && /max-width:\s*100%/.test(decl('.cp-carte-etat .nbe-badge'))); });
+t('à 375 px : titre, badge et consigne empilés sur une colonne', () => {
+  const m = /@media \(max-width:600px\)\{([\s\S]*?)\n  \}/.exec(CSSH.slice(CSSH.indexOf('.cp-carte-etat{')));
+  assert.ok(m);
+  assert.ok(/\.commande-carte-tete\{flex-direction:column; align-items:flex-start;\}/.test(m[1]));
+  assert.ok(/\.commande-carte-tete \.cp-carte-etat\{flex-direction:column; align-items:flex-start; width:100%;\}/.test(m[1]));
+});
+t('l\'en-tête de carte n\'hérite plus de .commande-carte-badge (mono, nowrap)', () => {
+  const i = H.indexOf('<div class="commande-carte-tete">');
+  assert.ok(/<span class="cp-carte-etat">\$\{badgeEtatCommandeHTML\}<\/span>/.test(H.slice(i, i + 400)));
+  assert.ok(!/commande-carte-badge/.test(H.slice(i, i + 400)));
+});
+garde('empilement mobile', H, c => /\.commande-carte-tete\{flex-direction:column; align-items:flex-start;\}/.test(c), 'flex-direction:column; align-items:flex-start;}', 'flex-direction:row; align-items:flex-start;}');
+garde('libellé : white-space normal', H, c => /\.cp-etat-libelle\{[^}]*white-space:\s*normal/.test(c), 'white-space:normal; min-width:0; overflow-wrap:anywhere', 'white-space:nowrap; min-width:0; overflow-wrap:anywhere');
+t('simulateur : le badge passe par htmlEtatCommande (pictogramme du kit)', () => {
+  const i = H.indexOf('Simulation : \' + stSim.libelle');
+  assert.ok(i > 0);
+  assert.ok(/htmlEtatCommande\(simulation\.etatGlobal, \{ libelle: 'Simulation : ' \+ stSim\.libelle \}\)/.test(H));
+  assert.ok(!/<span class="commande-carte-badge" style="background:\$\{stSim\.f\}/.test(H));
+});
+garde('simulateur : rendu par le composant', H, c => /htmlEtatCommande\(simulation\.etatGlobal, \{ libelle: 'Simulation : '/.test(c), "htmlEtatCommande(simulation.etatGlobal, { libelle: 'Simulation : '", "('Simulation : ' + (");
+
+// Action selon la confirmation : fonction réelle extraite et exécutée
+const ctxVm = { console, escCP: s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])) };
+vm.createContext(ctxVm);
+vm.runInContext(fs.readFileSync(path.join(__dirname, 'nexus-etats-conseiller.js'), 'utf8'), ctxVm);
+vm.runInContext(fs.readFileSync(path.join(__dirname, 'nexus-badge-etat.js'), 'utf8'), ctxVm);
+const iA = H.indexOf('function actionCarteCommande'), iB = H.indexOf('function htmlEtatCommande');
+vm.runInContext(H.slice(iA, iB), ctxVm);
+const AC = (ctx, e) => vm.runInContext('actionCarteCommande', ctxVm)(ctx, e);
+const avis = [{ date: '2026-10-28', quart: 'matin' }];
+t('à confirmer + contrôle Verify : bouton Ouvrir Verify avec lien profond', () => {
+  const a = AC({ avisVerifyJour: avis, commandeRecommandee: true }, 'proposition_a_confirmer');
+  assert.strictEqual(a.type, 'verify');
+  assert.strictEqual(a.href, 'NEXUS-Verify-v1.html?ouvrir_date=2026-10-28&ouvrir_quart=matin');
+});
+t('à confirmer sans date ni quart : lien Verify générique', () => { assert.strictEqual(AC({ avisVerifyJour: [{}] }, 'proposition_a_confirmer').href, 'NEXUS-Verify-v1.html'); });
+t('confirmée le jour même : Commander aujourd\'hui (ouvre la fiche)', () => { assert.strictEqual(AC({ avisVerifyJour: avis, commandeRecommandee: true }, 'confirmee').type, 'commander'); });
+t('rien à ouvrir : consigne écrite, jamais de bouton', () => {
+  assert.strictEqual(AC({ avisVerifyJour: [], commandeRecommandee: true }, 'proposition_a_confirmer').type, 'consigne');
+  assert.strictEqual(AC({ avisVerifyJour: [], commandeRecommandee: true }, 'calcul_impossible').type, 'consigne');
+  assert.strictEqual(AC({ commandeRecommandee: false }, 'confirmee').type, 'aucune');
+  const consigne = vm.runInContext("NexusBadgeEtat.action('agir', { clicable: false })", ctxVm);
+  assert.ok(/<span class="nbe-consigne/.test(consigne) && !/<button/.test(consigne));
+});
+t('carte : cas Verify = état « Proposition à confirmer », pas de chip Agir ni « Commander aujourd\'hui »', () => {
+  const i = H.indexOf("if (actionCarte.type === 'verify')"), j = H.indexOf("} else if (actionCarte.type === 'commander')");
+  const b = H.slice(i, j);
+  assert.ok(/gravite\('a-verifier', \{ libelle: 'Proposition à confirmer' \}\)/.test(b));
+  assert.ok(/data-cp-verify=/.test(b) && />Ouvrir Verify<\/button>/.test(b));
+  assert.ok(!/NexusBadgeEtat\.action\('agir'/.test(b));
+  assert.ok(/stCarteCle\.action/.test(b), 'le risque établi garde son badge');
+});
+t('carte : « Ouvrir Verify » ouvre bien Verify', () => { assert.ok(/\[data-cp-verify\]'\)\.forEach\(b => b\.addEventListener\('click', \(\) => \{ window\.location\.href = b\.getAttribute\('data-cp-verify'\)/.test(H)); });
+t('carte : cas consigne = Agir non cliquable', () => { assert.ok(/NexusBadgeEtat\.action\('agir', \{ clicable: false \}\)/.test(H)); });
+garde('action : Verify seulement si à confirmer avec un contrôle', H, c => /etatConfirmation === 'proposition_a_confirmer' && avis\.length > 0/.test(c), "etatConfirmation === 'proposition_a_confirmer' && avis.length > 0", "etatConfirmation === 'proposition_a_confirmer' || avis.length > 0");
+garde('action : Commander aujourd\'hui seulement si confirmée', H, c => /etatConfirmation === 'confirmee' && ctx && ctx\.commandeRecommandee\) return \{ type: 'commander' \}/.test(c), "etatConfirmation === 'confirmee' && ctx", "etatConfirmation !== 'calcul_impossible' && ctx");
+garde('carte : Ouvrir Verify est un vrai bouton', H, c => /<button type="button" class="nbe-action nbe-action-agir"[^>]*data-cp-verify/.test(c), '<button type="button" class="nbe-action nbe-action-agir"', '<span class="nbe-action nbe-action-agir"');
 console.log(n + ' épreuves OK');

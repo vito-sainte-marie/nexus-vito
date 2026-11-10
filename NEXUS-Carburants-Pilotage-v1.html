@@ -211,6 +211,15 @@
   .commande-carte-tete{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:9px;}
   .commande-carte-titre{font-size:13.5px; font-weight:700;}
   .commande-carte-badge{font-family:var(--mono); font-size:11px; font-weight:700; padding:3px 9px; border-radius:20px; white-space:nowrap;}
+  /* Badge d'état de la carte : texte normal qui se replie (jamais de police mono ni de nowrap hérités du badge). */
+  .cp-carte-etat{display:inline-flex; gap:6px; align-items:center; flex-wrap:wrap; min-width:0; max-width:100%;}
+  .cp-etat-libelle{font-family:var(--sans); font-size:12px; font-weight:600; white-space:normal; min-width:0; overflow-wrap:anywhere; color:var(--text);}
+  .cp-carte-etat .nbe-badge{height:auto; min-height:30px; padding-top:4px; padding-bottom:4px; white-space:normal; line-height:1.3; max-width:100%;}
+  .cp-carte-etat .nbe-consigne{white-space:normal;}
+  @media (max-width:600px){
+    .commande-carte-tete{flex-direction:column; align-items:flex-start;}
+    .commande-carte-tete .cp-carte-etat{flex-direction:column; align-items:flex-start; width:100%;}
+  }
   .commande-pourquoi{font-size:11.5px; color:var(--text-mid); line-height:1.55; margin-bottom:10px; padding:9px 11px; background:var(--panel-raised); border-radius:10px;}
   .commande-ligne-carburant{display:flex; flex-wrap:wrap; justify-content:space-between; align-items:baseline; gap:4px 10px; padding:8px 0; border-top:1px solid var(--hairline); font-size:11.5px;}
   .commande-ligne-carburant:first-of-type{border-top:none;}
@@ -2195,12 +2204,29 @@
   // Rendu d'un état de commande : le LIBELLÉ MÉTIER est gardé, seuls couleur et pictogramme suivent la charte.
   // moment_ideal = action : pastille « Agir » + libellé en clair. Les clés (confortable, moment_ideal…) ne sont jamais écrites.
   // opts.libelle : libellé affiché (suffixe « — à confirmer » possible) ; opts.agirOffert : pastille Agir cliquable.
-  function htmlEtatCommande(cle, opts) {
+  // Action de la carte « Prochaine commande », selon la confirmation (pure, sans écriture).
+//  verify    : proposition à confirmer avec un contrôle à faire dans Verify → bouton « Ouvrir Verify » ;
+//  commander : recommandation confirmée avec commande à passer → « Commander aujourd'hui » / Agir (ouvre la fiche) ;
+//  consigne  : commande recommandée mais rien à ouvrir → consigne écrite ; aucune : rien.
+function actionCarteCommande(ctx, etatConfirmation) {
+  const avis = (ctx && ctx.avisVerifyJour) || [];
+  if (etatConfirmation === 'proposition_a_confirmer' && avis.length > 0) {
+    const a = avis[0] || {};
+    const href = (a.date && a.quart)
+      ? 'NEXUS-Verify-v1.html?ouvrir_date=' + encodeURIComponent(a.date) + '&ouvrir_quart=' + encodeURIComponent(a.quart)
+      : 'NEXUS-Verify-v1.html';
+    return { type: 'verify', href };
+  }
+  if (etatConfirmation === 'confirmee' && ctx && ctx.commandeRecommandee) return { type: 'commander' };
+  if (ctx && ctx.commandeRecommandee) return { type: 'consigne' };
+  return { type: 'aucune' };
+}
+function htmlEtatCommande(cle, opts) {
     opts = opts || {};
     const st = ETAT_COMMANDE_STYLE[cle] || ETAT_COMMANDE_STYLE.non_calculable;
     const lib = opts.libelle || st.libelle;
     if (st.action) {
-      return NexusBadgeEtat.action(st.action, { clicable: !!opts.agirOffert, attrs: 'data-cp-agir' }) + ' <span class="cp-etat-libelle" style="color:var(--text);">' + escCP(lib) + '</span>';
+      return NexusBadgeEtat.action(st.action, { clicable: !!opts.agirOffert, attrs: 'data-cp-agir' }) + ' <span class="cp-etat-libelle">' + escCP(lib) + '</span>';
     }
     if (!st.gravite) return NexusBadgeEtat.neutre(lib);
     return NexusBadgeEtat.gravite(st.gravite, { libelle: lib });
@@ -2523,12 +2549,6 @@
       ? stAffiche.libelle
       : (evRef && evRef.confiance && evRef.confiance !== 'fiable' ? `${st.libelle} — à confirmer` : st.libelle);
 
-    // Règle de Frédéric : action et risque établis pour la même situation gardent chacun leur marqueur.
-    // « Commander aujourd'hui » porte déjà la pastille Agir ; pour tout autre état avec une commande à préparer
-    // (ex. Risque de rupture), la pastille Agir s'ajoute à côté du badge de gravité, sans l'absorber.
-    const badgeEtatCommandeHTML = htmlEtatCommande(cleAffiche, { libelle: badgeLibelle, agirOffert: !!ctx.commandeRecommandee })
-      + ((ETAT_COMMANDE_STYLE[cleAffiche] || {}).action || !ctx.commandeRecommandee ? '' : ' ' + NexusBadgeEtat.action('agir', { clicable: true, attrs: 'data-cp-agir' }));
-
     // Fiabilité de la recommandation (28/08/2026, retour de Frédéric —
     // refonte qualitative v2.260) : "🟢 Confirmée / 🟠 À confirmer / 🔴
     // Calcul suspendu [...] 'À confirmer' doit toujours être accompagné de
@@ -2806,6 +2826,27 @@
     const causesAConfirmer = ctx.causesAConfirmer || [];
     const etatConfirmation = ctx.etatConfirmationCommande
       || (causesAConfirmer.some(c => c.niveau === 'non_calculable') ? 'calcul_impossible' : 'proposition_a_confirmer');
+
+    // Action mise en avant dans la carte (arbitrage de Frédéric, 10/11/2026) : elle dépend de l'état de confirmation.
+    // Un bouton n'existe que s'il ouvre réellement un flux ; sinon c'est une consigne écrite.
+    const actionCarte = actionCarteCommande(ctx, etatConfirmation);
+    const stCarteCle = (ETAT_COMMANDE_STYLE[cleAffiche] || {});
+    let badgeEtatCommandeHTML;
+    if (actionCarte.type === 'verify') {
+      // Proposition à confirmer : l'état reste « Proposition à confirmer », l'action est « Ouvrir Verify ».
+      // Un risque établi (ex. Risque de rupture probable) garde son badge ; l'état « Commander aujourd'hui » et la pastille Agir s'effacent.
+      const badgeEtat = stCarteCle.action
+        ? NexusBadgeEtat.gravite('a-verifier', { libelle: 'Proposition à confirmer' })
+        : htmlEtatCommande(cleAffiche, { libelle: badgeLibelle });
+      badgeEtatCommandeHTML = badgeEtat + ' <button type="button" class="nbe-action nbe-action-agir" data-axe="action" data-etat="verify" data-cp-verify="' + escCP(actionCarte.href) + '">Ouvrir Verify</button>';
+    } else if (actionCarte.type === 'commander') {
+      badgeEtatCommandeHTML = htmlEtatCommande(cleAffiche, { libelle: badgeLibelle, agirOffert: true })
+        + (stCarteCle.action ? '' : ' ' + NexusBadgeEtat.action('agir', { clicable: true, attrs: 'data-cp-agir' }));
+    } else {
+      // Rien à ouvrir : consigne écrite, sans aspect de bouton.
+      badgeEtatCommandeHTML = htmlEtatCommande(cleAffiche, { libelle: badgeLibelle })
+        + ((!stCarteCle.action && ctx.commandeRecommandee) ? ' ' + NexusBadgeEtat.action('agir', { clicable: false }) : '');
+    }
     const LIBELLE_ETAT_CONFIRMATION = {
       confirmee: { libelle: 'Confirmée', couleur: 'var(--green)', fond: 'var(--green-dim)' },
       proposition_a_confirmer: { libelle: 'Proposition à confirmer', couleur: 'var(--amber)', fond: 'var(--amber-dim)' },
@@ -2869,7 +2910,7 @@
       <div class="commande-carte" style="border-color:${stAffiche.c};">
         <div class="commande-carte-tete">
           <span class="commande-carte-titre">${titreCarte}${badgeRegimeCarteHTML}</span>
-          <span class="commande-carte-badge" style="background:transparent; padding:0; display:inline-flex; gap:6px; align-items:center; flex-wrap:wrap;">${badgeEtatCommandeHTML}</span>
+          <span class="cp-carte-etat">${badgeEtatCommandeHTML}</span>
         </div>
         ${causesAConfirmerHTML}
         ${objectifHTML}
@@ -2895,6 +2936,7 @@
 
     const btn = document.getElementById('btnPreparerCommande');
     if (btn) btn.addEventListener('click', () => ouvrirFicheCommande(ctx));
+    zone.querySelectorAll('[data-cp-verify]').forEach(b => b.addEventListener('click', () => { window.location.href = b.getAttribute('data-cp-verify'); }));
     zone.querySelectorAll('[data-cp-agir]').forEach(b => { if (b.tagName === 'BUTTON') b.addEventListener('click', () => ouvrirFicheCommande(ctx)); });
   }
 
@@ -3186,7 +3228,7 @@
       return `<div class="controle-ligne"><span>${COURT_CARBURANT[cle] || cle}</span><span class="commande-ligne-detail">simulé ${simVol} · recommandation du jour ${reelVol}</span></div>`;
     }).join('');
     zone.innerHTML = `
-      <span class="commande-carte-badge" style="background:${stSim.f}; color:${stSim.c}; display:inline-block; margin-bottom:8px;">Simulation : ${stSim.libelle}</span>
+      <div class="cp-carte-etat" style="margin-bottom:8px;">${htmlEtatCommande(simulation.etatGlobal, { libelle: 'Simulation : ' + stSim.libelle })}</div>
       ${lignes}
       ${stReel ? `<div class="section-note" style="margin-top:8px; padding:0;">Recommandation réelle du jour : ${stReel.libelle}.</div>` : ''}`;
   }
