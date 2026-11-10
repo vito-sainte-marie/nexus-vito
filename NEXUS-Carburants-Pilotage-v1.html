@@ -23,6 +23,8 @@
 <script src="nexus-auth.js?v=20260904-0104"></script>
 <script src="nexus-header-nav.js?v=20260904-0104"></script>
 <script src="nexus-icones.js?v=20260904-0104"></script>
+<script src="nexus-etats-conseiller.js"></script>
+<script src="nexus-badge-etat.js"></script>
 <script src="nexus-desktop.js?v=20260904-0104"></script>
 <script src="nexus-periodes.js?v=20260904-0104"></script>
 <script src="nexus-carburant-moteur.js?v=20260904-0104"></script>
@@ -798,7 +800,7 @@
   <!-- 3) Dernière livraison (accordéon, replié par défaut) -->
   <div class="accordion-card" data-accordion="livraison">
     <button type="button" class="accordion-header" data-key="livraison">
-      <span class="accordion-icon accordion-icon-gold">🚚</span>
+      <span class="accordion-icon accordion-icon-gold" data-cp-icone="mod-reception-carburant">🚚</span>
       <span class="accordion-titles">
         <span class="accordion-titre">Dernière livraison</span>
         <span class="accordion-sous" id="livraisonSousTitre"></span>
@@ -849,7 +851,7 @@
   <!-- 4) Stock & autonomie -->
   <div class="accordion-card" data-accordion="stock">
     <button type="button" class="accordion-header" data-key="stock">
-      <span class="accordion-icon accordion-icon-green">⛽</span>
+      <span class="accordion-icon accordion-icon-green" data-cp-icone="mod-carburants">⛽</span>
       <span class="accordion-titles">
         <span class="accordion-titre">Stock & autonomie</span>
         <span class="accordion-sous">Détails par carburant</span>
@@ -865,7 +867,7 @@
   <!-- 5) Ventes carburants — période sélectionnée (accordéon, ouvert par défaut) -->
   <div class="accordion-card" data-accordion="ventes">
     <button type="button" class="accordion-header" data-key="ventes">
-      <span class="accordion-icon accordion-icon-cyan">📊</span>
+      <span class="accordion-icon accordion-icon-cyan" data-cp-icone="mod-resultats">📊</span>
       <span class="accordion-titles"><span class="accordion-titre">Ventes carburants</span></span>
       <span class="accordion-chevron" id="chevronVentes">⌄</span>
     </button>
@@ -877,7 +879,7 @@
   <!-- 6) Répartition des ventes -->
   <div class="accordion-card" data-accordion="repartition">
     <button type="button" class="accordion-header" data-key="repartition">
-      <span class="accordion-icon accordion-icon-amber">🥧</span>
+      <span class="accordion-icon accordion-icon-amber" data-cp-icone="mod-carburants-performance">🥧</span>
       <span class="accordion-titles">
         <span class="accordion-titre">Répartition des ventes</span>
         <span class="accordion-sous">Répartition par carburant</span>
@@ -892,7 +894,7 @@
   <!-- 7) Moteur & progression -->
   <div class="accordion-card" data-accordion="moteur">
     <button type="button" class="accordion-header" data-key="moteur">
-      <span class="accordion-icon accordion-icon-cyan">🔎</span>
+      <span class="accordion-icon accordion-icon-cyan" data-cp-icone="mod-evolution">🔎</span>
       <span class="accordion-titles"><span class="accordion-titre">Ce qui explique l'évolution</span></span>
       <span class="accordion-chevron" id="chevronMoteur">⌄</span>
     </button>
@@ -908,7 +910,7 @@
        une seule fois à l'initialisation comme Historique. -->
   <div class="accordion-card" data-accordion="analyse">
     <button type="button" class="accordion-header" data-key="analyse">
-      <span class="accordion-icon accordion-icon-dim">📊</span>
+      <span class="accordion-icon accordion-icon-dim" data-cp-icone="mod-centre-intelligence">📊</span>
       <span class="accordion-titles">
         <span class="accordion-titre">Analyse</span>
         <span class="accordion-sous">Signature du site & fiabilité de l'historique</span>
@@ -930,7 +932,7 @@
        saisie. -->
   <div class="accordion-card" data-accordion="economie">
     <button type="button" class="accordion-header" data-key="economie">
-      <span class="accordion-icon accordion-icon-dim">💶</span>
+      <span class="accordion-icon accordion-icon-dim" data-cp-icone="mod-capital">💶</span>
       <span class="accordion-titles">
         <span class="accordion-titre">Économie du stock carburant</span>
         <span class="accordion-sous">Tarifs actifs, coût moyen & effet prix</span>
@@ -955,7 +957,7 @@
        sélectionnée ci-dessus, chargé une seule fois à l'initialisation. -->
   <div class="accordion-card" data-accordion="historique">
     <button type="button" class="accordion-header" data-key="historique">
-      <span class="accordion-icon accordion-icon-dim">🕘</span>
+      <span class="accordion-icon accordion-icon-dim" data-cp-icone="mod-journal">🕘</span>
       <span class="accordion-titles">
         <span class="accordion-titre">Historique</span>
         <span class="accordion-sous" id="historiqueSousTitre"></span>
@@ -1076,7 +1078,18 @@
     'À corriger': { c: 'var(--red)', f: 'var(--red-dim)' },
     'Données insuffisantes': { c: 'var(--text-dim)', f: 'var(--panel-raised)' },
   };
-  const ICONE_MESSAGE = { alerte: '🔴', attention: '🟠', info: 'ℹ️', positif: '🟢' };
+  // Lot 3 des emojis (Guardian 6767377059) : les messages portent la charte des états (NexusBadgeEtat), plus d'emoji.
+  // Présentation seulement : m.type (alerte | attention | info | positif) reste la valeur calculée, rien n'est écrit.
+  const NIVEAU_CHARTE_MESSAGE = { alerte: 'critique', attention: 'a-verifier', info: 'information', positif: 'conforme', ok: 'conforme', attente: 'en-attente' };
+  function htmlEtatCharte(type) {
+    const n = NIVEAU_CHARTE_MESSAGE[type] || 'information';
+    return n === 'en-attente' ? NexusBadgeEtat.traitement('en-attente') : NexusBadgeEtat.gravite(n);
+  }
+  function iconeModuleCP(id, taille, ancien) {
+    return (typeof NexusIcones !== 'undefined' && NexusIcones.img) ? NexusIcones.img(id, taille, { decoratif: true, ancien: ancien }) : ancien;
+  }
+  // Les 8 sections dépliables : pictogramme du kit (famille mod-*, sans variante Jour : repli neutre) à la place de l'emoji.
+  document.querySelectorAll('[data-cp-icone]').forEach(el => { el.innerHTML = iconeModuleCP(el.getAttribute('data-cp-icone'), 20, el.textContent); });
   // Couleurs pour les niveaux normalisés retournés par
   // NexusCarburantMoteur.fiabiliteControle()/libelleRapprochementLivraison()
   // (14/08/2026) — 'attente' est volontairement neutre (ni vert ni rouge) :
@@ -1327,7 +1340,7 @@
     const evCommande = (typeof COMMANDE_CTX !== 'undefined' && COMMANDE_CTX && COMMANDE_CTX.ok && COMMANDE_CTX.parCarburant) ? COMMANDE_CTX.parCarburant[cle] : null;
     if (!evCommande || evCommande.etat === 'non_calculable') return null;
     const couvre = evCommande.etat !== 'securite';
-    return { couvre, icone: couvre ? '🟢' : '🔴', texte: `Couverture estimée : ${formaterCouvertureEstimeeTexte(evCommande.couvertureEstimeeParQuart)}` };
+    return { couvre, texte: `Couverture estimée : ${formaterCouvertureEstimeeTexte(evCommande.couvertureEstimeeParQuart)}` };
   }
 
   // La réception terrain est la source de vérité du rapprochement BL ↔
@@ -1978,7 +1991,7 @@
     if (messages.length) {
       const ordre = ['alerte', 'attention', 'info', 'positif'];
       const pire = ordre.find(t => messages.some(m => m.type === t)) || messages[0].type;
-      sousTitre = `${ICONE_MESSAGE[pire] || 'ℹ️'} ${messages.length} signalement${messages.length > 1 ? 's' : ''}`;
+      sousTitre = `${messages.length} signalement${messages.length > 1 ? 's' : ''}`;
     }
     return { messages, sousTitre };
   }
@@ -2000,7 +2013,7 @@
   // une seule vérité, cette page ne fait qu'en changer la présentation).
   // ------------------------------------------------------------
   const PRIORITE_NIVEAU_LECTURE = { alerte: 3, attention: 2, attente: 1, ok: 0 };
-  const EMOJI_NIVEAU_LECTURE = { ok: '🟢', attention: '🟠', alerte: '🔴', attente: '🟠' };
+  // niveaux de la Lecture NEXUS -> charte : ok = Conforme, attention = À vérifier, alerte = Critique, attente = En attente (voir NIVEAU_CHARTE_MESSAGE).
 
   function pireFiabiliteCarburants() {
     if (!CONTROLE_CTX || !CONTROLE_CTX.parCarburant || !CUVES_CONFIG) return null;
@@ -2095,17 +2108,16 @@
     // (À contrôler = rouge/orange ; seulement « En attente » = neutre), sans changer le nombre.
     const niveauxLignes = lignes.map(l => l.niveau);
     const classeBadgeSignalements = niveauxLignes.includes('alerte') ? 'niv-rouge' : (niveauxLignes.includes('attention') ? 'niv-orange' : '');
-    const badgeSousTitre = messages.length && !classeBadgeSignalements
-      ? sousTitre.replace(/^\S+\s/, '') : sousTitre;
+    const badgeSousTitre = sousTitre;
     const detailHTML = messages.length
-      ? messages.map(m => `<div class="message-carte ${m.type}"><span class="message-icone">${ICONE_MESSAGE[m.type] || 'ℹ️'}</span><span>${m.texte}</span></div>`).join('')
-      : `<div class="message-carte info"><span class="message-icone">ℹ️</span><span>Aucun signalement prioritaire.</span></div>`;
+      ? messages.map(m => `<div class="message-carte ${m.type}"><span class="message-icone">${htmlEtatCharte(m.type)}</span><span>${m.texte}</span></div>`).join('')
+      : `<div class="message-carte info"><span class="message-icone">${htmlEtatCharte('info')}</span><span>Aucun signalement prioritaire.</span></div>`;
     const COLONNES_LECTURE = [
       { titre: 'À contrôler', niveaux: ['alerte', 'attention'] },
       { titre: 'En attente', niveaux: ['attente'] },
       { titre: 'Sans anomalie', niveaux: ['ok'] }
     ];
-    const ligneHTML = l => `<div class="lecture-nexus-ligne"><span class="lecture-nexus-emoji">${EMOJI_NIVEAU_LECTURE[l.niveau] || '🟢'}</span><span>${l.texte}</span></div>`;
+    const ligneHTML = l => `<div class="lecture-nexus-ligne"><span class="lecture-nexus-emoji">${htmlEtatCharte(l.niveau in NIVEAU_CHARTE_MESSAGE ? l.niveau : 'ok')}</span><span>${l.texte}</span></div>`;
     const colonnesHTML = COLONNES_LECTURE.map(col => {
       const items = lignes.filter(l => col.niveaux.includes(l.niveau));
       return `<div class="lecture-nexus-col"><div class="lecture-nexus-col-titre">${col.titre}</div>${items.length ? items.map(ligneHTML).join('') : '<div class="lecture-nexus-rien">Rien à signaler</div>'}</div>`;
@@ -2163,10 +2175,11 @@
   // AskUserQuestion 27/08/2026) : le contrôle physique/autonomie carburant
   // (bloc voisin, même écran) et le Brief gardent leur vocabulaire actuel.
   const ETAT_COMMANDE_STYLE = {
-    confortable: { icone: '🟢', libelle: 'Rien à faire', c: 'var(--green)', f: 'var(--green-dim)' },
-    a_anticiper: { icone: '🟡', libelle: 'À surveiller', c: 'var(--yellow)', f: 'var(--yellow-dim)' },
-    moment_ideal: { icone: '🟠', libelle: 'Commander aujourd\'hui', c: 'var(--amber)', f: 'var(--amber-dim)' },
-    securite: { icone: '🔴', libelle: 'Risque de rupture', c: 'var(--red)', f: 'var(--red-dim)' },
+    confortable: { gravite: 'conforme', libelle: 'Rien à faire', c: 'var(--nbe-conforme)', f: 'color-mix(in srgb, var(--nbe-conforme) 10%, transparent)' },
+    a_anticiper: { gravite: 'a-verifier', libelle: 'À surveiller', c: 'var(--nbe-verifier)', f: 'color-mix(in srgb, var(--nbe-verifier) 10%, transparent)' },
+    // « Commander aujourd'hui » est une ACTION (pastille Agir, cyan), jamais une gravité : aucune couleur d'alerte.
+    moment_ideal: { action: 'agir', libelle: 'Commander aujourd\'hui', c: 'var(--nbe-accent)', f: 'color-mix(in srgb, var(--nbe-accent) 10%, transparent)' },
+    securite: { gravite: 'critique', libelle: 'Risque de rupture', c: 'var(--nbe-critique)', f: 'color-mix(in srgb, var(--nbe-critique) 10%, transparent)' },
     // Downgrade d'affichage (25/08/2026, retour de Frédéric — conservé tel
     // quel avec le nouveau vocabulaire) — le rouge alarmiste "Risque de
     // rupture" ne doit apparaître que lorsque le risque est confirmé par
@@ -2175,9 +2188,23 @@
     // (couleur ET libellé, jamais un simple suffixe accolé au rouge). Le
     // calcul de etatGlobal lui-même reste totalement inchangé (Article 5)
     // — voir badgeLibelle plus bas.
-    securite_probable: { icone: '🟠', libelle: 'Risque de rupture probable — à confirmer', c: 'var(--amber)', f: 'var(--amber-dim)' },
-    non_calculable: { icone: '…', libelle: 'Non calculable', c: 'var(--text-dim)', f: 'var(--panel-raised)' },
+    securite_probable: { gravite: 'a-verifier', libelle: 'Risque de rupture probable — à confirmer', c: 'var(--nbe-verifier)', f: 'color-mix(in srgb, var(--nbe-verifier) 10%, transparent)' },
+    non_calculable: { gravite: null, libelle: 'Non calculable', c: 'var(--text-dim)', f: 'var(--panel-raised)' },
   };
+  const escCP = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  // Rendu d'un état de commande : le LIBELLÉ MÉTIER est gardé, seuls couleur et pictogramme suivent la charte.
+  // moment_ideal = action : pastille « Agir » + libellé en clair. Les clés (confortable, moment_ideal…) ne sont jamais écrites.
+  // opts.libelle : libellé affiché (suffixe « — à confirmer » possible) ; opts.agirOffert : pastille Agir cliquable.
+  function htmlEtatCommande(cle, opts) {
+    opts = opts || {};
+    const st = ETAT_COMMANDE_STYLE[cle] || ETAT_COMMANDE_STYLE.non_calculable;
+    const lib = opts.libelle || st.libelle;
+    if (st.action) {
+      return NexusBadgeEtat.action(st.action, { clicable: !!opts.agirOffert, attrs: 'data-cp-agir' }) + ' <span class="cp-etat-libelle" style="color:var(--text);">' + escCP(lib) + '</span>';
+    }
+    if (!st.gravite) return NexusBadgeEtat.neutre(lib);
+    return NexusBadgeEtat.gravite(st.gravite, { libelle: lib });
+  }
 
   async function chargerEtRendreCommandeCarburant() {
     const zone = document.getElementById('commandeCarburantZone');
@@ -2228,14 +2255,14 @@
   // 'fiable' (repli sur `detailConfiance.raison` si jamais aucune cause
   // machine n'était encore fournie par un appelant, robustesse Article 5).
   const NIVEAU_FIABILITE_BADGE = {
-    fiable: { emoji: '🟢', libelle: 'Confirmée' },
-    a_confirmer: { emoji: '🟠', libelle: 'À confirmer' },
-    non_calculable: { emoji: '🔴', libelle: 'Calcul suspendu' },
+    fiable: { niveau: 'conforme', libelle: 'Confirmée' },
+    a_confirmer: { niveau: 'en-attente', libelle: 'À confirmer' },
+    non_calculable: { niveau: 'a-verifier', libelle: 'Calcul suspendu' },
   };
   function construireBlocFiabilite(detailConfiance, ctxCommande) {
     const niveau = (detailConfiance && detailConfiance.niveau) || 'non_calculable';
     const badge = NIVEAU_FIABILITE_BADGE[niveau] || NIVEAU_FIABILITE_BADGE.non_calculable;
-    const badgeHTML = `<span class="fiabilite-badge">${badge.emoji} ${badge.libelle}</span>`;
+    const badgeHTML = badge.niveau === 'en-attente' ? NexusBadgeEtat.traitement('en-attente', { libelle: badge.libelle }) : NexusBadgeEtat.gravite(badge.niveau, { libelle: badge.libelle });
     if (niveau === 'fiable') return `<div class="fiabilite-bloc">${badgeHTML}</div>`;
     const actions = (typeof NexusCarburantCommandeMoteur !== 'undefined' && NexusCarburantCommandeMoteur.actionsResolutionFiabilite)
       ? NexusCarburantCommandeMoteur.actionsResolutionFiabilite(detailConfiance) : [];
@@ -2330,9 +2357,10 @@
         : `${COURT_CARBURANT[c.carburant] || c.carburant} : ${c.libelle}${c.action ? ` — ${c.action}` : ''}`;
       return `<div style="margin-top:2px; color:var(--text);">→ ${texte}</div>`;
     }
-    const EMOJI_DIAGNOSTIC = { releve_non_valide: '🟠', verify_incomplet: '🟠', anomalie_a_investiguer: '🔴' };
-    const emoji = EMOJI_DIAGNOSTIC[diag.cas] || '🟠';
-    const titre = `Écart ${COURT_CARBURANT[c.carburant] || c.carburant}${ecartTxt ? ` ${ecartTxt}` : ''} ${emoji}`;
+    const NIVEAU_DIAGNOSTIC = { releve_non_valide: 'a-verifier', verify_incomplet: 'a-verifier', anomalie_a_investiguer: 'critique' };
+    const niveauDiag = NIVEAU_DIAGNOSTIC[diag.cas] || 'a-verifier';
+    const titre = `Écart ${COURT_CARBURANT[c.carburant] || c.carburant}${ecartTxt ? ` ${ecartTxt}` : ''}`;
+    const badgeDiag = NexusBadgeEtat.gravite(niveauDiag);
     const lignesDetail = [];
     if (diag.cas === 'releve_non_valide') {
       lignesDetail.push('Analyse : relevé non encore validé');
@@ -2348,7 +2376,7 @@
     }
     const lien = construireLienActionDiagnostic(c, diag, ctx);
     return `<div style="margin-top:6px; padding-top:6px; border-top:1px solid rgba(255,255,255,0.06);">
-        <div style="color:var(--text); font-weight:600;">→ ${titre}</div>
+        <div style="color:var(--text); font-weight:600;">→ ${titre} ${badgeDiag}</div>
         ${lignesDetail.map(l => `<div style="margin-top:2px; color:var(--text-mid); padding-left:12px;">${l}</div>`).join('')}
         ${lien ? `<div style="margin-top:3px; padding-left:12px;">${lien}</div>` : ''}
       </div>`;
@@ -2393,14 +2421,14 @@
     // de base manquent — un site sans configuration Commande Carburant ne
     // doit ni planter ni afficher une fausse certitude.
     if (!ctx || ctx.ok === false || ctx.etatGlobal === 'non_calculable') {
-      zone.innerHTML = `<div class="commande-bandeau" style="background:var(--panel); border:1px solid var(--hairline); color:var(--text-dim);"><span>${ETAT_COMMANDE_STYLE.non_calculable.icone}</span><span>Prochaine commande : données insuffisantes pour une recommandation aujourd'hui${ctx && ctx.motif ? ` (${ctx.motif})` : ''}.</span></div>`;
+      zone.innerHTML = `<div class="commande-bandeau" style="background:var(--panel); border:1px solid var(--hairline); color:var(--text-dim);"><span>${htmlEtatCommande('non_calculable')}</span><span>Prochaine commande : données insuffisantes pour une recommandation aujourd'hui${ctx && ctx.motif ? ` (${ctx.motif})` : ''}.</span></div>`;
       return;
     }
 
     // Palier 1 — confortable : bandeau discret, aucun détail, aucun bouton.
     if (ctx.etatGlobal === 'confortable') {
       const st = ETAT_COMMANDE_STYLE.confortable;
-      zone.innerHTML = `<div class="commande-bandeau" style="background:${st.f}; color:${st.c};"><span>🚚 ${st.icone}</span><span>Carburants : approvisionnement sous contrôle — aucune commande à préparer pour l'instant.</span></div>`;
+      zone.innerHTML = `<div class="commande-bandeau" style="background:${st.f}; color:${st.c};"><span>${iconeModuleCP('mod-reception-carburant', 20, '🚚')} ${htmlEtatCommande('confortable')}</span><span>Carburants : approvisionnement sous contrôle — aucune commande à préparer pour l'instant.</span></div>`;
       return;
     }
 
@@ -2416,7 +2444,7 @@
         const j = ev.joursAvantBesoin;
         return `${COURT_CARBURANT[ev.carburant] || ev.carburant} (${j != null ? `commande probable dans ${j} j` : 'échéance non déterminée'})`;
       }).join(' · ');
-      zone.innerHTML = `<div class="commande-bandeau" style="background:${st.f}; color:var(--text);"><span>🚚 ${st.icone}</span><span>À anticiper — ${detail || 'un carburant approche sa fenêtre de commande'}.</span></div>`;
+      zone.innerHTML = `<div class="commande-bandeau" style="background:${st.f}; color:var(--text);"><span>${iconeModuleCP('mod-reception-carburant', 20, '🚚')} ${htmlEtatCommande('a_anticiper')}</span><span>À anticiper — ${detail || 'un carburant approche sa fenêtre de commande'}.</span></div>`;
       return;
     }
 
@@ -2489,10 +2517,17 @@
     // alarmiste. Pour les autres états (ex. moment_ideal), le suffixe
     // "— à confirmer" reste suffisant.
     const estSecuriteAConfirmer = ctx.etatGlobal === 'securite' && evRef && evRef.confiance && evRef.confiance !== 'fiable';
+    const cleAffiche = estSecuriteAConfirmer ? 'securite_probable' : (ETAT_COMMANDE_STYLE[ctx.etatGlobal] ? ctx.etatGlobal : 'non_calculable');
     const stAffiche = estSecuriteAConfirmer ? ETAT_COMMANDE_STYLE.securite_probable : st;
     const badgeLibelle = estSecuriteAConfirmer
       ? stAffiche.libelle
       : (evRef && evRef.confiance && evRef.confiance !== 'fiable' ? `${st.libelle} — à confirmer` : st.libelle);
+
+    // Règle de Frédéric : action et risque établis pour la même situation gardent chacun leur marqueur.
+    // « Commander aujourd'hui » porte déjà la pastille Agir ; pour tout autre état avec une commande à préparer
+    // (ex. Risque de rupture), la pastille Agir s'ajoute à côté du badge de gravité, sans l'absorber.
+    const badgeEtatCommandeHTML = htmlEtatCommande(cleAffiche, { libelle: badgeLibelle, agirOffert: !!ctx.commandeRecommandee })
+      + ((ETAT_COMMANDE_STYLE[cleAffiche] || {}).action || !ctx.commandeRecommandee ? '' : ' ' + NexusBadgeEtat.action('agir', { clicable: true, attrs: 'data-cp-agir' }));
 
     // Fiabilité de la recommandation (28/08/2026, retour de Frédéric —
     // refonte qualitative v2.260) : "🟢 Confirmée / 🟠 À confirmer / 🔴
@@ -2628,7 +2663,7 @@
         if (ev.livraisonCouvertureL > 0 && ev.couvertureEstimeeAvecLivraison) {
           const livraisonAcquise = ev.livraisonCouvertureStatut === 'effectuee';
           couvertureTxt = `${livraisonAcquise ? 'Après livraison reçue' : 'Si la livraison est reçue'} (+${fmtL(ev.livraisonCouvertureL)}) : ${formaterCouvertureEstimeeTexte(ev.couvertureEstimeeAvecLivraison)}`
-            + `${livraisonAcquise ? '' : ' · ⚠️ volume non encore réceptionné'}`
+            + `${livraisonAcquise ? '' : ` · ${NexusBadgeEtat.gravite('a-verifier', { libelle: 'volume non encore réceptionné' })}`}`
             + ` · sans livraison : ${formaterCouvertureEstimeeTexte(ev.couvertureEstimeeSansLivraison)}`;
         } else {
           couvertureTxt = `Couverture estimée : ${formaterCouvertureEstimeeTexte(ev.couvertureEstimeeParQuart)}`;
@@ -2643,7 +2678,7 @@
 
       return `
         <div class="commande-ligne-carburant">
-          <span class="commande-ligne-nom"><span style="color:${stEv.c};">${stEv.icone}</span>${COURT_CARBURANT[cle] || cle}</span>
+          <span class="commande-ligne-nom">${htmlEtatCommande(ev.etat in ETAT_COMMANDE_STYLE ? ev.etat : 'non_calculable')} ${COURT_CARBURANT[cle] || cle}</span>
           <span class="commande-ligne-detail">
             ${ligneJaugeage ? `<div>${ligneJaugeage}</div>` : ''}
             ${couvertureTxt ? `<div>${couvertureTxt}</div>` : ''}
@@ -2661,7 +2696,7 @@
         : '');
 
     const boutonHTML = ctx.commandeRecommandee
-      ? `<button type="button" class="commande-cta-btn" id="btnPreparerCommande" style="background:${stAffiche.c}; color:var(--bg);">🚚 Préparer ma commande →</button>`
+      ? `<button type="button" class="commande-cta-btn" id="btnPreparerCommande" style="background:${stAffiche.c}; color:var(--bg);">${iconeModuleCP('mod-reception-carburant', 16, '🚚')} Préparer ma commande →</button>`
       : '';
 
     // Résumé niveau 1 "Commande recommandée : X L de Y" (27/08/2026, retour
@@ -2694,7 +2729,7 @@
     const sourceAncreHTML = srcAncre
       ? (srcAncre.utiliseAujourdhui
           ? `<div class="section-note" style="margin:0 0 8px; padding:0; font-size:11px;">Ancré sur le jaugeage du ${srcAncre.mesureLe ? formaterDateHeureFr(srcAncre.mesureLe) : formaterDateFrCourt(srcAncre.dateISO)} (${libelleOrigineJaugeage(srcAncre.origine)}).</div>`
-          : `<div class="section-note" style="margin:0 0 8px; padding:8px 10px; background:var(--amber-dim); border-radius:8px; color:var(--amber); font-size:11px;">⚠️ Aucun jaugeage saisi aujourd'hui (${formaterDateFrCourt(ctx.dateISO)}) — ancré sur le dernier relevé fiable connu : ${srcAncre.dateISO ? `${srcAncre.mesureLe ? formaterDateHeureFr(srcAncre.mesureLe) : formaterDateFrCourt(srcAncre.dateISO)} (${libelleOrigineJaugeage(srcAncre.origine)})` : 'aucun relevé antérieur connu'}.</div>`)
+          : `<div class="section-note" style="margin:0 0 8px; padding:8px 10px; background:var(--amber-dim); border-radius:8px; color:var(--amber); font-size:11px;">${NexusBadgeEtat.gravite('a-verifier', { libelle: 'Aucun jaugeage' })} Aucun jaugeage saisi aujourd'hui (${formaterDateFrCourt(ctx.dateISO)}) — ancré sur le dernier relevé fiable connu : ${srcAncre.dateISO ? `${srcAncre.mesureLe ? formaterDateHeureFr(srcAncre.mesureLe) : formaterDateFrCourt(srcAncre.dateISO)} (${libelleOrigineJaugeage(srcAncre.origine)})` : 'aucun relevé antérieur connu'}.</div>`)
       : '';
 
     // Ancre de la recommandation (28/08/2026, refonte qualitative §2, retour
@@ -2803,7 +2838,7 @@
     // normale. Le contenu de la carte (badge/reco/méta/pourquoi/détail)
     // reste inchangé : seul le titre distingue le régime, cohérent avec la
     // note d'ancrage déjà affichée juste en dessous.
-    const titreCarte = ctx.modeFinDeMois ? '🚚 Commande de transition — fin de mois' : '🚚 Prochaine commande';
+    const titreCarte = `${iconeModuleCP('mod-reception-carburant', 18, '🚚')} ${ctx.modeFinDeMois ? 'Commande de transition — fin de mois' : 'Prochaine commande'}`;
     // Badge de régime + objectif (28/08/2026, point 1/6 — mockup "Commande
     // de transition" : badge en premier champ, puis la phrase "Objectif :
     // ..."). Réservé au régime transition (pont/approche fin de mois) DANS
@@ -2834,7 +2869,7 @@
       <div class="commande-carte" style="border-color:${stAffiche.c};">
         <div class="commande-carte-tete">
           <span class="commande-carte-titre">${titreCarte}${badgeRegimeCarteHTML}</span>
-          <span class="commande-carte-badge" style="background:${stAffiche.f}; color:${stAffiche.c};">${badgeLibelle}</span>
+          <span class="commande-carte-badge" style="background:transparent; padding:0; display:inline-flex; gap:6px; align-items:center; flex-wrap:wrap;">${badgeEtatCommandeHTML}</span>
         </div>
         ${causesAConfirmerHTML}
         ${objectifHTML}
@@ -2860,6 +2895,7 @@
 
     const btn = document.getElementById('btnPreparerCommande');
     if (btn) btn.addEventListener('click', () => ouvrirFicheCommande(ctx));
+    zone.querySelectorAll('[data-cp-agir]').forEach(b => { if (b.tagName === 'BUTTON') b.addEventListener('click', () => ouvrirFicheCommande(ctx)); });
   }
 
   // ------------------------------------------------------------

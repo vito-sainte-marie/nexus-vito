@@ -7,7 +7,7 @@ function garde(nom, src, regle, lit, rempl) { t(nom, () => { assert.ok(regle(src
 const F = 'NEXUS-Carburants-Pilotage-v1.html';
 const SRC = fs.readFileSync(path.join(__dirname, F), 'utf8');
 const SANS_COM = s => s.replace(/\/\*[\s\S]*?\*\//g, '');
-const INVARIANTS = new Set(['--safe-top', '--safe-bottom', '--mono', '--sans', '--icone-pompe', '--carb-couleur', '--ombre-carte', '--halo-statut', '--teinte-moyenne']);
+const INVARIANTS = new Set(['--safe-top', '--safe-bottom', '--mono', '--sans', '--icone-pompe', '--carb-couleur', '--ombre-carte', '--halo-statut', '--teinte-moyenne', '--nbe-attente', '--nbe-verifier', '--nbe-conforme', '--nbe-critique', '--nbe-info', '--nbe-accent']); // --nbe-* : définis par nexus-badge-etat.js (Jour et Nuit)
 const estCouleur = v => /#[0-9a-f]{3,8}\b|rgba?\(/i.test(v);
 function jetons(src, entete) {
   const out = {}; const s = SANS_COM(src);
@@ -54,7 +54,7 @@ t('audit : tout var(--x) sans repli est défini (Sombre ou invariant documenté)
   assert.deepStrictEqual([...inconnus], []);
 });
 t('identifiants et libellés métier inchangés (présentation seule)', () => {
-  assert.ok(SRC.includes("a_anticiper: { icone: '🟡', libelle: 'À surveiller'"));
+  assert.ok(/a_anticiper: \{ gravite: 'a-verifier', libelle: 'À surveiller'/.test(SRC));
   assert.ok(SRC.includes('id="heroCarburants"') && SRC.includes('id="btnInfoPage"'));
 });
 

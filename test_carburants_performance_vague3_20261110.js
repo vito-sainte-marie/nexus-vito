@@ -1,0 +1,92 @@
+// Guardian 6767377059 (10/11/2026) : lot 3 des emojis, Carburants Performance.
+// Présentation seulement : libellés métier gardés, couleur et pictogramme suivent la gravité (charte NexusBadgeEtat).
+const assert = require('assert');
+const fs = require('fs');
+const path = require('path');
+let n = 0;
+function t(nom, f) { f(); n++; console.log('OK ' + nom); }
+function garde(nom, src, regle, litteral, remplacement) {
+  t(nom, () => {
+    assert.ok(regle(src), 'la garde doit passer sur la source');
+    assert.ok(src.indexOf(litteral) >= 0, 'littéral introuvable : ' + litteral);
+    assert.ok(!regle(src.replace(litteral, remplacement)), 'la garde doit rougir sur la source mutée');
+  });
+}
+const lire = f => fs.readFileSync(path.join(__dirname, f), 'utf8');
+const H = lire('NEXUS-Carburants-Pilotage-v1.html');
+const bloc = (debut, fin) => { const i = H.indexOf(debut); assert.ok(i >= 0, debut); const j = H.indexOf(fin, i); assert.ok(j > i, fin); return H.slice(i, j); };
+const STYLE = bloc('const ETAT_COMMANDE_STYLE', '};\n');
+const entree = cle => { const m = new RegExp(cle + ':\\s*\\{[^}]*\\}').exec(STYLE); assert.ok(m, cle); return m[0]; };
+
+// Libellés métier conservés
+const LIBELLES = { confortable: 'Rien à faire', a_anticiper: 'À surveiller', moment_ideal: 'Commander aujourd\'hui', securite: 'Risque de rupture', securite_probable: 'Risque de rupture probable — à confirmer', non_calculable: 'Non calculable' };
+Object.keys(LIBELLES).forEach(k => t('libellé conservé : ' + k, () => { assert.ok(entree(k).replace(/\\'/g, "'").indexOf(LIBELLES[k]) >= 0); }));
+
+// Gravités
+const GRAV = { confortable: 'conforme', a_anticiper: 'a-verifier', securite: 'critique', securite_probable: 'a-verifier' };
+const regleGrav = (c, k, g) => new RegExp(k + ':\\s*\\{[^}]*gravite:\\s*\'' + g + '\'').test(c);
+Object.keys(GRAV).forEach(k => t('gravité ' + k + ' → ' + GRAV[k], () => { assert.ok(regleGrav(STYLE, k, GRAV[k])); }));
+t('« Commander aujourd\'hui » est une action, pas une gravité', () => {
+  const e = entree('moment_ideal');
+  assert.ok(/action:\s*'agir'/.test(e));
+  assert.ok(!/gravite:\s*'(critique|a-verifier|conforme|information)'/.test(e));
+});
+t('« Calcul suspendu » : pas de gravité (rendu neutre)', () => { assert.ok(/gravite:\s*null/.test(entree('non_calculable'))); });
+t('plus aucun emoji ni champ icone dans ETAT_COMMANDE_STYLE', () => { assert.ok(!/icone:/.test(STYLE)); assert.ok(!/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(STYLE)); });
+garde('gravité : Risque de rupture reste critique', STYLE, c => regleGrav(c, 'securite', 'critique'), "gravite: 'critique'", "gravite: 'a-verifier'");
+garde('action : moment_ideal garde le marqueur Agir', STYLE, c => /moment_ideal:\s*\{[^}]*action:\s*'agir'/.test(c), "action: 'agir'", "gravite: 'critique'");
+
+// Fiabilité
+t('fiabilité : Confirmée / À confirmer / Calcul suspendu', () => {
+  const b = bloc('const NIVEAU_FIABILITE_BADGE', '};\n');
+  assert.ok(/fiable:[^}]*conforme[^}]*Confirmée/.test(b));
+  assert.ok(/a_confirmer:[^}]*en-attente[^}]*À confirmer/.test(b));
+  assert.ok(/non_calculable:[^}]*a-verifier[^}]*Calcul suspendu/.test(b));
+});
+t('diagnostic : anomalie → critique, relevé non valide et vérification incomplète → à vérifier', () => {
+  const b = bloc('const NIVEAU_DIAGNOSTIC', '};\n');
+  assert.ok(/anomalie_a_investiguer:\s*'critique'/.test(b));
+  assert.ok(/releve_non_valide:\s*'a-verifier'/.test(b));
+  assert.ok(/verify_incomplet:\s*'a-verifier'/.test(b));
+});
+t('messages : ok/attention/alerte/attente/info → charte', () => {
+  const b = bloc('const NIVEAU_CHARTE_MESSAGE', '\n');
+  assert.ok(/alerte:\s*'critique'/.test(b) && /attention:\s*'a-verifier'/.test(b) && /info:\s*'information'/.test(b) && /ok:\s*'conforme'/.test(b) && /attente:\s*'en-attente'/.test(b));
+});
+garde('messages : alerte reste critique', H, c => /alerte:\s*'critique'/.test(c), "alerte: 'critique'", "alerte: 'a-verifier'");
+
+// Règle de Frédéric : action et risque coexistent
+t('Agir à côté du badge de risque, sans absorption', () => {
+  assert.ok(/NexusBadgeEtat\.action\('agir', \{ clicable: true, attrs: 'data-cp-agir' \}\)/.test(H));
+  assert.ok(/ctx\.commandeRecommandee/.test(H));
+});
+garde('chip Agir : ouvre la fiche de commande', H, c => /\[data-cp-agir\]'\)\.forEach[^;]*ouvrirFicheCommande\(ctx\)/.test(c), "ouvrirFicheCommande(ctx));\n    zone.querySelectorAll('[data-cp-agir]')", "ouvrirFicheCommande(ctx));\n    zone.querySelectorAll('[data-cp-x]')");
+
+// Pas de valeur écrite modifiée : clés inchangées, aucun libellé affiché ne part en écriture
+t('clés d\'état inchangées', () => { ['confortable', 'a_anticiper', 'moment_ideal', 'securite', 'securite_probable', 'non_calculable'].forEach(k => assert.ok(new RegExp('\\b' + k + ':\\s*\\{').test(STYLE), k)); });
+t('aucune écriture ne consomme les libellés ou classes affichés', () => {
+  assert.ok(!/(insert|upsert|update)\([^)]*(badgeLibelle|htmlEtatCommande|ETAT_COMMANDE_STYLE|NIVEAU_FIABILITE_BADGE)/.test(H));
+  assert.ok(!/replace\(\/\^\\S\+\\s\/, ''\)/.test(H), 'plus de retrait fragile du premier mot');
+});
+
+// Deux ⚠️ et accordéons
+t('les deux ⚠️ deviennent des badges À vérifier', () => {
+  assert.ok(!/⚠️/.test(H.replace(/<!--[\s\S]*?-->/g, '').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')));
+  assert.ok(/gravite\('a-verifier', \{ libelle: 'volume non encore réceptionné' \}\)/.test(H));
+  assert.ok(/gravite\('a-verifier', \{ libelle: 'Aucun jaugeage' \}\)/.test(H));
+});
+const ACC = { 'mod-reception-carburant': 1, 'mod-carburants': 1, 'mod-resultats': 1, 'mod-carburants-performance': 1, 'mod-evolution': 1, 'mod-centre-intelligence': 1, 'mod-capital': 1, 'mod-journal': 1 };
+t('8 sections dépliables : pictogramme du kit, emoji gardé en repli', () => {
+  const m = H.match(/class="accordion-icon [^"]*" data-cp-icone="([^"]+)">[^<]+<\/span>/g) || [];
+  assert.strictEqual(m.length, 8);
+  Object.keys(ACC).forEach(id => assert.ok(H.indexOf('data-cp-icone="' + id + '"') >= 0, id));
+  assert.ok(/querySelectorAll\('\[data-cp-icone\]'\)/.test(H));
+});
+garde('accordéons : initialisation du kit', H, c => /querySelectorAll\('\[data-cp-icone\]'\)/.test(c), "querySelectorAll('[data-cp-icone]')", "querySelectorAll('[data-cp-aucun]')");
+t('composants chargés dans le bon ordre', () => {
+  const a = H.indexOf('nexus-etats-conseiller.js'), b = H.indexOf('nexus-badge-etat.js'), c = H.indexOf('const NIVEAU_CHARTE_MESSAGE');
+  assert.ok(a > 0 && b > a && c > b);
+});
+// Hors périmètre intact
+t('hors périmètre intact : ☰ Menu, ✕, 🎯', () => { assert.ok(H.indexOf('☰ Menu') >= 0); assert.ok(H.indexOf('✕') >= 0); assert.ok(H.indexOf('🎯') >= 0); });
+console.log(n + ' épreuves OK');
