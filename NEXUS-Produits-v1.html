@@ -137,6 +137,7 @@
   .photo-empty{font-size:12px; color:var(--text-dim); text-align:center; padding:20px;}
   .photo-meta{font-family:var(--mono); font-size:10px; color:var(--text-dim); margin-top:8px;}
   .photo-btn{margin-top:10px; width:100%; padding:11px; border-radius:8px; border:1px solid rgba(79,195,217,0.35); background:rgba(79,195,217,0.08); color:var(--cyan); font-family:var(--sans); font-weight:600; font-size:12.5px; cursor:pointer;}
+  .identite-card .photo-info .photo-btn{width:auto;margin-top:0;min-height:40px;padding:0 14px;align-self:flex-start;}
   .photo-btn:active{background:rgba(79,195,217,0.18);}
   .photo-candidats{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:12px;}
   .photo-candidat{background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px; padding:8px; cursor:pointer; text-align:center;}
@@ -211,6 +212,7 @@ body.nexus-desktop .phone{max-width:1180px;}
 .hero .fil{font-family:var(--mono);font-size:11px;letter-spacing:0.08em;color:var(--text-mid);}
 .hero h1.title{font-size:26px;font-weight:700;margin:6px 0 0;}
 .hero .sous{font-size:13px;color:var(--text-mid);margin-top:6px;line-height:1.5;max-width:46ch;}
+@media (max-width:599px){.hero .sous{display:none;}}
 .selecteurs{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px;}
 .pastille{display:inline-block;padding:5px 11px;border:1px solid var(--hairline);border-radius:999px;background:var(--panel-raised);font-family:var(--mono);font-size:11px;color:var(--text-mid);}
 .pastille[hidden]{display:none;}
@@ -249,7 +251,8 @@ button.suggestion-item{width:100%;text-align:left;font:inherit;font-size:13px;co
 .conseiller-card h2{font-size:14px;margin:0;display:flex;align-items:center;gap:10px;}
 .conseiller-card .conseiller-avatar{width:36px;height:36px;}
 .conseiller-card .conseiller-bubble{margin-top:10px;}
-.hero-action .periode-tendance,.cycle-step .periode-tendance{display:block;margin-top:6px;font-family:var(--mono);font-size:11px;color:var(--text-mid);}
+.conseiller-pied{margin-top:10px;}
+.conseiller-pied .periode-tendance,.cycle-step .periode-tendance{display:block;margin-top:6px;font-family:var(--mono);font-size:11px;color:var(--text-mid);}
 .avert-tendance{display:block;margin-top:8px;font-size:12px;line-height:1.5;color:var(--amber);}
 :root[data-theme="jour"] .hero-action{background:var(--panel-raised);border-color:var(--hairline);}
 :root[data-theme="jour"] .conseiller-bubble{box-shadow:none;border-color:var(--hairline);}
@@ -260,10 +263,13 @@ button.suggestion-item{width:100%;text-align:left;font:inherit;font-size:13px;co
 .ind-principal{grid-template-columns:1fr 1fr;margin-bottom:8px;}
 .ind-principal .ind-tile:first-child{grid-column:1 / -1;}
 .ind-secondaire{grid-template-columns:1fr 1fr;}
-.ind-tile{background:var(--panel-raised);border:1px solid var(--hairline);border-radius:10px;padding:10px 12px;min-width:0;}
-.ind-label{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-mid);}
-.ind-val{font-family:var(--mono);font-size:18px;font-weight:700;margin-top:4px;white-space:nowrap;}
-.ind-principal .ind-val{font-size:22px;}
+.ind-tile{background:var(--panel-raised);border:1px solid var(--hairline);border-radius:10px;padding:8px 10px;min-width:0;}
+.ind-principal .ind-tile{padding:16px 18px;border-radius:12px;}
+.ind-label{display:flex;align-items:center;gap:6px;font-size:10.5px;color:var(--text-mid);}
+.ind-principal .ind-label{font-size:12px;}
+.ind-val{font-family:var(--mono);font-size:15px;font-weight:700;margin-top:3px;white-space:nowrap;}
+.ind-principal .ind-val{font-size:28px;margin-top:6px;}
+@media (min-width:900px){.ind-principal .ind-val{font-size:32px;}}
 .ind-sub{font-size:11px;color:var(--text-dim);margin-top:2px;line-height:1.4;}
 @media (min-width:640px){
   .ind-principal{grid-template-columns:repeat(3,1fr);}
@@ -344,7 +350,7 @@ body.nexus-desktop #resultSection > *{margin-bottom:12px;}
     <div class="empty-state">Recherchez un produit ci-dessus pour afficher sa fiche complète — toutes les références importées sont disponibles.</div>
   </div>
 
-  <footer>NEXUS Produits v1 · Données réelles S1 2026 · <span class="nexus-nom-commerce"></span></footer></footer>
+  <footer>NEXUS Produits v1 · <span class="nexus-nom-commerce"></span></footer>
 </div>
 
 <script>
@@ -668,7 +674,7 @@ nexusRequireAuth().then(async employee => {
   }
 
   function fmtEur(v) { return v.toLocaleString('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' €'; }
-  function fmtPct(v) { return (v*100).toFixed(1) + '%'; }
+  function fmtPct(v) { return (v*100).toFixed(1).replace('.', ',') + '\u00a0%'; }
   function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   function fmtDate(d) {
     if (!d) return '—';
@@ -823,12 +829,7 @@ nexusRequireAuth().then(async employee => {
             <h2>Conseiller NEXUS</h2>
           </div>
           <div class="conseiller-bubble"><div class="conseiller-text" id="conseillerProduitMsg"></div></div>
-          <div class="hero-action st-${statutSimplifie.cle}">
-            <div class="ha-label">Action recommandée</div>
-            ${statutSimplifie.action}
-            ${actionDependTendance ? `<div>${mentionPaire}</div>` : ''}
-            ${actionDependTendance ? avertPaire : ''}
-          </div>
+          <div class="conseiller-pied" id="conseillerPaire"></div>
         </section>
       </div>
 
@@ -897,12 +898,16 @@ nexusRequireAuth().then(async employee => {
 
       conseillerMsg.innerHTML = `
         <div class="cycle-step"><span class="cycle-tag">Constat</span>${employee.nom}, ${constatP}</div>
-        <div class="cycle-step"><span class="cycle-tag">Explication</span>${explicationP}${explicationTendance ? ' ' + mentionPaire + avertPaire : ''}</div>
-        <div class="cycle-step"><span class="cycle-tag tag-decision">Décision</span>${decisionP}${actionDependTendance ? ' ' + mentionPaire : ''}</div>
+        <div class="cycle-step"><span class="cycle-tag">Explication</span>${explicationP}</div>
+        <div class="cycle-step"><span class="cycle-tag tag-decision">Décision</span>${decisionP}</div>
       `;
+      // Une seule ligne de comparaison et un seul avertissement, au pied de la carte, quand un message s'appuie sur la paire T1/T2.
+      const piedPaire = document.getElementById('conseillerPaire');
+      if (piedPaire) piedPaire.innerHTML = (explicationTendance || actionDependTendance) ? mentionPaire + avertPaire : '';
     }
 
     renderPhotoCard(p);
+    francisationAffichage(['heroRotationVal','gapRotationStatus']);
     chargerStockGap(p);
     chargerEmplacementProduit(p);
     chargerPhotoTerrain(p);
@@ -1275,6 +1280,20 @@ nexusRequireAuth().then(async employee => {
   // ------------------------------------------------------------
   function photoCleClef(p) { return p.categorie + '|' + p.article; }
 
+  // Affichage seul : virgule décimale française dans les textes de rotation produits par chargerStockGap
+  // (fonction gardée par empreinte, donc non modifiée). Aucun calcul n'est touché.
+  function francisationAffichage(ids) {
+    ids.forEach(function (id) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const fr = function () {
+        const t = el.textContent, n = t.replace(/(\d)\.(\d)/g, '$1,$2');
+        if (n !== t) el.textContent = n;
+      };
+      fr();
+      new MutationObserver(fr).observe(el, { childList: true, characterData: true, subtree: true });
+    });
+  }
   function renderPhotoCard(p) {
     const zone = document.getElementById('photoCardZone');
     if (!zone) return;

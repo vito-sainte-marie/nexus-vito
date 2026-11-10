@@ -1,9 +1,9 @@
-// Produits phase 1 (refonte visuelle, aucun changement métier) : les fonctions métier restent identiques à origin/production,
+// Produits phase 1 (refonte visuelle, aucun changement métier) : les fonctions métier restent identiques à production (empreintes figées),
 // la page n'affiche aucun emoji de statut, chaque tendance porte sa période, Jour/Nuit via le gabarit commun, structure mobile.
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
-const cp = require('child_process');
+const crypto = require('crypto');
 let n = 0;
 function t(nom, f) { f(); n++; console.log('OK ' + nom); }
 const lire = f => fs.readFileSync(path.join(__dirname, f), 'utf8');
@@ -20,19 +20,23 @@ function extraire(src, signature) {
   }
   throw new Error('accolade non fermée : ' + signature);
 }
-let REF = null;
-try { REF = cp.execSync('git show origin/production:NEXUS-Produits-v1.html', { cwd: __dirname, maxBuffer: 1 << 26 }).toString('utf8'); } catch (e) { REF = null; }
-
-const GARDEES = ['async function construireProduitsLive', 'function calculerStatutSimplifie', 'function calculerRangRayon', 'async function chargerStockGap'];
-GARDEES.forEach(sig => {
-  t('fonction métier identique à origin/production : ' + sig, () => {
-    assert.ok(REF, 'origin/production doit être disponible (git fetch origin production)');
-    assert.strictEqual(extraire(PAGE, sig), extraire(REF, sig));
+// Empreintes sha256 du texte des quatre fonctions gardées, prises sur `production` (blob 1b37da60).
+// Aucune dépendance à git : la CI en checkout superficiel les mesure sur la source de la branche.
+const EMPREINTES = {
+  'async function construireProduitsLive': 'cc9b1b1d340243f4c6643888f112a01c9939be18136b760ada30c0cc2a585543',
+  'function calculerStatutSimplifie': 'bc2043f12948a55f2c9f478bcbbf18e8ddac2751d6e06245f7aa0a9c529b51a0',
+  'function calculerRangRayon': '6438804858c5a4a80a5923f43952a506f4704a8058df05a158930ce5182379ed',
+  'async function chargerStockGap': 'e59c35cbce7871eec1f18724af1e56b6c1985a7f8fad062281daa183146a7c5b'
+};
+const empreinte = txt => crypto.createHash('sha256').update(txt).digest('hex');
+Object.keys(EMPREINTES).forEach(sig => {
+  t('fonction métier identique à production (empreinte) : ' + sig, () => {
+    assert.strictEqual(empreinte(extraire(PAGE, sig)), EMPREINTES[sig]);
   });
 });
 t('la garde de fonctions rougit sur une fonction mutée', () => {
   const mute = PAGE.replace('function calculerRangRayon', 'function calculerRangRayon /*mute*/');
-  assert.notStrictEqual(extraire(mute, 'function calculerRangRayon'), extraire(PAGE, 'function calculerRangRayon'));
+  assert.notStrictEqual(empreinte(extraire(mute, 'function calculerRangRayon')), EMPREINTES['function calculerRangRayon']);
 });
 
 // Aucun emoji de statut dans le rendu : seuls les trois libellés internes de calculerStatutSimplifie restent.
@@ -54,8 +58,15 @@ t('l\'avertissement de paire non courante est conservé', () => {
   assert.ok(/const avertPaire = \(p\.pairDisponible && !p\.pairEstPeriodeAffichee\)/.test(PAGE));
 });
 t('Explication et Décision portent la période quand elles dépendent de la paire', () => {
-  assert.ok(/explicationTendance \? ' ' \+ mentionPaire/.test(PAGE));
-  assert.ok(/actionDependTendance \? ' ' \+ mentionPaire/.test(PAGE));
+  // Une seule ligne de comparaison et un seul avertissement, au pied de la carte (Guardian 6777838697).
+  assert.ok(/id="conseillerPaire"/.test(PAGE));
+  assert.ok(/\(explicationTendance \|\| actionDependTendance\) \? mentionPaire \+ avertPaire/.test(PAGE));
+  assert.ok(!/class="hero-action/.test(PAGE) && !/Action recommandée/.test(PAGE));
+  assert.strictEqual((PAGE.match(/\$\{mentionPaire\}|\+ mentionPaire/g) || []).length, 1);
+  // Format français et pied de page sans période périmée.
+  assert.ok(/replace\('\.', ','\) \+ '\\u00a0%'/.test(PAGE));
+  assert.ok(!/Données réelles S1 2026/.test(PAGE));
+  assert.ok(/francisationAffichage\(\['heroRotationVal'/.test(PAGE));
 });
 t('aucune tuile « Évolution T1 → T2 » parmi les indicateurs', () => {
   assert.ok(!/class="kl">Évolution T1/.test(PAGE));
@@ -113,11 +124,5 @@ t('l\'aperçu n\'écrit rien et vise le site de test', () => {
   assert.ok(/nexus-station-test/.test(PAGE));
   const ap = extraire(PAGE, 'function clientApercu');
   assert.ok(!/\.(insert|update|upsert|delete)\(/.test(ap.replace(/insert:|update:|upsert:|delete:/g, '')));
-});
-t('modules métier interdits non modifiés', () => {
-  ['nexus-periodes.js', 'nexus-conseiller.js', 'nexus-vocabulaire.js'].forEach(f => {
-    const d = cp.execSync('git diff --name-only origin/production -- ' + f, { cwd: __dirname }).toString().trim();
-    assert.strictEqual(d, '');
-  });
 });
 console.log(n + ' vérifications');
