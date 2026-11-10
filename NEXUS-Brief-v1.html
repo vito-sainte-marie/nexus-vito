@@ -159,7 +159,11 @@
   .axe-row:active{background:var(--panel-raised);}
   .axe-dot{width:11px; height:11px; border-radius:50%; flex-shrink:0; box-shadow:0 0 8px currentColor;}
   .axe-nom{flex:1; font-size:13.5px; font-weight:600;}
-  .axe-statut{font-family:var(--mono); font-size:10.5px; text-align:right;}
+  .axe-icone,.titre-icone{display:inline-flex; vertical-align:middle;}
+  .axe-icone img,.axe-icone svg,.titre-icone img,.titre-icone svg{width:20px; height:20px;}
+  .axe-statut{display:inline-flex; align-items:center; justify-content:flex-end; gap:8px; font-size:10.5px; text-align:right;}
+  .axe-score{font-family:var(--mono); color:var(--text-mid);}
+  .watch-niveau,.risque-niveau-badge{flex-shrink:0; margin-top:-3px;}
   .axe-chev{color:var(--text-dim); font-size:14px; flex-shrink:0; transition:0.2s;}
   .axe-block.open .axe-chev{transform:rotate(90deg);}
   .axe-detail{display:none; padding:0 4px 16px;}
@@ -367,6 +371,40 @@
   // quoi correspond ce moteur" (cadrage "moteurs dynamiques", Frédéric).
   // `MOTEUR_LABEL[x]` devient `NexusMoteursRegistre.nomPublic(x)`.
   const MOTEUR_SOURCE = NexusMoteursRegistre.MOTEUR_SOURCE;
+  // Lot 3 des emojis, vague 3 (Guardian 6755559063) : les secteurs prennent les icônes du kit
+  // (famille modules) et leurs statuts passent par l'axe gravité du composant. Présentation seulement.
+  const ICONE_SECTEUR = { carburants: 'mod-carburants', commerce: 'mod-produits', marge: 'mod-scanner', fdj: 'mod-fdj', operations: 'mod-verify', equipe: 'mod-resultats' };
+  const PICTO_SECTEUR_NEUTRE = (t) => `<svg width="${t}" height="${t}" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true" focusable="false"><circle cx="8" cy="8" r="5.5"/><circle cx="8" cy="8" r="1.4" fill="currentColor"/></svg>`;
+  function iconeSecteur(a, t) {
+    const ancien = PICTO_SECTEUR_NEUTRE(t);
+    const id = ICONE_SECTEUR[a.id];
+    return id ? NexusIcones.img(id, t, { decoratif: true, ancien }) : ancien;
+  }
+  function cheminIconeSecteur(a) {
+    const c = ICONE_SECTEUR[a.id] ? NexusIcones.chemins(ICONE_SECTEUR[a.id]) : null;
+    return c ? c.simplifie : null;
+  }
+  // Statut de secteur -> { badge, couleur } (gravité du composant ; neutre sans niveau).
+  const GRAVITE_STATUT = {
+    'Sous contrôle': 'conforme', 'En progression': 'conforme', 'Référence certifiée': 'conforme',
+    'À surveiller': 'a-verifier', 'À relancer': 'a-verifier',
+    'À corriger': 'critique', 'En repli': 'critique'
+  };
+  const COULEUR_GRAVITE = { 'conforme': 'var(--nbe-conforme)', 'a-verifier': 'var(--nbe-verifier)', 'critique': 'var(--nbe-critique)', 'en-attente': 'var(--nbe-attente)' };
+  function etatStatut(statut) {
+    if (statut === 'À confirmer') return { badge: NexusBadgeEtat.traitement('en-attente'), couleur: COULEUR_GRAVITE['en-attente'] };
+    const g = Object.prototype.hasOwnProperty.call(GRAVITE_STATUT, statut) ? GRAVITE_STATUT[statut] : null;
+    if (g) return { badge: NexusBadgeEtat.gravite(g), couleur: COULEUR_GRAVITE[g] };
+    return { badge: NexusBadgeEtat.neutre(statut), couleur: 'var(--text-dim)' };
+  }
+  // Niveau d'un signal opérationnel, lu dans sa clé d'état (Conseiller) ; sans niveau : neutre.
+  function badgeSignal(etat) {
+    const E = NexusEtatsConseiller;
+    if (E.est(etat, 'critique')) return NexusBadgeEtat.gravite('critique');
+    if (E.est(etat, 'verifier')) return NexusBadgeEtat.gravite('a-verifier');
+    return NexusBadgeEtat.neutre(etat);
+  }
+  const GRAVITE_RISQUE = { risque_avere: 'critique', exposition: 'a-verifier', signal_faible: 'a-verifier' };
   const COULEUR_STATUT_DOMAINE = {
     'En progression': 'var(--green)', 'Sous contrôle': 'var(--green)', 'Stable': 'var(--text-mid)',
     // 'À confirmer'/'À relancer' (22/08/2026, refonte statut métier) :
@@ -1082,7 +1120,10 @@
   // moteur source correspond à ce secteur, ou une phrase honnête s'il n'y
   // en a aucune — jamais une décision qui n'existe pas).
   function renderBoussole(brief) {
-    const svg = genererBoussoleSVG(brief.axes);
+    const svg = genererBoussoleSVG(brief.axes, { iconeSvg: (a, x, y) => {
+      const h = cheminIconeSecteur(a);
+      return h ? `<image href="${h}" x="${x - 9}" y="${y - 9}" width="18" height="18" aria-hidden="true"/>` : '';
+    } });
     const mesures = brief.axes.filter(a => a.confiance === 'RÉEL');
     const nbMesures = mesures.length;
     // Badge "N secteurs analysés · X complets · Y partiels" (13/08/2026,
@@ -1099,6 +1140,7 @@
       // couleurAxe(a.statut) (22/08/2026, refonte statut métier) : plus
       // couleurAxe(a.valeur) — voir nexus-boussole-moteur.js.
       const c = couleurAxe(a.statut);
+      const etat = etatStatut(a.statut);
       const decisionLiee = (a.moteurs || []).length ? brief.decisions.find(d => a.moteurs.includes(d.moteur)) : null;
       const typeInfo = a.confiance === 'RÉEL' ? { label: 'RÉEL', cls: 'badge-real' } : { label: 'DONNÉES INSUFFISANTES', cls: 'badge-derived' };
       // Détail Activité/Maîtrise (13/08/2026) : remplace le champ "État"
@@ -1126,9 +1168,9 @@
       return `
         <div class="axe-block" id="axe-${i}">
           <div class="axe-row" onclick="document.getElementById('axe-${i}').classList.toggle('open')">
-            <span class="axe-dot" style="background:${c.hex}; color:${c.hex};"></span>
-            <span class="axe-nom">${a.icone} ${a.nom}</span>
-            <span class="axe-statut" style="color:${COULEUR_STATUT_DOMAINE[a.statut] || 'var(--text-dim)'};">${a.valeur != null ? `${a.valeur}/100 · ` : ''}${a.statut}</span>
+            <span class="axe-dot" style="background:${etat.couleur}; color:${etat.couleur};"></span>
+            <span class="axe-nom"><span class="axe-icone">${iconeSecteur(a, 20)}</span> ${a.nom}</span>
+            <span class="axe-statut">${a.valeur != null ? `<span class="axe-score">${a.valeur}/100</span> ` : ''}${etat.badge}</span>
             <span class="axe-chev">›</span>
           </div>
           <div class="axe-detail">
@@ -1281,7 +1323,7 @@
       <div class="section">
         <div class="section-title">Signaux opérationnels <span class="badge badge-derived">dérivé</span></div>
         ${brief.watchlist.map(p => `<a class="watch-item" href="${p.cible || '#'}">
-          <span class="watch-dot"></span>
+          <span class="watch-niveau">${badgeSignal(p.etat)}</span>
           <span class="watch-text"><b>${p.action}</b><br>${p.pourquoi}</span>
           <span class="watch-chev">›</span>
         </a>`).join('')}
@@ -1319,10 +1361,10 @@
           const motif = reste.join(' ');
           const depuis = r.depuisLe ? new Date(r.depuisLe).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : null;
           return `<div class="risque-item">
-            <span class="risque-dot niveau-${r.niveau}"></span>
+            <span class="risque-niveau-badge">${NexusBadgeEtat.gravite(GRAVITE_RISQUE[r.niveau] || 'a-verifier')}</span>
             <span class="risque-text">
               <span class="risque-niveau">${entete}</span>
-              <span class="risque-urgence ${CLASSE_URGENCE[r.urgence] || ''}">Urgence : ${r.urgenceLabel || '—'}</span>
+              <span class="risque-urgence ${CLASSE_URGENCE[r.urgence] || ''}">Urgence ${r.urgenceLabel ? String(r.urgenceLabel).toLowerCase() : '—'}</span>
               ${motif}
               ${r.actionRecommandee ? `<span class="risque-action">${r.actionRecommandee}</span>` : ''}
               <span class="risque-meta">Confiance ${r.niveauConfiance || '—'}${depuis ? ` · suivi depuis le ${depuis}` : ''}</span>
@@ -1428,7 +1470,7 @@
 
     return `
       <div class="section">
-        <div class="section-title">⛽ Carburants <span class="badge" style="color:${couleur.c}; background:${couleur.f};">${statutGlobal}</span></div>
+        <div class="section-title"><span class="titre-icone">${iconeSecteur({ id: 'carburants' }, 20)}</span> Carburants <span class="titre-statut">${etatStatut(statutGlobal).badge}</span></div>
         <div class="force-card" style="cursor:default;">
           <div class="force-detail">${ligneEcarts}</div>
           <div class="force-detail" style="margin-top:6px;">${ligneVolume}</div>

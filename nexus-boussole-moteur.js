@@ -283,7 +283,8 @@
   // Radar SVG 5 axes — coordonnées polaires adaptées de genererRadarSVG()
   // dans NEXUS-Radar-Manager-v1.html (même principe : grille + polygone +
   // points colorés par statut), réduit à 5 axes pour la Boussole NEXUS.
-  function genererBoussoleSVG(axes) {
+  function genererBoussoleSVG(axes, opts) {
+    const iconeSvg = opts && typeof opts.iconeSvg === 'function' ? opts.iconeSvg : null;
     const cx = 140, cy = 140, rMax = 95, n = axes.length;
     const angle = i => (Math.PI * 2 * i / n) - Math.PI / 2;
     const point = (i, r) => [cx + r * Math.cos(angle(i)), cy + r * Math.sin(angle(i))];
@@ -316,7 +317,8 @@
       const [x, y] = point(i, rMax + 24);
       const c = couleurAxe(a.statut);
       labels += `<circle cx="${x}" cy="${y}" r="14" fill="${a.valeur != null ? c.hex + '22' : '#1A222C'}" stroke="${a.valeur != null ? c.hex : '#242E38'}" stroke-width="1.5"/>`;
-      labels += `<text x="${x}" y="${y + 1}" text-anchor="middle" dominant-baseline="middle" font-size="13">${a.icone}</text>`;
+      const perso = iconeSvg ? iconeSvg(a, x, y) : '';
+      labels += perso || `<text x="${x}" y="${y + 1}" text-anchor="middle" dominant-baseline="middle" font-size="13">${a.icone}</text>`;
     });
     return `<svg viewBox="0 0 280 280">${defs}${grid}${dataShape}${dots}${labels}</svg>`;
   }
