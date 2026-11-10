@@ -801,7 +801,7 @@
       // sans elle, aucune évolution n'est honnêtement calculable, donc
       // renderTopVentes() retombe sur le classement CA simple.
       PRODUITS_STRATEGIQUES = paire
-        ? NexusConseiller.analyserProduitsStrategiques(rowsPaireActuelle, rowsPairePrecedente)
+        ? NexusConseiller.analyserProduitsStrategiques(rowsPaireActuelle, rowsPairePrecedente, { paire })
         : { disponible: false, tarifaire: [], progressionVolume: [], regressionVolume: [], margeEnProgression: [] };
       // R4-RENFORT-A / R3-HAUSSE / R2-BAISSE viennent désormais de
       // nexus-conseiller.js (26/07/2026, demande de Frédéric — Conseiller
@@ -814,7 +814,7 @@
       // partagée avec NEXUS-Brief-v1.html pour "Succès à féliciter" (voir
       // ce fichier).
       if (paire) {
-        const { meilleurSucces, produitsEnBaisse } = NexusConseiller.analyserEvolutionsPaire(rowsPaireActuelle, rowsPairePrecedente);
+        const { meilleurSucces, produitsEnBaisse } = NexusConseiller.analyserEvolutionsPaire(rowsPaireActuelle, rowsPairePrecedente, { paire });
         MEILLEUR_SUCCES = meilleurSucces;
         PRODUITS_EN_BAISSE = produitsEnBaisse;
       }

@@ -85,11 +85,16 @@
       let evolution_ca = null, raison_indisponible = null;
       if (!paire) {
         raison_indisponible = 'aucune_paire';
+      } else if (!global.NexusPeriodes.paireFraiche(paire)) {
+        // Paire plus ancienne que 21 jours : pas de tendance « actuelle ».
+        raison_indisponible = 'paire_perimee';
       } else {
         const caPrec = caPrecedentParCat[nom];
         const caAct = caActuelleParCat[nom] || 0;
         if (caPrec && caPrec > 0) {
-          evolution_ca = (caAct - caPrec) / caPrec;
+          // Ventes moyennes par jour (règle commune NexusPeriodes, PR B).
+          evolution_ca = global.NexusPeriodes.evolutionVentesMoyennes(
+            caAct, paire.actuelle.duree, caPrec, paire.precedente.duree);
         } else {
           raison_indisponible = 'baseline_nulle';
         }

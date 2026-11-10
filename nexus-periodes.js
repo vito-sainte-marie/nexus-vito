@@ -104,6 +104,93 @@
   }
 
   // ============================================================
+  // TENDANCES — règle commune (lot 1 Produits, PR B, 10/11/2026).
+  //
+  // Une seule définition d'une « tendance » pour les six modules qui en
+  // affichent une (Indice, Brief, Cockpit, Conseiller, Rayon, Produits).
+  // Fonctions PURES : aucun accès réseau, aucune lecture d'horloge cachée
+  // (la date du jour est un paramètre ; son défaut est calculé dans le
+  // fuseau de la station, jamais en UTC ni dans le fuseau du navigateur).
+  //
+  //  Règle 1 — ventes moyennes par jour : T1 et T2 n'ont pas la même durée
+  //    (14 j contre 17 j par exemple) ; comparer les CA bruts fabrique une
+  //    hausse artificielle. évolution = (v2/d2 − v1/d1) / (v1/d1).
+  //  Règle 2 — fraîcheur : au-delà de 21 jours entre la fin de T2 et
+  //    aujourd'hui (fuseau de la station), la paire ne dit plus rien de la
+  //    tendance « actuelle ». L'historique reste consultable.
+  //  Règle 3 — plancher de volume (par article seulement) : T1 doit
+  //    atteindre 50 € de CA OU 10 unités, pour 14 jours, proportionnellement
+  //    à la durée réelle de T1. En dessous : « ventes insuffisantes », jamais
+  //    une baisse ni un conseil.
+  // ============================================================
+  const FRAICHEUR_MAX_JOURS = 21;
+  const JOURS_REFERENCE_PLANCHER = 14;
+  const PLANCHER_CA_EUR = 50;
+  const PLANCHER_UNITES = 10;
+  const FUSEAU_REPLI_TENDANCE = 'America/Martinique';
+  const MESSAGE_VENTES_INSUFFISANTES = 'Ventes insuffisantes pour établir une tendance fiable';
+
+  // Date du jour (AAAA-MM-JJ) dans le fuseau demandé. Intl uniquement.
+  function dateDuJourStation(instant, fuseau) {
+    const d = instant instanceof Date ? instant : new Date(instant == null ? Date.now() : instant);
+    const tz = fuseau || global.NEXUS_FUSEAU_STATION || FUSEAU_REPLI_TENDANCE;
+    return new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+  }
+
+  function dateDuJourDesOptions(options) {
+    if (options && options.dateDuJour) return options.dateDuJour;
+    return dateDuJourStation(options && options.instant, options && options.fuseau);
+  }
+
+  // Jours écoulés entre la fin de T2 et aujourd'hui (0 = T2 finit aujourd'hui).
+  function agePaireJours(paire, dateDuJour) {
+    if (!paire || !paire.actuelle || !paire.actuelle.fin || !dateDuJour) return null;
+    return joursEntre(paire.actuelle.fin, dateDuJour) - 1;
+  }
+
+  function paireFraiche(paire, options) {
+    const age = agePaireJours(paire, dateDuJourDesOptions(options));
+    return age !== null && age <= FRAICHEUR_MAX_JOURS;
+  }
+
+  // Règle 1. null si une durée ou la base T1 est nulle : jamais de chiffre inventé.
+  function evolutionVentesMoyennes(valeurT2, dureeT2, valeurT1, dureeT1) {
+    if (!(dureeT1 > 0) || !(dureeT2 > 0) || !(valeurT1 > 0)) return null;
+    const moyT1 = valeurT1 / dureeT1;
+    const moyT2 = (valeurT2 || 0) / dureeT2;
+    return (moyT2 - moyT1) / moyT1;
+  }
+
+  // Règle 3 : plancher de T1 ramené à sa durée réelle.
+  function planchersVolume(dureeT1) {
+    const k = (dureeT1 > 0 ? dureeT1 : 0) / JOURS_REFERENCE_PLANCHER;
+    return { ca: PLANCHER_CA_EUR * k, unites: PLANCHER_UNITES * k };
+  }
+
+  function volumeSuffisant(caT1, quantiteT1, dureeT1) {
+    const f = planchersVolume(dureeT1);
+    return (caT1 || 0) >= f.ca || (quantiteT1 || 0) >= f.unites;
+  }
+
+  // Tendance d'un ARTICLE. v = { caT1, quantiteT1, caT2, quantiteT2 }.
+  // statut : 'qualifiee' | 'perimee' | 'insuffisante' | 'indisponible'.
+  // Seul 'qualifiee' porte des évolutions ; les autres n'ont jamais de pourcentage.
+  function tendanceArticle(v, paire, options) {
+    const rien = { statut: 'indisponible', evolutionCA: null, evolutionQuantite: null, message: null };
+    if (!paire || !paire.actuelle || !paire.precedente || !v) return rien;
+    if (!paireFraiche(paire, options)) return { ...rien, statut: 'perimee' };
+    const d1 = paire.precedente.duree, d2 = paire.actuelle.duree;
+    const seuilCA = options && options.seuilCA != null ? options.seuilCA * (d1 / JOURS_REFERENCE_PLANCHER) : null;
+    const f = planchersVolume(d1);
+    const okVolume = ((v.caT1 || 0) >= (seuilCA != null ? seuilCA : f.ca)) || ((v.quantiteT1 || 0) >= f.unites);
+    if (!okVolume) return { ...rien, statut: 'insuffisante', message: MESSAGE_VENTES_INSUFFISANTES };
+    const evolutionCA = evolutionVentesMoyennes(v.caT2, d2, v.caT1, d1);
+    const evolutionQuantite = evolutionVentesMoyennes(v.quantiteT2, d2, v.quantiteT1, d1);
+    if (evolutionCA === null && evolutionQuantite === null) return rien;
+    return { statut: 'qualifiee', evolutionCA, evolutionQuantite, message: null };
+  }
+
+  // ============================================================
   // Résolution de périodes CALENDAIRES — ajout du 10/08/2026 pour
   // Rapport NEXUS (cahier des charges "cadrage développeur" du même
   // jour, §3 "Sélection de période").
@@ -340,5 +427,10 @@
     // exportée. Réutilise la même fonction qu'en interne (Article 11,
     // jamais une deuxième implémentation d'un simple "date + n jours").
     ajouterJours,
+    // Tendances (lot 1 Produits, PR B) — règle commune, fonctions pures.
+    FRAICHEUR_MAX_JOURS, JOURS_REFERENCE_PLANCHER, PLANCHER_CA_EUR, PLANCHER_UNITES,
+    MESSAGE_VENTES_INSUFFISANTES,
+    dateDuJourStation, agePaireJours, paireFraiche, evolutionVentesMoyennes,
+    planchersVolume, volumeSuffisant, tendanceArticle,
   };
 })(window);

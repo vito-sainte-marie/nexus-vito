@@ -52,8 +52,13 @@
 
     return {
       margeReelle: caTotalAffichage > 0 ? margeTotaleAffichage / caTotalAffichage : null,
-      evolutionReelle: (paire && caPairePrecedenteTotal > 0)
-        ? (caPaireActuelleTotal - caPairePrecedenteTotal) / caPairePrecedenteTotal : null,
+      // Ventes moyennes par jour (T1 et T2 n'ont pas la même durée) et paire
+      // fraîche (21 j) — règle commune NexusPeriodes (lot 1 Produits, PR B).
+      // Pas de plancher de volume ici : c'est un indice magasin.
+      evolutionReelle: (paire && global.NexusPeriodes.paireFraiche(paire))
+        ? global.NexusPeriodes.evolutionVentesMoyennes(
+            caPaireActuelleTotal, paire.actuelle.duree, caPairePrecedenteTotal, paire.precedente.duree)
+        : null,
       periodeEnCours: paire
         ? (periodeAffichage.debut !== paire.actuelle.debut || periodeAffichage.fin !== paire.actuelle.fin)
         : periodesTriees.length > 0,

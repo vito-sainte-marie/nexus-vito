@@ -475,7 +475,14 @@ nexusRequireAuth().then(async employee => {
       // Évolution basée sur la paire comparable (pairPrec/pairAct), pas sur
       // la période affichée directement — même correctif que ci-dessus.
       let statut = null;
-      const evolution = (pairPrec && pairPrec.ca > 0 && pairAct) ? (pairAct.ca - pairPrec.ca) / pairPrec.ca : null;
+      // Tendance commune (lot 1 Produits, PR B) : ventes moyennes par jour,
+      // paire fraîche (21 j), plancher de volume. Sinon : pas de recommandation.
+      const tendance = (pairPrec && pairAct)
+        ? NexusPeriodes.tendanceArticle(
+            { caT1: pairPrec.ca, quantiteT1: pairPrec.quantite, caT2: pairAct.ca, quantiteT2: pairAct.quantite },
+            paire, { seuilCA: NexusConseiller.SEUIL_VOLUME_CA_EUR })
+        : null;
+      const evolution = (tendance && tendance.statut === 'qualifiee') ? tendance.evolutionCA : null;
       const lang = NexusConseiller.LANGAGE_ACTION[NexusConseiller.typeActionPourCategorie(p.categorie)];
       // Seuils repris de NexusConseiller (source unique, voir commentaire du
       // 08/08/2026 ci-dessous et nexus-conseiller.js) — plus jamais recopiés
@@ -512,7 +519,7 @@ nexusRequireAuth().then(async employee => {
         // Dates de la période actuelle — nécessaires pour estimer une vitesse
         // de vente quotidienne (rotation réelle), voir chargerStockGap().
         periode_debut: p.periode_debut, periode_fin: p.periode_fin,
-        pct_contrib, statut,
+        pct_contrib, statut, tendance_statut: tendance ? tendance.statut : null, tendance_message: tendance ? tendance.message : null,
       };
     });
   }
