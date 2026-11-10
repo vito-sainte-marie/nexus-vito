@@ -232,7 +232,8 @@
 
     // Source unique du moteur R2/R3/R4 — voir le commentaire en tête de ce
     // <script> pour l'historique du correctif du 08/08/2026.
-    const candidats = window.NexusConseiller.calculerCandidatsProduits(rowsBrut);
+    const fuseau = (typeof nexusFuseauSite === 'function') ? await nexusFuseauSite(SITE_ACTUEL) : null;
+    const candidats = window.NexusConseiller.calculerCandidatsProduits(rowsBrut, { fuseau });
 
     // Cas R4 (facing) : c'est une regle structurelle, pas un changement — si
     // elle a deja ete validee recemment et que la situation se maintient

@@ -78,9 +78,17 @@
     const rowsAffichage = rows.filter(r => r[champDebut] === periodeAffichage.debut && r[champFin] === periodeAffichage.fin);
 
     let paire = null;
-    for (let i = 0; i < periodesTriees.length - 1 && !paire; i++) {
-      if (paireValide(periodesTriees[i], periodesTriees[i + 1])) {
-        paire = { actuelle: periodesTriees[i], precedente: periodesTriees[i + 1] };
+    if (options && options.appariement === 'dernieres') {
+      // Tendances (arbitrage de Frédéric, 10/11/2026) : T1 = avant-dernière
+      // période importée, T2 = dernière, sans contrainte d'écart de durée.
+      // La continuité et le rapport de durées sont signalés par
+      // qualiteComparaison, jamais corrigés ici.
+      if (periodesTriees.length >= 2) paire = { actuelle: periodesTriees[0], precedente: periodesTriees[1] };
+    } else {
+      for (let i = 0; i < periodesTriees.length - 1 && !paire; i++) {
+        if (paireValide(periodesTriees[i], periodesTriees[i + 1])) {
+          paire = { actuelle: periodesTriees[i], precedente: periodesTriees[i + 1] };
+        }
       }
     }
     const rowsPaireActuelle = paire ? rows.filter(r => r[champDebut] === paire.actuelle.debut && r[champFin] === paire.actuelle.fin) : [];
@@ -101,6 +109,160 @@
     const totalActuelle = (rowsActuelle || []).reduce((s, r) => s + (r[champ] || 0), 0);
     const totalPrecedente = (rowsPrecedente || []).reduce((s, r) => s + (r[champ] || 0), 0);
     return totalPrecedente > 0 ? (totalActuelle - totalPrecedente) / totalPrecedente : null;
+  }
+
+  // ============================================================
+  // TENDANCES — règle commune (lot 1 Produits, PR B, 10/11/2026).
+  //
+  // Une seule définition d'une « tendance » pour les six modules qui en
+  // affichent une (Indice, Brief, Cockpit, Conseiller, Rayon, Produits).
+  // Fonctions PURES : aucun accès réseau, aucune lecture d'horloge cachée
+  // (la date du jour est un paramètre ; son défaut est calculé dans le
+  // fuseau de la station, jamais en UTC ni dans le fuseau du navigateur).
+  //
+  //  Règle 1 — ventes moyennes par jour : T1 et T2 n'ont pas la même durée
+  //    (14 j contre 17 j par exemple) ; comparer les CA bruts fabrique une
+  //    hausse artificielle. évolution = (v2/d2 − v1/d1) / (v1/d1).
+  //  Règle 2 — fraîcheur : au-delà de 21 jours entre la fin de T2 et
+  //    aujourd'hui (fuseau de la station), la paire ne dit plus rien de la
+  //    tendance « actuelle ». L'historique reste consultable.
+  //  Règle 3 — plancher de volume (par article seulement) : T1 doit
+  //    atteindre 50 € de CA OU 10 unités, pour 14 jours, proportionnellement
+  //    à la durée réelle de T1. En dessous : « ventes insuffisantes », jamais
+  //    une baisse ni un conseil.
+  // ============================================================
+  const FRAICHEUR_MAX_JOURS = 21;
+  const JOURS_REFERENCE_PLANCHER = 14;
+  const PLANCHER_CA_EUR = 50;
+  const PLANCHER_UNITES = 10;
+  const FUSEAU_REPLI_TENDANCE = 'America/Martinique';
+  const MESSAGE_VENTES_INSUFFISANTES = 'Ventes insuffisantes pour établir une tendance fiable';
+
+  // Date du jour (AAAA-MM-JJ) dans le fuseau demandé. Intl uniquement.
+  function dateDuJourStation(instant, fuseau) {
+    const d = instant instanceof Date ? instant : new Date(instant == null ? Date.now() : instant);
+    const tz = fuseau || global.NEXUS_FUSEAU_STATION || FUSEAU_REPLI_TENDANCE;
+    return new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+  }
+
+  function dateDuJourDesOptions(options) {
+    if (options && options.dateDuJour) return options.dateDuJour;
+    return dateDuJourStation(options && options.instant, options && options.fuseau);
+  }
+
+  // Jours écoulés entre la fin de T2 et aujourd'hui (0 = T2 finit aujourd'hui).
+  function agePaireJours(paire, dateDuJour) {
+    if (!paire || !paire.actuelle || !paire.actuelle.fin || !dateDuJour) return null;
+    return joursEntre(paire.actuelle.fin, dateDuJour) - 1;
+  }
+
+  function paireFraiche(paire, options) {
+    const age = agePaireJours(paire, dateDuJourDesOptions(options));
+    return age !== null && age <= FRAICHEUR_MAX_JOURS;
+  }
+
+  // Règle 1. null si une durée ou la base T1 est nulle : jamais de chiffre inventé.
+  function evolutionVentesMoyennes(valeurT2, dureeT2, valeurT1, dureeT1) {
+    if (!(dureeT1 > 0) || !(dureeT2 > 0) || !(valeurT1 > 0)) return null;
+    const moyT1 = valeurT1 / dureeT1;
+    const moyT2 = (valeurT2 || 0) / dureeT2;
+    return (moyT2 - moyT1) / moyT1;
+  }
+
+  // Règle 3 : plancher de T1 ramené à sa durée réelle.
+  function planchersVolume(dureeT1) {
+    const k = (dureeT1 > 0 ? dureeT1 : 0) / JOURS_REFERENCE_PLANCHER;
+    return { ca: PLANCHER_CA_EUR * k, unites: PLANCHER_UNITES * k };
+  }
+
+  function volumeSuffisant(caT1, quantiteT1, dureeT1) {
+    const f = planchersVolume(dureeT1);
+    return (caT1 || 0) >= f.ca || (quantiteT1 || 0) >= f.unites;
+  }
+
+  // Rapport maximal toléré entre la durée de T1 et celle de T2 (arbitrage
+  // du 10/11/2026). Strictement supérieur : exactement 2 n'est pas signalé.
+  const RAPPORT_DUREES_MAX = 2;
+  const MESSAGE_PRUDENCE = 'Comparaison à interpréter avec prudence';
+
+  // Liste (AAAA-MM-JJ) des jours de debut à fin inclus, plafonnée par sécurité.
+  function listeJours(debut, fin) {
+    const out = [];
+    for (let d = debut, i = 0; d <= fin && i < 400; d = ajouterJours(d, 1), i++) out.push(d);
+    return out;
+  }
+
+  // Continuité entre T1 et T2 : fin T1 + 1 j doit valoir début T2. Les jours
+  // non couverts sont listés avec leurs dates, jamais comblés ; un
+  // chevauchement est signalé de la même façon.
+  function continuitePaire(paire) {
+    if (!paire || !paire.actuelle || !paire.precedente) return null;
+    const finT1 = paire.precedente.fin, debutT2 = paire.actuelle.debut;
+    const attendu = ajouterJours(finT1, 1);
+    if (attendu === debutT2) return { ok: true, jours_non_couverts: [], chevauchement: [] };
+    if (debutT2 > attendu) {
+      return { ok: false, jours_non_couverts: listeJours(attendu, ajouterJours(debutT2, -1)), chevauchement: [] };
+    }
+    return { ok: false, jours_non_couverts: [], chevauchement: listeJours(debutT2, finT1) };
+  }
+
+  // Qualité de la comparaison T1/T2 (une fois par paire). Fiable = aucun
+  // avertissement. Les jours sans vente ne sont détectés que si les lignes
+  // portent un détail quotidien, ce qui n'est pas le cas de `products` :
+  // le critère n'est donc pas évalué ici (voir rapport de PR).
+  function qualiteComparaison(paire, options) {
+    if (!paire || !paire.actuelle || !paire.precedente) {
+      return { fiable: false, avertissements: [], rapport_durees: null, continuite: null, partielle: false };
+    }
+    const d1 = paire.precedente.duree, d2 = paire.actuelle.duree;
+    const rapport = Math.min(d1, d2) > 0 ? Math.max(d1, d2) / Math.min(d1, d2) : null;
+    const continuite = continuitePaire(paire);
+    const partielle = paire.actuelle.fin >= dateDuJourDesOptions(options);
+    const avertissements = [];
+    if (rapport === null || rapport > RAPPORT_DUREES_MAX) avertissements.push(MESSAGE_PRUDENCE);
+    if (partielle) avertissements.push('Période en cours : la dernière période n\u2019est pas terminée');
+    if (continuite && continuite.jours_non_couverts.length) {
+      avertissements.push('Jours non couverts entre les deux périodes : ' + continuite.jours_non_couverts.join(', '));
+    }
+    if (continuite && continuite.chevauchement.length) {
+      avertissements.push('Les deux périodes se chevauchent : ' + continuite.chevauchement.join(', '));
+    }
+    return { fiable: avertissements.length === 0, avertissements, rapport_durees: rapport, continuite, partielle };
+  }
+
+  // Tendance d'un ARTICLE. v = { caT1, quantiteT1, caT2, quantiteT2 }.
+  // statut : 'qualifiee' | 'perimee' | 'insuffisante' | 'indisponible'.
+  // Seul 'qualifiee' porte des évolutions ; les autres n'ont jamais de pourcentage.
+  // Traçabilité : dates, durées, totaux, moyennes par jour, continuité,
+  // avertissements. `fiable` est faux dès qu'un avertissement existe ; une
+  // recommandation commerciale fondée sur la seule tendance exige
+  // `recommandable` (statut 'qualifiee' ET fiable).
+  function tendanceArticle(v, paire, options) {
+    const base = { statut: 'indisponible', evolutionCA: null, evolutionQuantite: null, message: null,
+      fiable: false, recommandable: false, avertissements: [], continuite: null, rapport_durees: null,
+      periodes: null, libelle_evolution: 'ventes moyennes par jour' };
+    if (!paire || !paire.actuelle || !paire.precedente || !v) return base;
+    const q = qualiteComparaison(paire, options);
+    const d1 = paire.precedente.duree, d2 = paire.actuelle.duree;
+    const tracabilite = {
+      fiable: q.fiable, avertissements: q.avertissements, continuite: q.continuite, rapport_durees: q.rapport_durees,
+      periodes: {
+        t1: { debut: paire.precedente.debut, fin: paire.precedente.fin, duree: d1, ca: v.caT1 || 0, quantite: v.quantiteT1 || 0,
+          ca_moyen_jour: d1 > 0 ? (v.caT1 || 0) / d1 : null, quantite_moyenne_jour: d1 > 0 ? (v.quantiteT1 || 0) / d1 : null },
+        t2: { debut: paire.actuelle.debut, fin: paire.actuelle.fin, duree: d2, ca: v.caT2 || 0, quantite: v.quantiteT2 || 0,
+          ca_moyen_jour: d2 > 0 ? (v.caT2 || 0) / d2 : null, quantite_moyenne_jour: d2 > 0 ? (v.quantiteT2 || 0) / d2 : null },
+      },
+    };
+    const rien = { ...base, ...tracabilite, fiable: false };
+    if (!paireFraiche(paire, options)) return { ...rien, statut: 'perimee' };
+    const seuilCA = options && options.seuilCA != null ? options.seuilCA * (d1 / JOURS_REFERENCE_PLANCHER) : null;
+    const f = planchersVolume(d1);
+    const okVolume = ((v.caT1 || 0) >= (seuilCA != null ? seuilCA : f.ca)) || ((v.quantiteT1 || 0) >= f.unites);
+    if (!okVolume) return { ...rien, statut: 'insuffisante', message: MESSAGE_VENTES_INSUFFISANTES };
+    const evolutionCA = evolutionVentesMoyennes(v.caT2, d2, v.caT1, d1);
+    const evolutionQuantite = evolutionVentesMoyennes(v.quantiteT2, d2, v.quantiteT1, d1);
+    if (evolutionCA === null && evolutionQuantite === null) return rien;
+    return { ...base, ...tracabilite, statut: 'qualifiee', evolutionCA, evolutionQuantite, recommandable: q.fiable };
   }
 
   // ============================================================
@@ -340,5 +502,11 @@
     // exportée. Réutilise la même fonction qu'en interne (Article 11,
     // jamais une deuxième implémentation d'un simple "date + n jours").
     ajouterJours,
+    // Tendances (lot 1 Produits, PR B) — règle commune, fonctions pures.
+    FRAICHEUR_MAX_JOURS, JOURS_REFERENCE_PLANCHER, PLANCHER_CA_EUR, PLANCHER_UNITES,
+    MESSAGE_VENTES_INSUFFISANTES, MESSAGE_PRUDENCE,
+    dateDuJourStation, agePaireJours, paireFraiche, evolutionVentesMoyennes,
+    planchersVolume, volumeSuffisant, tendanceArticle,
+    RAPPORT_DUREES_MAX, continuitePaire, qualiteComparaison,
   };
 })(window);

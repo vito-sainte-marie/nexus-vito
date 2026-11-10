@@ -197,22 +197,27 @@
   const SEUIL_CONTRIBUTION_FORTE = 0.15;
   const SEUIL_HAUSSE = 0.20;
   const SEUIL_BAISSE = -0.30;
+  // Plancher de volume par article (CA de T1, pour 14 jours) : source unique,
+  // celle de analyserEvolutionsPaire (seuilBase) — PR B, lot 1 Produits.
+  const SEUIL_VOLUME_CA_EUR = 50;
 
   // rowsBrut : lignes `products` déjà filtrées des produits d'appel (même
   // filtrage que partout ailleurs). Retourne le tableau de candidats — la
   // page appelante gère elle-même sa propre exclusion des candidate_id
   // déjà présents dans journal_decisions (VALIDEES_SITE), comme avant.
-  function calculerCandidatsProduits(rowsBrut) {
-    const { periodeAffichage, rowsAffichage, paire, rowsPaireActuelle, rowsPairePrecedente } = global.NexusPeriodes.analyserPeriodes(rowsBrut);
+  function calculerCandidatsProduits(rowsBrut, options) {
+    const { periodeAffichage, rowsAffichage, paire, rowsPaireActuelle, rowsPairePrecedente } = global.NexusPeriodes.analyserPeriodes(rowsBrut, { ...options, appariement: 'dernieres' });
     if (!periodeAffichage) return [];
 
     const fmt = v => Math.round(v).toLocaleString('fr-FR');
     const caTotalParRayon = {};
     rowsAffichage.forEach(r => { caTotalParRayon[r.categorie] = (caTotalParRayon[r.categorie] || 0) + (r.ca || 0); });
     const precedentParArticle = {};
+    const precedentQuantiteParArticle = {};
     rowsPairePrecedente.forEach(r => {
       const cle = r.categorie + '|' + r.article;
       precedentParArticle[cle] = (precedentParArticle[cle] || 0) + (r.ca || 0);
+      precedentQuantiteParArticle[cle] = (precedentQuantiteParArticle[cle] || 0) + (r.quantite || 0);
     });
 
     const candidats = [];
@@ -252,7 +257,16 @@
       rowsPaireActuelle.forEach(p => {
         const cle = p.categorie + '|' + p.article;
         const caPrec = precedentParArticle[cle];
-        const evolution = (caPrec && caPrec > 0) ? (p.ca - caPrec) / caPrec : null;
+        // Tendance commune (lot 1 Produits, PR B) : ventes moyennes par jour,
+        // paire fraîche (21 j), plancher de volume. Sinon : aucune carte.
+        const tendance = global.NexusPeriodes.tendanceArticle(
+          { caT1: caPrec, quantiteT1: precedentQuantiteParArticle[cle], caT2: p.ca, quantiteT2: p.quantite },
+          paire, { ...options, seuilCA: SEUIL_VOLUME_CA_EUR });
+        // Comparaison non fiable (rapport de durées > 2, période en cours,
+        // jours non couverts ou chevauchement) : aucune carte fondée sur la
+        // seule tendance (arbitrage du 10/11/2026).
+        if (!tendance.recommandable) return;
+        const evolution = tendance.statut === 'qualifiee' ? tendance.evolutionCA : null;
         if (evolution === null) return;
         if (evolution >= SEUIL_HAUSSE) {
           const gain = Math.max(p.ca - caPrec, 0);
@@ -260,7 +274,7 @@
           candidats.push({
             etat: '📈 OPPORTUNITÉ', rule_id: 'R3-HAUSSE', article: p.article,
             verdict: lang.verdictHausse(p.article),
-            situation: `Les ventes progressent de ${(evolution * 100).toFixed(1)} % sur la période.`,
+            situation: `Les ventes moyennes par jour progressent de ${(evolution * 100).toFixed(1)} % sur la période.`,
             contexte: "Cette progression est mesurée entre deux périodes de durée comparable.",
             analyse: "Cette dynamique dépasse une croissance ordinaire.",
             consequence: "Cette croissance peut être amplifiée si l'offre suit la demande.",
@@ -279,7 +293,7 @@
           candidats.push({
             etat: '🟡 À SURVEILLER', rule_id: 'R2-BAISSE', article: p.article,
             verdict: lang.verdictBaisse(p.article),
-            situation: `Les ventes chutent de ${(evolution * 100).toFixed(1)} % sur la période.`,
+            situation: `Les ventes moyennes par jour chutent de ${(evolution * 100).toFixed(1)} % sur la période.`,
             contexte: "NEXUS ne dispose pas de la donnée de stock pour cette référence.",
             analyse: "Je ne peux pas encore conclure à une vraie tendance sans vérification terrain.",
             consequence: "Une rupture non détectée expliquerait aussi bien cette baisse qu'un désintérêt réel.",
@@ -323,20 +337,29 @@
   // utilisé que par Cockpit aujourd'hui, mais reste calculé ici pour ne
   // garder qu'UNE boucle sur rowsPaireActuelle.
   function analyserEvolutionsPaire(rowsPaireActuelle, rowsPairePrecedente, options) {
-    const seuilBase = (options && options.seuilBase != null) ? options.seuilBase : 50;
+    const seuilBase = (options && options.seuilBase != null) ? options.seuilBase : SEUIL_VOLUME_CA_EUR;
     let meilleurSucces = null;
     const produitsEnBaisse = [];
     const precedentParArticle = {};
+    const precedentQuantiteParArticle = {};
     (rowsPairePrecedente || []).forEach(r => {
       const cle = r.categorie + '|' + r.article;
       precedentParArticle[cle] = (precedentParArticle[cle] || 0) + (r.ca || 0);
+      precedentQuantiteParArticle[cle] = (precedentQuantiteParArticle[cle] || 0) + (r.quantite || 0);
     });
+    // Sans paire (durées inconnues) ou paire périmée : aucune tendance.
+    const paire = options && options.paire;
     (rowsPaireActuelle || []).forEach(p => {
       const cle = p.categorie + '|' + p.article;
       const caPrec = precedentParArticle[cle];
-      const evolution = (caPrec && caPrec > 0) ? (p.ca - caPrec) / caPrec : null;
+      const tendance = global.NexusPeriodes.tendanceArticle(
+        { caT1: caPrec, quantiteT1: precedentQuantiteParArticle[cle], caT2: p.ca, quantiteT2: p.quantite },
+        paire, { ...options, seuilCA: seuilBase });
+      // Comparaison non fiable : ni succès à féliciter ni baisse à traiter.
+      if (!tendance.recommandable) return;
+      const evolution = tendance.statut === 'qualifiee' ? tendance.evolutionCA : null;
       if (evolution === null) return;
-      if (evolution > 0 && caPrec >= seuilBase) {
+      if (evolution > 0) {
         if (!meilleurSucces || evolution > meilleurSucces.evolution) {
           meilleurSucces = { article: p.article, evolution, gain: Math.max(p.ca - caPrec, 0) };
         }
@@ -466,7 +489,8 @@
     return m ? m[0] : null;
   }
 
-  function analyserProduitsStrategiques(rowsPaireActuelle, rowsPairePrecedente) {
+  function analyserProduitsStrategiques(rowsPaireActuelle, rowsPairePrecedente, options) {
+    const paire = options && options.paire;
     function sommerParArticle(rows) {
       const parCle = {};
       (rows || []).forEach(r => {
@@ -486,15 +510,23 @@
       const a = actuel[cle];
       const p = precedent[cle];
       if (!p || !(p.ca > 0) || !(p.quantite > 0) || !(a.quantite > 0)) return;
-      const evolutionCA = (a.ca - p.ca) / p.ca;
-      const evolutionQuantite = (a.quantite - p.quantite) / p.quantite;
+      // Tendance commune (PR B) : moyennes par jour, fraîcheur, plancher.
+      const tendance = global.NexusPeriodes.tendanceArticle(
+        { caT1: p.ca, quantiteT1: p.quantite, caT2: a.ca, quantiteT2: a.quantite },
+        paire, { ...options, seuilCA: SEUIL_VOLUME_CA_EUR });
+      if (tendance.statut !== 'qualifiee' || !tendance.recommandable) return;
+      const evolutionCA = tendance.evolutionCA;
+      const evolutionQuantite = tendance.evolutionQuantite;
+      if (evolutionCA === null || evolutionQuantite === null) return;
       const prixMoyenActuel = a.ca / a.quantite;
       const prixMoyenPrecedent = p.ca / p.quantite;
       const evolutionPrixMoyen = prixMoyenPrecedent > 0 ? (prixMoyenActuel - prixMoyenPrecedent) / prixMoyenPrecedent : null;
       // Une marge précédente nulle ou absente ne permet pas un pourcentage
       // honnête (division par zéro) — on ignore alors l'évolution de marge
       // pour cet article plutôt que d'afficher un chiffre absurde.
-      const evolutionMarge = (p.marge != null && p.marge !== 0) ? (a.marge - p.marge) / Math.abs(p.marge) : null;
+      const d1 = paire.precedente.duree, d2 = paire.actuelle.duree;
+      const evolutionMarge = (p.marge != null && p.marge !== 0)
+        ? (a.marge / d2 - p.marge / d1) / Math.abs(p.marge / d1) : null;
       analyses.push({
         article: a.article, categorie: a.categorie,
         ca: a.ca, quantite: a.quantite, marge: a.marge,
@@ -1036,7 +1068,7 @@
 
   global.NexusConseiller = {
     typeActionPourCategorie, LANGAGE_ACTION, calculerCandidatsProduits,
-    SEUIL_CONTRIBUTION_FORTE, SEUIL_HAUSSE, SEUIL_BAISSE,
+    SEUIL_CONTRIBUTION_FORTE, SEUIL_HAUSSE, SEUIL_BAISSE, SEUIL_VOLUME_CA_EUR,
     analyserProduitsStrategiques, analyserEvolutionsPaire,
     normaliserProduit, normaliserMarge, normaliserTempo, normaliserAdvisor,
     normaliserCaissePersonne, normaliserStockRayon, normaliserRappel,

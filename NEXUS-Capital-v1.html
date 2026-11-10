@@ -364,7 +364,8 @@ a{color:inherit; text-decoration:none;}
     if (!periodeAffichage) return { nb: 0, potentiel: 0, topCategorie: null };
 
     const validees = new Set(((valideesRes && valideesRes.data) || []).map(d => d.candidate_id));
-    const candidats = NexusConseiller.calculerCandidatsProduits(rowsBrut)
+    const fuseau = (typeof nexusFuseauSite === 'function') ? await nexusFuseauSite(SITE_ACTUEL) : null;
+    const candidats = NexusConseiller.calculerCandidatsProduits(rowsBrut, { fuseau })
       .map(c => ({ candidate_id: c.candidate_id, categorie: c.categorie, impact_eur: c.impact_eur }));
 
     const exclusionsManuelles = new Set(((exclusionsRes && exclusionsRes.data) || []).map(r => r.article));

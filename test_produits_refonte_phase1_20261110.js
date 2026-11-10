@@ -21,10 +21,11 @@ function extraire(src, signature) {
   throw new Error('accolade non fermée : ' + signature);
 }
 // Empreintes sha256 du texte des quatre fonctions gardées, prises sur `production` (blob 1b37da60).
+// construireProduitsLive : empreinte mise à jour par le lot 1 PR B (tendances : moyennes par jour, fraîcheur 21 j, plancher de volume) et calculerStatutSimplifie (une seule tendance par article, recommandation seulement si la comparaison est fiable) — calculerRangRayon et chargerStockGap restent identiques.
 // Aucune dépendance à git : la CI en checkout superficiel les mesure sur la source de la branche.
 const EMPREINTES = {
-  'async function construireProduitsLive': 'cc9b1b1d340243f4c6643888f112a01c9939be18136b760ada30c0cc2a585543',
-  'function calculerStatutSimplifie': 'a8d014c4f12aa582037bf434db40592568cee7a9ee7ba3645aeacae8b6e66108' /* lot 1 PR A : seul changement = esc() sur les noms insérés dans les messages ; aucun calcul modifié */,
+  'async function construireProduitsLive': '95667337c3f079c4af41056c555cc776bf0df90d724121e59a7c1e4d21cd9f26',
+  'function calculerStatutSimplifie': '4c266d296712f0aa725f0a09ed5826170939875af78946a5fc6e2cf4110c9458', // lot 1 PR B sur production après PR A : tendance unique + esc() de la PR A conservé
   'function calculerRangRayon': '6438804858c5a4a80a5923f43952a506f4704a8058df05a158930ce5182379ed',
   'async function chargerStockGap': 'e59c35cbce7871eec1f18724af1e56b6c1985a7f8fad062281daa183146a7c5b'
 };

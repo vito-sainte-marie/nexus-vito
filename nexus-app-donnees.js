@@ -45,8 +45,10 @@
   async function calculerCandidatsHome(client, siteId) {
     const rowsBrut = await global.NexusConseillerDonnees.chargerProduitsBrut(client, siteId);
     if (!rowsBrut.length) { console.error('Chargement products (accueil) : aucune ligne exploitable.'); return { candidats: [], facteurs: null }; }
-    const facteurs = global.NexusIndice.calculerFacteurs(rowsBrut);
-    const candidats = global.NexusConseiller.calculerCandidatsProduits(rowsBrut).map(global.NexusConseiller.normaliserProduit);
+    // Fuseau du site : fraîcheur de la paire mesurée dans le jour de la station.
+    const fuseau = (typeof nexusFuseauSite === 'function') ? await nexusFuseauSite(siteId) : null;
+    const facteurs = global.NexusIndice.calculerFacteurs(rowsBrut, { fuseau });
+    const candidats = global.NexusConseiller.calculerCandidatsProduits(rowsBrut, { fuseau }).map(global.NexusConseiller.normaliserProduit);
     return { candidats, facteurs };
   }
 

@@ -893,7 +893,8 @@
     const rowsBrut = data.filter(r => !produitsAppel.has(r.article));
     // Moteur R2/R3/R4 partagé (nexus-conseiller.js) — voir commentaire
     // au-dessus de chargerProduitsAppel() pour le détail de la migration.
-    return NexusConseiller.calculerCandidatsProduits(rowsBrut);
+    const fuseau = (typeof nexusFuseauSite === 'function') ? await nexusFuseauSite(SITE_ACTUEL) : null;
+    return NexusConseiller.calculerCandidatsProduits(rowsBrut, { fuseau });
   }
 
   let PLANS_ACTION = [];

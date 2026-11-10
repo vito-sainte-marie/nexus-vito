@@ -213,7 +213,8 @@ async function construireRayons() {
     .order('periode_debut', { ascending: false })
     .order('article', { ascending: true }));
   if (error || !data || !data.length) { console.error('Chargement products:', error); return { rayons: {}, magasin: null }; }
-  return NexusRayonMoteur.construireRayonsDepuisLignes(data);
+  const fuseau = (typeof nexusFuseauSite === 'function') ? await nexusFuseauSite(SITE_ACTUEL) : null;
+  return NexusRayonMoteur.construireRayonsDepuisLignes(data, { fuseau });
 }
 
 let SITE_ACTUEL = null; // jamais 'vito-sainte-marie' par defaut (de-Vito-isation, 11/08/2026) - toujours ecrase par employee.site_id apres nexusRequireAuth()

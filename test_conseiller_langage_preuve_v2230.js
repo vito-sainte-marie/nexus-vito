@@ -109,7 +109,7 @@ function construireRowsBaisse(article, categorie, caActuel, caPrecedent) {
   // "Gobelet Carnaval" : -80% de CA (bien en-dessous de SEUIL_BAISSE=-30%)
   // -> déclenche R2-BAISSE, comme n'importe quel autre article.
   const rowsSaisonnier = construireRowsBaisse('Gobelet Carnaval', 'Fêtes', 200, 1000);
-  const candidatsSaisonnier = C.calculerCandidatsProduits(rowsSaisonnier);
+  const candidatsSaisonnier = C.calculerCandidatsProduits(rowsSaisonnier, { dateDuJour: '2026-08-05' });
   const r2Saisonnier = candidatsSaisonnier.find(c => c.rule_id === 'R2-BAISSE');
   assert.ok(r2Saisonnier, 'un candidat R2-BAISSE doit bien être généré pour ce déclin');
   assert.strictEqual(r2Saisonnier.motCleSaisonnier, 'Carnaval', 'le mot-clé saisonnier doit être détecté et exposé sur le candidat brut (casse d\'origine de l\'article conservée)');
@@ -125,7 +125,7 @@ function construireRowsBaisse(article, categorie, caActuel, caPrecedent) {
   // Article NON saisonnier, même ampleur de baisse -> aucune mention
   // saisonnière fabriquée, urgence inchangée ("Aujourd'hui").
   const rowsOrdinaire = construireRowsBaisse('Coca 33cl', 'Boissons', 200, 1000);
-  const candidatsOrdinaire = C.calculerCandidatsProduits(rowsOrdinaire);
+  const candidatsOrdinaire = C.calculerCandidatsProduits(rowsOrdinaire, { dateDuJour: '2026-08-05' });
   const r2Ordinaire = candidatsOrdinaire.find(c => c.rule_id === 'R2-BAISSE');
   assert.strictEqual(r2Ordinaire.motCleSaisonnier, null);
   const normaliseOrdinaire = C.normaliserProduit(r2Ordinaire);
