@@ -5428,3 +5428,23 @@ depuis `__dirname`, et le commentaire d'en-tête du test dit pourquoi.
   risque sécurité critique en §10.9.
 - N'a pas tranché le sort des **335 lignes `planning_shifts` de Production** (27/07 → 31/08/2026),
   toutes `publie = false` : c'est une décision métier, pas une correction technique.
+
+---
+
+## Calendrier du site : unicité par type, académie scolaire, fériés et vacances (10/11/2026)
+
+Lot Guardian 6769932054. Quatre migrations (Test d'abord, Production après vérification de Guardian).
+
+- **`inventaire_calendrier_site`** : l'unicité passe de `(site, date)` à **`(site, date, type)`**
+  (`20261110100000`). Un même jour peut désormais porter un `ferie` ET des `vacances`. Tout lecteur qui
+  supposait une ligne par jour filtre maintenant sur `type` ou accepte plusieurs lignes.
+- **`station_config.academie_scolaire`** (`20261110110000`) : texte, liste fermée des académies de la source
+  officielle, `null` = calendrier scolaire non suivi. `Martinique` pour `vito-sainte-marie`.
+- **Fériés 2026 et 2027** (`20261110120000`) : 14 jours par an, `type = 'ferie'`, `libelle` renseigné,
+  `created_by` nul, `on conflict (site, date, type) do nothing`. Calcul partagé : `nexus-calendrier-site.js`.
+- **Vacances de l'académie** (`20261110130000`) : une ligne par jour de chaque période publiée par
+  data.education.gouv.fr (jeu `fr-en-calendrier-scolaire`), `libelle` = nom de la période. Début et fin
+  inclus. Jamais de date estimée : une période sans fin publiée n'est pas insérée.
+- Les migrations de données sont **conditionnelles à l'existence du site** (Test n'a pas `vito-sainte-marie`).
+- Automatisation : `calendrier-feries.yml` (1er janvier) et `calendrier-vacances.yml` (1er du mois) ouvrent
+  une PR depuis `production` ; aucune écriture directe en base.

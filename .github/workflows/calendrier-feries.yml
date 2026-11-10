@@ -1,0 +1,47 @@
+# Jours fériés N+1 du site : chaque 1er janvier, 06 h (Martinique, UTC-4) = 10 h UTC.
+# Prépare une migration (jamais appliquée ici), ouvre une PR depuis `production` et poste un [Vigie] sur #160
+# à l'attention de Claude et de Guardian. Silencieux quand rien n'est à faire : aucune PR, aucun commentaire.
+# Aucune mention de robot, aucune notification à Frédéric. Aucune base n'est jointe : l'application reste un geste du rail.
+# Le calcul vient de nexus-calendrier-site.js, le même module que l'épreuve.
+name: Calendrier du site - fériés N+1
+on:
+  schedule:
+    - cron: '0 10 1 1 *'
+  workflow_dispatch:
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+jobs:
+  preparer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: production
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+      - name: Calculer la migration
+        id: calcul
+        run: |
+          sortie=$(node outils/calendrier-site-cli.js feries)
+          echo "$sortie"
+          echo "fichier=$(echo "$sortie" | node -e 'process.stdin.on("data",d=>{const j=JSON.parse(d);process.stdout.write(j.fichier||"")})')" >> "$GITHUB_OUTPUT"
+          echo "resume=$(echo "$sortie" | node -e 'process.stdin.on("data",d=>{process.stdout.write(JSON.parse(d).resume)})')" >> "$GITHUB_OUTPUT"
+      - name: Ouvrir la PR et prévenir sur #160
+        if: steps.calcul.outputs.fichier != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FICHIER: ${{ steps.calcul.outputs.fichier }}
+          RESUME: ${{ steps.calcul.outputs.resume }}
+        run: |
+          branche="calendrier-site/feries-$(date -u +%Y%m%d)"
+          git config user.name "nexus-vigie"
+          git config user.email "nexus-vigie@users.noreply.github.com"
+          git checkout -b "$branche"
+          git add "$FICHIER"
+          git commit -m "Calendrier du site : $RESUME"
+          git push origin "HEAD:refs/heads/$branche"
+          url=$(gh pr create --base production --head "$branche" --title "Calendrier du site : $RESUME" --body "Migration préparée automatiquement ($RESUME). Idempotente (on conflict do nothing), conditionnelle au site. Rien n'est appliqué : fusion par Guardian, application sur Test puis Production par le rail.")
+          gh issue comment 160 --body "[Vigie] À Claude et Guardian : $RESUME. PR ouverte : $url. À fusionner puis à appliquer sur Test, puis Production."
