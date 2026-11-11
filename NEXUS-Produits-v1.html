@@ -1084,7 +1084,7 @@ nexusRequireAuth().then(async employee => {
     try {
       const { data, error } = await nexusClient
         .from('mission_completions')
-        .select('photo_url, created_at, employees(nom)')
+        .select('photo_url, created_at, employees!mission_completions_employee_id_fkey(nom)')
         .eq('site_id', SITE_ACTUEL)
         .eq('mission_id', 'photo-verification-rayon')
         .eq('article_cible', p.article)
