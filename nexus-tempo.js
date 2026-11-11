@@ -1314,70 +1314,109 @@
     const dernierJourExploitableLe = joursExploitables.length ? joursExploitables[joursExploitables.length - 1].date : null;
     const aujourdhuiAUnControle = joursAgreges.some(j => j.date === aujourdHuiISO());
 
+    // Lot G8 (11/11/2026) : constat en litres sur fenêtre glissante, base
+    // de la carte Tempo (accueil et Brief). `jourPlusRentable` reste exposé
+    // pour la page Tempo (hors périmètre G8) mais n'alimente plus la carte.
+    const constatLitres = calculerConstatLitres(joursExploitables);
+
     return {
       jourARenforcer: jourARenforcerRetenu, jourMoteur, jourPlusRentable, jourProgression, totalJours, detailOperations,
-      dernierJourExploitableLe, aujourdhuiAUnControle,
+      dernierJourExploitableLe, aujourdhuiAUnControle, constatLitres,
     };
   }
 
-  // Candidat Tempo enrichi pour le Conseiller (27/07/2026, demande de
-  // Frédéric) : priorité au jour le plus rentable (CA valorisé, produits
-  // d'appel exclus) plutôt qu'au seul jour à renforcer — structure
-  // Décision → Pourquoi → Impact attendu → Preuves → Limites, avec le même
-  // exemple travaillé qu'il a fourni (jeudi plus rentable, vendredi plus
-  // fort en CA brut mais tiré par des produits d'appel). Retourne null si
-  // aucun jour n'est identifiable. Consommée par NexusConseiller.normaliserTempo().
-  function construireCandidatTempo(constatTempo) {
-    const { jourPlusRentable, jourMoteur, jourARenforcer, jourProgression } = constatTempo;
-    const jourCible = jourPlusRentable || jourMoteur;
-    if (!jourCible) return null;
+  // ------------------------------------------------------------
+  // Lot G8 — constat en litres par jour de semaine (carte Tempo).
+  //
+  // Un CONSTAT, pas une décision : Tempo explique, il ne décide pas
+  // (frontière Tempo / Cockpit). Mesure : litres vendus (GO + SP95 + GNR),
+  // moyenne par jour de semaine, sur les journées CLOSES (filtrerJoursClos,
+  // aucune deuxième définition) des FENETRE_SEMAINES dernières semaines
+  // complètes, journée en cours exclue.
+  // ------------------------------------------------------------
+  // provisoire, arbitrage G9 en attente
+  const FENETRE_SEMAINES = 8;
+  // arbitrage G5 en attente (provisoire) : sous ce nombre d'occurrences
+  // d'un jour de semaine dans la fenêtre, aucun jour n'est désigné.
+  const OCCURRENCES_MIN_JOUR = 4;
 
-    const fmt = v => `${Math.round(v).toLocaleString('fr-FR')} €`;
-    const fmtPct = v => `${v >= 0 ? '+' : ''}${(v * 100).toFixed(1).replace('.', ',')} %`;
-    const majuscule = s => s.charAt(0).toUpperCase() + s.slice(1);
-    const diverge = !!(jourPlusRentable && jourMoteur && jourPlusRentable.jourSemaine !== jourMoteur.jourSemaine);
+  function decalerJourISO(dateISO, nbJours) {
+    const [a, m, j] = dateISO.split('-').map(Number);
+    return new Date(Date.UTC(a, m - 1, j + nbJours)).toISOString().slice(0, 10);
+  }
 
-    let pourquoi = `Le ${jourCible.nom} est actuellement la journée qui crée le plus de valeur pour votre station.`;
-    let pourquoiBullets = null;
-    let pourquoiPasAutre = null;
+  // Date du jour DANS LE FUSEAU DE LA STATION (G8, revue Guardian 6786038072) :
+  // aujourdHuiISO() est une date UTC — en Martinique (UTC−4) elle bascule à
+  // demain dès 20 h locales, alors que le quart 2 dure jusqu'à 22 h 05. Le
+  // constat borne donc sa fenêtre sur la date station. aujourdHuiISO() et
+  // filtrerJoursClos() restent inchangées (usages ailleurs).
+  function dateStationISO(fuseau) {
+    const tz = fuseau || 'America/Martinique';
+    return new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' })
+      .format(new Date());
+  }
 
-    if (jourPlusRentable) {
-      pourquoiBullets = [
-        `Meilleure performance piste : ${fmt(jourPlusRentable.moyennePisteValorisation)}`,
-        `Meilleure estimation de valeur : ${fmt(jourPlusRentable.moyenneCombineeValorisee)}`,
-        `Données issues de ${jourPlusRentable.nbOccValorisation} journée${jourPlusRentable.nbOccValorisation > 1 ? 's' : ''} exploitable${jourPlusRentable.nbOccValorisation > 1 ? 's' : ''}`,
-      ];
+  function calculerConstatLitres(joursExploitables, fuseau) {
+    const fin = dateStationISO(fuseau);                            // exclu : journée en cours (date station)
+    const debut = decalerJourISO(fin, -7 * FENETRE_SEMAINES);      // 56 jours
+    const dansFenetre = (joursExploitables || []).filter(j =>
+      j.date < fin && j.date >= debut && j.litrageDisponible &&
+      (j.litrageGazole + j.litrageSp95 + j.litrageGnr) > 0);
+    const parJour = [];
+    for (let d = 0; d < 7; d++) {
+      const jours = dansFenetre.filter(j => j.jourSemaine === d);
+      const total = jours.reduce((s, j) => s + j.litrageGazole + j.litrageSp95 + j.litrageGnr, 0);
+      parJour.push({
+        jourSemaine: d, nom: NOM_JOURS[d], occurrences: jours.length,
+        moyenneLitres: jours.length ? total / jours.length : null,
+      });
     }
-    if (diverge) {
-      pourquoi += ` Le ${jourMoteur.nom} génère davantage de chiffre d'affaires brut, mais une part importante provient de produits d'appel à faible contribution.`;
-      pourquoiPasAutre = {
-        titre: `Pourquoi pas le ${jourMoteur.nom} ?`,
-        texte: `Le chiffre d'affaires boutique y est supérieur (${fmt(jourMoteur.moyenneBoutique)}), mais il est fortement influencé par des produits d'appel (cartes prépayées, téléphonie, presse, gaz, tabac). Ces ventes génèrent beaucoup de trafic mais relativement peu de valeur.`,
-      };
-    } else if (jourPlusRentable) {
-      pourquoi += ` Cette estimation reste cohérente une fois les produits d'appel retirés du calcul.`;
+    const insuffisant = parJour.filter(x => x.occurrences < OCCURRENCES_MIN_JOUR);
+    if (insuffisant.length) {
+      return { suffisant: false, fenetreSemaines: FENETRE_SEMAINES, occurrencesMin: OCCURRENCES_MIN_JOUR, parJour, plusFort: null, plusFaible: null };
     }
-
-    const opportunitesTempo = [];
-    if (jourProgression && jourProgression.jourSemaine !== jourCible.jourSemaine && jourProgression.evolutionCombinee !== null) {
-      opportunitesTempo.push({ icone: '🟢', label: majuscule(jourProgression.nom), detail: `Plus forte progression : ${fmtPct(jourProgression.evolutionCombinee)}` });
-    }
-    if (jourARenforcer && jourARenforcer.jourSemaine !== jourCible.jourSemaine && jourARenforcer.evolutionCombinee !== null) {
-      opportunitesTempo.push({ icone: '⚠️', label: majuscule(jourARenforcer.nom), detail: `Journée la plus faible : ${fmtPct(jourARenforcer.evolutionCombinee)}` });
-    }
-
-    let limites = null;
-    if (jourMoteur && jourMoteur.nbOccValorisation === 0 && jourMoteur.occurrences && jourMoteur.occurrences.length > 0) {
-      limites = `Le ${jourMoteur.nom} n'a pas encore été entièrement valorisé. Sa dernière occurrence est postérieure au dernier import Produits. Le calcul sera automatiquement actualisé lors du prochain import.`;
-    }
-
+    const tries = parJour.slice().sort((a, b) => b.moyenneLitres - a.moyenneLitres);
     return {
-      jourCible,
-      decision: `Concentrez vos prochaines actions commerciales le ${jourCible.nom}.`,
-      pourquoi, pourquoiBullets, pourquoiPasAutre,
-      opportunites: opportunitesTempo.length ? opportunitesTempo : null,
-      impactAttendu: `En privilégiant le ${jourCible.nom} pour vos animations et mises en avant, vous exploitez la journée offrant aujourd'hui le meilleur potentiel économique.`,
-      limites,
+      suffisant: true, fenetreSemaines: FENETRE_SEMAINES, occurrencesMin: OCCURRENCES_MIN_JOUR, parJour,
+      plusFort: tries[0], plusFaible: tries[tries.length - 1],
+    };
+  }
+
+  // Candidat Tempo pour le Conseiller — lot G8 (11/11/2026) : CONSTAT
+  // seulement, en litres (GO + SP95 + GNR). Plus d'estimation de valeur,
+  // plus de phrase de décision (Tempo explique, il ne décide pas).
+  // Retourne null si aucun constat n'est disponible. Consommée par
+  // NexusConseiller.normaliserTempo().
+  function construireCandidatTempo(constatTempo) {
+    const c = constatTempo && constatTempo.constatLitres;
+    if (!c) return null;
+    const fmtL = v => `${Math.round(v).toLocaleString('fr-FR')} L`;
+    const occ = n => `${n} journée${n > 1 ? 's' : ''}`;
+    const niveau = 'Fait mesuré';
+    if (!c.suffisant) {
+      return {
+        jourCible: null, niveau,
+        decision: 'Historique insuffisant',
+        pourquoi: `Historique insuffisant pour comparer les jours de la semaine : il faut au moins ${c.occurrencesMin} journées complètes de chaque jour sur les ${c.fenetreSemaines} dernières semaines (${c.fenetreSemaines * 7} jours).`,
+        pourquoiBullets: null, pourquoiPasAutre: null, opportunites: null,
+        impactAttendu: null,
+        limites: null,
+      };
+    }
+    const f = c.plusFort, w = c.plusFaible;
+    return {
+      jourCible: f, niveau,
+      decision: `Le ${f.nom} est le jour le plus fort en litres, le ${w.nom} le plus faible.`,
+      pourquoi: `Fait mesuré sur les ${c.fenetreSemaines} dernières semaines (${c.fenetreSemaines * 7} jours) : le ${f.nom} vend en moyenne ${fmtL(f.moyenneLitres)} par jour et le ${w.nom} ${fmtL(w.moyenneLitres)}.`,
+      pourquoiBullets: [
+        `Plus fort : ${f.nom}, ${fmtL(f.moyenneLitres)} par jour (${occ(f.occurrences)})`,
+        `Plus faible : ${w.nom}, ${fmtL(w.moyenneLitres)} par jour (${occ(w.occurrences)})`,
+        `Carburants : gazole, SP95 et GNR cumulés`,
+        `Niveau : ${niveau}`,
+      ],
+      pourquoiPasAutre: null, opportunites: null,
+      impactAttendu: null,
+      limites: null,
     };
   }
 
@@ -1422,6 +1461,6 @@
     agregerInventaireParDate, dernierEtatInventaire,
     dernierEtatCapital, analyserImpactDecisionsTempo,
     dateLocale, moyenne, ecartType, evolution,
-    calculerConstatTempo, construireCandidatTempo,
+    calculerConstatTempo, construireCandidatTempo, calculerConstatLitres, dateStationISO, FENETRE_SEMAINES, OCCURRENCES_MIN_JOUR,
   };
 })();

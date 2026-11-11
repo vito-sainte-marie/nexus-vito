@@ -350,7 +350,7 @@
   // NexusIndice, NexusMarge, NexusTempo, NexusStock, NexusConseiller) et les
   // mêmes requêtes déjà validées dans NEXUS-App-v1.html / NEXUS-Cockpit-v2.html,
   // pour ne jamais diverger de ce que ces écrans affichent déjà. Sa valeur
-  // ajoutée est la SYNTHÈSE : un tri de priorité partagé entre les 7 moteurs
+  // ajoutée est la SYNTHÈSE : un tri de priorité partagé entre les 6 moteurs
   // (NexusConseiller.fusionnerEtSelectionner), une Boussole NEXUS à 5 axes,
   // et une structure de décision en 8 champs — jamais un chiffre inventé
   // (Article 5 de la Constitution NEXUS) : toute case affiche honnêtement
@@ -494,7 +494,6 @@
   // construisait jamais le bloc `opportunites` (jour en progression / jour
   // à renforcer), contrairement à App-v1 — corrigé en passant à la version
   // partagée, désormais strictement identique sur les deux écrans.
-  const construireCandidatTempo = NexusTempo.construireCandidatTempo;
 
   // ------------------------------------------------------------
   // Statuts par secteur + scores 0-100 — définis une seule fois dans
@@ -864,10 +863,9 @@
       const m = produitsStrategiques.margeEnProgression.find(p => p.marge >= SEUIL_FORCE_PRODUIT_EUR);
       if (m) forces.push({ icone: '💰', titre: `Marge en progression sur ${m.article}`, detail: `Marge en hausse de ${(m.evolutionMarge * 100).toFixed(0)} % sur la période (${Math.round(m.marge).toLocaleString('fr-FR')} € de marge sur la période).`, cible: 'NEXUS-Scanner-v1.html' });
     }
-    if (forces.length < 3 && constatTempo.jourPlusRentable) forces.push({ icone: '🗓️', titre: `${constatTempo.jourPlusRentable.nom} — votre journée la plus rentable`, detail: "Confirmé sur plusieurs semaines d'historique, produits d'appel exclus.", cible: 'NEXUS-Tempo-v1.html' });
     secteurs.forEach(s => { if (forces.length < 3 && s.force) forces.push({ icone: s.icone, titre: s.force.titre, detail: s.force.detail, cible: s.force.cible }); });
 
-    // Moteur de priorité cross-moteurs — les 7 moteurs disponibles dans
+    // Moteur de priorité cross-moteurs — les 6 moteurs disponibles dans
     // NEXUS aujourd'hui, fusionnés par NexusConseiller.fusionnerEtSelectionner
     // (rang partagé, jamais un simple tri par euros). n=6 : les 3 premiers
     // deviennent les décisions, les 3 suivants la liste de vigilance — un
@@ -894,8 +892,8 @@
       && NexusSecteursMoteur.estDecisionStrategique(margePlusResultat.candidatTop, seuilImpactAdaptatif)
       && !risqueMargeCategoriesQualifiees.has(margePlusResultat.candidatTop.categorie)
       ? [NexusConseiller.normaliserMarge(margePlusResultat.candidatTop)] : [];
-    const candidatTempoBrut = construireCandidatTempo(constatTempo);
-    const candidatTempoListe = candidatTempoBrut ? [NexusConseiller.normaliserTempo(candidatTempoBrut)] : [];
+    // Tempo explique, il ne décide pas (arbitrage Frédéric 10/11, G8) : le constat
+    // n'entre ni dans les décisions ni dans la vigilance du Brief.
     // Même règle pour la caisse (12/08/2026, dédoublonnage P0) : un quart
     // déjà qualifié par NexusRisques (`caisse:quart:${quart}`, comparaison à
     // sa propre référence sur fenêtre glissante) ne doit plus apparaître en
@@ -928,7 +926,7 @@
     // pied de page ET la mention de fiabilité.
     const signauxDecisionsMoteurs = {
       produits: candidatsProduitsNormalises.length > 0, marge: candidatMargeListe.length > 0,
-      tempo: candidatTempoListe.length > 0, advisor: candidatsAdvisorListe.length > 0,
+      advisor: candidatsAdvisorListe.length > 0,
       caisse: candidatsCaisseNormalisesDedupliques.length > 0, stock: candidatsStock.length > 0,
       rappel: candidatsRappels.length > 0, fdj: candidatsFdj.length > 0, coach: candidatsCoach.length > 0,
       commande_carburant: candidatsCommandeCarburant.length > 0,
@@ -951,7 +949,7 @@
     const texteAgregationMoteurs = NexusMoteursRegistre.construireTexteAgregation(moteursContributeursListe);
 
     const fusion = NexusConseiller.fusionnerEtSelectionner(
-      [candidatsProduitsNormalises, candidatMargeListe, candidatTempoListe, candidatsAdvisorListe, candidatsCaisseNormalisesDedupliques, candidatsStock, candidatsRappels, candidatsFdj, candidatsCoach, candidatsCommandeCarburant],
+      [candidatsProduitsNormalises, candidatMargeListe, candidatsAdvisorListe, candidatsCaisseNormalisesDedupliques, candidatsStock, candidatsRappels, candidatsFdj, candidatsCoach, candidatsCommandeCarburant],
       { site: SITE_ACTUEL, n: 6 }
     );
     const decisions = fusion.slice(0, 3);
@@ -1306,7 +1304,7 @@
           const groupe = (titre, items) => items.length ? `<div class="nbe-groupe-titre">${titre}</div>` + items.map(x => decisionCardHTML(x.p, x.i, x.i === 0)).join('') : '';
           return groupe('Gains', g.gains) + groupe('Risques', g.risques) + groupe('Autres signaux', g.autres);
         })()}
-        <div class="section-note">Classement partagé entre 7 moteurs NEXUS (Produits, Marge+, Tempo, Signaux Qualité/Caisse, Verify, Scanner Stock, Rappels), filtré aux décisions stratégiques ou transversales — jamais un simple tri par montant, qui favoriserait toujours le même moteur. Délai et confiance (<span class="badge badge-derived" style="padding:1px 6px;">dérivé</span>) sont déduits du rang de priorité, pas mesurés directement.</div>
+        <div class="section-note">Classement partagé entre 6 moteurs NEXUS (Produits, Marge+, Signaux Qualité/Caisse, Verify, Scanner Stock, Rappels), filtré aux décisions stratégiques ou transversales — jamais un simple tri par montant, qui favoriserait toujours le même moteur. Délai et confiance (<span class="badge badge-derived" style="padding:1px 6px;">dérivé</span>) sont déduits du rang de priorité, pas mesurés directement.</div>
       </div>`;
   }
 
