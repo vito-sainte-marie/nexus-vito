@@ -129,7 +129,7 @@ t('carte vide : aucun niveau, sauf « Hypothèse » de la colonne CA FDJ (G4)', 
   assert.ok(!/Fait mesuré|Relation observée/.test(html.replace(/<script[\s\S]*?<\/script>/g, '')), 'niveau affiché sur une carte vide');
   const hyp = html.match(/class="niveau hypothese"/g) || [];
   assert.strictEqual(hyp.length, 1);
-  const q = html.match(/id="qFdj"[\s\S]*?<\/(?:article|div)>/);
+  const q = html.match(/id="qFdj"[\s\S]*?G4\)<\/div>/);
   assert.ok(q && /niveau hypothese/.test(q[0]), 'Hypothèse hors de la colonne FDJ');
 });
 
