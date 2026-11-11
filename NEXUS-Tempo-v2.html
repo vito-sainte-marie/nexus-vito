@@ -581,7 +581,7 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
       if (!apPiste || apPiste.etat !== 'ok') return;
       const bloc = noeud('div', 'carb-lignes');
       apPiste.carburants.forEach(f => {
-        if (f.horsService) { bloc.appendChild(noeud('p', 'total', f.nom + ' 0 L · hors service')); return; }
+        if (f.horsService) { bloc.appendChild(noeud('p', 'total', f.nom + ' 0 L')); return; }
         const pts = (f.partE !== null && f.partR !== null) ? ' · part ' + fmtDec(f.partE * 100, 1) + ' % contre ' + fmtDec(f.partR * 100, 1) + ' %' : '';
         const ev = f.cmp && f.cmp.etat === 'ok' ? ' · ' + signePct(f.cmp.pct) + (f.cmp.dansVariationHabituelle ? ' (dans la variation habituelle)' : '') : '';
         bloc.appendChild(noeud('p', 'total', f.nom + ' : ' + fmtNb(f.moyenneE) + ' L par jour' + pts + ev));
@@ -712,7 +712,7 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
           titre = 'Litres ' + sens(ap.total.cmp.ecart) + ' de ' + lj(ap.total.cmp.ecart) + ' (' + signePct(ap.total.cmp.pct) + ')';
           lignes = [ligneCmp('Total des litres', ap.total, 0, true), 'Répartition : ' + repart];
         }
-        if (ap.horsService.length) lignes.push(ap.horsService.join(', ') + ' 0 L : hors service, exclu de la répartition');
+        if (ap.horsService.length) lignes.push(ap.horsService.map(n => n + ' 0 L').join(' · '));
         remplirDecouverte(0, {
           niveau: 'Fait mesuré', cls: 'mesure', titre,
           lignes,
@@ -721,6 +721,7 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
             ['Effectifs et périodes', 'Étudiée : ' + pluriel(ap.total.cmp.nEtudiee, 'jour complet', 'jours complets') + ' du ' + fmtDateCourte(bornes.debut) + ' au ' + fmtDate(bornes.fin) + ' · référence : ' + pluriel(ap.total.cmp.nReference, 'jour complet', 'jours complets') + ' du ' + fmtDateCourte(bRef.debut) + ' au ' + fmtDate(bRef.fin)],
             ['Calcul', 'Moyenne par jour complet ; écart comparé à l\'erreur type de Welch. Une journée exceptionnelle est signalée : la clarté est jugée sans elle, les deux valeurs sont montrées. Part = moyenne du carburant ÷ somme des moyennes des carburants en service.'],
             ['Choix de la découverte', 'Candidats : ' + ap.candidats.map(c => c.type === 'masquee' ? 'variation masquée' : c.type === 'repartition' ? 'changement de répartition' : 'variation du total').join(', ') + ' · ' + ap.motif + '. Seuil de répartition : ' + fmtDec(ap.seuilPartPoints, 1) + ' points.'],
+            ['Carburant exclu', ap.horsService.length ? ap.horsService.join(', ') + ' exclu des parts et des comparaisons : 0 L sur les ' + T.JOURS_HORS_SERVICE + ' derniers jours complets' : 'Aucun'],
             ['Jours écartés', 'Piste étudiée : ' + (T.exclusionsPiste(rAud.data, bornes).length) + ' · référence : ' + (T.exclusionsPiste(rAudRef.data, bRef).length) + '. Les journées exceptionnelles sont signalées, jamais retirées en silence.'],
             ['Sources', 'audits_caisse (litrages par carburant) · lecture seule, filtrée par site'],
           ],

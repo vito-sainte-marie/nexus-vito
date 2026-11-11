@@ -1849,7 +1849,16 @@
   const zComparaison = c => (c && c.etat === 'ok' && c.erreurType > 0) ? Math.abs(c.ecart) / c.erreurType : null;
   const claire = c => !!c && c.etat === 'ok' && !c.dansVariationHabituelle;
 
-  function analysePiste(audE, audR, bornes, bRef) {
+  // Règle de dépassement : la variation simple S passe devant la variation masquée M si I(S) ≥ I(M),
+  // z(S) ≥ k × z(M), et z calculables des deux côtés (égalité exacte avec k : S passe).
+  function departagerDepassement(m, s, k) {
+    if (m.z === null || s.z === null) return { passe: false, motif: 'dispersion nulle, ordre par défaut' };
+    if (s.I >= m.I && s.z >= k * m.z) return { passe: true, motif: 'retenue par dépassement, z ' + s.z.toFixed(1).replace('.', ',') + ' contre ' + m.z.toFixed(1).replace('.', ',') + ', k = ' + k.toFixed(1).replace('.', ',') };
+    return { passe: false, motif: 'ordre par défaut' };
+  }
+
+  function analysePiste(audE, audR, bornes, bRef, kDepassement) {
+    const kDep = (typeof kDepassement === 'number' && kDepassement > 0) ? kDepassement : K_DEPASSEMENT;
     const parCle = {};
     CARBURANTS.forEach(c => {
       const jE = joursLitresCarburant(audE, c.cle), jR = joursLitresCarburant(audR, c.cle);
@@ -1883,7 +1892,7 @@
     const total = { moyenneE: resE.moyenne, moyenneR: resR.moyenne, cmp: T.net, cmpAvec: T.avec, datesExceptionnelles: T.dates, jugeSansJour: T.jugeSansJour,
       z: zComparaison(T.net), claire: claire(T.net), jours: resE.jours, joursRef: resR.jours };
     const horsServiceNoms = carburants.filter(f => f.horsService).map(f => f.nom);
-    if (T.net.etat !== 'ok') return { etat: 'insuffisant', carburants, total, candidats: [], retenue: null, motif: null, k: K_DEPASSEMENT, seuilPartPoints: SEUIL_PART_POINTS, horsService: horsServiceNoms };
+    if (T.net.etat !== 'ok') return { etat: 'insuffisant', carburants, total, candidats: [], retenue: null, motif: null, k: kDep, seuilPartPoints: SEUIL_PART_POINTS, horsService: horsServiceNoms };
 
     const signe = x => x > 0 ? 1 : x < 0 ? -1 : 0;
     const actifsOk = carburants.filter(f => !f.horsService && f.cmp && f.cmp.etat === 'ok');
@@ -1911,14 +1920,11 @@
     let motif = candidats.length ? 'ordre par défaut' : null;
     const a = candidats.find(x => x.type === 'masquee'), c = candidats.find(x => x.type === 'variation');
     if (a && c) {
-      if (a.z === null || c.z === null) motif = 'dispersion nulle, ordre par défaut';
-      else if (c.I >= a.I && c.z >= K_DEPASSEMENT * a.z) {
-        candidats.splice(candidats.indexOf(c), 1);
-        candidats.unshift(c);
-        motif = 'retenue par dépassement, z ' + c.z.toFixed(1).replace('.', ',') + ' contre ' + a.z.toFixed(1).replace('.', ',') + ', k = ' + K_DEPASSEMENT.toFixed(1).replace('.', ',');
-      }
+      const d = departagerDepassement(a, c, kDep);
+      motif = d.motif;
+      if (d.passe) { candidats.splice(candidats.indexOf(c), 1); candidats.unshift(c); }
     }
-    return { etat: 'ok', carburants, total, candidats, retenue: candidats[0] || null, motif, k: K_DEPASSEMENT, seuilPartPoints: SEUIL_PART_POINTS, horsService: horsServiceNoms };
+    return { etat: 'ok', carburants, total, candidats, retenue: candidats[0] || null, motif, k: kDep, seuilPartPoints: SEUIL_PART_POINTS, horsService: horsServiceNoms };
   }
 
   // Quantile 97,5 % de la loi de Student (test bilatéral à 5 %), développement de Cornish-Fisher.
@@ -2009,6 +2015,6 @@
     quartsLitresPiste, quartsBoutique, quartsFdj, comparerQuarts, comparerQuartsParJour, exceptionsParJourSemaine, ORDRE_JOURS_SEMAINE,
     bornesReference, comparerPeriodes, joursExceptionnels, exclusionsPiste, exclusionsFdj,
     compositionCalendrier, evaluerComparabilite, prixMoyenMesure,
-    joursCaPiste, joursCaBoutique, analysePiste, joursLitresCarburant, quartsLitresCarburant, horsServiceCarburant, CARBURANTS, JOURS_HORS_SERVICE, SEUIL_PART_POINTS, K_DEPASSEMENT, correlationResidus, relationBoutiqueFdj, rapportFdjQuart1, SEUIL_RELATION_JOURS,
+    joursCaPiste, joursCaBoutique, analysePiste, departagerDepassement, joursLitresCarburant, quartsLitresCarburant, horsServiceCarburant, CARBURANTS, JOURS_HORS_SERVICE, SEUIL_PART_POINTS, K_DEPASSEMENT, correlationResidus, relationBoutiqueFdj, rapportFdjQuart1, SEUIL_RELATION_JOURS,
   };
 })();

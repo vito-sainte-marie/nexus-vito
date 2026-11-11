@@ -104,9 +104,38 @@ t('pas assez de jours → insuffisant, rien d\'inventé', () => {
   assert.strictEqual(r.retenue, null);
 });
 
-t('sensibilité de k : constante provisoire 2,0, une variation simple ne dépasse pas la masquée sans z ≥ k × z', () => {
+t('constantes provisoires : k = 2,0, hors service = 31 jours', () => {
   assert.strictEqual(T.K_DEPASSEMENT, 2.0);
   assert.strictEqual(T.JOURS_HORS_SERVICE, 31);
+});
+
+// Sensibilité de k (spécification de Guardian, 6803676665) : règle de dépassement isolée, jeux T1 à T5.
+const KS = [1.5, 2.0, 2.5, 3.0];
+const JEUX = {
+  T1: { M: { I: 209, z: 2.1 }, S: { I: 400, z: 4.5 }, att: ['S', 'S', 'M', 'M'] },
+  T2: { M: { I: 300, z: 3.0 }, S: { I: 450, z: 5.0 }, att: ['S', 'M', 'M', 'M'] },
+  T3: { M: { I: 300, z: 2.2 }, S: { I: 150, z: 5.0 }, att: ['M', 'M', 'M', 'M'] },
+  T4: { M: { I: 200, z: 2.5 }, S: { I: 250, z: null }, att: ['M', 'M', 'M', 'M'] },
+  T5: { M: { I: 200, z: 2.0 }, S: { I: 250, z: 4.0 }, att: ['S', 'S', 'M', 'M'] },
+};
+Object.keys(JEUX).forEach(nom => KS.forEach((k, i) => {
+  t('sensibilité ' + nom + ' k = ' + k, () => {
+    const j = JEUX[nom], d = T.departagerDepassement(j.M, j.S, k);
+    assert.strictEqual(d.passe ? 'S' : 'M', j.att[i]);
+    if (nom === 'T4') assert.strictEqual(d.motif, 'dispersion nulle, ordre par défaut');
+    if (nom === 'T3') assert.strictEqual(d.motif, 'ordre par défaut', 'l\'importance bloque le dépassement');
+    if (d.passe) assert.ok(/^retenue par dépassement, z /.test(d.motif));
+  });
+}));
+
+t('Sainte-Marie simulé : la masquée SP95 est retenue quel que soit k, k passable à analysePiste', () => {
+  KS.forEach(k => {
+    const r = T.analysePiste(audits(dE, { gazole: 2850, sp95: 2750, gnr: 0 }, 150, 3), audits(dR, { gazole: 2600, sp95: 3000, gnr: 0 }, 150, 5), bornes, bRef, k);
+    assert.strictEqual(r.k, k);
+    assert.strictEqual(r.retenue.type, 'masquee');
+    assert.strictEqual(r.retenue.carburant, 'sp95');
+  });
+  assert.strictEqual(T.analysePiste(audits(dE, { gazole: 2850, sp95: 2750, gnr: 0 }, 150, 3), audits(dR, { gazole: 2600, sp95: 3000, gnr: 0 }, 150, 5), bornes, bRef).k, 2.0);
 });
 
 t('quarts par carburant : même quarts que « Litres »', () => {
@@ -115,10 +144,11 @@ t('quarts par carburant : même quarts que « Litres »', () => {
   assert.ok(q.every(x => x.valeur > 0));
 });
 
-t('page : « Prix et volume » absent, carte Piste par carburant, GNR hors service nommé', () => {
+t('page : « Prix et volume » absent, carte Piste par carburant, GNR « 0 L » seul à l\'écran', () => {
   assert.ok(!/Prix et volume/.test(html));
   assert.ok(html.includes('T.analysePiste('));
-  assert.ok(html.includes('hors service'));
+  assert.ok(!/0 L · hors service|0 L : hors service/.test(html), 'aucune mention de hors service sur les cartes');
+  assert.ok(html.includes('exclu des parts et des comparaisons : 0 L sur les '), 'exclusion tracée dans les preuves');
   assert.ok(html.includes('T.quartsLitresCarburant('));
 });
 
