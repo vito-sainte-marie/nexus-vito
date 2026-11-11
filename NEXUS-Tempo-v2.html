@@ -776,7 +776,7 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
     detailExtra.indFdj = fiabilite(cmpFdj, '€');
     if (afFdj && afFdj.etat === 'ok') {
       const ligneFam = f => f.nom + ' : ' + fmtNb(f.moyenneE) + ' € par jour contre ' + fmtNb(f.moyenneR) + ' € · ' + signePct(f.cmpAvec.pct) +
-        ' · ' + (f.claire ? 'variation nette, écart supérieur à 2 erreurs types (Welch)' : 'variation habituelle (Welch)') +
+        ' · ' + T.libelleEvolution(f.cmp) +
         ' · contribution ' + (f.contribution > 0 ? '+' : f.contribution < 0 ? '−' : '') + fmtNb(Math.abs(f.contribution)) + ' € par jour' +
         (f.part !== null ? ' (' + fmtNb(f.part * 100) + ' % de la variation nette)' : '');
       const tot = afFdj.total;
@@ -956,7 +956,7 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
         source: 'Source : NEXUS FDJ · ' + pluriel(t.cmp.nEtudiee, 'jour complet', 'jours complets'),
         preuves: [
           ['Effectifs et périodes', 'Étudiée : ' + pluriel(t.cmp.nEtudiee, 'jour complet', 'jours complets') + ' du ' + fmtDateCourte(bornes.debut) + ' au ' + fmtDate(bornes.fin) + ' · référence : ' + pluriel(t.cmp.nReference, 'jour complet', 'jours complets') + ' du ' + fmtDateCourte(bRef.debut) + ' au ' + fmtDate(bRef.fin)],
-          ['Calcul', 'Moyenne par jour à deux quarts contrôlés ; contribution d\'une famille = écart de sa moyenne ; total = grattage + tirages, sans double compte. Écart comparé à l\'erreur type de Welch.'],
+          ['Calcul', 'Moyenne par jour à deux quarts contrôlés ; contribution d\'une famille = écart de sa moyenne ; total = grattage + tirages, sans double compte. Le détail de la fiabilité figure plus haut.'],
           ['Choix de la découverte', 'Candidats : ' + afFdj.candidats.map(c => c.type === 'masquee' ? 'variation masquée' : 'variation du total').join(', ') + ' · ' + afFdj.motif + '. Seuil de dépassement k = ' + fmtDec(afFdj.k, 1) + '.'],
           ['Sources', 'view_fdj_daily_summary · lecture seule, filtrée par site'],
         ],

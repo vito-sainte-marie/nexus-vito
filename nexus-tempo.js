@@ -1938,6 +1938,9 @@
   //   - Palier de prix et jeu : grattage seulement, sur les jours complets où le détail existe (couverture montrée).
   // ------------------------------------------------------------
   const SEUIL_PART_FAMILLE = 0.5;
+  // Décision de Frédéric (11/11) : une famille n'est citée seule que si sa part dépasse SEUIL_PART_FAMILLE
+  // ET que l'autre famille n'est pas nette dans le même sens. Sinon, les deux sont citées.
+  const AUTRE_FAMILLE_NETTE_EMPECHE_CITATION_SEULE = true;
   const FAMILLES_FDJ = [
     { cle: 'grattage', nom: 'Grattage', champ: 'ca_grattage', article: 'le grattage' },
     { cle: 'tirages', nom: 'Tirages', champ: 'caisse_tirages', article: 'les tirages' },
@@ -1962,7 +1965,7 @@
     // Une seule famille n'est citée que si sa part dépasse strictement 50 % ET que l'autre ne varie pas nettement
     // dans le même sens (G5) : deux familles nettes de même sens portent ensemble la variation (attendu Production 53 % / 47 %).
     const fortes = familles.filter(f => f.part !== null && f.part > SEUIL_PART_FAMILLE);
-    const autreNette = fortes.length === 1 && familles.some(f => f !== fortes[0] && f.claire && f.contribution * D > 0);
+    const autreNette = AUTRE_FAMILLE_NETTE_EMPECHE_CITATION_SEULE && fortes.length === 1 && familles.some(f => f !== fortes[0] && f.claire && f.contribution * D > 0);
     if (fortes.length === 1 && !autreNette) return { type: 'famille', texte: mot + ' portée par ' + fortes[0].article, familles: [fortes[0].cle] };
     return { type: 'deux', texte: mot + ' portée par le grattage et les tirages', familles: ['grattage', 'tirages'] };
   }
@@ -2144,6 +2147,6 @@
     compositionCalendrier, evaluerComparabilite, prixMoyenMesure,
     joursCaPiste, joursCaBoutique, analysePiste, departagerDepassement, joursLitresCarburant, quartsLitresCarburant, horsServiceCarburant, CARBURANTS, JOURS_HORS_SERVICE, SEUIL_PART_POINTS, K_DEPASSEMENT, correlationResidus, relationBoutiqueFdj, rapportFdjQuart1, SEUIL_RELATION_JOURS,
     libelleEvolution,
-    analyseFdj, constatCompositionFdj, detailPaliersFdj, detailJeuxFdj, joursFamilleFdj, FAMILLES_FDJ, SEUIL_PART_FAMILLE,
+    analyseFdj, constatCompositionFdj, detailPaliersFdj, detailJeuxFdj, joursFamilleFdj, FAMILLES_FDJ, SEUIL_PART_FAMILLE, AUTRE_FAMILLE_NETTE_EMPECHE_CITATION_SEULE,
   };
 })();

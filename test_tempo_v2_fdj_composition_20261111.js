@@ -150,4 +150,16 @@ t('lien Cockpit présent sur les deux pages, cible identique au menu', () => {
     assert.ok(/\.lien-cockpit:focus-visible\{outline/.test(h));
   });
 });
+t('la règle « l\'autre famille n\'est pas nette » est derrière une constante nommée (décision du 11/11)', () => {
+  assert.strictEqual(T.AUTRE_FAMILLE_NETTE_EMPECHE_CITATION_SEULE, true);
+  assert.strictEqual(T.SEUIL_PART_FAMILLE, 0.5);
+});
+t('la fiche FDJ parle le langage arbitré : pas de jargon statistique dans les lignes visibles', () => {
+  const h = lire('NEXUS-Tempo-v2.html');
+  const bloc = h.slice(h.indexOf('const ligneFam'), h.indexOf('detailExtra.indFdj.push({ titre: \'Grattage et tirages\''));
+  assert.ok(bloc.includes('T.libelleEvolution(f.cmp)'));
+  assert.ok(!/Welch|erreurs? types?|G\d/.test(bloc), bloc);
+  const calcul = h.slice(h.indexOf('total = grattage + tirages, sans double compte.'), h.indexOf('total = grattage + tirages, sans double compte.') + 120);
+  assert.ok(!/Welch/.test(calcul), calcul);
+});
 process.exit(echecs ? 1 : 0);
