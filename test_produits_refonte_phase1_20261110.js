@@ -21,10 +21,10 @@ function extraire(src, signature) {
   throw new Error('accolade non fermée : ' + signature);
 }
 // Empreintes sha256 du texte des quatre fonctions gardées, prises sur `production` (blob 1b37da60).
-// construireProduitsLive : empreinte mise à jour par le lot 1 PR B (tendances : moyennes par jour, fraîcheur 21 j, plancher de volume) et calculerStatutSimplifie (une seule tendance par article, recommandation seulement si la comparaison est fiable) — calculerRangRayon et chargerStockGap restent identiques.
+// construireProduitsLive : lot 2 PR D retire le calcul de l'ancien statut par article ; empreinte mise à jour aussi par le lot 1 PR B (tendances : moyennes par jour, fraîcheur 21 j, plancher de volume) et calculerStatutSimplifie (une seule tendance par article, recommandation seulement si la comparaison est fiable) — calculerRangRayon et chargerStockGap restent identiques.
 // Aucune dépendance à git : la CI en checkout superficiel les mesure sur la source de la branche.
 const EMPREINTES = {
-  'async function construireProduitsLive': '95667337c3f079c4af41056c555cc776bf0df90d724121e59a7c1e4d21cd9f26',
+  'async function construireProduitsLive': 'badea03f5ac09183bc5b8e34123690b208a726e27f2f405f46d8a7c04a723e9a',
   'function calculerStatutSimplifie': '4c266d296712f0aa725f0a09ed5826170939875af78946a5fc6e2cf4110c9458', // lot 1 PR B sur production après PR A : tendance unique + esc() de la PR A conservé
   'function calculerRangRayon': '6438804858c5a4a80a5923f43952a506f4704a8058df05a158930ce5182379ed',
   'async function chargerStockGap': 'e59c35cbce7871eec1f18724af1e56b6c1985a7f8fad062281daa183146a7c5b'
@@ -40,14 +40,11 @@ t('la garde de fonctions rougit sur une fonction mutée', () => {
   assert.notStrictEqual(empreinte(extraire(mute, 'function calculerRangRayon')), EMPREINTES['function calculerRangRayon']);
 });
 
-// Aucun emoji de statut dans le rendu : seuls les trois libellés internes de calculerStatutSimplifie restent.
+// Aucun emoji dans la page (lot 2 PR D : l'ancien calcul de statut, dernier porteur des trois emojis internes, est retiré).
 const EMOJI = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B50}\u{2B06}\u{2B07}]/u;
-t('aucun emoji de statut hors des trois libellés internes', () => {
-  const lignes = PAGE.split('\n');
-  const fautives = lignes.map((l, i) => [i + 1, l]).filter(([, l]) => EMOJI.test(l));
-  const internes = fautives.filter(([, l]) => /etat:\s*'(🔥 À AGIR|📈 OPPORTUNITÉ|🟡 À SURVEILLER)'/u.test(l));
-  assert.strictEqual(internes.length, 3, 'les trois emojis internes doivent rester');
-  assert.deepStrictEqual(fautives.filter(f => !internes.includes(f)).map(f => f[0]), []);
+t('aucun emoji dans la page', () => {
+  const fautives = PAGE.split('\n').map((l, i) => [i + 1, l]).filter(([, l]) => EMOJI.test(l));
+  assert.deepStrictEqual(fautives.map(f => f[0]), []);
 });
 
 // La période accompagne chaque tendance.
