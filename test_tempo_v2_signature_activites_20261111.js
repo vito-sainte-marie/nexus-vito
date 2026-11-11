@@ -142,7 +142,7 @@ t('.evol : classe attente-g5 dans le balisage, horloge par CSS, JS intact', () =
 });
 
 t('valeur principale des indicateurs : 32 px gras quand mesurée, 15 px pour les états vides', () => {
-  assert.ok(/\.indicateur \.niveau\.mesure ~ \.valeur\{[^}]*font-size:32px;[^}]*font-weight:700/.test(css));
+  assert.ok(/\.valeur \.nb\{[^}]*font-size:32px;[^}]*font-weight:700/.test(css));
   assert.ok(/\n\.valeur\{[^}]*font-size:15px/.test(css), 'état vide à 15 px');
 });
 
@@ -152,7 +152,7 @@ t('flèche des analyses : toujours cyan NEXUS', () => {
 
 t('le JS de la page est inchangé (empreinte du bloc script)', () => {
   const h = crypto.createHash('sha256').update(scripts).digest('hex');
-  assert.strictEqual(h, '6afbfd59c14b4ea3a0af53ffee1d9f4390ad5542f3e6145bc80236aa664a41c2');
+  assert.strictEqual(h, '758457db7bcc697249b7b690febc06b9d587fa8361170b98e9d348877c204d23');
 });
 
 t('nexus-tempo.js intact (aucune référence aux classes de signature)', () => {

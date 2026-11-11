@@ -1427,6 +1427,87 @@
     return { etat, jours, total, moyenne: jours ? total / jours : null, seuil: OCCURRENCES_MIN_JOUR, debut: bornes.debut, fin: bornes.fin };
   }
 
+  // ------------------------------------------------------------
+  // « Quarts et équipes » : moyenne PAR QUART (Q1 et Q2 séparés), même fenêtre
+  // de 56 jours que les indicateurs, jour en cours exclu (via `bornes`).
+  //   - Litres : un quart n'est retenu que si GO, SP95 et GNR sont tous trois
+  //     renseignés ; valeur = somme des trois.
+  //   - Boutique : vente_boutique renseignée.
+  //   - FDJ : quart comptabilisable (view_fdj_shift_facts) ; valeur =
+  //     ventes_grattage_valeur + caisse_tirages.
+  //   - Moins de OCCURRENCES_MIN_JOUR quarts d'un côté : « insuffisant ».
+  //   - Source absente (null) : « absent ». Rien n'est écrit, rien n'est estimé.
+  // ------------------------------------------------------------
+  const nombreOuNull = x => (x === null || x === undefined || x === '' || !Number.isFinite(Number(x))) ? null : Number(x);
+
+  function quartsLitresPiste(auditsRows) {
+    const out = [];
+    for (const r of (auditsRows || [])) {
+      if (!r || !r.date) continue;
+      const a = nombreOuNull(r.litrage_gazole), b = nombreOuNull(r.litrage_sp95), c = nombreOuNull(r.litrage_gnr);
+      if (a === null || b === null || c === null) continue;
+      out.push({ date: r.date, quart: String(r.quart), valeur: a + b + c });
+    }
+    return out;
+  }
+
+  function quartsBoutique(auditsRows) {
+    const out = [];
+    for (const r of (auditsRows || [])) {
+      if (!r || !r.date) continue;
+      const v = nombreOuNull(r.vente_boutique);
+      if (v === null) continue;
+      out.push({ date: r.date, quart: String(r.quart), valeur: v });
+    }
+    return out;
+  }
+
+  function quartsFdj(factsRows) {
+    const out = [];
+    for (const r of (factsRows || [])) {
+      if (!r || !r.date || r.caisse_comptabilisable !== true) continue;
+      out.push({ date: r.date, quart: String(r.quart),
+        valeur: (nombreOuNull(r.ventes_grattage_valeur) || 0) + (nombreOuNull(r.caisse_tirages) || 0) });
+    }
+    return out;
+  }
+
+  function indexSemaine(dateISO, debutISO) {
+    const ms = s => { const p = s.split('-').map(Number); return Date.UTC(p[0], p[1] - 1, p[2]); };
+    return Math.floor((ms(dateISO) - ms(debutISO)) / (7 * 86400000));
+  }
+
+  function comparerQuarts(valeursQuart, bornes) {
+    if (valeursQuart === null || valeursQuart === undefined) {
+      return { etat: 'absent', seuil: OCCURRENCES_MIN_JOUR, q1: { effectif: 0, moyenne: null }, q2: { effectif: 0, moyenne: null },
+        ecartPct: null, semainesQ1Depasse: 0, semainesCommunes: 0 };
+    }
+    const retenus = valeursQuart.filter(v => v && Number.isFinite(v.valeur) && v.date >= bornes.debut && v.date <= bornes.fin &&
+      (String(v.quart) === '1' || String(v.quart) === '2'));
+    const par = q => retenus.filter(v => String(v.quart) === q);
+    const moy = l => l.length ? l.reduce((s, v) => s + v.valeur, 0) / l.length : null;
+    const l1 = par('1'), l2 = par('2');
+    const m1 = moy(l1), m2 = moy(l2);
+    const res = { etat: 'ok', seuil: OCCURRENCES_MIN_JOUR, q1: { effectif: l1.length, moyenne: m1 }, q2: { effectif: l2.length, moyenne: m2 },
+      ecartPct: null, semainesQ1Depasse: 0, semainesCommunes: 0 };
+    if (!l1.length && !l2.length) { res.etat = 'absent'; return res; }
+    if (l1.length < OCCURRENCES_MIN_JOUR || l2.length < OCCURRENCES_MIN_JOUR) { res.etat = 'insuffisant'; return res; }
+    res.ecartPct = m2 > 0 ? (m1 - m2) / m2 * 100 : null;
+    const sem = new Map();
+    for (const v of retenus) {
+      const i = indexSemaine(v.date, bornes.debut);
+      if (!sem.has(i)) sem.set(i, { 1: [], 2: [] });
+      sem.get(i)[String(v.quart)].push(v.valeur);
+    }
+    for (const s of sem.values()) {
+      if (!s[1].length || !s[2].length) continue;
+      res.semainesCommunes++;
+      const mn = l => l.reduce((x, y) => x + y, 0) / l.length;
+      if (mn(s[1]) > mn(s[2])) res.semainesQ1Depasse++;
+    }
+    return res;
+  }
+
   // Marge de la période d'import affichée (la plus récente) : MOYENNE de la
   // période d'import, pas une marge jour par jour. Mêmes filtres que Capital :
   // articles hors produits d'appel, lignes cohérentes (ca > 0, 0 <= marge <= ca).
@@ -1523,5 +1604,6 @@
     dateLocale, moyenne, ecartType, evolution,
     calculerConstatTempo, construireCandidatTempo, calculerConstatLitres, dateStationISO, FENETRE_SEMAINES, OCCURRENCES_MIN_JOUR,
     bornesPeriodeIndicateurs, joursLitresCompletsPiste, joursCaFdjComplets, resumerParJour, resumerMargeImport,
+    quartsLitresPiste, quartsBoutique, quartsFdj, comparerQuarts,
   };
 })();

@@ -76,7 +76,8 @@ a{color:inherit;}
 .colonne.act{--fond:var(--t-raised);}
 .attente-g5::before{content:"◷ ";}
 /* valeur mesurée en grand ; états vides (Donnée absente, Historique insuffisant) gardent 15 px */
-.indicateur .niveau.mesure ~ .valeur{font-size:32px; font-weight:700; color:var(--t-text); line-height:1.15;}
+.valeur .nb{font-size:32px; font-weight:700; color:var(--t-text); line-height:1.15;}
+.valeur .unite{font-size:15px; font-weight:400; color:var(--t-mid); margin-left:6px;}
 .tete-act{display:flex; align-items:center; gap:10px; margin:10px 0 12px;}
 .tete-act h3{margin:0;}
 .ico{flex:0 0 auto; width:32px; height:32px; border-radius:9px; display:inline-flex; align-items:center; justify-content:center;
@@ -341,7 +342,13 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
     const niv = el.querySelector('.niveau');
     niv.textContent = c.ok ? 'Fait mesuré' : 'Non qualifié';
     niv.className = 'niveau ' + (c.ok ? 'mesure' : 'vide-niveau');
-    el.querySelector('.valeur').textContent = c.valeur;
+    const v = el.querySelector('.valeur');
+    if (c.nombre !== undefined) {
+      v.textContent = '';
+      const nb = document.createElement('span'); nb.className = 'nb'; nb.textContent = c.nombre;
+      const un = document.createElement('span'); un.className = 'unite'; un.textContent = c.unite;
+      v.appendChild(nb); v.appendChild(un);
+    } else v.textContent = c.valeur;
     el.querySelector('.total').textContent = c.total;
     el.querySelector('.evol').textContent = "Évolution : En attente d'arbitrage (G5)";
     if (c.note) {
@@ -358,8 +365,43 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
       return { ok: false, valeur: 'Historique insuffisant',
         total: 'Jours complets : ' + r.jours + ' (minimum ' + r.seuil + ')', note: noteMention };
     }
-    return { ok: true, valeur: fmtNb(r.moyenne) + ' ' + unite + ' par jour',
+    return { ok: true, nombre: fmtNb(r.moyenne) + (unite === '€' ? ' €' : ''), unite: (unite === '€' ? '' : unite + ' ') + 'par jour',
       total: 'Total : ' + fmtNb(r.total) + ' ' + unite + ' sur ' + r.jours + ' jours complets', note: noteMention };
+  }
+
+  function remplirQuarts(id, r, unite) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const barres = el.querySelectorAll('.barre');
+    const ligne = el.querySelector(':scope > .valeur');
+    let niv = el.querySelector('.niveau');
+    const fixerNiveau = (txt, cls) => {
+      if (!niv) { niv = document.createElement('span'); el.querySelector('.tete-act').insertAdjacentElement('afterend', niv); }
+      if (id === 'qFdj' && cls === 'mesure') return; // la colonne FDJ garde « Hypothèse »
+      niv.textContent = txt; niv.className = 'niveau ' + cls;
+    };
+    const etiquette = (b, nom, q, texte) => {
+      b.querySelector('.barre-etiquette span').textContent = nom + (q ? ' · ' + q.effectif + ' quarts' : '');
+      b.querySelector('.barre-etiquette .valeur').textContent = texte;
+    };
+    if (r.etat !== 'ok') {
+      barres.forEach(b => { b.querySelector('.barre-remplie').style.width = '0'; b.querySelector('.barre-etiquette .valeur').textContent = '—'; });
+      if (r.etat === 'insuffisant') {
+        etiquette(barres[0], 'Quart 1', r.q1, '—'); etiquette(barres[1], 'Quart 2', r.q2, '—');
+        ligne.textContent = 'Historique insuffisant';
+        fixerNiveau('Non qualifié', 'vide-niveau');
+      } else { ligne.textContent = ABSENT; fixerNiveau('Non qualifié', 'vide-niveau'); }
+      return;
+    }
+    const max = Math.max(r.q1.moyenne, r.q2.moyenne);
+    [[barres[0], 'Quart 1', r.q1], [barres[1], 'Quart 2', r.q2]].forEach(([b, nom, q]) => {
+      etiquette(b, nom, q, fmtNb(q.moyenne) + ' ' + unite);
+      b.querySelector('.barre-remplie').style.width = (max > 0 ? Math.round(q.moyenne / max * 100) : 0) + '%';
+    });
+    const ecart = r.ecartPct === null ? 'écart non calculable'
+      : 'Quart 1 : ' + (r.ecartPct >= 0 ? '+' : '−') + Math.abs(r.ecartPct).toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' % par rapport au quart 2';
+    ligne.textContent = ecart + ' · semaines où Q1 dépasse Q2 : ' + r.semainesQ1Depasse + ' sur ' + r.semainesCommunes;
+    fixerNiveau('Fait mesuré', 'mesure');
   }
 
   nexusRequireAuth().then(async employee => {
@@ -373,17 +415,15 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
       if (ban) document.getElementById('enTete').insertAdjacentHTML('afterbegin', ban);
       NexusBanniereStation.suivreTheme();
     } catch (e) {}
-    const nomSite = employee.site_nom || employee.site_name || '';
-    if (nomSite) document.getElementById('pillSite').textContent = nomSite;
 
     const siteId = employee.site_id;
     const T = window.NexusTempo;
     const bornes = T.bornesPeriodeIndicateurs();
 
     // Lectures (réutilisées de Tempo v1, Capital/Marge+ et FDJ Analyse).
-    const [rAud, rProd, rApp, rFdj] = await Promise.all([
+    const [rAud, rProd, rApp, rFdj, rFacts, rSite] = await Promise.all([
       fetchAllRows(() => nexusClient.from('audits_caisse')
-        .select('date, quart, litrage_gazole, litrage_sp95, litrage_gnr')
+        .select('date, quart, litrage_gazole, litrage_sp95, litrage_gnr, vente_boutique')
         .eq('site', siteId).gte('date', bornes.debut).lte('date', bornes.fin).order('date', { ascending: true })),
       fetchAllRows(() => nexusClient.from('products')
         .select('categorie, article, ca, marge, periode_debut, periode_fin')
@@ -392,7 +432,15 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
       fetchAllRows(() => nexusClient.from('view_fdj_daily_summary')
         .select('date, nb_quarts_controles, ca_grattage, caisse_tirages')
         .eq('site', siteId).gte('date', bornes.debut).lte('date', bornes.fin).order('date', { ascending: true })),
+      fetchAllRows(() => nexusClient.from('view_fdj_shift_facts')
+        .select('date, quart, ventes_grattage_valeur, caisse_tirages, caisse_comptabilisable')
+        .eq('site', siteId).gte('date', bornes.debut).lte('date', bornes.fin).order('date', { ascending: true })),
+      nexusClient.from('sites').select('nom_entreprise').eq('site_id', siteId).maybeSingle(),
     ]);
+    if (rFacts.error) console.error('Chargement view_fdj_shift_facts:', rFacts.error);
+    if (rSite.error) console.error('Chargement sites:', rSite.error);
+    const nomSite = rSite.data && rSite.data.nom_entreprise;
+    if (nomSite) document.getElementById('pillSite').textContent = nomSite;
     if (rAud.error) console.error('Chargement audits_caisse:', rAud.error);
     if (rProd.error) console.error('Chargement products:', rProd.error);
     if (rApp.error) console.error('Chargement produits_appel:', rApp.error);
@@ -407,7 +455,7 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
     const mi = (rProd.error || rApp.error) ? { etat: 'absent' }
       : T.resumerMargeImport(rProd.data, (rApp.data || []).map(r => r.article), NexusPeriodes.analyserPeriodes);
     remplirCarte('indBoutique', mi.etat === 'ok'
-      ? { ok: true, valeur: 'Marge : ' + fmtPct(mi.taux) + ' du chiffre d\'affaires',
+      ? { ok: true, nombre: fmtPct(mi.taux), unite: 'de marge sur le CA',
           total: 'Total : marge ' + fmtNb(mi.marge) + ' € sur ' + fmtNb(mi.ca) + ' € de CA · import du ' + fmtDate(mi.debut) + ' au ' + fmtDate(mi.fin),
           note: "Moyenne de la période d'import, pas une marge calculée jour par jour. Hors produits d'appel." }
       : { ok: false, valeur: ABSENT, total: 'Total : ' + ABSENT.toLowerCase(),
@@ -418,12 +466,17 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
       : T.resumerParJour(T.joursCaFdjComplets(rFdj.data), bornes);
     remplirCarte('indFdj', carteJours(fdj, '€', "Chiffre d'affaires, pas la marge de la station."));
 
+    // Quarts et équipes : moyennes par quart, Q1 et Q2 séparés.
+    remplirQuarts('qLitres', T.comparerQuarts(rAud.error ? null : T.quartsLitresPiste(rAud.data), bornes), 'L');
+    remplirQuarts('qBoutique', T.comparerQuarts(rAud.error ? null : T.quartsBoutique(rAud.data), bornes), '€');
+    remplirQuarts('qFdj', T.comparerQuarts(rFacts.error ? null : T.quartsFdj(rFacts.data), bornes), '€');
+
     document.getElementById('pillPeriode').textContent = 'Période étudiée : du ' + fmtDate(bornes.debut) + ' au ' + fmtDate(bornes.fin) +
       ' · jours retenus : piste ' + piste.jours + ', FDJ ' + fdj.jours;
     const tz = 'America/Martinique';
     const quand = new Intl.DateTimeFormat('fr-FR', { timeZone: tz, dateStyle: 'short', timeStyle: 'short' }).format(new Date());
     document.getElementById('piedSources').textContent =
-      'Sources : audits_caisse (litres) · products et produits_appel (marge) · view_fdj_daily_summary (FDJ) · lecture seule · calculé le : ' + quand + ' (heure station)';
+      'Sources : audits_caisse (litres) · products et produits_appel (marge) · view_fdj_daily_summary et view_fdj_shift_facts (FDJ) · sites (nom) · lecture seule · calculé le : ' + quand + ' (heure station)';
   });
 
   // Flèche des analyses (mobile) : signale que la rangée continue ; un toucher avance d'une tuile.

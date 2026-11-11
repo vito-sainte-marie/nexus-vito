@@ -118,9 +118,9 @@ t('la page n\'écrit rien : ni insert/update/upsert/delete ni RPC', () => {
 
 t('la page lit uniquement les sources annoncées, filtrées par site', () => {
   const tables = [...scripts.matchAll(/\.from\('([a-z_]+)'\)/g)].map(m => m[1]).sort();
-  assert.deepStrictEqual(tables, ['audits_caisse', 'products', 'produits_appel', 'view_fdj_daily_summary']);
+  assert.deepStrictEqual(tables, ['audits_caisse', 'products', 'produits_appel', 'sites', 'view_fdj_daily_summary', 'view_fdj_shift_facts']);
   const eq = scripts.match(/\.eq\('site', siteId\)/g) || [];
-  assert.strictEqual(eq.length, 4);
+  assert.strictEqual(eq.length, 5); // + view_fdj_shift_facts (sites se lit par site_id)
 });
 
 t('jamais d\'horloge UTC : ni aujourdHuiISO ni filtrerJoursClos', () => {
