@@ -89,20 +89,14 @@
 
   .statut-pill{display:inline-flex; align-items:center; gap:7px; margin-top:14px; padding:8px 14px; border-radius:24px; font-weight:700; font-size:13px;}
   .statut-pill .dot{width:7px; height:7px; border-radius:50%; flex-shrink:0;}
-  .statut-pill.st-performant{background:var(--green-dim); color:var(--green);}
-  .statut-pill.st-performant .dot{background:var(--green);}
-  .statut-pill.st-surveiller{background:var(--amber-dim); color:var(--amber);}
-  .statut-pill.st-surveiller .dot{background:var(--amber);}
-  .statut-pill.st-dormant{background:var(--panel-raised); color:var(--text-mid); border:1px solid var(--hairline);}
-  .statut-pill.st-dormant .dot{background:var(--text-dim);}
+  .statut-pill.st-en-progression{background:var(--green-dim); color:var(--green);}
+  .statut-pill.st-en-progression .dot{background:var(--green);}
+  .statut-pill.st-surveiller, .statut-pill.st-dormant.a-verifier, .statut-pill.st-rupture-probable{background:var(--amber-dim); color:var(--amber);}
+  .statut-pill.st-surveiller .dot, .statut-pill.st-rupture-probable .dot, .statut-pill.st-dormant.a-verifier .dot{background:var(--amber);}
+  .statut-pill.st-dormant, .statut-pill.st-a-confirmer, .statut-pill.st-aucune-vente, .statut-pill.st-sans-signal{background:var(--panel-raised); color:var(--text-mid); border:1px solid var(--hairline);}
+  .statut-pill.st-dormant .dot, .statut-pill.st-a-confirmer .dot, .statut-pill.st-aucune-vente .dot, .statut-pill.st-sans-signal .dot{background:var(--text-dim);}
   .statut-pill.st-strategique{background:var(--purple-dim); color:var(--purple);}
   .statut-pill.st-strategique .dot{background:var(--purple);}
-
-  .hero-action{margin-top:14px; padding:13px 15px; border-radius:12px; border-left:3px solid var(--cyan); background:rgba(79,195,217,0.06); font-size:12.5px; line-height:1.5;}
-  .hero-action.st-performant{border-left-color:var(--green); background:rgba(52,211,153,0.06);}
-  .hero-action.st-surveiller{border-left-color:var(--amber); background:rgba(245,166,35,0.06);}
-  .hero-action.st-dormant{border-left-color:var(--text-dim); background:rgba(87,98,111,0.08);}
-  .hero-action.st-strategique{border-left-color:var(--purple); background:rgba(183,148,246,0.06);}
   .hero-action .ha-label{font-family:var(--mono); font-size:9px; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-dim); margin-bottom:5px;}
 
   .hero-tiles{display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-top:16px;}
@@ -349,10 +343,10 @@ body.nexus-desktop #resultSection > *{margin-bottom:12px;}
         <div class="conseiller-text">Recherchez une référence et je vous dis ce que les chiffres racontent vraiment dessus — pas ce qu'on croit en général.</div>
       </div>
     </div>
-    <div class="empty-state">Recherchez un produit ci-dessus pour afficher sa fiche complète — toutes les références importées sont disponibles.</div>
+    <div class="empty-state">Recherchez un produit ci-dessus pour afficher sa fiche : les articles vendus sur la période affichée, sur les périodes complètes récentes ou relevés en stock depuis moins de 30 jours.</div>
   </div>
 
-  <footer>NEXUS Produits v1 · <span class="nexus-nom-commerce"></span></footer>
+  <footer>NEXUS Produits v1 · <span class="nexus-nom-commerce"></span><span id="piedPeriode"></span></footer>
 </div>
 
 <script>
@@ -414,44 +408,112 @@ nexusRequireAuth().then(async employee => {
     return { data: toutes, error: null };
   }
 
+  // ------------------------------------------------------------
+  // Chargement ciblé (lot 2, 11/11/2026). Avant : toutes les lignes de toutes les
+  // périodes à chaque ouverture. Maintenant : (1) la liste des périodes par requêtes
+  // d'UNE ligne (dates seules), (2) les lignes de la période affichée, de la paire
+  // comparée et des périodes complètes nécessaires à « Produit dormant »
+  // (NexusConseiller.DUREE_DORMANT_PERIODES), (3) les relevés de stock de moins de
+  // NexusConseiller.DUREE_RELEVE_STOCK_JOURS jours, un seul par article.
+  // LECTURES compte les lignes réellement lues (mesure, exposée à la recette).
+  // Limite connue : deux périodes de même début mais de fin différente ne sont
+  // pas distinguées lors du parcours des dates.
+  // ------------------------------------------------------------
+  const LECTURES = { products: 0, stock_releves: 0, periodes: 0 };
+  window.NEXUS_LECTURES_PRODUITS = LECTURES;
+  const COLONNES_PRODUCTS = 'categorie, article, ca, marge, prix_achat, prix_vente, quantite, periode_debut, periode_fin, code_barres';
+  const NB_PERIODES_MAX = 6;
+  let AUJOURDHUI_STATION = null;
+  let PERIODE_DONNEES = null;
+
+  function jourDeLaStation(fuseau) {
+    try { return new Intl.DateTimeFormat('en-CA', { timeZone: fuseau || 'America/Martinique' }).format(new Date()); }
+    catch (_) { return new Date().toISOString().slice(0, 10); }
+  }
+  function fmtJourFr(iso) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ''));
+    return m ? `${m[3]}/${m[2]}/${m[1]}` : String(iso || '');
+  }
+  function libellePeriode(per) { return `du ${fmtJourFr(per.debut)} au ${fmtJourFr(per.fin)}`; }
+
+  // Recherche : minuscules, sans accents, espaces réduits (« crème » = « creme »).
+  function normaliserRecherche(s) {
+    return String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+  }
+
+  async function listerPeriodes() {
+    const periodes = [];
+    let borne = null;
+    for (let i = 0; i < NB_PERIODES_MAX; i++) {
+      let q = nexusClient.from('products').select('periode_debut, periode_fin')
+        .eq('site', SITE_ACTUEL).order('periode_debut', { ascending: false }).limit(1);
+      if (borne) q = q.lt('periode_debut', borne);
+      const { data, error } = await q;
+      if (error) { console.error('Liste des périodes products:', error); return null; }
+      if (!data || !data.length) break;
+      LECTURES.periodes += data.length;
+      periodes.push(data[0]);
+      borne = data[0].periode_debut;
+    }
+    return periodes;
+  }
+
+  async function lirePeriode(per) {
+    const { data, error } = await fetchAllRows(() => nexusClient.from('products').select(COLONNES_PRODUCTS)
+      .eq('site', SITE_ACTUEL).eq('periode_debut', per.debut).eq('periode_fin', per.fin)
+      .order('article', { ascending: true }));
+    if (error) { console.error('Chargement products (période):', error); return null; }
+    LECTURES.products += (data || []).length;
+    return data || [];
+  }
+
+  // Dernier relevé de stock par article (nom exact), limité aux relevés récents.
+  async function lireStockRecent(aujourdhui) {
+    const dMs = Date.parse(aujourdhui + 'T00:00:00Z') - NexusConseiller.DUREE_RELEVE_STOCK_JOURS * 86400000;
+    const depuis = new Date(dMs).toISOString().slice(0, 10);
+    const { data, error } = await fetchAllRows(() => nexusClient.from('stock_releves')
+      .select('categorie, article, code_barres, quantite_theorique, quantite_reelle, releve_le')
+      .eq('site', SITE_ACTUEL).gte('releve_le', depuis)
+      .order('releve_le', { ascending: false }).order('article', { ascending: true }));
+    if (error) { console.error('Chargement stock_releves (récent):', error); return {}; }
+    LECTURES.stock_releves += (data || []).length;
+    const parArticle = {};
+    (data || []).forEach(r => { if (!parArticle[r.article]) parArticle[r.article] = r; });
+    return parArticle;
+  }
+
   async function construireProduitsLive() {
     // Fuseau du site : fraîcheur de la paire et période « en cours » mesurées dans le jour de la station.
     const FUSEAU_TENDANCE = (typeof nexusFuseauSite === 'function') ? await nexusFuseauSite(SITE_ACTUEL) : null;
-    const { data, error } = await fetchAllRows(() => nexusClient
-      .from('products')
-      .select('categorie, article, ca, marge, prix_achat, prix_vente, quantite, periode_debut, periode_fin, code_barres')
-      .eq('site', SITE_ACTUEL)
-      .order('periode_debut', { ascending: false })
-      .order('article', { ascending: true }));
-    if (error || !data || !data.length) { console.error('Chargement products (fiche produit):', error); return []; }
+    AUJOURDHUI_STATION = jourDeLaStation(FUSEAU_TENDANCE);
+    const periodesBrutes = await listerPeriodes();
+    if (!periodesBrutes || !periodesBrutes.length) { console.error('Aucune période dans products.'); return []; }
 
-    // CORRECTIF 23/07/2026 (harmonisation demandée par Frédéric : "un système,
-    // pas une succession de pages") — cette page comparait aveuglément les deux
-    // périodes les plus récentes (bug identique à celui trouvé et corrigé sur
-    // Rayon puis Cockpit le même jour : évolution fausse dès que les deux
-    // périodes se chevauchent ou n'ont pas une durée comparable). Le moteur
-    // partagé nexus-periodes.js sépare "période affichée" (la plus récente —
-    // sert à afficher toutes les fiches produit et leur contribution au rayon,
-    // même si elle est encore en cours) de "paire comparable" (utilisée
-    // uniquement pour calculer une évolution T1→T2).
-    const { periodeAffichage, rowsAffichage, paire, rowsPaireActuelle, rowsPairePrecedente, periodeEnCours } = NexusPeriodes.analyserPeriodes(data, { appariement: 'dernieres', fuseau: FUSEAU_TENDANCE });
+    // Le moteur partagé nexus-periodes.js sépare « période affichée » (la plus récente,
+    // même en cours) de « paire comparable » (évolution T1→T2 seulement). Il n'a besoin
+    // que des dates : on lui passe les dates, puis on ne lit que les lignes utiles.
+    const analyseDates = NexusPeriodes.analyserPeriodes(periodesBrutes, { appariement: 'dernieres', fuseau: FUSEAU_TENDANCE });
+    const { periodesTriees, periodeAffichage, paire, periodeEnCours } = analyseDates;
     if (!periodeAffichage) { console.error('Aucune période exploitable dans products.'); return []; }
+    PERIODE_DONNEES = periodeAffichage;
 
-    // CORRECTIF 24/07/2026 (incohérence signalée par Frédéric : "pourquoi T1
-    // apparaît dans Rayon mais pas dans Produits, avec les mêmes données ?")
-    // — cette page limitait jusqu'ici la comparaison T1→T2 aux seuls cas où
-    // la période affichée (la plus récente) faisait ELLE-MÊME partie de la
-    // paire comparable trouvée par nexus-periodes.js. Dès qu'un nouvel
-    // import encore partiel devenait la période affichée, toute comparaison
-    // disparaissait — y compris la tendance sur l'avant-dernière période,
-    // pourtant toujours valable. NEXUS-Rayon-v1.html ne fait pas cette
-    // erreur : il sépare la "période affichée" (chiffres bruts du haut de
-    // fiche : CA généré, unités vendues) de la "paire comparable" (utilisée
-    // UNIQUEMENT pour l'évolution, indépendamment de la fraîcheur de la
-    // période affichée). Même principe appliqué ici : ca_t1/qte_t1 (T1) et
-    // ca_t2_pair/qte_t2_pair (T2 DE LA COMPARAISON — distinct de ca_t2/qte_t2,
-    // qui restent la période affichée) viennent toujours de la dernière paire
-    // comparable trouvée, que la période affichée en fasse partie ou non.
+    const completes = periodesTriees.slice(periodeEnCours ? 1 : 0);
+    const aCharger = [periodeAffichage];
+    const ajouter = per => { if (per && !aCharger.some(x => x.debut === per.debut && x.fin === per.fin)) aCharger.push(per); };
+    if (paire) { ajouter(paire.actuelle); ajouter(paire.precedente); }
+    completes.slice(0, NexusConseiller.DUREE_DORMANT_PERIODES).forEach(ajouter);
+
+    const lots = await Promise.all(aCharger.map(lirePeriode));
+    if (lots.some(l => l === null)) return [];
+    const parPeriode = {};
+    aCharger.forEach((per, i) => { parPeriode[per.debut + '|' + per.fin] = lots[i]; });
+    const rowsDe = per => (per && parPeriode[per.debut + '|' + per.fin]) || [];
+    const rowsAffichage = rowsDe(periodeAffichage);
+    const rowsPaireActuelle = paire ? rowsDe(paire.actuelle) : [];
+    const rowsPairePrecedente = paire ? rowsDe(paire.precedente) : [];
+
+    const stockParArticle = await lireStockRecent(AUJOURDHUI_STATION);
+
     const precedentParArticle = {};
     rowsPairePrecedente.forEach(r => {
       const cle = r.categorie + '|' + r.article;
@@ -466,7 +528,29 @@ nexusRequireAuth().then(async employee => {
     const caTotalParRayon = {};
     rowsAffichage.forEach(r => { caTotalParRayon[r.categorie] = (caTotalParRayon[r.categorie] || 0) + (r.ca || 0); });
 
-    return rowsAffichage.map(p => {
+    // Périodes complètes lues (récentes d'abord) : sert au compte de périodes sans vente.
+    // Limite connue (arbitrée) : deux imports de même début mais de fin différente ne sont pas
+    // distingués ; on ne retient qu'une période par début.
+    const completesLues = completes.slice(0, NexusConseiller.DUREE_DORMANT_PERIODES);
+    const ventesParPeriode = completesLues.map(per => {
+      const s = new Set();
+      rowsDe(per).forEach(r => { if ((r.ca || 0) > 0) s.add(r.categorie + '|' + r.article); });
+      return s;
+    });
+    function periodesSansVente(cle) {
+      let n = 0;
+      for (const s of ventesParPeriode) { if (s.has(cle)) break; n++; }
+      return n;
+    }
+    const periodeTendance = paire ? libellePeriode(paire.actuelle) : null;
+    const stockDe = nom => {
+      const r = stockParArticle[nom];
+      if (!r) return null;
+      const q = r.quantite_reelle != null ? r.quantite_reelle : r.quantite_theorique;
+      return { quantite: q, releve_le: r.releve_le };
+    };
+
+    const produits = rowsAffichage.map(p => {
       const cle = p.categorie + '|' + p.article;
       const caRayon = caTotalParRayon[p.categorie] || 0;
       const pct_contrib = caRayon > 0 ? p.ca / caRayon : null;
@@ -474,11 +558,6 @@ nexusRequireAuth().then(async employee => {
       const pairPrec = paire ? (precedentParArticle[cle] || null) : null;
       const pairAct = paire ? (actuelParArticlePaire[cle] || null) : null;
 
-      // Meme moteur de regles que le Cockpit (R4/R3/R2), applique a cette seule reference,
-      // pour rester cohérent partout — une seule source de vérité pour "que recommande NEXUS ici".
-      // Évolution basée sur la paire comparable (pairPrec/pairAct), pas sur
-      // la période affichée directement — même correctif que ci-dessus.
-      let statut = null;
       // Tendance commune (lot 1 Produits, PR B) : ventes moyennes par jour,
       // paire fraîche (21 j), plancher de volume. Sinon : pas de recommandation.
       const tendance = (pairPrec && pairAct)
@@ -486,47 +565,65 @@ nexusRequireAuth().then(async employee => {
             { caT1: pairPrec.ca, quantiteT1: pairPrec.quantite, caT2: pairAct.ca, quantiteT2: pairAct.quantite },
             paire, { seuilCA: NexusConseiller.SEUIL_VOLUME_CA_EUR, fuseau: FUSEAU_TENDANCE })
         : null;
-      // Une comparaison non fiable (durées > 2x, période en cours, jours non couverts) s'affiche, mais ne fonde aucune recommandation.
-      const evolution = (tendance && tendance.recommandable) ? tendance.evolutionCA : null;
-      const lang = NexusConseiller.LANGAGE_ACTION[NexusConseiller.typeActionPourCategorie(p.categorie)];
-      // Seuils repris de NexusConseiller (source unique, voir commentaire du
-      // 08/08/2026 ci-dessous et nexus-conseiller.js) — plus jamais recopiés
-      // en dur ici (11/08/2026, audit Article 11).
-      if (pct_contrib !== null && pct_contrib >= NexusConseiller.SEUIL_CONTRIBUTION_FORTE && p.ca > 0) {
-        statut = { etat: '🔥 À AGIR', texte: lang.recoAgir(p.article), analyse: lang.analyseAgir };
-      } else if (evolution !== null && evolution >= NexusConseiller.SEUIL_HAUSSE) {
-        statut = { etat: '📈 OPPORTUNITÉ', texte: lang.recoHausse(p.article), analyse: "Cette dynamique dépasse une croissance ordinaire." };
-      } else if (evolution !== null && evolution <= NexusConseiller.SEUIL_BAISSE) {
-        statut = { etat: '🟡 À SURVEILLER', texte: lang.recoBaisse(p.article), analyse: "Je ne peux pas encore conclure à une vraie tendance sans vérification terrain." };
-      }
 
       return {
         article: p.article, categorie: p.categorie, code_barres: p.code_barres || null,
         pu_ht: p.prix_vente, pma: p.prix_achat,
         marge_pct: p.ca > 0 ? (p.marge || 0) / p.ca : 0, marge_totale: p.marge || 0,
-        // ca_t2/qte_t2 : toujours la période affichée (la plus récente, même
-        // en cours) — utilisés pour les chiffres "instantanés" de la fiche
-        // (CA généré, unités vendues, rang, produit dormant, vitesse de vente).
+        // ca_t2/qte_t2 : toujours la période affichée (la plus récente, même en cours).
         ca_t2: p.ca, qte_t2: p.quantite || 0,
         // ca_t1/qte_t1 (T1) et ca_t2_pair/qte_t2_pair (T2 de la comparaison) :
-        // toujours la dernière paire comparable trouvée, indépendamment de la
-        // fraîcheur de la période affichée.
+        // toujours la dernière paire comparable, indépendamment de la période affichée.
         ca_t1: pairPrec ? pairPrec.ca : 0, qte_t1: pairPrec ? (pairPrec.quantite || 0) : 0,
         ca_t2_pair: pairAct ? pairAct.ca : 0, qte_t2_pair: pairAct ? (pairAct.quantite || 0) : 0,
         ca_s1: (pairPrec ? pairPrec.ca : 0) + (pairAct ? pairAct.ca : 0),
         pairDisponible: !!paire,
-        // true si la paire comparable inclut la période affichée elle-même
-        // (donc ca_t2_pair === ca_t2) ; false si la période affichée est
-        // encore trop récente et que la comparaison porte sur l'avant-dernière
-        // paire de périodes complètes.
         pairEstPeriodeAffichee: !!(paire && !periodeEnCours),
         pairDates: paire ? { debutT1: paire.precedente.debut, finT1: paire.precedente.fin, debutT2: paire.actuelle.debut, finT2: paire.actuelle.fin } : null,
-        // Dates de la période actuelle — nécessaires pour estimer une vitesse
-        // de vente quotidienne (rotation réelle), voir chargerStockGap().
         periode_debut: p.periode_debut, periode_fin: p.periode_fin,
-        pct_contrib, statut, tendance, tendance_statut: tendance ? tendance.statut : null, tendance_message: tendance ? tendance.message : null,
+        pct_contrib, tendance, tendance_statut: tendance ? tendance.statut : null, tendance_message: tendance ? tendance.message : null,
+        periodesSansVente: (p.ca || 0) > 0 ? 0 : periodesSansVente(cle), connuParVentes: true,
+        stock: stockDe(p.article), periodeTendance, source: null,
       };
     });
+
+    // Articles connus hors période affichée : périodes complètes déjà lues, puis stock récent.
+    // Jamais de fusion de deux noms : correspondance sur le nom exact uniquement.
+    const connus = new Set(produits.map(p => p.categorie + '|' + p.article));
+    const nomsConnus = new Set(produits.map(p => p.article));
+    completesLues.forEach(per => {
+      rowsDe(per).forEach(r => {
+        const cle = r.categorie + '|' + r.article;
+        if (connus.has(cle)) return;
+        connus.add(cle); nomsConnus.add(r.article);
+        produits.push({
+          article: r.article, categorie: r.categorie, code_barres: r.code_barres || null,
+          pu_ht: r.prix_vente, pma: r.prix_achat, marge_pct: 0, marge_totale: 0,
+          ca_t2: 0, qte_t2: 0, ca_t1: 0, qte_t1: 0, ca_t2_pair: 0, qte_t2_pair: 0, ca_s1: 0,
+          pairDisponible: !!paire, pairEstPeriodeAffichee: false, pairDates: null,
+          periode_debut: periodeAffichage.debut, periode_fin: periodeAffichage.fin,
+          pct_contrib: null, tendance: null, tendance_statut: null, tendance_message: null,
+          periodesSansVente: periodesSansVente(cle), connuParVentes: true, stock: stockDe(r.article), periodeTendance, source: `période ${libellePeriode(per)}`,
+        });
+      });
+    });
+    Object.keys(stockParArticle).forEach(nom => {
+      if (nomsConnus.has(nom)) return;
+      const r = stockParArticle[nom];
+      nomsConnus.add(nom);
+      produits.push({
+        article: r.article, categorie: r.categorie || 'Stock', code_barres: r.code_barres || null,
+        pu_ht: null, pma: null, marge_pct: 0, marge_totale: 0,
+        ca_t2: 0, qte_t2: 0, ca_t1: 0, qte_t1: 0, ca_t2_pair: 0, qte_t2_pair: 0, ca_s1: 0,
+        pairDisponible: !!paire, pairEstPeriodeAffichee: false, pairDates: null,
+        periode_debut: periodeAffichage.debut, periode_fin: periodeAffichage.fin,
+        pct_contrib: null, tendance: null, tendance_statut: null, tendance_message: null,
+        // Connu seulement par le stock : par construction (nom exact absent des périodes lues),
+        // aucune vente sur l'ensemble des périodes complètes chargées.
+        periodesSansVente: completesLues.length, connuParVentes: false, stock: stockDe(r.article), periodeTendance, source: `stock du ${fmtJourFr(r.releve_le)}`,
+      });
+    });
+    return produits;
   }
 
   // CORRECTIF 08/08/2026 (retour de Frédéric, Article 11 de la Constitution
@@ -538,45 +635,15 @@ nexusRequireAuth().then(async employee => {
   // désormais NexusConseiller.typeActionPourCategorie / .LANGAGE_ACTION,
   // la même source que le Cockpit, le CIN et l'accueil.
 
-  // Statut simplifié en 4 états exhaustifs (Produit performant / À
-  // surveiller / Produit dormant / Produit stratégique), demandé le
-  // 22/07/2026 (NEXUS_Page_Produit_Analyse_V2.pdf). Reprend EXACTEMENT
-  // les mêmes signaux déjà calculés plus haut (ca_t2, pct_contrib,
-  // evolution) — aucune nouvelle donnée, juste une lecture plus directe
-  // que l'ancien `statut` (qui pouvait être null). Priorité de lecture :
-  // dormant (le plus objectif : aucune vente) > stratégique (poids fort
-  // dans le rayon) > à surveiller (chute nette) > performant par défaut.
+  // Statut du produit en 8 états (lot 2, 11/11/2026) : Stratégique, En progression,
+  // À surveiller, Tendance à confirmer, Aucune vente récente, Dormant, Rupture
+  // probable, Sans signal particulier. La règle vit dans NexusConseiller.statutProduit
+  // (seuils et durées exportés, jamais copiés ici). l'ancien statut « performant » n'existe plus.
   function calculerStatutSimplifie(p) {
-    // Une seule tendance par article (NexusPeriodes.tendanceArticle) : jamais de recalcul local.
-    const evolution = (p.tendance && p.tendance.recommandable) ? p.tendance.evolutionCA : null;
-    const lang = NexusConseiller.LANGAGE_ACTION[NexusConseiller.typeActionPourCategorie(p.categorie)];
-    if (p.ca_t2 === 0) {
-      return {
-        cle: 'dormant', label: 'Produit dormant',
-        action: `Aucune vente enregistrée sur la dernière période pour ${esc(p.article)} — vérifiez sa présence en rayon ou envisagez un déréférencement.`,
-      };
-    }
-    if (p.pct_contrib !== null && p.pct_contrib >= NexusConseiller.SEUIL_CONTRIBUTION_FORTE) {
-      return { cle: 'strategique', label: 'Produit stratégique', action: lang.recoAgir(esc(p.article)) };
-    }
-    // Tendance existante mais non recommandable (prudence, insuffisante, périmée, indisponible) :
-    // statut neutre, jamais de jugement positif ni d'action de réassort (arbitrage 6781622583).
-    // Sans aucune période précédente (p.tendance absent), le comportement historique est conservé.
-    if (p.tendance && !p.tendance.recommandable) {
-      return {
-        cle: 'a-confirmer', label: 'Tendance à confirmer',
-        action: "Pas de recommandation tant que la comparaison n'est pas fiable. Les chiffres ci-dessus restent consultables.",
-      };
-    }
-    if (evolution !== null && evolution <= NexusConseiller.SEUIL_BAISSE) {
-      return { cle: 'surveiller', label: 'À surveiller', action: lang.recoBaisse(esc(p.article)) };
-    }
-    return {
-      cle: 'performant', label: 'Produit performant',
-      action: (evolution !== null && evolution >= NexusConseiller.SEUIL_HAUSSE)
-        ? lang.recoHausse(esc(p.article))
-        : `Rien n'indique de risque particulier pour ${esc(p.article)} actuellement — maintenez le réassort habituel.`,
-    };
+    // Règle unique : NexusConseiller.statutProduit (lot 2, 11/11/2026). La page ne
+    // décide plus rien ; elle échappe seulement le texte d'action avant affichage.
+    const st = NexusConseiller.statutProduit(p, AUJOURDHUI_STATION);
+    return { cle: st.cle, label: st.label, niveau: st.niveau, action: st.action == null ? null : esc(st.action) };
   }
 
   // Rang du produit dans son rayon, par CA de la période actuelle — calcul
@@ -610,6 +677,10 @@ nexusRequireAuth().then(async employee => {
     PRODUCTS = await construireProduitsLive();
     PRODUCT_PHOTOS = await chargerPhotosProduits();
   }
+
+  // Pied de page : nom de la station (nexus-auth.js, lu en base) et période réelle des données.
+  const piedPeriode = document.getElementById('piedPeriode');
+  if (piedPeriode && PERIODE_DONNEES) piedPeriode.textContent = ' · données du ' + fmtDate(PERIODE_DONNEES.debut) + ' au ' + fmtDate(PERIODE_DONNEES.fin);
 
   const searchInput = document.getElementById('searchInput');
   const suggestionsBox = document.getElementById('suggestions');
@@ -651,9 +722,11 @@ nexusRequireAuth().then(async employee => {
     sugActif = i;
   }
   searchInput.addEventListener('input', () => {
-    const q = searchInput.value.trim().toLowerCase();
+    const q = normaliserRecherche(searchInput.value);
     if (q.length < 2) { fermerSuggestions(); return; }
-    const matches = PRODUCTS.filter(p => p.article.toLowerCase().includes(q)).slice(0, 8);
+    // Nom sans accents ni casse, ou code-barres ; articles de la période affichée d'abord.
+    const matches = PRODUCTS.filter(p => normaliserRecherche(p.article).includes(q) || (p.code_barres && String(p.code_barres).includes(q)))
+      .sort((a, b) => (a.source ? 1 : 0) - (b.source ? 1 : 0)).slice(0, 8);
     sugActif = -1;
     searchInput.removeAttribute('aria-activedescendant');
     if (!matches.length) {
@@ -666,7 +739,7 @@ nexusRequireAuth().then(async employee => {
     suggestionsBox.innerHTML = matches.map((p, i) => `
       <button type="button" role="option" id="sug-${i}" aria-selected="false" class="suggestion-item" data-article="${esc(p.article)}">
         <span>${esc(p.article)}</span>
-        <span class="cat">${esc(p.classe || p.categorie)}</span>
+        <span class="cat">${esc(p.categorie)}${p.source ? ' · ' + esc('sans vente — ' + p.source) : ''}</span>
       </button>`).join('');
     suggestionsBox.hidden = false;
     searchInput.setAttribute('aria-expanded', 'true');
@@ -748,7 +821,7 @@ nexusRequireAuth().then(async employee => {
   function produitsApercu(base) {
     const ref = base[0] || {};
     const demo = Object.assign({}, ref, {
-      article: 'APERÇU — Jus d\'orange 1 L', classe: 'Jus', categorie: 'Boissons',
+      article: 'APERÇU — Jus d\'orange 1 L', categorie: 'Boissons',
       ca_t2: 12345.67, qte_t2: 4210, ca_t1: 9800, qte_t1: 3500, ca_t2_pair: 11200, qte_t2_pair: 3900, ca_s1: 21000,
       pu_ht: 2.93, pma: 1.78, marge_pct: 0.392, pct_contrib: 0.084,
       periode_debut: '2026-08-24', periode_fin: '2026-09-23',
@@ -806,7 +879,7 @@ nexusRequireAuth().then(async employee => {
     // metier modifie. Les valeurs viennent de p, calculerStatutSimplifie() et
     // calculerRangRayon() exactement comme avant ; seule la mise en page change.
     // ------------------------------------------------------------
-    const niveauRentaP = p.marge_pct >= 0.40 ? 'tres_rentable' : p.marge_pct >= 0.25 ? 'correcte' : p.marge_pct >= 0.10 ? 'faible' : 'insuffisante';
+    const niveauRentaP = NexusConseiller.niveauRentabilite(p.marge_pct);
 
     // Periode de la paire comparable (T1 contre T2) : lue dans pairDates,
     // jamais codee en dur. Toute tendance affichee la porte.
@@ -817,8 +890,8 @@ nexusRequireAuth().then(async employee => {
     const avertPaire = (p.pairDisponible && !p.pairEstPeriodeAffichee)
       ? `<div class="avert-tendance">Cette tendance ne porte pas sur la période affichée (${esc(fmtDate(p.periode_debut))} → ${esc(fmtDate(p.periode_fin))}) : elle porte sur la dernière paire de périodes complètes et de durée comparable.</div>`
       : '';
-    // La decision / l'action s'appuie sur la tendance pour performant et surveiller.
-    const actionDependTendance = (statutSimplifie.cle === 'performant' || statutSimplifie.cle === 'surveiller') && p.ca_t1 > 0;
+    // La decision / l'action s'appuie sur la tendance pour « en progression » et « à surveiller ».
+    const actionDependTendance = (statutSimplifie.cle === 'en-progression' || statutSimplifie.cle === 'surveiller') && p.ca_t1 > 0;
 
     // Pastille de periode (information, pas un selecteur)
     const pastP = document.getElementById('pastillePeriode');
@@ -841,7 +914,7 @@ nexusRequireAuth().then(async employee => {
     const BE = window.NexusBadgeEtat;
     let badgeStatut;
     if (BE && typeof BE.gravite === 'function') {
-      const niv = { performant: 'conforme', surveiller: 'a-verifier', strategique: 'information' }[statutSimplifie.cle];
+      const niv = statutSimplifie.niveau;
       badgeStatut = niv ? BE.gravite(niv, { libelle: statutSimplifie.label }) : BE.neutre(statutSimplifie.label);
     } else {
       badgeStatut = `<span class="statut-repli">${esc(statutSimplifie.label)}</span>`;
@@ -939,13 +1012,21 @@ nexusRequireAuth().then(async employee => {
     // ecrit apres la creation du DOM. La periode de comparaison accompagne la tendance.
     const conseillerMsg = document.getElementById('conseillerProduitMsg');
     if (conseillerMsg) {
-      const constatP = p.pct_contrib !== null
+      const periodeAff = `${fmtDate(p.periode_debut)} → ${fmtDate(p.periode_fin)}`;
+      const stockFait = p.stock ? `quantité en stock ${p.stock.quantite} au relevé du ${fmtDate(p.stock.releve_le)}` : null;
+      const constatP = p.ca_t2 === 0
+        ? `${esc(p.article)} n'a aucune vente sur la période affichée (${esc(periodeAff)})${stockFait ? ' ; ' + esc(stockFait) : ''}${p.source ? ' (connu par : ' + esc(p.source) + ')' : ''}.`
+        : p.pct_contrib !== null
         ? `${esc(p.article)} pèse ${fmtPct(p.pct_contrib)} du CA de son rayon (${fmtEur(p.ca_t2)}), marge ${fmtPct(p.marge_pct)}.`
         : `${esc(p.article)} a généré ${fmtEur(p.ca_t2)} sur la période, marge ${fmtPct(p.marge_pct)}.`;
 
       let explicationP;
       if (p.ca_t2 === 0) {
-        explicationP = `Un ${NexusVocab.SIGNATURE.PRODUIT_DORMANT.toLowerCase()} n'indique pas forcément un problème de demande — cela peut aussi être une rupture ou un retrait de rayon non signalé.`;
+        explicationP = statutSimplifie.cle === 'dormant'
+          ? `Aucune vente sur ${p.periodesSansVente} périodes complètes et du stock au dernier relevé : le produit peut être sorti du rayon ou ne plus se vendre.`
+          : statutSimplifie.cle === 'rupture-probable'
+            ? 'Aucune vente récente et un stock à zéro (ou négatif) au dernier relevé : une rupture est probable.'
+            : 'Aucune vente sur la période affichée. NEXUS ne tire pas de conclusion sans relevé de stock récent.';
       } else {
         const rentaTxt = NexusVocab.rentabilite(niveauRentaP, false, esc(p.article));
         const tendanceTxt = tendQualifiee ? (NexusVocab.tendance(evolCa) + ' (ventes moyennes par jour)' + (tend.fiable ? '' : ' — ' + tend.avertissements.map(esc).join(' · ') + '.')) : msgTendance;
@@ -960,7 +1041,7 @@ nexusRequireAuth().then(async employee => {
       conseillerMsg.innerHTML = `
         <div class="cycle-step"><span class="cycle-tag">Constat</span>${esc(employee.nom)}, ${constatP}</div>
         <div class="cycle-step"><span class="cycle-tag">Explication</span>${explicationP}</div>
-        <div class="cycle-step"><span class="cycle-tag tag-decision">Décision</span>${decisionP}</div>
+        ${decisionP ? `<div class="cycle-step"><span class="cycle-tag tag-decision">Décision</span>${decisionP}</div>` : ''}
       `;
       // Une seule ligne de comparaison et un seul avertissement, au pied de la carte, quand un message s'appuie sur la paire T1/T2.
       const piedPaire = document.getElementById('conseillerPaire');
@@ -1141,7 +1222,7 @@ nexusRequireAuth().then(async employee => {
         el.innerHTML = `${esc(data.emplacement)} · ${esc(date)} <span class="emplacement-modifier" id="btnModifierEmplacement">(modifier)</span>`;
       } else if (data && data.emplacement) {
         // source = 'auto_categorie' : suggestion non confirmée par un humain.
-        el.innerHTML = `${(window.NexusBadgeEtat ? NexusBadgeEtat.gravite('a-verifier', {libelle: 'À vérifier'}) : '<span class="statut-repli">À vérifier</span>')} ${esc(data.emplacement)} <button type="button" class="emplacement-modifier" id="btnModifierEmplacement">(confirmer/corriger)</button>`;
+        el.innerHTML = `${(window.NexusBadgeEtat ? NexusBadgeEtat.gravite('a-verifier', {libelle: 'À vérifier'}) : '<span class="statut-repli">À vérifier</span>')} ${esc(data.emplacement)} · suggestion${data.assigne_le ? ' du ' + esc(new Date(data.assigne_le).toLocaleDateString('fr-FR')) : ''}, non confirmée <button type="button" class="emplacement-modifier" id="btnModifierEmplacement">(confirmer/corriger)</button>`;
       } else {
         el.innerHTML = `Non renseigné <span class="emplacement-modifier" id="btnModifierEmplacement">(choisir)</span>`;
       }
@@ -1208,10 +1289,10 @@ nexusRequireAuth().then(async employee => {
   //
   // Rapprochement par nom d'article exact -- stock_releves n'a pas de FK vers
   // products, et une comparaison des deux exports le 22/07/2026 a montre que
-  // seuls ~40% des articles de stock retrouvent un nom identique cote ventes
-  // (le reste : vrais ecarts de catalogue, ~190 lignes "Nouvel article", et
+  // 822 des 848 articles de stock retrouvent un nom identique cote ventes (mesure du 10/11/2026)
+  // (le reste : vrais ecarts de catalogue, et
   // aucun code-barres cote stock pour servir de repli). Donc: on affiche la
-  // vraie donnee pour les ~40% qui matchent, et on dit explicitement "aucun
+  // vraie donnee pour ceux qui matchent, et on dit explicitement "aucun
   // relevé trouvé" pour les autres plutot que d'inventer un chiffre.
   //
   // Rotation reelle : ce n'est PAS un vrai taux moyen (quantite vendue /
@@ -1272,12 +1353,9 @@ nexusRequireAuth().then(async employee => {
       // capital immobilisé pour rien. joursDeStock reste l'estimation déjà
       // documentée ci-dessus (photo à un instant T, pas une moyenne) — ces
       // niveaux n'ajoutent aucune précision, juste un mot du lexique commun.
-      const niveauRotation = joursDeStock === null ? null
-        : joursDeStock < 7 ? 'tres_rapide' : joursDeStock < 15 ? 'rapide'
-        : joursDeStock < 30 ? 'normale' : joursDeStock < 60 ? 'lente' : 'tres_lente';
-      const niveauStock = joursDeStock === null ? null
-        : joursDeStock < 3 ? 'risque_rupture' : joursDeStock < 7 ? 'tendu'
-        : joursDeStock < 45 ? 'maitrise' : 'surstock';
+      // Seuils : source unique nexus-conseiller.js (SEUILS_ROTATION_JOURS, SEUILS_STOCK_JOURS).
+      const niveauRotation = NexusConseiller.niveauRotation(joursDeStock);
+      const niveauStock = NexusConseiller.niveauStock(joursDeStock);
       const motRotation = NexusVocab.rotation(niveauRotation, p.article);
       const motStock = NexusVocab.stock(niveauStock, p.article);
 
@@ -1294,7 +1372,7 @@ nexusRequireAuth().then(async employee => {
       if (elHeroStockVal && elHeroStockVal.isConnected) {
         if (p.pma != null) {
           elHeroStockVal.textContent = fmtEur(stockQte * p.pma);
-          elHeroStockSub.textContent = motStock || `${stockQte} u. · ${dateRelv}`;
+          elHeroStockSub.textContent = `${motStock ? motStock + ' · ' : ''}estimation au PMA, relevé du ${dateRelv}`;
         } else {
           elHeroStockVal.textContent = `${stockQte} u.`;
           elHeroStockSub.textContent = motStock || `PMA inconnu · ${dateRelv}`;
@@ -1313,7 +1391,7 @@ nexusRequireAuth().then(async employee => {
           const caveat = dansLaPeriode
             ? `Le relevé stock du ${dateRelv} tombe bien dans la période de ventes ${p.periode_debut} → ${p.periode_fin}, mais reste une photo à un instant T, pas une moyenne sur toute la période.`
             : `Pas une vraie moyenne : le relevé stock du ${dateRelv} ne recouvre pas la période de ventes ${p.periode_debut} → ${p.periode_fin}.`;
-          elRotation.textContent = `${motRotation ? motRotation + ' ' : ''}Estimation : ${joursDeStock.toFixed(1)} j de stock au rythme de vente du dernier trimestre importé (${venteJour.toFixed(2)} u./jour). ${caveat}`;
+          elRotation.textContent = `${motRotation ? motRotation + ' ' : ''}Estimation : ${joursDeStock.toFixed(1)} j de stock au rythme de vente de la période du ${fmtDate(p.periode_debut)} au ${fmtDate(p.periode_fin)} (${venteJour.toFixed(2)} u./jour), relevé stock du ${dateRelv}. ${caveat}`;
         }
       }
       if (elHeroRotVal && elHeroRotVal.isConnected) {

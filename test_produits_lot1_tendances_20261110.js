@@ -201,7 +201,7 @@ t('fiche : avertissements échappés, durées et CA total de chaque période aff
   const m = fs.readFileSync(path.join(__dirname, 'test_produits_refonte_phase1_20261110.js'), 'utf8').match(/function extraire[\s\S]*?\n}\n/);
   eval(m[0].replace('function extraire', 'global.extraire=function'));
   global.esc = s => String(s);
-  const statut = new Function('NexusConseiller', 'esc', extraire(page, 'function calculerStatutSimplifie') + '; return calculerStatutSimplifie;')(C, global.esc);
+  const statut = new Function('NexusConseiller', 'esc', 'AUJOURDHUI_STATION', extraire(page, 'function calculerStatutSimplifie') + '; return calculerStatutSimplifie;')(C, global.esc, '2026-11-10');
   const base = { article: 'X', categorie: C.LANGAGE_ACTION ? Object.keys({}).concat('Boissons')[0] : 'Boissons', ca_t2: 100, pct_contrib: 0 };
   const tend = (statut, recommandable, evolutionCA) => ({ statut, recommandable, evolutionCA });
   const ATTENDU = "Pas de recommandation tant que la comparaison n'est pas fiable. Les chiffres ci-dessus restent consultables.";
@@ -217,12 +217,12 @@ t('fiche : avertissements échappés, durées et CA total de chaque période aff
     assert.strictEqual(r.cle, 'a-confirmer');
     assert.strictEqual(r.action, ATTENDU);
   });
-  t('statut : dormant et stratégique ne dépendent pas de la tendance', () => {
-    assert.strictEqual(statut({ ...base, ca_t2: 0, tendance: tend('perimee', false, null) }).cle, 'dormant');
+  t('statut : aucune vente et stratégique ne dépendent pas de la tendance', () => {
+    assert.strictEqual(statut({ ...base, ca_t2: 0, tendance: tend('perimee', false, null) }).cle, 'aucune-vente');
     assert.strictEqual(statut({ ...base, pct_contrib: 1, tendance: tend('perimee', false, null) }).cle, 'strategique');
   });
   t('statut : sans période précédente (tendance absente), comportement conservé', () => {
-    assert.strictEqual(statut({ ...base, tendance: null }).cle, 'performant');
+    assert.strictEqual(statut({ ...base, tendance: null }).cle, 'sans-signal'); // « Produit performant » a disparu (lot 2)
   });
   t('statut : tendance recommandable, baisse nette → à surveiller (inchangé)', () => {
     assert.strictEqual(statut({ ...base, tendance: tend('qualifiee', true, -0.5) }).cle, 'surveiller');
