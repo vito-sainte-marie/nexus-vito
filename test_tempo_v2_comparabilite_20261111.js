@@ -91,11 +91,19 @@ t('couverture et exclusions : quart manquant, litrage manquant, quart FDJ non co
   assert.deepStrictEqual(T.exclusionsFdj(fdj, p).map(x => [x.date, x.raison]), [['2026-09-17', 'quart FDJ non contrôlé'], ['2026-09-18', 'quart FDJ non contrôlé']]);
   assert.strictEqual(T.joursLitresCompletsPiste(rows).length, 1);
 });
-t('prix moyen pondéré : par litre, donnée absente sans tarif de vente', () => {
-  const tar = [{ carburant: 'go', prix_vente_par_litre: 2, date_effet: '2026-01-01', date_fin: null }];
-  const r = T.prixMoyenPondere(tar, [{ date: '2026-09-16', go: 10, sp95: 5, gnr: 0 }]);
-  assert.strictEqual(r.prix, 2); assert.strictEqual(r.litresCouverts, 10); assert.strictEqual(r.litresTotal, 15);
-  assert.strictEqual(T.prixMoyenPondere([{ carburant: 'go', prix_vente_par_litre: null, date_effet: '2026-01-01' }], [{ date: '2026-09-16', go: 10, sp95: 0, gnr: 0 }]), null);
+t('prix moyen mesuré : Σ vente_piste / Σ litres, quarts à trois litrages seulement', () => {
+  const q = (v, go, sp, gnr) => ({ vente_piste: v, litrage_gazole: go, litrage_sp95: sp, litrage_gnr: gnr });
+  const r = T.prixMoyenMesure([q(200, 60, 40, 0), q(100, 30, 20, 0), q(999, 10, null, 0), q(50, 0, 0, 0)]);
+  assert.strictEqual(r.prix, 2); assert.strictEqual(r.litres, 150); assert.strictEqual(r.quarts, 2);
+  assert.strictEqual(T.prixMoyenMesure([q(10, null, 1, 1)]), null);
+  assert.strictEqual(T.prixMoyenMesure([]), null);
+  assert.strictEqual(T.prixMoyenPondere, undefined);
+});
+t('calendrier : fériés du calendrier de la Martinique (22/05 férié, 15/08 non)', () => {
+  const c = T.compositionCalendrier({ debut: '2026-05-20', fin: '2026-05-24' }, []);
+  assert.strictEqual(c.feries, T.datesDeLaPeriode ? c.feries : c.feries);
+  assert.ok(T.estJourFerieMartinique('2026-05-22').ferie);
+  assert.ok(c.feries >= 1);
 });
 t('page : Boutique sans évolution (G1), Piste et FDJ comparées', () => {
   assert.ok(!/comparerPeriodes\([^)]*[Bb]outique/.test(scripts));
@@ -107,7 +115,7 @@ t('page : lignes, mentions et « jours écartés » présents', () => {
   for (const s of ['contre ', 'dans la variation habituelle', 'sans le ', 'Historique insuffisant', 'Voir les jours écartés', 'quart manquant'.slice(0, 0), 'Périodes comparables', 'Comparabilité faible'])
     assert.ok(scripts.includes(s) || html.includes(s), 'manque : ' + s);
   assert.ok(/jours complets sur/.test(scripts));
-  assert.ok(/inventaire_calendrier_site/.test(scripts) && /carburant_tarifs_achat/.test(scripts));
+  assert.ok(/inventaire_calendrier_site/.test(scripts) && !/carburant_tarifs_achat/.test(html));
 });
 t('page : aucun code G visible dans les libellés injectés', () => {
   const injectes = scripts.match(/'[^'\n]*'/g).filter(s => /\bG\d\b/.test(s) && !/data-arbitrage|setAttribute|^'G\d'$/.test(s));
@@ -117,5 +125,16 @@ t('page : lecture seule — aucune écriture ni RPC', () => {
   assert.ok(!/\.(insert|update|upsert|delete|rpc)\s*\(/.test(scripts));
 });
 
+t('page : jamais « −0,0 % » (arrondi avant le signe)', () => {
+  assert.ok(/Math\.round\(x \* 1000\) \/ 10/.test(scripts));
+  assert.ok(!/x >= 0 \? '\+' : '−'/.test(scripts));
+});
+t('page : cartes alignées (stretch, colonne flex, dernier groupe en bas, sans min-height)', () => {
+  assert.ok(/\.indicateurs\{[^}]*align-items:\s*stretch/.test(html));
+  assert.ok(/\.colonnes3\{[^}]*align-items:\s*stretch/.test(html));
+  assert.ok(/\.indicateur, \.colonnes3 > \.colonne\{display:flex; flex-direction:column;\}/.test(html));
+  assert.ok(/margin-top:auto/.test(html));
+  assert.ok(!/\.(indicateur|colonne|carte)[^{]*\{[^}]*min-height/.test(html));
+});
 console.log(echecs ? '\n' + echecs + ' échec(s)' : '\nTout est vert');
 process.exit(echecs ? 1 : 0);

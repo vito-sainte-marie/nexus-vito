@@ -1678,7 +1678,7 @@
     let vacances = 0, ferie = 0, weekend = 0;
     dates.forEach(d => {
       if (estVacancesScolaires(d).vacances) vacances++;
-      if (feries.has(d) || estJourFerie(d).ferie) ferie++;
+      if (feries.has(d) || estJourFerieMartinique(d).ferie) ferie++;
       const w = jourSemaineISO(d);
       if (w === 0 || w === 6) weekend++;
     });
@@ -1698,36 +1698,20 @@
     return { faible: raisons.length > 0, raisons };
   }
 
-  // Litres par carburant des jours complets de la piste (pour le prix moyen pondéré).
-  function litresCarburantsJoursComplets(auditsRows) {
-    return agregerParJour(auditsRows)
-      .filter(j => {
-        const quartOk = q => j.quarts.some(x => String(x.quart) === q && x.litrageDisponible);
-        return j.litrageDisponible && quartOk('1') && quartOk('2') && (j.litrageGazole + j.litrageSp95 + j.litrageGnr) > 0;
-      })
-      .map(j => ({ date: j.date, go: j.litrageGazole, sp95: j.litrageSp95, gnr: j.litrageGnr }));
-  }
-
-  // Prix de vente moyen au litre, pondéré par les litres : à chaque jour, le tarif en vigueur
-  // (date_effet la plus récente ≤ jour, non terminé) de carburant_tarifs_achat. Information seule.
-  function prixMoyenPondere(tarifs, litresJours) {
-    const tarifPour = (carb, d) => {
-      let best = null;
-      (tarifs || []).forEach(t => {
-        if (t && t.carburant === carb && t.prix_vente_par_litre != null && t.date_effet <= d && (!t.date_fin || t.date_fin >= d)) {
-          if (!best || t.date_effet > best.date_effet) best = t;
-        }
-      });
-      return best ? Number(best.prix_vente_par_litre) : null;
-    };
-    let somme = 0, litres = 0, total = 0;
-    (litresJours || []).forEach(j => ['go', 'sp95', 'gnr'].forEach(c => {
-      const l = Number(j[c]) || 0;
-      total += l;
-      const px = tarifPour(c, j.date);
-      if (px !== null && l > 0) { somme += px * l; litres += l; }
-    }));
-    return litres > 0 ? { prix: somme / litres, litresCouverts: litres, litresTotal: total } : null;
+  // Prix moyen de vente mesuré : somme de vente_piste / somme des litres (gazole + SP95 + GNR), sur les quarts
+  // dont les trois litrages sont renseignés. C'est un fait mesuré : il suit les variations de prix, ce que
+  // le tarif d'achat (une seule ligne par carburant) ne peut pas faire. Information seule.
+  function prixMoyenMesure(auditsRows) {
+    let vente = 0, litres = 0, quarts = 0;
+    (auditsRows || []).forEach(r => {
+      if (!r || r.litrage_gazole == null || r.litrage_sp95 == null || r.litrage_gnr == null) return;
+      const l = (Number(r.litrage_gazole) || 0) + (Number(r.litrage_sp95) || 0) + (Number(r.litrage_gnr) || 0);
+      if (!(l > 0)) return;
+      vente += Number(r.vente_piste) || 0;
+      litres += l;
+      quarts++;
+    });
+    return litres > 0 ? { prix: vente / litres, litres, quarts } : null;
   }
 
   // ------------------------------------------------------------
@@ -1769,6 +1753,6 @@
     bornesPeriodeIndicateurs, joursLitresCompletsPiste, joursCaFdjComplets, resumerParJour, resumerMargeImport,
     quartsLitresPiste, quartsBoutique, quartsFdj, comparerQuarts,
     bornesReference, comparerPeriodes, joursExceptionnels, exclusionsPiste, exclusionsFdj,
-    compositionCalendrier, evaluerComparabilite, litresCarburantsJoursComplets, prixMoyenPondere,
+    compositionCalendrier, evaluerComparabilite, prixMoyenMesure,
   };
 })();
