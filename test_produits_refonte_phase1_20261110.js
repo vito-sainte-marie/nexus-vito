@@ -21,10 +21,10 @@ function extraire(src, signature) {
   throw new Error('accolade non fermée : ' + signature);
 }
 // Empreintes sha256 du texte des quatre fonctions gardées, prises sur `production` (blob 1b37da60).
-// construireProduitsLive : empreinte mise à jour par le lot 1 PR B (tendances : moyennes par jour, fraîcheur 21 j, plancher de volume) et calculerStatutSimplifie (une seule tendance par article, recommandation seulement si la comparaison est fiable) — calculerRangRayon reste identique ; construireProduitsLive porte aussi le décompte des périodes sans vente des articles en stock seul (lot 2 PR C, revue Guardian).
+// construireProduitsLive : empreinte mise à jour par le lot 1 PR B (tendances : moyennes par jour, fraîcheur 21 j, plancher de volume) et calculerStatutSimplifie (une seule tendance par article, recommandation seulement si la comparaison est fiable) — calculerRangRayon reste identique ; construireProduitsLive porte aussi le décompte des périodes sans vente des articles en stock seul (lot 2 PR C, revue Guardian) et l'indicateur connuParVentes de chaque ligne (arbitrage du 11/11 : Rupture probable exige des ventes).
 // Aucune dépendance à git : la CI en checkout superficiel les mesure sur la source de la branche.
 const EMPREINTES = {
-  'async function construireProduitsLive': 'ce21417f2b3b30b09669a7e0f2068b6f9a96f42dacc3a033082a436ccb9f79ed',
+  'async function construireProduitsLive': '63db954c60ce53748c807ec86839852d5f7d2513eba2939e8df259b2feb10b1b',
   'function calculerStatutSimplifie': '4e19b7405af3da68933a0c2abefe110cd8e507b189b492fb165c37f887997e23', // lot 2 PR C : enveloppe de NexusConseiller.statutProduit (règle unique, huit statuts)
   'function calculerRangRayon': '6438804858c5a4a80a5923f43952a506f4704a8058df05a158930ce5182379ed',
   'async function chargerStockGap': '3e8ed64835d600f50bedd8b4cfa8439f809a080cd74b3a77841ec0bdd426bc88' // lot 2 PR C, revue Guardian 6783561611 : la ligne de valeur du stock porte « estimation au PMA, relevé du … » (seule ligne modifiée)

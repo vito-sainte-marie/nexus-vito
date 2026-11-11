@@ -582,7 +582,7 @@ nexusRequireAuth().then(async employee => {
         pairDates: paire ? { debutT1: paire.precedente.debut, finT1: paire.precedente.fin, debutT2: paire.actuelle.debut, finT2: paire.actuelle.fin } : null,
         periode_debut: p.periode_debut, periode_fin: p.periode_fin,
         pct_contrib, tendance, tendance_statut: tendance ? tendance.statut : null, tendance_message: tendance ? tendance.message : null,
-        periodesSansVente: (p.ca || 0) > 0 ? 0 : periodesSansVente(cle),
+        periodesSansVente: (p.ca || 0) > 0 ? 0 : periodesSansVente(cle), connuParVentes: true,
         stock: stockDe(p.article), periodeTendance, source: null,
       };
     });
@@ -603,7 +603,7 @@ nexusRequireAuth().then(async employee => {
           pairDisponible: !!paire, pairEstPeriodeAffichee: false, pairDates: null,
           periode_debut: periodeAffichage.debut, periode_fin: periodeAffichage.fin,
           pct_contrib: null, tendance: null, tendance_statut: null, tendance_message: null,
-          periodesSansVente: periodesSansVente(cle), stock: stockDe(r.article), periodeTendance, source: `période ${libellePeriode(per)}`,
+          periodesSansVente: periodesSansVente(cle), connuParVentes: true, stock: stockDe(r.article), periodeTendance, source: `période ${libellePeriode(per)}`,
         });
       });
     });
@@ -620,7 +620,7 @@ nexusRequireAuth().then(async employee => {
         pct_contrib: null, tendance: null, tendance_statut: null, tendance_message: null,
         // Connu seulement par le stock : par construction (nom exact absent des périodes lues),
         // aucune vente sur l'ensemble des périodes complètes chargées.
-        periodesSansVente: completesLues.length, stock: stockDe(r.article), periodeTendance, source: `stock du ${fmtJourFr(r.releve_le)}`,
+        periodesSansVente: completesLues.length, connuParVentes: false, stock: stockDe(r.article), periodeTendance, source: `stock du ${fmtJourFr(r.releve_le)}`,
       });
     });
     return produits;

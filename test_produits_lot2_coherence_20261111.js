@@ -69,10 +69,14 @@ t('6 bis Limite de 30 jours : 29 j récent, 30 j non', () => {
   assert.strictEqual(st({ stock: { quantite: 0, releve_le: jourMoins(30) } }).cle, 'aucune-vente');
 });
 t('7 Rupture probable : sans vente et quantité ≤ 0 au dernier relevé', () => {
-  const r = st({ stock: { quantite: 0, releve_le: jourMoins(3) } });
+  const r = st({ connuParVentes: true, stock: { quantite: 0, releve_le: jourMoins(3) } });
   assert.strictEqual(r.cle, 'rupture-probable'); assert.strictEqual(r.niveau, 'a-verifier');
   assert.strictEqual(r.action, 'Vérifiez le stock et le réassort de Crème test.');
-  assert.strictEqual(st({ stock: { quantite: -2, releve_le: jourMoins(3) } }).cle, 'rupture-probable');
+  assert.strictEqual(st({ connuParVentes: true, stock: { quantite: -2, releve_le: jourMoins(3) } }).cle, 'rupture-probable');
+  // Arbitrage 11/11 : connu seulement par le stock (ou indicateur absent), quantité 0 = Aucune vente récente.
+  assert.strictEqual(st({ connuParVentes: false, stock: { quantite: 0, releve_le: jourMoins(3) } }).cle, 'aucune-vente');
+  assert.strictEqual(st({ stock: { quantite: 0, releve_le: jourMoins(3) } }).cle, 'aucune-vente');
+  assert.strictEqual(st({ connuParVentes: false, periodesSansVente: 2, stock: { quantite: 4, releve_le: jourMoins(3) } }).cle, 'dormant');
 });
 t('8 Sans signal particulier : ventes, aucune condition, neutre, sans action', () => {
   const r = st({ ca_t2: 100, pct_contrib: 0.05 });
@@ -201,6 +205,7 @@ function fabriquer() {
   const stock = [];
   for (let a = 0; a < 60; a++) stock.push({ site: 'nexus-station-test', categorie: 'Rayon ' + (a % 5), article: 'Article ' + a, code_barres: null, quantite_theorique: a % 2 ? 0 : 5, quantite_reelle: null, releve_le: '2026-11-0' + (1 + (a % 8)) });
   stock.push({ site: 'nexus-station-test', categorie: 'Stock', article: 'Biscuit seul en stock', code_barres: '3700000000024', quantite_theorique: 3, quantite_reelle: null, releve_le: '2026-11-02' });
+  stock.push({ site: 'nexus-station-test', categorie: 'Stock', article: 'Fiche catalogue à zéro', code_barres: null, quantite_theorique: 0, quantite_reelle: null, releve_le: '2026-11-02' });
   stock.push({ site: 'nexus-station-test', categorie: 'Stock', article: 'Vieux relevé', code_barres: null, quantite_theorique: 3, quantite_reelle: null, releve_le: '2026-06-02' });
   return { lignes, stock, periodes };
 }
@@ -263,7 +268,7 @@ function clientSimule(jeu, compteur) {
   assert.ok(sortie.lectures.products <= 4 * 1100, 'au plus 4 périodes lues (affichée, paire, deux complètes)');
   assert.ok(lues < ancien, 'chargement ciblé < lecture intégrale');
   assert.strictEqual(sortie.lectures.periodes <= 6, true);
-  assert.ok(sortie.lectures.stock_releves <= 61, 'relevé de plus de 30 jours jamais lu');
+  assert.ok(sortie.lectures.stock_releves <= 62, 'relevé de plus de 30 jours jamais lu');
   n++; console.log('✓ chargement ciblé : périodes utiles seulement, relevés de moins de 30 jours seulement');
 
   const parNom = {}; sortie.produits.forEach(p => { parNom[p.article] = p; });
@@ -275,6 +280,13 @@ function clientSimule(jeu, compteur) {
   assert.strictEqual(parNom['Biscuit seul en stock'].periodesSansVente, 2);
   assert.strictEqual(C.statutProduit(parNom['Biscuit seul en stock'], '2026-11-10').cle, 'dormant');
   n++; console.log('✓ article en stock seul, quantité > 0, relevé récent : Dormant');
+
+  // Arbitrage 11/11 : stock seul à zéro = Aucune vente récente ; connu par les ventes à zéro = Rupture probable.
+  assert.strictEqual(parNom['Fiche catalogue à zéro'].connuParVentes, false);
+  assert.strictEqual(C.statutProduit(parNom['Fiche catalogue à zéro'], '2026-11-10').cle, 'aucune-vente');
+  assert.strictEqual(parNom['Article 1'].connuParVentes, true);
+  assert.strictEqual(C.statutProduit(parNom['Article 1'], '2026-11-10').cle, 'rupture-probable');
+  n++; console.log('✓ stock seul à zéro : Aucune vente récente ; article vendu à zéro : Rupture probable');
 
   // Statuts de bout en bout sur le jeu simulé (affichée = 07/10→23/10, ventes sauf articles 0..49 depuis 3 périodes)
   const stat = nom => C.statutProduit(parNom[nom], '2026-11-10').cle;

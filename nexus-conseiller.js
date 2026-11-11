@@ -235,7 +235,8 @@
   // Entrée p : { article, categorie, ca_t2 (CA de la période affichée), pct_contrib, tendance
   //   (NexusPeriodes.tendanceArticle), periodesSansVente (nb de périodes complètes sans vente,
   //   lues sur les périodes chargées), stock: { quantite, releve_le 'AAAA-MM-JJ' } | null,
-  //   periodeTendance (texte, facultatif) }. aujourdhui : 'AAAA-MM-JJ' (jour de la station).
+  //   connuParVentes (booléen : l'article figure dans les ventes d'une période chargée ; faux = connu
+  //   seulement par le stock), periodeTendance (texte, facultatif) }. aujourdhui : 'AAAA-MM-JJ' (jour de la station).
   // Sortie : { cle, label, niveau ('conforme' | 'a-verifier' | null = neutre), action (texte brut
   //   ou null = aucun conseil d'action) }. Le texte est brut : l'appelant échappe.
   function ageJours(releveLe, aujourdhui) {
@@ -272,7 +273,9 @@
     const age = st ? ageJours(st.releve_le, aujourdhui) : null;
     const releveRecent = age !== null && age >= 0 && age < DUREE_RELEVE_STOCK_JOURS;
     const qte = st && st.quantite != null ? Number(st.quantite) : null;
-    if (releveRecent && qte !== null && qte <= 0) {
+    // Rupture probable exige des ventes connues (arbitrage de Frédéric, 11/11/2026) : une fiche de
+    // catalogue à zéro, connue seulement par le stock, n'est pas une rupture.
+    if (releveRecent && qte !== null && qte <= 0 && p.connuParVentes === true) {
       return { cle: 'rupture-probable', label: 'Rupture probable', niveau: 'a-verifier',
         action: `Vérifiez le stock et le réassort de ${a}.` };
     }
