@@ -129,7 +129,7 @@ t('jamais d\'horloge UTC : ni aujourdHuiISO ni filtrerJoursClos', () => {
 
 t('mentions imposées et lignes G1, G3, G5 présentes', () => {
   for (const s of ["Moyenne de la période d'import, pas une marge calculée jour par jour.",
-    "Chiffre d'affaires, pas la marge de la station.", "En attente d'arbitrage (G5)",
+    "Chiffre d'affaires, pas la marge de la station.", "Hors produits d'appel.", "En attente d'arbitrage (G5)",
     'Donnée absente', 'Historique insuffisant', 'Fait mesuré', 'Non qualifié', '(G1)', '(G3)']) {
     assert.ok(html.includes(s), 'manque : ' + s);
   }

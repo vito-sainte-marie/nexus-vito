@@ -366,9 +366,9 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
     remplirCarte('indBoutique', mi.etat === 'ok'
       ? { ok: true, valeur: 'Marge : ' + fmtPct(mi.taux) + ' du chiffre d\'affaires',
           total: 'Total : marge ' + fmtNb(mi.marge) + ' € sur ' + fmtNb(mi.ca) + ' € de CA · import du ' + fmtDate(mi.debut) + ' au ' + fmtDate(mi.fin),
-          note: "Moyenne de la période d'import, pas une marge calculée jour par jour." }
+          note: "Moyenne de la période d'import, pas une marge calculée jour par jour. Hors produits d'appel." }
       : { ok: false, valeur: ABSENT, total: 'Total : ' + ABSENT.toLowerCase(),
-          note: "Moyenne de la période d'import, pas une marge calculée jour par jour." });
+          note: "Moyenne de la période d'import, pas une marge calculée jour par jour. Hors produits d'appel." });
 
     // FDJ : chiffre d'affaires des jeux par jour, jours à deux quarts contrôlés.
     const fdj = rFdj.error ? { etat: 'absent', jours: 0 }
