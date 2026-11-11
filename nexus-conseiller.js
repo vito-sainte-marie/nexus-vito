@@ -201,6 +201,88 @@
   // celle de analyserEvolutionsPaire (seuilBase) — PR B, lot 1 Produits.
   const SEUIL_VOLUME_CA_EUR = 50;
 
+  // Durées validées par Frédéric (GO #160, 11/11/2026) : constantes exportées, jamais recopiées.
+  // « Produit dormant » : aucune vente sur au moins DUREE_DORMANT_PERIODES périodes complètes
+  // ET un relevé de stock de moins de DUREE_RELEVE_STOCK_JOURS jours avec une quantité > 0.
+  const DUREE_DORMANT_PERIODES = 2;
+  const DUREE_RELEVE_STOCK_JOURS = 30;
+  // Seuils d'affichage de la fiche produit (lot 2, cohérence) : valeurs INCHANGÉES, auparavant
+  // écrites en dur dans NEXUS-Produits-v1.html. Chaque palier est une borne basse (>=) pour la
+  // rentabilité, une borne haute (<) pour la rotation et le stock en jours.
+  const SEUILS_RENTABILITE = { tresRentable: 0.40, correcte: 0.25, faible: 0.10 };
+  const SEUILS_ROTATION_JOURS = { tresRapide: 7, rapide: 15, normale: 30, lente: 60 };
+  const SEUILS_STOCK_JOURS = { risqueRupture: 3, tendu: 7, maitrise: 45 };
+
+  function niveauRentabilite(margePct) {
+    const s = SEUILS_RENTABILITE;
+    return margePct >= s.tresRentable ? 'tres_rentable' : margePct >= s.correcte ? 'correcte'
+      : margePct >= s.faible ? 'faible' : 'insuffisante';
+  }
+  function niveauRotation(joursDeStock) {
+    if (joursDeStock === null || joursDeStock === undefined) return null;
+    const s = SEUILS_ROTATION_JOURS;
+    return joursDeStock < s.tresRapide ? 'tres_rapide' : joursDeStock < s.rapide ? 'rapide'
+      : joursDeStock < s.normale ? 'normale' : joursDeStock < s.lente ? 'lente' : 'tres_lente';
+  }
+  function niveauStock(joursDeStock) {
+    if (joursDeStock === null || joursDeStock === undefined) return null;
+    const s = SEUILS_STOCK_JOURS;
+    return joursDeStock < s.risqueRupture ? 'risque_rupture' : joursDeStock < s.tendu ? 'tendu'
+      : joursDeStock < s.maitrise ? 'maitrise' : 'surstock';
+  }
+
+  // Statut produit : UNE fonction, huit états, lue par tous les écrans qui les affichent.
+  // Entrée p : { article, categorie, ca_t2 (CA de la période affichée), pct_contrib, tendance
+  //   (NexusPeriodes.tendanceArticle), periodesSansVente (nb de périodes complètes sans vente,
+  //   lues sur les périodes chargées), stock: { quantite, releve_le 'AAAA-MM-JJ' } | null,
+  //   periodeTendance (texte, facultatif) }. aujourdhui : 'AAAA-MM-JJ' (jour de la station).
+  // Sortie : { cle, label, niveau ('conforme' | 'a-verifier' | null = neutre), action (texte brut
+  //   ou null = aucun conseil d'action) }. Le texte est brut : l'appelant échappe.
+  function ageJours(releveLe, aujourdhui) {
+    const m1 = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(releveLe || ''));
+    const m2 = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(aujourdhui || ''));
+    if (!m1 || !m2) return null;
+    return Math.round((Date.UTC(+m2[1], +m2[2] - 1, +m2[3]) - Date.UTC(+m1[1], +m1[2] - 1, +m1[3])) / 86400000);
+  }
+  function statutProduit(p, aujourdhui) {
+    const a = p.article;
+    const lang = LANGAGE_ACTION[typeActionPourCategorie(p.categorie)];
+    const ventes = Number(p.ca_t2) > 0;
+    if (ventes) {
+      if (p.pct_contrib != null && p.pct_contrib >= SEUIL_CONTRIBUTION_FORTE) {
+        return { cle: 'strategique', label: 'Produit stratégique', niveau: null, action: lang.recoAgir(a) };
+      }
+      const t = p.tendance || null;
+      if (t && !t.recommandable) {
+        return { cle: 'a-confirmer', label: 'Tendance à confirmer', niveau: null,
+          action: "Pas de recommandation tant que la comparaison n'est pas fiable. Les chiffres ci-dessus restent consultables." };
+      }
+      const evo = (t && t.recommandable) ? t.evolutionCA : null;
+      if (evo !== null && evo <= SEUIL_BAISSE) {
+        return { cle: 'surveiller', label: 'À surveiller', niveau: 'a-verifier', action: lang.recoBaisse(a) };
+      }
+      if (evo !== null && evo >= SEUIL_HAUSSE) {
+        const per = p.periodeTendance ? ` (${p.periodeTendance})` : '';
+        return { cle: 'en-progression', label: 'En progression', niveau: 'conforme', action: lang.recoHausse(a) + per };
+      }
+      return { cle: 'sans-signal', label: 'Sans signal particulier', niveau: null, action: null };
+    }
+    // Aucune vente sur la période affichée : article connu (stock ou période précédente).
+    const st = p.stock || null;
+    const age = st ? ageJours(st.releve_le, aujourdhui) : null;
+    const releveRecent = age !== null && age >= 0 && age < DUREE_RELEVE_STOCK_JOURS;
+    const qte = st && st.quantite != null ? Number(st.quantite) : null;
+    if (releveRecent && qte !== null && qte <= 0) {
+      return { cle: 'rupture-probable', label: 'Rupture probable', niveau: 'a-verifier',
+        action: `Vérifiez le stock et le réassort de ${a}.` };
+    }
+    if (releveRecent && qte !== null && qte > 0 && (p.periodesSansVente || 0) >= DUREE_DORMANT_PERIODES) {
+      return { cle: 'dormant', label: 'Produit dormant', niveau: 'a-verifier',
+        action: `Vérifiez la présence en rayon et le stock de ${a}. S'il reste sans vente, envisagez son déréférencement.` };
+    }
+    return { cle: 'aucune-vente', label: 'Aucune vente récente', niveau: null, action: null };
+  }
+
   // rowsBrut : lignes `products` déjà filtrées des produits d'appel (même
   // filtrage que partout ailleurs). Retourne le tableau de candidats — la
   // page appelante gère elle-même sa propre exclusion des candidate_id
@@ -1069,6 +1151,8 @@
   global.NexusConseiller = {
     typeActionPourCategorie, LANGAGE_ACTION, calculerCandidatsProduits,
     SEUIL_CONTRIBUTION_FORTE, SEUIL_HAUSSE, SEUIL_BAISSE, SEUIL_VOLUME_CA_EUR,
+    DUREE_DORMANT_PERIODES, DUREE_RELEVE_STOCK_JOURS, SEUILS_RENTABILITE, SEUILS_ROTATION_JOURS, SEUILS_STOCK_JOURS,
+    niveauRentabilite, niveauRotation, niveauStock, statutProduit,
     analyserProduitsStrategiques, analyserEvolutionsPaire,
     normaliserProduit, normaliserMarge, normaliserTempo, normaliserAdvisor,
     normaliserCaissePersonne, normaliserStockRayon, normaliserRappel,

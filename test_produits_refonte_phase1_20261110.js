@@ -24,10 +24,10 @@ function extraire(src, signature) {
 // construireProduitsLive : empreinte mise à jour par le lot 1 PR B (tendances : moyennes par jour, fraîcheur 21 j, plancher de volume) et calculerStatutSimplifie (une seule tendance par article, recommandation seulement si la comparaison est fiable) — calculerRangRayon et chargerStockGap restent identiques.
 // Aucune dépendance à git : la CI en checkout superficiel les mesure sur la source de la branche.
 const EMPREINTES = {
-  'async function construireProduitsLive': '95667337c3f079c4af41056c555cc776bf0df90d724121e59a7c1e4d21cd9f26',
-  'function calculerStatutSimplifie': '4c266d296712f0aa725f0a09ed5826170939875af78946a5fc6e2cf4110c9458', // lot 1 PR B sur production après PR A : tendance unique + esc() de la PR A conservé
+  'async function construireProduitsLive': '9dec841ee932a9c8bd840c54d3b37a0c0753880955adaa095a62876dd361c149',
+  'function calculerStatutSimplifie': '4e19b7405af3da68933a0c2abefe110cd8e507b189b492fb165c37f887997e23', // lot 2 PR C : enveloppe de NexusConseiller.statutProduit (règle unique, huit statuts)
   'function calculerRangRayon': '6438804858c5a4a80a5923f43952a506f4704a8058df05a158930ce5182379ed',
-  'async function chargerStockGap': 'e59c35cbce7871eec1f18724af1e56b6c1985a7f8fad062281daa183146a7c5b'
+  'async function chargerStockGap': '9f2a81b62082cb57a96e498d36d5c63cfb81f70ce1134bba3c1722954a05e457'
 };
 const empreinte = txt => crypto.createHash('sha256').update(txt).digest('hex');
 Object.keys(EMPREINTES).forEach(sig => {
@@ -42,11 +42,11 @@ t('la garde de fonctions rougit sur une fonction mutée', () => {
 
 // Aucun emoji de statut dans le rendu : seuls les trois libellés internes de calculerStatutSimplifie restent.
 const EMOJI = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B50}\u{2B06}\u{2B07}]/u;
-t('aucun emoji de statut hors des trois libellés internes', () => {
+t('aucun emoji de statut : l\'ancien calcul 🔥/📈/🟡 n\'existe plus', () => {
   const lignes = PAGE.split('\n');
   const fautives = lignes.map((l, i) => [i + 1, l]).filter(([, l]) => EMOJI.test(l));
   const internes = fautives.filter(([, l]) => /etat:\s*'(🔥 À AGIR|📈 OPPORTUNITÉ|🟡 À SURVEILLER)'/u.test(l));
-  assert.strictEqual(internes.length, 3, 'les trois emojis internes doivent rester');
+  assert.strictEqual(internes.length, 0, 'l\'ancien statut à emojis ne doit plus être calculé');
   assert.deepStrictEqual(fautives.filter(f => !internes.includes(f)).map(f => f[0]), []);
 });
 
