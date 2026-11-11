@@ -30,14 +30,12 @@ t('six jetons d\'activité, Nuit puis Jour', () => {
     assert.ok(new RegExp('--' + k + '-rgb:\\s*' + v).test(jour), k + ' rgb Jour');
 });
 
-t('opacités : bordure 32/30 %, halo 10/6 %, icône 14/10 %', () => {
-  const nuit = css.slice(0, css.indexOf(':root[data-theme="jour"]'));
-  const jour = css.slice(css.indexOf(':root[data-theme="jour"]'), css.indexOf('*{box-sizing'));
-  assert.ok(/--a-bord:\.32/.test(nuit) && /--a-glow:\.10/.test(nuit) && /--a-ico:\.14/.test(nuit));
-  assert.ok(/--a-bord:\.30/.test(jour) && /--a-glow:\.06/.test(jour) && /--a-ico:\.10/.test(jour));
-  assert.ok(/border-top:3px solid rgb\(var\(--c-rgb\)\)/.test(css), 'barre de 3 px');
-  assert.ok(/radial-gradient\(circle at 0 0,[^;]*transparent 60%\)/.test(css), 'halo en coin, évanoui à 60 %');
-  assert.ok(!/box-shadow|text-shadow|filter:\s*drop-shadow/.test(css.slice(css.indexOf('Lot « signature'), css.indexOf('/* Interaction :'))), 'pas d\'ombre portée');
+t('charte V4 : bordure pleine, pas de trait, pas de halo, pas de fond d\'icône', () => {
+  const m = css.match(/\.act, \.colonne\.act, \.tuile\.act\{([^}]*)\}/);
+  assert.ok(m && /border:1\.5px solid rgba\(var\(--c-rgb\), \.85\)/.test(m[1]), 'bordure pleine 1,5 px');
+  assert.ok(!/border-top:3px|radial-gradient|\.trait\b|--a-glow/.test(css), 'ni trait, ni halo');
+  assert.ok(!/box-shadow|text-shadow/.test(css.split('\n').filter(l => !/^\s*\.tuile\.disponible/.test(l)).join('\n')), 'pas d\'ombre hors survol des tuiles');
+  assert.ok(/\.ico\{[^}]*width:22px;[^}]*height:22px/.test(css) && !/\.ico\{[^}]*background/.test(css), 'icône 22 px sans fond');
 });
 
 t('chaque indicateur et chaque sous-carte portent la bonne classe', () => {
@@ -45,10 +43,8 @@ t('chaque indicateur et chaque sous-carte portent la bonne classe', () => {
     assert.ok(new RegExp('id="' + id + '"').test(sansScripts) && new RegExp('class="[^"]*\\bact\\b[^"]*\\ba-' + a + '\\b[^"]*" id="' + id + '"').test(sansScripts), id + ' / ' + a);
 });
 
-t('icône 32 px (28 px en sous-carte), SVG en ligne aria-hidden, nom écrit à côté', () => {
-  assert.ok(/\.ico\{[^}]*width:32px;[^}]*height:32px;[^}]*border-radius:9px/.test(css));
-  assert.ok(/\.colonne \.ico\{width:28px;\s*height:28px/.test(css));
-  for (const [id, a, nom] of [['indPiste', 'piste', 'Piste · Litres vendus'], ['indBoutique', 'boutique', 'Boutique · Marge commerciale'], ['indFdj', 'fdj', 'FDJ · CA des jeux'],
+t('icône 22 px, SVG en ligne aria-hidden, nom court écrit à côté', () => {
+  for (const [id, a, nom] of [['indPiste', 'piste', 'Piste'], ['indBoutique', 'boutique', 'Boutique'], ['indFdj', 'fdj', 'FDJ'],
     ['qLitres', 'piste', 'Litres'], ['qBoutique', 'boutique', 'CA boutique'], ['qFdj', 'fdj', 'CA FDJ']]) {
     const b = bloc(new RegExp('id="' + id + '"[\\s\\S]*?<h3>[^<]*</h3>'));
     assert.ok(b.includes('<use href="#i-' + a + '"/>'), id + ' icône ' + a);
@@ -86,9 +82,7 @@ t('les six tuiles : pastilles dans l\'ordre, bande partagée pour les croisées'
       assert.ok(!/bande/.test(corps));
     } else {
       assert.ok(!/\bact\b|\ba-/.test(cls), titre + ' : bordure neutre, sans halo');
-      const bande = corps.match(/<div class="bande"[^>]*>([\s\S]*?)<\/div>/);
-      assert.ok(bande, titre + ' bande');
-      assert.deepStrictEqual([...bande[1].matchAll(/class="a-(\w+)"/g)].map(m => m[1]), acts, titre + ' bande');
+      assert.ok(!/class="bande"/.test(corps), titre + ' : plus de bande visible (charte V4)');
     }
   });
 });
@@ -125,13 +119,8 @@ t('« En attente d\'arbitrage » : horloge ◷ avant chaque ligne d\'attente', (
   assert.ok(!/en attente d'arbitrage|\(G\d\)/i.test(sansScripts), 'code ou ancien libellé visible');
 });
 
-t('signature complète aussi sur .colonne.act et .tuile.act (spécificité relevée)', () => {
-  const m = css.match(/\.act, \.colonne\.act, \.tuile\.act\{([^}]*)\}/);
-  assert.ok(m, 'règle de signature non relevée en spécificité');
-  assert.ok(/border:1px solid rgba\(var\(--c-rgb\), var\(--a-bord\)\)/.test(m[1]), 'bordure teintée');
-  assert.ok(/border-top:3px solid rgb\(var\(--c-rgb\)\)/.test(m[1]), 'trait 3 px');
-  assert.ok(/radial-gradient\(circle at 0 0, rgba\(var\(--c-rgb\), var\(--a-glow\)\)/.test(m[1]), 'lueur');
-  // aucune règle .colonne{...} / .tuile{...} ultérieure ne doit repasser sur border/background sans la spécificité de .act
+t('charte complète aussi sur .colonne.act et .tuile.act (spécificité relevée)', () => {
+  assert.ok(/\.act, \.colonne\.act, \.tuile\.act\{/.test(css), 'règle relevée en spécificité');
   assert.ok(/class="tuile act a-piste"/.test(sansScripts), 'tuile simple Piste');
   assert.ok((sansScripts.match(/class="colonne act a-(piste|boutique|fdj)"/g) || []).length === 3);
 });
@@ -141,8 +130,8 @@ t('.evol : classe attente-g5 dans le balisage, horloge par CSS, JS intact', () =
   assert.ok(/\.attente-g5::before\{content:"◷ ";\}/.test(css));
 });
 
-t('valeur principale des indicateurs : 32 px gras quand mesurée, 15 px pour les états vides', () => {
-  assert.ok(/\.valeur \.nb\{[^}]*font-size:32px;[^}]*font-weight:700/.test(css));
+t('valeur principale des indicateurs : 30 px sans quand mesurée, 15 px pour les états vides', () => {
+  assert.ok(/\.valeur \.nb\{font-family:var\(--t-sans\); font-size:30px; font-weight:600/.test(css));
   assert.ok(/\n\.valeur\{[^}]*font-size:15px/.test(css), 'état vide à 15 px');
 });
 
@@ -152,7 +141,7 @@ t('flèche des analyses : toujours cyan NEXUS', () => {
 
 t('le JS de la page est inchangé (empreinte du bloc script)', () => {
   const h = crypto.createHash('sha256').update(scripts).digest('hex');
-  assert.strictEqual(h, '4e361c1bd7d53f658ca9d02282f93a065d3c7e11e96654883c44f97ff46ecc49');
+  assert.strictEqual(h, '73d5d4021919bb7bafb32c18f07bd4722f4954c2a9f576cfa08f61265cb41181');
 });
 
 t('nexus-tempo.js intact (aucune référence aux classes de signature)', () => {

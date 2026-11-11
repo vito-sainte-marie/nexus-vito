@@ -27,7 +27,7 @@
   --t-text:#EDF1F5; --t-mid:#9AA8B6; --t-cyan:#24D8E3; --t-green:#29C98A; --t-amber:#F5A12A; --t-bar2:#5B7A8E;
   --piste:#22C7B8; --boutique:#C47A55; --fdj:#A18BF2;
   --piste-rgb:34,199,184; --boutique-rgb:196,122,85; --fdj-rgb:161,139,242;
-  --a-bord:.32; --a-glow:.10; --a-ico:.14;
+  --a-ico:.14;
   --t-mono:'IBM Plex Mono',monospace; --t-sans:'IBM Plex Sans',sans-serif;
 }
 :root[data-theme="jour"]{
@@ -35,7 +35,7 @@
   --t-text:#0F172A; --t-mid:#475569; --t-cyan:#0B7285; --t-green:#047857; --t-amber:#B45309; --t-bar2:#94A3B8;
   --piste:#0F766E; --boutique:#7A4A3A; --fdj:#6246C9;
   --piste-rgb:15,118,110; --boutique-rgb:122,74,58; --fdj-rgb:98,70,201;
-  --a-bord:.30; --a-glow:.06; --a-ico:.10;
+  --a-ico:.10;
 }
 *{box-sizing:border-box; margin:0; padding:0;}
 html,body{background:var(--t-bg); color:var(--t-text); font-family:var(--t-sans); min-height:100vh;}
@@ -45,22 +45,22 @@ a{color:inherit;}
 
 .header{--bg:var(--t-bg); --panel:var(--t-panel); --line:var(--t-line); --cyan:var(--t-cyan); --text:var(--t-text);}
 .header .pills{position:relative;}
-.eyebrow{font-family:var(--t-mono); font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--t-cyan);}
+.eyebrow{font-family:var(--t-sans); font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--t-cyan);}
 .title{font-size:26px; font-weight:600; margin-top:4px;}
 .subtitle{font-size:14px; color:var(--t-mid); margin-top:4px;}
 .pills{display:flex; flex-wrap:wrap; gap:8px; margin-top:14px;}
-.pill{font-family:var(--t-mono); font-size:11.5px; padding:6px 12px; border-radius:20px; border:1px solid var(--t-line); background:var(--t-panel); color:var(--t-mid);}
+.pill{font-family:var(--t-sans); font-size:11.5px; padding:6px 12px; border-radius:20px; border:1px solid var(--t-line); background:var(--t-panel); color:var(--t-mid);}
 .pill.ambre{color:var(--t-amber); border-color:var(--t-amber); background:color-mix(in srgb, var(--t-amber) 12%, transparent);}
 .pill[hidden]{display:none;}
 
 .carte{background:var(--t-panel); border:1px solid var(--t-line); border-radius:14px; padding:18px;}
-.titre-section{font-family:var(--t-mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--t-mid); margin:28px 0 12px; display:flex; align-items:center; gap:10px;}
+.titre-section{font-family:var(--t-sans); font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--t-mid); margin:28px 0 12px; display:flex; align-items:center; gap:10px;}
 .titre-section::after{content:''; flex:1; height:1px; background:var(--t-line);}
 
 .enbref{border-color:var(--t-cyan); margin-top:18px;}
 .enbref p{font-size:14.5px; line-height:1.6;}
 
-.niveau{display:inline-block; font-family:var(--t-mono); font-size:10.5px; letter-spacing:.05em; text-transform:uppercase; padding:3px 9px; border-radius:20px; font-weight:600;}
+.niveau{display:inline-block; font-family:var(--t-sans); font-size:10.5px; letter-spacing:.05em; text-transform:uppercase; padding:3px 9px; border-radius:20px; font-weight:600;}
 .niveau.mesure{color:var(--t-green); background:color-mix(in srgb, var(--t-green) 13%, transparent);}
 .niveau.relation{color:var(--t-cyan); background:color-mix(in srgb, var(--t-cyan) 13%, transparent);}
 .niveau.vide-niveau{color:var(--t-mid); background:var(--t-raised); border:1px dashed var(--t-line);}
@@ -71,41 +71,38 @@ a{color:inherit;}
 .a-piste{--c-rgb:var(--piste-rgb);}
 .a-boutique{--c-rgb:var(--boutique-rgb);}
 .a-fdj{--c-rgb:var(--fdj-rgb);}
-.act, .colonne.act, .tuile.act{position:relative; border:1px solid rgba(var(--c-rgb), var(--a-bord)); border-top:3px solid rgb(var(--c-rgb));
-  background:radial-gradient(circle at 0 0, rgba(var(--c-rgb), var(--a-glow)), transparent 60%), var(--fond, var(--t-panel));}
+/* Charte V4 : cadre plein de 1,5 px à 85 % ; ni liseré haut, ni halo, ni fond teinté. */
+.act, .colonne.act, .tuile.act{position:relative; border:1.5px solid rgba(var(--c-rgb), .85); background:var(--fond, var(--t-panel));}
 .colonne.act{--fond:var(--t-raised);}
 .attente-g5::before{content:"◷ ";}
 /* valeur mesurée en grand ; états vides (Donnée absente, Historique insuffisant) gardent 15 px */
-.valeur .nb{font-size:32px; font-weight:700; color:var(--t-text); line-height:1.15;}
-.valeur .unite{font-size:15px; font-weight:400; color:var(--t-mid); margin-left:6px;}
+.valeur .nb{font-family:var(--t-sans); font-size:30px; font-weight:600; color:var(--t-text); line-height:1.15;}
+.valeur .unite{font-family:var(--t-sans); font-size:12.5px; font-weight:400; color:var(--t-mid); margin-left:6px;}
 .tete-act{display:flex; align-items:center; gap:10px; margin:10px 0 12px;}
 .tete-act h3{margin:0;}
-.ico{flex:0 0 auto; width:32px; height:32px; border-radius:9px; display:inline-flex; align-items:center; justify-content:center;
-  color:rgb(var(--c-rgb)); background:rgba(var(--c-rgb), var(--a-ico));}
-.ico svg{width:60%; height:60%;}
-.colonne .ico{width:28px; height:28px;}
+.ico{flex:0 0 auto; width:22px; height:22px; display:inline-flex; align-items:center; justify-content:center;
+  color:rgb(var(--c-rgb));}
+.ico svg{width:22px; height:22px;}
+.colonne .ico{width:22px; height:22px;}
 .act .q1{background:rgb(var(--c-rgb));}
 .act .q2{background:rgba(var(--c-rgb), .45);}
 .pastilles{display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px;}
-.pastille{display:inline-flex; align-items:center; gap:5px; font-family:var(--t-mono); font-size:10.5px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; padding:3px 9px 3px 6px; border-radius:20px;
-  color:rgb(var(--c-rgb)); background:rgba(var(--c-rgb), var(--a-ico));}
+.pastille{display:inline-flex; align-items:center; gap:5px; font-family:var(--t-sans); font-size:10.5px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; padding:3px 9px 3px 6px; border-radius:20px;
+  color:rgb(var(--c-rgb)); background:transparent; border:1px solid rgba(var(--c-rgb), .5);}
 .pastille svg{width:14px; height:14px;}
-.tuile.croisee{overflow:hidden;}
-.bande{display:flex; height:3px; margin:-16px -16px 13px;}
-.bande i{flex:1;}
-.bande .a-piste{background:rgb(var(--piste-rgb));}
-.bande .a-boutique{background:rgb(var(--boutique-rgb));}
-.bande .a-fdj{background:rgb(var(--fdj-rgb));}
+/* Carte croisée : cadre neutre, pastilles d'activité côte à côte, aucun liseré partagé. */
+.tuile.croisee{border-color:var(--t-line);}
 .attente-ico{margin-right:4px;}
 /* Découvertes : le mécanisme existe (classe act + a-… sur la carte, ou plusieurs .pastille côte à côte), mais les trois emplacements restent neutres tant qu'ils sont vides. */
 
 .indicateurs{display:grid; grid-template-columns:repeat(3,1fr); gap:14px; align-items:stretch;}
 .indicateur h3{font-size:13.5px; font-weight:600; margin:0;}
 .indicateur .tete-act{margin:8px 0 8px;}
-.periode{font-family:var(--t-mono); font-size:12px; color:var(--t-mid); margin-top:6px;}
-.valeur{font-family:var(--t-mono); font-size:15px; color:var(--t-mid); line-height:1.4;}
+.periode{font-family:var(--t-sans); font-size:12.5px; color:var(--t-mid); margin-top:6px;}
+.valeur{font-family:var(--t-sans); font-size:15px; color:var(--t-mid); line-height:1.4;}
 .colonne > .valeur{font-family:var(--t-sans); font-size:13px; color:var(--t-mid);}
-.total, .evol{font-family:var(--t-mono); font-size:12.5px; color:var(--t-mid); margin-top:6px;}
+.total, .evol{font-family:var(--t-sans); font-size:12.5px; color:var(--t-mid); margin-top:6px;}
+.evol{color:var(--t-text); font-weight:500;}
 .arbitrage{font-size:12px; line-height:1.5; color:var(--t-amber); margin-top:8px;}
 
 details.compar{margin-top:14px; background:var(--t-panel); border:1px solid var(--t-line); border-radius:14px;}
@@ -123,7 +120,7 @@ details.compar[open] summary::after{transform:rotate(180deg);}
 .indicateur > :last-child, .colonnes3 > .colonne > :last-child{margin-top:auto;}
 .quarts h3{font-size:13.5px; font-weight:600; margin:0 0 4px;}
 .barre{margin-top:12px;}
-.barre-etiquette{display:flex; justify-content:space-between; font-family:var(--t-mono); font-size:11.5px; color:var(--t-mid); margin-bottom:5px;}
+.barre-etiquette{display:flex; justify-content:space-between; font-family:var(--t-sans); font-size:12px; color:var(--t-mid); margin-bottom:5px;}
 .barre-piste{height:10px; border-radius:6px; background:var(--t-raised); border:1px solid var(--t-line); overflow:hidden;}
 .barre-remplie{height:100%; width:0; border-radius:6px;}
 .q1{background:var(--t-cyan);}
@@ -139,7 +136,7 @@ details.compar[open] summary::after{transform:rotate(180deg);}
 .decouvertes:not(:has(.decouverte:not(.vide))){display:block;}
 .decouverte h3{font-size:14px; font-weight:600; margin:10px 0 6px;}
 .decouverte .texte{font-size:13px; line-height:1.55; color:var(--t-mid);}
-.source{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); margin-top:10px;}
+.source{font-family:var(--t-sans); font-size:12px; color:var(--t-mid); margin-top:10px;}
 .preuves{display:inline-flex; align-items:center; min-height:44px; margin-top:6px; font-size:13px; color:var(--t-mid); opacity:.7; cursor:default;}
 
 .analyses{display:grid; grid-template-columns:repeat(3,1fr); gap:12px;}
@@ -168,7 +165,7 @@ details.compar[open] summary::after{transform:rotate(180deg);}
 footer{margin-top:32px; padding-top:18px; border-top:1px solid var(--t-line);}
 footer .regle{font-size:13.5px; color:var(--t-text);}
 footer .regle b{font-weight:600;}
-footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); margin-top:8px;}
+footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); margin-top:8px;}
 
 .reserve{padding:60px 20px; text-align:center; color:var(--t-mid);}
 
@@ -180,7 +177,42 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
   .fleche.masquee{display:none;}
   .title{font-size:22px;}
 }
+
+/* V4 : cartes allégées, fiche détaillée */
+[hidden]{display:none !important;}
+.evol-court{font-size:14px; font-weight:600; color:var(--t-text); margin:6px 0 0;}
+.constat{font-size:13px; color:var(--t-mid); margin:6px 0 0;}
+.ecart-quart{display:flex; align-items:baseline; gap:8px; margin:8px 0 12px;}
+.ecart-quart .nb{font-family:var(--t-sans); font-size:26px; font-weight:600; color:var(--t-text);}
+.ecart-quart .unite{font-size:12.5px; color:var(--t-mid);}
+.pied-carte{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:auto; padding-top:14px;}
+.couverture{font-size:12px; color:var(--t-mid);}
+.detail-btn{min-height:44px; min-width:44px; padding:0 10px; border:0; background:none; color:rgb(var(--c-rgb)); font:600 13px var(--t-sans); cursor:pointer; border-radius:8px;}
+.detail-btn:focus-visible, .fiche-fermer:focus-visible, .fiche h2:focus-visible{outline:2px solid var(--t-cyan); outline-offset:2px;}
+.fiche-fond{position:fixed; inset:0; z-index:50; background:rgba(0,0,0,.28);}
+.fiche{position:absolute; top:0; right:0; bottom:0; width:520px; max-width:100%; background:var(--t-panel); border-left:1px solid var(--t-line); overflow-y:auto; padding:20px 22px 28px; animation:ficheEntree .22s ease;}
+.fiche header{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px;}
+.fiche h2{font:600 18px var(--t-sans); margin:0; color:var(--t-text);}
+.fiche-fermer{min-width:44px; min-height:44px; border:1px solid var(--t-line); background:var(--t-raised); color:var(--t-text); border-radius:10px; font-size:16px; cursor:pointer;}
+.fiche-poignee{display:none;}
+.fiche details{border-top:1px solid var(--t-line); padding:10px 0;}
+.fiche summary{font:600 13.5px var(--t-sans); color:var(--t-text); cursor:pointer; min-height:44px; display:flex; align-items:center;}
+.fiche .total, .fiche .periode, .fiche .evol, .fiche .arbitrage, .fiche .valeur{margin:6px 0;}
+@keyframes ficheEntree{from{transform:translateX(24px); opacity:0;} to{transform:none; opacity:1;}}
+@keyframes ficheMontee{from{transform:translateY(24px); opacity:0;} to{transform:none; opacity:1;}}
+@media (max-width:767px){
+  .fiche{top:auto; left:0; width:100%; max-height:85vh; border-left:0; border-top:1px solid var(--t-line); border-radius:18px 18px 0 0; animation:ficheMontee .22s ease;}
+  .fiche-poignee{display:block; width:40px; height:4px; border-radius:2px; background:var(--t-line); margin:0 auto 12px;}
+}
+@media (prefers-reduced-motion: reduce){ .fiche{animation:none;} }
 </style>
+<div class="fiche-fond" id="ficheFond" hidden>
+  <div class="fiche" id="fiche" role="dialog" aria-modal="true" aria-labelledby="ficheTitre">
+    <div class="fiche-poignee" aria-hidden="true"></div>
+    <header><h2 id="ficheTitre" tabindex="-1"></h2><button type="button" class="fiche-fermer" id="ficheFermer" aria-label="Fermer la fiche">✕</button></header>
+    <div id="ficheCorps"></div>
+  </div>
+</div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
 <script src="nexus-auth.js?v=20260904-0104"></script>
@@ -220,31 +252,46 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
 
   <div class="titre-section">Trois indicateurs</div>
   <section class="indicateurs">
-    <article class="carte indicateur act a-piste" id="indPiste">
+    <article class="carte indicateur act a-piste" id="indPiste" data-titre="Piste · Litres vendus">
       <span class="niveau vide-niveau">Non qualifié</span>
-      <div class="tete-act"><span class="ico" aria-hidden="true"><svg aria-hidden="true"><use href="#i-piste"/></svg></span><h3>Piste · Litres vendus</h3></div>
+      <div class="tete-act"><span class="ico" aria-hidden="true"><svg aria-hidden="true"><use href="#i-piste"/></svg></span><h3>Piste</h3></div>
       <div class="valeur">Donnée en cours de branchement</div>
-      <div class="total">Total : donnée en cours de branchement</div>
-      <div class="periode">Période : donnée en cours de branchement</div>
-      <div class="evol attente-g5">Évolution : donnée en cours de branchement</div>
+      <div class="evol-court">Tendance non déterminée</div>
+      <div class="constat" hidden></div>
+      <div class="detail-source" hidden>
+        <div class="total">Total : donnée en cours de branchement</div>
+        <div class="periode">Période : donnée en cours de branchement</div>
+        <div class="evol attente-g5">Évolution : donnée en cours de branchement</div>
+      </div>
+      <div class="pied-carte"><span class="couverture"></span><button type="button" class="detail-btn" data-detail="indPiste" aria-haspopup="dialog">Détail ›</button></div>
     </article>
-    <article class="carte indicateur act a-boutique" id="indBoutique">
+    <article class="carte indicateur act a-boutique" id="indBoutique" data-titre="Boutique · Marge commerciale">
       <span class="niveau vide-niveau">Non qualifié</span>
-      <div class="tete-act"><span class="ico" aria-hidden="true"><svg aria-hidden="true"><use href="#i-boutique"/></svg></span><h3>Boutique · Marge commerciale</h3></div>
+      <div class="tete-act"><span class="ico" aria-hidden="true"><svg aria-hidden="true"><use href="#i-boutique"/></svg></span><h3>Boutique</h3></div>
       <div class="valeur">Donnée en cours de branchement</div>
-      <div class="total">Total : donnée en cours de branchement</div>
-      <div class="periode">Période : donnée en cours de branchement</div>
-      <div class="evol attente-g5">Évolution : donnée en cours de branchement</div>
-      <div class="arbitrage" data-arbitrage="G1"><span class="attente-ico" aria-hidden="true">◷</span>Marge quotidienne non disponible pour cette période<span id="horsAppel"></span></div>
+      <div class="evol-court">Tendance non déterminée</div>
+      <div class="constat" hidden></div>
+      <div class="detail-source" hidden>
+        <div class="total">Total : donnée en cours de branchement</div>
+        <div class="periode">Période : donnée en cours de branchement</div>
+        <div class="evol attente-g5">Évolution : donnée en cours de branchement</div>
+        <div class="arbitrage" data-arbitrage="G1"><span class="attente-ico" aria-hidden="true">◷</span>Marge quotidienne non disponible pour cette période<span id="horsAppel"></span></div>
+      </div>
+      <div class="pied-carte"><span class="couverture"></span><button type="button" class="detail-btn" data-detail="indBoutique" aria-haspopup="dialog">Détail ›</button></div>
     </article>
-    <article class="carte indicateur act a-fdj" id="indFdj">
+    <article class="carte indicateur act a-fdj" id="indFdj" data-titre="FDJ · CA des jeux">
       <span class="niveau vide-niveau">Non qualifié</span>
-      <div class="tete-act"><span class="ico" aria-hidden="true"><svg aria-hidden="true"><use href="#i-fdj"/></svg></span><h3>FDJ · CA des jeux</h3></div>
+      <div class="tete-act"><span class="ico" aria-hidden="true"><svg aria-hidden="true"><use href="#i-fdj"/></svg></span><h3>FDJ</h3></div>
       <div class="valeur">Donnée en cours de branchement</div>
-      <div class="total">Total : donnée en cours de branchement</div>
-      <div class="periode">Période : donnée en cours de branchement</div>
-      <div class="evol attente-g5">Évolution : donnée en cours de branchement</div>
-      <div class="arbitrage" data-arbitrage="G3"><span class="attente-ico" aria-hidden="true">◷</span>Commissions FDJ non renseignées</div>
+      <div class="evol-court">Tendance non déterminée</div>
+      <div class="constat" hidden></div>
+      <div class="detail-source" hidden>
+        <div class="total">Total : donnée en cours de branchement</div>
+        <div class="periode">Période : donnée en cours de branchement</div>
+        <div class="evol attente-g5">Évolution : donnée en cours de branchement</div>
+        <div class="arbitrage" data-arbitrage="G3"><span class="attente-ico" aria-hidden="true">◷</span>Commissions FDJ non renseignées</div>
+      </div>
+      <div class="pied-carte"><span class="couverture"></span><button type="button" class="detail-btn" data-detail="indFdj" aria-haspopup="dialog">Détail ›</button></div>
     </article>
   </section>
 
@@ -264,26 +311,38 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
   <div class="titre-section">Quarts et équipes</div>
   <section class="carte quarts" id="quarts">
     <div class="colonnes3">
-      <div class="colonne act a-piste" id="qLitres">
+      <div class="colonne act a-piste" id="qLitres" data-titre="Quarts · Litres">
         <div class="tete-act"><span class="ico" aria-hidden="true"><svg aria-hidden="true"><use href="#i-piste"/></svg></span><h3>Litres</h3></div>
+        <div class="ecart-quart"><span class="nb">—</span><span class="unite">quart 1 / quart 2</span></div>
         <div class="barre"><div class="barre-etiquette"><span>Quart 1</span><span class="valeur">—</span></div><div class="barre-piste"><div class="barre-remplie q1"></div></div></div>
         <div class="barre"><div class="barre-etiquette"><span>Quart 2</span><span class="valeur">—</span></div><div class="barre-piste"><div class="barre-remplie q2"></div></div></div>
-        <div class="valeur" style="margin-top:12px;">Donnée en cours de branchement</div>
+        <div class="detail-source" hidden>
+          <div class="valeur">Donnée en cours de branchement</div>
+        </div>
+        <div class="pied-carte"><span class="couverture"></span><button type="button" class="detail-btn" data-detail="qLitres" aria-haspopup="dialog">Détail ›</button></div>
       </div>
-      <div class="colonne act a-boutique" id="qBoutique">
+      <div class="colonne act a-boutique" id="qBoutique" data-titre="Quarts · CA boutique">
         <div class="tete-act"><span class="ico" aria-hidden="true"><svg aria-hidden="true"><use href="#i-boutique"/></svg></span><h3>CA boutique</h3></div>
+        <div class="ecart-quart"><span class="nb">—</span><span class="unite">quart 1 / quart 2</span></div>
         <div class="barre"><div class="barre-etiquette"><span>Quart 1</span><span class="valeur">—</span></div><div class="barre-piste"><div class="barre-remplie q1"></div></div></div>
         <div class="barre"><div class="barre-etiquette"><span>Quart 2</span><span class="valeur">—</span></div><div class="barre-piste"><div class="barre-remplie q2"></div></div></div>
-        <div class="valeur" style="margin-top:12px;">Donnée en cours de branchement</div>
-        <div class="arbitrage" data-arbitrage="G1"><span class="attente-ico" aria-hidden="true">◷</span>Marge par quart non disponible</div>
+        <div class="detail-source" hidden>
+          <div class="valeur">Donnée en cours de branchement</div>
+          <div class="arbitrage" data-arbitrage="G1"><span class="attente-ico" aria-hidden="true">◷</span>Marge par quart non disponible</div>
+        </div>
+        <div class="pied-carte"><span class="couverture"></span><button type="button" class="detail-btn" data-detail="qBoutique" aria-haspopup="dialog">Détail ›</button></div>
       </div>
-      <div class="colonne act a-fdj" id="qFdj">
+      <div class="colonne act a-fdj" id="qFdj" data-titre="Quarts · CA FDJ">
         <div class="tete-act"><span class="ico" aria-hidden="true"><svg aria-hidden="true"><use href="#i-fdj"/></svg></span><h3>CA FDJ</h3></div>
         <span class="niveau hypothese">Hypothèse</span>
+        <div class="ecart-quart"><span class="nb">—</span><span class="unite">quart 1 / quart 2</span></div>
         <div class="barre"><div class="barre-etiquette"><span>Quart 1</span><span class="valeur">—</span></div><div class="barre-piste"><div class="barre-remplie q1"></div></div></div>
         <div class="barre"><div class="barre-etiquette"><span>Quart 2</span><span class="valeur">—</span></div><div class="barre-piste"><div class="barre-remplie q2"></div></div></div>
-        <div class="valeur" style="margin-top:12px;">Donnée en cours de branchement</div>
         <div class="arbitrage" data-arbitrage="G4"><span class="attente-ico" aria-hidden="true">◷</span>Rattachement des tirages au quart à confirmer</div>
+        <div class="detail-source" hidden>
+          <div class="valeur">Donnée en cours de branchement</div>
+        </div>
+        <div class="pied-carte"><span class="couverture"></span><button type="button" class="detail-btn" data-detail="qFdj" aria-haspopup="dialog">Détail ›</button></div>
       </div>
     </div>
     <div class="pied-bloc">
@@ -325,12 +384,12 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
   <div class="titre-section">Analyses</div>
   <div class="analyses-wrap">
   <section class="analyses" id="analyses">
-    <a class="tuile croisee disponible" href="NEXUS-Tempo-v2-Quarts.html"><div class="bande" aria-hidden="true"><i class="a-piste"></i><i class="a-boutique"></i><i class="a-fdj"></i></div><div class="pastilles"><span class="pastille a-piste"><svg aria-hidden="true"><use href="#i-piste"/></svg>Piste</span><span class="pastille a-boutique"><svg aria-hidden="true"><use href="#i-boutique"/></svg>Boutique</span><span class="pastille a-fdj"><svg aria-hidden="true"><use href="#i-fdj"/></svg>FDJ</span></div><span class="t-titre">Le quart 1 vend-il plus que le quart 2 ?</span><span class="t-sous">Litres, boutique et FDJ, jour par jour</span></a>
+    <a class="tuile croisee disponible" href="NEXUS-Tempo-v2-Quarts.html"><div class="pastilles"><span class="pastille a-piste"><svg aria-hidden="true"><use href="#i-piste"/></svg>Piste</span><span class="pastille a-boutique"><svg aria-hidden="true"><use href="#i-boutique"/></svg>Boutique</span><span class="pastille a-fdj"><svg aria-hidden="true"><use href="#i-fdj"/></svg>FDJ</span></div><span class="t-titre">Le quart 1 vend-il plus que le quart 2 ?</span><span class="t-sous">Litres, boutique et FDJ, jour par jour</span></a>
     <div class="tuile act a-piste" aria-disabled="true"><div class="pastilles"><span class="pastille a-piste"><svg aria-hidden="true"><use href="#i-piste"/></svg>Piste</span></div><span class="t-titre">Comment se situent les pompistes ?</span><span class="t-sous">Écart à l'attendu de leur quart, sans classement</span><span class="prep">En préparation</span></div>
-    <div class="tuile croisee" aria-disabled="true"><div class="bande" aria-hidden="true"><i class="a-piste"></i><i class="a-boutique"></i><i class="a-fdj"></i></div><div class="pastilles"><span class="pastille a-piste"><svg aria-hidden="true"><use href="#i-piste"/></svg>Piste</span><span class="pastille a-boutique"><svg aria-hidden="true"><use href="#i-boutique"/></svg>Boutique</span><span class="pastille a-fdj"><svg aria-hidden="true"><use href="#i-fdj"/></svg>FDJ</span></div><span class="t-titre">Quels sont mes jours forts et faibles ?</span><span class="t-sous">Par activité, sur les mêmes semaines</span><span class="prep">En préparation</span></div>
-    <div class="tuile croisee" aria-disabled="true"><div class="bande" aria-hidden="true"><i class="a-piste"></i><i class="a-boutique"></i><i class="a-fdj"></i></div><div class="pastilles"><span class="pastille a-piste"><svg aria-hidden="true"><use href="#i-piste"/></svg>Piste</span><span class="pastille a-boutique"><svg aria-hidden="true"><use href="#i-boutique"/></svg>Boutique</span><span class="pastille a-fdj"><svg aria-hidden="true"><use href="#i-fdj"/></svg>FDJ</span></div><span class="t-titre">Quels mois me sont favorables ?</span><span class="t-sous">FDJ, litres et boutique, mois par mois</span><span class="prep">En préparation</span></div>
-    <div class="tuile croisee" aria-disabled="true"><div class="bande" aria-hidden="true"><i class="a-piste"></i><i class="a-boutique"></i><i class="a-fdj"></i></div><div class="pastilles"><span class="pastille a-piste"><svg aria-hidden="true"><use href="#i-piste"/></svg>Piste</span><span class="pastille a-boutique"><svg aria-hidden="true"><use href="#i-boutique"/></svg>Boutique</span><span class="pastille a-fdj"><svg aria-hidden="true"><use href="#i-fdj"/></svg>FDJ</span></div><span class="t-titre">Les vacances changent-elles mon activité ?</span><span class="t-sous">À jour de semaine égal</span><span class="prep">En préparation</span></div>
-    <div class="tuile croisee" aria-disabled="true"><div class="bande" aria-hidden="true"><i class="a-piste"></i><i class="a-boutique"></i></div><div class="pastilles"><span class="pastille a-piste"><svg aria-hidden="true"><use href="#i-piste"/></svg>Piste</span><span class="pastille a-boutique"><svg aria-hidden="true"><use href="#i-boutique"/></svg>Boutique</span></div><span class="t-titre">Quand la piste tourne, la boutique suit-elle ?</span><span class="t-sous">Relation jour par jour et par quart</span><span class="prep">En préparation</span></div>
+    <div class="tuile croisee" aria-disabled="true"><div class="pastilles"><span class="pastille a-piste"><svg aria-hidden="true"><use href="#i-piste"/></svg>Piste</span><span class="pastille a-boutique"><svg aria-hidden="true"><use href="#i-boutique"/></svg>Boutique</span><span class="pastille a-fdj"><svg aria-hidden="true"><use href="#i-fdj"/></svg>FDJ</span></div><span class="t-titre">Quels sont mes jours forts et faibles ?</span><span class="t-sous">Par activité, sur les mêmes semaines</span><span class="prep">En préparation</span></div>
+    <div class="tuile croisee" aria-disabled="true"><div class="pastilles"><span class="pastille a-piste"><svg aria-hidden="true"><use href="#i-piste"/></svg>Piste</span><span class="pastille a-boutique"><svg aria-hidden="true"><use href="#i-boutique"/></svg>Boutique</span><span class="pastille a-fdj"><svg aria-hidden="true"><use href="#i-fdj"/></svg>FDJ</span></div><span class="t-titre">Quels mois me sont favorables ?</span><span class="t-sous">FDJ, litres et boutique, mois par mois</span><span class="prep">En préparation</span></div>
+    <div class="tuile croisee" aria-disabled="true"><div class="pastilles"><span class="pastille a-piste"><svg aria-hidden="true"><use href="#i-piste"/></svg>Piste</span><span class="pastille a-boutique"><svg aria-hidden="true"><use href="#i-boutique"/></svg>Boutique</span><span class="pastille a-fdj"><svg aria-hidden="true"><use href="#i-fdj"/></svg>FDJ</span></div><span class="t-titre">Les vacances changent-elles mon activité ?</span><span class="t-sous">À jour de semaine égal</span><span class="prep">En préparation</span></div>
+    <div class="tuile croisee" aria-disabled="true"><div class="pastilles"><span class="pastille a-piste"><svg aria-hidden="true"><use href="#i-piste"/></svg>Piste</span><span class="pastille a-boutique"><svg aria-hidden="true"><use href="#i-boutique"/></svg>Boutique</span></div><span class="t-titre">Quand la piste tourne, la boutique suit-elle ?</span><span class="t-sous">Relation jour par jour et par quart</span><span class="prep">En préparation</span></div>
   </section>
   <button type="button" class="fleche masquee" id="flecheAnalyses" aria-label="Voir les analyses suivantes">›</button>
   </div>
@@ -365,12 +424,87 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
   const fmtDate = iso => iso ? iso.split('-').reverse().join('/') : '';
 
   // Remplit une carte : état 'ok' = Fait mesuré ; sinon Non qualifié, jamais d'estimation.
+  const detailExtra = {};
+  const evolCourt = cmp => (cmp && cmp.etat === 'ok' && cmp.pct !== null && cmp.pct !== undefined)
+    ? signePct(cmp.pct) + ' · ' + window.NexusTempo.libelleEvolution(cmp) : window.NexusTempo.libelleEvolution(cmp);
+  function habiller(id, o) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.querySelector('.evol-court').textContent = o.evol;
+    el.querySelector('.couverture').textContent = o.couverture || '';
+    const k = el.querySelector('.constat');
+    k.textContent = o.constat || ''; k.hidden = !o.constat;
+  }
+  // Constat de la carte Piste : le carburant retenu par la découverte, sans chiffre ; un seul, jamais une conclusion sur le seul pourcentage.
+  function constatPiste(ap) {
+    if (!ap || ap.etat !== 'ok' || !ap.retenue || !ap.retenue.carburant) return '';
+    const f = ap.carburants.find(x => x.cle === ap.retenue.carburant);
+    if (!f || !f.cmp) return '';
+    const lib = window.NexusTempo.libelleEvolution(f.cmp);
+    if (lib !== 'Baisse confirmée' && lib !== 'Hausse confirmée') return '';
+    let t = f.nom + (lib === 'Baisse confirmée' ? ' en recul' : ' en hausse');
+    const st = ap.carburants.find(x => x.cle !== f.cle && !x.horsService && x.cmp && window.NexusTempo.libelleEvolution(x.cmp) === 'Variation habituelle');
+    if (st) t += ', ' + (/^[A-Z]{2}/.test(st.nom) ? st.nom : st.nom.charAt(0).toLowerCase() + st.nom.slice(1)) + ' stable';
+    return t;
+  }
+  function fiabilite(cmp, unite) {
+    if (!cmp || cmp.etat !== 'ok') return [];
+    const l = [];
+    l.push('Écart entre les moyennes : ' + fmtNb(cmp.ecart) + ' ' + unite + ' par jour');
+    l.push('Erreur type : ' + fmtDec(cmp.erreurType, 1) + ' · variation habituelle si l\'écart est au plus 2 × l\'erreur type');
+    if (cmp.sans && cmp.sans.pct !== null && cmp.sans.dates && cmp.sans.dates.length) l.push('Sans le ' + cmp.sans.dates.map(fmtDateCourte).join(', le ') + ' : ' + signePct(cmp.sans.pct));
+    l.push((cmp.exceptionnels && cmp.exceptionnels.length) ? 'Journées exceptionnelles : ' + cmp.exceptionnels.map(x => fmtDateCourte(x.date) + ' (' + fmtNb(x.valeur) + ' ' + unite + ')').join(' ; ') : 'Aucune journée exceptionnelle');
+    return [{ titre: 'Fiabilité de la comparaison', lignes: l }];
+  }
+  // Fiche détaillée : tout ce que la carte ne montre plus, sans exception.
+  (function () {
+    const fond = document.getElementById('ficheFond'), fiche = document.getElementById('fiche');
+    const titre = document.getElementById('ficheTitre'), corps = document.getElementById('ficheCorps');
+    let retour = null;
+    const desktop = () => window.matchMedia('(min-width: 768px)').matches;
+    const section = (t, noeuds, ouverte) => {
+      const d = document.createElement('details'); if (ouverte) d.open = true;
+      const sm = document.createElement('summary'); sm.textContent = t; d.appendChild(sm);
+      noeuds.forEach(n => d.appendChild(n)); return d;
+    };
+    function ouvrir(id, bouton) {
+      const src = document.getElementById(id); if (!src) return;
+      retour = bouton; titre.textContent = src.dataset.titre || ''; corps.textContent = '';
+      const d = src.querySelector('.detail-source');
+      const clones = d ? [...d.childNodes].map(n => n.cloneNode(true)) : [];
+      clones.forEach(n => { if (n.removeAttribute) n.removeAttribute('hidden'); });
+      corps.appendChild(section('Chiffres et période', clones, true));
+      (detailExtra[id] || []).forEach(x => corps.appendChild(section(x.titre, x.lignes.map(t => noeud('p', 'total', t)), desktop())));
+      corps.appendChild(section('Calcul et sources', [
+        noeud('p', 'total', 'Moyennes par jour sur les jours complets ; aucune règle de calcul modifiée.'),
+        noeud('p', 'total', document.getElementById('piedSources').textContent)], desktop()));
+      fond.hidden = false; titre.focus();
+    }
+    function fermer() { fond.hidden = true; if (retour) retour.focus(); retour = null; }
+    document.addEventListener('click', e => {
+      const b = e.target.closest && e.target.closest('.detail-btn');
+      if (b) { ouvrir(b.dataset.detail, b); return; }
+      if (e.target === fond || e.target.closest('#ficheFermer')) fermer();
+    });
+    document.addEventListener('keydown', e => {
+      if (fond.hidden) return;
+      if (e.key === 'Escape') { e.preventDefault(); fermer(); return; }
+      if (e.key !== 'Tab') return;
+      const f = [...fiche.querySelectorAll('button, summary, [tabindex="-1"]')].filter(x => x.offsetParent !== null);
+      if (!f.length) return;
+      const i = f.indexOf(document.activeElement);
+      if (e.shiftKey && i <= 0) { e.preventDefault(); f[f.length - 1].focus(); }
+      else if (!e.shiftKey && i === f.length - 1) { e.preventDefault(); f[0].focus(); }
+    });
+  })();
+
   function remplirCarte(id, c) {
     const el = document.getElementById(id);
     if (!el) return;
     const niv = el.querySelector('.niveau');
     niv.textContent = c.ok ? 'Fait mesuré' : 'Non qualifié';
     niv.className = 'niveau ' + (c.ok ? 'mesure' : 'vide-niveau');
+    niv.hidden = !!c.ok;
     const v = el.querySelector('.valeur');
     if (c.nombre !== undefined) {
       v.textContent = '';
@@ -413,7 +547,7 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
       return { ok: false, valeur: 'Historique insuffisant',
         total: 'Jours complets : ' + r.jours + ' (minimum ' + r.seuil + ')', note: noteMention, periode };
     }
-    return { ok: true, nombre: fmtNb(r.moyenne) + (unite === '€' ? ' €' : ''), unite: (unite === '€' ? '' : unite + ' ') + 'par jour',
+    return { ok: true, nombre: fmtNb(r.moyenne) + ' ' + unite, unite: 'par jour',
       total: 'Total : ' + fmtNb(r.total) + ' ' + unite + ' sur ' + r.jours + ' jours complets', note: noteMention, periode };
   }
 
@@ -426,7 +560,7 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
     let t = signe(cmp.pct) + ' contre ' + fmtNb(cmp.moyenneReference) + (unite === '€' ? ' €' : ' ' + unite) + ' par jour (' +
       pluriel(cmp.nReference, 'jour complet', 'jours complets') + ', du ' + fmtDateCourte(bRef.debut) + ' au ' + fmtDateCourte(bRef.fin) + ')';
     if (cmp.sans && cmp.sans.pct !== null) t += ' (' + signe(cmp.sans.pct) + ' sans le ' + cmp.sans.dates.map(fmtDateCourte).join(', le ') + ')';
-    if (cmp.dansVariationHabituelle) t += ' · dans la variation habituelle';
+    t += ' · ' + window.NexusTempo.libelleEvolution(cmp);
     return t;
   }
 
@@ -448,15 +582,16 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
     const el = document.getElementById(id);
     if (!el) return;
     const barres = el.querySelectorAll('.barre');
-    const ligne = el.querySelector(':scope > .valeur');
+    const ligne = el.querySelector('.detail-source > .valeur');
+    const grand = el.querySelector('.ecart-quart .nb');
     let niv = el.querySelector('.niveau');
     const fixerNiveau = (txt, cls) => {
       if (!niv) { niv = document.createElement('span'); el.querySelector('.tete-act').insertAdjacentElement('afterend', niv); }
       if (id === 'qFdj' && cls === 'mesure') return; // la colonne FDJ garde « Hypothèse »
-      niv.textContent = txt; niv.className = 'niveau ' + cls;
+      niv.textContent = txt; niv.className = 'niveau ' + cls; niv.hidden = (cls === 'mesure');
     };
     const etiquette = (b, nom, q, texte) => {
-      b.querySelector('.barre-etiquette span').textContent = nom + (q ? ' · ' + q.effectif + ' quarts' : '');
+      b.querySelector('.barre-etiquette span').textContent = nom;
       b.querySelector('.barre-etiquette .valeur').textContent = texte;
     };
     if (r.etat !== 'ok') {
@@ -475,7 +610,8 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
     });
     const ecart = r.ecartPct === null ? 'écart non calculable'
       : 'Quart 1 : ' + ((Math.round(r.ecartPct * 10) / 10) > 0 ? '+' : (Math.round(r.ecartPct * 10) / 10) < 0 ? '−' : '') + Math.abs(Math.round(r.ecartPct * 10) / 10).toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' % par rapport au quart 2';
-    ligne.textContent = ecart + ' · semaines où Q1 dépasse Q2 : ' + r.semainesQ1Depasse + ' sur ' + r.semainesCommunes;
+    grand.textContent = r.ecartPct === null ? 'Non calculable' : signePct(r.ecartPct / 100);
+    ligne.textContent = 'Quart 1 : ' + r.q1.effectif + ' quarts · Quart 2 : ' + r.q2.effectif + ' quarts · ' + ecart + ' · semaines où Q1 dépasse Q2 : ' + r.semainesQ1Depasse + ' sur ' + r.semainesCommunes;
     fixerNiveau('Fait mesuré', 'mesure');
   }
 
@@ -583,11 +719,13 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
       apPiste.carburants.forEach(f => {
         if (f.horsService) { bloc.appendChild(noeud('p', 'total', f.nom + ' 0 L')); return; }
         const pts = (f.partE !== null && f.partR !== null) ? ' · part ' + fmtDec(f.partE * 100, 1) + ' % contre ' + fmtDec(f.partR * 100, 1) + ' %' : '';
-        const ev = f.cmp && f.cmp.etat === 'ok' ? ' · ' + signePct(f.cmp.pct) + (f.cmp.dansVariationHabituelle ? ' (dans la variation habituelle)' : '') : '';
+        const ev = f.cmp && f.cmp.etat === 'ok' ? ' · ' + signePct(f.cmp.pct) + ' · ' + T.libelleEvolution(f.cmp) : '';
         bloc.appendChild(noeud('p', 'total', f.nom + ' : ' + fmtNb(f.moyenneE) + ' L par jour' + pts + ev));
       });
-      el.appendChild(bloc);
+      (el.querySelector('.detail-source') || el).appendChild(bloc);
     })();
+    habiller('indPiste', {
+      evol: evolCourt(cmpPiste), couverture: piste.jours + '/' + bornes.jours + ' j', constat: constatPiste(apPiste) });
 
     // Boutique : moyenne de la période d'import affichée, pas une marge jour par jour.
     const mi = (rProd.error || rApp.error) ? { etat: 'absent' }
@@ -601,9 +739,11 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
       if (mi.debut !== bornes.debut || mi.fin !== bornes.fin) perBoutique += ' · Période différente des litres et de la FDJ';
     }
     remplirCarte('indBoutique', mi.etat === 'ok'
-      ? { ok: true, nombre: fmtNb(mi.marge) + ' €', unite: '',
+      ? { ok: true, nombre: fmtNb(mi.marge) + ' €', unite: 'marge du ' + fmtDateCourte(mi.debut) + ' au ' + fmtDateCourte(mi.fin),
           total: "Marge de la période d'import · " + fmtPct(mi.taux), periode: perBoutique }
       : { ok: false, valeur: ABSENT, total: 'Total : ' + ABSENT.toLowerCase() });
+    habiller('indBoutique', { evol: mi.etat === 'ok' ? fmtPct(mi.taux) + ' · de taux de marge' : 'Tendance non déterminée',
+      couverture: mi.etat === 'ok' ? pluriel(Math.round((Date.parse(mi.fin) - Date.parse(mi.debut)) / 86400000) + 1, 'j', 'j') + ' d\'import' : '' });
 
     // FDJ : chiffre d'affaires des jeux par jour, jours à deux quarts contrôlés.
     const fdj = rFdj.error ? { etat: 'absent', jours: 0 }
@@ -613,7 +753,11 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
     const cmpFdj = refOk && !rFdj.error ? T.comparerPeriodes(joursFdjE, joursFdjR, bornes, bRef) : null;
     const carteFdj = carteJours(fdj, '€', "Chiffre d'affaires, pas la marge de la station.", periodeJours(fdj.jours, bornes.jours, 'un quart non contrôlé'));
     if (cmpFdj) carteFdj.evolution = ligneEvolution(cmpFdj, '€', bRef);
+    if (carteFdj.ok) carteFdj.unite = 'CA par jour';
     remplirCarte('indFdj', carteFdj);
+    habiller('indFdj', { evol: evolCourt(cmpFdj), couverture: fdj.jours + '/' + bornes.jours + ' j' });
+    detailExtra.indPiste = fiabilite(cmpPiste, 'L');
+    detailExtra.indFdj = fiabilite(cmpFdj, '€');
 
     // Comparabilité (G5, G9) : lecture seule, aucune conclusion tirée d'une période peu comparable.
     if (refOk && !rCal.error) {
@@ -680,10 +824,11 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
         if (r.etat !== 'ok') return;
         bloc.appendChild(noeud('p', 'total', c.nom + ' : quart 1 ' + fmtNb(r.q1.moyenne) + ' L · quart 2 ' + fmtNb(r.q2.moyenne) + ' L'));
       });
-      if (bloc.childNodes.length) el.appendChild(bloc);
+      if (bloc.childNodes.length) (el.querySelector('.detail-source') || el).appendChild(bloc);
     })();
     remplirQuarts('qBoutique', T.comparerQuarts(rAud.error ? null : T.quartsBoutique(rAud.data), bornes), '€');
     remplirQuarts('qFdj', T.comparerQuarts(rFacts.error ? null : T.quartsFdj(rFacts.data), bornes), '€');
+    ['qLitres', 'qBoutique', 'qFdj'].forEach(i => { const c = document.querySelector('#' + i + ' .couverture'); if (c) c.textContent = bornes.jours + ' j étudiés'; });
 
     // Découvertes : même fenêtre, mêmes jours complets et mêmes critères que les cartes ci-dessus.
     if (!rAud.error && !rAudRef.error) {
@@ -703,11 +848,11 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
           const autres = ap.carburants.filter(f => !f.horsService && f.cle !== fcle.cle && f.cmp && f.cmp.etat === 'ok')
             .map(f => f.nom + ' : ' + fmtNb(f.cmp.moyenneEtudiee) + ' L contre ' + fmtNb(f.cmp.moyenneReference) + ' L');
           if (autres.length) lignes.push(autres.join(' · '));
-          lignes.push('Total des litres : ' + signePct(ap.total.cmp.pct) + (ap.total.claire ? '' : ' (dans la variation habituelle)'));
+          lignes.push('Total des litres : ' + signePct(ap.total.cmp.pct) + ' · ' + T.libelleEvolution(ap.total.cmp));
           lignes.push('Répartition : ' + repart);
         } else if (r0.type === 'repartition' && fcle) {
           titre = 'Répartition des litres : ' + fcle.nom + ' ' + (r0.points < 0 ? '−' : '+') + fmtDec(Math.abs(r0.points), 1) + ' point';
-          lignes = ['Répartition : ' + repart, 'Total des litres : ' + signePct(ap.total.cmp.pct) + (ap.total.claire ? '' : ' (dans la variation habituelle)')];
+          lignes = ['Répartition : ' + repart, 'Total des litres : ' + signePct(ap.total.cmp.pct) + ' · ' + T.libelleEvolution(ap.total.cmp)];
         } else {
           titre = 'Litres ' + sens(ap.total.cmp.ecart) + ' de ' + lj(ap.total.cmp.ecart) + ' (' + signePct(ap.total.cmp.pct) + ')';
           lignes = [ligneCmp('Total des litres', ap.total, 0, true), 'Répartition : ' + repart];

@@ -1995,6 +1995,13 @@
     { id: 'ponts', nom: 'Ponts calendaires', statut: 'connectee' },
   ];
 
+  // Vocabulaire d'évolution (lot V4) : fonction pure, jamais de conclusion sur le seul pourcentage.
+  function libelleEvolution(cmp) {
+    if (!cmp || cmp.etat !== 'ok' || cmp.pct === null || cmp.pct === undefined) return 'Tendance non déterminée';
+    if (cmp.dansVariationHabituelle) return 'Variation habituelle';
+    return cmp.ecart < 0 ? 'Baisse confirmée' : cmp.ecart > 0 ? 'Hausse confirmée' : 'Variation habituelle';
+  }
+
   window.NexusTempo = {
     SEUILS, NOM_JOURS, NOM_JOURS_COURT, NOM_MOIS, LITRAGE_INDISPONIBLE, VALORISATION_INDISPONIBLE, SOURCES_DONNEES, COORDONNEES_STATION,
     agregerParJour, filtrerJoursClos, regrouperParJourSemaine, calculerClassement,
@@ -2016,5 +2023,6 @@
     bornesReference, comparerPeriodes, joursExceptionnels, exclusionsPiste, exclusionsFdj,
     compositionCalendrier, evaluerComparabilite, prixMoyenMesure,
     joursCaPiste, joursCaBoutique, analysePiste, departagerDepassement, joursLitresCarburant, quartsLitresCarburant, horsServiceCarburant, CARBURANTS, JOURS_HORS_SERVICE, SEUIL_PART_POINTS, K_DEPASSEMENT, correlationResidus, relationBoutiqueFdj, rapportFdjQuart1, SEUIL_RELATION_JOURS,
+    libelleEvolution,
   };
 })();
