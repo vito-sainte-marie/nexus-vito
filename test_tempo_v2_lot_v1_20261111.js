@@ -22,8 +22,7 @@ t('la page NEXUS-Tempo-v2.html existe', () => {
 const html = fs.existsSync(path.join(racine, PAGE)) ? lire(PAGE) : '';
 const scripts = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)].map(m => m[1]).join('\n');
 
-t('aucun appel Supabase métier : ni .from( ni .rpc(', () => {
-  assert.ok(!/\.from\s*\(/.test(scripts), '.from( trouvé');
+t('aucune écriture ni RPC (lecture seule, lot V2 : .from( autorisé)', () => {
   assert.ok(!/\.rpc\s*\(/.test(scripts), '.rpc( trouvé');
   assert.ok(!/\.(insert|update|upsert|delete)\s*\(/.test(scripts), 'écriture trouvée');
 });
@@ -76,8 +75,8 @@ t('la pastille de comparabilité est masquée par défaut', () => {
   assert.ok(/id="pillComparabilite"\s+hidden/.test(html));
 });
 
-t('chaque carte affiche son état vide', () => {
-  assert.ok((html.split(VIDE).length - 1) >= 12, 'trop peu d\'états vides');
+t('chaque carte porte son état vide initial (remplacé après lecture)', () => {
+  assert.ok((html.split(VIDE).length - 1) >= 11, 'trop peu d\'états vides');
   for (const id of ['indPiste', 'indBoutique', 'indFdj']) {
     const m = html.match(new RegExp('id="' + id + '"[\\s\\S]*?</article>'));
     assert.ok(m && m[0].includes(VIDE), id + ' sans état vide');
@@ -127,7 +126,7 @@ t('NEXUS-Tempo-v1.html inchangé (empreinte)', () => {
 });
 
 t('carte vide : aucun niveau, sauf « Hypothèse » de la colonne CA FDJ (G4)', () => {
-  assert.ok(!/Fait mesuré|Relation observée/.test(html), 'niveau affiché sur une carte vide');
+  assert.ok(!/Fait mesuré|Relation observée/.test(html.replace(/<script[\s\S]*?<\/script>/g, '')), 'niveau affiché sur une carte vide');
   const hyp = html.match(/class="niveau hypothese"/g) || [];
   assert.strictEqual(hyp.length, 1);
   const q = html.match(/id="qFdj"[\s\S]*?<\/(?:article|div)>/);

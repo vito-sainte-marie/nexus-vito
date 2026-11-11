@@ -123,6 +123,9 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
 <script src="nexus-icones.js?v=20260904-0104"></script>
 <script src="nexus-desktop.js?v=20260904-0104"></script>
 <script src="nexus-banniere-station.js"></script>
+<script src="nexus-jours-feries.js?v=20261106-0100"></script>
+<script src="nexus-tempo.js?v=20261106-0200"></script>
+<script src="nexus-periodes.js?v=20260904-0104"></script>
 </head>
 <body>
 <div class="app" id="app">
@@ -268,9 +271,55 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
 </div>
 
 <script>
-  // Lot V1 : la seule interaction avec Supabase est la garde de session
-  // (nexusRequireAuth). Aucune lecture métier, aucune écriture.
-  nexusRequireAuth().then(employee => {
+  // Lot V2, partie 1 : trois indicateurs, LECTURE SEULE, filtrés par le site de
+  // la session. Aucune écriture, aucune RPC. Calculs dans nexus-tempo.js.
+  async function fetchAllRows(builderFactory, pageSize = 1000) {
+    let toutes = [];
+    let from = 0;
+    while (true) {
+      const { data, error } = await builderFactory().range(from, from + pageSize - 1);
+      if (error) return { data: null, error };
+      toutes = toutes.concat(data || []);
+      if (!data || data.length < pageSize) break;
+      from += pageSize;
+    }
+    return { data: toutes, error: null };
+  }
+
+  const ABSENT = 'Donnée absente';
+  const fmtNb = n => Math.round(n).toLocaleString('fr-FR');
+  const fmtPct = x => (x * 100).toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' %';
+  const fmtDate = iso => iso ? iso.split('-').reverse().join('/') : '';
+
+  // Remplit une carte : état 'ok' = Fait mesuré ; sinon Non qualifié, jamais d'estimation.
+  function remplirCarte(id, c) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const niv = el.querySelector('.niveau');
+    niv.textContent = c.ok ? 'Fait mesuré' : 'Non qualifié';
+    niv.className = 'niveau ' + (c.ok ? 'mesure' : 'vide-niveau');
+    el.querySelector('.valeur').textContent = c.valeur;
+    el.querySelector('.total').textContent = c.total;
+    el.querySelector('.evol').textContent = "Évolution : En attente d'arbitrage (G5)";
+    if (c.note) {
+      const n = document.createElement('div');
+      n.className = 'total';
+      n.textContent = c.note;
+      el.querySelector('.evol').insertAdjacentElement('afterend', n);
+    }
+  }
+
+  function carteJours(r, unite, noteMention) {
+    if (r.etat === 'absent') return { ok: false, valeur: ABSENT, total: 'Total : ' + ABSENT.toLowerCase(), note: noteMention };
+    if (r.etat === 'insuffisant') {
+      return { ok: false, valeur: 'Historique insuffisant',
+        total: 'Jours complets : ' + r.jours + ' (minimum ' + r.seuil + ')', note: noteMention };
+    }
+    return { ok: true, valeur: fmtNb(r.moyenne) + ' ' + unite + ' par jour',
+      total: 'Total : ' + fmtNb(r.total) + ' ' + unite + ' sur ' + r.jours + ' jours complets', note: noteMention };
+  }
+
+  nexusRequireAuth().then(async employee => {
     if (!employee) return;
     if (!nexusEstManager(employee)) {
       document.getElementById('app').innerHTML = '<div class="reserve">Cet écran est réservé aux managers.</div>';
@@ -283,6 +332,55 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
     } catch (e) {}
     const nomSite = employee.site_nom || employee.site_name || '';
     if (nomSite) document.getElementById('pillSite').textContent = nomSite;
+
+    const siteId = employee.site_id;
+    const T = window.NexusTempo;
+    const bornes = T.bornesPeriodeIndicateurs();
+
+    // Lectures (réutilisées de Tempo v1, Capital/Marge+ et FDJ Analyse).
+    const [rAud, rProd, rApp, rFdj] = await Promise.all([
+      fetchAllRows(() => nexusClient.from('audits_caisse')
+        .select('date, quart, litrage_gazole, litrage_sp95, litrage_gnr')
+        .eq('site', siteId).gte('date', bornes.debut).lte('date', bornes.fin).order('date', { ascending: true })),
+      fetchAllRows(() => nexusClient.from('products')
+        .select('categorie, article, ca, marge, periode_debut, periode_fin')
+        .eq('site', siteId)),
+      nexusClient.from('produits_appel').select('article').eq('site', siteId),
+      fetchAllRows(() => nexusClient.from('view_fdj_daily_summary')
+        .select('date, nb_quarts_controles, ca_grattage, caisse_tirages')
+        .eq('site', siteId).gte('date', bornes.debut).lte('date', bornes.fin).order('date', { ascending: true })),
+    ]);
+    if (rAud.error) console.error('Chargement audits_caisse:', rAud.error);
+    if (rProd.error) console.error('Chargement products:', rProd.error);
+    if (rApp.error) console.error('Chargement produits_appel:', rApp.error);
+    if (rFdj.error) console.error('Chargement view_fdj_daily_summary:', rFdj.error);
+
+    // Piste : litres GO + SP95 + GNR, jours complets uniquement.
+    const piste = rAud.error ? { etat: 'absent', jours: 0 }
+      : T.resumerParJour(T.joursLitresCompletsPiste(rAud.data), bornes);
+    remplirCarte('indPiste', carteJours(piste, 'L'));
+
+    // Boutique : moyenne de la période d'import affichée, pas une marge jour par jour.
+    const mi = (rProd.error || rApp.error) ? { etat: 'absent' }
+      : T.resumerMargeImport(rProd.data, (rApp.data || []).map(r => r.article), NexusPeriodes.analyserPeriodes);
+    remplirCarte('indBoutique', mi.etat === 'ok'
+      ? { ok: true, valeur: 'Marge : ' + fmtPct(mi.taux) + ' du chiffre d\'affaires',
+          total: 'Total : marge ' + fmtNb(mi.marge) + ' € sur ' + fmtNb(mi.ca) + ' € de CA · import du ' + fmtDate(mi.debut) + ' au ' + fmtDate(mi.fin),
+          note: "Moyenne de la période d'import, pas une marge calculée jour par jour." }
+      : { ok: false, valeur: ABSENT, total: 'Total : ' + ABSENT.toLowerCase(),
+          note: "Moyenne de la période d'import, pas une marge calculée jour par jour." });
+
+    // FDJ : chiffre d'affaires des jeux par jour, jours à deux quarts contrôlés.
+    const fdj = rFdj.error ? { etat: 'absent', jours: 0 }
+      : T.resumerParJour(T.joursCaFdjComplets(rFdj.data), bornes);
+    remplirCarte('indFdj', carteJours(fdj, '€', "Chiffre d'affaires, pas la marge de la station."));
+
+    document.getElementById('pillPeriode').textContent = 'Période étudiée : du ' + fmtDate(bornes.debut) + ' au ' + fmtDate(bornes.fin) +
+      ' · jours retenus : piste ' + piste.jours + ', FDJ ' + fdj.jours;
+    const tz = 'America/Martinique';
+    const quand = new Intl.DateTimeFormat('fr-FR', { timeZone: tz, dateStyle: 'short', timeStyle: 'short' }).format(new Date());
+    document.getElementById('piedSources').textContent =
+      'Sources : audits_caisse (litres) · products et produits_appel (marge) · view_fdj_daily_summary (FDJ) · lecture seule · calculé le : ' + quand + ' (heure station)';
   });
 
   // Flèche des analyses (mobile) : signale que la rangée continue ; un toucher avance d'une tuile.
