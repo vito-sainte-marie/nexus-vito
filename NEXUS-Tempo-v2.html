@@ -573,6 +573,21 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
     const cartePiste = carteJours(piste, 'L', undefined, periodeJours(piste.jours, bornes.jours, 'quart ou litrage manquant'));
     if (cmpPiste) cartePiste.evolution = ligneEvolution(cmpPiste, 'L', bRef);
     remplirCarte('indPiste', cartePiste);
+    const apPiste = (refOk && !rAud.error && !rAudRef.error) ? T.analysePiste(rAud.data, rAudRef.data, bornes, bRef) : null;
+    (function () {
+      const el = document.getElementById('indPiste');
+      if (!el) return;
+      el.querySelectorAll('.carb-lignes').forEach(n => n.remove());
+      if (!apPiste || apPiste.etat !== 'ok') return;
+      const bloc = noeud('div', 'carb-lignes');
+      apPiste.carburants.forEach(f => {
+        if (f.horsService) { bloc.appendChild(noeud('p', 'total', f.nom + ' 0 L · hors service')); return; }
+        const pts = (f.partE !== null && f.partR !== null) ? ' · part ' + fmtDec(f.partE * 100, 1) + ' % contre ' + fmtDec(f.partR * 100, 1) + ' %' : '';
+        const ev = f.cmp && f.cmp.etat === 'ok' ? ' · ' + signePct(f.cmp.pct) + (f.cmp.dansVariationHabituelle ? ' (dans la variation habituelle)' : '') : '';
+        bloc.appendChild(noeud('p', 'total', f.nom + ' : ' + fmtNb(f.moyenneE) + ' L par jour' + pts + ev));
+      });
+      el.appendChild(bloc);
+    })();
 
     // Boutique : moyenne de la période d'import affichée, pas une marge jour par jour.
     const mi = (rProd.error || rApp.error) ? { etat: 'absent' }
@@ -654,27 +669,60 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
 
     // Quarts et équipes : moyennes par quart, Q1 et Q2 séparés.
     remplirQuarts('qLitres', T.comparerQuarts(rAud.error ? null : T.quartsLitresPiste(rAud.data), bornes), 'L');
+    (function () {
+      const el = document.getElementById('qLitres');
+      if (!el) return;
+      el.querySelectorAll('.carb-quarts').forEach(n => n.remove());
+      if (rAud.error) return;
+      const bloc = noeud('div', 'carb-quarts');
+      T.CARBURANTS.forEach(c => {
+        const r = T.comparerQuarts(T.quartsLitresCarburant(rAud.data, c.cle), bornes);
+        if (r.etat !== 'ok') return;
+        bloc.appendChild(noeud('p', 'total', c.nom + ' : quart 1 ' + fmtNb(r.q1.moyenne) + ' L · quart 2 ' + fmtNb(r.q2.moyenne) + ' L'));
+      });
+      if (bloc.childNodes.length) el.appendChild(bloc);
+    })();
     remplirQuarts('qBoutique', T.comparerQuarts(rAud.error ? null : T.quartsBoutique(rAud.data), bornes), '€');
     remplirQuarts('qFdj', T.comparerQuarts(rFacts.error ? null : T.quartsFdj(rFacts.data), bornes), '€');
 
     // Découvertes : même fenêtre, mêmes jours complets et mêmes critères que les cartes ci-dessus.
     if (!rAud.error && !rAudRef.error) {
-      const pv = T.decouvertePrixVolume(rAud.data, rAudRef.data, bornes, bRef);
-      if (pv.etat === 'ok') {
-        const ligne = (nom, cmp, fmt, unite) => nom + ' : ' + fmt(cmp.moyenneEtudiee) + unite + ' par jour contre ' + fmt(cmp.moyenneReference) + unite + ' · ' + signePct(cmp.pct) + (cmp.dansVariationHabituelle ? ' (dans la variation habituelle)' : '');
+      const ap = T.analysePiste(rAud.data, rAudRef.data, bornes, bRef);
+      const r0 = ap.retenue;
+      if (ap.etat === 'ok' && r0) {
+        const fcle = r0.carburant && ap.carburants.find(f => f.cle === r0.carburant);
+        const lj = x => fmtNb(Math.abs(x)) + ' L par jour';
+        const sens = x => x < 0 ? 'en baisse' : 'en hausse';
+        const ligneCmp = (nom, c, jours, net) => nom + ' : ' + fmtNb(c.cmp.moyenneEtudiee) + ' L par jour contre ' + fmtNb(c.cmp.moyenneReference) + ' L · ' + signePct(c.cmp.pct) +
+          (net && c.jugeSansJour ? ' hors ' + c.datesExceptionnelles.map(fmtDateCourte).join(', ') + ' ; ' + signePct(c.cmpAvec.pct) + ' avec' : '');
+        const repart = ap.carburants.filter(f => !f.horsService).map(f => f.nom + ' ' + fmtDec(f.partR * 100, 1) + ' % → ' + fmtDec(f.partE * 100, 1) + ' %').join(' · ');
+        let titre, lignes;
+        if (r0.type === 'masquee' && fcle) {
+          titre = fcle.nom + ' ' + sens(fcle.cmp.ecart) + ' de ' + lj(fcle.cmp.ecart) + ' (' + signePct(fcle.cmp.pct) + ')';
+          lignes = [ligneCmp(fcle.nom, fcle, 0, true)];
+          const autres = ap.carburants.filter(f => !f.horsService && f.cle !== fcle.cle && f.cmp && f.cmp.etat === 'ok')
+            .map(f => f.nom + ' : ' + fmtNb(f.cmp.moyenneEtudiee) + ' L contre ' + fmtNb(f.cmp.moyenneReference) + ' L');
+          if (autres.length) lignes.push(autres.join(' · '));
+          lignes.push('Total des litres : ' + signePct(ap.total.cmp.pct) + (ap.total.claire ? '' : ' (dans la variation habituelle)'));
+          lignes.push('Répartition : ' + repart);
+        } else if (r0.type === 'repartition' && fcle) {
+          titre = 'Répartition des litres : ' + fcle.nom + ' ' + (r0.points < 0 ? '−' : '+') + fmtDec(Math.abs(r0.points), 1) + ' point';
+          lignes = ['Répartition : ' + repart, 'Total des litres : ' + signePct(ap.total.cmp.pct) + (ap.total.claire ? '' : ' (dans la variation habituelle)')];
+        } else {
+          titre = 'Litres ' + sens(ap.total.cmp.ecart) + ' de ' + lj(ap.total.cmp.ecart) + ' (' + signePct(ap.total.cmp.pct) + ')';
+          lignes = [ligneCmp('Total des litres', ap.total, 0, true), 'Répartition : ' + repart];
+        }
+        if (ap.horsService.length) lignes.push(ap.horsService.join(', ') + ' 0 L : hors service, exclu de la répartition');
         remplirDecouverte(0, {
-          niveau: 'Fait mesuré', cls: 'mesure', titre: pv.titre,
-          lignes: [
-            ligne('Chiffre d\'affaires piste', pv.ca, fmtNb, ' €'),
-            ligne('Litres', pv.litres, fmtNb, ' L'),
-            'Prix moyen : ' + fmtDec(pv.prixEtudie, 2) + ' € par litre contre ' + fmtDec(pv.prixReference, 2) + ' € · ' + signePct(pv.prixPct),
-          ],
-          source: 'Source : Verify · ' + pluriel(pv.litres.nEtudiee, 'jour complet', 'jours complets'),
+          niveau: 'Fait mesuré', cls: 'mesure', titre,
+          lignes,
+          source: 'Source : Verify · ' + pluriel(ap.total.cmp.nEtudiee, 'jour complet', 'jours complets'),
           preuves: [
-            ['Effectifs et périodes', 'Étudiée : ' + pluriel(pv.litres.nEtudiee, 'jour complet', 'jours complets') + ' du ' + fmtDateCourte(bornes.debut) + ' au ' + fmtDate(bornes.fin) + ' · référence : ' + pluriel(pv.litres.nReference, 'jour complet', 'jours complets') + ' du ' + fmtDateCourte(bRef.debut) + ' au ' + fmtDate(bRef.fin)],
-            ['Calcul', 'Moyenne par jour complet ; écart comparé à l\'erreur type de Welch. Prix moyen = chiffre d\'affaires piste ÷ litres des quarts aux trois litrages renseignés.'],
+            ['Effectifs et périodes', 'Étudiée : ' + pluriel(ap.total.cmp.nEtudiee, 'jour complet', 'jours complets') + ' du ' + fmtDateCourte(bornes.debut) + ' au ' + fmtDate(bornes.fin) + ' · référence : ' + pluriel(ap.total.cmp.nReference, 'jour complet', 'jours complets') + ' du ' + fmtDateCourte(bRef.debut) + ' au ' + fmtDate(bRef.fin)],
+            ['Calcul', 'Moyenne par jour complet ; écart comparé à l\'erreur type de Welch. Une journée exceptionnelle est signalée : la clarté est jugée sans elle, les deux valeurs sont montrées. Part = moyenne du carburant ÷ somme des moyennes des carburants en service.'],
+            ['Choix de la découverte', 'Candidats : ' + ap.candidats.map(c => c.type === 'masquee' ? 'variation masquée' : c.type === 'repartition' ? 'changement de répartition' : 'variation du total').join(', ') + ' · ' + ap.motif + '. Seuil de répartition : ' + fmtDec(ap.seuilPartPoints, 1) + ' points.'],
             ['Jours écartés', 'Piste étudiée : ' + (T.exclusionsPiste(rAud.data, bornes).length) + ' · référence : ' + (T.exclusionsPiste(rAudRef.data, bRef).length) + '. Les journées exceptionnelles sont signalées, jamais retirées en silence.'],
-            ['Sources', 'audits_caisse (vente_piste, litrages) · lecture seule, filtrée par site'],
+            ['Sources', 'audits_caisse (litrages par carburant) · lecture seule, filtrée par site'],
           ],
         });
       }

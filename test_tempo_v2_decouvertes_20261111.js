@@ -39,41 +39,10 @@ function simuler(dates, { prix, litres, liaison, graine }) {
 const E = simuler(jours(bornes.debut, 56), { prix: 2.13, litres: 5600, liaison: true, graine: 7 });
 const R = simuler(jours(bRef.debut, 56), { prix: 1.93, litres: 5700, liaison: true, graine: 11 });
 
-t('prix et volume : chiffres calculés, signes et titre factuel', () => {
-  const r = T.decouvertePrixVolume(E.audits, R.audits, bornes, bRef);
-  assert.strictEqual(r.etat, 'ok');
-  assert.ok(r.prixPct > 0.05 && r.prixPct < 0.15, 'prix +10 % attendu, vu ' + r.prixPct);
-  assert.ok(Math.abs(r.prixEtudie - 2.13) < 0.01 && Math.abs(r.prixReference - 1.93) < 0.01);
-  assert.ok(r.ca.pct > 0);
-  assert.ok(/prix moyen en hausse/.test(r.titre), r.titre);
-  assert.ok(!/parce que|grâce à|c'est/i.test(r.titre));
-});
-
-t('prix et volume : litres en baisse, CA en hausse → titre selon les signes', () => {
-  const r = T.decouvertePrixVolume(E.audits, R.audits, bornes, bRef);
-  const attendu = r.litres.dansVariationHabituelle ? 'Litres stables' : (r.litres.pct < 0 ? 'Moins de litres' : 'Plus de litres');
-  assert.ok(r.titre.startsWith(attendu), r.titre);
-});
-
-t('titre : écart dans la variation habituelle → « stable », jamais un sens ; le prix garde son signe', () => {
-  assert.strictEqual(T.titrePrixVolume(1, -1, 1, false, true), 'Litres stables, plus de chiffre d\'affaires, prix moyen en hausse');
-  assert.strictEqual(T.titrePrixVolume(-1, 1, -1, true, false), 'Plus de litres, chiffre d\'affaires stable, prix moyen en baisse');
-  assert.strictEqual(T.titrePrixVolume(1, -1, 1, true, true), 'Litres stables, chiffre d\'affaires stable, prix moyen en hausse');
-  const html = require('fs').readFileSync(require('path').join(__dirname, 'NEXUS-Tempo-v2.html'), 'utf8');
+t('sources : la carte FDJ garde sa source, « Prix et volume » a disparu', () => {
   assert.ok(html.includes("'Source : NEXUS FDJ et Verify · '"), 'source FDJ');
   assert.ok(!html.includes("'Source : Verify · ' + fq.q1"), 'ancienne source');
-});
-
-t('prix et volume : références vides → insuffisant, rien d\'inventé', () => {
-  const r = T.decouvertePrixVolume(E.audits, [], bornes, bRef);
-  assert.notStrictEqual(r.etat, 'ok');
-});
-
-t('titres : jamais de causalité, quelles que soient les combinaisons de signes', () => {
-  for (const a of [-1, 0, 1]) for (const b of [-1, 0, 1]) for (const c of [-1, 0, 1]) {
-    const x = T.titrePrixVolume(a, b, c);
-    assert.ok(x && !/parce que|grâce à|c'est/i.test(x), x);
-  }
+  assert.ok(!/decouvertePrixVolume|titrePrixVolume|Prix et volume/.test(html + fs.readFileSync(path.join(__dirname, 'nexus-tempo.js'), 'utf8')));
 });
 
 t('relation : boutique et FDJ liées → retenue (≥ 30 jours, significative)', () => {

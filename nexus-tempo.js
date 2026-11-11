@@ -1791,34 +1791,134 @@
     return agregerParJour(auditsRows).filter(j => ok.has(j.date)).map(j => ({ date: j.date, valeur: j.venteBoutique }));
   }
 
-  const signeVariation = pct => (pct === null || pct === undefined) ? 0 : (Math.round(pct * 1000) === 0 ? 0 : (pct > 0 ? 1 : -1));
-  // Titre factuel construit des seuls signes : aucune cause, aucun verbe d'explication.
-  // Un écart « dans la variation habituelle » (Welch) donne « stable », jamais un sens ; le prix garde son signe (un rapport).
-  function titrePrixVolume(sCa, sLitres, sPrix, stableCa, stableLitres) {
-    const f = (s, plus, moins, egal) => s > 0 ? plus : s < 0 ? moins : egal;
-    const t = [
-      stableLitres ? 'Litres stables' : f(sLitres, 'Plus de litres', 'Moins de litres', 'Litres inchangés'),
-      stableCa ? 'chiffre d\'affaires stable' : f(sCa, 'plus de chiffre d\'affaires', 'moins de chiffre d\'affaires', 'chiffre d\'affaires inchangé'),
-      f(sPrix, 'prix moyen en hausse', 'prix moyen en baisse', 'prix moyen inchangé'),
-    ];
-    return t.join(', ');
+  // ------------------------------------------------------------
+  // Lot D1 « Piste en litres par carburant » : calculs purs sur les lignes déjà lues.
+  // Lecture seule, filtrée par site ; rien n'est écrit, rien n'est estimé.
+  //   - Hors service (A3) : 0 L sur chaque jour complet des 31 derniers jours de la fenêtre.
+  //     Il revient au premier litre non nul. Exclu des parts, des comparaisons et des découvertes.
+  //   - Écart net (Welch) ; un jour exceptionnel est jugé sans lui, et la carte montre les deux valeurs.
+  //   - Candidats : (a) variation masquée, (b) changement de répartition ≥ SEUIL_PART_POINTS points,
+  //     (c) variation simple des litres totaux. Ordre par défaut a, b, c ; (c) dépasse (a) quand
+  //     I(c) ≥ I(a) et z(c) ≥ K_DEPASSEMENT × z(a) (K_DEPASSEMENT : constante provisoire, à arbitrer).
+  // ------------------------------------------------------------
+  const CARBURANTS = [
+    { cle: 'gazole', nom: 'Gazole', champ: 'litrageGazole' },
+    { cle: 'sp95', nom: 'SP95', champ: 'litrageSp95' },
+    { cle: 'gnr', nom: 'GNR', champ: 'litrageGnr' },
+  ];
+  const JOURS_HORS_SERVICE = 31;
+  const SEUIL_PART_POINTS = 2.0;
+  const K_DEPASSEMENT = 2.0;
+
+  function joursLitresCarburant(auditsRows, cle) {
+    const c = CARBURANTS.find(x => x.cle === cle);
+    const ok = new Set(joursLitresCompletsPiste(auditsRows).map(j => j.date));
+    return agregerParJour(auditsRows).filter(j => ok.has(j.date)).map(j => ({ date: j.date, valeur: j[c.champ] }));
   }
 
-  // Prix et volume (Piste) : période étudiée contre référence, même fenêtre et mêmes critères que les cartes.
-  function decouvertePrixVolume(audE, audR, bornes, bRef) {
-    const caE = joursCaPiste(audE), caR = joursCaPiste(audR);
-    const lE = joursLitresCompletsPiste(audE), lR = joursLitresCompletsPiste(audR);
-    const ca = comparerPeriodes(caE, caR, bornes, bRef);
-    const litres = comparerPeriodes(lE, lR, bornes, bRef);
-    if (ca.etat !== 'ok' || litres.etat !== 'ok') return { etat: 'insuffisant', ca, litres };
-    const pE = prixMoyenMesure((audE || []).filter(r => r && r.date >= bornes.debut && r.date <= bornes.fin));
-    const pR = prixMoyenMesure((audR || []).filter(r => r && r.date >= bRef.debut && r.date <= bRef.fin));
-    if (!pE || !pR) return { etat: 'insuffisant', ca, litres };
-    const prixPct = pourcentage(pE.prix, pR.prix);
-    return {
-      etat: 'ok', ca, litres, prixEtudie: pE.prix, prixReference: pR.prix, prixPct,
-      titre: titrePrixVolume(signeVariation(ca.pct), signeVariation(litres.pct), signeVariation(prixPct), ca.dansVariationHabituelle, litres.dansVariationHabituelle),
+  // Quarts par carburant : mêmes quarts que « Litres » (trois litrages renseignés), valeur = le litrage du carburant.
+  function quartsLitresCarburant(auditsRows, cle) {
+    const c = CARBURANTS.find(x => x.cle === cle);
+    const champ = { gazole: 'litrage_gazole', sp95: 'litrage_sp95', gnr: 'litrage_gnr' }[c.cle];
+    const ok = quartsLitresPiste(auditsRows);
+    const cles = new Set(ok.map(q => q.date + '|' + q.quart));
+    const out = [];
+    for (const r of (auditsRows || [])) {
+      if (r && r.date && cles.has(r.date + '|' + String(r.quart))) out.push({ date: r.date, quart: String(r.quart), valeur: nombreOuNull(r[champ]) || 0 });
+    }
+    return out;
+  }
+
+  function horsServiceCarburant(joursE, joursR, bornes, bRef) {
+    const debut31 = decalerJourISO(bornes.fin, -(JOURS_HORS_SERVICE - 1));
+    const dern = (joursE || []).filter(j => j.date >= debut31 && j.date <= bornes.fin);
+    const hs = dern.length > 0 && dern.every(j => j.valeur === 0);
+    const ref = enPeriode(joursR, bRef);
+    return { horsService: hs, joursControles: dern.length, depuisReference: hs && ref.length > 0 && ref.every(j => j.valeur === 0) };
+  }
+
+  // Comparaison avec la valeur « nette » : si un jour exceptionnel est signalé, la clarté est jugée sans lui.
+  function comparerNet(jE, jR, bornes, bRef) {
+    const avec = comparerPeriodes(jE, jR, bornes, bRef);
+    if (avec.etat !== 'ok' || !avec.exceptionnels.length) return { avec, net: avec, dates: [], jugeSansJour: false };
+    const dates = new Set(avec.exceptionnels.map(x => x.date));
+    const net = comparerPeriodes(jE.filter(j => !dates.has(j.date)), jR.filter(j => !dates.has(j.date)), bornes, bRef);
+    const ok = net.etat === 'ok';
+    return { avec, net: ok ? net : avec, dates: [...dates].sort(), jugeSansJour: ok };
+  }
+  const zComparaison = c => (c && c.etat === 'ok' && c.erreurType > 0) ? Math.abs(c.ecart) / c.erreurType : null;
+  const claire = c => !!c && c.etat === 'ok' && !c.dansVariationHabituelle;
+
+  function analysePiste(audE, audR, bornes, bRef) {
+    const parCle = {};
+    CARBURANTS.forEach(c => {
+      const jE = joursLitresCarburant(audE, c.cle), jR = joursLitresCarburant(audR, c.cle);
+      const hs = horsServiceCarburant(jE, jR, bornes, bRef);
+      parCle[c.cle] = { cle: c.cle, nom: c.nom, jE, jR, horsService: hs.horsService, joursControles: hs.joursControles, depuisReference: hs.depuisReference };
+    });
+    const actifs = CARBURANTS.filter(c => !parCle[c.cle].horsService).map(c => parCle[c.cle]);
+    const somme = (cote) => {
+      const m = new Map();
+      actifs.forEach(f => f[cote].forEach(j => m.set(j.date, (m.get(j.date) || 0) + j.valeur)));
+      return [...m.entries()].map(([date, valeur]) => ({ date, valeur })).filter(j => j.valeur > 0);
     };
+    const totE = somme('jE'), totR = somme('jR');
+    const resE = resumerParJour(totE, bornes), resR = resumerParJour(totR, bRef);
+    const sommeMoyE = actifs.reduce((s, f) => s + (resumerParJour(f.jE, bornes).moyenne || 0), 0);
+    const sommeMoyR = actifs.reduce((s, f) => s + (resumerParJour(f.jR, bRef).moyenne || 0), 0);
+    const carburants = CARBURANTS.map(c => {
+      const f = parCle[c.cle];
+      if (f.horsService) return { cle: c.cle, nom: c.nom, horsService: true, joursControles: f.joursControles, depuisReference: f.depuisReference };
+      const rE = resumerParJour(f.jE, bornes), rR = resumerParJour(f.jR, bRef);
+      const cn = comparerNet(f.jE, f.jR, bornes, bRef);
+      return {
+        cle: c.cle, nom: c.nom, horsService: false, moyenneE: rE.moyenne, moyenneR: rR.moyenne,
+        partE: rE.moyenne !== null && sommeMoyE > 0 ? rE.moyenne / sommeMoyE : null,
+        partR: rR.moyenne !== null && sommeMoyR > 0 ? rR.moyenne / sommeMoyR : null,
+        cmp: cn.net, cmpAvec: cn.avec, datesExceptionnelles: cn.dates, jugeSansJour: cn.jugeSansJour,
+        z: zComparaison(cn.net), claire: claire(cn.net),
+      };
+    });
+    const T = comparerNet(totE, totR, bornes, bRef);
+    const total = { moyenneE: resE.moyenne, moyenneR: resR.moyenne, cmp: T.net, cmpAvec: T.avec, datesExceptionnelles: T.dates, jugeSansJour: T.jugeSansJour,
+      z: zComparaison(T.net), claire: claire(T.net), jours: resE.jours, joursRef: resR.jours };
+    const horsServiceNoms = carburants.filter(f => f.horsService).map(f => f.nom);
+    if (T.net.etat !== 'ok') return { etat: 'insuffisant', carburants, total, candidats: [], retenue: null, motif: null, k: K_DEPASSEMENT, seuilPartPoints: SEUIL_PART_POINTS, horsService: horsServiceNoms };
+
+    const signe = x => x > 0 ? 1 : x < 0 ? -1 : 0;
+    const actifsOk = carburants.filter(f => !f.horsService && f.cmp && f.cmp.etat === 'ok');
+    const candidats = [];
+    // (a) variation masquée : un carburant net que le total ne montre pas (total non net, ou sens opposé).
+    let m = null;
+    actifsOk.forEach(f => {
+      if (!f.claire) return;
+      if (total.claire && signe(f.cmp.ecart) === signe(total.cmp.ecart)) return;
+      if (!m || (f.z === null ? -1 : f.z) > (m.z === null ? -1 : m.z)) m = f;
+    });
+    if (m) candidats.push({ type: 'masquee', carburant: m.cle, nom: m.nom, I: Math.abs(m.cmp.ecart), z: m.z });
+    // (b) changement de répartition d'au moins SEUIL_PART_POINTS points (au moins deux carburants actifs).
+    if (actifsOk.length >= 2 && sommeMoyE > 0 && sommeMoyR > 0) {
+      let b = null;
+      actifsOk.forEach(f => {
+        if (f.partE === null || f.partR === null) return;
+        const pts = (f.partE - f.partR) * 100;
+        if (Math.abs(pts) >= SEUIL_PART_POINTS && (!b || Math.abs(pts) > Math.abs(b.points))) b = { carburant: f.cle, nom: f.nom, points: pts };
+      });
+      if (b) candidats.push(Object.assign({ type: 'repartition' }, b));
+    }
+    // (c) variation simple des litres totaux.
+    if (total.claire) candidats.push({ type: 'variation', I: Math.abs(total.cmp.ecart), z: total.z });
+    let motif = candidats.length ? 'ordre par défaut' : null;
+    const a = candidats.find(x => x.type === 'masquee'), c = candidats.find(x => x.type === 'variation');
+    if (a && c) {
+      if (a.z === null || c.z === null) motif = 'dispersion nulle, ordre par défaut';
+      else if (c.I >= a.I && c.z >= K_DEPASSEMENT * a.z) {
+        candidats.splice(candidats.indexOf(c), 1);
+        candidats.unshift(c);
+        motif = 'retenue par dépassement, z ' + c.z.toFixed(1).replace('.', ',') + ' contre ' + a.z.toFixed(1).replace('.', ',') + ', k = ' + K_DEPASSEMENT.toFixed(1).replace('.', ',');
+      }
+    }
+    return { etat: 'ok', carburants, total, candidats, retenue: candidats[0] || null, motif, k: K_DEPASSEMENT, seuilPartPoints: SEUIL_PART_POINTS, horsService: horsServiceNoms };
   }
 
   // Quantile 97,5 % de la loi de Student (test bilatéral à 5 %), développement de Cornish-Fisher.
@@ -1909,6 +2009,6 @@
     quartsLitresPiste, quartsBoutique, quartsFdj, comparerQuarts, comparerQuartsParJour, exceptionsParJourSemaine, ORDRE_JOURS_SEMAINE,
     bornesReference, comparerPeriodes, joursExceptionnels, exclusionsPiste, exclusionsFdj,
     compositionCalendrier, evaluerComparabilite, prixMoyenMesure,
-    joursCaPiste, joursCaBoutique, titrePrixVolume, decouvertePrixVolume, correlationResidus, relationBoutiqueFdj, rapportFdjQuart1, SEUIL_RELATION_JOURS,
+    joursCaPiste, joursCaBoutique, analysePiste, joursLitresCarburant, quartsLitresCarburant, horsServiceCarburant, CARBURANTS, JOURS_HORS_SERVICE, SEUIL_PART_POINTS, K_DEPASSEMENT, correlationResidus, relationBoutiqueFdj, rapportFdjQuart1, SEUIL_RELATION_JOURS,
   };
 })();
