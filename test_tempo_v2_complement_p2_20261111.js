@@ -30,10 +30,10 @@ t('mention de période sur les trois cartes + pastille', () => {
   assert.ok(/Période différente des litres et de la FDJ/.test(scripts));
   assert.ok(/journée complète', 'journées complètes'/.test(scripts) && /' sur ' \+ total/.test(scripts));
 });
-t('aucun min-height étirant sur les indicateurs ; alignement en haut', () => {
+t('aucun min-height sur les indicateurs ; cartes étirées à la même hauteur (stretch)', () => {
   const ind = css.match(/\.indicateurs?\{[^}]*\}/g) || [];
   for (const r of ind) assert.ok(!/min-height/.test(r), r);
-  assert.ok(/\.indicateurs\{[^}]*align-items:start/.test(css));
+  assert.ok(/\.indicateurs\{[^}]*align-items:stretch/.test(css));
 });
 t('ligne factuelle des sous-cartes en texte secondaire 13 px sans', () => {
   assert.ok(/\.colonne > \.valeur\{[^}]*IBM Plex Sans|\.colonne > \.valeur\{[^}]*var\(--t-sans\)[^}]*font-size:13px[^}]*var\(--t-mid\)/.test(css));

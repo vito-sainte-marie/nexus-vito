@@ -99,7 +99,7 @@ a{color:inherit;}
 .attente-ico{margin-right:4px;}
 /* Découvertes : le mécanisme existe (classe act + a-… sur la carte, ou plusieurs .pastille côte à côte), mais les trois emplacements restent neutres tant qu'ils sont vides. */
 
-.indicateurs{display:grid; grid-template-columns:repeat(3,1fr); gap:14px; align-items:start;}
+.indicateurs{display:grid; grid-template-columns:repeat(3,1fr); gap:14px; align-items:stretch;}
 .indicateur h3{font-size:13.5px; font-weight:600; margin:0;}
 .indicateur .tete-act{margin:8px 0 8px;}
 .periode{font-family:var(--t-mono); font-size:12px; color:var(--t-mid); margin-top:6px;}
@@ -118,7 +118,9 @@ details.compar[open] summary::after{transform:rotate(180deg);}
 .colonne{background:var(--t-raised); border:1px solid var(--t-line); border-radius:12px; padding:14px;}
 .colonne h4{font-size:12.5px; font-weight:600; margin-bottom:8px;}
 
-.colonnes3{display:grid; grid-template-columns:repeat(3,1fr); gap:14px;}
+.colonnes3{display:grid; grid-template-columns:repeat(3,1fr); gap:14px; align-items:stretch;}
+.indicateur, .colonnes3 > .colonne{display:flex; flex-direction:column;}
+.indicateur > :last-child, .colonnes3 > .colonne > :last-child{margin-top:auto;}
 .quarts h3{font-size:13.5px; font-weight:600; margin:0 0 4px;}
 .barre{margin-top:12px;}
 .barre-etiquette{display:flex; justify-content:space-between; font-family:var(--t-mono); font-size:11.5px; color:var(--t-mid); margin-bottom:5px;}
@@ -378,8 +380,14 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
     } else v.textContent = c.valeur;
     el.querySelector('.total').textContent = c.total;
     const ev = el.querySelector('.evol');
-    ev.textContent = 'Comparaison non disponible';
-    ev.setAttribute('data-arbitrage', 'G5');
+    if (c.evolution) {
+      ev.textContent = c.evolution;
+      ev.classList.remove('attente-g5');
+      ev.removeAttribute('data-arbitrage');
+    } else {
+      ev.textContent = 'Comparaison non disponible';
+      ev.setAttribute('data-arbitrage', 'G5');
+    }
     const per = el.querySelector('.periode');
     if (per) per.textContent = c.periode || ('Période : ' + ABSENT.toLowerCase());
     if (c.note) {
@@ -407,6 +415,33 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
     }
     return { ok: true, nombre: fmtNb(r.moyenne) + (unite === '€' ? ' €' : ''), unite: (unite === '€' ? '' : unite + ' ') + 'par jour',
       total: 'Total : ' + fmtNb(r.total) + ' ' + unite + ' sur ' + r.jours + ' jours complets', note: noteMention, periode };
+  }
+
+  // Ligne « Évolution » d'une activité (arbitrages G9 et G5) : jamais de pourcentage sans historique suffisant.
+  function ligneEvolution(cmp, unite, bRef) {
+    if (!cmp) return 'Évolution : ' + ABSENT.toLowerCase();
+    if (cmp.etat === 'insuffisant') return 'Évolution : historique insuffisant (au moins ' + cmp.minimum + ' jours complets de chaque jour de la semaine, dans chaque période)';
+    if (cmp.pct === null) return 'Évolution : non calculable (moyenne de référence nulle)';
+    const signe = x => { const v = Math.round(x * 1000) / 10; return (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' %'; };
+    let t = signe(cmp.pct) + ' contre ' + fmtNb(cmp.moyenneReference) + (unite === '€' ? ' €' : ' ' + unite) + ' par jour (' +
+      pluriel(cmp.nReference, 'jour complet', 'jours complets') + ', du ' + fmtDateCourte(bRef.debut) + ' au ' + fmtDateCourte(bRef.fin) + ')';
+    if (cmp.sans && cmp.sans.pct !== null) t += ' (' + signe(cmp.sans.pct) + ' sans le ' + cmp.sans.dates.map(fmtDateCourte).join(', le ') + ')';
+    if (cmp.dansVariationHabituelle) t += ' · dans la variation habituelle';
+    return t;
+  }
+
+  function noeud(tag, cls, texte) {
+    const n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (texte !== undefined) n.textContent = texte;
+    return n;
+  }
+  function remplirColonne(titre, lignes) {
+    const col = [...document.querySelectorAll('#comparabilite .colonne')].find(c => c.querySelector('h4').textContent === titre);
+    if (!col) return;
+    const v = col.querySelector('.valeur');
+    v.textContent = '';
+    lignes.forEach(l => v.appendChild(noeud('div', '', l)));
   }
 
   function remplirQuarts(id, r, unite) {
@@ -439,7 +474,7 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
       b.querySelector('.barre-remplie').style.width = (max > 0 ? Math.round(q.moyenne / max * 100) : 0) + '%';
     });
     const ecart = r.ecartPct === null ? 'écart non calculable'
-      : 'Quart 1 : ' + (r.ecartPct >= 0 ? '+' : '−') + Math.abs(r.ecartPct).toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' % par rapport au quart 2';
+      : 'Quart 1 : ' + ((Math.round(r.ecartPct * 10) / 10) > 0 ? '+' : (Math.round(r.ecartPct * 10) / 10) < 0 ? '−' : '') + Math.abs(Math.round(r.ecartPct * 10) / 10).toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' % par rapport au quart 2';
     ligne.textContent = ecart + ' · semaines où Q1 dépasse Q2 : ' + r.semainesQ1Depasse + ' sur ' + r.semainesCommunes;
     fixerNiveau('Fait mesuré', 'mesure');
   }
@@ -463,7 +498,7 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
     // Lectures (réutilisées de Tempo v1, Capital/Marge+ et FDJ Analyse).
     const [rAud, rProd, rApp, rFdj, rFacts, rSite] = await Promise.all([
       fetchAllRows(() => nexusClient.from('audits_caisse')
-        .select('date, quart, litrage_gazole, litrage_sp95, litrage_gnr, vente_boutique')
+        .select('date, quart, litrage_gazole, litrage_sp95, litrage_gnr, vente_piste, vente_boutique')
         .eq('site', siteId).gte('date', bornes.debut).lte('date', bornes.fin).order('date', { ascending: true })),
       fetchAllRows(() => nexusClient.from('products')
         .select('categorie, article, ca, marge, periode_debut, periode_fin')
@@ -477,7 +512,24 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
         .eq('site', siteId).gte('date', bornes.debut).lte('date', bornes.fin).order('date', { ascending: true })),
       nexusClient.from('sites').select('nom_entreprise').eq('site_id', siteId).maybeSingle(),
     ]);
+    // Période de référence et calendrier : lectures seules, filtrées par site.
+    const bRef = T.bornesReference(bornes);
+    const [rAudRef, rFdjRef, rCal] = await Promise.all([
+      fetchAllRows(() => nexusClient.from('audits_caisse')
+        .select('date, quart, litrage_gazole, litrage_sp95, litrage_gnr, vente_piste, vente_boutique')
+        .eq('site', siteId).gte('date', bRef.debut).lte('date', bRef.fin).order('date', { ascending: true })),
+      fetchAllRows(() => nexusClient.from('view_fdj_daily_summary')
+        .select('date, nb_quarts_controles, ca_grattage, caisse_tirages')
+        .eq('site', siteId).gte('date', bRef.debut).lte('date', bRef.fin).order('date', { ascending: true })),
+      fetchAllRows(() => nexusClient.from('inventaire_calendrier_site')
+        .select('date, type, libelle')
+        .eq('site', siteId).in('type', ['vacances', 'ferie']).gte('date', bRef.debut).lte('date', bornes.fin).order('date', { ascending: true })),
+    ]);
     if (rFacts.error) console.error('Chargement view_fdj_shift_facts:', rFacts.error);
+    if (rAudRef.error) console.error('Chargement audits_caisse (référence):', rAudRef.error);
+    if (rFdjRef.error) console.error('Chargement view_fdj_daily_summary (référence):', rFdjRef.error);
+    if (rCal.error) console.error('Chargement inventaire_calendrier_site:', rCal.error);
+    if (!rCal.error) T.definirVacances(rCal.data);
     if (rSite.error) console.error('Chargement sites:', rSite.error);
     const nomSite = rSite.data && rSite.data.nom_entreprise;
     if (nomSite) document.getElementById('pillSite').textContent = nomSite;
@@ -489,7 +541,13 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
     // Piste : litres GO + SP95 + GNR, jours complets uniquement.
     const piste = rAud.error ? { etat: 'absent', jours: 0 }
       : T.resumerParJour(T.joursLitresCompletsPiste(rAud.data), bornes);
-    remplirCarte('indPiste', carteJours(piste, 'L', undefined, periodeJours(piste.jours, bornes.jours, 'quart ou litrage manquant')));
+    const refOk = !rAudRef.error && !rFdjRef.error;
+    const joursPisteE = rAud.error ? [] : T.joursLitresCompletsPiste(rAud.data);
+    const joursPisteR = rAudRef.error ? [] : T.joursLitresCompletsPiste(rAudRef.data);
+    const cmpPiste = refOk && !rAud.error ? T.comparerPeriodes(joursPisteE, joursPisteR, bornes, bRef) : null;
+    const cartePiste = carteJours(piste, 'L', undefined, periodeJours(piste.jours, bornes.jours, 'quart ou litrage manquant'));
+    if (cmpPiste) cartePiste.evolution = ligneEvolution(cmpPiste, 'L', bRef);
+    remplirCarte('indPiste', cartePiste);
 
     // Boutique : moyenne de la période d'import affichée, pas une marge jour par jour.
     const mi = (rProd.error || rApp.error) ? { etat: 'absent' }
@@ -510,7 +568,64 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
     // FDJ : chiffre d'affaires des jeux par jour, jours à deux quarts contrôlés.
     const fdj = rFdj.error ? { etat: 'absent', jours: 0 }
       : T.resumerParJour(T.joursCaFdjComplets(rFdj.data), bornes);
-    remplirCarte('indFdj', carteJours(fdj, '€', "Chiffre d'affaires, pas la marge de la station.", periodeJours(fdj.jours, bornes.jours, 'un quart non contrôlé')));
+    const joursFdjE = rFdj.error ? [] : T.joursCaFdjComplets(rFdj.data);
+    const joursFdjR = rFdjRef.error ? [] : T.joursCaFdjComplets(rFdjRef.data);
+    const cmpFdj = refOk && !rFdj.error ? T.comparerPeriodes(joursFdjE, joursFdjR, bornes, bRef) : null;
+    const carteFdj = carteJours(fdj, '€', "Chiffre d'affaires, pas la marge de la station.", periodeJours(fdj.jours, bornes.jours, 'un quart non contrôlé'));
+    if (cmpFdj) carteFdj.evolution = ligneEvolution(cmpFdj, '€', bRef);
+    remplirCarte('indFdj', carteFdj);
+
+    // Comparabilité (G5, G9) : lecture seule, aucune conclusion tirée d'une période peu comparable.
+    if (refOk && !rCal.error) {
+      const calE = T.compositionCalendrier(bornes, rCal.data), calR = T.compositionCalendrier(bRef, rCal.data);
+      const exc = [];
+      [['Piste', joursPisteE.concat(joursPisteR)], ['FDJ', joursFdjE.concat(joursFdjR)]].forEach(([act, js]) =>
+        T.joursExceptionnels(js).forEach(j => exc.push({ activite: act, date: j.date, valeur: j.valeur })));
+      const comp = T.evaluerComparabilite(bornes, bRef, calE, calR, exc);
+      const pill = document.getElementById('pillComparabilite');
+      pill.textContent = comp.faible ? 'Comparabilité faible avec la période précédente' : 'Périodes comparables';
+      pill.className = 'pill' + (comp.faible ? ' ambre' : '');
+      pill.hidden = false;
+      const det = document.getElementById('comparabilite');
+      det.querySelector('summary').textContent = comp.faible
+        ? 'Comparabilité faible · Pourquoi ces évolutions ne sont pas des conclusions'
+        : 'Périodes comparables · Ce qui a été vérifié';
+      const pc = x => Math.round(x * 100) + ' %';
+      remplirColonne('Durées', [
+        'Étudiée : ' + pluriel(bornes.jours, 'jour', 'jours') + ', du ' + fmtDate(bornes.debut) + ' au ' + fmtDate(bornes.fin),
+        'Référence : ' + pluriel(bRef.jours, 'jour', 'jours') + ', du ' + fmtDate(bRef.debut) + ' au ' + fmtDate(bRef.fin)]);
+      const lcal = (nom, c) => nom + ' : ' + pluriel(c.vacances, 'jour', 'jours') + ' de vacances (' + pc(c.pctVacances) + '), ' +
+        pluriel(c.feries, 'férié', 'fériés') + ' (' + pc(c.pctFeries) + '), ' + pluriel(c.weekends, 'week-end', 'week-ends') + ' (' + pc(c.pctWeekends) + ')';
+      remplirColonne('Calendrier', [lcal('Étudiée', calE), lcal('Référence', calR)]);
+      remplirColonne('Journée exceptionnelle', exc.length
+        ? exc.map(x => fmtDate(x.date) + ' · ' + fmtNb(x.valeur) + (x.activite === 'Piste' ? ' L' : ' €') + ' · ' + x.activite)
+        : ['Aucune journée exceptionnelle']);
+      const px = (nom, lignes) => { const r = T.prixMoyenMesure(lignes); return nom + ' : ' + (r ? r.prix.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' € par litre' : ABSENT); };
+      remplirColonne('Prix', [px('Étudiée', rAud.data), px('Référence', rAudRef.data), 'À titre d\'information']);
+
+      const corps = det.querySelector('.compar-corps');
+      corps.querySelectorAll('.arbitrage, .compar-extra').forEach(n => n.remove());
+      const extra = noeud('div', 'compar-extra');
+      extra.appendChild(noeud('p', 'total', comp.faible
+        ? 'Raisons : ' + comp.raisons.map(r => r.texte).join(' ; ')
+        : 'Aucun critère de faible comparabilité n\'est atteint.'));
+      const cov = [['Piste', joursPisteE.length, joursPisteR.length], ['FDJ', joursFdjE.length, joursFdjR.length]]
+        .map(([a, e, r]) => a + ' : ' + e + ' jours complets sur ' + bornes.jours + ' (étudiée), ' + r + ' sur ' + bRef.jours + ' (référence)');
+      cov.forEach(l => extra.appendChild(noeud('p', 'total', l)));
+      const dtl = noeud('details', 'compar-ecartes');
+      dtl.appendChild(noeud('summary', '', 'Voir les jours écartés'));
+      const listeEcartes = (titre, liste) => {
+        dtl.appendChild(noeud('h4', '', titre));
+        dtl.appendChild(noeud('p', 'total', liste.length ? liste.map(x => fmtDate(x.date) + ' (' + x.raison + ')').join(' ; ') : 'Aucun jour écarté'));
+      };
+      listeEcartes('Piste · période étudiée', T.exclusionsPiste(rAud.data, bornes));
+      listeEcartes('Piste · période de référence', T.exclusionsPiste(rAudRef.data, bRef));
+      listeEcartes('FDJ · période étudiée', T.exclusionsFdj(rFdj.data, bornes));
+      listeEcartes('FDJ · période de référence', T.exclusionsFdj(rFdjRef.data, bRef));
+      dtl.appendChild(noeud('p', 'total', 'Les journées exceptionnelles sont signalées, jamais retirées en silence.'));
+      extra.appendChild(dtl);
+      corps.appendChild(extra);
+    }
 
     // Quarts et équipes : moyennes par quart, Q1 et Q2 séparés.
     remplirQuarts('qLitres', T.comparerQuarts(rAud.error ? null : T.quartsLitresPiste(rAud.data), bornes), 'L');
@@ -522,7 +637,7 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
     const tz = 'America/Martinique';
     const quand = new Intl.DateTimeFormat('fr-FR', { timeZone: tz, dateStyle: 'short', timeStyle: 'short' }).format(new Date());
     document.getElementById('piedSources').textContent =
-      'Sources : audits_caisse (litres) · products et produits_appel (marge) · view_fdj_daily_summary et view_fdj_shift_facts (FDJ) · sites (nom) · lecture seule · calculé le : ' + quand + ' (heure station)';
+      'Sources : audits_caisse (litres) · products et produits_appel (marge) · view_fdj_daily_summary et view_fdj_shift_facts (FDJ) · inventaire_calendrier_site (calendrier) · sites (nom) · lecture seule · calculé le : ' + quand + ' (heure station)';
   });
 
   // Flèche des analyses (mobile) : signale que la rangée continue ; un toucher avance d'une tuile.

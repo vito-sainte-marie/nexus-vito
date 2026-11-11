@@ -19,7 +19,7 @@ const serie = (de, a, f) => { const r = []; for (let k = de; k <= a; k++) r.push
 t('fenêtre : 8 semaines, constante unique', () => {
   assert.strictEqual(T.FENETRE_SEMAINES, 8);
   assert.strictEqual((lire('nexus-tempo.js').match(/const FENETRE_SEMAINES\s*=/g) || []).length, 1);
-  assert.ok(/provisoire, arbitrage G9 en attente/.test(lire('nexus-tempo.js')));
+  assert.ok(!/provisoire, arbitrage G9 en attente/.test(lire('nexus-tempo.js'))); // G9 tranché : les 56 jours ne sont plus provisoires
 });
 t('fenêtre : 56 jours finissant hier, journée en cours exclue', () => {
   const c = T.calculerConstatLitres(serie(-70, 0, () => 1000));
@@ -42,7 +42,7 @@ t('litres : plus fort et plus faible, GO + SP95 + GNR', () => {
 });
 t('seuil : moins de 4 occurrences pour un jour = Historique insuffisant, aucun jour désigné', () => {
   assert.strictEqual(T.OCCURRENCES_MIN_JOUR, 4);
-  assert.ok(/arbitrage G5 en attente/.test(lire('nexus-tempo.js')));
+  assert.ok(!/arbitrage G5 en attente/.test(lire('nexus-tempo.js'))); // G5-1 tranché : minimum de 4 jours complets
   const js = serie(-56, -1, () => 1000).filter(j => !(j.jourSemaine === 3 && j.date < decaler(-14)));
   const c = T.calculerConstatLitres(js);
   assert.strictEqual(c.parJour[3].occurrences, 2);
