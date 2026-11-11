@@ -791,7 +791,7 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
     if (ab && ab.etat === 'ok') {
       const sg0 = x => (x > 0 ? '+' : x < 0 ? '−' : '') + fmtNb(Math.abs(x));
       detailExtra.indBoutique.push({ titre: 'Marge par catégorie', lignes: ['Contribution signée à la marge, par jour (seuil de ' + fmtNb(ab.seuils.categorieEuros) + ' € par jour pour signaler une catégorie)']
-        .concat(ab.categories.map(c => c.nom + ' : ' + fmtNb(c.margeE) + ' € par jour contre ' + fmtNb(c.margeR) + ' € · ' + sg0(c.contribution) + ' €')) });
+        .concat(ab.categories.map(c => c.nom + ' : ' + fmtNb(c.margeE) + ' € par jour contre ' + fmtNb(c.margeR) + ' € · ' + sg0(c.contribution) + ' €' + (c.candidate ? '' : ' (sous le seuil)'))) });
     }
 
     // FDJ : chiffre d'affaires des jeux par jour, jours à deux quarts contrôlés.
@@ -974,7 +974,7 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
         niveau: 'Fait mesuré', cls: 'mesure', titre, lignes,
         source: 'Source : imports produits · marge réelle, hors produits d\'appel',
         preuves: [
-          ['Périodes', 'Étudiée : du ' + fmtDateCourte(ab.etudiee.debut) + ' au ' + fmtDate(ab.etudiee.fin) + ' (' + pluriel(ab.etudiee.jours, 'jour', 'jours') + ') · référence : du ' + fmtDateCourte(ab.reference.debut) + ' au ' + fmtDate(ab.reference.fin) + ' (' + pluriel(ab.reference.jours, 'jour', 'jours') + ')'],
+          ['Périodes', 'Étudiée : du ' + fmtDateCourte(ab.etudiee.debut) + ' au ' + fmtDate(ab.etudiee.fin) + ' (' + pluriel(ab.etudiee.jours, 'jour', 'jours') + ') · référence : du ' + fmtDateCourte(ab.reference.debut) + ' au ' + fmtDate(ab.reference.fin) + ' (' + pluriel(ab.reference.jours, 'jour', 'jours') + ')' + (ab.comparabilite.faible ? ' · comparabilité faible : ' + ab.comparabilite.raisons.map(x => x.texte).join(' ; ') : '')],
           ['Calcul', 'Total de chaque import divisé par sa durée. Une catégorie est signalée à partir de ' + fmtNb(ab.seuils.categorieEuros) + ' € de marge par jour d\'écart ; la marge globale à partir de ' + fmtDec(ab.seuils.margePct * 100, 0) + ' % ou ' + fmtNb(ab.seuils.margeEuros) + ' € par jour.'],
           ['Choix de la découverte', 'Candidats : ' + ab.candidats.map(c => c.type === 'masquee' ? 'compensation entre catégories' : c.type === 'decrochage' ? 'chiffre d\'affaires et marge qui divergent' : 'variation de la marge').join(', ') + ' · ' + ab.motif + '.'],
           ['Sources', 'products et produits_appel · lecture seule, filtrée par site'],

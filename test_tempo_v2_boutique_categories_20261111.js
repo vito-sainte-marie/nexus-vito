@@ -82,13 +82,44 @@ t('produits d\'appel exclus de la marge', () => {
   assert.ok(Math.abs(a.global.margeE - 100) < 1e-6);
 });
 
-t('vacances inégales : « non comparable », aucune découverte', () => {
+t('comparabilité faible : la comparaison est gardée, avec sa raison, et la découverte est produite', () => {
   const a = T.analyseBoutique([].concat(
     lignes(['2026-04-27', '2026-06-07'], [['Gaz', 100, 400]]),
     lignes(['2026-06-08', '2026-07-31'], [['Gaz', 200, 500]])), [], AP,
   [{ date: '2026-06-20', type: 'vacances' }].concat(Array.from({ length: 40 }, (_, i) => ({ date: new Date(Date.parse('2026-06-10') + i * 86400000).toISOString().slice(0, 10), type: 'vacances' }))));
-  assert.strictEqual(a.etat, 'non_comparable');
-  assert.strictEqual(a.retenue, null);
+  assert.strictEqual(a.etat, 'ok');
+  assert.strictEqual(a.comparabilite.faible, true);
+  assert.ok(a.comparabilite.raisons.length > 0 && a.comparabilite.raisons[0].texte);
+  assert.ok(a.retenue, 'la découverte est produite malgré la comparabilité faible');
+});
+
+t('une seule catégorie à 30 € ou plus, total stable : évolution masquée candidate', () => {
+  const a = T.analyseBoutique(prod([['Gaz', 100, 400], ['Épicerie', 900, 3000]], [['Gaz', 135, 400], ['Épicerie', 880, 3000]]), [], AP, []);
+  assert.strictEqual(a.global.eligible, false);
+  assert.ok(a.candidats.some(c => c.type === 'masquee' && c.categories.join() === 'Gaz'));
+  assert.strictEqual(a.retenue.type, 'masquee');
+});
+
+t('catégorie seule de sens opposé au total éligible : évolution masquée candidate', () => {
+  const a = T.analyseBoutique(prod([['Gaz', 100, 400], ['Épicerie', 900, 3000]], [['Gaz', 60, 400], ['Épicerie', 1000, 3000]]), [], AP, []);
+  assert.strictEqual(a.global.sens, 'hausse');
+  assert.ok(a.candidats.some(c => c.type === 'masquee' && c.categories.indexOf('Gaz') >= 0));
+});
+
+t('compensation dans les deux sens : les deux catégories sont citées', () => {
+  const a = T.analyseBoutique(prod([['Gaz', 100, 400], ['Boissons', 300, 1000]], [['Gaz', 140, 400], ['Boissons', 260, 1000]]), [], AP, []);
+  const m = a.candidats.find(c => c.type === 'masquee');
+  assert.deepStrictEqual(m.categories.slice().sort(), ['Boissons', 'Gaz']);
+});
+
+t('Sainte-Marie : seul Gaz passe le seuil, les baisses sous le seuil ne sont pas citées', () => {
+  const a = T.analyseBoutique(prod(
+    [['Gaz', 100, 400], ['Bières', 100, 400], ['Sodas', 100, 400], ['Eaux', 100, 400], ['Épicerie', 700, 2300]],
+    [['Gaz', 137, 686], ['Bières', 84, 400], ['Sodas', 90, 400], ['Eaux', 94, 400], ['Épicerie', 700, 2300]]), [], AP, []);
+  assert.strictEqual(a.global.eligible, false);
+  assert.strictEqual(a.retenue.type, 'decrochage');
+  assert.deepStrictEqual(a.retenue.categories, ['Gaz']);
+  assert.ok(a.categories.filter(c => c.contribution < 0 && !c.candidate).length === 3);
 });
 
 t('un seul import : « sans référence »', () => {

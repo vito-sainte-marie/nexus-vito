@@ -2125,7 +2125,8 @@
   //   - Étudiée = dernière période d'import ; référence = périodes d'import précédentes cumulées
   //     jusqu'à couvrir au moins la même durée.
   //   - Comparabilité (G5) : rapport de durées ≤ 2, écart de vacances et de fériés ≤ 20 points.
-  //     Sinon « Tendance non déterminée », aucune découverte.
+  //     Comparabilité faible : la comparaison est gardée, avec sa raison. « Tendance non déterminée »
+  //     seulement quand aucune référence ne peut être constituée.
   //   - Marge globale éligible : |écart par jour| ≥ SEUIL_MARGE_GLOBALE_PCT ou ≥ SEUIL_MARGE_GLOBALE_EUROS_JOUR.
   //   - Catégorie candidate : écart ≥ SEUIL_CATEGORIE_EUROS_JOUR (en valeur absolue, € par jour).
   //   - A2 : une catégorie est citée seule si elle explique strictement plus de SEUIL_CONCENTRATION_CATEGORIE
@@ -2189,11 +2190,13 @@
         candidate: Math.abs(contribution) >= SEUIL_CATEGORIE_EUROS_JOUR, part: ecart !== 0 ? contribution / ecart : null };
     }).sort((a, b) => Math.abs(b.contribution) - Math.abs(a.contribution));
     const base = { etudiee, reference, global, categories, comparabilite, seuils: vide('x').seuils };
-    if (comparabilite.faible) return Object.assign(vide('non_comparable'), base, { candidats: [], retenue: null, motif: 'périodes peu comparables' });
+    // Comparabilité faible : on garde la comparaison et on affiche la raison (comme Piste et FDJ).
     const cand = categories.filter(c => c.candidate);
-    const hausses = cand.filter(c => c.contribution > 0), baisses = cand.filter(c => c.contribution < 0);
+    // Évolution masquée : une catégorie à 30 € par jour ou plus (hausse ou baisse), même seule, dont le sens
+    // n'est pas celui du total, ou dont le total est stable. La compensation en est le cas où deux sens s'opposent.
+    const masquantes = cand.filter(c => !eligible || (c.contribution > 0) !== (ecart > 0));
     const candidats = [];
-    if (hausses.length && baisses.length) candidats.push({ type: 'masquee', categories: cand.map(c => c.nom) });
+    if (masquantes.length) candidats.push({ type: 'masquee', categories: cand.map(c => c.nom) });
     const caBouge = pctCa !== null && Math.abs(pctCa) >= SEUIL_CA_DECROCHAGE_PCT;
     const decroche = caBouge && (!eligible || (ecart > 0) !== (tE.ca - tR.ca > 0));
     if (decroche) candidats.push({ type: 'decrochage', categories: cand.map(c => c.nom) });
