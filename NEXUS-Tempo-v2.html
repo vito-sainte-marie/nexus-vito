@@ -498,7 +498,7 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
     // Lectures (réutilisées de Tempo v1, Capital/Marge+ et FDJ Analyse).
     const [rAud, rProd, rApp, rFdj, rFacts, rSite] = await Promise.all([
       fetchAllRows(() => nexusClient.from('audits_caisse')
-        .select('date, quart, litrage_gazole, litrage_sp95, litrage_gnr, vente_boutique')
+        .select('date, quart, litrage_gazole, litrage_sp95, litrage_gnr, vente_piste, vente_boutique')
         .eq('site', siteId).gte('date', bornes.debut).lte('date', bornes.fin).order('date', { ascending: true })),
       fetchAllRows(() => nexusClient.from('products')
         .select('categorie, article, ca, marge, periode_debut, periode_fin')
@@ -516,7 +516,7 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
     const bRef = T.bornesReference(bornes);
     const [rAudRef, rFdjRef, rCal] = await Promise.all([
       fetchAllRows(() => nexusClient.from('audits_caisse')
-        .select('date, quart, litrage_gazole, litrage_sp95, litrage_gnr, vente_boutique')
+        .select('date, quart, litrage_gazole, litrage_sp95, litrage_gnr, vente_piste, vente_boutique')
         .eq('site', siteId).gte('date', bRef.debut).lte('date', bRef.fin).order('date', { ascending: true })),
       fetchAllRows(() => nexusClient.from('view_fdj_daily_summary')
         .select('date, nb_quarts_controles, ca_grattage, caisse_tirages')

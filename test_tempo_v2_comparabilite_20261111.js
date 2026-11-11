@@ -125,6 +125,15 @@ t('page : lecture seule — aucune écriture ni RPC', () => {
   assert.ok(!/\.(insert|update|upsert|delete|rpc)\s*\(/.test(scripts));
 });
 
+t('page : les deux lectures d\'audits_caisse sélectionnent vente_piste et les trois litrages', () => {
+  const sel = [...scripts.matchAll(/\.from\('audits_caisse'\)\s*\.select\('([^']*)'\)/g)].map(m => m[1]);
+  assert.strictEqual(sel.length, 2);
+  for (const s of sel) for (const c of ['vente_piste', 'litrage_gazole', 'litrage_sp95', 'litrage_gnr']) assert.ok(s.includes(c), c + ' absent de : ' + s);
+});
+t('prix moyen de bout en bout : lignes portant vente_piste, pas 0 €/L', () => {
+  const r = T.prixMoyenMesure([{ vente_piste: 2127, litrage_gazole: 500, litrage_sp95: 400, litrage_gnr: 100 }]);
+  assert.ok(Math.abs(r.prix - 2.127) < 1e-9);
+});
 t('page : jamais « −0,0 % » (arrondi avant le signe)', () => {
   assert.ok(/Math\.round\(x \* 1000\) \/ 10/.test(scripts));
   assert.ok(!/x >= 0 \? '\+' : '−'/.test(scripts));
