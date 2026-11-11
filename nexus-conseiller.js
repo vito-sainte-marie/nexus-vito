@@ -785,7 +785,7 @@
   // Convertit le candidat Tempo enrichi (27/07/2026, demande de Frédéric —
   // "jeudi crée le plus de valeur, vendredi fait plus de CA brut mais
   // avec des produits d'appel") — construit en amont dans App-v1 par
-  // construireCandidatTempoHome() à partir du jour le plus rentable
+  // construireCandidatTempoHome() (depuis G8 : constat en litres, plus le jour le plus rentable)
   // (valorisé, produits d'appel exclus) plutôt que du seul jour à
   // renforcer. Non validable depuis l'accueil : NEXUS Tempo valide sa
   // propre décision via une mission dédiée (candidate_id = id de mission,
@@ -795,9 +795,10 @@
   // opportunites, impactAttendu, limites}.
   function normaliserTempo(c) {
     return {
-      candidate_id: `TEMPO-${c.jourCible.nom}`, ruleId: 'R6-TEMPO-JOUR', rang: 2,
+      candidate_id: `TEMPO-${c.jourCible ? c.jourCible.nom : 'constat'}`, ruleId: 'R6-TEMPO-JOUR', rang: 2,
       moteur: 'tempo',
       etat: '🗓️ TEMPO', impact_eur: 0, article: null, categorie: 'Rythme hebdomadaire',
+      niveau: c.niveau || null,
       decision: c.decision, pourquoi: c.pourquoi,
       pourquoiBullets: c.pourquoiBullets || null,
       pourquoiPasAutre: c.pourquoiPasAutre || null,

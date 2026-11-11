@@ -864,7 +864,6 @@
       const m = produitsStrategiques.margeEnProgression.find(p => p.marge >= SEUIL_FORCE_PRODUIT_EUR);
       if (m) forces.push({ icone: '💰', titre: `Marge en progression sur ${m.article}`, detail: `Marge en hausse de ${(m.evolutionMarge * 100).toFixed(0)} % sur la période (${Math.round(m.marge).toLocaleString('fr-FR')} € de marge sur la période).`, cible: 'NEXUS-Scanner-v1.html' });
     }
-    if (forces.length < 3 && constatTempo.jourPlusRentable) forces.push({ icone: '🗓️', titre: `${constatTempo.jourPlusRentable.nom} — votre journée la plus rentable`, detail: "Confirmé sur plusieurs semaines d'historique, produits d'appel exclus.", cible: 'NEXUS-Tempo-v1.html' });
     secteurs.forEach(s => { if (forces.length < 3 && s.force) forces.push({ icone: s.icone, titre: s.force.titre, detail: s.force.detail, cible: s.force.cible }); });
 
     // Moteur de priorité cross-moteurs — les 7 moteurs disponibles dans
