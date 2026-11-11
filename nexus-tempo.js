@@ -1350,10 +1350,10 @@
   // demain dès 20 h locales, alors que le quart 2 dure jusqu'à 22 h 05. Le
   // constat borne donc sa fenêtre sur la date station. aujourdHuiISO() et
   // filtrerJoursClos() restent inchangées (usages ailleurs).
-  function dateStationISO(fuseau) {
+  function dateStationISO(fuseau, instant) {
     const tz = fuseau || 'America/Martinique';
     return new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' })
-      .format(new Date());
+      .format(instant instanceof Date ? instant : new Date());
   }
 
   function calculerConstatLitres(joursExploitables, fuseau) {
@@ -1380,6 +1380,66 @@
       suffisant: true, fenetreSemaines: FENETRE_SEMAINES, occurrencesMin: OCCURRENCES_MIN_JOUR, parJour,
       plusFort: tries[0], plusFaible: tries[tries.length - 1],
     };
+  }
+
+  // ------------------------------------------------------------
+  // Tempo v2 — lot V2 « branchement », partie 1 : les trois indicateurs
+  // (brief Guardian 6795638585, GO Frédéric 11/11/2026). Calculs purs, sans
+  // lecture ni écriture : la page v2 leur passe les lignes qu'elle a lues.
+  //   - Période : les FENETRE_SEMAINES dernières semaines closes, en date
+  //     STATION (dateStationISO, jamais aujourdHuiISO ni filtrerJoursClos,
+  //     qui sont en UTC). Le jour en cours est exclu.
+  //   - Jour complet (piste) : les quarts 1 ET 2 présents, litrage renseigné
+  //     sur les deux, total > 0 (même règle que le constat G8).
+  //   - Moins de OCCURRENCES_MIN_JOUR jours retenus : « insuffisant », jamais
+  //     une moyenne présentée comme fiable. Aucun jour : « absent ».
+  // ------------------------------------------------------------
+  function bornesPeriodeIndicateurs(fuseau, instant) {
+    const exclu = dateStationISO(fuseau, instant);
+    const jours = 7 * FENETRE_SEMAINES;
+    return { debut: decalerJourISO(exclu, -jours), fin: decalerJourISO(exclu, -1), exclu, semaines: FENETRE_SEMAINES, jours };
+  }
+
+  function joursLitresCompletsPiste(auditsRows) {
+    return agregerParJour(auditsRows)
+      .filter(j => {
+        const total = j.litrageGazole + j.litrageSp95 + j.litrageGnr;
+        const quartOk = q => j.quarts.some(x => String(x.quart) === q && x.litrageDisponible);
+        return j.litrageDisponible && quartOk('1') && quartOk('2') && total > 0;
+      })
+      .map(j => ({ date: j.date, valeur: j.litrageGazole + j.litrageSp95 + j.litrageGnr }));
+  }
+
+  // CA des jeux du jour = grattage + tirages (même formule que FDJ Analyse,
+  // vue view_fdj_daily_summary). Jour complet : les deux quarts contrôlés.
+  function joursCaFdjComplets(fdjRows) {
+    return (fdjRows || [])
+      .filter(r => r && r.date && Number(r.nb_quarts_controles) >= 2)
+      .map(r => ({ date: r.date, valeur: (Number(r.ca_grattage) || 0) + (Number(r.caisse_tirages) || 0) }));
+  }
+
+  function resumerParJour(valeursParJour, bornes) {
+    const retenus = (valeursParJour || []).filter(v => v && Number.isFinite(v.valeur) &&
+      v.date >= bornes.debut && v.date <= bornes.fin);
+    const jours = retenus.length;
+    const total = retenus.reduce((s, v) => s + v.valeur, 0);
+    const etat = jours === 0 ? 'absent' : (jours < OCCURRENCES_MIN_JOUR ? 'insuffisant' : 'ok');
+    return { etat, jours, total, moyenne: jours ? total / jours : null, seuil: OCCURRENCES_MIN_JOUR, debut: bornes.debut, fin: bornes.fin };
+  }
+
+  // Marge de la période d'import affichée (la plus récente) : MOYENNE de la
+  // période d'import, pas une marge jour par jour. Mêmes filtres que Capital :
+  // articles hors produits d'appel, lignes cohérentes (ca > 0, 0 <= marge <= ca).
+  function resumerMargeImport(productsRows, articlesAppel, analyserPeriodes) {
+    const appel = new Set(articlesAppel || []);
+    const brut = (productsRows || []).filter(r => !appel.has(r.article));
+    const { periodeAffichage, rowsAffichage } = analyserPeriodes(brut);
+    if (!periodeAffichage) return { etat: 'absent', ca: 0, marge: 0, taux: null, debut: null, fin: null, nbArticles: 0 };
+    const propres = rowsAffichage.filter(r => (r.ca || 0) > 0 && (r.marge || 0) >= 0 && (r.marge || 0) <= (r.ca || 0));
+    const ca = propres.reduce((s, r) => s + (Number(r.ca) || 0), 0);
+    const marge = propres.reduce((s, r) => s + (Number(r.marge) || 0), 0);
+    if (!propres.length || ca <= 0) return { etat: 'absent', ca: 0, marge: 0, taux: null, debut: periodeAffichage.debut, fin: periodeAffichage.fin, nbArticles: 0 };
+    return { etat: 'ok', ca, marge, taux: marge / ca, debut: periodeAffichage.debut, fin: periodeAffichage.fin, nbArticles: propres.length };
   }
 
   // Candidat Tempo pour le Conseiller — lot G8 (11/11/2026) : CONSTAT
@@ -1462,5 +1522,6 @@
     dernierEtatCapital, analyserImpactDecisionsTempo,
     dateLocale, moyenne, ecartType, evolution,
     calculerConstatTempo, construireCandidatTempo, calculerConstatLitres, dateStationISO, FENETRE_SEMAINES, OCCURRENCES_MIN_JOUR,
+    bornesPeriodeIndicateurs, joursLitresCompletsPiste, joursCaFdjComplets, resumerParJour, resumerMargeImport,
   };
 })();
