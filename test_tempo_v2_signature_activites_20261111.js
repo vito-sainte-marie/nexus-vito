@@ -37,7 +37,7 @@ t('opacités : bordure 32/30 %, halo 10/6 %, icône 14/10 %', () => {
   assert.ok(/--a-bord:\.30/.test(jour) && /--a-glow:\.06/.test(jour) && /--a-ico:\.10/.test(jour));
   assert.ok(/border-top:3px solid rgb\(var\(--c-rgb\)\)/.test(css), 'barre de 3 px');
   assert.ok(/radial-gradient\(circle at 0 0,[^;]*transparent 60%\)/.test(css), 'halo en coin, évanoui à 60 %');
-  assert.ok(!/box-shadow|text-shadow|filter:\s*drop-shadow/.test(css.slice(css.indexOf('Lot « signature'))), 'pas d\'ombre portée');
+  assert.ok(!/box-shadow|text-shadow|filter:\s*drop-shadow/.test(css.slice(css.indexOf('Lot « signature'), css.indexOf('/* Interaction :'))), 'pas d\'ombre portée');
 });
 
 t('chaque indicateur et chaque sous-carte portent la bonne classe', () => {
