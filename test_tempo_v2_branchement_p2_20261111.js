@@ -72,8 +72,8 @@ t('pastille : lue dans sites, jamais codée en dur', () => {
 
 t('valeur et unité dans deux éléments distincts, sans préfixe « Marge : »', () => {
   assert.ok(/className = 'nb'/.test(scripts) && /className = 'unite'/.test(scripts));
-  assert.ok(/\.valeur \.nb\{[^}]*font-size:32px/.test(html));
-  assert.ok(/\.valeur \.unite\{[^}]*font-size:15px[^}]*var\(--t-mid\)/.test(html));
+  assert.ok(/\.valeur \.nb\{[^}]*font-size:30px/.test(html));
+  assert.ok(/\.valeur \.unite\{[^}]*font-size:12\.5px[^}]*var\(--t-mid\)/.test(html));
   assert.ok(!/Marge : /.test(scripts));
   assert.ok(/fmtNb\(mi\.marge\)\+' €'|fmtNb\(mi\.marge\) \+ ' €'/.test(scripts), 'marge Boutique en euros');
   assert.ok(/'par jour'/.test(scripts));

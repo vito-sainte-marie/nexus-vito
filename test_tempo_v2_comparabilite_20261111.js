@@ -112,7 +112,7 @@ t('page : Boutique sans évolution (G1), Piste et FDJ comparées', () => {
   assert.ok(/Comparaison non disponible/.test(scripts));
 });
 t('page : lignes, mentions et « jours écartés » présents', () => {
-  for (const s of ['contre ', 'dans la variation habituelle', 'sans le ', 'Historique insuffisant', 'Voir les jours écartés', 'quart manquant'.slice(0, 0), 'Périodes comparables', 'Comparabilité faible'])
+  for (const s of ['contre ', 'libelleEvolution', 'sans le ', 'Historique insuffisant', 'Voir les jours écartés', 'quart manquant'.slice(0, 0), 'Périodes comparables', 'Comparabilité faible'])
     assert.ok(scripts.includes(s) || html.includes(s), 'manque : ' + s);
   assert.ok(/jours complets sur/.test(scripts));
   assert.ok(/inventaire_calendrier_site/.test(scripts) && !/carburant_tarifs_achat/.test(html));
