@@ -93,5 +93,32 @@ t('tuile disponible de Tempo : seul lien, sans pastille « En préparation »', 
 t('page enregistrée dans les écrans opérationnels de nexus-auth.js', () => {
   assert.ok(fs.readFileSync(path.join(__dirname, 'nexus-auth.js'), 'utf8').includes("'NEXUS-Tempo-v2-Quarts.html',"));
 });
+
+// Journée exceptionnelle : signalée, jamais retirée en silence
+const lunDates = ['2026-09-14', '2026-09-21', '2026-09-28', '2026-10-05', '2026-10-12', '2026-10-19', '2026-10-26', '2026-11-02'];
+const jeuExc = [];
+lunDates.forEach((d, i) => {
+  jeuExc.push({ date: d, quart: '1', valeur: [1100, 1120, 1080, 5000, 1110, 1090, 1130, 1070][i] });
+  jeuExc.push({ date: d, quart: '2', valeur: 1000 + i * 5 });
+});
+t('exceptionsParJourSemaine signale la date et donne l\'écart avec et sans elle', () => {
+  const r = T.exceptionsParJourSemaine(jeuExc, bornes);
+  assert.strictEqual(r.length, 1);
+  assert.strictEqual(r[0].nom, 'lundi');
+  assert.deepStrictEqual(r[0].exceptionnels.map(x => x.date), ['2026-10-05']);
+  assert.ok(r[0].ecartAvec > 50 && r[0].ecartSans < 10);
+});
+t('exceptionsParJourSemaine : rien à signaler sur un jeu régulier', () => {
+  assert.deepStrictEqual(T.exceptionsParJourSemaine(jeu, bornes), []);
+});
+t('page : boutique et FDJ jour par jour, barres Q1/Q2, journée exceptionnelle, constance x sur y, preuves complètes', () => {
+  assert.ok(/id="corpsBoutiqueJours"/.test(html) && /id="corpsFdjJours"/.test(html));
+  assert.ok(/comparerQuartsParJour\(boutique, bornes\)/.test(scripts) && /comparerQuartsParJour\(fdj, bornes\)/.test(scripts));
+  assert.ok(/class="barre /.test(scripts) && /\.barre\.q2\{opacity:\.45/.test(html));
+  assert.ok(/exceptionsParJourSemaine\(/.test(scripts) && /sans elle/.test(scripts) && /non retirée/.test(scripts));
+  assert.ok(/semaines sur/.test(scripts) && /id="constanceBoutique"/.test(html));
+  assert.ok(/somme par quart ÷ nombre de quarts, par jour de la semaine/.test(scripts));
+  assert.ok(/Verify/.test(scripts) && /NEXUS FDJ/.test(scripts));
+});
 console.log(echecs ? '\n' + echecs + ' échec(s)' : '\nTout est vert');
 process.exit(echecs ? 1 : 0);

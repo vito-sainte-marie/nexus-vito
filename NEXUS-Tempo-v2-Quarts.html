@@ -199,6 +199,11 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
 .sens li{font-size:13.5px; line-height:1.55; color:var(--t-mid); margin:6px 0 0 18px;}
 .indispo{display:inline-flex; align-items:center; min-height:44px; padding:0 16px; border:1px solid var(--t-line); border-radius:10px; font-size:13px; color:var(--t-mid); opacity:.7; cursor:not-allowed; background:transparent; font-family:inherit;}
 .mention{font-size:12px; color:var(--t-mid); margin-top:6px;}
+.barre{display:block; height:6px; border-radius:3px; margin-top:4px; background:rgb(var(--c-rgb,var(--piste-rgb))); min-width:2px;}
+.barre.q2{opacity:.45;}
+.exc{display:block; font-size:10.5px; color:var(--t-amber);}
+.sous-titre{font-size:12.5px; font-weight:600; margin:16px 0 6px; color:var(--t-text);}
+.preuves-liste{font-size:12.5px; line-height:1.55; color:var(--t-mid); margin:8px 0 0 18px;}
 .notes{font-size:12px; line-height:1.5; color:var(--t-amber); margin-top:8px;}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -259,7 +264,18 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
         <thead><tr><th>Activité</th><th>Quart 1</th><th>Quart 2</th><th>Écart</th><th>Niveau</th></tr></thead>
         <tbody id="corpsAutres"></tbody>
       </table></div>
+      <p class="sous-titre">Boutique · jour par jour</p>
+      <div class="defilement"><table class="tableau a-boutique" id="tabBoutiqueJours">
+        <thead><tr><th>Jour</th><th>Quart 1</th><th>Quart 2</th><th>Écart</th></tr></thead>
+        <tbody id="corpsBoutiqueJours"></tbody>
+      </table></div>
+      <p class="sous-titre">FDJ · jour par jour <span class="niveau hypothese">Hypothèse</span></p>
+      <div class="defilement"><table class="tableau a-fdj" id="tabFdjJours">
+        <thead><tr><th>Jour</th><th>Quart 1</th><th>Quart 2</th><th>Écart</th></tr></thead>
+        <tbody id="corpsFdjJours"></tbody>
+      </table></div>
       <p class="mention" id="mentionFdj">Rattachement des tirages au quart à confirmer</p>
+      <p class="mention" id="phraseAutresJours"></p>
       <p class="mention" id="mentionMarge">Marge par quart non disponible</p>
     </section>
 
@@ -267,6 +283,8 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
     <section class="carte" id="blocSens">
       <ul class="sens">
         <li id="constance">Constance : donnée en cours de chargement</li>
+        <li id="constanceBoutique">Constance boutique : donnée en cours de chargement</li>
+        <li id="constanceFdj">Constance FDJ : donnée en cours de chargement</li>
         <li>Durée réelle des quarts non connue : aucune vente par heure n'est calculée.</li>
         <li>Une moyenne par quart décrit ce qui s'est passé, elle ne dit pas pourquoi.</li>
       </ul>
@@ -275,9 +293,10 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
     <details class="compar" id="preuves">
       <summary>Voir les preuves</summary>
       <div class="compar-corps">
+        <ul class="preuves-liste" id="listePreuves"></ul>
         <p class="mention">Seuil : au moins <span id="seuilPreuve"></span> quarts par jour et par quart ; en dessous, la case est grisée et aucun écart n'est calculé.</p>
         <div class="defilement"><table class="tableau" id="tabPreuves">
-          <thead><tr><th>Jour</th><th>Quarts 1 relevés</th><th>Quarts 2 relevés</th></tr></thead>
+          <thead><tr><th>Jour</th><th>Quarts 1 relevés (litres)</th><th>Quarts 2 relevés (litres)</th><th>Journée exceptionnelle</th></tr></thead>
           <tbody id="corpsPreuves"></tbody>
         </table></div>
       </div>
@@ -356,33 +375,62 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
     const fdj = rFacts.error ? null : T.quartsFdj(rFacts.data);
     const globalLitres = T.comparerQuarts(litres, bornes);
     const jours = T.comparerQuartsParJour(litres, bornes);
+    const joursBoutique = T.comparerQuartsParJour(boutique, bornes);
+    const joursFdj = T.comparerQuartsParJour(fdj, bornes);
+    const exceptions = litres ? T.exceptionsParJourSemaine(litres, bornes) : [];
+    const exceptionDe = j => exceptions.find(x => x.jourSemaine === j.jourSemaine);
+    const maj = nom => nom.charAt(0).toUpperCase() + nom.slice(1);
 
-    // Phrase de réponse
+    // Phrase de réponse : les trois activités, chacune avec son niveau
     const phrase = document.getElementById('phraseReponse'), niv = document.getElementById('niveauReponse');
-    if (globalLitres.etat === 'ok') {
-      const e = globalLitres.ecartPct;
-      phrase.textContent = Math.abs(e) < 0.05
-        ? 'Sur la période, le quart 1 et le quart 2 vendent autant de litres en moyenne.'
-        : 'Sur la période, le quart 1 vend ' + signePct(Math.abs(e)).replace('+ ', '').replace(/^\+/, '') + (e > 0 ? ' de litres en plus' : ' de litres en moins') + ' que le quart 2, en moyenne par quart.';
-      niv.textContent = 'Fait mesuré'; niv.className = 'niveau mesure';
-    } else {
-      phrase.textContent = globalLitres.etat === 'insuffisant' ? 'Historique insuffisant pour comparer les quarts.' : 'Donnée absente : aucun quart relevé sur la période.';
-      niv.textContent = 'Non qualifié'; niv.className = 'niveau vide-niveau';
-    }
+    const formulation = (nom, r, unite) => {
+      if (r.etat === 'ok') {
+        const e = r.ecartPct;
+        return nom + ' : ' + (Math.abs(e) < 0.05 ? 'autant au quart 1 qu\'au quart 2'
+          : 'le quart 1 ' + (e > 0 ? 'vend ' : 'vend ') + Math.abs(Math.round(e * 10) / 10).toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' % de ' + (e > 0 ? 'plus' : 'moins') + ' que le quart 2');
+      }
+      return nom + ' : ' + (r.etat === 'insuffisant' ? 'historique insuffisant' : 'donnée absente');
+    };
+    const globalBoutique = T.comparerQuarts(boutique, bornes), globalFdj = T.comparerQuarts(fdj, bornes);
+    phrase.textContent = 'Sur la période, en moyenne par quart. ' + formulation('Litres', globalLitres) + ' · ' +
+      formulation('Boutique', globalBoutique) + ' · ' + formulation('FDJ (hypothèse prudente)', globalFdj) + '.';
+    if (globalLitres.etat === 'ok') { niv.textContent = 'Litres et boutique : fait mesuré'; niv.className = 'niveau mesure'; }
+    else { niv.textContent = 'Non qualifié'; niv.className = 'niveau vide-niveau'; }
+    document.getElementById('niveauReponse').insertAdjacentHTML('afterend', ' <span class="niveau hypothese" id="niveauFdjReponse">FDJ : hypothèse</span>');
 
-    // Litres par jour de la semaine
-    document.getElementById('corpsLitres').innerHTML = jours.parJour.map(j =>
-      '<tr><td>' + j.nom.charAt(0).toUpperCase() + j.nom.slice(1) + '</td>' + tdQuart(j.q1, 'L') + tdQuart(j.q2, 'L') +
-      '<td class="' + (j.ecartPct === null ? 'faible' : '') + '">' + (j.ecartPct === null ? '—' : signePct(j.ecartPct)) + '</td></tr>').join('');
+    // Tableaux jour par jour, avec barres Q1 (pleine) et Q2 (45 %), à l'échelle du maximum du tableau
+    const tableauJours = (r, unite, avecExc) => {
+      const max = Math.max.apply(null, r.parJour.map(j => Math.max(j.q1.moyenne || 0, j.q2.moyenne || 0)).concat([0]));
+      const barre = (q, cls) => (q.moyenne !== null && max > 0 && q.suffisant) ? '<span class="barre ' + cls + '" style="width:' + (Math.max(q.moyenne, 0) / max * 100).toFixed(1) + '%"></span>' : '';
+      const cel = (q, cls, e) => '<td class="' + (q.suffisant ? '' : 'faible') + '">' + cellule(q, unite) +
+        '<span class="nb-quarts">' + pluriel(q.effectif, 'quart', 'quarts') + '</span>' + barre(q, cls) + e + '</td>';
+      return r.parJour.map(j => {
+        const ex = avecExc ? exceptionDe(j) : null;
+        const mention = ex ? '<span class="exc">Journée exceptionnelle : ' + ex.exceptionnels.map(x => fmtDate(x.date)).join(', ') + '</span>' : '';
+        const ecart = j.ecartPct === null ? '—' : signePct(j.ecartPct) +
+          (ex ? '<span class="exc">sans elle : ' + (ex.ecartSans === null ? 'non calculable' : signePct(ex.ecartSans)) + '</span>' : '');
+        return '<tr><td>' + maj(j.nom) + '</td>' + cel(j.q1, 'q1', mention) + cel(j.q2, 'q2', '') +
+          '<td class="' + (j.ecartPct === null ? 'faible' : '') + '">' + ecart + '</td></tr>';
+      }).join('');
+    };
+    document.getElementById('corpsLitres').innerHTML = tableauJours(jours, 'L', true);
+    document.getElementById('corpsBoutiqueJours').innerHTML = tableauJours(joursBoutique, '€', false);
+    document.getElementById('corpsFdjJours').innerHTML = tableauJours(joursFdj, '€', false);
     const pj = document.getElementById('phraseJours');
-    if (jours.plusFort && jours.plusFaible) {
-      pj.textContent = 'Écart le plus fort en faveur du quart 1 : ' + jours.plusFort.nom + ' (' + signePct(jours.plusFort.ecartPct) +
-        '). Écart le plus faible : ' + jours.plusFaible.nom + ' (' + signePct(jours.plusFaible.ecartPct) + ').';
-    } else {
-      pj.textContent = 'Aucun jour n\'a assez de quarts relevés pour calculer un écart.';
+    pj.textContent = (jours.plusFort && jours.plusFaible)
+      ? 'Écart le plus fort en faveur du quart 1 : ' + jours.plusFort.nom + ' (' + signePct(jours.plusFort.ecartPct) +
+        '). Écart le plus faible : ' + jours.plusFaible.nom + ' (' + signePct(jours.plusFaible.ecartPct) + ').'
+      : 'Aucun jour n\'a assez de quarts relevés pour calculer un écart.';
+    if (exceptions.length) {
+      pj.textContent += ' Journée exceptionnelle signalée, non retirée : ' + exceptions.map(x => x.nom + ' ' + x.exceptionnels.map(y => fmtDate(y.date)).join(', ') +
+        ' (écart ' + (x.ecartAvec === null ? '—' : signePct(x.ecartAvec)) + ' avec elle, ' + (x.ecartSans === null ? 'non calculable' : signePct(x.ecartSans)) + ' sans elle)').join(' ; ') + '.';
     }
+    const pa = document.getElementById('phraseAutresJours');
+    const fort = r => r.plusFort ? r.plusFort.nom + ' (' + signePct(r.plusFort.ecartPct) + ')' : null;
+    pa.textContent = 'Boutique, jour le plus favorable au quart 1 : ' + (fort(joursBoutique) || 'aucun jour lisible') +
+      ' · FDJ : ' + (fort(joursFdj) || 'aucun jour lisible') + '.';
 
-    // Boutique et FDJ
+    // Boutique et FDJ : ligne globale
     const ligne = (nom, quarts, unite, niveauTxt, niveauCls) => {
       const r = T.comparerQuarts(quarts, bornes);
       const q1 = r.q1 ? r.q1 : { effectif: 0, moyenne: null }, q2 = r.q2 ? r.q2 : { effectif: 0, moyenne: null };
@@ -395,18 +443,39 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
     document.getElementById('corpsAutres').innerHTML =
       ligne('Boutique', boutique, '€', 'Fait mesuré', 'mesure') + ligne('FDJ', fdj, '€', 'Hypothèse', 'hypothese');
 
-    // Constance
-    const cst = document.getElementById('constance');
-    cst.textContent = globalLitres.etat === 'ok'
-      ? 'Constance : le quart 1 dépasse le quart 2 en litres ' + globalLitres.semainesQ1Depasse + ' semaines sur ' + globalLitres.semainesCommunes + '.'
-      : 'Constance : non calculable faute de semaines comparables.';
+    // Constance : x semaines sur y, pour chaque activité
+    const constance = (id, nom, r) => {
+      document.getElementById(id).textContent = r.etat === 'ok'
+        ? 'Constance ' + nom + ' : le quart 1 dépasse le quart 2 ' + r.semainesQ1Depasse + ' semaines sur ' + r.semainesCommunes + '.'
+        : 'Constance ' + nom + ' : non calculable faute de semaines comparables.';
+    };
+    constance('constance', 'litres', globalLitres);
+    constance('constanceBoutique', 'boutique', globalBoutique);
+    constance('constanceFdj', 'FDJ (hypothèse)', globalFdj);
 
     // Preuves
     document.getElementById('seuilPreuve').textContent = String(jours.seuil);
-    document.getElementById('corpsPreuves').innerHTML = jours.parJour.map(j =>
-      '<tr><td>' + j.nom.charAt(0).toUpperCase() + j.nom.slice(1) + '</td>' +
-      '<td class="' + (j.q1.suffisant ? '' : 'faible') + '">' + j.q1.effectif + '</td>' +
-      '<td class="' + (j.q2.suffisant ? '' : 'faible') + '">' + j.q2.effectif + '</td></tr>').join('');
+    const brutes = (rows, f) => (rows && !rows.error ? rows : []).filter(r => r && r.date >= bornes.debut && r.date <= bornes.fin && (String(r.quart) === '1' || String(r.quart) === '2') && (!f || f(r)));
+    const lignesAud = brutes(rAud.data), lignesFacts = brutes(rFacts.data);
+    const exclLitres = lignesAud.length - (litres ? litres.filter(v => v.date >= bornes.debut && v.date <= bornes.fin).length : 0);
+    const exclBout = lignesAud.length - (boutique ? boutique.filter(v => v.date >= bornes.debut && v.date <= bornes.fin).length : 0);
+    const exclFdj = lignesFacts.length - (fdj ? fdj.filter(v => v.date >= bornes.debut && v.date <= bornes.fin).length : 0);
+    const li = t => '<li>' + t + '</li>';
+    document.getElementById('listePreuves').innerHTML = [
+      'Période : du ' + fmtDate(bornes.debut) + ' au ' + fmtDate(bornes.fin) + ', ' + pluriel(bornes.jours, 'jour', 'jours') + ' (' + bornes.semaines + ' semaines closes ; jour en cours exclu).',
+      'Quarts exclus, jamais estimés : litres ' + pluriel(exclLitres, 'quart', 'quarts') + ' (un litrage GO, SP95 ou GNR non renseigné) · boutique ' + pluriel(exclBout, 'quart', 'quarts') +
+        ' (vente non renseignée) · FDJ ' + pluriel(exclFdj, 'quart', 'quarts') + ' (caisse non comptabilisable).',
+      'Calcul : somme par quart ÷ nombre de quarts, par jour de la semaine ; écart = (quart 1 − quart 2) ÷ quart 2.',
+      'Journées exceptionnelles : ' + (exceptions.length ? exceptions.map(x => x.nom + ' ' + x.exceptionnels.map(y => fmtDate(y.date)).join(', ')).join(' ; ') + ' (signalées, conservées dans les moyennes).' : 'aucune détectée.'),
+      'Sources : audits_caisse (Verify : litres, boutique) · view_fdj_shift_facts (NEXUS FDJ : jeux), lecture seule.',
+    ].map(li).join('');
+    document.getElementById('corpsPreuves').innerHTML = jours.parJour.map(j => {
+      const ex = exceptionDe(j);
+      return '<tr><td>' + maj(j.nom) + '</td>' +
+        '<td class="' + (j.q1.suffisant ? '' : 'faible') + '">' + j.q1.effectif + '</td>' +
+        '<td class="' + (j.q2.suffisant ? '' : 'faible') + '">' + j.q2.effectif + '</td>' +
+        '<td>' + (ex ? ex.exceptionnels.map(x => fmtDate(x.date)).join(', ') : '—') + '</td></tr>';
+    }).join('');
 
     const quand = new Intl.DateTimeFormat('fr-FR', { timeZone: 'America/Martinique', dateStyle: 'short', timeStyle: 'short' }).format(new Date());
     document.getElementById('piedSources').textContent =
