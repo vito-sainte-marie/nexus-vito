@@ -1728,11 +1728,12 @@
 
   const signeVariation = pct => (pct === null || pct === undefined) ? 0 : (Math.round(pct * 1000) === 0 ? 0 : (pct > 0 ? 1 : -1));
   // Titre factuel construit des seuls signes : aucune cause, aucun verbe d'explication.
-  function titrePrixVolume(sCa, sLitres, sPrix) {
+  // Un écart « dans la variation habituelle » (Welch) donne « stable », jamais un sens ; le prix garde son signe (un rapport).
+  function titrePrixVolume(sCa, sLitres, sPrix, stableCa, stableLitres) {
     const f = (s, plus, moins, egal) => s > 0 ? plus : s < 0 ? moins : egal;
     const t = [
-      f(sLitres, 'Plus de litres', 'Moins de litres', 'Litres inchangés'),
-      f(sCa, 'plus de chiffre d\'affaires', 'moins de chiffre d\'affaires', 'chiffre d\'affaires inchangé'),
+      stableLitres ? 'Litres stables' : f(sLitres, 'Plus de litres', 'Moins de litres', 'Litres inchangés'),
+      stableCa ? 'chiffre d\'affaires stable' : f(sCa, 'plus de chiffre d\'affaires', 'moins de chiffre d\'affaires', 'chiffre d\'affaires inchangé'),
       f(sPrix, 'prix moyen en hausse', 'prix moyen en baisse', 'prix moyen inchangé'),
     ];
     return t.join(', ');
@@ -1751,7 +1752,7 @@
     const prixPct = pourcentage(pE.prix, pR.prix);
     return {
       etat: 'ok', ca, litres, prixEtudie: pE.prix, prixReference: pR.prix, prixPct,
-      titre: titrePrixVolume(signeVariation(ca.pct), signeVariation(litres.pct), signeVariation(prixPct)),
+      titre: titrePrixVolume(signeVariation(ca.pct), signeVariation(litres.pct), signeVariation(prixPct), ca.dansVariationHabituelle, litres.dansVariationHabituelle),
     };
   }
 

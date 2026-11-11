@@ -51,8 +51,17 @@ t('prix et volume : chiffres calculés, signes et titre factuel', () => {
 
 t('prix et volume : litres en baisse, CA en hausse → titre selon les signes', () => {
   const r = T.decouvertePrixVolume(E.audits, R.audits, bornes, bRef);
-  const attendu = (r.litres.pct < 0 ? 'Moins de litres' : 'Plus de litres');
+  const attendu = r.litres.dansVariationHabituelle ? 'Litres stables' : (r.litres.pct < 0 ? 'Moins de litres' : 'Plus de litres');
   assert.ok(r.titre.startsWith(attendu), r.titre);
+});
+
+t('titre : écart dans la variation habituelle → « stable », jamais un sens ; le prix garde son signe', () => {
+  assert.strictEqual(T.titrePrixVolume(1, -1, 1, false, true), 'Litres stables, plus de chiffre d\'affaires, prix moyen en hausse');
+  assert.strictEqual(T.titrePrixVolume(-1, 1, -1, true, false), 'Plus de litres, chiffre d\'affaires stable, prix moyen en baisse');
+  assert.strictEqual(T.titrePrixVolume(1, -1, 1, true, true), 'Litres stables, chiffre d\'affaires stable, prix moyen en hausse');
+  const html = require('fs').readFileSync(require('path').join(__dirname, 'NEXUS-Tempo-v2.html'), 'utf8');
+  assert.ok(html.includes("'Source : NEXUS FDJ et Verify · '"), 'source FDJ');
+  assert.ok(!html.includes("'Source : Verify · ' + fq.q1"), 'ancienne source');
 });
 
 t('prix et volume : références vides → insuffisant, rien d\'inventé', () => {
