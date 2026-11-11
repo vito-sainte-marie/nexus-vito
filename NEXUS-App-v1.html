@@ -1923,17 +1923,15 @@
       : 'Rien ne nécessite votre attention immédiate aujourd’hui';
   }
 
-  // Carte Tempo (25/07/2026, demande de Frédéric : "dans vos outils
-  // principaux remplace radar par tempo") — même logique honnête que le
-  // bandeau du Conseiller : si un jour à renforcer est identifiable avec
-  // confiance, on le nomme ; sinon on dit où en est la construction du
-  // rythme plutôt que d'afficher un chiffre vide de sens.
-  function descriptionTempoHome(jourARenforcer, totalJours) {
-    if (jourARenforcer) {
-      return `<span style="color:var(--amber);">${jourARenforcer.nom.charAt(0).toUpperCase() + jourARenforcer.nom.slice(1)}</span> à surveiller`;
-    }
-    if (totalJours === 0) return 'Aucun audit enregistré';
-    return `${totalJours} jour${totalJours > 1 ? 's' : ''} enregistré${totalJours > 1 ? 's' : ''} · rythme en construction`;
+  // Carte Tempo — lot G8 (11/11/2026) : la carte affiche un CONSTAT
+  // (fait mesuré, litres GO+SP95+GNR sur 8 semaines), plus une décision.
+  // Aucune lecture de jourARenforcer ici. constatLitres peut être absent
+  // (chargement en échec) : traité comme insuffisant.
+  function descriptionTempoHome(constatLitres) {
+    const c = constatLitres;
+    if (!c || !c.suffisant || !c.plusFort || !c.plusFaible) return 'Historique insuffisant';
+    const maj = n => n.charAt(0).toUpperCase() + n.slice(1);
+    return `${maj(c.plusFort.nom)} le plus fort · ${c.plusFaible.nom} le plus faible (litres, ${c.fenetreSemaines} semaines)`;
   }
 
   // Carte Cockpit (26/07/2026, demande de Frédéric, suite au tableau de
@@ -1978,7 +1976,7 @@
   function descriptionRaccourci(href, ctx) {
     if (href === 'NEXUS-Cockpit-v2.html') return descriptionCockpitHome(ctx.nbPriorites, ctx.nbASurveiller, ctx.meilleureOpportunite);
     if (href === 'NEXUS-Verify-v1.html') return ctx.controlesVerify == null ? 'Contrôle caisse et écarts' : (ctx.controlesVerify > 0 ? `<span style="color:var(--amber);">${ctx.controlesVerify} contrôle${ctx.controlesVerify > 1 ? 's' : ''}</span> à effectuer` : `<span style="color:var(--green);">Audits du jour à jour</span>`);
-    if (href === 'NEXUS-Tempo-v1.html') return descriptionTempoHome(ctx.jourARenforcerTempo, ctx.totalJoursTempo);
+    if (href === 'NEXUS-Tempo-v1.html') return descriptionTempoHome(ctx.constatLitresTempo);
     if (href === 'NEXUS-Produits-v1.html') return ctx.nbRecommandations > 0 ? `<span style="color:var(--cyan);">${ctx.nbRecommandations} priorité${ctx.nbRecommandations > 1 ? 's' : ''} produit${ctx.nbRecommandations > 1 ? 's' : ''}</span> aujourd’hui` : 'Aucune priorité produit aujourd’hui';
     const cat = RACCOURCIS_CATALOGUE[href];
     return cat ? cat.desc : '';
@@ -2014,7 +2012,7 @@
     }
     if (href === 'NEXUS-FDJ-Manager-v1.html') return (ctx.alertesFdjNonVues || 0) > 0 ? 2 : 0;
     if (href === 'NEXUS-Produits-v1.html') return ctx.nbPriorites > 0 ? 1 : 0;
-    if (href === 'NEXUS-Tempo-v1.html') return ctx.jourARenforcerTempo ? 1 : 0;
+    if (href === 'NEXUS-Tempo-v1.html') return 0; // constat, jamais une urgence (G8)
     return 0;
   }
   function trierParUrgenceDuJour(liste, ctx) {
@@ -2154,7 +2152,7 @@
     const meilleureOpportunite = opportunites.length ? opportunites[0].impact_eur : 0;
     renderOutilsGrid({
       nbPriorites, nbASurveiller, meilleureOpportunite, controlesVerify,
-      jourARenforcerTempo: constatTempo.jourARenforcer, totalJoursTempo: constatTempo.totalJours,
+      constatLitresTempo: constatTempo.constatLitres,
       nbRecommandations: nbPriorites,
       statutCarburants, alertesFdjNonVues,
     }, raccourcisSite);

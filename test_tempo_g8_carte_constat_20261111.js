@@ -118,4 +118,19 @@ t('arbitrage 10/11 : Tempo hors sélection des décisions (Brief et accueil), pl
   assert.ok(/nbDecisions: candidatsConseiller\.length/.test(a) && !/Fait mesuré'\)\.length/.test(a));
   assert.ok(!/tempo: candidatTempoListe/.test(b), 'Tempo ne se déclare plus contributeur de décisions');
 });
+t('revue 6786323566 : raccourci Tempo de l’accueil = constat en litres, urgence 0, aucun jourARenforcer', () => {
+  const a = lire('NEXUS-App-v1.html');
+  const m = a.match(/function descriptionTempoHome\([\s\S]*?\n  }\n/);
+  assert.ok(m, 'descriptionTempoHome trouvée');
+  const desc = new Function(m[0] + '; return descriptionTempoHome;')();
+  const c = T.calculerConstatLitres(serie(-56, -1, d => 1000 + (new Date(d + 'T00:00:00Z').getUTCDay() === 5 ? 500 : 0)));
+  const ok = desc(c);
+  assert.ok(/le plus fort/.test(ok) && /le plus faible/.test(ok) && /litres, 8 semaines/.test(ok), ok);
+  assert.strictEqual(desc(T.calculerConstatLitres([])), 'Historique insuffisant');
+  assert.strictEqual(desc(undefined), 'Historique insuffisant');
+  assert.ok(!/jourARenforcer/.test(m[0]), 'aucune lecture de jourARenforcer dans la description');
+  assert.ok(/NEXUS-Tempo-v1\.html'\) return 0;/.test(a), 'urgence Tempo = 0');
+  assert.ok(!/jourARenforcerTempo|totalJoursTempo/.test(a), 'contexte du raccourci sans jourARenforcer');
+  assert.ok(/descriptionTempoHome\(ctx\.constatLitresTempo\)/.test(a));
+});
 console.log(n + ' tests OK');
