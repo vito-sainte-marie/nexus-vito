@@ -85,7 +85,7 @@ t('page : trois cartes remplies par script, preuves en <details>, aucun lien', (
   assert.ok(/Une relation, pas une cause\./.test(scripts));
   assert.ok(/Rattachement des tirages au quart à confirmer/.test(scripts) && /arbitrage: 'G4'/.test(scripts));
   assert.ok(/Fait mesuré/.test(scripts) && /Relation observée/.test(scripts) && /Hypothèse/.test(scripts));
-  assert.deepStrictEqual([...html.slice(html.indexOf('<body>')).matchAll(/<a\s[^>]*href="([^"]*)"/gi)].map(m => m[1]), ['NEXUS-Tempo-v2-Quarts.html']);
+  assert.deepStrictEqual([...html.slice(html.indexOf('<body>')).matchAll(/<a\s[^>]*href="([^"]*)"/gi)].map(m => m[1]), ['NEXUS-Tempo-v2-Quarts.html', 'NEXUS-Cockpit-v2.html']);
 });
 
 t('page : la carte relation n\'est remplie que si la relation est retenue', () => {
@@ -94,7 +94,7 @@ t('page : la carte relation n\'est remplie que si la relation est retenue', () =
 
 t('page : aucune écriture, aucune lecture ajoutée', () => {
   assert.ok(!/\.(insert|update|upsert|delete|rpc)\s*\(/.test(scripts));
-  assert.strictEqual((scripts.match(/\.from\s*\(/g) || []).length, 9, 'nombre de lectures changé');
+  assert.strictEqual((scripts.match(/\.from\s*\(/g) || []).length, 12, 'nombre de lectures changé');
   assert.ok(!/\(G\d\)/.test(scripts), 'code G visible dans le script');
 });
 

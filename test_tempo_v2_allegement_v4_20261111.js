@@ -93,7 +93,7 @@ t('fiche : dialogue accessible, Échap, retour du focus, piège de tabulation, f
 
 t('survol : réservé à .tuile.disponible (aucun effet sur les cartes)', () => {
   const hovers = css.match(/[^\n}]*:hover[^{]*\{/g) || [];
-  for (const h of hovers) assert.ok(/\.tuile\.disponible|\.detail-btn|\.fiche-fermer|summary/.test(h), 'survol hors périmètre : ' + h.trim());
+  for (const h of hovers) assert.ok(/\.tuile\.disponible|\.detail-btn|\.fiche-fermer|summary|\.lien-cockpit/.test(h), 'survol hors périmètre : ' + h.trim());
   assert.ok(!/\.carte[^{]*:hover|\.colonne[^{]*:hover|\.indicateur[^{]*:hover/.test(css));
 });
 

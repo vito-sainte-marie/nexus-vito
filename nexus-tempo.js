@@ -1927,6 +1927,126 @@
     return { etat: 'ok', carburants, total, candidats, retenue: candidats[0] || null, motif, k: kDep, seuilPartPoints: SEUIL_PART_POINTS, horsService: horsServiceNoms };
   }
 
+  // ------------------------------------------------------------
+  // Lot D3 « FDJ : composition grattage et tirages » : calculs purs sur les lignes déjà lues.
+  // Lecture seule, filtrée par site ; rien n'est écrit, rien n'est estimé.
+  //   - Deux familles seulement : grattage (ca_grattage) et tirages (caisse_tirages), jours à deux quarts contrôlés.
+  //     Total = grattage + tirages, sans double compte. Pas de détail par jeu de tirage.
+  //   - Contribution signée d'une famille = écart de sa moyenne par jour ; part = contribution ÷ écart du total.
+  //   - Constat : cite la famille dont la part dépasse strictement 50 % (les deux sinon) ; si les deux
+  //     contributions sont de signes opposés et dépassent chacune l'écart net, c'est une compensation.
+  //   - Palier de prix et jeu : grattage seulement, sur les jours complets où le détail existe (couverture montrée).
+  // ------------------------------------------------------------
+  const SEUIL_PART_FAMILLE = 0.5;
+  const FAMILLES_FDJ = [
+    { cle: 'grattage', nom: 'Grattage', champ: 'ca_grattage', article: 'le grattage' },
+    { cle: 'tirages', nom: 'Tirages', champ: 'caisse_tirages', article: 'les tirages' },
+  ];
+  function joursFamilleFdj(fdjRows, cle) {
+    const f = FAMILLES_FDJ.find(x => x.cle === cle);
+    return (fdjRows || []).filter(r => r && r.date && Number(r.nb_quarts_controles) >= 2)
+      .map(r => ({ date: r.date, valeur: Number(r[f.champ]) || 0 }));
+  }
+
+  function constatCompositionFdj(total, familles) {
+    if (!total || !total.claire) return null;
+    const D = total.cmpAvec.ecart;
+    if (!(Math.abs(D) > 0)) return null;
+    const mot = D > 0 ? 'Hausse' : 'Baisse';
+    const [g, t] = familles;
+    const cg = g.contribution, ct = t.contribution;
+    const verbe = c => c > 0 ? 'monte' : 'baisse';
+    if (cg * ct < 0 && Math.abs(cg) > Math.abs(D) && Math.abs(ct) > Math.abs(D)) {
+      return { type: 'compensation', texte: 'Le ' + g.nom.toLowerCase() + ' ' + verbe(cg) + ', les ' + t.nom.toLowerCase() + ' ' + verbe(ct), familles: [] };
+    }
+    // Une seule famille n'est citée que si sa part dépasse strictement 50 % ET que l'autre ne varie pas nettement
+    // dans le même sens (G5) : deux familles nettes de même sens portent ensemble la variation (attendu Production 53 % / 47 %).
+    const fortes = familles.filter(f => f.part !== null && f.part > SEUIL_PART_FAMILLE);
+    const autreNette = fortes.length === 1 && familles.some(f => f !== fortes[0] && f.claire && f.contribution * D > 0);
+    if (fortes.length === 1 && !autreNette) return { type: 'famille', texte: mot + ' portée par ' + fortes[0].article, familles: [fortes[0].cle] };
+    return { type: 'deux', texte: mot + ' portée par le grattage et les tirages', familles: ['grattage', 'tirages'] };
+  }
+
+  function analyseFdj(fdjE, fdjR, bornes, bRef, kDepassement) {
+    const kDep = (typeof kDepassement === 'number' && kDepassement > 0) ? kDepassement : K_DEPASSEMENT;
+    const jT = rows => joursCaFdjComplets(rows);
+    const totE = jT(fdjE), totR = jT(fdjR);
+    const cnT = comparerNet(totE, totR, bornes, bRef);
+    const rT = resumerParJour(totE, bornes), rTR = resumerParJour(totR, bRef);
+    const total = { nom: 'Total', moyenneE: rT.moyenne, moyenneR: rTR.moyenne, cmp: cnT.net, cmpAvec: cnT.avec,
+      datesExceptionnelles: cnT.dates, jugeSansJour: cnT.jugeSansJour, z: zComparaison(cnT.net), claire: claire(cnT.net) };
+    if (cnT.avec.etat !== 'ok') return { etat: 'insuffisant', total, familles: [], constat: null, candidats: [], retenue: null, motif: null, k: kDep };
+    const D = cnT.avec.ecart;
+    const familles = FAMILLES_FDJ.map(f => {
+      const jE = joursFamilleFdj(fdjE, f.cle), jR = joursFamilleFdj(fdjR, f.cle);
+      const cn = comparerNet(jE, jR, bornes, bRef);
+      const contribution = cn.avec.etat === 'ok' ? cn.avec.ecart : null;
+      return { cle: f.cle, nom: f.nom, article: f.article, moyenneE: cn.avec.moyenneEtudiee, moyenneR: cn.avec.moyenneReference,
+        cmp: cn.net, cmpAvec: cn.avec, datesExceptionnelles: cn.dates, jugeSansJour: cn.jugeSansJour,
+        z: zComparaison(cn.net), claire: claire(cn.net), contribution, part: (contribution !== null && D !== 0) ? contribution / D : null };
+    });
+    const constat = constatCompositionFdj(total, familles);
+    // Candidats de découverte : (a) variation masquée, (c) variation simple du total (avec la composition en facteur).
+    const signe = x => x > 0 ? 1 : x < 0 ? -1 : 0;
+    const candidats = [];
+    let m = null;
+    familles.forEach(f => {
+      if (!f.claire) return;
+      if (total.claire && signe(f.cmp.ecart) === signe(total.cmp.ecart)) return;
+      if (!m || (f.z === null ? -1 : f.z) > (m.z === null ? -1 : m.z)) m = f;
+    });
+    if (m) candidats.push({ type: 'masquee', famille: m.cle, nom: m.nom, I: Math.abs(m.cmp.ecart), z: m.z });
+    if (total.claire) candidats.push({ type: 'variation', I: Math.abs(total.cmp.ecart), z: total.z });
+    let motif = candidats.length ? 'ordre par défaut' : null;
+    const a = candidats.find(x => x.type === 'masquee'), c = candidats.find(x => x.type === 'variation');
+    if (a && c) {
+      const d = departagerDepassement(a, c, kDep);
+      motif = d.motif;
+      if (d.passe) { candidats.splice(candidats.indexOf(c), 1); candidats.unshift(c); }
+    }
+    return { etat: 'ok', total, familles, constat, candidats, retenue: candidats[0] || null, motif, k: kDep };
+  }
+
+  // Détail par palier ou par jeu (grattage seulement). lignes : {date, cle, ca}. Seuls comptent les jours complets
+  // (deux quarts contrôlés) ; un jour complet sans ligne de détail n'est pas couvert : il n'est jamais complété à 0.
+  function detailGrattageFdj(fdjE, fdjR, lignesE, lignesR, bornes, bRef, cleDe) {
+    const cote = (fdj, lignes, p) => {
+      const complets = new Set(joursCaFdjComplets(fdj).map(j => j.date).filter(d => d >= p.debut && d <= p.fin));
+      const parJour = new Map();
+      (lignes || []).forEach(l => {
+        if (!l || !complets.has(l.date)) return;
+        const k = cleDe(l);
+        if (k === null || k === undefined) return;
+        const j = parJour.get(l.date) || new Map();
+        j.set(k, (j.get(k) || 0) + (Number(l.ca) || 0));
+        parJour.set(l.date, j);
+      });
+      return { complets: complets.size, couverts: parJour.size, parJour };
+    };
+    const E = cote(fdjE, lignesE, bornes), R = cote(fdjR, lignesR, bRef);
+    const cles = new Set();
+    [E, R].forEach(c => c.parJour.forEach(j => j.forEach((_, k) => cles.add(k))));
+    const moy = (c, k) => { let s = 0; c.parJour.forEach(j => { s += j.get(k) || 0; }); return c.couverts ? s / c.couverts : null; };
+    const lignes = [...cles].map(k => {
+      const mE = moy(E, k), mR = moy(R, k);
+      return { cle: k, moyenneE: mE, moyenneR: mR, contribution: (mE !== null && mR !== null) ? mE - mR : null };
+    }).filter(l => l.contribution !== null);
+    return { couvertureE: { couverts: E.couverts, complets: E.complets }, couvertureR: { couverts: R.couverts, complets: R.complets },
+      complete: E.couverts === E.complets && R.couverts === R.complets && E.complets > 0, lignes };
+  }
+  function detailPaliersFdj(fdjE, fdjR, tiersE, tiersR, bornes, bRef) {
+    const d = detailGrattageFdj(fdjE, fdjR, tiersE, tiersR, bornes, bRef, l => l.palier === null || l.palier === undefined ? null : Number(l.palier));
+    d.lignes.sort((a, b) => a.cle - b.cle);
+    return d;
+  }
+  function detailJeuxFdj(fdjE, fdjR, jeuxE, jeuxR, bornes, bRef, nomsJeux, limite) {
+    const d = detailGrattageFdj(fdjE, fdjR, jeuxE, jeuxR, bornes, bRef, l => l.game_id === null || l.game_id === undefined ? null : String(l.game_id));
+    d.lignes.forEach(l => { l.nom = (nomsJeux && nomsJeux[l.cle]) || 'Jeu ' + l.cle; });
+    d.lignes.sort((a, b) => Math.abs(b.contribution) - Math.abs(a.contribution));
+    d.lignes = d.lignes.slice(0, limite || 5);
+    return d;
+  }
+
   // Quantile 97,5 % de la loi de Student (test bilatéral à 5 %), développement de Cornish-Fisher.
   function studentCritique5(df) {
     const z = 1.959964;
@@ -2024,5 +2144,6 @@
     compositionCalendrier, evaluerComparabilite, prixMoyenMesure,
     joursCaPiste, joursCaBoutique, analysePiste, departagerDepassement, joursLitresCarburant, quartsLitresCarburant, horsServiceCarburant, CARBURANTS, JOURS_HORS_SERVICE, SEUIL_PART_POINTS, K_DEPASSEMENT, correlationResidus, relationBoutiqueFdj, rapportFdjQuart1, SEUIL_RELATION_JOURS,
     libelleEvolution,
+    analyseFdj, constatCompositionFdj, detailPaliersFdj, detailJeuxFdj, joursFamilleFdj, FAMILLES_FDJ, SEUIL_PART_FAMILLE,
   };
 })();
