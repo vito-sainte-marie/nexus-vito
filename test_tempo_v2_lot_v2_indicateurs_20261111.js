@@ -118,9 +118,9 @@ t('la page n\'écrit rien : ni insert/update/upsert/delete ni RPC', () => {
 
 t('la page lit uniquement les sources annoncées, filtrées par site', () => {
   const tables = [...scripts.matchAll(/\.from\('([a-z_]+)'\)/g)].map(m => m[1]).sort();
-  assert.deepStrictEqual(tables, ['audits_caisse', 'products', 'produits_appel', 'view_fdj_daily_summary']);
+  assert.deepStrictEqual(tables, ['audits_caisse', 'products', 'produits_appel', 'sites', 'view_fdj_daily_summary', 'view_fdj_shift_facts']);
   const eq = scripts.match(/\.eq\('site', siteId\)/g) || [];
-  assert.strictEqual(eq.length, 4);
+  assert.strictEqual(eq.length, 5); // + view_fdj_shift_facts (sites se lit par site_id)
 });
 
 t('jamais d\'horloge UTC : ni aujourdHuiISO ni filtrerJoursClos', () => {
@@ -128,9 +128,8 @@ t('jamais d\'horloge UTC : ni aujourdHuiISO ni filtrerJoursClos', () => {
 });
 
 t('mentions imposées et lignes G1, G3, G5 présentes', () => {
-  for (const s of ["Moyenne de la période d'import, pas une marge calculée jour par jour.",
-    "Chiffre d'affaires, pas la marge de la station.", "Hors produits d'appel.", "En attente d'arbitrage (G5)",
-    'Donnée absente', 'Historique insuffisant', 'Fait mesuré', 'Non qualifié', '(G1)', '(G3)']) {
+  for (const s of ["Chiffre d'affaires, pas la marge de la station.", "hors produits d'appel", "Comparaison non disponible",
+    'Donnée absente', 'Historique insuffisant', 'Fait mesuré', 'Non qualifié', 'Marge quotidienne non disponible pour cette période', 'Commissions FDJ non renseignées']) {
     assert.ok(html.includes(s), 'manque : ' + s);
   }
   assert.ok(/id="pillComparabilite"\s+hidden/.test(html));

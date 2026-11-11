@@ -116,13 +116,13 @@ t('« Hypothèse » : contour pointillé ambre, fond transparent, libellé gard�
 });
 
 t('« En attente d\'arbitrage » : horloge ◷ avant chaque ligne d\'attente', () => {
-  const lignes = [...sansScripts.matchAll(/<div class="arbitrage">([\s\S]*?)<\/div>/g)];
+  const lignes = [...sansScripts.matchAll(/<div class="arbitrage"[^>]*>([\s\S]*?)<\/div>/g)];
   assert.ok(lignes.length >= 8, 'lignes d\'attente : ' + lignes.length);
   for (const [, c] of lignes) {
     assert.ok(/^<span class="attente-ico" aria-hidden="true">◷<\/span>/.test(c), 'sans horloge : ' + c);
-    assert.ok(/en attente d'arbitrage/i.test(c));
+    assert.ok(c.length > 20);
   }
-  assert.strictEqual((sansScripts.match(/en attente d'arbitrage/gi) || []).length, lignes.length, 'attente hors .arbitrage');
+  assert.ok(!/en attente d'arbitrage|\(G\d\)/i.test(sansScripts), 'code ou ancien libellé visible');
 });
 
 t('signature complète aussi sur .colonne.act et .tuile.act (spécificité relevée)', () => {
@@ -142,7 +142,7 @@ t('.evol : classe attente-g5 dans le balisage, horloge par CSS, JS intact', () =
 });
 
 t('valeur principale des indicateurs : 32 px gras quand mesurée, 15 px pour les états vides', () => {
-  assert.ok(/\.indicateur \.niveau\.mesure ~ \.valeur\{[^}]*font-size:32px;[^}]*font-weight:700/.test(css));
+  assert.ok(/\.valeur \.nb\{[^}]*font-size:32px;[^}]*font-weight:700/.test(css));
   assert.ok(/\n\.valeur\{[^}]*font-size:15px/.test(css), 'état vide à 15 px');
 });
 
@@ -152,7 +152,7 @@ t('flèche des analyses : toujours cyan NEXUS', () => {
 
 t('le JS de la page est inchangé (empreinte du bloc script)', () => {
   const h = crypto.createHash('sha256').update(scripts).digest('hex');
-  assert.strictEqual(h, '6afbfd59c14b4ea3a0af53ffee1d9f4390ad5542f3e6145bc80236aa664a41c2');
+  assert.strictEqual(h, '6380e2f2a76738e83e4e4b31c5827c9f2860cc3c5592e81ed674268221b4498f');
 });
 
 t('nexus-tempo.js intact (aucune référence aux classes de signature)', () => {

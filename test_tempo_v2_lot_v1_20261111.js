@@ -59,7 +59,7 @@ t('textes de structure imposés', () => {
     'Piste · Litres vendus', 'Boutique · Marge commerciale', 'FDJ · CA des jeux',
     'Pourquoi ces évolutions ne sont pas des conclusions',
     'Durées', 'Calendrier', 'Journée exceptionnelle', 'Prix',
-    "Règle de qualification : en attente d'arbitrage (G5)",
+    'Règle de comparabilité en cours de définition',
     'Quarts et équipes', 'Quart 1', 'Quart 2', 'Hypothèse',
     'Comparer les quarts', 'Voir les pompistes',
     'Ce que Tempo a découvert', 'Voir les preuves', 'Analyses',
@@ -67,7 +67,7 @@ t('textes de structure imposés', () => {
     'Quels sont mes jours forts et faibles ?', 'Quels mois me sont favorables ?',
     'Les vacances changent-elles mon activité ?', 'Quand la piste tourne, la boutique suit-elle ?',
     'Tempo analyse et explique.', 'Les décisions se prennent dans le Cockpit.',
-    'Non qualifié', '(G1)', '(G3)', '(G4)',
+    'Non qualifié', 'Marge quotidienne non disponible pour cette période', 'Commissions FDJ non renseignées', 'Rattachement des tirages au quart à confirmer',
   ]) assert.ok(html.includes(s), 'manque : ' + s);
 });
 
@@ -129,7 +129,7 @@ t('carte vide : aucun niveau, sauf « Hypothèse » de la colonne CA FDJ (G4)', 
   assert.ok(!/Fait mesuré|Relation observée/.test(html.replace(/<script[\s\S]*?<\/script>/g, '')), 'niveau affiché sur une carte vide');
   const hyp = html.match(/class="niveau hypothese"/g) || [];
   assert.strictEqual(hyp.length, 1);
-  const q = html.match(/id="qFdj"[\s\S]*?G4\)<\/div>/);
+  const q = html.match(/id="qFdj"[\s\S]*?Rattachement des tirages au quart à confirmer<\/div>/);
   assert.ok(q && /niveau hypothese/.test(q[0]), 'Hypothèse hors de la colonne FDJ');
 });
 
