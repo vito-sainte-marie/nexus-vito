@@ -68,7 +68,7 @@ t('textes de structure imposés', () => {
     'Quels sont mes jours forts et faibles ?', 'Quels mois me sont favorables ?',
     'Les vacances changent-elles mon activité ?', 'Quand la piste tourne, la boutique suit-elle ?',
     'Tempo analyse et explique.', 'Les décisions se prennent dans le Cockpit.',
-    'Fait mesuré', 'Relation observée', '(G1)', '(G3)', '(G4)',
+    'Non qualifié', '(G1)', '(G3)', '(G4)',
   ]) assert.ok(html.includes(s), 'manque : ' + s);
 });
 
@@ -118,8 +118,47 @@ t('aucun lien vers NEXUS-Tempo-v2 depuis App, Brief, menu, Cockpit et le reste',
 });
 
 t('NEXUS-Tempo-v1.html inchangé (empreinte)', () => {
-  const h = crypto.createHash('sha256').update(fs.readFileSync(path.join(racine, 'NEXUS-Tempo-v1.html'))).digest('hex');
-  assert.strictEqual(h, '660f5f17f4cdea5af2bf31a6d574acde09cbd0ff1c06f78b55adfb0ee0f2783f');
+  // outils/build.sh réécrit les épingles ?v= et injecte trois scripts d'environnement : on neutralise les deux avant de comparer.
+  const src = fs.readFileSync(path.join(racine, 'NEXUS-Tempo-v1.html'), 'utf8')
+    .replace(/<script src="nexus-(?:config|page|bandeau-environnement)\.js[^"]*"><\/script>\n?/g, '')
+    .replace(/\?v=[^"']*/g, '?v=');
+  const h = crypto.createHash('sha256').update(src).digest('hex');
+  assert.strictEqual(h, 'a5c31400856a5028946ca18ddf0a1e581dc5a3e6d31fe2a743d2cb40beac49bb');
+});
+
+t('carte vide : aucun niveau, sauf « Hypothèse » de la colonne CA FDJ (G4)', () => {
+  assert.ok(!/Fait mesuré|Relation observée/.test(html), 'niveau affiché sur une carte vide');
+  const hyp = html.match(/class="niveau hypothese"/g) || [];
+  assert.strictEqual(hyp.length, 1);
+  const q = html.match(/id="qFdj"[\s\S]*?<\/(?:article|div)>/);
+  assert.ok(q && /niveau hypothese/.test(q[0]), 'Hypothèse hors de la colonne FDJ');
+});
+
+t('bannière de station chargée et utilisée', () => {
+  assert.ok(/<script src="nexus-banniere-station\.js(?:\?v=[^"]*)?"/.test(html));
+  assert.ok(/NexusBanniereStation\.html\(/.test(scripts));
+  assert.ok(/class="entete-texte"/.test(html));
+});
+
+t('six sous-titres fixes sous les tuiles Analyses, sans chiffre', () => {
+  const sous = ['Litres, boutique et FDJ, jour par jour', "Écart à l'attendu de leur quart, sans classement",
+    'Par activité, sur les mêmes semaines', 'FDJ, litres et boutique, mois par mois',
+    'À jour de semaine égal', 'Relation jour par jour et par quart'];
+  let dernier = -1;
+  for (const u of sous) {
+    const i = html.indexOf('>' + u + '<');
+    assert.ok(i > dernier, 'absent ou hors ordre : ' + u);
+    dernier = i;
+    assert.ok(!/\d/.test(u));
+  }
+});
+
+t('flèche des analyses : libellé, masquée dès 768 px, geste scrollBy', () => {
+  assert.ok(/id="flecheAnalyses"[^>]*aria-label="Voir les analyses suivantes"|aria-label="Voir les analyses suivantes"[^>]*id="flecheAnalyses"/.test(html));
+  assert.ok(/\.fleche\{[^}]*display:\s*none/.test(html), 'pas masquée par défaut (bureau)');
+  const mob = html.match(/@media \(max-width:\s*767px\)\s*\{[\s\S]*?\n\}/);
+  assert.ok(mob && /\.fleche\{[^}]*display:\s*flex/.test(mob[0]), 'pas affichée en mobile');
+  assert.ok(/scrollBy\(/.test(scripts));
 });
 
 console.log(echecs ? '\n' + echecs + ' échec(s)' : '\nTout est vert');
