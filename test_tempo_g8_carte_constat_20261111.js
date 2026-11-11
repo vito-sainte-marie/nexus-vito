@@ -105,7 +105,17 @@ t('revue 6786038072 : constat sans impact attendu, libellé 56 jours, jamais com
   assert.strictEqual(cand.impactAttendu, null);
   assert.ok(/Fait mesuré/.test(cand.pourquoi) && /8 dernières semaines \(56 jours\)/.test(cand.pourquoi));
   assert.ok(!/semaines complètes/.test(cand.pourquoi));
-  assert.ok(/p\.niveau === 'Fait mesuré'/.test(lire('NEXUS-Brief-v1.html')));
-  assert.ok(/filter\(c => c\.niveau !== 'Fait mesuré'\)\.length/.test(lire('NEXUS-App-v1.html')));
+});
+t('arbitrage 10/11 : Tempo hors sélection des décisions (Brief et accueil), plus de rendu conditionnel', () => {
+  const b = lire('NEXUS-Brief-v1.html'), a = lire('NEXUS-App-v1.html');
+  const fb = b.match(/NexusConseiller\.fusionnerEtSelectionner\(\s*\[([^\]]*)\]/);
+  assert.ok(fb, 'fusion du Brief trouvée');
+  assert.ok(!/tempo/i.test(fb[1]), 'le Brief ne passe aucun candidat Tempo à la fusion');
+  const fa = a.match(/NexusConseiller\.fusionnerEtSelectionner\(\s*\[([^\]]*)\]/);
+  assert.ok(fa && !/tempo/i.test(fa[1]), 'l’accueil ne passe aucun candidat Tempo à la fusion');
+  assert.ok(!/normaliserTempo/.test(b) && !/normaliserTempo/.test(a), 'ni Brief ni accueil n’appellent normaliserTempo');
+  assert.ok(!/p\.niveau === 'Fait mesuré'/.test(b), 'rendu conditionnel retiré du Brief');
+  assert.ok(/nbDecisions: candidatsConseiller\.length/.test(a) && !/Fait mesuré'\)\.length/.test(a));
+  assert.ok(!/tempo: candidatTempoListe/.test(b), 'Tempo ne se déclare plus contributeur de décisions');
 });
 console.log(n + ' tests OK');

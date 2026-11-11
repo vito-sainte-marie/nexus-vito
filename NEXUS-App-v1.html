@@ -1715,7 +1715,6 @@
   // unique désormais partagée avec NEXUS-Brief-v1.html (voir ce fichier —
   // les deux copies avaient divergé silencieusement sur le bloc
   // `opportunites`).
-  const construireCandidatTempoHome = NexusTempo.construireCandidatTempo;
 
   // A3 / C1c-4b : l'Accueil devient résolveur explicite — il délègue le
   // statut carburants à la chaîne Brief, qui date ses journées.
@@ -2119,11 +2118,11 @@
     // que de toujours remonter le même candidat.
     const candidatMarge = margePlusResultat && margePlusResultat.candidatTop
       ? NexusConseiller.normaliserMarge(margePlusResultat.candidatTop) : null;
-    const candidatTempoBrut = construireCandidatTempoHome(constatTempo);
-    const candidatTempo = candidatTempoBrut ? NexusConseiller.normaliserTempo(candidatTempoBrut) : null;
+    // Tempo explique, il ne décide pas (arbitrage Frédéric 10/11, G8) : le constat
+    // n'est pas passé au Conseiller et n'entre dans aucun compteur de décisions.
     const candidatsAdvisor = messagesAdvisor.map(NexusConseiller.normaliserAdvisor);
     const candidatsConseiller = NexusConseiller.fusionnerEtSelectionner(
-      [candidatsDisponibles, candidatMarge ? [candidatMarge] : [], candidatTempo ? [candidatTempo] : [], candidatsAdvisor],
+      [candidatsDisponibles, candidatMarge ? [candidatMarge] : [], candidatsAdvisor],
       { site: SITE_HOME, n: 3 }
     );
     renderEntrepriseAujourdhui({
@@ -2134,8 +2133,7 @@
       controlesVerify,
       domainesRadar,
       jourARenforcer: constatTempo.jourARenforcer,
-      // Un constat (niveau « Fait mesuré », Tempo G8) n'est pas une décision : jamais compté.
-      nbDecisions: candidatsConseiller.filter(c => c.niveau !== 'Fait mesuré').length,
+      nbDecisions: candidatsConseiller.length,
       contientSignalGenerique: candidatsConseiller.some(c => c.moteur === 'advisor'),
       statutCarburants,
       alertesFdjNonVues,

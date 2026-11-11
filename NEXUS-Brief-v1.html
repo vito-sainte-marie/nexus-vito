@@ -494,7 +494,6 @@
   // construisait jamais le bloc `opportunites` (jour en progression / jour
   // à renforcer), contrairement à App-v1 — corrigé en passant à la version
   // partagée, désormais strictement identique sur les deux écrans.
-  const construireCandidatTempo = NexusTempo.construireCandidatTempo;
 
   // ------------------------------------------------------------
   // Statuts par secteur + scores 0-100 — définis une seule fois dans
@@ -893,8 +892,8 @@
       && NexusSecteursMoteur.estDecisionStrategique(margePlusResultat.candidatTop, seuilImpactAdaptatif)
       && !risqueMargeCategoriesQualifiees.has(margePlusResultat.candidatTop.categorie)
       ? [NexusConseiller.normaliserMarge(margePlusResultat.candidatTop)] : [];
-    const candidatTempoBrut = construireCandidatTempo(constatTempo);
-    const candidatTempoListe = candidatTempoBrut ? [NexusConseiller.normaliserTempo(candidatTempoBrut)] : [];
+    // Tempo explique, il ne décide pas (arbitrage Frédéric 10/11, G8) : le constat
+    // n'entre ni dans les décisions ni dans la vigilance du Brief.
     // Même règle pour la caisse (12/08/2026, dédoublonnage P0) : un quart
     // déjà qualifié par NexusRisques (`caisse:quart:${quart}`, comparaison à
     // sa propre référence sur fenêtre glissante) ne doit plus apparaître en
@@ -927,7 +926,7 @@
     // pied de page ET la mention de fiabilité.
     const signauxDecisionsMoteurs = {
       produits: candidatsProduitsNormalises.length > 0, marge: candidatMargeListe.length > 0,
-      tempo: candidatTempoListe.length > 0, advisor: candidatsAdvisorListe.length > 0,
+      advisor: candidatsAdvisorListe.length > 0,
       caisse: candidatsCaisseNormalisesDedupliques.length > 0, stock: candidatsStock.length > 0,
       rappel: candidatsRappels.length > 0, fdj: candidatsFdj.length > 0, coach: candidatsCoach.length > 0,
       commande_carburant: candidatsCommandeCarburant.length > 0,
@@ -950,7 +949,7 @@
     const texteAgregationMoteurs = NexusMoteursRegistre.construireTexteAgregation(moteursContributeursListe);
 
     const fusion = NexusConseiller.fusionnerEtSelectionner(
-      [candidatsProduitsNormalises, candidatMargeListe, candidatTempoListe, candidatsAdvisorListe, candidatsCaisseNormalisesDedupliques, candidatsStock, candidatsRappels, candidatsFdj, candidatsCoach, candidatsCommandeCarburant],
+      [candidatsProduitsNormalises, candidatMargeListe, candidatsAdvisorListe, candidatsCaisseNormalisesDedupliques, candidatsStock, candidatsRappels, candidatsFdj, candidatsCoach, candidatsCommandeCarburant],
       { site: SITE_ACTUEL, n: 6 }
     );
     const decisions = fusion.slice(0, 3);
@@ -1266,14 +1265,14 @@
           <span class="decision-chevron">›</span>
         </div>
         <div class="decision-body">
-          <div class="decision-field"><div class="decision-field-label">${p.niveau === 'Fait mesuré' ? 'Fait mesuré' : "Ce que j'observe"}</div><div class="decision-field-text">${p.ceQueJObserve}</div></div>
+          <div class="decision-field"><div class="decision-field-label">Ce que j'observe</div><div class="decision-field-text">${p.ceQueJObserve}</div></div>
           ${p.pourquoiCelaCompte ? `<div class="decision-field"><div class="decision-field-label">Pourquoi cela compte</div><div class="decision-field-text"><b>${p.pourquoiCelaCompte}</b></div></div>` : ''}
           <div class="decision-field"><div class="decision-field-label">Ce qui semble l'expliquer</div><div class="decision-field-text">${p.ceQuiSembleLExpliquer}</div></div>
           <div class="decision-field"><div class="decision-field-label">Ce qui manque pour confirmer</div><div class="decision-field-text">${p.ceQuiManquePourConfirmer}</div></div>
           ${p.preuve ? `<div class="decision-field"><div class="decision-field-label">Preuves</div><div class="decision-field-text">${p.preuve}</div></div>` : ''}
           <div class="decision-chips">
-            ${p.niveau === 'Fait mesuré' ? '' : `<span class="decision-chip">📅 ${p.quandAgir}</span>
-            <span class="decision-chip ${p.niveauDeConfiance === 'Élevé' ? 'confiance-eleve' : 'confiance-moyen'}">Confiance : ${p.niveauDeConfiance}</span>`}
+            <span class="decision-chip">📅 ${p.quandAgir}</span>
+            <span class="decision-chip ${p.niveauDeConfiance === 'Élevé' ? 'confiance-eleve' : 'confiance-moyen'}">Confiance : ${p.niveauDeConfiance}</span>
             ${(() => { const m = NexusMoteursRegistre.nomPublic(p.moteur) || 'Signal'; const entete = NexusBadgeEtat.rendu(p.etat, {}).replace(/<[^>]*>/g, '').trim().toLowerCase(); return m.trim().toLowerCase() === entete ? '' : `<span class="decision-chip">${m}</span>`; })()}
           </div>
           ${p.validable
