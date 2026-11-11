@@ -382,6 +382,14 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
       <div class="arbitrage" data-arbitrage="G5"><span class="attente-ico" aria-hidden="true">◷</span>Critères de fiabilité en cours de définition</div>
       <span class="preuves" aria-disabled="true">Voir les preuves</span>
     </article>
+    <article class="carte decouverte vide">
+      <span class="niveau vide-niveau">Non qualifié</span>
+      <h3>Donnée en cours de branchement</h3>
+      <div class="texte">Donnée en cours de branchement</div>
+      <div class="source">Source : —</div>
+      <div class="arbitrage" data-arbitrage="G5"><span class="attente-ico" aria-hidden="true">◷</span>Critères de fiabilité en cours de définition</div>
+      <span class="preuves" aria-disabled="true">Voir les preuves</span>
+    </article>
   </section>
 
   <div class="titre-section">Analyses</div>
@@ -678,6 +686,8 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
     ]);
     // Période de référence et calendrier : lectures seules, filtrées par site.
     const bRef = T.bornesReference(bornes);
+    // Le calendrier remonte jusqu'au plus ancien import Boutique : la référence de la marge peut cumuler plusieurs imports.
+    const debutCalendrier = (rProd.error ? [] : rProd.data || []).reduce((m, r) => r.periode_debut && r.periode_debut < m ? r.periode_debut : m, bRef.debut);
     const [rAudRef, rFdjRef, rCal] = await Promise.all([
       fetchAllRows(() => nexusClient.from('audits_caisse')
         .select('date, quart, litrage_gazole, litrage_sp95, litrage_gnr, vente_piste, vente_boutique')
@@ -687,7 +697,7 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
         .eq('site', siteId).gte('date', bRef.debut).lte('date', bRef.fin).order('date', { ascending: true })),
       fetchAllRows(() => nexusClient.from('inventaire_calendrier_site')
         .select('date, type, libelle')
-        .eq('site', siteId).in('type', ['vacances', 'ferie']).gte('date', bRef.debut).lte('date', bornes.fin).order('date', { ascending: true })),
+        .eq('site', siteId).in('type', ['vacances', 'ferie']).gte('date', debutCalendrier).lte('date', bornes.fin).order('date', { ascending: true })),
     ]);
     // Lot D3 : détail du grattage par palier et par jeu (lecture seule, filtrée par site, sur les deux périodes).
     const [rPaliers, rJeux, rNomsJeux] = await Promise.all([
@@ -756,8 +766,33 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
       ? { ok: true, nombre: fmtNb(mi.marge) + ' €', unite: 'marge du ' + fmtDateCourte(mi.debut) + ' au ' + fmtDateCourte(mi.fin),
           total: "Marge de la période d'import · " + fmtPct(mi.taux), periode: perBoutique }
       : { ok: false, valeur: ABSENT, total: 'Total : ' + ABSENT.toLowerCase() });
-    habiller('indBoutique', { evol: mi.etat === 'ok' ? fmtPct(mi.taux) + ' · de taux de marge' : 'Tendance non déterminée',
+    // Marge par catégorie (lot D2) : marges réelles des imports, hors produits d'appel, deux périodes d'import comparables.
+    const ab = (rProd.error || rApp.error) ? null
+      : T.analyseBoutique(rProd.data, (rApp.data || []).map(r => r.article), NexusPeriodes.analyserPeriodes, rCal.error ? [] : rCal.data);
+    const evolBoutique = !ab || ab.etat !== 'ok' ? 'Tendance non déterminée'
+      : ab.global.eligible ? (ab.global.sens === 'hausse' ? 'Marge en hausse' : 'Marge en baisse')
+      : (ab.global.pctMarge === null ? '' : signePct(ab.global.pctMarge) + ' · ') + 'Marge stable';
+    habiller('indBoutique', { evol: evolBoutique,
       couverture: mi.etat === 'ok' ? pluriel(Math.round((Date.parse(mi.fin) - Date.parse(mi.debut)) / 86400000) + 1, 'j', 'j') + ' d\'import' : '' });
+    detailExtra.indBoutique = [];
+    if (ab && ab.etudiee) {
+      const jr = x => pluriel(x.jours, 'jour', 'jours');
+      const l = ['Période étudiée : du ' + fmtDateCourte(ab.etudiee.debut) + ' au ' + fmtDate(ab.etudiee.fin) + ' · ' + jr(ab.etudiee)];
+      if (ab.reference) {
+        l.push('Période de référence : du ' + fmtDateCourte(ab.reference.debut) + ' au ' + fmtDate(ab.reference.fin) + ' · ' + jr(ab.reference) +
+          (ab.reference.periodes.length > 1 ? ' (' + ab.reference.periodes.length + ' imports cumulés)' : ''));
+        const cE = ab.comparabilite.calE, cR = ab.comparabilite.calR;
+        l.push('Jours de vacances : ' + fmtNb(cE.pctVacances * 100) + ' % contre ' + fmtNb(cR.pctVacances * 100) + ' % · jours fériés : ' + fmtNb(cE.pctFeries * 100) + ' % contre ' + fmtNb(cR.pctFeries * 100) + ' %');
+        l.push(ab.comparabilite.faible ? 'Périodes peu comparables : ' + ab.comparabilite.raisons.map(x => x.texte).join(' ; ') : 'Périodes comparables');
+      } else l.push('Pas de période de référence : un seul import de marge');
+      l.push('Marge réelle des imports, par jour, hors produits d\'appel. Un import est un total de période : pas de marge par date ni par quart, pas de test statistique.');
+      detailExtra.indBoutique.push({ titre: 'Fiabilité de la comparaison', lignes: l });
+    }
+    if (ab && ab.etat === 'ok') {
+      const sg0 = x => (x > 0 ? '+' : x < 0 ? '−' : '') + fmtNb(Math.abs(x));
+      detailExtra.indBoutique.push({ titre: 'Marge par catégorie', lignes: ['Contribution signée à la marge, par jour (seuil de ' + fmtNb(ab.seuils.categorieEuros) + ' € par jour pour signaler une catégorie)']
+        .concat(ab.categories.map(c => c.nom + ' : ' + fmtNb(c.margeE) + ' € par jour contre ' + fmtNb(c.margeR) + ' € · ' + sg0(c.contribution) + ' €')) });
+    }
 
     // FDJ : chiffre d'affaires des jeux par jour, jours à deux quarts contrôlés.
     const fdj = rFdj.error ? { etat: 'absent', jours: 0 }
@@ -914,11 +949,43 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
         });
       }
     }
+    if (ab && ab.etat === 'ok' && ab.retenue) {
+      const r = ab.retenue, g = ab.global;
+      const sg = x => (x > 0 ? '+' : x < 0 ? '−' : '') + fmtNb(Math.abs(x));
+      const lc = c => c.nom + ' : ' + sg(c.contribution) + ' € de marge par jour (' + fmtNb(c.margeE) + ' € contre ' + fmtNb(c.margeR) + ' €)';
+      const cats = (r.categories || []).map(n => ab.categories.find(c => c.nom === n)).filter(Boolean);
+      const caHausse = g.caE > g.caR;
+      let titre, lignes;
+      if (r.type === 'decrochage') {
+        titre = !g.eligible ? (caHausse ? 'Plus de chiffre d\'affaires, marge stable' : 'Moins de chiffre d\'affaires, marge stable')
+          : 'Chiffre d\'affaires ' + (caHausse ? 'en hausse' : 'en baisse') + ', marge ' + (g.ecart > 0 ? 'en hausse' : 'en baisse');
+        lignes = ['Chiffre d\'affaires par jour : ' + fmtNb(g.caE) + ' € contre ' + fmtNb(g.caR) + ' € (' + signePct(g.pctCa) + ')',
+          'Marge par jour : ' + fmtNb(g.margeE) + ' € contre ' + fmtNb(g.margeR) + ' € (' + (g.pctMarge === null ? 'non calculable' : signePct(g.pctMarge)) + ')'].concat(cats.map(lc));
+      } else if (r.type === 'masquee') {
+        titre = 'Des catégories se compensent dans la marge';
+        lignes = cats.map(lc).concat(['Marge totale : ' + sg(g.ecart) + ' € par jour (' + (g.pctMarge === null ? 'non calculable' : signePct(g.pctMarge)) + ')']);
+      } else {
+        titre = 'Marge ' + (g.ecart > 0 ? 'en hausse' : 'en baisse') + ' de ' + fmtNb(Math.abs(g.ecart)) + ' € par jour (' + (g.pctMarge === null ? 'non calculable' : signePct(g.pctMarge)) + ')';
+        const f = r.categorie ? ab.categories.find(c => c.nom === r.categorie) : null;
+        lignes = ['Marge par jour : ' + fmtNb(g.margeE) + ' € contre ' + fmtNb(g.margeR) + ' €'];
+        if (f) lignes.push(lc(f) + ' · ' + fmtNb(f.part * 100) + ' % de la variation');
+      }
+      remplirDecouverte(1, {
+        niveau: 'Fait mesuré', cls: 'mesure', titre, lignes,
+        source: 'Source : imports produits · marge réelle, hors produits d\'appel',
+        preuves: [
+          ['Périodes', 'Étudiée : du ' + fmtDateCourte(ab.etudiee.debut) + ' au ' + fmtDate(ab.etudiee.fin) + ' (' + pluriel(ab.etudiee.jours, 'jour', 'jours') + ') · référence : du ' + fmtDateCourte(ab.reference.debut) + ' au ' + fmtDate(ab.reference.fin) + ' (' + pluriel(ab.reference.jours, 'jour', 'jours') + ')'],
+          ['Calcul', 'Total de chaque import divisé par sa durée. Une catégorie est signalée à partir de ' + fmtNb(ab.seuils.categorieEuros) + ' € de marge par jour d\'écart ; la marge globale à partir de ' + fmtDec(ab.seuils.margePct * 100, 0) + ' % ou ' + fmtNb(ab.seuils.margeEuros) + ' € par jour.'],
+          ['Choix de la découverte', 'Candidats : ' + ab.candidats.map(c => c.type === 'masquee' ? 'compensation entre catégories' : c.type === 'decrochage' ? 'chiffre d\'affaires et marge qui divergent' : 'variation de la marge').join(', ') + ' · ' + ab.motif + '.'],
+          ['Sources', 'products et produits_appel · lecture seule, filtrée par site'],
+        ],
+      });
+    }
     if (!rAud.error && !rFdj.error) {
       const rel = T.relationBoutiqueFdj(rAud.data, rFdj.data, bornes);
       if (rel.etat === 'ok') {
         const c = x => fmtDec(x.r, 2) + (x.significative ? ' (significative)' : ' (non significative)');
-        remplirDecouverte(1, {
+        remplirDecouverte(3, {
           niveau: 'Relation observée', cls: 'relation', titre: 'Boutique et FDJ varient ensemble',
           lignes: [
             'Boutique et FDJ : corrélation ' + c(rel.boutiqueFdj) + ' sur ' + rel.n + ' jours',

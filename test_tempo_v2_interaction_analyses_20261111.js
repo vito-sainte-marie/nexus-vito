@@ -49,7 +49,7 @@ t('flèche › sur tuile disponible seulement', () => {
 t('découvertes vides : une seule ligne neutre « Découvertes en préparation »', () => {
   const sec = html.slice(html.indexOf('id="decouvertes"'), html.indexOf('id="analyses"'));
   assert.strictEqual((sec.match(/class="decouvertes-attente">Découvertes en préparation</g) || []).length, 1);
-  assert.strictEqual((sec.match(/class="carte decouverte vide"/g) || []).length, 3);
+  assert.strictEqual((sec.match(/class="carte decouverte vide"/g) || []).length, 4);
   assert.ok(/\.decouverte\.vide\{display:none/.test(css));
   assert.ok(/\.decouvertes:not\(:has\(\.decouverte:not\(\.vide\)\)\) \.decouvertes-attente\{display:block/.test(css));
   const ligne = css.match(/\.decouvertes-attente\{[^}]*\}/)[0];
