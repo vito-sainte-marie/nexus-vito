@@ -25,11 +25,17 @@
 :root{
   --t-bg:#07131E; --t-panel:#0D202E; --t-raised:#0F2433; --t-line:#254354;
   --t-text:#EDF1F5; --t-mid:#9AA8B6; --t-cyan:#24D8E3; --t-green:#29C98A; --t-amber:#F5A12A; --t-bar2:#5B7A8E;
+  --piste:#22C7B8; --boutique:#C47A55; --fdj:#A18BF2;
+  --piste-rgb:34,199,184; --boutique-rgb:196,122,85; --fdj-rgb:161,139,242;
+  --a-bord:.32; --a-glow:.10; --a-ico:.14;
   --t-mono:'IBM Plex Mono',monospace; --t-sans:'IBM Plex Sans',sans-serif;
 }
 :root[data-theme="jour"]{
   --t-bg:#F4F6F8; --t-panel:#FFFFFF; --t-raised:#EEF2F5; --t-line:#D5DCE3;
   --t-text:#0F172A; --t-mid:#475569; --t-cyan:#0B7285; --t-green:#047857; --t-amber:#B45309; --t-bar2:#94A3B8;
+  --piste:#0F766E; --boutique:#7A4A3A; --fdj:#6246C9;
+  --piste-rgb:15,118,110; --boutique-rgb:122,74,58; --fdj-rgb:98,70,201;
+  --a-bord:.30; --a-glow:.06; --a-ico:.10;
 }
 *{box-sizing:border-box; margin:0; padding:0;}
 html,body{background:var(--t-bg); color:var(--t-text); font-family:var(--t-sans); min-height:100vh;}
@@ -58,7 +64,39 @@ a{color:inherit;}
 .niveau.mesure{color:var(--t-green); background:color-mix(in srgb, var(--t-green) 13%, transparent);}
 .niveau.relation{color:var(--t-cyan); background:color-mix(in srgb, var(--t-cyan) 13%, transparent);}
 .niveau.vide-niveau{color:var(--t-mid); background:var(--t-raised); border:1px dashed var(--t-line);}
-.niveau.hypothese{color:var(--t-amber); background:color-mix(in srgb, var(--t-amber) 12%, transparent);}
+.niveau.hypothese{color:var(--t-amber); background:transparent; border:1px dotted var(--t-amber);}
+
+/* Lot « signature visuelle » : une couleur par activité, réservée à l'identité de l'activité.
+   Jamais sur un niveau, un statut, une évolution ou une attente (ceux-ci gardent leurs couleurs officielles). */
+.a-piste{--c-rgb:var(--piste-rgb);}
+.a-boutique{--c-rgb:var(--boutique-rgb);}
+.a-fdj{--c-rgb:var(--fdj-rgb);}
+.act, .colonne.act, .tuile.act{position:relative; border:1px solid rgba(var(--c-rgb), var(--a-bord)); border-top:3px solid rgb(var(--c-rgb));
+  background:radial-gradient(circle at 0 0, rgba(var(--c-rgb), var(--a-glow)), transparent 60%), var(--fond, var(--t-panel));}
+.colonne.act{--fond:var(--t-raised);}
+.attente-g5::before{content:"◷ ";}
+/* valeur mesurée en grand ; états vides (Donnée absente, Historique insuffisant) gardent 15 px */
+.indicateur .niveau.mesure ~ .valeur{font-size:32px; font-weight:700; color:var(--t-text); line-height:1.15;}
+.tete-act{display:flex; align-items:center; gap:10px; margin:10px 0 12px;}
+.tete-act h3{margin:0;}
+.ico{flex:0 0 auto; width:32px; height:32px; border-radius:9px; display:inline-flex; align-items:center; justify-content:center;
+  color:rgb(var(--c-rgb)); background:rgba(var(--c-rgb), var(--a-ico));}
+.ico svg{width:60%; height:60%;}
+.colonne .ico{width:28px; height:28px;}
+.act .q1{background:rgb(var(--c-rgb));}
+.act .q2{background:rgba(var(--c-rgb), .45);}
+.pastilles{display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px;}
+.pastille{display:inline-flex; align-items:center; gap:5px; font-family:var(--t-mono); font-size:10.5px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; padding:3px 9px 3px 6px; border-radius:20px;
+  color:rgb(var(--c-rgb)); background:rgba(var(--c-rgb), var(--a-ico));}
+.pastille svg{width:14px; height:14px;}
+.tuile.croisee{overflow:hidden;}
+.bande{display:flex; height:3px; margin:-16px -16px 13px;}
+.bande i{flex:1;}
+.bande .a-piste{background:rgb(var(--piste-rgb));}
+.bande .a-boutique{background:rgb(var(--boutique-rgb));}
+.bande .a-fdj{background:rgb(var(--fdj-rgb));}
+.attente-ico{margin-right:4px;}
+/* Découvertes : le mécanisme existe (classe act + a-… sur la carte, ou plusieurs .pastille côte à côte), mais les trois emplacements restent neutres tant qu'ils sont vides. */
 
 .indicateurs{display:grid; grid-template-columns:repeat(3,1fr); gap:14px;}
 .indicateur h3{font-size:13.5px; font-weight:600; margin:10px 0 12px;}
@@ -128,6 +166,11 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
 <script src="nexus-periodes.js?v=20260904-0104"></script>
 </head>
 <body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="i-piste" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16"/><path d="M3 21h12"/><rect x="6.5" y="6" width="5" height="4" rx="1"/><path d="M14 9h2a2 2 0 0 1 2 2v5a1.5 1.5 0 0 0 3 0V8l-3-3"/></symbol>
+  <symbol id="i-boutique" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8h14l-1 12H6L5 8z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></symbol>
+  <symbol id="i-fdj" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4V8z"/><path d="M14 6v12" stroke-dasharray="2 2"/></symbol>
+</svg>
 <div class="app" id="app">
   <div class="header" id="enTete">
     <div class="entete-texte">
@@ -151,28 +194,28 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
 
   <div class="titre-section">Trois indicateurs</div>
   <section class="indicateurs">
-    <article class="carte indicateur" id="indPiste">
+    <article class="carte indicateur act a-piste" id="indPiste">
       <span class="niveau vide-niveau">Non qualifié</span>
-      <h3>Piste · Litres vendus</h3>
+      <div class="tete-act"><span class="ico" aria-hidden="true"><svg aria-hidden="true"><use href="#i-piste"/></svg></span><h3>Piste · Litres vendus</h3></div>
       <div class="valeur">Donnée en cours de branchement</div>
       <div class="total">Total : donnée en cours de branchement</div>
-      <div class="evol">Évolution : donnée en cours de branchement</div>
+      <div class="evol attente-g5">Évolution : donnée en cours de branchement</div>
     </article>
-    <article class="carte indicateur" id="indBoutique">
+    <article class="carte indicateur act a-boutique" id="indBoutique">
       <span class="niveau vide-niveau">Non qualifié</span>
-      <h3>Boutique · Marge commerciale</h3>
+      <div class="tete-act"><span class="ico" aria-hidden="true"><svg aria-hidden="true"><use href="#i-boutique"/></svg></span><h3>Boutique · Marge commerciale</h3></div>
       <div class="valeur">Donnée en cours de branchement</div>
       <div class="total">Total : donnée en cours de branchement</div>
-      <div class="evol">Évolution : donnée en cours de branchement</div>
-      <div class="arbitrage">En attente d'arbitrage (G1)</div>
+      <div class="evol attente-g5">Évolution : donnée en cours de branchement</div>
+      <div class="arbitrage"><span class="attente-ico" aria-hidden="true">◷</span>En attente d'arbitrage (G1)</div>
     </article>
-    <article class="carte indicateur" id="indFdj">
+    <article class="carte indicateur act a-fdj" id="indFdj">
       <span class="niveau vide-niveau">Non qualifié</span>
-      <h3>FDJ · CA des jeux</h3>
+      <div class="tete-act"><span class="ico" aria-hidden="true"><svg aria-hidden="true"><use href="#i-fdj"/></svg></span><h3>FDJ · CA des jeux</h3></div>
       <div class="valeur">Donnée en cours de branchement</div>
       <div class="total">Total : donnée en cours de branchement</div>
-      <div class="evol">Évolution : donnée en cours de branchement</div>
-      <div class="arbitrage">En attente d'arbitrage (G3)</div>
+      <div class="evol attente-g5">Évolution : donnée en cours de branchement</div>
+      <div class="arbitrage"><span class="attente-ico" aria-hidden="true">◷</span>En attente d'arbitrage (G3)</div>
     </article>
   </section>
 
@@ -185,33 +228,33 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
         <div class="colonne"><h4>Journée exceptionnelle</h4><div class="valeur">Donnée en cours de branchement</div></div>
         <div class="colonne"><h4>Prix</h4><div class="valeur">Donnée en cours de branchement</div></div>
       </div>
-      <div class="arbitrage">Règle de qualification : en attente d'arbitrage (G5)</div>
+      <div class="arbitrage"><span class="attente-ico" aria-hidden="true">◷</span>Règle de qualification : en attente d'arbitrage (G5)</div>
     </div>
   </details>
 
   <div class="titre-section">Quarts et équipes</div>
   <section class="carte quarts" id="quarts">
     <div class="colonnes3">
-      <div class="colonne" id="qLitres">
-        <h3>Litres</h3>
+      <div class="colonne act a-piste" id="qLitres">
+        <div class="tete-act"><span class="ico" aria-hidden="true"><svg aria-hidden="true"><use href="#i-piste"/></svg></span><h3>Litres</h3></div>
         <div class="barre"><div class="barre-etiquette"><span>Quart 1</span><span class="valeur">—</span></div><div class="barre-piste"><div class="barre-remplie q1"></div></div></div>
         <div class="barre"><div class="barre-etiquette"><span>Quart 2</span><span class="valeur">—</span></div><div class="barre-piste"><div class="barre-remplie q2"></div></div></div>
         <div class="valeur" style="margin-top:12px;">Donnée en cours de branchement</div>
       </div>
-      <div class="colonne" id="qBoutique">
-        <h3>CA boutique</h3>
+      <div class="colonne act a-boutique" id="qBoutique">
+        <div class="tete-act"><span class="ico" aria-hidden="true"><svg aria-hidden="true"><use href="#i-boutique"/></svg></span><h3>CA boutique</h3></div>
         <div class="barre"><div class="barre-etiquette"><span>Quart 1</span><span class="valeur">—</span></div><div class="barre-piste"><div class="barre-remplie q1"></div></div></div>
         <div class="barre"><div class="barre-etiquette"><span>Quart 2</span><span class="valeur">—</span></div><div class="barre-piste"><div class="barre-remplie q2"></div></div></div>
         <div class="valeur" style="margin-top:12px;">Donnée en cours de branchement</div>
-        <div class="arbitrage">En attente d'arbitrage (G1)</div>
+        <div class="arbitrage"><span class="attente-ico" aria-hidden="true">◷</span>En attente d'arbitrage (G1)</div>
       </div>
-      <div class="colonne" id="qFdj">
-        <h3>CA FDJ</h3>
+      <div class="colonne act a-fdj" id="qFdj">
+        <div class="tete-act"><span class="ico" aria-hidden="true"><svg aria-hidden="true"><use href="#i-fdj"/></svg></span><h3>CA FDJ</h3></div>
         <span class="niveau hypothese">Hypothèse</span>
         <div class="barre"><div class="barre-etiquette"><span>Quart 1</span><span class="valeur">—</span></div><div class="barre-piste"><div class="barre-remplie q1"></div></div></div>
         <div class="barre"><div class="barre-etiquette"><span>Quart 2</span><span class="valeur">—</span></div><div class="barre-piste"><div class="barre-remplie q2"></div></div></div>
         <div class="valeur" style="margin-top:12px;">Donnée en cours de branchement</div>
-        <div class="arbitrage">En attente d'arbitrage (G4)</div>
+        <div class="arbitrage"><span class="attente-ico" aria-hidden="true">◷</span>En attente d'arbitrage (G4)</div>
       </div>
     </div>
     <div class="pied-bloc">
@@ -228,7 +271,7 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
       <h3>Donnée en cours de branchement</h3>
       <div class="texte">Donnée en cours de branchement</div>
       <div class="source">Source : —</div>
-      <div class="arbitrage">En attente d'arbitrage</div>
+      <div class="arbitrage"><span class="attente-ico" aria-hidden="true">◷</span>En attente d'arbitrage</div>
       <span class="preuves" aria-disabled="true">Voir les preuves</span>
     </article>
     <article class="carte decouverte">
@@ -236,7 +279,7 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
       <h3>Donnée en cours de branchement</h3>
       <div class="texte">Donnée en cours de branchement</div>
       <div class="source">Source : —</div>
-      <div class="arbitrage">En attente d'arbitrage</div>
+      <div class="arbitrage"><span class="attente-ico" aria-hidden="true">◷</span>En attente d'arbitrage</div>
       <span class="preuves" aria-disabled="true">Voir les preuves</span>
     </article>
     <article class="carte decouverte">
@@ -244,7 +287,7 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
       <h3>Donnée en cours de branchement</h3>
       <div class="texte">Donnée en cours de branchement</div>
       <div class="source">Source : —</div>
-      <div class="arbitrage">En attente d'arbitrage</div>
+      <div class="arbitrage"><span class="attente-ico" aria-hidden="true">◷</span>En attente d'arbitrage</div>
       <span class="preuves" aria-disabled="true">Voir les preuves</span>
     </article>
   </section>
@@ -252,12 +295,12 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
   <div class="titre-section">Analyses</div>
   <div class="analyses-wrap">
   <section class="analyses" id="analyses">
-    <div class="tuile" aria-disabled="true"><span class="t-titre">Le quart 1 vend-il plus que le quart 2 ?</span><span class="t-sous">Litres, boutique et FDJ, jour par jour</span></div>
-    <div class="tuile" aria-disabled="true"><span class="t-titre">Comment se situent les pompistes ?</span><span class="t-sous">Écart à l'attendu de leur quart, sans classement</span></div>
-    <div class="tuile" aria-disabled="true"><span class="t-titre">Quels sont mes jours forts et faibles ?</span><span class="t-sous">Par activité, sur les mêmes semaines</span></div>
-    <div class="tuile" aria-disabled="true"><span class="t-titre">Quels mois me sont favorables ?</span><span class="t-sous">FDJ, litres et boutique, mois par mois</span></div>
-    <div class="tuile" aria-disabled="true"><span class="t-titre">Les vacances changent-elles mon activité ?</span><span class="t-sous">À jour de semaine égal</span></div>
-    <div class="tuile" aria-disabled="true"><span class="t-titre">Quand la piste tourne, la boutique suit-elle ?</span><span class="t-sous">Relation jour par jour et par quart</span></div>
+    <div class="tuile croisee" aria-disabled="true"><div class="bande" aria-hidden="true"><i class="a-piste"></i><i class="a-boutique"></i><i class="a-fdj"></i></div><div class="pastilles"><span class="pastille a-piste"><svg aria-hidden="true"><use href="#i-piste"/></svg>Piste</span><span class="pastille a-boutique"><svg aria-hidden="true"><use href="#i-boutique"/></svg>Boutique</span><span class="pastille a-fdj"><svg aria-hidden="true"><use href="#i-fdj"/></svg>FDJ</span></div><span class="t-titre">Le quart 1 vend-il plus que le quart 2 ?</span><span class="t-sous">Litres, boutique et FDJ, jour par jour</span></div>
+    <div class="tuile act a-piste" aria-disabled="true"><div class="pastilles"><span class="pastille a-piste"><svg aria-hidden="true"><use href="#i-piste"/></svg>Piste</span></div><span class="t-titre">Comment se situent les pompistes ?</span><span class="t-sous">Écart à l'attendu de leur quart, sans classement</span></div>
+    <div class="tuile croisee" aria-disabled="true"><div class="bande" aria-hidden="true"><i class="a-piste"></i><i class="a-boutique"></i><i class="a-fdj"></i></div><div class="pastilles"><span class="pastille a-piste"><svg aria-hidden="true"><use href="#i-piste"/></svg>Piste</span><span class="pastille a-boutique"><svg aria-hidden="true"><use href="#i-boutique"/></svg>Boutique</span><span class="pastille a-fdj"><svg aria-hidden="true"><use href="#i-fdj"/></svg>FDJ</span></div><span class="t-titre">Quels sont mes jours forts et faibles ?</span><span class="t-sous">Par activité, sur les mêmes semaines</span></div>
+    <div class="tuile croisee" aria-disabled="true"><div class="bande" aria-hidden="true"><i class="a-piste"></i><i class="a-boutique"></i><i class="a-fdj"></i></div><div class="pastilles"><span class="pastille a-piste"><svg aria-hidden="true"><use href="#i-piste"/></svg>Piste</span><span class="pastille a-boutique"><svg aria-hidden="true"><use href="#i-boutique"/></svg>Boutique</span><span class="pastille a-fdj"><svg aria-hidden="true"><use href="#i-fdj"/></svg>FDJ</span></div><span class="t-titre">Quels mois me sont favorables ?</span><span class="t-sous">FDJ, litres et boutique, mois par mois</span></div>
+    <div class="tuile croisee" aria-disabled="true"><div class="bande" aria-hidden="true"><i class="a-piste"></i><i class="a-boutique"></i><i class="a-fdj"></i></div><div class="pastilles"><span class="pastille a-piste"><svg aria-hidden="true"><use href="#i-piste"/></svg>Piste</span><span class="pastille a-boutique"><svg aria-hidden="true"><use href="#i-boutique"/></svg>Boutique</span><span class="pastille a-fdj"><svg aria-hidden="true"><use href="#i-fdj"/></svg>FDJ</span></div><span class="t-titre">Les vacances changent-elles mon activité ?</span><span class="t-sous">À jour de semaine égal</span></div>
+    <div class="tuile croisee" aria-disabled="true"><div class="bande" aria-hidden="true"><i class="a-piste"></i><i class="a-boutique"></i></div><div class="pastilles"><span class="pastille a-piste"><svg aria-hidden="true"><use href="#i-piste"/></svg>Piste</span><span class="pastille a-boutique"><svg aria-hidden="true"><use href="#i-boutique"/></svg>Boutique</span></div><span class="t-titre">Quand la piste tourne, la boutique suit-elle ?</span><span class="t-sous">Relation jour par jour et par quart</span></div>
   </section>
   <button type="button" class="fleche masquee" id="flecheAnalyses" aria-label="Voir les analyses suivantes">›</button>
   </div>
