@@ -146,4 +146,13 @@ t('revue 6786381726 : plus de jourARenforcer dans App ni Brief, synthèse correc
   assert.ok(/marge boutique/.test(autre) && !/performance du/.test(autre), autre);
   assert.ok(/écarts de caisse/.test(f('Stable', 'Stable', 'À surveiller', null)));
 });
+t('revue 6794341821 : la note du Brief annonce 6 moteurs, sans Tempo', () => {
+  const b = lire('NEXUS-Brief-v1.html');
+  const m = b.match(/Classement partagé entre (\d+) moteurs NEXUS \(([^)]*)\)/);
+  assert.ok(m, 'note trouvée');
+  assert.strictEqual(m[1], '6');
+  assert.ok(!/Tempo/.test(m[2]), 'Tempo retiré de la liste');
+  assert.strictEqual(m[2].split(',').length, 6, 'la liste compte 6 moteurs');
+  assert.ok(!/7 moteurs/.test(b));
+});
 console.log(n + ' tests OK');

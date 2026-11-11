@@ -350,7 +350,7 @@
   // NexusIndice, NexusMarge, NexusTempo, NexusStock, NexusConseiller) et les
   // mêmes requêtes déjà validées dans NEXUS-App-v1.html / NEXUS-Cockpit-v2.html,
   // pour ne jamais diverger de ce que ces écrans affichent déjà. Sa valeur
-  // ajoutée est la SYNTHÈSE : un tri de priorité partagé entre les 7 moteurs
+  // ajoutée est la SYNTHÈSE : un tri de priorité partagé entre les 6 moteurs
   // (NexusConseiller.fusionnerEtSelectionner), une Boussole NEXUS à 5 axes,
   // et une structure de décision en 8 champs — jamais un chiffre inventé
   // (Article 5 de la Constitution NEXUS) : toute case affiche honnêtement
@@ -865,7 +865,7 @@
     }
     secteurs.forEach(s => { if (forces.length < 3 && s.force) forces.push({ icone: s.icone, titre: s.force.titre, detail: s.force.detail, cible: s.force.cible }); });
 
-    // Moteur de priorité cross-moteurs — les 7 moteurs disponibles dans
+    // Moteur de priorité cross-moteurs — les 6 moteurs disponibles dans
     // NEXUS aujourd'hui, fusionnés par NexusConseiller.fusionnerEtSelectionner
     // (rang partagé, jamais un simple tri par euros). n=6 : les 3 premiers
     // deviennent les décisions, les 3 suivants la liste de vigilance — un
@@ -1304,7 +1304,7 @@
           const groupe = (titre, items) => items.length ? `<div class="nbe-groupe-titre">${titre}</div>` + items.map(x => decisionCardHTML(x.p, x.i, x.i === 0)).join('') : '';
           return groupe('Gains', g.gains) + groupe('Risques', g.risques) + groupe('Autres signaux', g.autres);
         })()}
-        <div class="section-note">Classement partagé entre 7 moteurs NEXUS (Produits, Marge+, Tempo, Signaux Qualité/Caisse, Verify, Scanner Stock, Rappels), filtré aux décisions stratégiques ou transversales — jamais un simple tri par montant, qui favoriserait toujours le même moteur. Délai et confiance (<span class="badge badge-derived" style="padding:1px 6px;">dérivé</span>) sont déduits du rang de priorité, pas mesurés directement.</div>
+        <div class="section-note">Classement partagé entre 6 moteurs NEXUS (Produits, Marge+, Signaux Qualité/Caisse, Verify, Scanner Stock, Rappels), filtré aux décisions stratégiques ou transversales — jamais un simple tri par montant, qui favoriserait toujours le même moteur. Délai et confiance (<span class="badge badge-derived" style="padding:1px 6px;">dérivé</span>) sont déduits du rang de priorité, pas mesurés directement.</div>
       </div>`;
   }
 
