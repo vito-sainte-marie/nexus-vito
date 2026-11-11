@@ -1715,6 +1715,95 @@
   }
 
   // ------------------------------------------------------------
+  // Découvertes (lot A) : calculs purs sur les lignes déjà lues. Aucune lecture, aucune écriture.
+  // CA piste et boutique d'un jour : mêmes jours complets que les litres (les deux quarts renseignés).
+  function joursCaPiste(auditsRows) {
+    const ok = new Set(joursLitresCompletsPiste(auditsRows).map(j => j.date));
+    return agregerParJour(auditsRows).filter(j => ok.has(j.date)).map(j => ({ date: j.date, valeur: j.ventePiste }));
+  }
+  function joursCaBoutique(auditsRows) {
+    const ok = new Set(joursLitresCompletsPiste(auditsRows).map(j => j.date));
+    return agregerParJour(auditsRows).filter(j => ok.has(j.date)).map(j => ({ date: j.date, valeur: j.venteBoutique }));
+  }
+
+  const signeVariation = pct => (pct === null || pct === undefined) ? 0 : (Math.round(pct * 1000) === 0 ? 0 : (pct > 0 ? 1 : -1));
+  // Titre factuel construit des seuls signes : aucune cause, aucun verbe d'explication.
+  function titrePrixVolume(sCa, sLitres, sPrix) {
+    const f = (s, plus, moins, egal) => s > 0 ? plus : s < 0 ? moins : egal;
+    const t = [
+      f(sLitres, 'Plus de litres', 'Moins de litres', 'Litres inchangés'),
+      f(sCa, 'plus de chiffre d\'affaires', 'moins de chiffre d\'affaires', 'chiffre d\'affaires inchangé'),
+      f(sPrix, 'prix moyen en hausse', 'prix moyen en baisse', 'prix moyen inchangé'),
+    ];
+    return t.join(', ');
+  }
+
+  // Prix et volume (Piste) : période étudiée contre référence, même fenêtre et mêmes critères que les cartes.
+  function decouvertePrixVolume(audE, audR, bornes, bRef) {
+    const caE = joursCaPiste(audE), caR = joursCaPiste(audR);
+    const lE = joursLitresCompletsPiste(audE), lR = joursLitresCompletsPiste(audR);
+    const ca = comparerPeriodes(caE, caR, bornes, bRef);
+    const litres = comparerPeriodes(lE, lR, bornes, bRef);
+    if (ca.etat !== 'ok' || litres.etat !== 'ok') return { etat: 'insuffisant', ca, litres };
+    const pE = prixMoyenMesure((audE || []).filter(r => r && r.date >= bornes.debut && r.date <= bornes.fin));
+    const pR = prixMoyenMesure((audR || []).filter(r => r && r.date >= bRef.debut && r.date <= bRef.fin));
+    if (!pE || !pR) return { etat: 'insuffisant', ca, litres };
+    const prixPct = pourcentage(pE.prix, pR.prix);
+    return {
+      etat: 'ok', ca, litres, prixEtudie: pE.prix, prixReference: pR.prix, prixPct,
+      titre: titrePrixVolume(signeVariation(ca.pct), signeVariation(litres.pct), signeVariation(prixPct)),
+    };
+  }
+
+  // Quantile 97,5 % de la loi de Student (test bilatéral à 5 %), développement de Cornish-Fisher.
+  function studentCritique5(df) {
+    const z = 1.959964;
+    return z + (z * z * z + z) / (4 * df) + (5 * Math.pow(z, 5) + 16 * z * z * z + 3 * z) / (96 * df * df);
+  }
+  // Valeurs d'un jour moins la moyenne de son jour de semaine.
+  function residusJourSemaine(jours) {
+    const somme = {}, nb = {};
+    jours.forEach(j => { const k = jourSemaineISO(j.date); somme[k] = (somme[k] || 0) + j.valeur; nb[k] = (nb[k] || 0) + 1; });
+    return jours.map(j => { const k = jourSemaineISO(j.date); return j.valeur - somme[k] / nb[k]; });
+  }
+  function correlationResidus(joursA, joursB) {
+    const a = residusJourSemaine(joursA), b = residusJourSemaine(joursB), n = a.length;
+    const ma = moyenneTab(a), mb = moyenneTab(b);
+    let sab = 0, saa = 0, sbb = 0;
+    for (let i = 0; i < n; i++) { sab += (a[i] - ma) * (b[i] - mb); saa += (a[i] - ma) * (a[i] - ma); sbb += (b[i] - mb) * (b[i] - mb); }
+    if (!(saa > 0 && sbb > 0)) return { n, r: null, t: null, df: n - 8, significative: false };
+    const r = sab / Math.sqrt(saa * sbb), df = n - 8;
+    const t = df > 0 ? r * Math.sqrt(df / Math.max(1e-12, 1 - r * r)) : null;
+    return { n, r, t, df, significative: df > 0 && Math.abs(t) >= studentCritique5(df) };
+  }
+
+  const SEUIL_RELATION_JOURS = 30;
+  // Boutique et FDJ : jours de la période où piste, boutique et FDJ sont complets ; relation des écarts au jour de semaine.
+  function relationBoutiqueFdj(auditsRows, fdjRows, bornes) {
+    const boutique = enPeriode(joursCaBoutique(auditsRows), bornes);
+    const litres = enPeriode(joursLitresCompletsPiste(auditsRows), bornes);
+    const fdj = new Map(enPeriode(joursCaFdjComplets(fdjRows), bornes).map(j => [j.date, j.valeur]));
+    const dates = boutique.filter(j => fdj.has(j.date)).map(j => j.date);
+    const pris = new Set(dates);
+    const B = boutique.filter(j => pris.has(j.date));
+    const L = litres.filter(j => pris.has(j.date));
+    const F = B.map(j => ({ date: j.date, valeur: fdj.get(j.date) }));
+    if (B.length < SEUIL_RELATION_JOURS || L.length !== B.length) {
+      return { etat: 'insuffisant', n: B.length, seuil: SEUIL_RELATION_JOURS };
+    }
+    const bf = correlationResidus(B, F), bl = correlationResidus(B, L), lf = correlationResidus(L, F);
+    if (!bf.significative) return { etat: 'non-significative', n: B.length, seuil: SEUIL_RELATION_JOURS, boutiqueFdj: bf, boutiqueLitres: bl, litresFdj: lf };
+    return { etat: 'ok', n: B.length, seuil: SEUIL_RELATION_JOURS, dates, boutiqueFdj: bf, boutiqueLitres: bl, litresFdj: lf };
+  }
+
+  // FDJ au quart 1 : rapport des moyennes Q1/Q2 (comparerQuarts), arrondi au dixième.
+  function rapportFdjQuart1(cmpQuartsFdj) {
+    if (!cmpQuartsFdj || cmpQuartsFdj.etat !== 'ok' || !(cmpQuartsFdj.q2.moyenne > 0)) return null;
+    const rapport = Math.round(cmpQuartsFdj.q1.moyenne / cmpQuartsFdj.q2.moyenne * 10) / 10;
+    return { rapport, q1: cmpQuartsFdj.q1, q2: cmpQuartsFdj.q2 };
+  }
+
+  // ------------------------------------------------------------
   const SOURCES_DONNEES = [
     { id: 'audits_caisse', nom: 'Audits de caisse (piste + boutique)', statut: 'connectee' },
     { id: 'litrage_carburant', nom: 'Litrage carburant (GO / SP95 / GNR)', statut: 'connectee' },
@@ -1754,5 +1843,6 @@
     quartsLitresPiste, quartsBoutique, quartsFdj, comparerQuarts,
     bornesReference, comparerPeriodes, joursExceptionnels, exclusionsPiste, exclusionsFdj,
     compositionCalendrier, evaluerComparabilite, prixMoyenMesure,
+    joursCaPiste, joursCaBoutique, titrePrixVolume, decouvertePrixVolume, correlationResidus, relationBoutiqueFdj, rapportFdjQuart1, SEUIL_RELATION_JOURS,
   };
 })();
