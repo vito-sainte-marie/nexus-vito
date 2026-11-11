@@ -479,6 +479,31 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
     fixerNiveau('Fait mesuré', 'mesure');
   }
 
+  // Découvertes : une carte vide devient une carte remplie, preuves dépliables sur place (aucun lien).
+  function remplirDecouverte(i, d) {
+    const carte = document.querySelectorAll('#decouvertes .decouverte')[i];
+    if (!carte) return;
+    carte.textContent = '';
+    carte.classList.remove('vide');
+    carte.appendChild(noeud('span', 'niveau ' + d.cls, d.niveau));
+    carte.appendChild(noeud('h3', '', d.titre));
+    d.lignes.forEach(l => carte.appendChild(noeud('div', 'texte', l)));
+    carte.appendChild(noeud('div', 'source', d.source));
+    if (d.attente) {
+      const a = noeud('div', 'arbitrage');
+      a.setAttribute('data-arbitrage', d.arbitrage);
+      a.appendChild(noeud('span', 'attente-ico', '◷')).setAttribute('aria-hidden', 'true');
+      a.appendChild(document.createTextNode(d.attente));
+      carte.appendChild(a);
+    }
+    const det = noeud('details', 'compar-ecartes');
+    det.appendChild(noeud('summary', '', 'Voir les preuves'));
+    d.preuves.forEach(([titre, txt]) => { det.appendChild(noeud('h4', '', titre)); det.appendChild(noeud('p', 'total', txt)); });
+    carte.appendChild(det);
+  }
+  const signePct = x => { const v = Math.round(x * 1000) / 10; return (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' %'; };
+  const fmtDec = (x, n) => x.toLocaleString('fr-FR', { minimumFractionDigits: n, maximumFractionDigits: n });
+
   nexusRequireAuth().then(async employee => {
     if (!employee) return;
     if (!nexusEstManager(employee)) {
@@ -631,6 +656,67 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
     remplirQuarts('qLitres', T.comparerQuarts(rAud.error ? null : T.quartsLitresPiste(rAud.data), bornes), 'L');
     remplirQuarts('qBoutique', T.comparerQuarts(rAud.error ? null : T.quartsBoutique(rAud.data), bornes), '€');
     remplirQuarts('qFdj', T.comparerQuarts(rFacts.error ? null : T.quartsFdj(rFacts.data), bornes), '€');
+
+    // Découvertes : même fenêtre, mêmes jours complets et mêmes critères que les cartes ci-dessus.
+    if (!rAud.error && !rAudRef.error) {
+      const pv = T.decouvertePrixVolume(rAud.data, rAudRef.data, bornes, bRef);
+      if (pv.etat === 'ok') {
+        const ligne = (nom, cmp, fmt, unite) => nom + ' : ' + fmt(cmp.moyenneEtudiee) + unite + ' par jour contre ' + fmt(cmp.moyenneReference) + unite + ' · ' + signePct(cmp.pct) + (cmp.dansVariationHabituelle ? ' (dans la variation habituelle)' : '');
+        remplirDecouverte(0, {
+          niveau: 'Fait mesuré', cls: 'mesure', titre: pv.titre,
+          lignes: [
+            ligne('Chiffre d\'affaires piste', pv.ca, fmtNb, ' €'),
+            ligne('Litres', pv.litres, fmtNb, ' L'),
+            'Prix moyen : ' + fmtDec(pv.prixEtudie, 2) + ' € par litre contre ' + fmtDec(pv.prixReference, 2) + ' € · ' + signePct(pv.prixPct),
+          ],
+          source: 'Source : Verify · ' + pluriel(pv.litres.nEtudiee, 'jour complet', 'jours complets'),
+          preuves: [
+            ['Effectifs et périodes', 'Étudiée : ' + pluriel(pv.litres.nEtudiee, 'jour complet', 'jours complets') + ' du ' + fmtDateCourte(bornes.debut) + ' au ' + fmtDate(bornes.fin) + ' · référence : ' + pluriel(pv.litres.nReference, 'jour complet', 'jours complets') + ' du ' + fmtDateCourte(bRef.debut) + ' au ' + fmtDate(bRef.fin)],
+            ['Calcul', 'Moyenne par jour complet ; écart comparé à l\'erreur type de Welch. Prix moyen = chiffre d\'affaires piste ÷ litres des quarts aux trois litrages renseignés.'],
+            ['Jours écartés', 'Piste étudiée : ' + (T.exclusionsPiste(rAud.data, bornes).length) + ' · référence : ' + (T.exclusionsPiste(rAudRef.data, bRef).length) + '. Les journées exceptionnelles sont signalées, jamais retirées en silence.'],
+            ['Sources', 'audits_caisse (vente_piste, litrages) · lecture seule, filtrée par site'],
+          ],
+        });
+      }
+    }
+    if (!rAud.error && !rFdj.error) {
+      const rel = T.relationBoutiqueFdj(rAud.data, rFdj.data, bornes);
+      if (rel.etat === 'ok') {
+        const c = x => fmtDec(x.r, 2) + (x.significative ? ' (significative)' : ' (non significative)');
+        remplirDecouverte(1, {
+          niveau: 'Relation observée', cls: 'relation', titre: 'Boutique et FDJ varient ensemble',
+          lignes: [
+            'Boutique et FDJ : corrélation ' + c(rel.boutiqueFdj) + ' sur ' + rel.n + ' jours',
+            'Rappel boutique et litres : ' + c(rel.boutiqueLitres),
+            'Une relation, pas une cause.',
+          ],
+          source: 'Source : Verify · ' + pluriel(rel.n, 'jour complet', 'jours complets'),
+          preuves: [
+            ['Effectifs et période', rel.n + ' jours où piste, boutique et FDJ sont complets, du ' + fmtDateCourte(bornes.debut) + ' au ' + fmtDate(bornes.fin) + ' (minimum ' + rel.seuil + ')'],
+            ['Calcul', 'Corrélation des écarts à la moyenne du jour de semaine ; test de Student au seuil de 5 % (' + rel.boutiqueFdj.df + ' degrés de liberté). Litres et FDJ : ' + c(rel.litresFdj) + '.'],
+            ['Sources', 'audits_caisse et view_fdj_daily_summary · lecture seule, filtrée par site'],
+          ],
+        });
+      }
+    }
+    if (!rFacts.error) {
+      const fq = T.rapportFdjQuart1(T.comparerQuarts(T.quartsFdj(rFacts.data), bornes));
+      if (fq) {
+        const cl = T.comparerQuarts(T.quartsLitresPiste(rAud.error ? [] : rAud.data), bornes), cb = T.comparerQuarts(T.quartsBoutique(rAud.error ? [] : rAud.data), bornes);
+        const ecartTxt = (nom, c) => nom + ' : ' + (c.etat === 'ok' && c.ecartPct !== null ? 'quart 1 ' + signePct(c.ecartPct / 100) + ' par rapport au quart 2' : 'écart non disponible');
+        remplirDecouverte(2, {
+          niveau: 'Hypothèse', cls: 'hypothese', titre: 'La FDJ encaisse ' + fmtDec(fq.rapport, 1) + ' fois plus au quart 1',
+          lignes: ['Rapport des moyennes du quart 1 et du quart 2 : ' + fmtDec(fq.rapport, 1), ecartTxt('Litres', cl), ecartTxt('Boutique', cb)],
+          source: 'Source : NEXUS FDJ et Verify · ' + fq.q1.effectif + ' quarts 1 et ' + fq.q2.effectif + ' quarts 2',
+          attente: 'Rattachement des tirages au quart à confirmer', arbitrage: 'G4',
+          preuves: [
+            ['Effectifs et période', fq.q1.effectif + ' quarts 1 et ' + fq.q2.effectif + ' quarts 2, du ' + fmtDateCourte(bornes.debut) + ' au ' + fmtDate(bornes.fin)],
+            ['Calcul', 'Moyenne du CA des jeux (grattage + tirages) par quart, quart 1 divisé par quart 2, arrondi au dixième.'],
+            ['Sources', 'view_fdj_shift_facts · lecture seule, filtrée par site'],
+          ],
+        });
+      }
+    }
 
     document.getElementById('pillPeriode').textContent = 'Période étudiée : du ' + fmtDateCourte(bornes.debut) + ' au ' + fmtDate(bornes.fin) +
       ' · ' + pluriel(bornes.jours, 'jour', 'jours');
