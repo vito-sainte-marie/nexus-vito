@@ -21,10 +21,10 @@ function extraire(src, signature) {
   throw new Error('accolade non fermée : ' + signature);
 }
 // Empreintes sha256 du texte des quatre fonctions gardées, prises sur `production` (blob 1b37da60).
-// construireProduitsLive : empreinte mise à jour par le lot 1 PR B (tendances : moyennes par jour, fraîcheur 21 j, plancher de volume) et calculerStatutSimplifie (une seule tendance par article, recommandation seulement si la comparaison est fiable) — calculerRangRayon reste identique ; construireProduitsLive porte aussi le décompte des périodes sans vente des articles en stock seul (lot 2 PR C, revue Guardian) et l'indicateur connuParVentes de chaque ligne (arbitrage du 11/11 : Rupture probable exige des ventes).
+// construireProduitsLive : après fusion de production (lot 2 PR C, indicateur connuParVentes) ; lot 2 PR D retire le calcul de l'ancien statut par article ; empreinte mise à jour aussi par le lot 1 PR B (tendances : moyennes par jour, fraîcheur 21 j, plancher de volume) et calculerStatutSimplifie (une seule tendance par article, recommandation seulement si la comparaison est fiable) — calculerRangRayon et chargerStockGap restent identiques.
 // Aucune dépendance à git : la CI en checkout superficiel les mesure sur la source de la branche.
 const EMPREINTES = {
-  'async function construireProduitsLive': '63db954c60ce53748c807ec86839852d5f7d2513eba2939e8df259b2feb10b1b',
+  'async function construireProduitsLive': 'a911d070c80e398155eb69dc90e09b85dbf5ee12343e43b57f06335b0892e9ec',
   'function calculerStatutSimplifie': '4e19b7405af3da68933a0c2abefe110cd8e507b189b492fb165c37f887997e23', // lot 2 PR C : enveloppe de NexusConseiller.statutProduit (règle unique, huit statuts)
   'function calculerRangRayon': '6438804858c5a4a80a5923f43952a506f4704a8058df05a158930ce5182379ed',
   'async function chargerStockGap': '3e8ed64835d600f50bedd8b4cfa8439f809a080cd74b3a77841ec0bdd426bc88' // lot 2 PR C, revue Guardian 6783561611 : la ligne de valeur du stock porte « estimation au PMA, relevé du … » (seule ligne modifiée)
@@ -40,14 +40,11 @@ t('la garde de fonctions rougit sur une fonction mutée', () => {
   assert.notStrictEqual(empreinte(extraire(mute, 'function calculerRangRayon')), EMPREINTES['function calculerRangRayon']);
 });
 
-// Aucun emoji de statut dans le rendu : seuls les trois libellés internes de calculerStatutSimplifie restent.
+// Aucun emoji dans la page (lot 2 PR D : l'ancien calcul de statut, dernier porteur des trois emojis internes, est retiré).
 const EMOJI = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B50}\u{2B06}\u{2B07}]/u;
-t('aucun emoji de statut : l\'ancien calcul 🔥/📈/🟡 n\'existe plus', () => {
-  const lignes = PAGE.split('\n');
-  const fautives = lignes.map((l, i) => [i + 1, l]).filter(([, l]) => EMOJI.test(l));
-  const internes = fautives.filter(([, l]) => /etat:\s*'(🔥 À AGIR|📈 OPPORTUNITÉ|🟡 À SURVEILLER)'/u.test(l));
-  assert.strictEqual(internes.length, 0, 'l\'ancien statut à emojis ne doit plus être calculé');
-  assert.deepStrictEqual(fautives.filter(f => !internes.includes(f)).map(f => f[0]), []);
+t('aucun emoji dans la page', () => {
+  const fautives = PAGE.split('\n').map((l, i) => [i + 1, l]).filter(([, l]) => EMOJI.test(l));
+  assert.deepStrictEqual(fautives.map(f => f[0]), []);
 });
 
 // La période accompagne chaque tendance.

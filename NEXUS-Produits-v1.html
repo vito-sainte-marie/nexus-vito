@@ -148,7 +148,9 @@
   .emplacement-modifier{font-family:var(--mono); font-size:10.5px; color:var(--cyan); cursor:pointer; text-decoration:underline;}
   .emplacement-zones{display:flex; flex-wrap:wrap; gap:6px; margin-top:10px;}
   .emplacement-zone{padding:8px 12px; border-radius:20px; border:1px solid var(--hairline); background:var(--panel-raised); color:var(--text); font-family:var(--sans); font-size:11.5px; cursor:pointer;}
-  .emplacement-zone:active{border-color:var(--cyan); color:var(--cyan);}
+  .emplacement-zone:active,.emplacement-zone:focus-visible{border-color:var(--cyan); color:var(--cyan);}
+  .emplacement-zone:focus-visible,.emplacement-autre button:focus-visible,button.emplacement-modifier:focus-visible{outline:2px solid var(--cyan); outline-offset:2px;}
+  .emplacement-zone{min-height:44px;}
   .emplacement-autre{display:flex; gap:8px; margin-top:10px;}
   .emplacement-autre input{flex:1; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px; padding:9px 10px; color:var(--text); font-family:var(--sans); font-size:16px;}
   .emplacement-autre button{padding:9px 14px; border-radius:8px; border:1px solid rgba(79,195,217,0.35); background:rgba(79,195,217,0.08); color:var(--cyan); font-family:var(--sans); font-weight:600; font-size:12px; cursor:pointer;}
@@ -259,17 +261,20 @@ button.suggestion-item{width:100%;text-align:left;font:inherit;font-size:13px;co
 .ind-principal .ind-tile:first-child{grid-column:1 / -1;}
 .ind-secondaire{grid-template-columns:1fr 1fr;}
 .ind-tile{background:var(--panel-raised);border:1px solid var(--hairline);border-radius:10px;padding:8px 10px;min-width:0;}
-.ind-principal .ind-tile{padding:16px 18px;border-radius:12px;}
+.ind-principal .ind-tile{padding:16px 18px;border-radius:12px;container-type:inline-size;}
 .ind-label{display:flex;align-items:center;gap:6px;font-size:10.5px;color:var(--text-mid);}
 .ind-principal .ind-label{font-size:12px;}
 .ind-val{font-family:var(--mono);font-size:15px;font-weight:700;margin-top:3px;white-space:nowrap;}
-.ind-principal .ind-val{font-size:28px;margin-top:6px;}
-@media (min-width:900px){.ind-principal .ind-val{font-size:32px;}}
+.ind-principal .ind-val{font-size:clamp(22px,8cqi,32px);margin-top:6px;white-space:nowrap;}
+.indic-card{container-type:inline-size;}
 .ind-sub{font-size:11px;color:var(--text-dim);margin-top:2px;line-height:1.4;}
 @media (min-width:640px){
+  .ind-secondaire{grid-template-columns:repeat(3,1fr);}
+}
+/* trois valeurs principales cote a cote seulement si chacune tient a 22px sans coupure ; sinon disposition telephone */
+@container (min-width:600px){
   .ind-principal{grid-template-columns:repeat(3,1fr);}
   .ind-principal .ind-tile:first-child{grid-column:auto;}
-  .ind-secondaire{grid-template-columns:repeat(3,1fr);}
 }
 
 /* Sections repliables */
@@ -560,6 +565,8 @@ nexusRequireAuth().then(async employee => {
 
       // Tendance commune (lot 1 Produits, PR B) : ventes moyennes par jour,
       // paire fraîche (21 j), plancher de volume. Sinon : pas de recommandation.
+      // Le statut affiché vient de statutProduit() (source unique) ; l'ancien
+      // calcul du statut par article (jamais affiché) est retiré.
       const tendance = (pairPrec && pairAct)
         ? NexusPeriodes.tendanceArticle(
             { caT1: pairPrec.ca, quantiteT1: pairPrec.quantite, caT2: pairAct.ca, quantiteT2: pairAct.quantite },
@@ -1219,12 +1226,12 @@ nexusRequireAuth().then(async employee => {
       if (!el.isConnected) return;
       if (data && data.emplacement && data.source === 'manuel') {
         const date = new Date(data.assigne_le).toLocaleDateString('fr-FR');
-        el.innerHTML = `${esc(data.emplacement)} · ${esc(date)} <span class="emplacement-modifier" id="btnModifierEmplacement">(modifier)</span>`;
+        el.innerHTML = `${esc(data.emplacement)} · ${esc(date)} <button type="button" class="emplacement-modifier" id="btnModifierEmplacement">(modifier)</button>`;
       } else if (data && data.emplacement) {
         // source = 'auto_categorie' : suggestion non confirmée par un humain.
         el.innerHTML = `${(window.NexusBadgeEtat ? NexusBadgeEtat.gravite('a-verifier', {libelle: 'À vérifier'}) : '<span class="statut-repli">À vérifier</span>')} ${esc(data.emplacement)} · suggestion${data.assigne_le ? ' du ' + esc(new Date(data.assigne_le).toLocaleDateString('fr-FR')) : ''}, non confirmée <button type="button" class="emplacement-modifier" id="btnModifierEmplacement">(confirmer/corriger)</button>`;
       } else {
-        el.innerHTML = `Non renseigné <span class="emplacement-modifier" id="btnModifierEmplacement">(choisir)</span>`;
+        el.innerHTML = `Non renseigné <button type="button" class="emplacement-modifier" id="btnModifierEmplacement">(choisir)</button>`;
       }
       const btn = document.getElementById('btnModifierEmplacement');
       if (btn) btn.addEventListener('click', () => afficherPickerEmplacement(p));
@@ -1238,12 +1245,12 @@ nexusRequireAuth().then(async employee => {
     const picker = document.getElementById('emplacementPickerZone');
     if (!picker) return;
     picker.innerHTML = `
-      <div class="emplacement-zones">
-        ${ZONES_BOUTIQUE.map((z, i) => `<div class="emplacement-zone" data-i="${i}">${z}</div>`).join('')}
+      <div class="emplacement-zones" role="group" aria-label="Choisir un rayon">
+        ${ZONES_BOUTIQUE.map((z, i) => `<button type="button" class="emplacement-zone" data-i="${i}">${z}</button>`).join('')}
       </div>
       <div class="emplacement-autre">
-        <input type="text" id="emplacementAutreInput" placeholder="Autre rayon (nom libre)…">
-        <button id="emplacementAutreBtn">Enregistrer</button>
+        <input type="text" id="emplacementAutreInput" aria-label="Autre rayon (nom libre)" placeholder="Autre rayon (nom libre)…">
+        <button type="button" id="emplacementAutreBtn">Enregistrer</button>
       </div>
     `;
     picker.querySelectorAll('.emplacement-zone').forEach(elz => {
