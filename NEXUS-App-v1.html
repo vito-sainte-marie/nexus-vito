@@ -1753,15 +1753,14 @@
   const { statutCommerce, statutValeur, statutEquipe, SEUIL_MIN_POINTAGES_EQUIPE } = NexusBoussoleMoteur;
 
   // Phrase de synthèse (26/07/2026, conservée telle quelle en V2) : combine
-  // la tendance Commerce avec les points de vigilance réels (jour Tempo à
-  // renforcer, marge, opérations) — jamais plus qu'un constat court, jamais
+  // la tendance Commerce avec les points de vigilance réels (marge,
+  // opérations ; plus de jour Tempo, G8) — jamais plus qu'un constat court, jamais
   // une liste de chiffres. statutStockVal n'est plus fourni par la carte
   // compacte (Stock ne fait pas partie des 4 axes affichés ici — voir
   // Brief NEXUS pour le diagnostic complet), la fonction accepte toujours
   // le paramètre pour ne pas diverger d'un futur appelant.
-  function syntheseEtatGlobal(statutCommerceVal, statutValeurVal, statutOperationsVal, jourARenforcer, statutStockVal) {
+  function syntheseEtatGlobal(statutCommerceVal, statutValeurVal, statutOperationsVal, statutStockVal) {
     const concerns = [];
-    if (jourARenforcer) concerns.push(`la performance du ${jourARenforcer.nom}`);
     if (statutValeurVal === 'À surveiller') concerns.push('la marge boutique');
     if (statutOperationsVal === 'À surveiller') concerns.push('les écarts de caisse');
     if (statutStockVal === 'À surveiller') concerns.push('le stock');
@@ -1897,14 +1896,14 @@
       <a class="fiche-lien" href="${a.lien}">${a.libelleLien}</a>`;
   }
 
-  function renderEntrepriseAujourdhui({ facteurs, margePlusResultat, statutOperationsVal, detailOperations, totalJoursOperations, controlesVerify, domainesRadar, jourARenforcer, nbDecisions, contientSignalGenerique, statutCarburants, alertesFdjNonVues }) {
+  function renderEntrepriseAujourdhui({ facteurs, margePlusResultat, statutOperationsVal, detailOperations, totalJoursOperations, controlesVerify, domainesRadar, nbDecisions, contientSignalGenerique, statutCarburants, alertesFdjNonVues }) {
     const syntheseEl = document.getElementById('entrepriseSynthese');
     const decisionsEl = document.getElementById('entrepriseDecisions');
 
     const statutCommerceVal = statutCommerce(facteurs);
     const statutValeurVal = statutValeur(facteurs, margePlusResultat);
 
-    syntheseEl.textContent = syntheseEtatGlobal(statutCommerceVal, statutValeurVal, statutOperationsVal, jourARenforcer, null);
+    syntheseEl.textContent = syntheseEtatGlobal(statutCommerceVal, statutValeurVal, statutOperationsVal, null);
 
     AXE_OUVERT = null;
     renderAxesEntreprise(construireAxes({ facteurs, margePlusResultat, statutOperationsVal, detailOperations, totalJoursOperations, controlesVerify, domainesRadar, statutCarburants, alertesFdjNonVues }));
@@ -1925,7 +1924,7 @@
 
   // Carte Tempo — lot G8 (11/11/2026) : la carte affiche un CONSTAT
   // (fait mesuré, litres GO+SP95+GNR sur 8 semaines), plus une décision.
-  // Aucune lecture de jourARenforcer ici. constatLitres peut être absent
+  // Aucune lecture du jour à renforcer ici. constatLitres peut être absent
   // (chargement en échec) : traité comme insuffisant.
   function descriptionTempoHome(constatLitres) {
     const c = constatLitres;
@@ -2130,7 +2129,6 @@
       totalJoursOperations: constatTempo.totalJours,
       controlesVerify,
       domainesRadar,
-      jourARenforcer: constatTempo.jourARenforcer,
       nbDecisions: candidatsConseiller.length,
       contientSignalGenerique: candidatsConseiller.some(c => c.moteur === 'advisor'),
       statutCarburants,

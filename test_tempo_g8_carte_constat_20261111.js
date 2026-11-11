@@ -133,4 +133,17 @@ t('revue 6786323566 : raccourci Tempo de l’accueil = constat en litres, urgenc
   assert.ok(!/jourARenforcerTempo|totalJoursTempo/.test(a), 'contexte du raccourci sans jourARenforcer');
   assert.ok(/descriptionTempoHome\(ctx\.constatLitresTempo\)/.test(a));
 });
+t('revue 6786381726 : plus de jourARenforcer dans App ni Brief, synthèse correcte sans lui', () => {
+  const a = lire('NEXUS-App-v1.html'), b = lire('NEXUS-Brief-v1.html');
+  assert.ok(!/jourARenforcer/.test(a), 'App sans jourARenforcer');
+  assert.ok(!/jourARenforcer/.test(b), 'Brief sans jourARenforcer');
+  const m = a.match(/function syntheseEtatGlobal\([\s\S]*?\n  }\n/);
+  assert.ok(m, 'syntheseEtatGlobal trouvée');
+  const f = new Function(m[0] + '; return syntheseEtatGlobal;')();
+  const ok = f('En progression', 'Stable', 'Stable', null);
+  assert.ok(/progresse/.test(ok) && !/performance du/.test(ok), ok);
+  const autre = f('Stable', 'À surveiller', 'Stable', null);
+  assert.ok(/marge boutique/.test(autre) && !/performance du/.test(autre), autre);
+  assert.ok(/écarts de caisse/.test(f('Stable', 'Stable', 'À surveiller', null)));
+});
 console.log(n + ' tests OK');
