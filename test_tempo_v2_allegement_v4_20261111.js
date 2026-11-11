@@ -123,3 +123,13 @@ t('exécution : evolCourt fonctionne hors du gestionnaire', () => {
   vm.runInContext(sp[0] + '\n' + ev[0] + '\nout = evolCourt({etat:"ok", pct: 5, ecart: 3, dansVariationHabituelle: true});', ctx);
   assert.ok(/Variation habituelle/.test(ctx.out), ctx.out);
 });
+
+t('quarts : ecartPct est déjà en pourcentage, jamais passé tel quel à signePct (ratio)', () => {
+  assert.ok(!/signePct\((?:r|c|f|x)\.ecartPct\)/.test(scripts), 'signePct reçoit un pourcentage');
+  const r = T.comparerQuarts(null, { debut: '2026-01-01', fin: '2026-01-31' });
+  assert.ok(r === null || typeof r === 'object');
+  // Q1 3 134 / Q2 2 524 → +24,2 %
+  const v = Math.round(((3134 - 2524) / 2524 * 100 / 100) * 1000) / 10;
+  assert.strictEqual(v, 24.2);
+  assert.ok(/signePct\(r\.ecartPct \/ 100\)/.test(scripts));
+});

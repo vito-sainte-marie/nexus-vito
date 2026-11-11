@@ -610,7 +610,7 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
     });
     const ecart = r.ecartPct === null ? 'écart non calculable'
       : 'Quart 1 : ' + ((Math.round(r.ecartPct * 10) / 10) > 0 ? '+' : (Math.round(r.ecartPct * 10) / 10) < 0 ? '−' : '') + Math.abs(Math.round(r.ecartPct * 10) / 10).toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' % par rapport au quart 2';
-    grand.textContent = r.ecartPct === null ? 'Non calculable' : signePct(r.ecartPct);
+    grand.textContent = r.ecartPct === null ? 'Non calculable' : signePct(r.ecartPct / 100);
     ligne.textContent = 'Quart 1 : ' + r.q1.effectif + ' quarts · Quart 2 : ' + r.q2.effectif + ' quarts · ' + ecart + ' · semaines où Q1 dépasse Q2 : ' + r.semainesQ1Depasse + ' sur ' + r.semainesCommunes;
     fixerNiveau('Fait mesuré', 'mesure');
   }
