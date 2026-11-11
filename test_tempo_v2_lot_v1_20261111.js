@@ -68,7 +68,7 @@ t('textes de structure imposés', () => {
     'Les vacances changent-elles mon activité ?', 'Quand la piste tourne, la boutique suit-elle ?',
     'Tempo analyse et explique.', 'Les décisions se prennent dans le Cockpit.',
     'Non qualifié', 'Marge quotidienne non disponible pour cette période', 'Commissions FDJ non renseignées', 'Rattachement des tirages au quart à confirmer',
-  ]) assert.ok(html.includes(s), 'manque : ' + s);
+  ]) assert.ok(html.replace(/<a\s[^>]*>|<\/a>/g, '').includes(s), 'manque : ' + s);
 });
 
 t('la pastille de comparabilité est masquée par défaut', () => {
@@ -98,7 +98,7 @@ t('aucune mention de données de substitution (exemple, lorem, fictif)', () => {
 t('un seul lien actif vers une analyse : la page Quarts (lot B)', () => {
   const corps = html.slice(html.indexOf('<body>'));
   const liens = [...corps.matchAll(/<a\s[^>]*href="([^"]*)"/gi)].map(m => m[1]);
-  assert.deepStrictEqual(liens, ['NEXUS-Tempo-v2-Quarts.html']);
+  assert.deepStrictEqual(liens, ['NEXUS-Tempo-v2-Quarts.html', 'NEXUS-Cockpit-v2.html']);
 });
 
 t('aucun nom d\'employé réel (liste vide de prénoms de pompistes)', () => {
