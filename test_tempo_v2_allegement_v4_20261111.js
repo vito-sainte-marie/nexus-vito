@@ -106,3 +106,20 @@ t('nexus-tempo.js : seuil de Welch inchangé (2 erreurs-types)', () => {
   const j = fs.readFileSync(path.join(racine, 'nexus-tempo.js'), 'utf8');
   assert.ok(/SEUIL_ECART_TYPES\s*=\s*2\b/.test(j) && /Math\.abs\(ecart\) <= SEUIL_ECART_TYPES \* se/.test(j));
 });
+
+t('portée : aucune fonction hors du gestionnaire d\'authentification ne référence T.', () => {
+  const avant = scripts.split('nexusRequireAuth().then(')[0];
+  assert.ok(!/(?<![\w.$])T\./.test(avant), 'T. utilisé hors du gestionnaire : ' + (avant.match(/.*(?<![\w.$])T\..*/) || [''])[0].trim());
+});
+
+t('exécution : evolCourt fonctionne hors du gestionnaire', () => {
+  const vm = require('vm');
+  const avant = scripts.split('nexusRequireAuth().then(')[0];
+  const sp = avant.match(/(?:const signePct = [^\n]*|function signePct[\s\S]*?\n  \})/);
+  const ev = avant.match(/const evolCourt = [^\n]*\n[^\n]*;/);
+  assert.ok(sp && ev, 'extraction');
+  const ctx = { window: { NexusTempo: T } };
+  vm.createContext(ctx);
+  vm.runInContext(sp[0] + '\n' + ev[0] + '\nout = evolCourt({etat:"ok", pct: 5, ecart: 3, dansVariationHabituelle: true});', ctx);
+  assert.ok(/Variation habituelle/.test(ctx.out), ctx.out);
+});

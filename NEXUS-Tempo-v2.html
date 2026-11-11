@@ -426,7 +426,7 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
   // Remplit une carte : état 'ok' = Fait mesuré ; sinon Non qualifié, jamais d'estimation.
   const detailExtra = {};
   const evolCourt = cmp => (cmp && cmp.etat === 'ok' && cmp.pct !== null && cmp.pct !== undefined)
-    ? signePct(cmp.pct) + ' · ' + T.libelleEvolution(cmp) : T.libelleEvolution(cmp);
+    ? signePct(cmp.pct) + ' · ' + window.NexusTempo.libelleEvolution(cmp) : window.NexusTempo.libelleEvolution(cmp);
   function habiller(id, o) {
     const el = document.getElementById(id);
     if (!el) return;
@@ -440,10 +440,10 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
     if (!ap || ap.etat !== 'ok' || !ap.retenue || !ap.retenue.carburant) return '';
     const f = ap.carburants.find(x => x.cle === ap.retenue.carburant);
     if (!f || !f.cmp) return '';
-    const lib = T.libelleEvolution(f.cmp);
+    const lib = window.NexusTempo.libelleEvolution(f.cmp);
     if (lib !== 'Baisse confirmée' && lib !== 'Hausse confirmée') return '';
     let t = f.nom + (lib === 'Baisse confirmée' ? ' en recul' : ' en hausse');
-    const st = ap.carburants.find(x => x.cle !== f.cle && !x.horsService && x.cmp && T.libelleEvolution(x.cmp) === 'Variation habituelle');
+    const st = ap.carburants.find(x => x.cle !== f.cle && !x.horsService && x.cmp && window.NexusTempo.libelleEvolution(x.cmp) === 'Variation habituelle');
     if (st) t += ', ' + (/^[A-Z]{2}/.test(st.nom) ? st.nom : st.nom.charAt(0).toLowerCase() + st.nom.slice(1)) + ' stable';
     return t;
   }
@@ -560,7 +560,7 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
     let t = signe(cmp.pct) + ' contre ' + fmtNb(cmp.moyenneReference) + (unite === '€' ? ' €' : ' ' + unite) + ' par jour (' +
       pluriel(cmp.nReference, 'jour complet', 'jours complets') + ', du ' + fmtDateCourte(bRef.debut) + ' au ' + fmtDateCourte(bRef.fin) + ')';
     if (cmp.sans && cmp.sans.pct !== null) t += ' (' + signe(cmp.sans.pct) + ' sans le ' + cmp.sans.dates.map(fmtDateCourte).join(', le ') + ')';
-    t += ' · ' + T.libelleEvolution(cmp);
+    t += ' · ' + window.NexusTempo.libelleEvolution(cmp);
     return t;
   }
 
