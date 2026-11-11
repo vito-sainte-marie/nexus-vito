@@ -1334,9 +1334,9 @@
   // aucune deuxième définition) des FENETRE_SEMAINES dernières semaines
   // complètes, journée en cours exclue.
   // ------------------------------------------------------------
-  // provisoire, arbitrage G9 en attente
+  // arbitrage G9 : 8 semaines étudiées, comparées aux 8 semaines qui les précèdent
   const FENETRE_SEMAINES = 8;
-  // arbitrage G5 en attente (provisoire) : sous ce nombre d'occurrences
+  // arbitrage G5 : sous ce nombre d'occurrences
   // d'un jour de semaine dans la fenêtre, aucun jour n'est désigné.
   const OCCURRENCES_MIN_JOUR = 4;
 
@@ -1567,6 +1567,169 @@
   //     temporelle à mesure qu'elles seront branchées. Déclarer une
   //     source ici ne l'active pas : tant qu'aucune donnée réelle
   //     n'arrive, elle reste "Prévue".
+
+  // ------------------------------------------------------------
+  // Tempo v2 — lot V2, partie 3 : comparabilité et lignes « Évolution »
+  // (arbitrages G9 et G5, Guardian 6798544703 et 6798744933). Calculs purs :
+  // la page passe les lignes qu'elle a lues, rien n'est lu ni écrit ici.
+  //   - Période de référence : les mêmes jours, juste avant la période étudiée.
+  //   - Évolution : moyenne par jour complet, étudiée contre référence, en %.
+  //   - Minimum : 4 jours complets de chaque jour de semaine, dans CHAQUE période.
+  //   - Écart net : Welch ; si ±2 erreurs-types contiennent zéro, « variation habituelle ».
+  //   - Jour exceptionnel : écart à la médiane ≥ 3,5 × (MAD × 1,4826). Signalé, jamais retiré en silence.
+  //   - Aucun jour manquant n'est remplacé ni extrapolé.
+  // ------------------------------------------------------------
+  const SEUIL_JOUR_EXCEPTIONNEL = 3.5;
+  const SEUIL_ECART_TYPES = 2;
+  const SEUIL_RAPPORT_DUREES = 2;
+  const SEUIL_POINTS_CALENDRIER = 20;
+
+  function bornesReference(bornes) {
+    return { debut: decalerJourISO(bornes.debut, -bornes.jours), fin: decalerJourISO(bornes.debut, -1), jours: bornes.jours };
+  }
+  function jourSemaineISO(dateISO) {
+    const [a, m, j] = dateISO.split('-').map(Number);
+    return new Date(Date.UTC(a, m - 1, j)).getUTCDay();
+  }
+  function datesDeLaPeriode(p) {
+    const out = [];
+    for (let d = p.debut; d <= p.fin; d = decalerJourISO(d, 1)) out.push(d);
+    return out;
+  }
+  function enPeriode(jours, p) {
+    return (jours || []).filter(j => j && j.date >= p.debut && j.date <= p.fin);
+  }
+  const moyenneTab = a => a.reduce((s, x) => s + x, 0) / a.length;
+  function varianceEchantillon(a, m) {
+    return a.length < 2 ? 0 : a.reduce((s, x) => s + (x - m) * (x - m), 0) / (a.length - 1);
+  }
+  function medianeTab(a) {
+    const t = a.slice().sort((x, y) => x - y), n = t.length;
+    return n % 2 ? t[(n - 1) / 2] : (t[n / 2 - 1] + t[n / 2]) / 2;
+  }
+
+  // Jours dont l'écart à la médiane atteint 3,5 écarts robustes (MAD × 1,4826).
+  function joursExceptionnels(jours) {
+    if (!jours || jours.length < 3) return [];
+    const valeurs = jours.map(j => j.valeur);
+    const med = medianeTab(valeurs);
+    const echelle = medianeTab(valeurs.map(v => Math.abs(v - med))) * 1.4826;
+    if (!(echelle > 0)) return [];
+    return jours.filter(j => Math.abs(j.valeur - med) >= SEUIL_JOUR_EXCEPTIONNEL * echelle);
+  }
+
+  function minParJourSemaine(jours) {
+    const c = [0, 0, 0, 0, 0, 0, 0];
+    jours.forEach(j => { c[jourSemaineISO(j.date)]++; });
+    return Math.min.apply(null, c);
+  }
+
+  function pourcentage(m1, m0) { return m0 > 0 ? (m1 - m0) / m0 : null; }
+
+  // jours* : [{date, valeur}] des jours complets de chaque période.
+  function comparerPeriodes(joursEtudie, joursRef, borneEtudiee, borneRef) {
+    const E = enPeriode(joursEtudie, borneEtudiee), R = enPeriode(joursRef, borneRef);
+    const minE = minParJourSemaine(E), minR = minParJourSemaine(R);
+    if (minE < OCCURRENCES_MIN_JOUR || minR < OCCURRENCES_MIN_JOUR) {
+      return { etat: 'insuffisant', minimum: OCCURRENCES_MIN_JOUR, minEtudiee: minE, minReference: minR, nEtudiee: E.length, nReference: R.length };
+    }
+    const vE = E.map(j => j.valeur), vR = R.map(j => j.valeur);
+    const mE = moyenneTab(vE), mR = moyenneTab(vR);
+    const ecart = mE - mR;
+    const se = Math.sqrt(varianceEchantillon(vE, mE) / vE.length + varianceEchantillon(vR, mR) / vR.length);
+    const exc = joursExceptionnels(E.concat(R)).map(j => ({ date: j.date, valeur: j.valeur, periode: j.date >= borneEtudiee.debut ? 'etudiee' : 'reference' }));
+    let sans = null;
+    if (exc.length) {
+      const dates = new Set(exc.map(x => x.date));
+      const E2 = E.filter(j => !dates.has(j.date)).map(j => j.valeur), R2 = R.filter(j => !dates.has(j.date)).map(j => j.valeur);
+      sans = { dates: exc.map(x => x.date), pct: E2.length && R2.length ? pourcentage(moyenneTab(E2), moyenneTab(R2)) : null };
+    }
+    return {
+      etat: 'ok', nEtudiee: E.length, nReference: R.length, moyenneEtudiee: mE, moyenneReference: mR,
+      pct: pourcentage(mE, mR), ecart, erreurType: se,
+      dansVariationHabituelle: Math.abs(ecart) <= SEUIL_ECART_TYPES * se,
+      exceptionnels: exc, sans,
+    };
+  }
+
+  // Jours de la période sans jour complet, avec la raison (jamais remplacés).
+  function exclusionsPiste(auditsRows, p) {
+    const parDate = new Map(agregerParJour(auditsRows).map(j => [j.date, j]));
+    const out = [];
+    datesDeLaPeriode(p).forEach(d => {
+      const j = parDate.get(d);
+      const quartPresent = q => !!j && j.quarts.some(x => String(x.quart) === q);
+      const quartOk = q => !!j && j.quarts.some(x => String(x.quart) === q && x.litrageDisponible);
+      if (!quartPresent('1') || !quartPresent('2')) out.push({ date: d, raison: 'quart manquant' });
+      else if (!quartOk('1') || !quartOk('2') || !(j.litrageGazole + j.litrageSp95 + j.litrageGnr > 0)) out.push({ date: d, raison: 'litrage manquant' });
+    });
+    return out;
+  }
+  function exclusionsFdj(fdjRows, p) {
+    const ok = new Set(joursCaFdjComplets(fdjRows).map(j => j.date));
+    return datesDeLaPeriode(p).filter(d => !ok.has(d)).map(d => ({ date: d, raison: 'quart FDJ non contrôlé' }));
+  }
+
+  // Composition du calendrier d'une période : vacances, fériés, week-ends (jours et %).
+  // lignesFeries : lignes inventaire_calendrier_site de type 'ferie' (date) ; le calendrier officiel complète.
+  function compositionCalendrier(p, lignesFeries) {
+    const feries = new Set((lignesFeries || []).filter(l => l && l.date && l.type === 'ferie').map(l => String(l.date).slice(0, 10)));
+    const dates = datesDeLaPeriode(p);
+    let vacances = 0, ferie = 0, weekend = 0;
+    dates.forEach(d => {
+      if (estVacancesScolaires(d).vacances) vacances++;
+      if (feries.has(d) || estJourFerie(d).ferie) ferie++;
+      const w = jourSemaineISO(d);
+      if (w === 0 || w === 6) weekend++;
+    });
+    const n = dates.length || 1;
+    return { jours: dates.length, vacances, feries: ferie, weekends: weekend, pctVacances: vacances / n, pctFeries: ferie / n, pctWeekends: weekend / n };
+  }
+
+  // exceptionnels : [{ activite, date, valeur }] des deux périodes, toutes activités.
+  function evaluerComparabilite(borneEtudiee, borneRef, calE, calR, exceptionnels) {
+    const raisons = [];
+    const dE = borneEtudiee.jours || datesDeLaPeriode(borneEtudiee).length, dR = borneRef.jours || datesDeLaPeriode(borneRef).length;
+    if (Math.max(dE, dR) / Math.max(1, Math.min(dE, dR)) > SEUIL_RAPPORT_DUREES) raisons.push({ critere: 'durees', texte: 'durées très différentes (' + dE + ' jours contre ' + dR + ')' });
+    const pts = x => Math.round(Math.abs(x) * 100);
+    if (Math.abs(calE.pctVacances - calR.pctVacances) * 100 > SEUIL_POINTS_CALENDRIER) raisons.push({ critere: 'calendrier', texte: 'vacances inégales entre les deux périodes (' + pts(calE.pctVacances) + ' % contre ' + pts(calR.pctVacances) + ' % des jours)' });
+    if (Math.abs(calE.pctFeries - calR.pctFeries) * 100 > SEUIL_POINTS_CALENDRIER) raisons.push({ critere: 'calendrier', texte: 'jours fériés inégaux entre les deux périodes (' + pts(calE.pctFeries) + ' % contre ' + pts(calR.pctFeries) + ' % des jours)' });
+    (exceptionnels || []).forEach(x => raisons.push({ critere: 'exceptionnel', texte: 'journée exceptionnelle le ' + x.date.split('-').reverse().join('/') + ' (' + x.activite + ')' }));
+    return { faible: raisons.length > 0, raisons };
+  }
+
+  // Litres par carburant des jours complets de la piste (pour le prix moyen pondéré).
+  function litresCarburantsJoursComplets(auditsRows) {
+    return agregerParJour(auditsRows)
+      .filter(j => {
+        const quartOk = q => j.quarts.some(x => String(x.quart) === q && x.litrageDisponible);
+        return j.litrageDisponible && quartOk('1') && quartOk('2') && (j.litrageGazole + j.litrageSp95 + j.litrageGnr) > 0;
+      })
+      .map(j => ({ date: j.date, go: j.litrageGazole, sp95: j.litrageSp95, gnr: j.litrageGnr }));
+  }
+
+  // Prix de vente moyen au litre, pondéré par les litres : à chaque jour, le tarif en vigueur
+  // (date_effet la plus récente ≤ jour, non terminé) de carburant_tarifs_achat. Information seule.
+  function prixMoyenPondere(tarifs, litresJours) {
+    const tarifPour = (carb, d) => {
+      let best = null;
+      (tarifs || []).forEach(t => {
+        if (t && t.carburant === carb && t.prix_vente_par_litre != null && t.date_effet <= d && (!t.date_fin || t.date_fin >= d)) {
+          if (!best || t.date_effet > best.date_effet) best = t;
+        }
+      });
+      return best ? Number(best.prix_vente_par_litre) : null;
+    };
+    let somme = 0, litres = 0, total = 0;
+    (litresJours || []).forEach(j => ['go', 'sp95', 'gnr'].forEach(c => {
+      const l = Number(j[c]) || 0;
+      total += l;
+      const px = tarifPour(c, j.date);
+      if (px !== null && l > 0) { somme += px * l; litres += l; }
+    }));
+    return litres > 0 ? { prix: somme / litres, litresCouverts: litres, litresTotal: total } : null;
+  }
+
   // ------------------------------------------------------------
   const SOURCES_DONNEES = [
     { id: 'audits_caisse', nom: 'Audits de caisse (piste + boutique)', statut: 'connectee' },
@@ -1605,5 +1768,7 @@
     calculerConstatTempo, construireCandidatTempo, calculerConstatLitres, dateStationISO, FENETRE_SEMAINES, OCCURRENCES_MIN_JOUR,
     bornesPeriodeIndicateurs, joursLitresCompletsPiste, joursCaFdjComplets, resumerParJour, resumerMargeImport,
     quartsLitresPiste, quartsBoutique, quartsFdj, comparerQuarts,
+    bornesReference, comparerPeriodes, joursExceptionnels, exclusionsPiste, exclusionsFdj,
+    compositionCalendrier, evaluerComparabilite, litresCarburantsJoursComplets, prixMoyenPondere,
   };
 })();

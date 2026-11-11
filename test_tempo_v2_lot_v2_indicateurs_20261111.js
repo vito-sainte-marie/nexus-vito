@@ -118,9 +118,9 @@ t('la page n\'écrit rien : ni insert/update/upsert/delete ni RPC', () => {
 
 t('la page lit uniquement les sources annoncées, filtrées par site', () => {
   const tables = [...scripts.matchAll(/\.from\('([a-z_]+)'\)/g)].map(m => m[1]).sort();
-  assert.deepStrictEqual(tables, ['audits_caisse', 'products', 'produits_appel', 'sites', 'view_fdj_daily_summary', 'view_fdj_shift_facts']);
+  assert.deepStrictEqual(tables, ['audits_caisse', 'audits_caisse', 'carburant_tarifs_achat', 'inventaire_calendrier_site', 'products', 'produits_appel', 'sites', 'view_fdj_daily_summary', 'view_fdj_daily_summary', 'view_fdj_shift_facts']); // 6 sources du lot indicateurs + période de référence, calendrier et tarifs (lot comparabilité)
   const eq = scripts.match(/\.eq\('site', siteId\)/g) || [];
-  assert.strictEqual(eq.length, 5); // + view_fdj_shift_facts (sites se lit par site_id)
+  assert.strictEqual(eq.length, 9); // 5 du lot indicateurs + 4 du lot comparabilité (sites se lit par site_id)
 });
 
 t('jamais d\'horloge UTC : ni aujourdHuiISO ni filtrerJoursClos', () => {

@@ -19,7 +19,7 @@ const serie = (de, a, f) => { const r = []; for (let k = de; k <= a; k++) r.push
 t('fenêtre : 8 semaines, constante unique', () => {
   assert.strictEqual(T.FENETRE_SEMAINES, 8);
   assert.strictEqual((lire('nexus-tempo.js').match(/const FENETRE_SEMAINES\s*=/g) || []).length, 1);
-  assert.ok(/provisoire, arbitrage G9 en attente/.test(lire('nexus-tempo.js')));
+  assert.ok(!/provisoire, arbitrage G9 en attente/.test(lire('nexus-tempo.js'))); // G9 tranché : les 56 jours ne sont plus provisoires
 });
 t('fenêtre : 56 jours finissant hier, journée en cours exclue', () => {
   const c = T.calculerConstatLitres(serie(-70, 0, () => 1000));
