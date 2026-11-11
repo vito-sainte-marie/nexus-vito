@@ -75,7 +75,7 @@ t('valeur et unité dans deux éléments distincts, sans préfixe « Marge : »'
   assert.ok(/\.valeur \.nb\{[^}]*font-size:32px/.test(html));
   assert.ok(/\.valeur \.unite\{[^}]*font-size:15px[^}]*var\(--t-mid\)/.test(html));
   assert.ok(!/Marge : /.test(scripts));
-  assert.ok(/unite: 'de marge sur le CA'/.test(scripts));
+  assert.ok(/fmtNb\(mi\.marge\)\+' €'|fmtNb\(mi\.marge\) \+ ' €'/.test(scripts), 'marge Boutique en euros');
   assert.ok(/'par jour'/.test(scripts));
 });
 
@@ -85,7 +85,7 @@ t('lecture seule : aucune écriture', () => {
 });
 
 t('FDJ garde Hypothèse et G4 ; pas de lien actif', () => {
-  assert.ok(/id="qFdj"[\s\S]*?niveau hypothese[\s\S]*?\(G4\)/.test(html));
+  assert.ok(/id="qFdj"[\s\S]*?niveau hypothese[\s\S]*?data-arbitrage="G4"/.test(html));
   assert.ok(!/<a\s[^>]*href/i.test(html.slice(html.indexOf('<body>'))));
 });
 

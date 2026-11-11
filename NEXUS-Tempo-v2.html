@@ -99,11 +99,13 @@ a{color:inherit;}
 .attente-ico{margin-right:4px;}
 /* Découvertes : le mécanisme existe (classe act + a-… sur la carte, ou plusieurs .pastille côte à côte), mais les trois emplacements restent neutres tant qu'ils sont vides. */
 
-.indicateurs{display:grid; grid-template-columns:repeat(3,1fr); gap:14px;}
-.indicateur h3{font-size:13.5px; font-weight:600; margin:10px 0 12px;}
+.indicateurs{display:grid; grid-template-columns:repeat(3,1fr); gap:14px; align-items:start;}
+.indicateur h3{font-size:13.5px; font-weight:600; margin:0;}
+.indicateur .tete-act{margin:8px 0 8px;}
+.periode{font-family:var(--t-mono); font-size:12px; color:var(--t-mid); margin-top:6px;}
 .valeur{font-family:var(--t-mono); font-size:15px; color:var(--t-mid); line-height:1.4;}
-.total, .evol{font-family:var(--t-mono); font-size:12.5px; color:var(--t-mid); margin-top:8px;}
-.arbitrage{font-size:12px; line-height:1.5; color:var(--t-amber); margin-top:12px;}
+.total, .evol{font-family:var(--t-mono); font-size:12.5px; color:var(--t-mid); margin-top:6px;}
+.arbitrage{font-size:12px; line-height:1.5; color:var(--t-amber); margin-top:8px;}
 
 details.compar{margin-top:14px; background:var(--t-panel); border:1px solid var(--t-line); border-radius:14px;}
 details.compar summary{list-style:none; cursor:pointer; min-height:44px; padding:12px 18px; display:flex; align-items:center; gap:10px; font-size:13.5px; font-weight:600;}
@@ -200,6 +202,7 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
       <div class="tete-act"><span class="ico" aria-hidden="true"><svg aria-hidden="true"><use href="#i-piste"/></svg></span><h3>Piste · Litres vendus</h3></div>
       <div class="valeur">Donnée en cours de branchement</div>
       <div class="total">Total : donnée en cours de branchement</div>
+      <div class="periode">Période : donnée en cours de branchement</div>
       <div class="evol attente-g5">Évolution : donnée en cours de branchement</div>
     </article>
     <article class="carte indicateur act a-boutique" id="indBoutique">
@@ -207,16 +210,18 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
       <div class="tete-act"><span class="ico" aria-hidden="true"><svg aria-hidden="true"><use href="#i-boutique"/></svg></span><h3>Boutique · Marge commerciale</h3></div>
       <div class="valeur">Donnée en cours de branchement</div>
       <div class="total">Total : donnée en cours de branchement</div>
+      <div class="periode">Période : donnée en cours de branchement</div>
       <div class="evol attente-g5">Évolution : donnée en cours de branchement</div>
-      <div class="arbitrage"><span class="attente-ico" aria-hidden="true">◷</span>En attente d'arbitrage (G1)</div>
+      <div class="arbitrage" data-arbitrage="G1"><span class="attente-ico" aria-hidden="true">◷</span>Marge quotidienne non disponible pour cette période<span id="horsAppel"></span></div>
     </article>
     <article class="carte indicateur act a-fdj" id="indFdj">
       <span class="niveau vide-niveau">Non qualifié</span>
       <div class="tete-act"><span class="ico" aria-hidden="true"><svg aria-hidden="true"><use href="#i-fdj"/></svg></span><h3>FDJ · CA des jeux</h3></div>
       <div class="valeur">Donnée en cours de branchement</div>
       <div class="total">Total : donnée en cours de branchement</div>
+      <div class="periode">Période : donnée en cours de branchement</div>
       <div class="evol attente-g5">Évolution : donnée en cours de branchement</div>
-      <div class="arbitrage"><span class="attente-ico" aria-hidden="true">◷</span>En attente d'arbitrage (G3)</div>
+      <div class="arbitrage" data-arbitrage="G3"><span class="attente-ico" aria-hidden="true">◷</span>Commissions FDJ non renseignées</div>
     </article>
   </section>
 
@@ -229,7 +234,7 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
         <div class="colonne"><h4>Journée exceptionnelle</h4><div class="valeur">Donnée en cours de branchement</div></div>
         <div class="colonne"><h4>Prix</h4><div class="valeur">Donnée en cours de branchement</div></div>
       </div>
-      <div class="arbitrage"><span class="attente-ico" aria-hidden="true">◷</span>Règle de qualification : en attente d'arbitrage (G5)</div>
+      <div class="arbitrage" data-arbitrage="G5"><span class="attente-ico" aria-hidden="true">◷</span>Règle de comparabilité en cours de définition</div>
     </div>
   </details>
 
@@ -247,7 +252,7 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
         <div class="barre"><div class="barre-etiquette"><span>Quart 1</span><span class="valeur">—</span></div><div class="barre-piste"><div class="barre-remplie q1"></div></div></div>
         <div class="barre"><div class="barre-etiquette"><span>Quart 2</span><span class="valeur">—</span></div><div class="barre-piste"><div class="barre-remplie q2"></div></div></div>
         <div class="valeur" style="margin-top:12px;">Donnée en cours de branchement</div>
-        <div class="arbitrage"><span class="attente-ico" aria-hidden="true">◷</span>En attente d'arbitrage (G1)</div>
+        <div class="arbitrage" data-arbitrage="G1"><span class="attente-ico" aria-hidden="true">◷</span>Marge par quart non disponible</div>
       </div>
       <div class="colonne act a-fdj" id="qFdj">
         <div class="tete-act"><span class="ico" aria-hidden="true"><svg aria-hidden="true"><use href="#i-fdj"/></svg></span><h3>CA FDJ</h3></div>
@@ -255,7 +260,7 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
         <div class="barre"><div class="barre-etiquette"><span>Quart 1</span><span class="valeur">—</span></div><div class="barre-piste"><div class="barre-remplie q1"></div></div></div>
         <div class="barre"><div class="barre-etiquette"><span>Quart 2</span><span class="valeur">—</span></div><div class="barre-piste"><div class="barre-remplie q2"></div></div></div>
         <div class="valeur" style="margin-top:12px;">Donnée en cours de branchement</div>
-        <div class="arbitrage"><span class="attente-ico" aria-hidden="true">◷</span>En attente d'arbitrage (G4)</div>
+        <div class="arbitrage" data-arbitrage="G4"><span class="attente-ico" aria-hidden="true">◷</span>Rattachement des tirages au quart à confirmer</div>
       </div>
     </div>
     <div class="pied-bloc">
@@ -272,7 +277,7 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
       <h3>Donnée en cours de branchement</h3>
       <div class="texte">Donnée en cours de branchement</div>
       <div class="source">Source : —</div>
-      <div class="arbitrage"><span class="attente-ico" aria-hidden="true">◷</span>En attente d'arbitrage</div>
+      <div class="arbitrage" data-arbitrage="G5"><span class="attente-ico" aria-hidden="true">◷</span>Critères de fiabilité en cours de définition</div>
       <span class="preuves" aria-disabled="true">Voir les preuves</span>
     </article>
     <article class="carte decouverte">
@@ -280,7 +285,7 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
       <h3>Donnée en cours de branchement</h3>
       <div class="texte">Donnée en cours de branchement</div>
       <div class="source">Source : —</div>
-      <div class="arbitrage"><span class="attente-ico" aria-hidden="true">◷</span>En attente d'arbitrage</div>
+      <div class="arbitrage" data-arbitrage="G5"><span class="attente-ico" aria-hidden="true">◷</span>Critères de fiabilité en cours de définition</div>
       <span class="preuves" aria-disabled="true">Voir les preuves</span>
     </article>
     <article class="carte decouverte">
@@ -288,7 +293,7 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
       <h3>Donnée en cours de branchement</h3>
       <div class="texte">Donnée en cours de branchement</div>
       <div class="source">Source : —</div>
-      <div class="arbitrage"><span class="attente-ico" aria-hidden="true">◷</span>En attente d'arbitrage</div>
+      <div class="arbitrage" data-arbitrage="G5"><span class="attente-ico" aria-hidden="true">◷</span>Critères de fiabilité en cours de définition</div>
       <span class="preuves" aria-disabled="true">Voir les preuves</span>
     </article>
   </section>
@@ -350,7 +355,11 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
       v.appendChild(nb); v.appendChild(un);
     } else v.textContent = c.valeur;
     el.querySelector('.total').textContent = c.total;
-    el.querySelector('.evol').textContent = "Évolution : En attente d'arbitrage (G5)";
+    const ev = el.querySelector('.evol');
+    ev.textContent = 'Comparaison non disponible';
+    ev.setAttribute('data-arbitrage', 'G5');
+    const per = el.querySelector('.periode');
+    if (per) per.textContent = c.periode || ('Période : ' + ABSENT.toLowerCase());
     if (c.note) {
       const n = document.createElement('div');
       n.className = 'total';
@@ -359,14 +368,23 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
     }
   }
 
-  function carteJours(r, unite, noteMention) {
-    if (r.etat === 'absent') return { ok: false, valeur: ABSENT, total: 'Total : ' + ABSENT.toLowerCase(), note: noteMention };
+  const fmtDateCourte = iso => iso ? iso.split('-').reverse().slice(0, 2).join('/') : '';
+  const pluriel = (n, s, p) => n + ' ' + (n > 1 ? p : s);
+  // Période affichée sur la carte : comptage seulement, aucune règle nouvelle.
+  function periodeJours(retenus, total, raison) {
+    const ecart = total - retenus;
+    return pluriel(retenus, 'journée complète', 'journées complètes') + ' sur ' + total +
+      (ecart > 0 ? ' · ' + pluriel(ecart, 'écartée', 'écartées') + ' (' + raison + ')' : '');
+  }
+
+  function carteJours(r, unite, noteMention, periode) {
+    if (r.etat === 'absent') return { ok: false, valeur: ABSENT, total: 'Total : ' + ABSENT.toLowerCase(), note: noteMention, periode };
     if (r.etat === 'insuffisant') {
       return { ok: false, valeur: 'Historique insuffisant',
-        total: 'Jours complets : ' + r.jours + ' (minimum ' + r.seuil + ')', note: noteMention };
+        total: 'Jours complets : ' + r.jours + ' (minimum ' + r.seuil + ')', note: noteMention, periode };
     }
     return { ok: true, nombre: fmtNb(r.moyenne) + (unite === '€' ? ' €' : ''), unite: (unite === '€' ? '' : unite + ' ') + 'par jour',
-      total: 'Total : ' + fmtNb(r.total) + ' ' + unite + ' sur ' + r.jours + ' jours complets', note: noteMention };
+      total: 'Total : ' + fmtNb(r.total) + ' ' + unite + ' sur ' + r.jours + ' jours complets', note: noteMention, periode };
   }
 
   function remplirQuarts(id, r, unite) {
@@ -449,30 +467,36 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
     // Piste : litres GO + SP95 + GNR, jours complets uniquement.
     const piste = rAud.error ? { etat: 'absent', jours: 0 }
       : T.resumerParJour(T.joursLitresCompletsPiste(rAud.data), bornes);
-    remplirCarte('indPiste', carteJours(piste, 'L'));
+    remplirCarte('indPiste', carteJours(piste, 'L', undefined, periodeJours(piste.jours, bornes.jours, 'quart ou litrage manquant')));
 
     // Boutique : moyenne de la période d'import affichée, pas une marge jour par jour.
     const mi = (rProd.error || rApp.error) ? { etat: 'absent' }
       : T.resumerMargeImport(rProd.data, (rApp.data || []).map(r => r.article), NexusPeriodes.analyserPeriodes);
+    const horsAppel = document.getElementById('horsAppel');
+    if (horsAppel) horsAppel.textContent = " · hors produits d'appel";
+    let perBoutique = null;
+    if (mi.etat === 'ok') {
+      const nbJ = Math.round((Date.parse(mi.fin) - Date.parse(mi.debut)) / 86400000) + 1;
+      perBoutique = 'Du ' + fmtDateCourte(mi.debut) + ' au ' + fmtDate(mi.fin) + ' · ' + pluriel(nbJ, 'jour', 'jours') + ' · CA : ' + fmtNb(mi.ca) + ' €';
+      if (mi.debut > bornes.fin || mi.fin < bornes.debut) perBoutique += ' · Période différente des litres et de la FDJ';
+    }
     remplirCarte('indBoutique', mi.etat === 'ok'
-      ? { ok: true, nombre: fmtPct(mi.taux), unite: 'de marge sur le CA',
-          total: 'Total : marge ' + fmtNb(mi.marge) + ' € sur ' + fmtNb(mi.ca) + ' € de CA · import du ' + fmtDate(mi.debut) + ' au ' + fmtDate(mi.fin),
-          note: "Moyenne de la période d'import, pas une marge calculée jour par jour. Hors produits d'appel." }
-      : { ok: false, valeur: ABSENT, total: 'Total : ' + ABSENT.toLowerCase(),
-          note: "Moyenne de la période d'import, pas une marge calculée jour par jour. Hors produits d'appel." });
+      ? { ok: true, nombre: fmtNb(mi.marge) + ' €', unite: '',
+          total: "Marge de la période d'import · " + fmtPct(mi.taux), periode: perBoutique }
+      : { ok: false, valeur: ABSENT, total: 'Total : ' + ABSENT.toLowerCase() });
 
     // FDJ : chiffre d'affaires des jeux par jour, jours à deux quarts contrôlés.
     const fdj = rFdj.error ? { etat: 'absent', jours: 0 }
       : T.resumerParJour(T.joursCaFdjComplets(rFdj.data), bornes);
-    remplirCarte('indFdj', carteJours(fdj, '€', "Chiffre d'affaires, pas la marge de la station."));
+    remplirCarte('indFdj', carteJours(fdj, '€', "Chiffre d'affaires, pas la marge de la station.", periodeJours(fdj.jours, bornes.jours, 'un quart non contrôlé')));
 
     // Quarts et équipes : moyennes par quart, Q1 et Q2 séparés.
     remplirQuarts('qLitres', T.comparerQuarts(rAud.error ? null : T.quartsLitresPiste(rAud.data), bornes), 'L');
     remplirQuarts('qBoutique', T.comparerQuarts(rAud.error ? null : T.quartsBoutique(rAud.data), bornes), '€');
     remplirQuarts('qFdj', T.comparerQuarts(rFacts.error ? null : T.quartsFdj(rFacts.data), bornes), '€');
 
-    document.getElementById('pillPeriode').textContent = 'Période étudiée : du ' + fmtDate(bornes.debut) + ' au ' + fmtDate(bornes.fin) +
-      ' · jours retenus : piste ' + piste.jours + ', FDJ ' + fdj.jours;
+    document.getElementById('pillPeriode').textContent = 'Période étudiée : du ' + fmtDateCourte(bornes.debut) + ' au ' + fmtDate(bornes.fin) +
+      ' · ' + pluriel(bornes.jours, 'jour', 'jours');
     const tz = 'America/Martinique';
     const quand = new Intl.DateTimeFormat('fr-FR', { timeZone: tz, dateStyle: 'short', timeStyle: 'short' }).format(new Date());
     document.getElementById('piedSources').textContent =
