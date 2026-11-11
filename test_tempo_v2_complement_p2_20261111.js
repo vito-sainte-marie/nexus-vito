@@ -35,5 +35,11 @@ t('aucun min-height étirant sur les indicateurs ; alignement en haut', () => {
   for (const r of ind) assert.ok(!/min-height/.test(r), r);
   assert.ok(/\.indicateurs\{[^}]*align-items:start/.test(css));
 });
+t('ligne factuelle des sous-cartes en texte secondaire 13 px sans', () => {
+  assert.ok(/\.colonne > \.valeur\{[^}]*IBM Plex Sans|\.colonne > \.valeur\{[^}]*var\(--t-sans\)[^}]*font-size:13px[^}]*var\(--t-mid\)/.test(css));
+});
+t('mention « Période différente » dès que les périodes diffèrent', () => {
+  assert.ok(/mi\.debut !== bornes\.debut \|\| mi\.fin !== bornes\.fin/.test(scripts));
+});
 console.log(echecs ? '\n' + echecs + ' échec(s)' : '\nTout est vert');
 process.exit(echecs ? 1 : 0);

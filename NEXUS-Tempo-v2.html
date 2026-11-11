@@ -104,6 +104,7 @@ a{color:inherit;}
 .indicateur .tete-act{margin:8px 0 8px;}
 .periode{font-family:var(--t-mono); font-size:12px; color:var(--t-mid); margin-top:6px;}
 .valeur{font-family:var(--t-mono); font-size:15px; color:var(--t-mid); line-height:1.4;}
+.colonne > .valeur{font-family:var(--t-sans); font-size:13px; color:var(--t-mid);}
 .total, .evol{font-family:var(--t-mono); font-size:12.5px; color:var(--t-mid); margin-top:6px;}
 .arbitrage{font-size:12px; line-height:1.5; color:var(--t-amber); margin-top:8px;}
 
@@ -478,7 +479,7 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
     if (mi.etat === 'ok') {
       const nbJ = Math.round((Date.parse(mi.fin) - Date.parse(mi.debut)) / 86400000) + 1;
       perBoutique = 'Du ' + fmtDateCourte(mi.debut) + ' au ' + fmtDate(mi.fin) + ' · ' + pluriel(nbJ, 'jour', 'jours') + ' · CA : ' + fmtNb(mi.ca) + ' €';
-      if (mi.debut > bornes.fin || mi.fin < bornes.debut) perBoutique += ' · Période différente des litres et de la FDJ';
+      if (mi.debut !== bornes.debut || mi.fin !== bornes.fin) perBoutique += ' · Période différente des litres et de la FDJ';
     }
     remplirCarte('indBoutique', mi.etat === 'ok'
       ? { ok: true, nombre: fmtNb(mi.marge) + ' €', unite: '',
