@@ -265,12 +265,16 @@ button.suggestion-item{width:100%;text-align:left;font:inherit;font-size:13px;co
 .ind-label{display:flex;align-items:center;gap:6px;font-size:10.5px;color:var(--text-mid);}
 .ind-principal .ind-label{font-size:12px;}
 .ind-val{font-family:var(--mono);font-size:15px;font-weight:700;margin-top:3px;white-space:nowrap;}
-.ind-principal .ind-val{font-size:clamp(10px,13cqi,32px);margin-top:6px;white-space:nowrap;}
+.ind-principal .ind-val{font-size:clamp(22px,8cqi,32px);margin-top:6px;white-space:nowrap;}
+.indic-card{container-type:inline-size;}
 .ind-sub{font-size:11px;color:var(--text-dim);margin-top:2px;line-height:1.4;}
 @media (min-width:640px){
+  .ind-secondaire{grid-template-columns:repeat(3,1fr);}
+}
+/* trois valeurs principales cote a cote seulement si chacune tient a 22px sans coupure ; sinon disposition telephone */
+@container (min-width:600px){
   .ind-principal{grid-template-columns:repeat(3,1fr);}
   .ind-principal .ind-tile:first-child{grid-column:auto;}
-  .ind-secondaire{grid-template-columns:repeat(3,1fr);}
 }
 
 /* Sections repliables */

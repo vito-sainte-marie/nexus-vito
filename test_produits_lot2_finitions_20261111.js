@@ -12,6 +12,8 @@ ok(/<button type="button" id="emplacementAutreBtn"/.test(src), 'bouton Enregistr
 ok(/emplacement-zone:focus-visible/.test(src), 'focus visible des zones');
 ok(!/\.ind-val\{[^}]*overflow-wrap:anywhere/.test(src) && !/\.ind-principal \.ind-val\{[^}]*overflow-wrap/.test(src), 'plus de overflow-wrap sur .ind-val');
 ok(/\.ind-principal \.ind-val\{[^}]*white-space:nowrap/.test(src), 'valeur principale jamais coupee');
-ok(/\.ind-principal \.ind-tile\{[^}]*container-type:inline-size/.test(src) && /\.ind-principal \.ind-val\{[^}]*font-size:clamp\([^)]*cqi/.test(src), 'taille reglee sur la largeur de la tuile');
+ok(/\.ind-principal \.ind-val\{[^}]*font-size:clamp\(22px,[^)]*cqi/.test(src), 'plancher 22px, jamais sous les tuiles secondaires (15px)');
+ok(/\.indic-card\{container-type:inline-size/.test(src) && /@container \(min-width:600px\)\{\s*\.ind-principal\{grid-template-columns:repeat\(3,1fr\)/.test(src), 'trois colonnes seulement si la carte est assez large');
+ok(!/@media \(min-width:640px\)\{\s*\.ind-principal/.test(src), 'plus de bascule 3 colonnes sur la largeur de la fenetre');
 ok(/button type="button" role="option"/.test(src) || /role="option"[^>]*class="suggestion-item"/.test(src), 'suggestions = boutons');
 console.log('OK', n, 'verifications');
