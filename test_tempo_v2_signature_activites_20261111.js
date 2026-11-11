@@ -125,6 +125,27 @@ t('« En attente d\'arbitrage » : horloge ◷ avant chaque ligne d\'attente', (
   assert.strictEqual((sansScripts.match(/en attente d'arbitrage/gi) || []).length, lignes.length, 'attente hors .arbitrage');
 });
 
+t('signature complète aussi sur .colonne.act et .tuile.act (spécificité relevée)', () => {
+  const m = css.match(/\.act, \.colonne\.act, \.tuile\.act\{([^}]*)\}/);
+  assert.ok(m, 'règle de signature non relevée en spécificité');
+  assert.ok(/border:1px solid rgba\(var\(--c-rgb\), var\(--a-bord\)\)/.test(m[1]), 'bordure teintée');
+  assert.ok(/border-top:3px solid rgb\(var\(--c-rgb\)\)/.test(m[1]), 'trait 3 px');
+  assert.ok(/radial-gradient\(circle at 0 0, rgba\(var\(--c-rgb\), var\(--a-glow\)\)/.test(m[1]), 'lueur');
+  // aucune règle .colonne{...} / .tuile{...} ultérieure ne doit repasser sur border/background sans la spécificité de .act
+  assert.ok(/class="tuile act a-piste"/.test(sansScripts), 'tuile simple Piste');
+  assert.ok((sansScripts.match(/class="colonne act a-(piste|boutique|fdj)"/g) || []).length === 3);
+});
+
+t('.evol : classe attente-g5 dans le balisage, horloge par CSS, JS intact', () => {
+  assert.strictEqual((sansScripts.match(/<div class="evol attente-g5">/g) || []).length, 3);
+  assert.ok(/\.attente-g5::before\{content:"◷ ";\}/.test(css));
+});
+
+t('valeur principale des indicateurs : 32 px gras quand mesurée, 15 px pour les états vides', () => {
+  assert.ok(/\.indicateur \.niveau\.mesure ~ \.valeur\{[^}]*font-size:32px;[^}]*font-weight:700/.test(css));
+  assert.ok(/\n\.valeur\{[^}]*font-size:15px/.test(css), 'état vide à 15 px');
+});
+
 t('flèche des analyses : toujours cyan NEXUS', () => {
   assert.ok(/\.fleche\{[^}]*color:var\(--t-cyan\)/.test(css));
 });

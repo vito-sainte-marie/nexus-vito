@@ -71,9 +71,12 @@ a{color:inherit;}
 .a-piste{--c-rgb:var(--piste-rgb);}
 .a-boutique{--c-rgb:var(--boutique-rgb);}
 .a-fdj{--c-rgb:var(--fdj-rgb);}
-.act{position:relative; border:1px solid rgba(var(--c-rgb), var(--a-bord)); border-top:3px solid rgb(var(--c-rgb));
+.act, .colonne.act, .tuile.act{position:relative; border:1px solid rgba(var(--c-rgb), var(--a-bord)); border-top:3px solid rgb(var(--c-rgb));
   background:radial-gradient(circle at 0 0, rgba(var(--c-rgb), var(--a-glow)), transparent 60%), var(--fond, var(--t-panel));}
 .colonne.act{--fond:var(--t-raised);}
+.attente-g5::before{content:"◷ ";}
+/* valeur mesurée en grand ; états vides (Donnée absente, Historique insuffisant) gardent 15 px */
+.indicateur .niveau.mesure ~ .valeur{font-size:32px; font-weight:700; color:var(--t-text); line-height:1.15;}
 .tete-act{display:flex; align-items:center; gap:10px; margin:10px 0 12px;}
 .tete-act h3{margin:0;}
 .ico{flex:0 0 auto; width:32px; height:32px; border-radius:9px; display:inline-flex; align-items:center; justify-content:center;
@@ -196,14 +199,14 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
       <div class="tete-act"><span class="ico" aria-hidden="true"><svg aria-hidden="true"><use href="#i-piste"/></svg></span><h3>Piste · Litres vendus</h3></div>
       <div class="valeur">Donnée en cours de branchement</div>
       <div class="total">Total : donnée en cours de branchement</div>
-      <div class="evol">Évolution : donnée en cours de branchement</div>
+      <div class="evol attente-g5">Évolution : donnée en cours de branchement</div>
     </article>
     <article class="carte indicateur act a-boutique" id="indBoutique">
       <span class="niveau vide-niveau">Non qualifié</span>
       <div class="tete-act"><span class="ico" aria-hidden="true"><svg aria-hidden="true"><use href="#i-boutique"/></svg></span><h3>Boutique · Marge commerciale</h3></div>
       <div class="valeur">Donnée en cours de branchement</div>
       <div class="total">Total : donnée en cours de branchement</div>
-      <div class="evol">Évolution : donnée en cours de branchement</div>
+      <div class="evol attente-g5">Évolution : donnée en cours de branchement</div>
       <div class="arbitrage"><span class="attente-ico" aria-hidden="true">◷</span>En attente d'arbitrage (G1)</div>
     </article>
     <article class="carte indicateur act a-fdj" id="indFdj">
@@ -211,7 +214,7 @@ footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); m
       <div class="tete-act"><span class="ico" aria-hidden="true"><svg aria-hidden="true"><use href="#i-fdj"/></svg></span><h3>FDJ · CA des jeux</h3></div>
       <div class="valeur">Donnée en cours de branchement</div>
       <div class="total">Total : donnée en cours de branchement</div>
-      <div class="evol">Évolution : donnée en cours de branchement</div>
+      <div class="evol attente-g5">Évolution : donnée en cours de branchement</div>
       <div class="arbitrage"><span class="attente-ico" aria-hidden="true">◷</span>En attente d'arbitrage (G3)</div>
     </article>
   </section>
