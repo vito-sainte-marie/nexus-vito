@@ -116,7 +116,7 @@ t('page : trois cartes remplies par script, preuves en <details>, aucun lien', (
   assert.ok(/Une relation, pas une cause\./.test(scripts));
   assert.ok(/Rattachement des tirages au quart à confirmer/.test(scripts) && /arbitrage: 'G4'/.test(scripts));
   assert.ok(/Fait mesuré/.test(scripts) && /Relation observée/.test(scripts) && /Hypothèse/.test(scripts));
-  assert.ok(!/<a\s[^>]*href/i.test(html.slice(html.indexOf('<body>'))));
+  assert.deepStrictEqual([...html.slice(html.indexOf('<body>')).matchAll(/<a\s[^>]*href="([^"]*)"/gi)].map(m => m[1]), ['NEXUS-Tempo-v2-Quarts.html']);
 });
 
 t('page : la carte relation n\'est remplie que si la relation est retenue', () => {
