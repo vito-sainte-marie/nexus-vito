@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="manifest" href="site.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NEXUS">
+<meta name="theme-color" content="#07131E">
+<title>NEXUS — Tempo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!-- Thème Jour / Nuit : mécanisme existant (data-theme posé sur <html> avant le premier rendu). -->
+<script src="nexus-theme.js"></script>
+<style>
+/* Lot V1 « visuel » — Tempo V2. Cette page ne lit aucune donnée métier :
+   chaque carte affiche son état vide. Jetons propres à la page (préfixe --t-),
+   pour ne pas entrer en collision avec ceux que nexus-theme.js redéfinit. */
+:root{
+  --t-bg:#07131E; --t-panel:#0D202E; --t-raised:#0F2433; --t-line:#254354;
+  --t-text:#EDF1F5; --t-mid:#9AA8B6; --t-cyan:#24D8E3; --t-green:#29C98A; --t-amber:#F5A12A; --t-bar2:#5B7A8E;
+  --t-mono:'IBM Plex Mono',monospace; --t-sans:'IBM Plex Sans',sans-serif;
+}
+:root[data-theme="jour"]{
+  --t-bg:#F4F6F8; --t-panel:#FFFFFF; --t-raised:#EEF2F5; --t-line:#D5DCE3;
+  --t-text:#0F172A; --t-mid:#475569; --t-cyan:#0B7285; --t-green:#047857; --t-amber:#B45309; --t-bar2:#94A3B8;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+html,body{background:var(--t-bg); color:var(--t-text); font-family:var(--t-sans); min-height:100vh;}
+body{display:flex; justify-content:center;}
+a{color:inherit;}
+.app{width:100%; max-width:1100px; min-height:100vh; display:flex; flex-direction:column; padding:env(safe-area-inset-top) 16px 40px;}
+
+.header{--bg:var(--t-bg); --panel:var(--t-panel); --line:var(--t-line); --cyan:var(--t-cyan); --text:var(--t-text);}
+.header .pills{position:relative;}
+.eyebrow{font-family:var(--t-mono); font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--t-cyan);}
+.title{font-size:26px; font-weight:600; margin-top:4px;}
+.subtitle{font-size:14px; color:var(--t-mid); margin-top:4px;}
+.pills{display:flex; flex-wrap:wrap; gap:8px; margin-top:14px;}
+.pill{font-family:var(--t-mono); font-size:11.5px; padding:6px 12px; border-radius:20px; border:1px solid var(--t-line); background:var(--t-panel); color:var(--t-mid);}
+.pill.ambre{color:var(--t-amber); border-color:var(--t-amber); background:color-mix(in srgb, var(--t-amber) 12%, transparent);}
+.pill[hidden]{display:none;}
+
+.carte{background:var(--t-panel); border:1px solid var(--t-line); border-radius:14px; padding:18px;}
+.titre-section{font-family:var(--t-mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--t-mid); margin:28px 0 12px; display:flex; align-items:center; gap:10px;}
+.titre-section::after{content:''; flex:1; height:1px; background:var(--t-line);}
+
+.enbref{border-color:var(--t-cyan); margin-top:18px;}
+.enbref p{font-size:14.5px; line-height:1.6;}
+
+.niveau{display:inline-block; font-family:var(--t-mono); font-size:10.5px; letter-spacing:.05em; text-transform:uppercase; padding:3px 9px; border-radius:20px; font-weight:600;}
+.niveau.mesure{color:var(--t-green); background:color-mix(in srgb, var(--t-green) 13%, transparent);}
+.niveau.relation{color:var(--t-cyan); background:color-mix(in srgb, var(--t-cyan) 13%, transparent);}
+.niveau.vide-niveau{color:var(--t-mid); background:var(--t-raised); border:1px dashed var(--t-line);}
+.niveau.hypothese{color:var(--t-amber); background:color-mix(in srgb, var(--t-amber) 12%, transparent);}
+
+.indicateurs{display:grid; grid-template-columns:repeat(3,1fr); gap:14px;}
+.indicateur h3{font-size:13.5px; font-weight:600; margin:10px 0 12px;}
+.valeur{font-family:var(--t-mono); font-size:15px; color:var(--t-mid); line-height:1.4;}
+.total, .evol{font-family:var(--t-mono); font-size:12.5px; color:var(--t-mid); margin-top:8px;}
+.arbitrage{font-size:12px; line-height:1.5; color:var(--t-amber); margin-top:12px;}
+
+details.compar{margin-top:14px; background:var(--t-panel); border:1px solid var(--t-line); border-radius:14px;}
+details.compar summary{list-style:none; cursor:pointer; min-height:44px; padding:12px 18px; display:flex; align-items:center; gap:10px; font-size:13.5px; font-weight:600;}
+details.compar summary::-webkit-details-marker{display:none;}
+details.compar summary::after{content:'▾'; margin-left:auto; color:var(--t-mid); transition:transform .2s;}
+details.compar[open] summary::after{transform:rotate(180deg);}
+.compar-corps{padding:0 18px 18px;}
+.colonnes4{display:grid; grid-template-columns:repeat(4,1fr); gap:12px;}
+.colonne{background:var(--t-raised); border:1px solid var(--t-line); border-radius:12px; padding:14px;}
+.colonne h4{font-size:12.5px; font-weight:600; margin-bottom:8px;}
+
+.colonnes3{display:grid; grid-template-columns:repeat(3,1fr); gap:14px;}
+.quarts h3{font-size:13.5px; font-weight:600; margin:0 0 4px;}
+.barre{margin-top:12px;}
+.barre-etiquette{display:flex; justify-content:space-between; font-family:var(--t-mono); font-size:11.5px; color:var(--t-mid); margin-bottom:5px;}
+.barre-piste{height:10px; border-radius:6px; background:var(--t-raised); border:1px solid var(--t-line); overflow:hidden;}
+.barre-remplie{height:100%; width:0; border-radius:6px;}
+.q1{background:var(--t-cyan);}
+.q2{background:var(--t-bar2);}
+.pied-bloc{margin-top:16px; display:flex; flex-wrap:wrap; align-items:center; gap:10px 18px;}
+.pied-bloc p{font-size:13px; color:var(--t-mid); flex:1 1 280px;}
+.lien-inactif{display:inline-flex; align-items:center; min-height:44px; padding:0 16px; border:1px solid var(--t-line); border-radius:10px; font-size:13px; color:var(--t-mid); opacity:.7; cursor:default;}
+
+.decouvertes{display:grid; grid-template-columns:repeat(3,1fr); gap:14px;}
+.decouverte h3{font-size:14px; font-weight:600; margin:10px 0 6px;}
+.decouverte .texte{font-size:13px; line-height:1.55; color:var(--t-mid);}
+.source{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); margin-top:10px;}
+.preuves{display:inline-flex; align-items:center; min-height:44px; margin-top:6px; font-size:13px; color:var(--t-mid); opacity:.7; cursor:default;}
+
+.analyses{display:grid; grid-template-columns:repeat(3,1fr); gap:12px;}
+.analyses-wrap{position:relative;}
+.fleche{display:none;}
+.tuile .t-titre{display:block;}
+.tuile .t-sous{display:block; margin-top:6px; font-size:12px; font-weight:400; color:var(--t-mid); line-height:1.4;}
+.tuile{min-height:44px; background:var(--t-panel); border:1px solid var(--t-line); border-radius:14px; padding:16px; font-size:13.5px; font-weight:500; line-height:1.4; cursor:default;}
+
+footer{margin-top:32px; padding-top:18px; border-top:1px solid var(--t-line);}
+footer .regle{font-size:13.5px; color:var(--t-text);}
+footer .regle b{font-weight:600;}
+footer .sources{font-family:var(--t-mono); font-size:11px; color:var(--t-mid); margin-top:8px;}
+
+.reserve{padding:60px 20px; text-align:center; color:var(--t-mid);}
+
+@media (max-width:767px){
+  .indicateurs, .colonnes3, .decouvertes, .colonnes4{grid-template-columns:1fr;}
+  .analyses{display:flex; overflow-x:auto; gap:10px; padding-bottom:6px; -webkit-overflow-scrolling:touch;}
+  .tuile{flex:0 0 220px;}
+  .fleche{position:absolute; top:0; right:0; bottom:6px; width:44px; min-height:44px; display:flex; align-items:center; justify-content:flex-end; padding:0 8px 0 0; border:0; border-radius:0 14px 14px 0; background:linear-gradient(to right, transparent, var(--t-bg) 70%); color:var(--t-cyan); font-size:30px; line-height:1; cursor:pointer;}
+  .fleche.masquee{display:none;}
+  .title{font-size:22px;}
+}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="nexus-build.js"></script>
+<script src="nexus-auth.js?v=20260904-0104"></script>
+<script src="nexus-icones.js?v=20260904-0104"></script>
+<script src="nexus-desktop.js?v=20260904-0104"></script>
+<script src="nexus-banniere-station.js"></script>
+</head>
+<body>
+<div class="app" id="app">
+  <div class="header" id="enTete">
+    <div class="entete-texte">
+    <div class="eyebrow">NEXUS · Comprendre</div>
+    <div class="title">Tempo</div>
+    <div class="subtitle">Le rythme de votre station</div>
+    <div class="pills">
+      <span class="pill" id="pillSite">Station</span>
+      <span class="pill" id="pillPeriode">Période étudiée : <span class="vide">donnée en cours de branchement</span></span>
+      <span class="pill ambre" id="pillComparabilite" hidden>Comparabilité faible avec la période précédente</span>
+    </div>
+    </div>
+  </div>
+
+  <div id="contenu">
+
+  <section class="carte enbref" id="enBref">
+    <div class="eyebrow">En bref</div>
+    <p style="margin-top:8px;">Donnée en cours de branchement</p>
+  </section>
+
+  <div class="titre-section">Trois indicateurs</div>
+  <section class="indicateurs">
+    <article class="carte indicateur" id="indPiste">
+      <span class="niveau vide-niveau">Non qualifié</span>
+      <h3>Piste · Litres vendus</h3>
+      <div class="valeur">Donnée en cours de branchement</div>
+      <div class="total">Total : donnée en cours de branchement</div>
+      <div class="evol">Évolution : donnée en cours de branchement</div>
+    </article>
+    <article class="carte indicateur" id="indBoutique">
+      <span class="niveau vide-niveau">Non qualifié</span>
+      <h3>Boutique · Marge commerciale</h3>
+      <div class="valeur">Donnée en cours de branchement</div>
+      <div class="total">Total : donnée en cours de branchement</div>
+      <div class="evol">Évolution : donnée en cours de branchement</div>
+      <div class="arbitrage">En attente d'arbitrage (G1)</div>
+    </article>
+    <article class="carte indicateur" id="indFdj">
+      <span class="niveau vide-niveau">Non qualifié</span>
+      <h3>FDJ · CA des jeux</h3>
+      <div class="valeur">Donnée en cours de branchement</div>
+      <div class="total">Total : donnée en cours de branchement</div>
+      <div class="evol">Évolution : donnée en cours de branchement</div>
+      <div class="arbitrage">En attente d'arbitrage (G3)</div>
+    </article>
+  </section>
+
+  <details class="compar" id="comparabilite">
+    <summary>Comparabilité faible · Pourquoi ces évolutions ne sont pas des conclusions</summary>
+    <div class="compar-corps">
+      <div class="colonnes4">
+        <div class="colonne"><h4>Durées</h4><div class="valeur">Donnée en cours de branchement</div></div>
+        <div class="colonne"><h4>Calendrier</h4><div class="valeur">Donnée en cours de branchement</div></div>
+        <div class="colonne"><h4>Journée exceptionnelle</h4><div class="valeur">Donnée en cours de branchement</div></div>
+        <div class="colonne"><h4>Prix</h4><div class="valeur">Donnée en cours de branchement</div></div>
+      </div>
+      <div class="arbitrage">Règle de qualification : en attente d'arbitrage (G5)</div>
+    </div>
+  </details>
+
+  <div class="titre-section">Quarts et équipes</div>
+  <section class="carte quarts" id="quarts">
+    <div class="colonnes3">
+      <div class="colonne" id="qLitres">
+        <h3>Litres</h3>
+        <div class="barre"><div class="barre-etiquette"><span>Quart 1</span><span class="valeur">—</span></div><div class="barre-piste"><div class="barre-remplie q1"></div></div></div>
+        <div class="barre"><div class="barre-etiquette"><span>Quart 2</span><span class="valeur">—</span></div><div class="barre-piste"><div class="barre-remplie q2"></div></div></div>
+        <div class="valeur" style="margin-top:12px;">Donnée en cours de branchement</div>
+      </div>
+      <div class="colonne" id="qBoutique">
+        <h3>CA boutique</h3>
+        <div class="barre"><div class="barre-etiquette"><span>Quart 1</span><span class="valeur">—</span></div><div class="barre-piste"><div class="barre-remplie q1"></div></div></div>
+        <div class="barre"><div class="barre-etiquette"><span>Quart 2</span><span class="valeur">—</span></div><div class="barre-piste"><div class="barre-remplie q2"></div></div></div>
+        <div class="valeur" style="margin-top:12px;">Donnée en cours de branchement</div>
+        <div class="arbitrage">En attente d'arbitrage (G1)</div>
+      </div>
+      <div class="colonne" id="qFdj">
+        <h3>CA FDJ</h3>
+        <span class="niveau hypothese">Hypothèse</span>
+        <div class="barre"><div class="barre-etiquette"><span>Quart 1</span><span class="valeur">—</span></div><div class="barre-piste"><div class="barre-remplie q1"></div></div></div>
+        <div class="barre"><div class="barre-etiquette"><span>Quart 2</span><span class="valeur">—</span></div><div class="barre-piste"><div class="barre-remplie q2"></div></div></div>
+        <div class="valeur" style="margin-top:12px;">Donnée en cours de branchement</div>
+        <div class="arbitrage">En attente d'arbitrage (G4)</div>
+      </div>
+    </div>
+    <div class="pied-bloc">
+      <p>Les écarts entre quarts décrivent des moments de la journée, pas la valeur des pompistes qui les tiennent.</p>
+      <span class="lien-inactif" aria-disabled="true">Comparer les quarts</span>
+      <span class="lien-inactif" aria-disabled="true">Voir les pompistes</span>
+    </div>
+  </section>
+
+  <div class="titre-section">Ce que Tempo a découvert</div>
+  <section class="decouvertes" id="decouvertes">
+    <article class="carte decouverte">
+      <span class="niveau vide-niveau">Non qualifié</span>
+      <h3>Donnée en cours de branchement</h3>
+      <div class="texte">Donnée en cours de branchement</div>
+      <div class="source">Source : —</div>
+      <div class="arbitrage">En attente d'arbitrage</div>
+      <span class="preuves" aria-disabled="true">Voir les preuves</span>
+    </article>
+    <article class="carte decouverte">
+      <span class="niveau vide-niveau">Non qualifié</span>
+      <h3>Donnée en cours de branchement</h3>
+      <div class="texte">Donnée en cours de branchement</div>
+      <div class="source">Source : —</div>
+      <div class="arbitrage">En attente d'arbitrage</div>
+      <span class="preuves" aria-disabled="true">Voir les preuves</span>
+    </article>
+    <article class="carte decouverte">
+      <span class="niveau vide-niveau">Non qualifié</span>
+      <h3>Donnée en cours de branchement</h3>
+      <div class="texte">Donnée en cours de branchement</div>
+      <div class="source">Source : —</div>
+      <div class="arbitrage">En attente d'arbitrage</div>
+      <span class="preuves" aria-disabled="true">Voir les preuves</span>
+    </article>
+  </section>
+
+  <div class="titre-section">Analyses</div>
+  <div class="analyses-wrap">
+  <section class="analyses" id="analyses">
+    <div class="tuile" aria-disabled="true"><span class="t-titre">Le quart 1 vend-il plus que le quart 2 ?</span><span class="t-sous">Litres, boutique et FDJ, jour par jour</span></div>
+    <div class="tuile" aria-disabled="true"><span class="t-titre">Comment se situent les pompistes ?</span><span class="t-sous">Écart à l'attendu de leur quart, sans classement</span></div>
+    <div class="tuile" aria-disabled="true"><span class="t-titre">Quels sont mes jours forts et faibles ?</span><span class="t-sous">Par activité, sur les mêmes semaines</span></div>
+    <div class="tuile" aria-disabled="true"><span class="t-titre">Quels mois me sont favorables ?</span><span class="t-sous">FDJ, litres et boutique, mois par mois</span></div>
+    <div class="tuile" aria-disabled="true"><span class="t-titre">Les vacances changent-elles mon activité ?</span><span class="t-sous">À jour de semaine égal</span></div>
+    <div class="tuile" aria-disabled="true"><span class="t-titre">Quand la piste tourne, la boutique suit-elle ?</span><span class="t-sous">Relation jour par jour et par quart</span></div>
+  </section>
+  <button type="button" class="fleche masquee" id="flecheAnalyses" aria-label="Voir les analyses suivantes">›</button>
+  </div>
+
+  <footer>
+    <div class="regle"><b>Tempo analyse et explique.</b> Les décisions se prennent dans le Cockpit.</div>
+    <div class="sources" id="piedSources">Sources : donnée en cours de branchement · lecture seule · calculé le : —</div>
+  </footer>
+
+  </div>
+</div>
+
+<script>
+  // Lot V1 : la seule interaction avec Supabase est la garde de session
+  // (nexusRequireAuth). Aucune lecture métier, aucune écriture.
+  nexusRequireAuth().then(employee => {
+    if (!employee) return;
+    if (!nexusEstManager(employee)) {
+      document.getElementById('app').innerHTML = '<div class="reserve">Cet écran est réservé aux managers.</div>';
+      return;
+    }
+    try {
+      const ban = NexusBanniereStation.html(employee.site_id, { apercu: NexusBanniereStation.apercuDemande(), sizes: '(max-width:820px) 100vw, 50vw' });
+      if (ban) document.getElementById('enTete').insertAdjacentHTML('afterbegin', ban);
+      NexusBanniereStation.suivreTheme();
+    } catch (e) {}
+    const nomSite = employee.site_nom || employee.site_name || '';
+    if (nomSite) document.getElementById('pillSite').textContent = nomSite;
+  });
+
+  // Flèche des analyses (mobile) : signale que la rangée continue ; un toucher avance d'une tuile.
+  (function () {
+    const rang = document.getElementById('analyses'), fl = document.getElementById('flecheAnalyses');
+    if (!rang || !fl) return;
+    function maj() { fl.classList.toggle('masquee', rang.scrollLeft + rang.clientWidth >= rang.scrollWidth - 4); }
+    fl.addEventListener('click', () => {
+      const tuile = rang.querySelector('.tuile');
+      const pas = tuile ? tuile.getBoundingClientRect().width + 10 : 230;
+      rang.scrollBy({ left: pas, behavior: 'smooth' });
+    });
+    rang.addEventListener('scroll', maj, { passive: true });
+    window.addEventListener('resize', maj);
+    maj();
+  })();
+</script>
+</body>
+</html>

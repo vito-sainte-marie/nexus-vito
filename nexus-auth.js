@@ -297,6 +297,7 @@ const NEXUS_PAGES_OPERATIONNELLES = [
   'NEXUS-Coach-FDJ-v1.html',
   'NEXUS-Comptes-Clients-v1.html',
   'NEXUS-Tempo-v1.html',
+  'NEXUS-Tempo-v2.html',
 ];
 
 // PUBLIQUES — aucune session n'y est exigée : elles n'appellent pas

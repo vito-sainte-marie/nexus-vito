@@ -152,7 +152,10 @@ const servicePompiste = { service: { id: 's-1', role: 'pompiste', quart: 'matin'
   //   +1 appel introduit le 08/10 par la saisie des versements de
   //       régularisation (NEXUS-Analyse-Ecarts-v1.html : `EST_MANAGER`,
   //       qui n'offre le bouton qu'aux managers ; le serveur refuse seul)
-  //   = 60 points de décision.
+  //   +1 appel introduit le 11/11 par la page Tempo V2 (NEXUS-Tempo-v2.html :
+  //       garde manager/gérant de l'écran, via la règle unique ; la page ne
+  //       lit aucune donnée dans le lot V1)
+  //   = 61 points de décision.
   const RE_SOURCE = /\b(employee|employeCourant|employeeCourant|emp|e)\.role\b(?!_)/;
 
   // La DÉFINITION de `nexusEstManager` n'est PAS un point de décision : elle
@@ -177,8 +180,8 @@ const servicePompiste = { service: { id: 's-1', role: 'pompiste', quart: 'matin'
   }
   const permissions = Object.values(pointsParFichier).reduce((a, b) => a + b, 0);
   verifier(`les contrôles de permission sur la fiche sont intacts (${permissions}` +
-    `${permissions === 60 ? '' : ' — répartition : ' + JSON.stringify(pointsParFichier)})`,
-    permissions === 60);
+    `${permissions === 61 ? '' : ' — répartition : ' + JSON.stringify(pointsParFichier)})`,
+    permissions === 61);
   verifier('les ensembles de rôles autorisés restent sur la fiche employé',
     /ROLES_AUTORISES = new Set\(\['manager', 'gerant'\]\)/.test(lire('nexus-inventaire-transferts-internes.js'))
     && /ROLES = new Set\(\['manager', 'gerant'\]\)/.test(lire('nexus-inventaire-stock-controle-cible-v2.js')));
