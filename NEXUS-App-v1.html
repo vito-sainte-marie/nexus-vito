@@ -2134,7 +2134,8 @@
       controlesVerify,
       domainesRadar,
       jourARenforcer: constatTempo.jourARenforcer,
-      nbDecisions: candidatsConseiller.length,
+      // Un constat (niveau « Fait mesuré », Tempo G8) n'est pas une décision : jamais compté.
+      nbDecisions: candidatsConseiller.filter(c => c.niveau !== 'Fait mesuré').length,
       contientSignalGenerique: candidatsConseiller.some(c => c.moteur === 'advisor'),
       statutCarburants,
       alertesFdjNonVues,

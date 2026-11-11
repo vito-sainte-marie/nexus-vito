@@ -1266,14 +1266,14 @@
           <span class="decision-chevron">›</span>
         </div>
         <div class="decision-body">
-          <div class="decision-field"><div class="decision-field-label">Ce que j'observe</div><div class="decision-field-text">${p.ceQueJObserve}</div></div>
+          <div class="decision-field"><div class="decision-field-label">${p.niveau === 'Fait mesuré' ? 'Fait mesuré' : "Ce que j'observe"}</div><div class="decision-field-text">${p.ceQueJObserve}</div></div>
           ${p.pourquoiCelaCompte ? `<div class="decision-field"><div class="decision-field-label">Pourquoi cela compte</div><div class="decision-field-text"><b>${p.pourquoiCelaCompte}</b></div></div>` : ''}
           <div class="decision-field"><div class="decision-field-label">Ce qui semble l'expliquer</div><div class="decision-field-text">${p.ceQuiSembleLExpliquer}</div></div>
           <div class="decision-field"><div class="decision-field-label">Ce qui manque pour confirmer</div><div class="decision-field-text">${p.ceQuiManquePourConfirmer}</div></div>
           ${p.preuve ? `<div class="decision-field"><div class="decision-field-label">Preuves</div><div class="decision-field-text">${p.preuve}</div></div>` : ''}
           <div class="decision-chips">
-            <span class="decision-chip">📅 ${p.quandAgir}</span>
-            <span class="decision-chip ${p.niveauDeConfiance === 'Élevé' ? 'confiance-eleve' : 'confiance-moyen'}">Confiance : ${p.niveauDeConfiance}</span>
+            ${p.niveau === 'Fait mesuré' ? '' : `<span class="decision-chip">📅 ${p.quandAgir}</span>
+            <span class="decision-chip ${p.niveauDeConfiance === 'Élevé' ? 'confiance-eleve' : 'confiance-moyen'}">Confiance : ${p.niveauDeConfiance}</span>`}
             ${(() => { const m = NexusMoteursRegistre.nomPublic(p.moteur) || 'Signal'; const entete = NexusBadgeEtat.rendu(p.etat, {}).replace(/<[^>]*>/g, '').trim().toLowerCase(); return m.trim().toLowerCase() === entete ? '' : `<span class="decision-chip">${m}</span>`; })()}
           </div>
           ${p.validable

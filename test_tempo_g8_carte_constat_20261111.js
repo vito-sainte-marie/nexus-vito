@@ -9,7 +9,7 @@ let n = 0;
 function t(nom, f) { f(); n++; console.log('OK ' + nom); }
 const lire = f => fs.readFileSync(path.join(__dirname, f), 'utf8');
 const iso = d => d.toISOString().slice(0, 10);
-const decaler = k => { const d = new Date(); d.setUTCDate(d.getUTCDate() + k); return iso(d); };
+const decaler = k => { const d = new Date(T.dateStationISO() + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + k); return iso(d); };
 const jour = (k, litres) => {
   const date = decaler(k);
   return { date, jourSemaine: new Date(date + 'T00:00:00Z').getUTCDay(), litrageDisponible: true, litrageGazole: litres, litrageSp95: 0, litrageGnr: 0 };
@@ -75,14 +75,37 @@ t('Brief : la force « journée la plus rentable » est retirée', () => {
   assert.ok(!/votre journée la plus rentable/.test(b));
   assert.ok(!/produits d'appel exclus/.test(b));
 });
-t('normaliserTempo tolère jourCible null et porte le niveau', () => {
+t('normaliserTempo existe, tolère jourCible null et porte le niveau', () => {
   global.window = global;
-  const C = require('./nexus-conseiller.js');
-  const NC = C.normaliserTempo ? C : (global.NexusConseiller || {});
-  if (NC.normaliserTempo) {
-    const r = NC.normaliserTempo({ jourCible: null, niveau: 'Fait mesuré', decision: 'd', pourquoi: 'p' });
-    assert.strictEqual(r.candidate_id, 'TEMPO-constat');
-    assert.strictEqual(r.niveau, 'Fait mesuré');
-  }
+  require('./nexus-conseiller.js');
+  const NC = global.NexusConseiller;
+  assert.ok(NC && typeof NC.normaliserTempo === 'function', 'normaliserTempo doit exister');
+  const r = NC.normaliserTempo({ jourCible: null, niveau: 'Fait mesuré', decision: 'd', pourquoi: 'p' });
+  assert.strictEqual(r.candidate_id, 'TEMPO-constat');
+  assert.strictEqual(r.niveau, 'Fait mesuré');
+});
+t('revue 6786038072 : 21 h Martinique, le jour local est exclu, fenêtre de 56 jours', () => {
+  const RealDate = Date;
+  const figer = iso => { global.Date = class extends RealDate { constructor(...a) { super(...(a.length ? a : [iso])); } static now() { return new RealDate(iso).getTime(); } }; };
+  try {
+    figer('2026-11-11T01:00:00Z'); // = 10/11/2026 21:00 en Martinique, UTC déjà au 11
+    assert.strictEqual(T.dateStationISO(), '2026-11-10');
+    const mk = (d, l) => ({ date: d, jourSemaine: new RealDate(d + 'T00:00:00Z').getUTCDay(), litrageDisponible: true, litrageGazole: l, litrageSp95: 0, litrageGnr: 0 });
+    const jours = [];
+    for (let k = -70; k <= 0; k++) { const d = new RealDate('2026-11-10T00:00:00Z'); d.setUTCDate(d.getUTCDate() + k); jours.push(mk(d.toISOString().slice(0, 10), 1000)); }
+    const c = T.calculerConstatLitres(jours);
+    assert.strictEqual(c.parJour.reduce((s, x) => s + x.occurrences, 0), 56);
+    const inclus10 = T.calculerConstatLitres([mk('2026-11-10', 5000)]);
+    assert.strictEqual(inclus10.parJour.reduce((s, x) => s + x.occurrences, 0), 0, 'le 10/11 (jour local en cours) est exclu');
+  } finally { global.Date = RealDate; }
+});
+t('revue 6786038072 : constat sans impact attendu, libellé 56 jours, jamais compté en décision', () => {
+  const c = T.calculerConstatLitres(serie(-56, -1, () => 1000));
+  const cand = T.construireCandidatTempo({ constatLitres: c });
+  assert.strictEqual(cand.impactAttendu, null);
+  assert.ok(/Fait mesuré/.test(cand.pourquoi) && /8 dernières semaines \(56 jours\)/.test(cand.pourquoi));
+  assert.ok(!/semaines complètes/.test(cand.pourquoi));
+  assert.ok(/p\.niveau === 'Fait mesuré'/.test(lire('NEXUS-Brief-v1.html')));
+  assert.ok(/filter\(c => c\.niveau !== 'Fait mesuré'\)\.length/.test(lire('NEXUS-App-v1.html')));
 });
 console.log(n + ' tests OK');

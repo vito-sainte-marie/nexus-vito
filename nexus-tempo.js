@@ -1345,11 +1345,22 @@
     return new Date(Date.UTC(a, m - 1, j + nbJours)).toISOString().slice(0, 10);
   }
 
-  function calculerConstatLitres(joursExploitables) {
-    const fin = aujourdHuiISO();                                   // exclu : journée en cours
-    const debut = decalerJourISO(fin, -7 * FENETRE_SEMAINES);      // 56 jours = 8 semaines complètes
-    const dansFenetre = filtrerJoursClos(joursExploitables).filter(j =>
-      j.date >= debut && j.litrageDisponible &&
+  // Date du jour DANS LE FUSEAU DE LA STATION (G8, revue Guardian 6786038072) :
+  // aujourdHuiISO() est une date UTC — en Martinique (UTC−4) elle bascule à
+  // demain dès 20 h locales, alors que le quart 2 dure jusqu'à 22 h 05. Le
+  // constat borne donc sa fenêtre sur la date station. aujourdHuiISO() et
+  // filtrerJoursClos() restent inchangées (usages ailleurs).
+  function dateStationISO(fuseau) {
+    const tz = fuseau || 'America/Martinique';
+    return new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' })
+      .format(new Date());
+  }
+
+  function calculerConstatLitres(joursExploitables, fuseau) {
+    const fin = dateStationISO(fuseau);                            // exclu : journée en cours (date station)
+    const debut = decalerJourISO(fin, -7 * FENETRE_SEMAINES);      // 56 jours
+    const dansFenetre = (joursExploitables || []).filter(j =>
+      j.date < fin && j.date >= debut && j.litrageDisponible &&
       (j.litrageGazole + j.litrageSp95 + j.litrageGnr) > 0);
     const parJour = [];
     for (let d = 0; d < 7; d++) {
@@ -1386,9 +1397,9 @@
       return {
         jourCible: null, niveau,
         decision: 'Historique insuffisant',
-        pourquoi: `Historique insuffisant pour comparer les jours de la semaine : il faut au moins ${c.occurrencesMin} journées complètes de chaque jour sur les ${c.fenetreSemaines} dernières semaines.`,
+        pourquoi: `Historique insuffisant pour comparer les jours de la semaine : il faut au moins ${c.occurrencesMin} journées complètes de chaque jour sur les ${c.fenetreSemaines} dernières semaines (${c.fenetreSemaines * 7} jours).`,
         pourquoiBullets: null, pourquoiPasAutre: null, opportunites: null,
-        impactAttendu: `${niveau} : constat en litres, journées complètes seulement.`,
+        impactAttendu: null,
         limites: null,
       };
     }
@@ -1396,7 +1407,7 @@
     return {
       jourCible: f, niveau,
       decision: `Le ${f.nom} est le jour le plus fort en litres, le ${w.nom} le plus faible.`,
-      pourquoi: `Sur les ${c.fenetreSemaines} dernières semaines complètes, le ${f.nom} vend en moyenne ${fmtL(f.moyenneLitres)} par jour et le ${w.nom} ${fmtL(w.moyenneLitres)}.`,
+      pourquoi: `Fait mesuré sur les ${c.fenetreSemaines} dernières semaines (${c.fenetreSemaines * 7} jours) : le ${f.nom} vend en moyenne ${fmtL(f.moyenneLitres)} par jour et le ${w.nom} ${fmtL(w.moyenneLitres)}.`,
       pourquoiBullets: [
         `Plus fort : ${f.nom}, ${fmtL(f.moyenneLitres)} par jour (${occ(f.occurrences)})`,
         `Plus faible : ${w.nom}, ${fmtL(w.moyenneLitres)} par jour (${occ(w.occurrences)})`,
@@ -1404,7 +1415,7 @@
         `Niveau : ${niveau}`,
       ],
       pourquoiPasAutre: null, opportunites: null,
-      impactAttendu: `${niveau} : constat en litres, journées complètes seulement, journée en cours exclue.`,
+      impactAttendu: null,
       limites: null,
     };
   }
@@ -1450,6 +1461,6 @@
     agregerInventaireParDate, dernierEtatInventaire,
     dernierEtatCapital, analyserImpactDecisionsTempo,
     dateLocale, moyenne, ecartType, evolution,
-    calculerConstatTempo, construireCandidatTempo, calculerConstatLitres, FENETRE_SEMAINES, OCCURRENCES_MIN_JOUR,
+    calculerConstatTempo, construireCandidatTempo, calculerConstatLitres, dateStationISO, FENETRE_SEMAINES, OCCURRENCES_MIN_JOUR,
   };
 })();
