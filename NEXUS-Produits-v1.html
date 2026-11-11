@@ -529,6 +529,8 @@ nexusRequireAuth().then(async employee => {
     rowsAffichage.forEach(r => { caTotalParRayon[r.categorie] = (caTotalParRayon[r.categorie] || 0) + (r.ca || 0); });
 
     // Périodes complètes lues (récentes d'abord) : sert au compte de périodes sans vente.
+    // Limite connue (arbitrée) : deux imports de même début mais de fin différente ne sont pas
+    // distingués ; on ne retient qu'une période par début.
     const completesLues = completes.slice(0, NexusConseiller.DUREE_DORMANT_PERIODES);
     const ventesParPeriode = completesLues.map(per => {
       const s = new Set();
@@ -616,7 +618,9 @@ nexusRequireAuth().then(async employee => {
         pairDisponible: !!paire, pairEstPeriodeAffichee: false, pairDates: null,
         periode_debut: periodeAffichage.debut, periode_fin: periodeAffichage.fin,
         pct_contrib: null, tendance: null, tendance_statut: null, tendance_message: null,
-        periodesSansVente: 0, stock: stockDe(r.article), periodeTendance, source: `stock du ${fmtJourFr(r.releve_le)}`,
+        // Connu seulement par le stock : par construction (nom exact absent des périodes lues),
+        // aucune vente sur l'ensemble des périodes complètes chargées.
+        periodesSansVente: completesLues.length, stock: stockDe(r.article), periodeTendance, source: `stock du ${fmtJourFr(r.releve_le)}`,
       });
     });
     return produits;
@@ -1022,7 +1026,7 @@ nexusRequireAuth().then(async employee => {
           ? `Aucune vente sur ${p.periodesSansVente} périodes complètes et du stock au dernier relevé : le produit peut être sorti du rayon ou ne plus se vendre.`
           : statutSimplifie.cle === 'rupture-probable'
             ? 'Aucune vente récente et un stock à zéro (ou négatif) au dernier relevé : une rupture est probable.'
-            : `Un ${NexusVocab.SIGNATURE.PRODUIT_DORMANT.toLowerCase()} n'indique pas forcément un problème de demande — cela peut aussi être une rupture ou un retrait de rayon non signalé.`;
+            : 'Aucune vente sur la période affichée. NEXUS ne tire pas de conclusion sans relevé de stock récent.';
       } else {
         const rentaTxt = NexusVocab.rentabilite(niveauRentaP, false, esc(p.article));
         const tendanceTxt = tendQualifiee ? (NexusVocab.tendance(evolCa) + ' (ventes moyennes par jour)' + (tend.fiable ? '' : ' — ' + tend.avertissements.map(esc).join(' · ') + '.')) : msgTendance;
@@ -1218,7 +1222,7 @@ nexusRequireAuth().then(async employee => {
         el.innerHTML = `${esc(data.emplacement)} · ${esc(date)} <span class="emplacement-modifier" id="btnModifierEmplacement">(modifier)</span>`;
       } else if (data && data.emplacement) {
         // source = 'auto_categorie' : suggestion non confirmée par un humain.
-        el.innerHTML = `${(window.NexusBadgeEtat ? NexusBadgeEtat.gravite('a-verifier', {libelle: 'À vérifier'}) : '<span class="statut-repli">À vérifier</span>')} ${esc(data.emplacement)} <button type="button" class="emplacement-modifier" id="btnModifierEmplacement">(confirmer/corriger)</button>`;
+        el.innerHTML = `${(window.NexusBadgeEtat ? NexusBadgeEtat.gravite('a-verifier', {libelle: 'À vérifier'}) : '<span class="statut-repli">À vérifier</span>')} ${esc(data.emplacement)} · suggestion${data.assigne_le ? ' du ' + esc(new Date(data.assigne_le).toLocaleDateString('fr-FR')) : ''}, non confirmée <button type="button" class="emplacement-modifier" id="btnModifierEmplacement">(confirmer/corriger)</button>`;
       } else {
         el.innerHTML = `Non renseigné <span class="emplacement-modifier" id="btnModifierEmplacement">(choisir)</span>`;
       }
@@ -1368,7 +1372,7 @@ nexusRequireAuth().then(async employee => {
       if (elHeroStockVal && elHeroStockVal.isConnected) {
         if (p.pma != null) {
           elHeroStockVal.textContent = fmtEur(stockQte * p.pma);
-          elHeroStockSub.textContent = motStock || `${stockQte} u. · ${dateRelv}`;
+          elHeroStockSub.textContent = `${motStock ? motStock + ' · ' : ''}estimation au PMA, relevé du ${dateRelv}`;
         } else {
           elHeroStockVal.textContent = `${stockQte} u.`;
           elHeroStockSub.textContent = motStock || `PMA inconnu · ${dateRelv}`;

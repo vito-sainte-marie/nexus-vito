@@ -21,13 +21,13 @@ function extraire(src, signature) {
   throw new Error('accolade non fermée : ' + signature);
 }
 // Empreintes sha256 du texte des quatre fonctions gardées, prises sur `production` (blob 1b37da60).
-// construireProduitsLive : empreinte mise à jour par le lot 1 PR B (tendances : moyennes par jour, fraîcheur 21 j, plancher de volume) et calculerStatutSimplifie (une seule tendance par article, recommandation seulement si la comparaison est fiable) — calculerRangRayon et chargerStockGap restent identiques.
+// construireProduitsLive : empreinte mise à jour par le lot 1 PR B (tendances : moyennes par jour, fraîcheur 21 j, plancher de volume) et calculerStatutSimplifie (une seule tendance par article, recommandation seulement si la comparaison est fiable) — calculerRangRayon reste identique ; construireProduitsLive porte aussi le décompte des périodes sans vente des articles en stock seul (lot 2 PR C, revue Guardian).
 // Aucune dépendance à git : la CI en checkout superficiel les mesure sur la source de la branche.
 const EMPREINTES = {
-  'async function construireProduitsLive': '9dec841ee932a9c8bd840c54d3b37a0c0753880955adaa095a62876dd361c149',
+  'async function construireProduitsLive': 'ce21417f2b3b30b09669a7e0f2068b6f9a96f42dacc3a033082a436ccb9f79ed',
   'function calculerStatutSimplifie': '4e19b7405af3da68933a0c2abefe110cd8e507b189b492fb165c37f887997e23', // lot 2 PR C : enveloppe de NexusConseiller.statutProduit (règle unique, huit statuts)
   'function calculerRangRayon': '6438804858c5a4a80a5923f43952a506f4704a8058df05a158930ce5182379ed',
-  'async function chargerStockGap': '9f2a81b62082cb57a96e498d36d5c63cfb81f70ce1134bba3c1722954a05e457'
+  'async function chargerStockGap': '3e8ed64835d600f50bedd8b4cfa8439f809a080cd74b3a77841ec0bdd426bc88' // lot 2 PR C, revue Guardian 6783561611 : la ligne de valeur du stock porte « estimation au PMA, relevé du … » (seule ligne modifiée)
 };
 const empreinte = txt => crypto.createHash('sha256').update(txt).digest('hex');
 Object.keys(EMPREINTES).forEach(sig => {

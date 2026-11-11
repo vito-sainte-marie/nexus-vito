@@ -169,6 +169,13 @@ t('pied de page : nom de la station lu en base, période réelle, aucun nom en d
   const auth = fs.readFileSync(path.join(__dirname, 'nexus-auth.js'), 'utf8');
   assert.ok(/nexus-nom-commerce/.test(auth));
 });
+t('explication « Aucune vente récente » neutre ; estimations datées ; limite des imports documentée', () => {
+  assert.ok(/Aucune vente sur la période affichée\. NEXUS ne tire pas de conclusion sans relevé de stock récent\./.test(page));
+  assert.ok(!/n'indique pas forcément un problème de demande/.test(page));
+  assert.ok(/suggestion\$\{data\.assigne_le/.test(page), 'emplacement suggéré : mot et date');
+  assert.ok(/estimation au PMA, relevé du \$\{dateRelv\}/.test(page), 'valeur du stock : mot et date');
+  assert.ok(/même début mais de fin différente ne sont pas\s+\/\/ distingués/.test(page), 'limite des imports de même début documentée');
+});
 t('commentaires périmés corrigés', () => {
   assert.ok(!/~\s*40\s*%/.test(page), '« ~40 % » de rapprochement');
 });
@@ -263,6 +270,11 @@ function clientSimule(jeu, compteur) {
   assert.ok(parNom['Biscuit seul en stock'] && /^stock du 02\/11\/2026$/.test(parNom['Biscuit seul en stock'].source));
   assert.ok(!parNom['Vieux relevé'], 'relevé de plus de 30 jours : hors chargement');
   n++; console.log('✓ article connu seulement par le stock : présent avec sa source ; relevé périmé absent');
+
+  // Guardian 6783561611 point 1 : un article en stock seul, quantité > 0, relevé de 8 jours, aucune vente sur les périodes chargées = Dormant.
+  assert.strictEqual(parNom['Biscuit seul en stock'].periodesSansVente, 2);
+  assert.strictEqual(C.statutProduit(parNom['Biscuit seul en stock'], '2026-11-10').cle, 'dormant');
+  n++; console.log('✓ article en stock seul, quantité > 0, relevé récent : Dormant');
 
   // Statuts de bout en bout sur le jeu simulé (affichée = 07/10→23/10, ventes sauf articles 0..49 depuis 3 périodes)
   const stat = nom => C.statutProduit(parNom[nom], '2026-11-10').cle;
