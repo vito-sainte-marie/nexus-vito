@@ -298,6 +298,7 @@ const NEXUS_PAGES_OPERATIONNELLES = [
   'NEXUS-Comptes-Clients-v1.html',
   'NEXUS-Tempo-v1.html',
   'NEXUS-Tempo-v2.html',
+  'NEXUS-Tempo-v2-Quarts.html',
 ];
 
 // PUBLIQUES — aucune session n'y est exigée : elles n'appellent pas

@@ -1584,6 +1584,71 @@
   const SEUIL_RAPPORT_DUREES = 2;
   const SEUIL_POINTS_CALENDRIER = 20;
 
+  // ------------------------------------------------------------
+  // Lot B « Le quart 1 vend-il plus que le quart 2 ? » : moyenne par jour de la
+  // semaine ET par quart. Une case (jour × quart) n'est lue qu'à partir de
+  // OCCURRENCES_MIN_JOUR valeurs ; en dessous elle reste grise (`suffisant: false`).
+  // Écart d'un jour = (Q1 − Q2) / Q2, en %, seulement si les deux cases sont lisibles
+  // et que Q2 n'est pas nul. Aucune estimation, aucune écriture.
+  // ------------------------------------------------------------
+  const ORDRE_JOURS_SEMAINE = [1, 2, 3, 4, 5, 6, 0];
+
+  function comparerQuartsParJour(valeursQuart, bornes) {
+    const cases = {};
+    for (const j of ORDRE_JOURS_SEMAINE) cases[j] = { '1': [], '2': [] };
+    for (const v of (valeursQuart || [])) {
+      if (!v || !v.date || !Number.isFinite(v.valeur) || v.date < bornes.debut || v.date > bornes.fin) continue;
+      const q = String(v.quart);
+      if (q !== '1' && q !== '2') continue;
+      cases[jourSemaineISO(v.date)][q].push(v.valeur);
+    }
+    const lire = vals => ({ effectif: vals.length, suffisant: vals.length >= OCCURRENCES_MIN_JOUR,
+      moyenne: vals.length ? vals.reduce((s, x) => s + x, 0) / vals.length : null });
+    const parJour = ORDRE_JOURS_SEMAINE.map(j => {
+      const q1 = lire(cases[j]['1']), q2 = lire(cases[j]['2']);
+      const lisible = q1.suffisant && q2.suffisant && q2.moyenne !== 0;
+      return { jourSemaine: j, nom: NOM_JOURS[j], q1, q2, ecartPct: lisible ? (q1.moyenne - q2.moyenne) / q2.moyenne * 100 : null };
+    });
+    const avecEcart = parJour.filter(x => x.ecartPct !== null);
+    let plusFort = null, plusFaible = null;
+    for (const x of avecEcart) {
+      if (!plusFort || x.ecartPct > plusFort.ecartPct) plusFort = x;
+      if (!plusFaible || x.ecartPct < plusFaible.ecartPct) plusFaible = x;
+    }
+    const effectifTotal = parJour.reduce((s, x) => s + x.q1.effectif + x.q2.effectif, 0);
+    return { etat: effectifTotal === 0 ? 'absent' : (avecEcart.length ? 'ok' : 'insuffisant'),
+      seuil: OCCURRENCES_MIN_JOUR, parJour, plusFort, plusFaible, joursLisibles: avecEcart.length };
+  }
+
+  // Journées exceptionnelles, par jour de la semaine : on compare entre eux les
+  // totaux (Q1 + Q2) des jours où les deux quarts sont relevés, avec le même
+  // détecteur que Tempo (joursExceptionnels). Le jour est SIGNALÉ, jamais retiré
+  // en silence : on rend l'écart Q1/Q2 du jour de semaine avec lui, puis sans lui.
+  function exceptionsParJourSemaine(valeursQuart, bornes) {
+    const par = new Map();
+    for (const v of (valeursQuart || [])) {
+      if (!v || !v.date || !Number.isFinite(v.valeur) || v.date < bornes.debut || v.date > bornes.fin) continue;
+      const q = String(v.quart);
+      if (q !== '1' && q !== '2') continue;
+      if (!par.has(v.date)) par.set(v.date, { 1: null, 2: null });
+      const e = par.get(v.date);
+      e[q] = (e[q] || 0) + v.valeur;
+    }
+    const complets = [];
+    par.forEach((e, date) => { if (e[1] !== null && e[2] !== null) complets.push({ date, valeur: e[1] + e[2] }); });
+    const avec = comparerQuartsParJour(valeursQuart, bornes).parJour;
+    const out = [];
+    for (const j of ORDRE_JOURS_SEMAINE) {
+      const exc = joursExceptionnels(complets.filter(c => jourSemaineISO(c.date) === j));
+      if (!exc.length) continue;
+      const dates = new Set(exc.map(x => x.date));
+      const sans = comparerQuartsParJour((valeursQuart || []).filter(v => !(v && dates.has(v.date))), bornes).parJour.find(x => x.jourSemaine === j);
+      out.push({ jourSemaine: j, nom: NOM_JOURS[j], exceptionnels: exc.map(x => ({ date: x.date, valeur: x.valeur })),
+        ecartAvec: avec.find(x => x.jourSemaine === j).ecartPct, ecartSans: sans.ecartPct });
+    }
+    return out;
+  }
+
   function bornesReference(bornes) {
     return { debut: decalerJourISO(bornes.debut, -bornes.jours), fin: decalerJourISO(bornes.debut, -1), jours: bornes.jours };
   }
@@ -1841,7 +1906,7 @@
     dateLocale, moyenne, ecartType, evolution,
     calculerConstatTempo, construireCandidatTempo, calculerConstatLitres, dateStationISO, FENETRE_SEMAINES, OCCURRENCES_MIN_JOUR,
     bornesPeriodeIndicateurs, joursLitresCompletsPiste, joursCaFdjComplets, resumerParJour, resumerMargeImport,
-    quartsLitresPiste, quartsBoutique, quartsFdj, comparerQuarts,
+    quartsLitresPiste, quartsBoutique, quartsFdj, comparerQuarts, comparerQuartsParJour, exceptionsParJourSemaine, ORDRE_JOURS_SEMAINE,
     bornesReference, comparerPeriodes, joursExceptionnels, exclusionsPiste, exclusionsFdj,
     compositionCalendrier, evaluerComparabilite, prixMoyenMesure,
     joursCaPiste, joursCaBoutique, titrePrixVolume, decouvertePrixVolume, correlationResidus, relationBoutiqueFdj, rapportFdjQuart1, SEUIL_RELATION_JOURS,
