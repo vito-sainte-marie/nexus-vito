@@ -76,6 +76,7 @@ function sansRepetitionLecture(txt) {
 });
 t('tuiles : une colonne sur téléphone, deux colonnes dès 640 px (haut sur une ligne, bas sur la suivante)', () => {
   assert.ok(/\.tuiles-jours \.rang\{[^}]*grid-template-columns:1fr/.test(html));
+  assert.ok(html.includes('tu.haut.concat(tu.bas)') && html.includes('rang(tous)') && !html.includes('rang(tu.haut)'), 'une seule grille pour haut puis bas');
   assert.ok(/@media \(min-width:640px\)\{\.tuiles-jours \.rang\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/.test(html));
 });
 t('plus forte moyenne : absente quand c’est le jour récurrent lui-même', () => {

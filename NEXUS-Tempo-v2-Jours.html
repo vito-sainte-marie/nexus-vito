@@ -373,8 +373,9 @@ details.valeurs .tableau td, details.valeurs .tableau th{white-space:nowrap;}
       const tuile = x => '<div class="tuile-jour"><span class="tj-titre">' + esc(x.titre) + '</span><span class="tj-jour">' + esc(x.nom) + ' · ' + esc(x.moyenne) + '</span>' +
         '<span class="tj-ecart">' + esc(x.ecart) + ' ' + esc(J.tuiles.contre) + '</span><span class="tj-etiquette">' + esc(x.etiquette) + '</span>' +
         (x.irregulier ? '<span class="tj-petit">' + esc(x.irregulier) + '</span>' : '') + (x.rythme ? '<span class="tj-petit">' + esc(x.rythme) + '</span>' : '') + '</div>';
+      const tous = tu.haut.concat(tu.bas);
       const rang = a => a.length ? '<div class="rang">' + a.map(tuile).join('') + '</div>' : '';
-      lt.innerHTML = rang(tu.haut) + rang(tu.bas) +
+      lt.innerHTML = rang(tous) +
         '<div class="lecture-tempo"><span class="lt-titre">' + esc(J.tuiles.titreLecture) + '</span>' + esc(tu.lecture) + '<span class="lt-preuve">' + esc(tu.preuve) + '</span></div>';
       lt.hidden = false;
     } else { lt.innerHTML = ''; lt.hidden = true; }
