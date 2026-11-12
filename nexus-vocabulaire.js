@@ -412,5 +412,50 @@
     legendeNonRetenu: 'Hachuré : mois non retenu.',
   };
 
+  // Carte « Quels sont mes jours forts et faibles ? » : tous les mots viennent d'ici, le moteur n'en porte aucun.
+  const MOIS_LONGS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+  const dateLongue = iso => { const [, m, j] = String(iso).split('-').map(Number); return (j === 1 ? '1er' : j) + ' ' + MOIS_LONGS[m - 1]; };
+  const pctSigne = p => { const r = Math.round(Math.abs(p) * 100); return (p > 0 && r > 0 ? '+' : p < 0 && r > 0 ? '−' : '') + r + ' %'; };
+  NexusVocab.jours = {
+    titreOnglet: 'NEXUS Tempo, Jours',
+    titre: 'Jours forts et faibles',
+    sousTitre: 'Par activité, sur les mêmes semaines.',
+    noms: { 1: 'Lundi', 2: 'Mardi', 3: 'Mercredi', 4: 'Jeudi', 5: 'Vendredi', 6: 'Samedi', 0: 'Dimanche' },
+    piste: { titre: 'Piste', unite: 'litres par jour complet', suffixe: ' L' },
+    fdj: { titre: 'FDJ', unite: 'chiffre d’affaires par jour complet', suffixe: ' €' },
+    ca: { titre: 'CA Boutique, source Verify', unite: 'chiffre d’affaires par jour complet', suffixe: ' €', precision: 'Chiffre d’affaires de la source Verify, pas la marge et pas le chiffre d’affaires du périmètre Produits utilisé pour la marge.', rythme: 'Un jour fort en chiffre d’affaires n’est pas forcément un jour fort en marge.', appel: 'Comprend les produits d’appel (cartes prépayées, tabac, etc.), exclus du calcul de marge Boutique.' },
+    boutique: { titre: 'CA Boutique, source Verify', unite: 'chiffre d’affaires par jour complet', suffixe: ' €', precision: 'Chiffre d’affaires de la source Verify, pas la marge et pas le chiffre d’affaires du périmètre Produits utilisé pour la marge.', rythme: 'Un jour fort en chiffre d’affaires n’est pas forcément un jour fort en marge.', appel: 'Comprend les produits d’appel (cartes prépayées, tabac, etc.), exclus du calcul de marge Boutique.' },
+    marge: { titre: 'Marge par jour', indisponible: 'Marge par jour : pas encore disponible. Elle demande les ventes de la caisse jour par jour.' },
+    verdicts: { 'au-dessus': 'Nettement au-dessus', 'en-dessous': 'Nettement en dessous', habituel: 'Variation habituelle', grise: 'Pas assez de jours' },
+    constat: { designe: '', ressemblent: 'Les jours se ressemblent', insuffisant: 'Pas encore assez de semaines mesurées pour comparer les sept jours.', absent: 'Aucun jour complet n’est encore mesuré.' },
+    moyenne: (v, a) => 'Moyenne : ' + moisNb(v) + a.suffixe + ' par jour',
+    occurrences: n => n + ' jour' + (n > 1 ? 's' : '') + ' complet' + (n > 1 ? 's' : ''),
+    ecartAutres: (pct, afficher) => (afficher && pct != null) ? 'Par rapport aux six autres jours : ' + pctSigne(pct) : '',
+    pasAssez: (n, seuil) => n + ' jour' + (n > 1 ? 's' : '') + ' complet' + (n > 1 ? 's' : '') + ' seulement, la moyenne en demande ' + seuil + '.',
+    ecartes: (liste, a) => {
+      const de = nom => (/^[aeiouhàâéèêîôû]/i.test(nom) ? 'l’' : '') + nom;
+      const noms = liste.map(e => {
+        if (e.motif === 'ferie') return (e.nom || 'jour férié') + ' (' + dateLongue(e.date) + ')';
+        if (e.motif === 'pont') return (e.nom ? 'pont de ' + de(e.nom) : 'pont') + ' (' + dateLongue(e.date) + ')';
+        return 'journée hors norme du ' + dateLongue(e.date) + (a && e.valeur != null ? ' (' + moisNb(e.valeur) + a.suffixe + ')' : '');
+      });
+      return liste.length + ' jour' + (liste.length > 1 ? 's' : '') + ' écarté' + (liste.length > 1 ? 's' : '') + ' : ' + noms.join(', ') + '.';
+    },
+    avecSans: {
+      titre: 'Avec les journées hors norme',
+      ligne: (nom, p, a, sans, change) => nom + ' : ' + (p.suffisant
+        ? moisNb(p.moyenne) + a.suffixe + ' par jour sur ' + p.effectif + ' jours complets, ' + (p.ecartPct != null ? pctSigne(p.ecartPct) + ' par rapport aux six autres jours, ' : '') + NexusVocab.jours.verdicts[p.verdict].toLowerCase()
+        : p.effectif + ' jours complets seulement') + (change ? '. La lecture change.' : '.'),
+      resume: (noms, etat) => noms.length
+        ? 'Avec ces journées, la lecture change pour : ' + noms.join(', ') + '.'
+        : (etat === 'insuffisant' ? 'Avec ces journées, la comparaison reste impossible.' : 'Avec ces journées, la lecture ne change pour aucun jour.'),
+      echantillon: (sans, avec) => 'Jours complets comparés : ' + sans + ' sans les journées hors norme, ' + avec + ' avec.',
+    },
+    aucunEcart: 'Aucun jour écarté.',
+    aucuneDonnee: 'Aucun jour complet n’est encore mesuré.',
+    tableau: 'Voir les valeurs en tableau',
+    entetes: { jour: 'Jour', moyenne: 'Moyenne par jour', jours: 'Jours complets', ecart: 'Écart aux six autres', verdict: 'Lecture' },
+  };
+
   global.NexusVocab = NexusVocab;
 })(window);
