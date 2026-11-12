@@ -2712,8 +2712,95 @@
     return { periode, texte: phrases.join(' '), note };
   }
 
+  // ------------------------------------------------------------
+  // Carte « Quels sont mes jours forts et faibles ? » (Tempo V2, Analyses).
+  // UNE fonction pour toutes les mesures : elle reçoit des jours complets
+  // [{date, valeur}] et ne connaît ni litres, ni euros, ni marge.
+  //   - Moyenne par jour complet (jamais un total), mêmes semaines pour les sept jours.
+  //   - Fériés, ponts et journées exceptionnelles (médiane, MAD) sortent de la moyenne
+  //     et sont rendus dans `ecartes` : rien n'est écarté sans être nommé.
+  //   - Un jour de la semaine sous OCCURRENCES_MIN_JOUR occurrences reste grisé, sans moyenne ;
+  //     tant qu'un jour est grisé, aucun jour n'est désigné.
+  //   - Désigné : écart à la moyenne des six autres jours au-delà de SEUIL_ECART_TYPES erreurs
+  //     types (Welch). Sinon « habituel ». Tri fort -> faible seulement si un jour est désigné ;
+  //     sinon l'ordre de la semaine reste intact (lundi -> dimanche).
+  // Aucun mot d'affichage ici : tout vient de NexusVocab.jours (voir lignesJours).
+  // ------------------------------------------------------------
+  function joursFortsFaibles(jours, bornes, lignesFeries) {
+    const feriesSite = new Set((lignesFeries || []).filter(l => l && l.date && l.type === 'ferie').map(l => String(l.date).slice(0, 10)));
+    const libelles = new Map();
+    (lignesFeries || []).forEach(l => { if (l && l.date && l.type === 'ferie' && l.libelle) libelles.set(String(l.date).slice(0, 10), String(l.libelle).trim()); });
+    const dansLaPeriode = enPeriode((jours || []).filter(j => j && j.date && Number.isFinite(j.valeur)), bornes);
+    const ecartes = [];
+    const ordinaires = [];
+    dansLaPeriode.forEach(j => {
+      const q = qualifierJourSpecial(j.date, feriesSite, libelles);
+      if (q) ecartes.push({ date: j.date, motif: q.type, nom: q.nom || null, sens: q.sens || null });
+      else ordinaires.push(j);
+    });
+    // Exceptionnel = hors norme POUR SON JOUR DE SEMAINE, jamais contre la médiane globale :
+    // sinon l'écart entre jours, qu'on cherche à mesurer, serait écarté comme anomalie.
+    const exc = new Set();
+    ORDRE_JOURS_SEMAINE.forEach(js => joursExceptionnels(ordinaires.filter(j => jourSemaineISO(j.date) === js)).forEach(j => exc.add(j.date)));
+    exc.forEach(d => ecartes.push({ date: d, motif: 'exceptionnel', nom: null, sens: null }));
+    ecartes.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+    const retenus = ordinaires.filter(j => !exc.has(j.date));
+    const valeurs = ORDRE_JOURS_SEMAINE.map(() => []);
+    retenus.forEach(j => { valeurs[ORDRE_JOURS_SEMAINE.indexOf(jourSemaineISO(j.date))].push(j.valeur); });
+    const parJour = ORDRE_JOURS_SEMAINE.map((js, i) => {
+      const v = valeurs[i];
+      const suffisant = v.length >= OCCURRENCES_MIN_JOUR;
+      return { jourSemaine: js, effectif: v.length, suffisant, moyenne: suffisant ? moyenneTab(v) : null, ecart: null, ecartPct: null, erreurType: null, verdict: suffisant ? 'habituel' : 'grise' };
+    });
+    const toutLisible = retenus.length > 0 && parJour.every(p => p.suffisant);
+    if (toutLisible) {
+      parJour.forEach((p, i) => {
+        const autres = [].concat(...valeurs.filter((_, k) => k !== i));
+        const mA = moyenneTab(autres), mJ = p.moyenne;
+        const se = Math.sqrt(varianceEchantillon(valeurs[i], mJ) / valeurs[i].length + varianceEchantillon(autres, mA) / autres.length);
+        p.ecart = mJ - mA; p.erreurType = se; p.ecartPct = mA > 0 ? (mJ - mA) / mA : null;
+        const nette = se > 0 ? Math.abs(p.ecart) > SEUIL_ECART_TYPES * se : p.ecart !== 0;
+        p.verdict = nette ? (p.ecart > 0 ? 'au-dessus' : 'en-dessous') : 'habituel';
+      });
+    }
+    const designe = toutLisible && parJour.some(p => p.verdict !== 'habituel');
+    const etat = retenus.length === 0 ? 'absent' : (!toutLisible ? 'insuffisant' : (designe ? 'designe' : 'ressemblent'));
+    const ordre = designe ? parJour.slice().sort((a, b) => b.moyenne - a.moyenne) : parJour.slice();
+    return { etat, designe, parJour, ordre, ecartes, nbJours: retenus.length, debut: bornes.debut, fin: bornes.fin, seuil: OCCURRENCES_MIN_JOUR };
+  }
+
+  // Une série par mesure : {ca: [...], marge: null, ...}. Une série absente (null) reste « indisponible »,
+  // jamais vide ni estimée. Ajouter une mesure ne demande aucun changement de code.
+  function joursFortsFaiblesMesures(series, bornes, lignesFeries) {
+    return Object.keys(series || {}).map(cle => {
+      const s = series[cle];
+      return Array.isArray(s)
+        ? { cle, disponible: true, resultat: joursFortsFaibles(s, bornes, lignesFeries) }
+        : { cle, disponible: false, resultat: null };
+    });
+  }
+
+  // Textes de la carte, tous tirés de NexusVocab.jours. Sans lexique : rien.
+  function lignesJours(res, mesure) {
+    const V = typeof window !== 'undefined' ? window.NexusVocab : null;
+    const J = V && V.jours;
+    if (!J || !res) return null;
+    const m = J[mesure] || J.piste;
+    const etiquette = p => J.verdicts[p.verdict];
+    return {
+      jours: res.ordre.map(p => ({
+        jourSemaine: p.jourSemaine, nom: J.noms[p.jourSemaine], moyenne: p.moyenne, verdict: p.verdict, etiquette: etiquette(p),
+        lignes: p.suffisant
+          ? [J.noms[p.jourSemaine], J.moyenne(p.moyenne, m), J.occurrences(p.effectif), J.ecartAutres(p.ecartPct, res.designe || res.etat === 'ressemblent'), etiquette(p)].filter(Boolean)
+          : [J.noms[p.jourSemaine], J.pasAssez(p.effectif, res.seuil)],
+      })),
+      constat: J.constat[res.etat] || '',
+      ecartes: res.ecartes.length ? J.ecartes(res.ecartes) : '',
+    };
+  }
+
   window.NexusTempo = {
-    syntheseEnBref,
+    syntheseEnBref, joursFortsFaibles, joursFortsFaiblesMesures, lignesJours,
     SEUILS, NOM_JOURS, NOM_JOURS_COURT, NOM_MOIS, LITRAGE_INDISPONIBLE, VALORISATION_INDISPONIBLE, SOURCES_DONNEES, COORDONNEES_STATION,
     agregerParJour, filtrerJoursClos, regrouperParJourSemaine, calculerClassement,
     calculerPeriodesProduitsAppel, attribuerValorisationBoutique, identifierJourPlusRentable,

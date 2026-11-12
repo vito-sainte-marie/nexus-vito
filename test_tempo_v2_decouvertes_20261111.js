@@ -83,7 +83,7 @@ t('page : quatre cartes remplies par script, preuves en <details>, aucun lien', 
   assert.ok(/remplirDecouverte\(slot,/.test(scripts) && /fiches\.piste = /.test(scripts) && /fiches\.boutique = /.test(scripts) && /fiches\.fdj = /.test(scripts) && /fiches\.croise = /.test(scripts));
   assert.ok(/'details'/.test(scripts) && /Voir les preuves/.test(scripts));
   assert.ok(/Fait mesuré/.test(scripts));
-  assert.deepStrictEqual([...html.slice(html.indexOf('<body>')).matchAll(/<a\s[^>]*href="([^"]*)"/gi)].map(m => m[1]), ['NEXUS-Tempo-v2-Quarts.html', 'NEXUS-Tempo-v2-Mois.html', 'NEXUS-Cockpit-v2.html']);
+  assert.deepStrictEqual([...html.slice(html.indexOf('<body>')).matchAll(/<a\s[^>]*href="([^"]*)"/gi)].map(m => m[1]), ['NEXUS-Tempo-v2-Quarts.html', 'NEXUS-Tempo-v2-Jours.html', 'NEXUS-Tempo-v2-Mois.html', 'NEXUS-Cockpit-v2.html']);
 });
 
 t('page : la carte relation n\'est remplie que si la relation est retenue', () => {
