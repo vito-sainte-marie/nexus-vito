@@ -275,6 +275,56 @@
   };
 
   // ------------------------------------------------------------
+  // 18. Tempo V2 — l'encadré « En bref ».
+  // Rien n'est décidé ici : l'appelant fournit le libellé déjà posé par la page
+  // (la tendance vient de G5), le lexique ne donne que les mots. Aucun seuil.
+  // Retourne null quand il ne peut pas choisir.
+  // ------------------------------------------------------------
+  const EN_BREF_SUJETS = {
+    Piste: { neutre: 'les volumes de carburant', possessif: 'ses volumes de carburant' },
+    Boutique: { neutre: 'la marge boutique', possessif: 'sa marge boutique' },
+    FDJ: { neutre: 'le chiffre d’affaires FDJ', possessif: 'le chiffre d’affaires FDJ' },
+  };
+  const EN_BREF_MOUVEMENT = {
+    hausse: { singulier: 'progresse', pluriel: 'progressent' },
+    baisse: { singulier: 'recule', pluriel: 'reculent' },
+  };
+  NexusVocab.enBref = {
+    // Libellé de tendance déjà posé sur la carte -> 'stable' | 'hausse' | 'baisse' | 'inconnu'.
+    classe: function (libelle) {
+      const t = String(libelle || '').trim();
+      if (!t || t === 'Tendance non déterminée') return 'inconnu';
+      if (/Variation habituelle|stable/i.test(t)) return 'stable';
+      if (/hausse/i.test(t)) return 'hausse';
+      if (/baisse/i.test(t)) return 'baisse';
+      return 'inconnu';
+    },
+    sujet: function (activite, possessif) {
+      const s = EN_BREF_SUJETS[activite];
+      return s ? (possessif ? s.possessif : s.neutre) : null;
+    },
+    maintient: 'La station maintient',
+    // « progresse de 20,9 % », « reculent » : le pourcentage n'est donné que par l'appelant, jamais pour un état stable.
+    mouvement: function (classe, pluriel, pct) {
+      const m = EN_BREF_MOUVEMENT[classe];
+      if (!m) return null;
+      return (pluriel ? m.pluriel : m.singulier) + (pct ? ' de ' + pct : '');
+    },
+    contraste: 'tandis que',
+    absente: 'aucune comparaison n’est disponible pour',
+    attention: 'Un changement mérite toutefois votre attention : ',
+    aNoter: 'À noter aussi : ',
+    // Seule la Piste a un total qui peut masquer un carburant : le sens vient de la découverte.
+    masquee: function (activite, sens) {
+      if (activite !== 'Piste') return null;
+      // Le nom diffère volontairement du mot du titre de la découverte (« en baisse » ... « un recul »).
+      const nom = sens === 'baisse' ? 'un recul' : sens === 'hausse' ? 'une progression' : null;
+      return nom ? nom + ' que le volume total de la piste masque en partie' : null;
+    },
+    prudence: 'La comparaison avec la période précédente reste fragile. Ces évolutions sont à interpréter avec prudence.',
+  };
+
+  // ------------------------------------------------------------
   // Cycle de construction — Constat → Explication → Décision.
   // Aide à assembler les trois lignes dans le bon ordre et avec la bonne
   // séparation visuelle ; ne génère pas le contenu (fourni par l'appelant),

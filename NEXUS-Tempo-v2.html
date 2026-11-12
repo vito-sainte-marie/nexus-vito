@@ -233,6 +233,7 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
 <script src="nexus-desktop.js?v=20260904-0104"></script>
 <script src="nexus-banniere-station.js"></script>
 <script src="nexus-jours-feries.js?v=20261106-0100"></script>
+<script src="nexus-vocabulaire.js?v=20260904-0104"></script>
 <script src="nexus-tempo.js?v=20261106-0200"></script>
 <script src="nexus-periodes.js?v=20260904-0104"></script>
 </head>
@@ -261,7 +262,9 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
 
   <section class="carte enbref" id="enBref">
     <div class="eyebrow">En bref</div>
-    <p style="margin-top:8px;">Donnée en cours de branchement</p>
+    <div id="enBrefPeriode" class="texte" style="margin-top:8px;"></div>
+    <p id="enBrefTexte" style="margin-top:4px;">Donnée en cours de branchement</p>
+    <p id="enBrefNote" style="margin-top:8px;font-style:italic;opacity:.75;" hidden></p>
   </section>
 
   <div class="titre-section">Trois indicateurs</div>
@@ -447,6 +450,23 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
 
   // Remplit une carte : état 'ok' = Fait mesuré ; sinon Non qualifié, jamais d'estimation.
   const detailExtra = {};
+  // « En bref » : relit les trois cartes déjà remplies, la comparabilité et la première découverte retenue.
+  const enBrefEtat = { faible: null, decouverte: null, periode: null, importBoutique: null };
+  const NOM_ACTIVITE_ENBREF = { piste: 'Piste', boutique: 'Boutique', fdj: 'FDJ' };
+  function majEnBref() {
+    const p = document.getElementById('enBrefTexte');
+    if (!p) return;
+    const activites = [['indPiste', 'Piste'], ['indBoutique', 'Boutique'], ['indFdj', 'FDJ']].map(([id, nom]) => {
+      const el = document.getElementById(id), ev = el && el.querySelector('.evol-court');
+      return { nom, evol: ev ? ev.textContent : '' };
+    });
+    const r = window.NexusTempo.syntheseEnBref({ activites, faible: enBrefEtat.faible, decouverte: enBrefEtat.decouverte,
+      periode: enBrefEtat.periode, importBoutique: enBrefEtat.importBoutique });
+    p.textContent = r.texte || 'Donnée en cours de branchement';
+    const per = document.getElementById('enBrefPeriode'), note = document.getElementById('enBrefNote');
+    if (per) per.textContent = r.periode;
+    if (note) { note.textContent = r.note; note.hidden = !r.note; }
+  }
   const evolCourt = cmp => (cmp && cmp.etat === 'ok' && cmp.pct !== null && cmp.pct !== undefined)
     ? signePct(cmp.pct) + ' · ' + window.NexusTempo.libelleEvolution(cmp) : window.NexusTempo.libelleEvolution(cmp);
   function habiller(id, o) {
@@ -798,6 +818,7 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
     if (mi.etat === 'ok') {
       const nbJ = Math.round((Date.parse(mi.fin) - Date.parse(mi.debut)) / 86400000) + 1;
       perBoutique = 'Du ' + fmtDateCourte(mi.debut) + ' au ' + fmtDate(mi.fin) + ' · ' + pluriel(nbJ, 'jour', 'jours') + ' · CA : ' + fmtNb(mi.ca) + ' €';
+      enBrefEtat.importBoutique = { debut: mi.debut, fin: mi.fin };
       if (mi.debut !== bornes.debut || mi.fin !== bornes.fin) perBoutique += ' · Période différente des litres et de la FDJ';
     }
     // Marge par catégorie (lot D2) : marges réelles des imports, hors produits d'appel, deux périodes d'import comparables.
@@ -949,6 +970,7 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
       pill.textContent = comp.faible ? 'Comparabilité faible avec la période précédente' : 'Périodes comparables';
       pill.className = 'pill' + (comp.faible ? ' ambre' : '');
       pill.hidden = false;
+      enBrefEtat.faible = comp.faible; majEnBref();
       const det = document.getElementById('comparabilite');
       det.querySelector('summary').textContent = comp.faible
         ? 'Comparabilité faible · Pourquoi ces évolutions ne sont pas des conclusions'
@@ -1186,9 +1208,12 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
         if (!f) return;
         const preuves = f.preuves.concat([['Rang', c.motifRang + noteRang], ['Fraîcheur', c.fraicheur.texte]]);
         remplirDecouverte(slot, Object.assign({}, f, { preuves }));
+        if (slot === 0) { enBrefEtat.decouverte = { activite: NOM_ACTIVITE_ENBREF[c.activite] || '', titre: f.titre || '', type: c.type, sens: c.sens < 0 ? 'baisse' : c.sens > 0 ? 'hausse' : '' }; majEnBref(); }
       });
     })();
 
+    enBrefEtat.periode = { debut: bornes.debut, fin: bornes.fin };
+    majEnBref();
     document.getElementById('pillPeriode').textContent = 'Période étudiée : du ' + fmtDateCourte(bornes.debut) + ' au ' + fmtDate(bornes.fin) +
       ' · ' + pluriel(bornes.jours, 'jour', 'jours');
     const tz = 'America/Martinique';

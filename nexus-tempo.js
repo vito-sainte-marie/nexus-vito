@@ -2546,7 +2546,69 @@
     return { etat: 'ok', motif: null, candidats: cands };
   }
 
+  // Synthèse « En bref » : une ligne de période, trois phrases au plus, une note de prudence à part.
+  // Bâtie uniquement sur ce que la page affiche déjà : aucun calcul, aucune source, aucune consigne.
+  // Ordre : 1) situation générale, ce qui est stable d'abord, puis ce qui bouge après « tandis que » ;
+  // 2) première découverte retenue, avec ses chiffres et son motif (masqué, découplage) ; 3) autre évolution notable, si elle existe.
+  const MOIS_LONGS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+  const dateLongue = (iso, avecAnnee) => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ''));
+    if (!m) return '';
+    return Number(m[3]) + (Number(m[3]) === 1 ? 'er' : '') + ' ' + MOIS_LONGS[Number(m[2]) - 1] + (avecAnnee ? ' ' + m[1] : '');
+  };
+  const casseMinuscule = t => (/^[A-ZÉÈÊ][a-zéèêàâîïôûùç]/.test(t) ? t.charAt(0).toLowerCase() + t.slice(1) : t);
+  const sansPoint = t => String(t || '').trim().replace(/[.\s]+$/, '');
+  function syntheseEnBref(entree) {
+    const e = entree || {};
+    const acts = e.activites || [];
+    const V = typeof window !== 'undefined' && window.NexusVocab && window.NexusVocab.enBref;
+    if (!acts.length || !V) return { periode: '', texte: '', note: '' };
+    const per = e.periode && e.periode.debut && e.periode.fin ? e.periode : null;
+    const periode = per ? 'Du ' + dateLongue(per.debut, per.debut.slice(0, 4) !== per.fin.slice(0, 4)) + ' au ' + dateLongue(per.fin, true) + '.' : '';
+    const imp = e.importBoutique && e.importBoutique.debut && e.importBoutique.fin
+      ? 'import du ' + dateLongue(e.importBoutique.debut, e.importBoutique.debut.slice(0, 4) !== e.importBoutique.fin.slice(0, 4)) + ' au ' + dateLongue(e.importBoutique.fin, true) : '';
+    const liste = l => l.length > 1 ? l.slice(0, -1).join(', ') + ' et ' + l[l.length - 1] : l[0];
+    const maj = t => t.charAt(0).toUpperCase() + t.slice(1);
+    const stables = [], hausses = [], baisses = [], inconnus = [];
+    acts.forEach(a => {
+      const c = V.classe(a.evol);
+      const reserves = [];
+      if (a.nom === 'Boutique' && imp) reserves.push(imp);
+      if (a.reserve) reserves.push(a.reserve);
+      const parenth = reserves.length ? ' (' + reserves.join(', ') + ')' : '';
+      const pct = /^[+−-]/.test(String(a.evol)) ? String(a.evol).split(' · ')[0].trim().replace(/^[+−-]\s*/, '') : '';
+      const it = { nom: a.nom, parenth, pct };
+      (c === 'stable' ? stables : c === 'hausse' ? hausses : c === 'baisse' ? baisses : inconnus).push(it);
+    });
+    // Ce qui est stable : un seul verbe, un seul sujet. Aucun pourcentage.
+    const partieStable = stables.length ? V.maintient + ' ' + liste(stables.map(x => V.sujet(x.nom, true) + x.parenth)) : '';
+    // Ce qui bouge : un verbe par sens ; le pourcentage n'est donné que lorsqu'un seul sujet porte ce sens.
+    const mouv = (l, classe) => {
+      if (!l.length) return '';
+      const seul = l.length === 1;
+      return liste(l.map(x => V.sujet(x.nom, false) + x.parenth)) + ' ' + V.mouvement(classe, !seul, seul ? l[0].pct : '');
+    };
+    const bouge = [mouv(hausses, 'hausse'), mouv(baisses, 'baisse')].filter(Boolean);
+    let s1 = partieStable && bouge.length ? partieStable + ', ' + V.contraste + ' ' + liste(bouge) : (partieStable || liste(bouge) || '');
+    if (inconnus.length) {
+      const absent = V.absente + ' ' + liste(inconnus.map(x => V.sujet(x.nom, false) + x.parenth));
+      s1 = s1 ? s1 + ', mais ' + absent : absent;
+    }
+    const phrases = s1 ? [maj(s1) + '.'] : [];
+    const d1 = e.decouverte;
+    const titre1 = d1 && d1.titre ? sansPoint(d1.titre) : '';
+    if (titre1) {
+      const clause = V.masquee(d1.activite, d1.sens);
+      phrases.push(V.attention + casseMinuscule(titre1) + (clause ? ', ' + clause : '') + '.');
+    }
+    const titre2 = e.decouverte2 && e.decouverte2.titre ? sansPoint(e.decouverte2.titre) : '';
+    if (titre1 && titre2) phrases.push(V.aNoter + casseMinuscule(titre2) + '.');
+    const note = e.faible === true ? V.prudence : '';
+    return { periode, texte: phrases.join(' '), note };
+  }
+
   window.NexusTempo = {
+    syntheseEnBref,
     SEUILS, NOM_JOURS, NOM_JOURS_COURT, NOM_MOIS, LITRAGE_INDISPONIBLE, VALORISATION_INDISPONIBLE, SOURCES_DONNEES, COORDONNEES_STATION,
     agregerParJour, filtrerJoursClos, regrouperParJourSemaine, calculerClassement,
     calculerPeriodesProduitsAppel, attribuerValorisationBoutique, identifierJourPlusRentable,
