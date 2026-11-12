@@ -399,7 +399,7 @@
     nonRetenuLong: 'Ce mois n’a pas assez de jours complets pour être comparé.',
     moyenne: (v, a) => 'Moyenne : ' + moisNb(v) + a.suffixe + ' par jour',
     jours: n => n + ' jour' + (n > 1 ? 's' : '') + ' complet' + (n > 1 ? 's' : ''),
-    evolution: (label, pct) => 'Par rapport au mois précédent : ' + label.toLowerCase() + (pct == null ? '' : ' (' + (pct > 0 ? '+' : pct < 0 ? '−' : '') + Math.abs(pct).toFixed(1).replace('.', ',') + ' %)'),
+    evolution: (label, pct) => 'Par rapport au mois précédent : ' + label.toLowerCase() + (pct == null ? '' : ' (' + (Math.round(pct * 10) > 0 ? '+' : Math.round(pct * 10) < 0 ? '−' : '') + Math.abs(pct).toFixed(1).replace('.', ',') + ' %)'),
     sansEvolution: 'Aucune comparaison avec le mois précédent.',
     fiabilite: 'Comparaison fragile',
     mentionManquants: m => 'Jour manquant : ' + m,

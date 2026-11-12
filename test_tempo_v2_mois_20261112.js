@@ -146,5 +146,15 @@ t('bannière : trois fichiers copiés tels quels, même intégration que Quarts,
   assert.ok(html.indexOf('nexus-banniere-station.js') > -1);
 });
 
+t('le pourcentage affiché est celui de la fraction du moteur, jamais la fraction elle-même', () => {
+  const faux = (pct) => [{ cle: '2026-10', libelle: 'octobre 2026', assez: true, moyenne: 5480, nbJours: 31, evolution: 'Hausse confirmée', cmp: { etat: 'ok', pct } }];
+  const b = T.barresMois(faux(0.167), 'fdj')[0];
+  assert.ok(b.lignes.some(l => l.includes('(+16,7 %)')), b.lignes.join(' | '));
+  assert.ok(Math.abs(b.pct - 16.7) < 1e-9);
+  assert.ok(T.barresMois(faux(-0.053), 'piste')[0].lignes.some(l => l.includes('(−5,3 %)')));
+  const nul = T.barresMois(faux(-0.0001), 'piste')[0].lignes.join(' ');
+  assert.ok(!/−0,0|\+0,0/.test(nul), 'signe sur un zéro : ' + nul);
+});
+
 console.log(echecs ? echecs + ' échec(s)' : 'tous ok');
 process.exit(echecs ? 1 : 0);

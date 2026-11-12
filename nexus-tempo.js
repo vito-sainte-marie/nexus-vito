@@ -2560,9 +2560,11 @@
       const retenu = !!m.assez && m.moyenne != null;
       const mm = Number(m.cle.slice(5, 7));
       const lignes = [m.libelle];
+      // cmp.pct est une fraction (0,167) ; le lexique et l'écran affichent des pourcentages (16,7).
+      const pct = retenu && m.cmp && m.cmp.etat === 'ok' && m.cmp.pct != null ? m.cmp.pct * 100 : null;
       if (retenu) {
         lignes.push(M.moyenne(m.moyenne, a), M.jours(m.nbJours));
-        if (m.evolution) lignes.push(M.evolution(m.evolution, m.cmp && m.cmp.etat === 'ok' ? m.cmp.pct : null));
+        if (m.evolution) lignes.push(M.evolution(m.evolution, pct));
         else lignes.push(M.sansEvolution);
         if (m.comparabilite && m.comparabilite.faible) (m.comparabilite.raisons || []).forEach(r => lignes.push(M.fiabilite + ' : ' + r.texte));
         if (m.mentionManquants) lignes.push(M.mentionManquants(m.mentionManquants));
@@ -2578,7 +2580,7 @@
         retenu, hauteur: retenu ? m.moyenne : null, nbJours: m.nbJours,
         marqueManquant: retenu && !!m.mentionManquants, manquants: retenu ? m.mentionManquants || null : null,
         evolution: retenu ? m.evolution || null : null,
-        pct: retenu && m.cmp && m.cmp.etat === 'ok' ? m.cmp.pct : null,
+        pct,
         fragile: retenu && !!(m.comparabilite && m.comparabilite.faible),
         lignes,
       };
