@@ -62,7 +62,36 @@ t('les tables liées par clé étrangère sont contrôlées avant toute suppress
 t('aucun autre objet n’est modifié ni supprimé', () => {
   assert.ok(!/\b(import_batches|import_rows_raw|import_row_results|campagnes_nexus_imports)\b/.test(code));
   assert.strictEqual((code.match(/\bdelete from\b/g) || []).length, 1);
-  assert.ok(!/\b(truncate|update\s+public|drop\s+table\s+public)/i.test(code));
+  assert.ok(!/\b(truncate|drop\s+table\s+public)/i.test(code));
+  // Seule mise à jour permise : product_id de normalized_sales
+  const maj = code.match(/\bupdate\s+public\.\w+/gi) || [];
+  assert.strictEqual(maj.length, 2);
+  assert.ok(maj.every(m => /normalized_sales$/i.test(m)));
+  assert.ok(!/delete\s+from\s+public\.(normalized_sales|raw_sales|synchronization_history|normalization_state)/i.test(code));
+});
+t('le simulateur est arrêté en premier, et le script refuse si le job manque', () => {
+  const iJob = code.indexOf("cron.unschedule('nexus-simulateur-caisse')");
+  assert.ok(iJob > 0);
+  assert.ok(iJob < code.indexOf('Comptes exacts') || iJob < code.indexOf('_cibles_doublons loop'));
+  assert.ok(/not exists \(select 1 from cron\.job where jobname = 'nexus-simulateur-caisse'\)/.test(code));
+  assert.ok(/n''existe pas/.test(code));
+  assert.ok(!/cron\.schedule/.test(code), 'le script ne relance pas le simulateur');
+});
+t('les ventes simulées sont sauvegardées, puis rattachées ou mises à NULL avant la suppression', () => {
+  const iSauv = code.indexOf('create table public.normalized_sales_sauvegarde_20261112');
+  const iRatt = code.indexOf('set product_id = r.nouveau_id');
+  const iNull = code.indexOf('set product_id = null');
+  const iSupp = code.indexOf('delete from public.products');
+  assert.ok(iSauv > 0 && iRatt > iSauv && iNull > iRatt && iSupp > iNull);
+  assert.ok(/revoke all on public\.normalized_sales_sauvegarde_20261112 from public, anon, authenticated/.test(code));
+  assert.ok(/v_ventes = row_count/.test(code));
+  assert.ok(/v_rattachees \+ v_orphelines <> v_ventes/.test(code));
+  assert.ok(/raise notice 'Ventes simulées/.test(code));
+});
+t('le rattachement cible un bloc conservé, même code-barres, période la plus recouvrante', () => {
+  assert.ok(/q\.code_barres = p\.code_barres/.test(code));
+  assert.ok(/not exists \(select 1 from _cibles_doublons y/.test(code));
+  assert.ok(/distinct on \(p\.id\)/.test(code));
 });
 t('le contrôle final refuse tout recouvrement de périodes', () => {
   assert.ok(/se recouvrent encore/.test(code));
