@@ -207,7 +207,7 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
 .notes{font-size:12px; line-height:1.5; color:var(--t-amber); margin-top:8px;}
 .graphique{position:relative; margin-top:10px;}
 .graphique .defilement{padding-bottom:4px;}
-.graphique svg.barres{display:block; height:auto; min-width:100%;}
+.graphique svg.barres{display:block; width:100%; height:230px;}  /* hauteur fixe : le graphique ne grandit jamais en hauteur, quel que soit le nombre de mois */
 .graphique svg text{font-family:var(--t-sans); fill:var(--t-mid); font-size:11px;}
 .graphique svg text.valeur-barre{fill:var(--t-text); font-weight:600; font-size:11px;}
 .graphique svg .base{stroke:var(--t-line); stroke-width:1;}
@@ -332,7 +332,7 @@ details.valeurs .tableau td, details.valeurs .tableau th{white-space:nowrap;}
     const LARG = 56, GAUCHE = 20, HAUT = 230, BASE = 190, MAXB = 150;
     const largeur = GAUCHE * 2 + LARG * barres.length;
     const maxi = Math.max.apply(null, barres.filter(b => b.retenu).map(b => b.hauteur).concat([1]));
-    let svg = '<svg class="barres" role="img" aria-label="' + esc(M.titre) + '" viewBox="0 0 ' + largeur + ' ' + HAUT + '" width="' + largeur + '" height="' + HAUT + '">';
+    let svg = '<svg class="barres" role="img" aria-label="' + esc(M.titre) + '" viewBox="0 0 ' + largeur + ' ' + HAUT + '" preserveAspectRatio="xMidYMid meet" style="min-width:' + largeur + 'px">';
     svg += '<line class="base" x1="' + GAUCHE + '" y1="' + BASE + '" x2="' + (largeur - GAUCHE) + '" y2="' + BASE + '"/>';
     barres.forEach((b, i) => {
       const x = GAUCHE + i * LARG, cx = x + LARG / 2;

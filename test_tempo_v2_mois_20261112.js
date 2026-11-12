@@ -156,5 +156,13 @@ t('le pourcentage affiché est celui de la fraction du moteur, jamais la fractio
   assert.ok(!/−0,0|\+0,0/.test(nul), 'signe sur un zéro : ' + nul);
 });
 
+t('la hauteur du graphique est fixe, quel que soit le nombre de mois', () => {
+  assert.ok(/svg\.barres\{[^}]*height:230px/.test(html), 'hauteur CSS fixe absente');
+  assert.ok(!/svg\.barres\{[^}]*height:auto/.test(html), 'hauteur automatique : le graphique grandit avec la largeur');
+  assert.ok(/const LARG = 56, GAUCHE = 20, HAUT = 230/.test(html), 'la hauteur du viewBox doit valoir la hauteur CSS');
+  assert.ok(html.includes('preserveAspectRatio="xMidYMid meet"'), 'échelle non bornée par la hauteur');
+  assert.ok(html.includes("style=\"min-width:' + largeur + 'px\""), 'largeur minimale (défilement téléphone) absente');
+});
+
 console.log(echecs ? echecs + ' échec(s)' : 'tous ok');
 process.exit(echecs ? 1 : 0);
