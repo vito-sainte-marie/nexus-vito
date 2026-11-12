@@ -451,6 +451,14 @@
         : (etat === 'insuffisant' ? 'Avec ces journées, la comparaison reste impossible.' : 'Avec ces journées, la lecture ne change pour aucun jour.'),
       echantillon: (sans, avec) => 'Jours complets comparés : ' + sans + ' sans les journées hors norme, ' + avec + ' avec.',
     },
+    // Garde des rythmes hebdomadaires : langage prudent, jamais une régularité présentée comme acquise, ni de consigne.
+    rythmes: {
+      titre: 'Rythme potentiel',
+      texte: liste => 'Rythme potentiel : ' + liste.map(r => r.nom + ' (' + r.nb + ' jours complets sur ' + r.occurrences + ' hors norme, ' + (r.sens === 'au-dessus' ? 'au-dessus' : 'en dessous') + ' de la médiane)').join(', ') + '. Ces journées restent dans la lecture, car une récurrence observée ressemble à un rythme plutôt qu’à une exception.',
+      avantApres: (noms, etatAvant, etatApres) => noms.length
+        ? 'Avant cette règle, la lecture était différente pour : ' + noms.join(', ') + '.'
+        : (etatAvant === 'insuffisant' && etatApres !== 'insuffisant' ? 'Avant cette règle, la comparaison était impossible.' : 'Cette règle ne change la lecture d’aucun jour.'),
+    },
     aucunEcart: 'Aucun jour écarté.',
     aucuneDonnee: 'Aucun jour complet n’est encore mesuré.',
     tableau: 'Voir les valeurs en tableau',

@@ -1611,6 +1611,9 @@
   // ------------------------------------------------------------
   const SEUIL_JOUR_EXCEPTIONNEL = 3.5;
   const SEUIL_ECART_TYPES = 2;
+  // Garde des rythmes hebdomadaires (carte « jours forts et faibles » seulement) : part minimale des occurrences
+  // d'un jour de semaine repérées hors norme dans le même sens pour parler de rythme récurrent. Règle initiale, configurable.
+  const SEUIL_RYTHME_RECURRENT = 0.5;
   const SEUIL_RAPPORT_DUREES = 2;
   const SEUIL_POINTS_CALENDRIER = 20;
 
@@ -2741,8 +2744,28 @@
     // Méthode commune de Tempo (médiane, MAD) appliquée à TOUS les jours ordinaires de la période,
     // jamais jour de semaine par jour de semaine. Le résultat est montré sans, puis avec ces journées.
     const exceptionnels = joursExceptionnels(ordinaires);
+    // Garde des rythmes : sur les occurrences exploitables d'un jour de semaine (au moins OCCURRENCES_MIN_JOUR),
+    // si au moins SEUIL_RYTHME_RECURRENT d'entre elles sont hors norme dans un seul et même sens (au-dessus ou
+    // en dessous de la médiane commune), ces journées restent dans l'analyse. Sens opposés : jamais un rythme.
+    const rythmes = [];
+    const gardes = new Set();
+    if (exceptionnels.length) {
+      const med = medianeTab(ordinaires.map(j => j.valeur));
+      ORDRE_JOURS_SEMAINE.forEach(js => {
+        const occ = ordinaires.filter(j => jourSemaineISO(j.date) === js);
+        if (occ.length < OCCURRENCES_MIN_JOUR) return;
+        const exJ = exceptionnels.filter(j => jourSemaineISO(j.date) === js);
+        const haut = exJ.filter(j => j.valeur > med), bas = exJ.filter(j => j.valeur < med);
+        const actif = l => l.length / occ.length >= SEUIL_RYTHME_RECURRENT;
+        if (actif(haut) === actif(bas)) return;
+        const l = actif(haut) ? haut : bas;
+        l.forEach(j => gardes.add(j.date));
+        rythmes.push({ jourSemaine: js, sens: l === haut ? 'au-dessus' : 'en-dessous', nb: l.length, occurrences: occ.length });
+      });
+    }
     const exc = new Set(exceptionnels.map(j => j.date));
-    exceptionnels.forEach(j => ecartes.push({ date: j.date, motif: 'exceptionnel', nom: null, sens: null, valeur: j.valeur }));
+    const excApres = new Set(exceptionnels.filter(j => !gardes.has(j.date)).map(j => j.date));
+    exceptionnels.filter(j => !gardes.has(j.date)).forEach(j => ecartes.push({ date: j.date, motif: 'exceptionnel', nom: null, sens: null, valeur: j.valeur }));
     ecartes.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
     const analyser = retenus => {
       const valeurs = ORDRE_JOURS_SEMAINE.map(() => []);
@@ -2768,10 +2791,12 @@
       const ordre = designe ? parJour.slice().sort((a, b) => b.moyenne - a.moyenne) : parJour.slice();
       return { etat, designe, parJour, ordre, nbJours: retenus.length };
     };
-    const sans = analyser(ordinaires.filter(j => !exc.has(j.date)));
+    const sans = analyser(ordinaires.filter(j => !excApres.has(j.date)));
+    const avantGarde = analyser(ordinaires.filter(j => !exc.has(j.date)));
     const avec = analyser(ordinaires);
     const changements = sans.parJour.filter((p, i) => p.verdict !== avec.parJour[i].verdict).map(p => p.jourSemaine);
-    return Object.assign({}, sans, { ecartes, avec, changements, aDesExceptionnels: exceptionnels.length > 0, debut: bornes.debut, fin: bornes.fin, seuil: OCCURRENCES_MIN_JOUR });
+    const changementsGarde = avantGarde.parJour.filter((p, i) => p.verdict !== sans.parJour[i].verdict).map(p => p.jourSemaine);
+    return Object.assign({}, sans, { ecartes, avec, avantGarde, rythmes, changementsGarde, changements, aDesExceptionnels: exceptionnels.length > 0, debut: bornes.debut, fin: bornes.fin, seuil: OCCURRENCES_MIN_JOUR, seuilRythme: SEUIL_RYTHME_RECURRENT });
   }
 
   // Une série par mesure : {ca: [...], marge: null, ...}. Une série absente (null) reste « indisponible »,
@@ -2801,6 +2826,10 @@
       })),
       constat: J.constat[res.etat] || '',
       ecartes: res.ecartes.length ? J.ecartes(res.ecartes, m) : '',
+      rythmes: res.rythmes && res.rythmes.length && J.rythmes ? {
+        texte: J.rythmes.texte(res.rythmes.map(r => ({ nom: J.noms[r.jourSemaine], sens: r.sens, nb: r.nb, occurrences: r.occurrences }))),
+        avantApres: J.rythmes.avantApres(res.changementsGarde.map(js => J.noms[js]), res.avantGarde.etat, res.etat),
+      } : null,
       avecSans: res.aDesExceptionnels && J.avecSans ? {
         titre: J.avecSans.titre,
         jours: res.avec.parJour.map((p, i) => ({
