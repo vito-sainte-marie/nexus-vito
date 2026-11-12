@@ -117,13 +117,13 @@ t('liens vers NEXUS-Tempo-v2 : seulement le menu basculé (lot confiance et menu
   }
 });
 
-t('NEXUS-Tempo-v1.html inchangé (empreinte)', () => {
+t('NEXUS-Tempo-v1.html inchangé (empreinte ; avatar recadré le 12/11/2026, seule la source de l’image change)', () => {
   // outils/build.sh réécrit les épingles ?v= et injecte trois scripts d'environnement : on neutralise les deux avant de comparer.
   const src = fs.readFileSync(path.join(racine, 'NEXUS-Tempo-v1.html'), 'utf8')
     .replace(/<script src="nexus-(?:config|page|bandeau-environnement)\.js[^"]*"><\/script>\n?/g, '')
     .replace(/\?v=[^"']*/g, '?v=');
   const h = crypto.createHash('sha256').update(src).digest('hex');
-  assert.strictEqual(h, 'e26c7921627fa6d6d7524fb178973bb9b03c5a5894d5f237ac3c0aef06409ab5');
+  assert.strictEqual(h, '8c665900aaff6271ed13fdee790a40e54de82130fc6dfdd9ab1580ce9f90311f');
 });
 
 t('carte vide : aucun niveau, sauf « Hypothèse » de la colonne CA FDJ (G4)', () => {
