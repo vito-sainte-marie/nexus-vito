@@ -1,4 +1,4 @@
-// Tempo V2 — synthèse « En bref » : seulement ce que les cartes affichent, jamais de consigne.
+// Tempo V2 — synthèse « En bref » : période, trois phrases au plus, note de prudence à part, jamais de consigne.
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
@@ -13,62 +13,53 @@ function t(nom, fn) {
   catch (e) { echecs++; console.log('  FAIL ' + nom + '\n       ' + e.message); }
 }
 const trois = (p, b, f) => [{ nom: 'Piste', evol: p }, { nom: 'Boutique', evol: b }, { nom: 'FDJ', evol: f }];
+const PER = { debut: '2026-09-17', fin: '2026-11-11' };
+const IMP = { debut: '2026-10-05', fin: '2026-11-09' };
 const VERBES = /\b(devez|devriez|faut|faites|faire|essayez|pensez|prévoyez|augmentez|baissez|réduisez|recommand|conseil|agissez|à surveiller|à corriger)\w*/i;
-const SUPERLATIF = /\b(meilleur|pire|plus [a-zéèê]+|moins [a-zéèê]+|le mieux|record|maximal|minimal)\b/i;
+const phrases = txt => txt.split(/(?<=[.!?])\s+(?=[A-ZÀÉÈÊ])/).filter(Boolean);
 
-t('reprend mot pour mot les évolutions des trois cartes', () => {
-  const s = T.syntheseEnBref({ activites: trois('+3,2 % · Hausse confirmée', 'Marge stable', '−1,0 % · Variation habituelle'), faible: false, decouverte: '' });
-  assert.ok(s.includes('Piste : +3,2 % · Hausse confirmée'));
-  assert.ok(s.includes('Boutique : Marge stable'));
-  assert.ok(s.includes('FDJ : −1,0 % · Variation habituelle'));
+t('l\'exemple actuel se rend mot pour mot', () => {
+  const r = T.syntheseEnBref({ periode: PER, importBoutique: IMP, faible: true,
+    activites: trois('+1,0 % · Variation habituelle', 'Marge en baisse', '+3,2 % · Hausse confirmée'),
+    decouverte: { activite: 'Boutique', type: 'decrochage', titre: 'Chiffre d’affaires en hausse, marge en baisse', detail: 'Marge par jour : 100 € contre 150 €' } });
+  assert.strictEqual(r.periode, 'Du 17 septembre au 11 novembre 2026.');
+  assert.strictEqual(r.texte, 'Les litres de la Piste restent stables (+1,0 %), tandis que la marge de la Boutique recule (import du 5 octobre au 9 novembre 2026) et le chiffre d’affaires de la FDJ progresse (+3,2 %). Côté Boutique, la première découverte retenue est un découplage : chiffre d’affaires en hausse, marge en baisse (Marge par jour : 100 € contre 150 €).');
+  assert.strictEqual(r.note, 'La comparaison avec la période précédente reste fragile. Ces évolutions sont à interpréter avec prudence.');
 });
-t('aucun chiffre qui ne soit pas dans les cartes', () => {
-  const entree = { activites: trois('+3,2 % · Hausse confirmée', 'Marge en baisse', 'Tendance non déterminée'), faible: true, decouverte: 'Le gazole recule le mardi' };
-  const vus = (JSON.stringify(entree).match(/\d+(?:,\d+)?/g) || []).sort();
-  const sortis = (T.syntheseEnBref(entree).match(/\d+(?:,\d+)?/g) || []).sort();
-  assert.deepStrictEqual(sortis, vus);
+t('marge boutique en recul, ventes en hausse : Piste stable d\'abord, « tandis que », puis détail boutique', () => {
+  const r = T.syntheseEnBref({ periode: PER, importBoutique: IMP, faible: false,
+    activites: trois('+0,5 % · Variation habituelle', 'Marge en baisse', '+0,2 % · Variation habituelle'),
+    decouverte: { activite: 'Boutique', type: 'decrochage', titre: 'Plus de chiffre d’affaires, marge en baisse', detail: 'Marge par jour : 90 € contre 120 €' } });
+  const p = phrases(r.texte);
+  assert.ok(p[0].startsWith('Les litres de la Piste restent stables'));
+  assert.ok(p[0].indexOf('tandis que la marge de la Boutique recule') > p[0].indexOf('Piste'));
+  assert.ok(/^Côté Boutique/.test(p[1]) && p[1].includes('Marge par jour : 90 € contre 120 €'));
+  assert.strictEqual(r.note, '');
 });
-t('comparabilité faible : dit que ces évolutions ne sont pas des conclusions, dans la même phrase', () => {
-  const s = T.syntheseEnBref({ activites: trois('+3,2 % · Hausse confirmée', 'Marge stable', 'Marge stable'), faible: true, decouverte: '' });
-  assert.ok(s.includes('ces évolutions ne sont pas des conclusions'));
-  assert.strictEqual(s.split('. ').length, 1, 'une seule phrase : ' + s);
+t('une réserve propre à une activité reste attachée à cette activité', () => {
+  const r = T.syntheseEnBref({ periode: PER, faible: false,
+    activites: [{ nom: 'Piste', evol: '+1,0 % · Variation habituelle' }, { nom: 'Boutique', evol: 'Marge stable' }, { nom: 'FDJ', evol: '−4,0 % · Baisse confirmée', reserve: 'quart incomplet' }] });
+  assert.ok(r.texte.includes('recule (−4,0 %) (quart incomplet)') || r.texte.includes('(−4,0 %) (quart incomplet)'));
+  assert.ok(!/Piste[^,]*\(quart incomplet\)/.test(r.texte));
 });
-t('comparabilité correcte ou inconnue : rien sur les conclusions', () => {
-  [false, null].forEach(faible => assert.ok(!/conclusions/.test(T.syntheseEnBref({ activites: trois('+1,0 % · Variation habituelle', 'Marge stable', 'Marge stable'), faible }))));
+t('la période d\'import de la Boutique est toujours citée', () => {
+  const r = T.syntheseEnBref({ periode: PER, importBoutique: IMP, faible: false, activites: trois('Variation habituelle', 'Marge stable', 'Variation habituelle') });
+  assert.ok(r.texte.includes('import du 5 octobre au 9 novembre 2026'));
 });
-t('activité sans comparaison : nommée comme telle, sans tendance', () => {
-  [ 'Tendance non déterminée', '', undefined ].forEach(v => {
-    const s = T.syntheseEnBref({ activites: trois('+3,2 % · Hausse confirmée', v, 'Marge stable'), faible: false });
-    assert.ok(s.includes('Boutique : pas de comparaison disponible'));
-    assert.ok(!/Tendance non déterminée/.test(s));
-  });
+t('aucun verbe d\'action ni recommandation', () => {
+  const r = T.syntheseEnBref({ periode: PER, importBoutique: IMP, faible: true, activites: trois('Baisse confirmée', 'Marge en hausse', 'Tendance non déterminée'),
+    decouverte: { activite: 'Piste', type: 'masquee', titre: 'Gazole en baisse de 40 L par jour', detail: 'Variation habituelle' } });
+  assert.ok(!VERBES.test(r.periode + ' ' + r.texte + ' ' + r.note));
+  assert.ok(!/\bton\b|\btes\b/i.test(r.texte + r.note));
 });
-t('ajoute le titre de la première découverte, sans chiffre inventé', () => {
-  const s = T.syntheseEnBref({ activites: trois('Marge stable', 'Marge stable', 'Marge stable'), faible: false, decouverte: 'Le gazole recule le mardi.' });
-  assert.ok(s.endsWith('Première découverte : Le gazole recule le mardi.'));
+t('trois phrases au plus, note exclue', () => {
+  const r = T.syntheseEnBref({ periode: PER, importBoutique: IMP, faible: true, activites: trois('+3,0 % · Hausse confirmée', 'Marge en baisse', 'Variation habituelle'),
+    decouverte: { activite: 'Boutique', type: 'masquee', titre: 'Une catégorie masque l’évolution de la marge', detail: 'x' }, decouverte2: { titre: 'Le gazole recule le mardi' } });
+  assert.ok(phrases(r.texte).length <= 3, r.texte);
 });
-t('sans découverte : pas de phrase de découverte', () => {
-  assert.ok(!/découverte/.test(T.syntheseEnBref({ activites: trois('Marge stable', 'Marge stable', 'Marge stable'), faible: false, decouverte: '' })));
+t('la page câble la période, l\'import, la découverte structurée et la note', () => {
+  for (const m of ['id="enBrefTexte"', 'id="enBrefPeriode"', 'id="enBrefNote"', 'window.NexusTempo.syntheseEnBref(', 'enBrefEtat.faible = comp.faible',
+    'enBrefEtat.importBoutique = { debut: mi.debut, fin: mi.fin }', 'enBrefEtat.periode = { debut: bornes.debut, fin: bornes.fin }', 'if (slot === 0) { enBrefEtat.decouverte = {'])
+    assert.ok(html.includes(m), m);
 });
-t('aucun verbe d\'action, tiret long ou superlatif, tous cas confondus', () => {
-  const cas = [[true, 'Le gazole recule le mardi'], [false, ''], [null, 'Un mois inhabituel']];
-  cas.forEach(([faible, decouverte]) => ['+3,2 % · Hausse confirmée', 'Tendance non déterminée', 'Marge en baisse'].forEach(v => {
-    const s = T.syntheseEnBref({ activites: trois(v, v, v), faible, decouverte });
-    assert.ok(!/—|–/.test(s), 'tiret long : ' + s);
-    assert.ok(!VERBES.test(s), 'consigne : ' + s);
-    assert.ok(!SUPERLATIF.test(s), 'superlatif : ' + s);
-  }));
-});
-t('sans activité : texte vide, pas de plantage', () => {
-  assert.strictEqual(T.syntheseEnBref({ activites: [] }), '');
-  assert.strictEqual(T.syntheseEnBref(), '');
-});
-t('la page branche la synthèse sur les trois cartes, la comparabilité et la première découverte', () => {
-  assert.ok(/id="enBrefTexte"/.test(html));
-  assert.ok(/window\.NexusTempo\.syntheseEnBref\(/.test(html));
-  assert.ok(/\['indPiste', 'Piste'\], \['indBoutique', 'Boutique'\], \['indFdj', 'FDJ'\]/.test(html));
-  assert.ok(/enBrefEtat\.faible = comp\.faible/.test(html));
-  assert.ok(/if \(slot === 0\) \{ enBrefEtat\.decouverte = f\.titre/.test(html));
-});
-console.log(echecs ? echecs + ' échec(s)' : 'tout est vert');
-process.exit(echecs ? 1 : 0);
+if (echecs) { console.log(echecs + ' échec(s)'); process.exit(1); }

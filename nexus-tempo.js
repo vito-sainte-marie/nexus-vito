@@ -2546,20 +2546,79 @@
     return { etat: 'ok', motif: null, candidats: cands };
   }
 
-  // Synthèse « En bref » : 2 phrases au plus, bâties uniquement sur ce que la page affiche déjà (aucun chiffre nouveau, aucune consigne).
+  // Synthèse « En bref » : une ligne de période, trois phrases au plus, une note de prudence à part.
+  // Bâtie uniquement sur ce que la page affiche déjà : aucun calcul, aucune source, aucune consigne.
+  // Ordre : 1) situation générale, ce qui est stable d'abord, puis ce qui bouge après « tandis que » ;
+  // 2) première découverte retenue, avec ses chiffres et son motif (masqué, découplage) ; 3) autre évolution notable, si elle existe.
+  const MOIS_LONGS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+  const SUJETS_EN_BREF = {
+    Piste: { sujet: 'les litres de la Piste', pluriel: true },
+    Boutique: { sujet: 'la marge de la Boutique', pluriel: false },
+    FDJ: { sujet: 'le chiffre d\u2019affaires de la FDJ', pluriel: false },
+  };
+  const MOTIF_EN_BREF = { masquee: 'une variation masquée', decrochage: 'un découplage', repartition: 'un changement de répartition',
+    variation: 'une variation', simple: 'une variation', relation: 'une relation croisée', rupture: 'un changement durable', mois: 'un mois inhabituel' };
+  const dateLongue = (iso, avecAnnee) => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ''));
+    if (!m) return '';
+    return Number(m[3]) + (Number(m[3]) === 1 ? 'er' : '') + ' ' + MOIS_LONGS[Number(m[2]) - 1] + (avecAnnee ? ' ' + m[1] : '');
+  };
+  const casseMinuscule = t => (/^[A-ZÉÈÊ][a-zéèêàâîïôûùç]/.test(t) ? t.charAt(0).toLowerCase() + t.slice(1) : t);
+  const sansPoint = t => String(t || '').trim().replace(/[.\s]+$/, '');
   function syntheseEnBref(entree) {
     const e = entree || {};
-    const ind = (e.activites || []).map(a => {
+    const acts = e.activites || [];
+    if (!acts.length) return { periode: '', texte: '', note: '' };
+    const per = e.periode && e.periode.debut && e.periode.fin ? e.periode : null;
+    const periode = per ? 'Du ' + dateLongue(per.debut, per.debut.slice(0, 4) !== per.fin.slice(0, 4)) + ' au ' + dateLongue(per.fin, true) + '.' : '';
+    const imp = e.importBoutique && e.importBoutique.debut && e.importBoutique.fin
+      ? 'import du ' + dateLongue(e.importBoutique.debut, e.importBoutique.debut.slice(0, 4) !== e.importBoutique.fin.slice(0, 4)) + ' au ' + dateLongue(e.importBoutique.fin, true) : '';
+    const classe = a => {
       const t = String(a.evol || '').trim();
-      return a.nom + ' : ' + (!t || t === 'Tendance non déterminée' ? 'pas de comparaison disponible' : t);
+      if (!t || t === 'Tendance non déterminée') return 'inconnu';
+      if (/Variation habituelle|stable/i.test(t)) return 'stable';
+      if (/hausse/i.test(t)) return 'hausse';
+      if (/baisse/i.test(t)) return 'baisse';
+      return 'inconnu';
+    };
+    const stables = [], bougent = [], inconnus = [];
+    acts.forEach(a => {
+      const d = SUJETS_EN_BREF[a.nom] || { sujet: a.nom, pluriel: false };
+      const c = classe(a);
+      const reserves = [];
+      if (a.nom === 'Boutique' && imp) reserves.push(imp);
+      if (a.reserve) reserves.push(a.reserve);
+      const parenth = reserves.length ? ' (' + reserves.join(' ; ') + ')' : '';
+      if (c === 'inconnu') { inconnus.push(d.sujet + parenth); return; }
+      const pct = /^[+−-]/.test(String(a.evol)) ? String(a.evol).split(' · ')[0].trim() : '';
+      const verbe = c === 'stable' ? (d.pluriel ? 'restent stables' : 'reste stable')
+        : c === 'hausse' ? (d.pluriel ? 'progressent' : 'progresse') : (d.pluriel ? 'reculent' : 'recule');
+      const clause = d.sujet + ' ' + verbe + (pct ? ' (' + pct + ')' : '') + parenth;
+      (c === 'stable' ? stables : bougent).push(clause);
     });
-    if (!ind.length) return '';
-    let s = ind.join(' ; ');
-    if (e.faible === true) s += ', mais la comparabilité est faible : ces évolutions ne sont pas des conclusions';
-    let txt = s + '.';
-    const titre = e.decouverte ? String(e.decouverte).trim().replace(/[.\s]+$/, '') : '';
-    if (titre) txt += ' Première découverte : ' + titre + '.';
-    return txt;
+    const liste = l => l.length > 1 ? l.slice(0, -1).join(', ') + ' et ' + l[l.length - 1] : l[0];
+    let s1 = '';
+    if (stables.length && bougent.length) s1 = liste(stables) + ', tandis que ' + liste(bougent);
+    else if (stables.length || bougent.length) s1 = liste(stables.length ? stables : bougent);
+    if (inconnus.length) {
+      const absent = 'aucune comparaison n\u2019est disponible pour ' + liste(inconnus.map(x => x.replace(/^(le|la|les) /, m => m)));
+      s1 = s1 ? s1 + ' ; ' + absent : absent;
+    }
+    const phrases = [s1.charAt(0).toUpperCase() + s1.slice(1) + '.'];
+    const d1 = e.decouverte;
+    const titre1 = d1 && d1.titre ? sansPoint(d1.titre) : '';
+    if (titre1) {
+      const motif = MOTIF_EN_BREF[d1.type] || '';
+      const cote = SUJETS_EN_BREF[d1.activite] ? 'Côté ' + d1.activite : 'Première découverte';
+      let p2 = cote + ', la première découverte retenue' + (motif ? ' est ' + motif : '') + ' : ' + casseMinuscule(titre1);
+      const det = sansPoint(d1.detail);
+      if (det) p2 += ' (' + det + ')';
+      phrases.push(p2 + '.');
+    }
+    const titre2 = e.decouverte2 && e.decouverte2.titre ? sansPoint(e.decouverte2.titre) : '';
+    if (titre1 && titre2) phrases.push('À noter aussi : ' + casseMinuscule(titre2) + '.');
+    const note = e.faible === true ? 'La comparaison avec la période précédente reste fragile. Ces évolutions sont à interpréter avec prudence.' : '';
+    return { periode, texte: phrases.join(' '), note };
   }
 
   window.NexusTempo = {

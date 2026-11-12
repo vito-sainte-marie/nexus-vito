@@ -261,7 +261,9 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
 
   <section class="carte enbref" id="enBref">
     <div class="eyebrow">En bref</div>
-    <p id="enBrefTexte" style="margin-top:8px;">Donnée en cours de branchement</p>
+    <div id="enBrefPeriode" class="texte" style="margin-top:8px;"></div>
+    <p id="enBrefTexte" style="margin-top:4px;">Donnée en cours de branchement</p>
+    <p id="enBrefNote" style="margin-top:8px;font-style:italic;opacity:.75;" hidden></p>
   </section>
 
   <div class="titre-section">Trois indicateurs</div>
@@ -448,7 +450,8 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
   // Remplit une carte : état 'ok' = Fait mesuré ; sinon Non qualifié, jamais d'estimation.
   const detailExtra = {};
   // « En bref » : relit les trois cartes déjà remplies, la comparabilité et la première découverte retenue.
-  const enBrefEtat = { faible: null, decouverte: '' };
+  const enBrefEtat = { faible: null, decouverte: null, periode: null, importBoutique: null };
+  const NOM_ACTIVITE_ENBREF = { piste: 'Piste', boutique: 'Boutique', fdj: 'FDJ' };
   function majEnBref() {
     const p = document.getElementById('enBrefTexte');
     if (!p) return;
@@ -456,7 +459,12 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
       const el = document.getElementById(id), ev = el && el.querySelector('.evol-court');
       return { nom, evol: ev ? ev.textContent : '' };
     });
-    p.textContent = window.NexusTempo.syntheseEnBref({ activites, faible: enBrefEtat.faible, decouverte: enBrefEtat.decouverte });
+    const r = window.NexusTempo.syntheseEnBref({ activites, faible: enBrefEtat.faible, decouverte: enBrefEtat.decouverte,
+      periode: enBrefEtat.periode, importBoutique: enBrefEtat.importBoutique });
+    p.textContent = r.texte || 'Donnée en cours de branchement';
+    const per = document.getElementById('enBrefPeriode'), note = document.getElementById('enBrefNote');
+    if (per) per.textContent = r.periode;
+    if (note) { note.textContent = r.note; note.hidden = !r.note; }
   }
   const evolCourt = cmp => (cmp && cmp.etat === 'ok' && cmp.pct !== null && cmp.pct !== undefined)
     ? signePct(cmp.pct) + ' · ' + window.NexusTempo.libelleEvolution(cmp) : window.NexusTempo.libelleEvolution(cmp);
@@ -809,6 +817,7 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
     if (mi.etat === 'ok') {
       const nbJ = Math.round((Date.parse(mi.fin) - Date.parse(mi.debut)) / 86400000) + 1;
       perBoutique = 'Du ' + fmtDateCourte(mi.debut) + ' au ' + fmtDate(mi.fin) + ' · ' + pluriel(nbJ, 'jour', 'jours') + ' · CA : ' + fmtNb(mi.ca) + ' €';
+      enBrefEtat.importBoutique = { debut: mi.debut, fin: mi.fin };
       if (mi.debut !== bornes.debut || mi.fin !== bornes.fin) perBoutique += ' · Période différente des litres et de la FDJ';
     }
     // Marge par catégorie (lot D2) : marges réelles des imports, hors produits d'appel, deux périodes d'import comparables.
@@ -1198,10 +1207,11 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
         if (!f) return;
         const preuves = f.preuves.concat([['Rang', c.motifRang + noteRang], ['Fraîcheur', c.fraicheur.texte]]);
         remplirDecouverte(slot, Object.assign({}, f, { preuves }));
-        if (slot === 0) { enBrefEtat.decouverte = f.titre || ''; majEnBref(); }
+        if (slot === 0) { enBrefEtat.decouverte = { activite: NOM_ACTIVITE_ENBREF[c.activite] || '', titre: f.titre || '', type: c.type, detail: (f.lignes && f.lignes[0]) || '' }; majEnBref(); }
       });
     })();
 
+    enBrefEtat.periode = { debut: bornes.debut, fin: bornes.fin };
     majEnBref();
     document.getElementById('pillPeriode').textContent = 'Période étudiée : du ' + fmtDateCourte(bornes.debut) + ' au ' + fmtDate(bornes.fin) +
       ' · ' + pluriel(bornes.jours, 'jour', 'jours');
