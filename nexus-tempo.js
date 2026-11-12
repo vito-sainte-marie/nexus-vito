@@ -2738,35 +2738,40 @@
       if (q) ecartes.push({ date: j.date, motif: q.type, nom: q.nom || null, sens: q.sens || null });
       else ordinaires.push(j);
     });
-    // Exceptionnel = hors norme POUR SON JOUR DE SEMAINE, jamais contre la médiane globale :
-    // sinon l'écart entre jours, qu'on cherche à mesurer, serait écarté comme anomalie.
-    const exc = new Set();
-    ORDRE_JOURS_SEMAINE.forEach(js => joursExceptionnels(ordinaires.filter(j => jourSemaineISO(j.date) === js)).forEach(j => exc.add(j.date)));
-    exc.forEach(d => ecartes.push({ date: d, motif: 'exceptionnel', nom: null, sens: null }));
+    // Méthode commune de Tempo (médiane, MAD) appliquée à TOUS les jours ordinaires de la période,
+    // jamais jour de semaine par jour de semaine. Le résultat est montré sans, puis avec ces journées.
+    const exceptionnels = joursExceptionnels(ordinaires);
+    const exc = new Set(exceptionnels.map(j => j.date));
+    exceptionnels.forEach(j => ecartes.push({ date: j.date, motif: 'exceptionnel', nom: null, sens: null, valeur: j.valeur }));
     ecartes.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
-    const retenus = ordinaires.filter(j => !exc.has(j.date));
-    const valeurs = ORDRE_JOURS_SEMAINE.map(() => []);
-    retenus.forEach(j => { valeurs[ORDRE_JOURS_SEMAINE.indexOf(jourSemaineISO(j.date))].push(j.valeur); });
-    const parJour = ORDRE_JOURS_SEMAINE.map((js, i) => {
-      const v = valeurs[i];
-      const suffisant = v.length >= OCCURRENCES_MIN_JOUR;
-      return { jourSemaine: js, effectif: v.length, suffisant, moyenne: suffisant ? moyenneTab(v) : null, ecart: null, ecartPct: null, erreurType: null, verdict: suffisant ? 'habituel' : 'grise' };
-    });
-    const toutLisible = retenus.length > 0 && parJour.every(p => p.suffisant);
-    if (toutLisible) {
-      parJour.forEach((p, i) => {
-        const autres = [].concat(...valeurs.filter((_, k) => k !== i));
-        const mA = moyenneTab(autres), mJ = p.moyenne;
-        const se = Math.sqrt(varianceEchantillon(valeurs[i], mJ) / valeurs[i].length + varianceEchantillon(autres, mA) / autres.length);
-        p.ecart = mJ - mA; p.erreurType = se; p.ecartPct = mA > 0 ? (mJ - mA) / mA : null;
-        const nette = se > 0 ? Math.abs(p.ecart) > SEUIL_ECART_TYPES * se : p.ecart !== 0;
-        p.verdict = nette ? (p.ecart > 0 ? 'au-dessus' : 'en-dessous') : 'habituel';
+    const analyser = retenus => {
+      const valeurs = ORDRE_JOURS_SEMAINE.map(() => []);
+      retenus.forEach(j => { valeurs[ORDRE_JOURS_SEMAINE.indexOf(jourSemaineISO(j.date))].push(j.valeur); });
+      const parJour = ORDRE_JOURS_SEMAINE.map((js, i) => {
+        const v = valeurs[i];
+        const suffisant = v.length >= OCCURRENCES_MIN_JOUR;
+        return { jourSemaine: js, effectif: v.length, suffisant, moyenne: suffisant ? moyenneTab(v) : null, ecart: null, ecartPct: null, erreurType: null, verdict: suffisant ? 'habituel' : 'grise' };
       });
-    }
-    const designe = toutLisible && parJour.some(p => p.verdict !== 'habituel');
-    const etat = retenus.length === 0 ? 'absent' : (!toutLisible ? 'insuffisant' : (designe ? 'designe' : 'ressemblent'));
-    const ordre = designe ? parJour.slice().sort((a, b) => b.moyenne - a.moyenne) : parJour.slice();
-    return { etat, designe, parJour, ordre, ecartes, nbJours: retenus.length, debut: bornes.debut, fin: bornes.fin, seuil: OCCURRENCES_MIN_JOUR };
+      const toutLisible = retenus.length > 0 && parJour.every(p => p.suffisant);
+      if (toutLisible) {
+        parJour.forEach((p, i) => {
+          const autres = [].concat(...valeurs.filter((_, k) => k !== i));
+          const mA = moyenneTab(autres), mJ = p.moyenne;
+          const se = Math.sqrt(varianceEchantillon(valeurs[i], mJ) / valeurs[i].length + varianceEchantillon(autres, mA) / autres.length);
+          p.ecart = mJ - mA; p.erreurType = se; p.ecartPct = mA > 0 ? (mJ - mA) / mA : null;
+          const nette = se > 0 ? Math.abs(p.ecart) > SEUIL_ECART_TYPES * se : p.ecart !== 0;
+          p.verdict = nette ? (p.ecart > 0 ? 'au-dessus' : 'en-dessous') : 'habituel';
+        });
+      }
+      const designe = toutLisible && parJour.some(p => p.verdict !== 'habituel');
+      const etat = retenus.length === 0 ? 'absent' : (!toutLisible ? 'insuffisant' : (designe ? 'designe' : 'ressemblent'));
+      const ordre = designe ? parJour.slice().sort((a, b) => b.moyenne - a.moyenne) : parJour.slice();
+      return { etat, designe, parJour, ordre, nbJours: retenus.length };
+    };
+    const sans = analyser(ordinaires.filter(j => !exc.has(j.date)));
+    const avec = analyser(ordinaires);
+    const changements = sans.parJour.filter((p, i) => p.verdict !== avec.parJour[i].verdict).map(p => p.jourSemaine);
+    return Object.assign({}, sans, { ecartes, avec, changements, aDesExceptionnels: exceptionnels.length > 0, debut: bornes.debut, fin: bornes.fin, seuil: OCCURRENCES_MIN_JOUR });
   }
 
   // Une série par mesure : {ca: [...], marge: null, ...}. Une série absente (null) reste « indisponible »,
@@ -2795,7 +2800,17 @@
           : [J.noms[p.jourSemaine], J.pasAssez(p.effectif, res.seuil)],
       })),
       constat: J.constat[res.etat] || '',
-      ecartes: res.ecartes.length ? J.ecartes(res.ecartes) : '',
+      ecartes: res.ecartes.length ? J.ecartes(res.ecartes, m) : '',
+      avecSans: res.aDesExceptionnels && J.avecSans ? {
+        titre: J.avecSans.titre,
+        jours: res.avec.parJour.map((p, i) => ({
+          jourSemaine: p.jourSemaine, nom: J.noms[p.jourSemaine], change: res.changements.indexOf(p.jourSemaine) > -1,
+          effectifSans: res.parJour[i].effectif, effectifAvec: p.effectif,
+          texte: J.avecSans.ligne(J.noms[p.jourSemaine], p, m, res.parJour[i], res.changements.indexOf(p.jourSemaine) > -1),
+        })),
+        resume: J.avecSans.resume(res.changements.map(js => J.noms[js]), res.avec.etat),
+        echantillon: J.avecSans.echantillon(res.nbJours, res.avec.nbJours),
+      } : null,
     };
   }
 

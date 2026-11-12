@@ -29,7 +29,9 @@ function serie(valeurDuJour, debut, nb) {
   }
   return out;
 }
-const SEMAINE = serie(js => (js === 6 ? 2000 : js === 0 ? 800 : 1200), BORNES.debut, 56);
+// Profil étalé : le samedi domine, le dimanche est faible, aucun jour n’est un cas isolé pour la méthode commune.
+const PROFIL = { 1: 1000, 2: 1100, 3: 1200, 4: 1300, 5: 1400, 6: 1900, 0: 700 };
+const SEMAINE = serie(js => PROFIL[js], BORNES.debut, 56);
 const PLATE = serie(() => 1000, BORNES.debut, 56);
 
 t('un jour nettement au-dessus et un nettement en dessous sont désignés, triés du plus fort au plus faible', () => {
@@ -139,6 +141,62 @@ t('la bannière suit la page Mois : une image, srcset, alt vide, repli sur erreu
 });
 t('la tuile de l’accueil mène à la page', () => {
   assert.ok(/<a class="tuile croisee disponible" href="NEXUS-Tempo-v2-Jours.html">.*Quels sont mes jours forts et faibles \?/.test(accueil));
+});
+
+// ---- Corrections de la revue (arbitrage du 12/11) ----
+const avecValeur = (s, d, v) => s.map(j => j.date === d ? { date: j.date, valeur: v } : j);
+t('jours grisés : jamais « Les jours se ressemblent », mais la phrase d’insuffisance', () => {
+  const peu = SEMAINE.filter(j => !(new Date(j.date + 'T00:00:00Z').getUTCDay() === 3 && j.date > '2026-09-02'));
+  const l = T.lignesJours(T.joursFortsFaibles(peu, BORNES, []), 'piste');
+  assert.strictEqual(l.constat, 'Pas encore assez de semaines mesurées pour comparer les sept jours.');
+  assert.ok(!/se ressemblent/.test(l.constat));
+});
+t('les jours fériés et ponts écartés sont nommés avec leur date', () => {
+  const feries = [{ date: '2026-09-09', type: 'ferie', libelle: 'Toussaint' }];
+  const r = T.joursFortsFaibles(SEMAINE, BORNES, feries);
+  const texte = T.lignesJours(r, 'piste').ecartes;
+  assert.ok(/Toussaint/.test(texte), texte);
+  assert.ok(/9 septembre/.test(texte), texte);
+});
+t('la méthode commune porte sur tous les jours ordinaires : un profil hebdomadaire marqué n’est pas hors norme', () => {
+  const r = T.joursFortsFaibles(SEMAINE, BORNES, []);
+  assert.strictEqual(r.ecartes.filter(x => x.motif === 'exceptionnel').length, 0);
+  assert.strictEqual(r.aDesExceptionnels, false);
+  assert.strictEqual(r.nbJours, 56);
+});
+t('un jour isolé très haut est écarté du verdict principal et reste visible avec sa date et sa valeur', () => {
+  const r = T.joursFortsFaibles(avecValeur(SEMAINE, '2026-09-22', 9000), BORNES, []);
+  const e = r.ecartes.find(x => x.date === '2026-09-22');
+  assert.ok(e && e.motif === 'exceptionnel' && e.valeur > 8990);
+  assert.strictEqual(r.aDesExceptionnels, true);
+  assert.strictEqual(r.nbJours, 55);
+  assert.strictEqual(r.avec.nbJours, 56);
+  assert.ok(/22 septembre/.test(T.lignesJours(r, 'piste').ecartes));
+});
+t('avec et sans : le verdict de chaque jour est recalculé, et un changement est signalé', () => {
+  const r = T.joursFortsFaibles(avecValeur(SEMAINE, '2026-09-22', 9000), BORNES, []);
+  assert.ok(Array.isArray(r.changements));
+  assert.ok(r.avec.parJour.length === 7 && r.parJour.length === 7);
+  const mar = r.avec.parJour.find(p => p.jourSemaine === 2);
+  const marSans = r.parJour.find(p => p.jourSemaine === 2);
+  assert.ok(mar.moyenne > marSans.moyenne, 'la moyenne avec doit contenir le jour hors norme');
+  const l = T.lignesJours(r, 'piste');
+  assert.ok(l.avecSans && l.avecSans.jours.length === 7);
+  assert.ok(/55/.test(l.avecSans.echantillon) && /56/.test(l.avecSans.echantillon), l.avecSans.echantillon);
+});
+t('sans jour hors norme, aucun bloc « avec » n’est produit', () => {
+  assert.strictEqual(T.lignesJours(T.joursFortsFaibles(SEMAINE, BORNES, []), 'piste').avecSans, null);
+});
+t('la boutique est nommée « CA Boutique, source Verify », avec la phrase marge et la ligne produits d’appel', () => {
+  const J = window.NexusVocab.jours;
+  assert.strictEqual(J.boutique.titre, 'CA Boutique, source Verify');
+  assert.ok(J.boutique.rythme.includes('Un jour fort en chiffre d’affaires n’est pas forcément un jour fort en marge.'));
+  assert.ok(/produits d’appel/.test(J.boutique.appel) && /exclus du calcul de marge/.test(J.boutique.appel));
+  ['rythmeBoutique', 'appelBoutique', 'avecSansPiste', 'avecSansFdj', 'avecSansBoutique'].forEach(id => assert.ok(html.includes('id="' + id + '"'), 'manque : ' + id));
+});
+t('le lexique des jours ne contient ni tiret cadratin ni consigne', () => {
+  const brut = JSON.stringify(window.NexusVocab.jours, (k, v) => typeof v === 'function' ? v.toString() : v);
+  assert.ok(!/—/.test(brut));
 });
 
 console.log(echecs ? echecs + ' échec(s)' : 'tous ok');

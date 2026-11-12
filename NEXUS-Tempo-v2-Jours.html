@@ -267,6 +267,7 @@ details.valeurs .tableau td, details.valeurs .tableau th{white-space:nowrap;}
       <div class="graphique" id="graphPiste"></div>
       <p class="legende" id="verdictsPiste"></p>
       <p class="legende" id="ecartesPiste"></p>
+      <div class="legende" id="avecSansPiste"></div>
       <details class="valeurs" id="valeursPiste"><summary id="resumePiste"></summary><div class="defilement" id="tablePiste"></div></details>
     </section>
 
@@ -277,6 +278,7 @@ details.valeurs .tableau td, details.valeurs .tableau th{white-space:nowrap;}
       <div class="graphique" id="graphFdj"></div>
       <p class="legende" id="verdictsFdj"></p>
       <p class="legende" id="ecartesFdj"></p>
+      <div class="legende" id="avecSansFdj"></div>
       <details class="valeurs" id="valeursFdj"><summary id="resumeFdj"></summary><div class="defilement" id="tableFdj"></div></details>
     </section>
 
@@ -287,7 +289,10 @@ details.valeurs .tableau td, details.valeurs .tableau th{white-space:nowrap;}
       <div class="graphique" id="graphBoutique"></div>
       <p class="legende" id="verdictsBoutique"></p>
       <p class="legende" id="ecartesBoutique"></p>
+      <div class="legende" id="avecSansBoutique"></div>
       <p class="mention" id="precisionBoutique"></p>
+      <p class="mention" id="rythmeBoutique"></p>
+      <p class="mention" id="appelBoutique"></p>
       <details class="valeurs" id="valeursBoutique"><summary id="resumeBoutique"></summary><div class="defilement" id="tableBoutique"></div></details>
       <p class="mention" id="margeBoutique"></p>
     </section>
@@ -327,6 +332,8 @@ details.valeurs .tableau td, details.valeurs .tableau th{white-space:nowrap;}
       $('resume' + C).textContent = J.tableau;
     });
     $('precisionBoutique').textContent = J.boutique.precision;
+    $('rythmeBoutique').textContent = J.boutique.rythme;
+    $('appelBoutique').textContent = J.boutique.appel;
   }
 
   // Une mesure disponible : sept barres, une par jour de la semaine, hauteur = moyenne par jour complet.
@@ -338,6 +345,8 @@ details.valeurs .tableau td, details.valeurs .tableau th{white-space:nowrap;}
     if (!l) { zone.innerHTML = '<p class="mention">' + esc(J.aucuneDonnee) + '</p>'; return; }
     $('constat' + C).textContent = l.constat;
     $('ecartes' + C).textContent = l.ecartes || (res.etat === 'absent' ? '' : J.aucunEcart);
+    const as = $('avecSans' + C);
+    as.innerHTML = l.avecSans ? '<strong>' + esc(l.avecSans.titre) + '</strong><br>' + l.avecSans.jours.map(j => esc(j.texte)).join('<br>') + '<br>' + esc(l.avecSans.resume) + '<br>' + esc(l.avecSans.echantillon) : '';
     $('verdicts' + C).textContent = l.jours.filter(j => j.verdict === 'au-dessus' || j.verdict === 'en-dessous').map(j => j.nom + ' : ' + j.etiquette).join(' · ');
     if (res.etat === 'absent') { zone.innerHTML = '<p class="mention">' + esc(J.aucuneDonnee) + '</p>'; return; }
     const LARG = 56, GAUCHE = 20, HAUT = 230, BASE = 190, MAXB = 150;
