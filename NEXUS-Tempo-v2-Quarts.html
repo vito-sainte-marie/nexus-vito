@@ -46,7 +46,7 @@ a{color:inherit;}
 .lien-cockpit:focus-visible{outline:2px solid var(--t-cyan); outline-offset:2px; border-radius:2px;}
 .app{width:100%; max-width:1100px; min-height:100vh; display:flex; flex-direction:column; padding:env(safe-area-inset-top) 16px 40px;}
 
-.header{--bg:var(--t-bg); --panel:var(--t-panel); --line:var(--t-line); --cyan:var(--t-cyan); --text:var(--t-text);}
+.header{--bg:var(--t-bg); --panel:var(--t-panel); --line:var(--t-line); --cyan:var(--t-cyan); --text:var(--t-text); --banniere-cadrage:70% 22%; --banniere-cadrage-tel:60% 50%;}
 .header .pills{position:relative;}
 .eyebrow{font-family:var(--t-sans); font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--t-cyan);}
 .title{font-size:26px; font-weight:600; margin-top:4px;}
@@ -346,8 +346,10 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
     }
     if (!(await NexusForfait.nexusRequireProfessional('NEXUS-Tempo-v2-Quarts.html', employee.site_id))) return;
     try {
-      const ban = NexusBanniereStation.html(employee.site_id, { apercu: NexusBanniereStation.apercuDemande(), sizes: '(max-width:820px) 100vw, 50vw' });
-      if (ban) document.getElementById('enTete').insertAdjacentHTML('afterbegin', ban);
+      if (NexusBanniereStation.siteAvecBanniere(employee.site_id, NexusBanniereStation.apercuDemande())) {
+        const b = 'assets/tempo/tempo-quarts';
+        document.getElementById('enTete').insertAdjacentHTML('afterbegin', `<div class="am-banniere" data-photo-jour="${b}-1200.webp" data-photo-nuit="${b}-1200.webp"><img src="${b}-1200.webp" srcset="${b}-800.webp 800w, ${b}-1200.webp 1200w, ${b}-1600.webp 1600w" sizes="(max-width:820px) 100vw, 900px" width="800" height="267" alt="" decoding="async" onerror="this.parentNode.remove()"></div>`);
+      }
       NexusBanniereStation.suivreTheme();
     } catch (e) {}
 
