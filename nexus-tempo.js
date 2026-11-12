@@ -614,12 +614,14 @@
   //   - la part de jours de semaine où une évolution est déjà
   //     calculable, càd au moins 2 occurrences (jusqu'à 10 pts).
   // ------------------------------------------------------------
-  function composantesConfiance(joursAgreges, classement) {
+  function composantesConfiance(joursAgreges, classement, premierJour) {
     const nbJours = (joursAgreges || []).length;
     const observes = (classement || []).filter(a => a.occurrences.length > 0);
     const nbJoursSemaineCouverts = observes.length;
     const nbAvecTendance = observes.filter(a => a.confianceTendance).length;
-    const joursHistorique = calculerMaturite(joursAgreges).joursHistorique;
+    // Ancienneté : depuis le premier jour de données de l'activité, même s'il précède la fenêtre lue.
+    const debutAnciennete = premierJour && joursAgreges && joursAgreges.length && premierJour < joursAgreges[0].date ? [{ date: premierJour }] : joursAgreges;
+    const joursHistorique = calculerMaturite(debutAnciennete).joursHistorique;
     return {
       anciennete: Math.min(50, (joursHistorique / SEUILS.MATURITE_NIVEAU4_JOURS) * 50),
       volume: Math.min(25, (nbJours / SEUILS.MIN_JOURS_DECISION) * 25),
@@ -638,15 +640,16 @@
   // la page V1, appliqués aux seuls jours complets de l'activité. Une
   // activité sans date par jour (la boutique) n'a pas de niveau calculable.
   // jours : [{ date: 'YYYY-MM-DD', valeur }].
-  function confianceActivite(jours) {
+  function confianceActivite(jours, premierJour) {
     const tries = (jours || []).filter(j => j && j.date).slice().sort((a, b) => a.date < b.date ? -1 : 1)
       .map(j => ({ date: j.date, jourSemaine: dateLocale(j.date).getDay(), ventePiste: Number(j.valeur) || 0, venteBoutique: 0 }));
     const classement = calculerClassement(regrouperParJourSemaine(tries));
-    const m = calculerMaturite(tries);
-    const c = composantesConfiance(tries, classement);
+    const debut = premierJour && tries.length && premierJour < tries[0].date ? [{ date: premierJour }] : tries;
+    const m = calculerMaturite(debut);
+    const c = composantesConfiance(tries, classement, premierJour);
     return {
-      niveau: m.niveau, label: m.label, joursHistorique: m.joursHistorique, joursRestants: m.joursRestants, seuilSuivant: m.seuilSuivant,
-      pct: calculerConfianceGlobale(tries, classement),
+      niveau: m.niveau, label: m.label, joursHistorique: m.joursHistorique, joursRestants: m.joursRestants, seuilSuivant: m.seuilSuivant, seuilPrecedent: m.seuilPrecedent,
+      pct: Math.max(0, Math.min(100, Math.round(c.anciennete + c.volume + c.couverture + c.tendances))),
       composantes: [
         { nom: 'Ancienneté', points: Math.round(c.anciennete), max: 50, detail: c.joursHistorique + ' jours d\u2019historique' },
         { nom: 'Volume', points: Math.round(c.volume), max: 25, detail: c.nbJours + ' jours complets' },

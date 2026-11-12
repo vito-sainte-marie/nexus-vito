@@ -44,12 +44,12 @@ t('page V2 : Boutique « non calculable », aucun emoji, aucun code G, pas de le
   const h = lire('NEXUS-Tempo-v2.html');
   assert.ok(h.includes('Niveau non calculable : la boutique n\\u2019a pas de données par jour'));
   assert.ok(h.includes('id="confiances"'));
-  assert.ok(h.includes('T.confianceActivite(T.joursLitresCompletsPiste(rAudMois.data))'));
-  assert.ok(h.includes('T.confianceActivite(T.joursCaFdjComplets(rFdjMois.data))'));
+  assert.ok(h.includes('T.confianceActivite(T.joursLitresCompletsPiste(rAudMois.data), premPiste)'));
+  assert.ok(h.includes('T.confianceActivite(T.joursCaFdjComplets(rFdjMois.data), premFdj)'));
   const bloc = h.slice(h.indexOf('Niveau de confiance par activité :'), h.indexOf('Niveau de confiance par activité :') + 2500);
   assert.ok(!/\p{Extended_Pictographic}/u.test(bloc), 'emoji dans le rendu');
   assert.ok(!/\(G\d\)/.test(bloc));
-  assert.strictEqual((h.match(/\.from\(/g) || []).length, 16);
+  assert.strictEqual((h.match(/\.from\(/g) || []).length, 18);
 });
 
 t('rendu : les libellés de confiance ne passent pas par l\'emoji du moteur', () => {
@@ -93,3 +93,42 @@ t('commentaire JOURS_SEMAINE_MIN : arbitrage du 12/11/2026', () => {
 
 console.log(echecs ? echecs + ' échec(s)' : 'tout est ok');
 process.exit(echecs ? 1 : 0);
+
+t('forfait Professional vérifié dans les DEUX pages V2, après l\u2019authentification, avec return', () => {
+  for (const f of ['NEXUS-Tempo-v2.html', 'NEXUS-Tempo-v2-Quarts.html']) {
+    const h = lire(f);
+    assert.ok(/<script src="nexus-forfait\.js/.test(h), f + ' : script forfait absent');
+    const re = new RegExp("if \\(!\\(await NexusForfait\\.nexusRequireProfessional\\('" + f.replace(/\./g, '\\.') + "', [a-z_.]*siteId?[a-z_]*\\)\\)\\) return;");
+    assert.ok(re.test(h), f + ' : appel forfait absent');
+    assert.ok(h.indexOf('nexusRequireAuth().then') < h.indexOf('nexusRequireProfessional('), f + ' : forfait avant auth');
+  }
+});
+
+t('ancienneté : le premier jour lu hors fenêtre compte (pas la fenêtre de lecture)', () => {
+  const js = jours(40, 25); // fenêtre courte
+  const sans = T.confianceActivite(js);
+  const premier = jourISO(25 + 120);
+  const avec = T.confianceActivite(js, premier);
+  assert.ok(avec.joursHistorique > sans.joursHistorique + 100);
+  assert.ok(avec.pct > sans.pct);
+  assert.strictEqual(avec.composantes[0].detail, avec.joursHistorique + ' jours d\u2019historique');
+  assert.strictEqual(T.confianceActivite(js, jourISO(5)).joursHistorique, sans.joursHistorique); // un premier jour plus récent n\u2019écourte rien
+});
+
+t('ancienneté : deux lectures bornées d\u2019une ligne, filtrées par site, sur les deux activités', () => {
+  const h = lire('NEXUS-Tempo-v2.html');
+  assert.strictEqual((h.match(/\.select\('date'\)\.eq\('site', siteId\)\.order\('date', \{ ascending: true \}\)\.limit\(1\)/g) || []).length, 2);
+});
+
+t('barre vers le niveau suivant et texte comme V1, sans emoji', () => {
+  const h = lire('NEXUS-Tempo-v2.html');
+  assert.ok(h.includes("' jours avant niveau '"));
+  assert.ok(h.includes('niveau maximal atteint'));
+  const T2 = T.confianceActivite(jours(40, 25), jourISO(25 + 116));
+  assert.ok(T2.seuilPrecedent !== undefined && T2.seuilSuivant !== undefined);
+});
+
+t('V1 : le bandeau n\u2019emploie pas une variable CSS absente', () => {
+  const h = lire('NEXUS-Tempo-v1.html');
+  assert.ok(!h.includes('var(--border)'));
+});

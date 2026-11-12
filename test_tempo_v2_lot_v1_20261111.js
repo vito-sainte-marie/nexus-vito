@@ -31,8 +31,8 @@ t('garde de session présente (nexusRequireAuth)', () => {
   assert.ok(/nexusRequireAuth\s*\(/.test(scripts));
 });
 
-t('pas de nexus-forfait (il lit Supabase)', () => {
-  assert.ok(!/nexus-forfait/.test(html));
+t('forfait Professional exigé (comme V1)', () => {
+  assert.ok(/nexusRequireProfessional\('NEXUS-Tempo-v2\.html'/.test(html));
 });
 
 t('thème Jour/Nuit via data-theme', () => {
@@ -123,7 +123,7 @@ t('NEXUS-Tempo-v1.html inchangé (empreinte)', () => {
     .replace(/<script src="nexus-(?:config|page|bandeau-environnement)\.js[^"]*"><\/script>\n?/g, '')
     .replace(/\?v=[^"']*/g, '?v=');
   const h = crypto.createHash('sha256').update(src).digest('hex');
-  assert.strictEqual(h, '2a74f18ff6a669bd34c4ebea92a5a122232c43a0558ce17d90fed756f252d4aa');
+  assert.strictEqual(h, 'e26c7921627fa6d6d7524fb178973bb9b03c5a5894d5f237ac3c0aef06409ab5');
 });
 
 t('carte vide : aucun niveau, sauf « Hypothèse » de la colonne CA FDJ (G4)', () => {

@@ -126,7 +126,7 @@ t('page : lecture seule — aucune écriture ni RPC', () => {
 });
 
 t('page : les deux lectures d\'audits_caisse sélectionnent vente_piste et les trois litrages', () => {
-  const sel = [...scripts.matchAll(/\.from\('audits_caisse'\)\s*\.select\('([^']*)'\)/g)].map(m => m[1]);
+  const sel = [...scripts.matchAll(/\.from\('audits_caisse'\)\s*\.select\('([^']*)'\)/g)].map(m => m[1]).filter(x => x !== 'date'); // la lecture du premier jour (ancienneté) ne sélectionne que la date
   assert.strictEqual(sel.length, 4); // + période précédente (lot D4) + mois par mois (lot D5a)
   for (const s of sel) for (const c of ['vente_piste', 'litrage_gazole', 'litrage_sp95', 'litrage_gnr']) assert.ok(s.includes(c), c + ' absent de : ' + s);
 });

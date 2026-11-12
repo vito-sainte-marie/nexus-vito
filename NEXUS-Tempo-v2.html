@@ -60,6 +60,7 @@ a{color:inherit;}
 .confiance-ligne .cf-niveau{color:var(--t-mid);}
 .confiance-ligne .cf-barre{height:4px; margin-top:5px; border-radius:2px; background:var(--t-line); overflow:hidden;}
 .confiance-ligne .cf-barre span{display:block; height:100%; background:var(--t-mid);}
+.confiance-ligne .cf-texte{font-size:12px; color:var(--t-mid); margin-top:4px;}
 .pill{font-family:var(--t-sans); font-size:11.5px; padding:6px 12px; border-radius:20px; border:1px solid var(--t-line); background:var(--t-panel); color:var(--t-mid);}
 .pill.ambre{color:var(--t-amber); border-color:var(--t-amber); background:color-mix(in srgb, var(--t-amber) 12%, transparent);}
 .pill[hidden]{display:none;}
@@ -227,6 +228,7 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
 <script src="nexus-auth.js?v=20260904-0104"></script>
+<script src="nexus-forfait.js?v=20260904-0104"></script>
 <script src="nexus-icones.js?v=20260904-0104"></script>
 <script src="nexus-desktop.js?v=20260904-0104"></script>
 <script src="nexus-banniere-station.js"></script>
@@ -666,6 +668,7 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
       document.getElementById('app').innerHTML = '<div class="reserve">Cet écran est réservé aux managers.</div>';
       return;
     }
+    if (!(await NexusForfait.nexusRequireProfessional('NEXUS-Tempo-v2.html', employee.site_id))) return;
     try {
       const ban = NexusBanniereStation.html(employee.site_id, { apercu: NexusBanniereStation.apercuDemande(), sizes: '(max-width:820px) 100vw, 50vw' });
       if (ban) document.getElementById('enTete').insertAdjacentHTML('afterbegin', ban);
@@ -718,6 +721,13 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
         .select('date, nb_quarts_controles, ca_grattage, caisse_tirages')
         .eq('site', siteId).gte('date', bPrecRef.debut).lte('date', bPrecRef.fin).order('date', { ascending: true })),
     ]);
+    // Premier jour de données de chaque activité (ancienneté réelle, hors fenêtre de lecture) : une ligne, filtrée par site.
+    const [rPremPiste, rPremFdj] = await Promise.all([
+      nexusClient.from('audits_caisse').select('date').eq('site', siteId).order('date', { ascending: true }).limit(1),
+      nexusClient.from('view_fdj_daily_summary').select('date').eq('site', siteId).order('date', { ascending: true }).limit(1),
+    ]);
+    const premPiste = rPremPiste.error || !rPremPiste.data || !rPremPiste.data.length ? null : rPremPiste.data[0].date;
+    const premFdj = rPremFdj.error || !rPremFdj.data || !rPremFdj.data.length ? null : rPremFdj.data[0].date;
     // Lot D5a : lectures bornées pour le mois par mois (lecture seule, filtrées par site, jusqu'au dernier jour complet).
     const [rAudMois, rFdjMois] = await Promise.all([
       fetchAllRows(() => nexusClient.from('audits_caisse')
@@ -897,8 +907,8 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
     detailExtra.indBoutique.push({ titre: 'Mois par mois', lignes: ['Pas de comparaison mois par mois pour la boutique : la marge vient d\u2019imports qui couvrent des périodes, pas des dates. La comparaison d\u2019un import à l\u2019autre est faite plus haut.', noteAnneePrecedente] });
 
     // Niveau de confiance par activité : calculé sur les jours complets déjà lus (aucune lecture de plus).
-    const confPiste = rAudMois.error ? null : T.confianceActivite(T.joursLitresCompletsPiste(rAudMois.data));
-    const confFdj = rFdjMois.error ? null : T.confianceActivite(T.joursCaFdjComplets(rFdjMois.data));
+    const confPiste = rAudMois.error ? null : T.confianceActivite(T.joursLitresCompletsPiste(rAudMois.data), premPiste);
+    const confFdj = rFdjMois.error ? null : T.confianceActivite(T.joursCaFdjComplets(rFdjMois.data), premFdj);
     const lignesConfiance = [['Piste', confPiste], ['FDJ', confFdj], ['Boutique', 'non']];
     const zoneConf = document.getElementById('confiances');
     zoneConf.textContent = '';
@@ -909,7 +919,15 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
       tete.appendChild(noeud('span', 'cf-niveau', c === 'non' ? 'Niveau non calculable : la boutique n\u2019a pas de données par jour'
         : (c ? 'Niveau ' + c.niveau + ' \u00b7 ' + c.label + ' \u00b7 Confiance ' + nom + ' ' + c.pct + ' %' : 'Niveau non disponible : lecture impossible')));
       l.appendChild(tete);
-      if (c && c !== 'non') { const b = noeud('div', 'cf-barre'); const r = document.createElement('span'); r.style.width = c.pct + '%'; b.appendChild(r); l.appendChild(b); }
+      if (c && c !== 'non') {
+        // Barre de progression vers le niveau suivant, comme sur l'ancienne version.
+        const prop = c.seuilSuivant !== null ? Math.max(0, Math.min(1, (c.joursHistorique - c.seuilPrecedent) / (c.seuilSuivant - c.seuilPrecedent))) : 1;
+        const rempli = Math.round(prop * 10);
+        const b = noeud('div', 'cf-barre'); const r = document.createElement('span'); r.style.width = (rempli * 10) + '%'; b.appendChild(r); l.appendChild(b);
+        l.appendChild(noeud('div', 'cf-texte', c.seuilSuivant !== null
+          ? c.joursHistorique + ' / ' + c.seuilSuivant + ' jours avant niveau ' + (c.niveau + 1)
+          : c.joursHistorique + ' jours d\u2019historique \u2014 niveau maximal atteint'));
+      }
       zoneConf.appendChild(l);
     });
     [['indPiste', confPiste], ['indFdj', confFdj]].forEach(([id, c]) => {
