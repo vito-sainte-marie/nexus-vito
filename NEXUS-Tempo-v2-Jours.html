@@ -346,7 +346,8 @@ details.valeurs .tableau td, details.valeurs .tableau th{white-space:nowrap;}
     $('constat' + C).textContent = l.constat;
     $('ecartes' + C).textContent = l.ecartes || (res.etat === 'absent' ? '' : J.aucunEcart);
     const as = $('avecSans' + C);
-    as.innerHTML = l.avecSans ? '<strong>' + esc(l.avecSans.titre) + '</strong><br>' + l.avecSans.jours.map(j => esc(j.texte)).join('<br>') + '<br>' + esc(l.avecSans.resume) + '<br>' + esc(l.avecSans.echantillon) : '';
+    const ry = l.rythmes ? '<strong>' + esc(J.rythmes.titre) + '</strong><br>' + esc(l.rythmes.texte) + '<br>' + esc(l.rythmes.avantApres) + (l.avecSans ? '<br><br>' : '') : '';
+    as.innerHTML = ry + (l.avecSans ? '<strong>' + esc(l.avecSans.titre) + '</strong><br>' + l.avecSans.jours.map(j => esc(j.texte)).join('<br>') + '<br>' + esc(l.avecSans.resume) + '<br>' + esc(l.avecSans.echantillon) : '');
     $('verdicts' + C).textContent = l.jours.filter(j => j.verdict === 'au-dessus' || j.verdict === 'en-dessous').map(j => j.nom + ' : ' + j.etiquette).join(' · ');
     if (res.etat === 'absent') { zone.innerHTML = '<p class="mention">' + esc(J.aucuneDonnee) + '</p>'; return; }
     const LARG = 56, GAUCHE = 20, HAUT = 230, BASE = 190, MAXB = 150;
