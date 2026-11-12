@@ -2867,7 +2867,7 @@
         return {
           haut: [mise(t.haut.recurrent, 'haut'), mise(t.haut.moyenne, 'haut')].filter(Boolean),
           bas: [mise(t.bas.recurrent, 'bas'), mise(t.bas.moyenne, 'bas')].filter(Boolean),
-          lecture: [J.tuiles.lecture(t.haut, 'haut', m, nomsJours), J.tuiles.lecture(t.bas, 'bas', m, nomsJours)].filter(Boolean).join(' '),
+          lecture: (lh => [lh, J.tuiles.lecture(t.bas, 'bas', m, nomsJours, !!lh)].filter(Boolean).join(' '))(J.tuiles.lecture(t.haut, 'haut', m, nomsJours, false)),
           preuve: J.tuiles.preuve(jours.map(js => ({ nom: J.noms[js], effectif: res.parJour.filter(p => p.jourSemaine === js)[0].effectif }))),
         };
       })(),

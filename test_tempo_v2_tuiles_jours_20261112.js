@@ -49,9 +49,30 @@ t('cas Boutique : jour fort récurrent samedi, plus forte moyenne vendredi, jour
   assert.strictEqual(lig.tuiles.bas.length, 1, 'plus faible moyenne absente quand c’est le même jour');
 });
 t('la lecture Tempo, mot pour mot, et sa ligne de preuve', () => {
-  assert.ok(lig.tuiles.lecture.startsWith('Le vendredi réalise le chiffre d’affaires moyen le plus élevé, mais ses résultats varient fortement d’une semaine à l’autre. Le samedi se distingue par une activité supérieure plus régulière.'));
+  assert.ok(lig.tuiles.lecture.startsWith('Le vendredi réalise le chiffre d’affaires moyen le plus élevé, mais ses résultats varient fortement d’une semaine à l’autre. Le samedi se distingue par une activité supérieure plus régulière. À l’inverse, le mercredi reste le jour le plus bas, clairement sous les autres.'));
   assert.ok(/8 vendredis/.test(lig.tuiles.preuve) && /8 samedis/.test(lig.tuiles.preuve) && /Qualification selon G5/.test(lig.tuiles.preuve));
   assert.ok(!/—/.test(lig.tuiles.lecture));
+});
+function sansRepetitionLecture(txt) {
+  const verbes = txt.match(/\b(réalise|enregistre|affiche|reste|se détache|se distingue|ressort|varient|passe)\b/g) || [];
+  assert.strictEqual(new Set(verbes).size, verbes.length, 'verbe répété : ' + verbes.join(', '));
+  assert.ok((txt.match(/nettement/g) || []).length <= 1, '« nettement » répété');
+  assert.ok((txt.match(/clairement/g) || []).length <= 1, '« clairement » répété');
+  const noms = txt.match(/\b(chiffre d’affaires moyen|volume moyen)\b/g) || [];
+  assert.ok(noms.length <= 1, 'nom porteur répété : ' + noms.join(', '));
+  assert.ok(!/\)\s*\(| · | ; |—/.test(txt), 'séparateur interdit');
+}
+['piste', 'fdj', 'boutique'].forEach(cle => {
+  const fortSeul = serie((js, w) => ({ 1: 4800 + N[w], 2: 4700 + N[(w + 2) % 8], 3: 4600 + N[(w + 4) % 8], 4: 4800 + N[(w + 6) % 8], 5: 4900 + N[(w + 3) % 8], 6: 6400 + SA[w] - 5338, 0: 4750 + N[(w + 1) % 8] })[js], '2026-09-14', 56);
+  [BOUTIQUE, fortSeul].forEach((sr, i) => {
+    t('lecture Tempo sans répétition : ' + cle + ' série ' + (i + 1), () => {
+      const r = T.joursFortsFaibles(sr, BORNES, []);
+      if (r.etat !== 'designe') return;
+      const l = T.lignesJours(r, cle).tuiles.lecture;
+      assert.ok(l.length > 0);
+      sansRepetitionLecture(l);
+    });
+  });
 });
 t('plus forte moyenne : absente quand c’est le jour récurrent lui-même', () => {
   const fortSeul = serie((js, w) => ({ 1: 4800 + N[w], 2: 4700 + N[(w + 2) % 8], 3: 4600 + N[(w + 4) % 8], 4: 4800 + N[(w + 6) % 8], 5: 4900 + N[(w + 3) % 8], 6: 6400 + SA[w] - 5338, 0: 4750 + N[(w + 1) % 8] })[js], '2026-09-14', 56);

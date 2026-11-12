@@ -469,19 +469,22 @@
       moyenne: (v, a) => moisNb(v) + a.suffixe + ' par jour',
       ecart: (e, a) => (Math.round(e) > 0 ? '+' : Math.round(e) < 0 ? '−' : '') + moisNb(Math.abs(e)) + a.suffixe + '/jour',
       // cote = { recurrent, moyenne } (tuiles du moteur) ; nom(js) rend le nom du jour. Une phrase par jour, jamais de consigne.
-      lecture: (cote, sens, a, nom) => {
+      lecture: (cote, sens, a, nom, suite) => {
         const haut = sens === 'haut';
         const jour = t => nom(t.jourSemaine).toLowerCase();
-        const quoi = haut ? (a.lecture ? a.lecture.plus : 'le total moyen le plus élevé') : (a.lecture ? a.lecture.moins : 'le total moyen le plus faible');
-        const verbe = haut ? (a.lecture ? a.lecture.verbe : 'réalise') : 'affiche';
-        const tete = t => 'Le ' + jour(t) + ' ' + verbe + ' ' + quoi;
         const r = cote.recurrent, m = cote.moyenne;
-        if (r && !m) return tete(r) + ' et ' + (haut ? 'se détache nettement des autres jours.' : 'se situe nettement sous les autres jours.');
-        if (!r && m) return tete(m) + ', sans ' + (haut ? 'se détacher nettement des autres jours.' : 'se situer nettement sous les autres jours.');
-        if (r && m) {
-          const suite = 'Le ' + jour(r) + (m.irregulier ? ' se distingue par une activité ' + (haut ? 'supérieure' : 'inférieure') + ' plus régulière.' : ', lui, ' + (haut ? 'se détache nettement.' : 'se situe nettement dessous.'));
-          return tete(m) + (m.irregulier ? ', mais ses résultats varient fortement d’une semaine à l’autre. ' : ', sans s’écarter nettement des autres jours. ') + suite;
+        if (haut) {
+          const tete = t => 'Le ' + jour(t) + ' ' + (a.lecture ? a.lecture.verbe : 'réalise') + ' ' + (a.lecture ? a.lecture.plus : 'le total moyen le plus élevé');
+          if (r && !m) return tete(r) + ' et se détache nettement des autres jours.';
+          if (!r && m) return tete(m) + ', sans se détacher nettement des autres jours.';
+          if (r && m) return tete(m) + (m.irregulier ? ', mais ses résultats varient fortement d’une semaine à l’autre. ' : ', sans s’écarter nettement des autres jours. ') + 'Le ' + jour(r) + (m.irregulier ? ' se distingue par une activité supérieure plus régulière.' : ', lui, s’en détache.');
+          return '';
         }
+        // Côté bas : jamais la mesure ni « nettement » déjà dits côté haut ; « À l’inverse » seulement s’il y a un côté haut.
+        const lie = suite ? 'À l’inverse, le ' : 'Le ';
+        if (r && !m) return lie + jour(r) + ' reste le jour le plus bas, clairement sous les autres.';
+        if (!r && m) return lie + jour(m) + ' reste le jour le plus bas, sans s’écarter clairement des autres.';
+        if (r && m) return lie + jour(m) + ' reste le jour le plus bas, sans s’écarter clairement des autres. Le ' + jour(r) + (m.irregulier ? ' ressort par une activité inférieure plus régulière.' : ', lui, passe en dessous.');
         return '';
       },
       preuve: liste => {
