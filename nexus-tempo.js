@@ -2290,7 +2290,14 @@
     const etat = e && e.etat ? e.etat : 'absent';
     if (etat === 'sans_reference') return 'la période précédente n\'a pas de période de référence pour être comparée.';
     if (etat === 'absent') return 'la période précédente n\'a pas de mesure pour cette activité.';
-    if (etat === 'insuffisant') return 'la période précédente n\'a pas assez de jours mesurés, ni sur la période elle-même ni sur sa référence.';
+    if (etat === 'insuffisant') {
+      const cmp = e && e.total && e.total.cmp;
+      const min = cmp && cmp.minimum;
+      const pE = cmp && min != null && cmp.minEtudiee < min, pR = cmp && min != null && cmp.minReference < min;
+      if (pE && !pR) return 'la période précédente n\'a pas assez de jours mesurés.';
+      if (pR && !pE) return 'la référence de la période précédente n\'a pas assez de jours mesurés.';
+      return 'la période précédente ou sa référence n\'a pas assez de jours mesurés.';
+    }
     return 'la période précédente n\'a pas pu être comparée à sa référence pour cette activité.';
   }
   const NOM_ACTIVITE_DEC = { piste: 'Piste', boutique: 'Boutique', fdj: 'FDJ', croise: 'Boutique et FDJ' };

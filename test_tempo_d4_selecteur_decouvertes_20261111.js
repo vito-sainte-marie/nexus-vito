@@ -180,5 +180,8 @@ t('fraîcheur non évaluable : jamais de code d\'état visible', () => {
   });
   const r = T.selectionnerDecouvertes({ piste: e([c('piste', 'masquee', 'a')]), boutique: vide, fdj: vide }, { piste: { etat: 'insuffisant', candidats: [] }, boutique: vide, fdj: vide });
   assert.ok(/pas assez de jours mesurés/.test(r[0].fraicheur.texte));
+  const cote = (minE, minR) => T.selectionnerDecouvertes({ piste: e([c('piste', 'masquee', 'a')]), boutique: vide, fdj: vide }, { piste: { etat: 'insuffisant', total: { cmp: { etat: 'insuffisant', minimum: 4, minEtudiee: minE, minReference: minR } }, candidats: [] }, boutique: vide, fdj: vide })[0].fraicheur.texte;
+  assert.ok(/^.*la référence de la période précédente n'a pas assez/.test(cote(5, 2)), cote(5, 2));
+  assert.ok(!/référence/.test(cote(2, 5)), cote(2, 5));
 });
 console.log(n + ' épreuves');
