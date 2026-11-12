@@ -35,12 +35,17 @@ function sansRepetition(txt) {
   assert.ok(!INTERNES.test(txt), 'terme interne dans le texte');
   const noms = txt.match(/\b(volumes|marge|chiffre d’affaires)\b/g) || [];
   assert.ok(noms.length <= 3, 'trop de noms porteurs : ' + noms.length);
+  // Un nom d'évolution ne revient jamais, d'où qu'il vienne (titre de la découverte ou lexique).
+  const evol = (txt.match(/\b(baisse|hausse|recul|progression|stable|stables|marge|volume|volumes)\b/gi) || []).map(x => x.toLowerCase());
+  ['baisse', 'hausse', 'recul', 'progression', 'stable', 'stables'].forEach(m => {
+    assert.ok(evol.filter(x => x === m).length <= 1, 'nom répété : ' + m);
+  });
 }
 
 t('le rendu validé par Guardian, mot pour mot, sur les valeurs de Sainte-Marie', () => {
   const r = rendu({ activites: trois(STABLE, STABLE, '+20,9 % · Hausse confirmée'), decouverte: MASQ });
   assert.strictEqual(r.periode, 'Du 17 septembre au 11 novembre 2026.');
-  assert.strictEqual(r.texte, 'La station maintient ses volumes de carburant et sa marge boutique (import du 5 octobre au 9 novembre 2026), tandis que le chiffre d’affaires FDJ progresse de 20,9 %. Un changement mérite toutefois votre attention : SP95 en baisse de 207 L par jour (−6,6 %), une baisse que le volume total de la piste masque en partie.');
+  assert.strictEqual(r.texte, 'La station maintient ses volumes de carburant et sa marge boutique (import du 5 octobre au 9 novembre 2026), tandis que le chiffre d’affaires FDJ progresse de 20,9 %. Un changement mérite toutefois votre attention : SP95 en baisse de 207 L par jour (−6,6 %), un recul que le volume total de la piste masque en partie.');
   assert.strictEqual(r.note, '');
   sansRepetition(r.texte);
 });
@@ -81,7 +86,7 @@ t('la note de prudence reste à part, sans toucher au texte', () => {
 });
 t('la découverte masquée suit le signe du carburant : une hausse aussi', () => {
   const r = rendu({ activites: trois(STABLE, STABLE, STABLE), decouverte: Object.assign({}, MASQ, { sens: 'hausse', titre: 'Gazole en hausse de 90 L par jour (+3,1 %)' }) });
-  assert.ok(r.texte.includes('une hausse que le volume total de la piste masque en partie'));
+  assert.ok(r.texte.includes('une progression que le volume total de la piste masque en partie'));
 });
 t('une découverte d’un autre type ne reçoit pas la clause de la piste', () => {
   const r = rendu({ activites: trois(STABLE, STABLE, STABLE), decouverte: { activite: 'Boutique', type: 'decrochage', sens: 'baisse', titre: 'Chiffre d’affaires en hausse, marge en baisse' } });

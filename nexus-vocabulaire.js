@@ -317,8 +317,9 @@
     // Seule la Piste a un total qui peut masquer un carburant : le sens vient de la découverte.
     masquee: function (activite, sens) {
       if (activite !== 'Piste') return null;
-      if (sens === 'baisse' || sens === 'hausse') return 'une ' + sens + ' que le volume total de la piste masque en partie';
-      return null;
+      // Le nom diffère volontairement du mot du titre de la découverte (« en baisse » ... « un recul »).
+      const nom = sens === 'baisse' ? 'un recul' : sens === 'hausse' ? 'une progression' : null;
+      return nom ? nom + ' que le volume total de la piste masque en partie' : null;
     },
     prudence: 'La comparaison avec la période précédente reste fragile. Ces évolutions sont à interpréter avec prudence.',
   };
