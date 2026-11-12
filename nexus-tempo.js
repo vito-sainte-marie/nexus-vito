@@ -614,19 +614,46 @@
   //   - la part de jours de semaine où une évolution est déjà
   //     calculable, càd au moins 2 occurrences (jusqu'à 10 pts).
   // ------------------------------------------------------------
-  function calculerConfianceGlobale(joursAgreges, classement) {
+  function composantesConfiance(joursAgreges, classement) {
     const nbJours = (joursAgreges || []).length;
     const observes = (classement || []).filter(a => a.occurrences.length > 0);
     const nbJoursSemaineCouverts = observes.length;
     const nbAvecTendance = observes.filter(a => a.confianceTendance).length;
     const joursHistorique = calculerMaturite(joursAgreges).joursHistorique;
+    return {
+      anciennete: Math.min(50, (joursHistorique / SEUILS.MATURITE_NIVEAU4_JOURS) * 50),
+      volume: Math.min(25, (nbJours / SEUILS.MIN_JOURS_DECISION) * 25),
+      couverture: (nbJoursSemaineCouverts / 7) * 15,
+      tendances: (nbAvecTendance / 7) * 10,
+      joursHistorique, nbJours, nbJoursSemaineCouverts, nbAvecTendance
+    };
+  }
 
-    const scoreAnciennete = Math.min(50, (joursHistorique / SEUILS.MATURITE_NIVEAU4_JOURS) * 50);
-    const scoreVolume = Math.min(25, (nbJours / SEUILS.MIN_JOURS_DECISION) * 25);
-    const scoreCouverture = (nbJoursSemaineCouverts / 7) * 15;
-    const scoreTendances = (nbAvecTendance / 7) * 10;
+  function calculerConfianceGlobale(joursAgreges, classement) {
+    const c = composantesConfiance(joursAgreges, classement);
+    return Math.max(0, Math.min(100, Math.round(c.anciennete + c.volume + c.couverture + c.tendances)));
+  }
 
-    return Math.max(0, Math.min(100, Math.round(scoreAnciennete + scoreVolume + scoreCouverture + scoreTendances)));
+  // Confiance d'une activité (12/11/2026) : mêmes seuils et mêmes poids que
+  // la page V1, appliqués aux seuls jours complets de l'activité. Une
+  // activité sans date par jour (la boutique) n'a pas de niveau calculable.
+  // jours : [{ date: 'YYYY-MM-DD', valeur }].
+  function confianceActivite(jours) {
+    const tries = (jours || []).filter(j => j && j.date).slice().sort((a, b) => a.date < b.date ? -1 : 1)
+      .map(j => ({ date: j.date, jourSemaine: dateLocale(j.date).getDay(), ventePiste: Number(j.valeur) || 0, venteBoutique: 0 }));
+    const classement = calculerClassement(regrouperParJourSemaine(tries));
+    const m = calculerMaturite(tries);
+    const c = composantesConfiance(tries, classement);
+    return {
+      niveau: m.niveau, label: m.label, joursHistorique: m.joursHistorique, joursRestants: m.joursRestants, seuilSuivant: m.seuilSuivant,
+      pct: calculerConfianceGlobale(tries, classement),
+      composantes: [
+        { nom: 'Ancienneté', points: Math.round(c.anciennete), max: 50, detail: c.joursHistorique + ' jours d\u2019historique' },
+        { nom: 'Volume', points: Math.round(c.volume), max: 25, detail: c.nbJours + ' jours complets' },
+        { nom: 'Couverture', points: Math.round(c.couverture), max: 15, detail: c.nbJoursSemaineCouverts + ' jours de la semaine sur 7' },
+        { nom: 'Tendances', points: Math.round(c.tendances), max: 10, detail: c.nbAvecTendance + ' jours de la semaine avec au moins ' + SEUILS.MIN_OCCURRENCES_TENDANCE + ' mesures' }
+      ]
+    };
   }
 
   // ------------------------------------------------------------
@@ -2466,7 +2493,7 @@
   // Semaines du lundi au dimanche, entières, jusqu'au dernier jour complet. Tendance précédente = moyenne par jour complet des
   // 8 semaines qui précèdent les 4 dernières. Il y a rupture quand chacune des 4 dernières semaines est du même côté de cette
   // moyenne ET que la moyenne des 4 semaines s'en écarte nettement (Welch, 2 erreurs types). Au moins 12 semaines d'historique.
-  const SEMAINES_RECENTES = 4, SEMAINES_PRECEDENTES = 8, JOURS_SEMAINE_MIN = 6;
+  const SEMAINES_RECENTES = 4, SEMAINES_PRECEDENTES = 8, JOURS_SEMAINE_MIN = 6; // 6 jours complets par semaine : arbitrage du 12/11/2026
   function ruptureTendance(jours, fin) {
     const nonEval = motif => ({ etat: 'non_evaluable', motif, rupture: false });
     if (!fin) return nonEval('aucun jour complet n\'est disponible.');
@@ -2522,7 +2549,7 @@
     calculerPeriodesProduitsAppel, attribuerValorisationBoutique, identifierJourPlusRentable,
     identifierJoursReveles, identifierMeilleursJoursSepares, classementLitrage,
     analyserEquipe, genererDecisionPrioritaire,
-    calculerMaturite, calculerConfianceGlobale, joursFeries, estJourFerie, tagCalendaire,
+    calculerMaturite, calculerConfianceGlobale, confianceActivite, joursFeries, estJourFerie, tagCalendaire,
     joursFeriesMartinique, estJourFerieMartinique, identifierPonts, estPont,
     VACANCES_SCOLAIRES_MARTINIQUE, estVacancesScolaires, definirVacances, analyserVacancesScolaires, prochainsPonts,
     analyserDebutFinMois, analyserSaisonnier, genererDecouvertes,

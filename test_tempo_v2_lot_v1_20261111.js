@@ -105,10 +105,10 @@ t('aucun nom d\'employé réel (liste vide de prénoms de pompistes)', () => {
   assert.ok(!/<td|<tr/i.test(html));
 });
 
-t('aucun lien vers NEXUS-Tempo-v2 depuis App, Brief, menu, Cockpit et le reste', () => {
+t('liens vers NEXUS-Tempo-v2 : seulement le menu basculé (lot confiance et menu, 12/11/2026)', () => {
   const cibles = fs.readdirSync(racine).filter(f => /\.(html|js)$/.test(f) && f !== PAGE && f !== 'NEXUS-Tempo-v2-Quarts.html' && f !== 'nexus-auth.js' && !/^test_/.test(f));
   const fautifs = cibles.filter(f => /NEXUS-Tempo-v2/.test(lire(f)));
-  assert.deepStrictEqual(fautifs, []);
+  assert.deepStrictEqual(fautifs, ['NEXUS-App-v1.html', 'NEXUS-Documentation-v1.html', 'NEXUS-Tempo-v1.html', 'nexus-conseiller.js', 'nexus-desktop.js', 'nexus-forfait.js', 'nexus-raccourcis-catalogue.js', 'nexus-recherche.js']);
   // nexus-auth.js ne porte que le classement d'accès (liste des écrans opérationnels), pas un lien.
   const auth = lire('nexus-auth.js').split('\n').filter(l => /NEXUS-Tempo-v2/.test(l));
   assert.deepStrictEqual(auth.map(l => l.trim()), ["'NEXUS-Tempo-v2.html',", "'NEXUS-Tempo-v2-Quarts.html',"]);
@@ -123,7 +123,7 @@ t('NEXUS-Tempo-v1.html inchangé (empreinte)', () => {
     .replace(/<script src="nexus-(?:config|page|bandeau-environnement)\.js[^"]*"><\/script>\n?/g, '')
     .replace(/\?v=[^"']*/g, '?v=');
   const h = crypto.createHash('sha256').update(src).digest('hex');
-  assert.strictEqual(h, 'a5c31400856a5028946ca18ddf0a1e581dc5a3e6d31fe2a743d2cb40beac49bb');
+  assert.strictEqual(h, '2a74f18ff6a669bd34c4ebea92a5a122232c43a0558ce17d90fed756f252d4aa');
 });
 
 t('carte vide : aucun niveau, sauf « Hypothèse » de la colonne CA FDJ (G4)', () => {

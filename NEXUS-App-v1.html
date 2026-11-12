@@ -1253,7 +1253,7 @@
         </div>
         <div class="nav-arrow">›</div>
       </a>
-      <a class="nav-item" data-role="manager" data-forfait="professional" href="NEXUS-Tempo-v1.html">
+      <a class="nav-item" data-role="manager" data-forfait="professional" href="NEXUS-Tempo-v2.html">
         <div class="nav-icon"><img data-nexus-icone="mod-tempo" data-nexus-taille="34" data-nexus-decoratif="1" src="assets/icones/v2/mod-tempo/mod-tempo@1x.webp" srcset="assets/icones/v2/mod-tempo/mod-tempo@1x.webp 1x, assets/icones/v2/mod-tempo/mod-tempo@2x.webp 2x, assets/icones/v2/mod-tempo/mod-tempo@3x.webp 3x" width="34" height="34" alt="" aria-hidden="true" data-nexus-ancien-src="assets/icons/icon-nexus-tempo.png" data-nexus-ancien-alt="NEXUS Tempo"></div>
         <div class="nav-body">
           <div class="nav-title">Tempo <span class="nav-badge badge-premium">Professional</span></div>
@@ -1975,7 +1975,7 @@
   function descriptionRaccourci(href, ctx) {
     if (href === 'NEXUS-Cockpit-v2.html') return descriptionCockpitHome(ctx.nbPriorites, ctx.nbASurveiller, ctx.meilleureOpportunite);
     if (href === 'NEXUS-Verify-v1.html') return ctx.controlesVerify == null ? 'Contrôle caisse et écarts' : (ctx.controlesVerify > 0 ? `<span style="color:var(--amber);">${ctx.controlesVerify} contrôle${ctx.controlesVerify > 1 ? 's' : ''}</span> à effectuer` : `<span style="color:var(--green);">Audits du jour à jour</span>`);
-    if (href === 'NEXUS-Tempo-v1.html') return descriptionTempoHome(ctx.constatLitresTempo);
+    if (href === 'NEXUS-Tempo-v2.html') return descriptionTempoHome(ctx.constatLitresTempo);
     if (href === 'NEXUS-Produits-v1.html') return ctx.nbRecommandations > 0 ? `<span style="color:var(--cyan);">${ctx.nbRecommandations} priorité${ctx.nbRecommandations > 1 ? 's' : ''} produit${ctx.nbRecommandations > 1 ? 's' : ''}</span> aujourd’hui` : 'Aucune priorité produit aujourd’hui';
     const cat = RACCOURCIS_CATALOGUE[href];
     return cat ? cat.desc : '';
@@ -2011,7 +2011,7 @@
     }
     if (href === 'NEXUS-FDJ-Manager-v1.html') return (ctx.alertesFdjNonVues || 0) > 0 ? 2 : 0;
     if (href === 'NEXUS-Produits-v1.html') return ctx.nbPriorites > 0 ? 1 : 0;
-    if (href === 'NEXUS-Tempo-v1.html') return 0; // constat, jamais une urgence (G8)
+    if (href === 'NEXUS-Tempo-v2.html') return 0; // constat, jamais une urgence (G8)
     return 0;
   }
   function trierParUrgenceDuJour(liste, ctx) {
@@ -2049,7 +2049,10 @@
   async function chargerRaccourcisHome(site) {
     const { data, error } = await nexusClient.from('station_config').select('raccourcis').eq('site', site).maybeSingle();
     if (error) { console.error('Chargement raccourcis (station_config):', error); return null; }
-    return (data && Array.isArray(data.raccourcis) && data.raccourcis.length) ? data.raccourcis : null;
+    if (!(data && Array.isArray(data.raccourcis) && data.raccourcis.length)) return null;
+    // Ancien raccourci Tempo : on le lit comme la nouvelle version, sans rien écrire en base.
+    const lus = data.raccourcis.map(h => h === 'NEXUS-Tempo-v1.html' ? 'NEXUS-Tempo-v2.html' : h);
+    return lus.filter((h, i) => lus.indexOf(h) === i);
   }
 
   // Pouls d'activité de l'en-tête (27/07/2026, demande de Frédéric — "le
@@ -3297,7 +3300,7 @@
     return page === 'NEXUS-Brief-v1.html' && briefNexusInclus === false;
   }
   const LABEL_PAGE_FORFAIT = {
-    'NEXUS-Tempo-v1.html': 'NEXUS Tempo', 'NEXUS-Campagne-v1.html': 'Campagne NEXUS',
+    'NEXUS-Tempo-v2.html': 'NEXUS Tempo', 'NEXUS-Campagne-v1.html': 'Campagne NEXUS',
     'NEXUS-Capital-v1.html': 'Capital NEXUS', 'NEXUS-Planning-v1.html': 'Nexus Planner',
     'NEXUS-Scanner-v1.html': 'Scanner NEXUS', 'NEXUS-Journal-v1.html': 'Journal NEXUS',
     'NEXUS-Assignations-v1.html': 'Assignations', 'NEXUS-Resultats-Equipe-v1.html': 'Résultats Équipe',

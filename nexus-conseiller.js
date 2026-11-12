@@ -805,7 +805,7 @@
       opportunites: c.opportunites || null,
       impactAttendu: c.impactAttendu,
       preuve: null, limites: c.limites || null,
-      cible: 'NEXUS-Tempo-v1.html', validable: false,
+      cible: 'NEXUS-Tempo-v2.html', validable: false,
       // libelleAction (22/08/2026, v2.226) — remplace le lien générique
       // "→ Aller vérifier dans Tempo" par un libellé propre au signal.
       libelleAction: "Voir l'analyse Tempo",

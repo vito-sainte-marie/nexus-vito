@@ -52,6 +52,14 @@ a{color:inherit;}
 .title{font-size:26px; font-weight:600; margin-top:4px;}
 .subtitle{font-size:14px; color:var(--t-mid); margin-top:4px;}
 .pills{display:flex; flex-wrap:wrap; gap:8px; margin-top:14px;}
+.confiances{margin-top:12px; display:grid; gap:8px; max-width:460px;}
+.confiances:empty{display:none;}
+.confiance-ligne{font-family:var(--t-sans); font-size:12.5px; color:var(--t-text);}
+.confiance-ligne .cf-tete{display:flex; justify-content:space-between; gap:12px;}
+.confiance-ligne .cf-nom{font-weight:600;}
+.confiance-ligne .cf-niveau{color:var(--t-mid);}
+.confiance-ligne .cf-barre{height:4px; margin-top:5px; border-radius:2px; background:var(--t-line); overflow:hidden;}
+.confiance-ligne .cf-barre span{display:block; height:100%; background:var(--t-mid);}
 .pill{font-family:var(--t-sans); font-size:11.5px; padding:6px 12px; border-radius:20px; border:1px solid var(--t-line); background:var(--t-panel); color:var(--t-mid);}
 .pill.ambre{color:var(--t-amber); border-color:var(--t-amber); background:color-mix(in srgb, var(--t-amber) 12%, transparent);}
 .pill[hidden]{display:none;}
@@ -243,6 +251,7 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
       <span class="pill" id="pillPeriode">Période étudiée : <span class="vide">donnée en cours de branchement</span></span>
       <span class="pill ambre" id="pillComparabilite" hidden>Comparabilité faible avec la période précédente</span>
     </div>
+    <div class="confiances" id="confiances" aria-label="Niveau de confiance par activité"></div>
     </div>
   </div>
 
@@ -886,6 +895,30 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
         : ['Aucun mois complet mesuré pour l\u2019instant. La FDJ se compare mois par mois à partir de janvier 2026.']).concat([noteAnneePrecedente]) });
     }
     detailExtra.indBoutique.push({ titre: 'Mois par mois', lignes: ['Pas de comparaison mois par mois pour la boutique : la marge vient d\u2019imports qui couvrent des périodes, pas des dates. La comparaison d\u2019un import à l\u2019autre est faite plus haut.', noteAnneePrecedente] });
+
+    // Niveau de confiance par activité : calculé sur les jours complets déjà lus (aucune lecture de plus).
+    const confPiste = rAudMois.error ? null : T.confianceActivite(T.joursLitresCompletsPiste(rAudMois.data));
+    const confFdj = rFdjMois.error ? null : T.confianceActivite(T.joursCaFdjComplets(rFdjMois.data));
+    const lignesConfiance = [['Piste', confPiste], ['FDJ', confFdj], ['Boutique', 'non']];
+    const zoneConf = document.getElementById('confiances');
+    zoneConf.textContent = '';
+    lignesConfiance.forEach(([nom, c]) => {
+      const l = noeud('div', 'confiance-ligne');
+      const tete = noeud('div', 'cf-tete');
+      tete.appendChild(noeud('span', 'cf-nom', nom));
+      tete.appendChild(noeud('span', 'cf-niveau', c === 'non' ? 'Niveau non calculable : la boutique n\u2019a pas de données par jour'
+        : (c ? 'Niveau ' + c.niveau + ' \u00b7 ' + c.label + ' \u00b7 Confiance ' + nom + ' ' + c.pct + ' %' : 'Niveau non disponible : lecture impossible')));
+      l.appendChild(tete);
+      if (c && c !== 'non') { const b = noeud('div', 'cf-barre'); const r = document.createElement('span'); r.style.width = c.pct + '%'; b.appendChild(r); l.appendChild(b); }
+      zoneConf.appendChild(l);
+    });
+    [['indPiste', confPiste], ['indFdj', confFdj]].forEach(([id, c]) => {
+      if (!c) return;
+      detailExtra[id].push({ titre: 'Niveau de confiance', lignes: ['Niveau ' + c.niveau + ' \u00b7 ' + c.label + ' : ' + pluriel(c.joursHistorique, 'jour', 'jours') + ' d\u2019historique'
+        + (c.seuilSuivant ? ', encore ' + pluriel(c.joursRestants, 'jour', 'jours') + ' avant le niveau suivant' : '') + '.']
+        .concat(c.composantes.map(k => k.nom + ' : ' + k.points + ' sur ' + k.max + ' (' + k.detail + ')'))
+        .concat(['Total : ' + c.pct + ' %']) });
+    });
 
     // Comparabilité (G5, G9) : lecture seule, aucune conclusion tirée d'une période peu comparable.
     if (refOk && !rCal.error) {
