@@ -79,8 +79,8 @@ t('FDJ au quart 1 : rapport arrondi au dixième, null sans quart 2', () => {
   assert.strictEqual(T.rapportFdjQuart1(null), null);
 });
 
-t('page : trois cartes remplies par script, preuves en <details>, aucun lien', () => {
-  assert.ok(/remplirDecouverte\(0,/.test(scripts) && /remplirDecouverte\(1,/.test(scripts) && /remplirDecouverte\(2,/.test(scripts));
+t('page : quatre cartes remplies par script, preuves en <details>, aucun lien', () => {
+  assert.ok(/remplirDecouverte\(0,/.test(scripts) && /remplirDecouverte\(1,/.test(scripts) && /remplirDecouverte\(2,/.test(scripts) && /remplirDecouverte\(3,/.test(scripts));
   assert.ok(/'details'/.test(scripts) && /Voir les preuves/.test(scripts));
   assert.ok(/Une relation, pas une cause\./.test(scripts));
   assert.ok(/Rattachement des tirages au quart à confirmer/.test(scripts) && /arbitrage: 'G4'/.test(scripts));

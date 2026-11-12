@@ -2118,6 +2118,101 @@
     { id: 'ponts', nom: 'Ponts calendaires', statut: 'connectee' },
   ];
 
+  // ------------------------------------------------------------
+  // Lot D2 « Boutique : marge par catégorie » (Guardian 6807845745, 6808820162).
+  // Calculs purs sur les lignes `products` déjà lues. Marges réelles seulement (hors produits d'appel).
+  // Les imports sont des agrégats de période : jamais de marge par quart ni par date déduite.
+  //   - Étudiée = dernière période d'import ; référence = périodes d'import précédentes cumulées
+  //     jusqu'à couvrir au moins la même durée.
+  //   - Comparabilité (G5) : rapport de durées ≤ 2, écart de vacances et de fériés ≤ 20 points.
+  //     Comparabilité faible : la comparaison est gardée, avec sa raison. « Tendance non déterminée »
+  //     seulement quand aucune référence ne peut être constituée.
+  //   - Marge globale éligible : |écart par jour| ≥ SEUIL_MARGE_GLOBALE_PCT ou ≥ SEUIL_MARGE_GLOBALE_EUROS_JOUR.
+  //   - Catégorie candidate : écart ≥ SEUIL_CATEGORIE_EUROS_JOUR (en valeur absolue, € par jour).
+  //   - A2 : une catégorie est citée seule si elle explique strictement plus de SEUIL_CONCENTRATION_CATEGORIE
+  //     de la variation nette de la marge.
+  //   - Types de découverte, ordre par défaut : (a) masquée / compensation, (b) décrochage chiffre
+  //     d'affaires / marge, (c) variation simple. Pas de doublon : si (b) tient, il cite les catégories
+  //     de (a), qui n'ouvrent pas de découverte à part ; une seule découverte Boutique est retenue.
+  // ------------------------------------------------------------
+  const SEUIL_MARGE_GLOBALE_PCT = 0.03;
+  const SEUIL_MARGE_GLOBALE_EUROS_JOUR = 30;
+  const SEUIL_CATEGORIE_EUROS_JOUR = 30;
+  const SEUIL_CONCENTRATION_CATEGORIE = 0.5;
+  const SEUIL_CA_DECROCHAGE_PCT = 0.03;
+  const CATEGORIE_SANS_NOM = 'Sans catégorie';
+
+  function analyseBoutique(productsRows, articlesAppel, analyserPeriodes, lignesFeries) {
+    const vide = (etat, extra) => Object.assign({ etat, etudiee: null, reference: null, global: null, categories: [], candidats: [], retenue: null, motif: null, comparabilite: null,
+      seuils: { margePct: SEUIL_MARGE_GLOBALE_PCT, margeEuros: SEUIL_MARGE_GLOBALE_EUROS_JOUR, categorieEuros: SEUIL_CATEGORIE_EUROS_JOUR, concentration: SEUIL_CONCENTRATION_CATEGORIE } }, extra || {});
+    const appel = new Set(articlesAppel || []);
+    const propres = (productsRows || []).filter(r => r && !appel.has(r.article) && (Number(r.ca) || 0) > 0 && (Number(r.marge) || 0) >= 0 && (Number(r.marge) || 0) <= (Number(r.ca) || 0));
+    const { periodesTriees } = analyserPeriodes(propres);
+    if (!periodesTriees.length) return vide('absent');
+    const pE = periodesTriees[0];
+    const refs = [];
+    let joursRef = 0;
+    for (let i = 1; i < periodesTriees.length && joursRef < pE.duree; i++) { refs.push(periodesTriees[i]); joursRef += periodesTriees[i].duree; }
+    if (!refs.length) return vide('sans_reference', { etudiee: { debut: pE.debut, fin: pE.fin, jours: pE.duree } });
+    const etudiee = { debut: pE.debut, fin: pE.fin, jours: pE.duree };
+    const reference = { debut: refs[refs.length - 1].debut, fin: refs[0].fin, jours: joursRef, periodes: refs.map(r => ({ debut: r.debut, fin: r.fin, jours: r.duree })) };
+    // Comparabilité : les calendriers des périodes d'import cumulées s'additionnent.
+    const calE = compositionCalendrier(pE, lignesFeries);
+    const calsR = refs.map(r => compositionCalendrier(r, lignesFeries));
+    const sum = k => calsR.reduce((t, c) => t + c[k], 0);
+    const calR = { jours: joursRef, vacances: sum('vacances'), feries: sum('feries'), weekends: sum('weekends'),
+      pctVacances: sum('vacances') / joursRef, pctFeries: sum('feries') / joursRef, pctWeekends: sum('weekends') / joursRef };
+    const comparabilite = evaluerComparabilite(etudiee, reference, calE, calR, []);
+    comparabilite.calE = calE; comparabilite.calR = calR;
+    // Agrégation par catégorie, par jour.
+    const agr = (rows, jours) => {
+      const m = {};
+      rows.forEach(r => { const c = (r.categorie && String(r.categorie).trim()) || CATEGORIE_SANS_NOM;
+        if (!m[c]) m[c] = { marge: 0, ca: 0 }; m[c].marge += Number(r.marge) || 0; m[c].ca += Number(r.ca) || 0; });
+      Object.values(m).forEach(v => { v.marge /= jours; v.ca /= jours; });
+      return m;
+    };
+    const clesR = new Set(refs.map(r => r.debut + '|' + r.fin));
+    const mE = agr(propres.filter(r => r.periode_debut === pE.debut && r.periode_fin === pE.fin), pE.duree);
+    const mR = agr(propres.filter(r => clesR.has(r.periode_debut + '|' + r.periode_fin)), joursRef);
+    const noms = Array.from(new Set(Object.keys(mE).concat(Object.keys(mR))));
+    const tot = m => Object.values(m).reduce((t, v) => ({ marge: t.marge + v.marge, ca: t.ca + v.ca }), { marge: 0, ca: 0 });
+    const tE = tot(mE), tR = tot(mR);
+    const ecart = tE.marge - tR.marge;
+    const pctMarge = tR.marge > 0 ? ecart / tR.marge : null;
+    const pctCa = tR.ca > 0 ? (tE.ca - tR.ca) / tR.ca : null;
+    const eligible = (pctMarge !== null && Math.abs(pctMarge) >= SEUIL_MARGE_GLOBALE_PCT) || Math.abs(ecart) >= SEUIL_MARGE_GLOBALE_EUROS_JOUR;
+    const global = { margeE: tE.marge, margeR: tR.marge, caE: tE.ca, caR: tR.ca, ecart, pctMarge, pctCa, eligible, sens: ecart > 0 ? 'hausse' : ecart < 0 ? 'baisse' : 'stable' };
+    const categories = noms.map(nom => {
+      const e = mE[nom] || { marge: 0, ca: 0 }, r = mR[nom] || { marge: 0, ca: 0 };
+      const contribution = e.marge - r.marge;
+      return { nom, margeE: e.marge, margeR: r.marge, caE: e.ca, caR: r.ca, contribution, contributionCa: e.ca - r.ca,
+        candidate: Math.abs(contribution) >= SEUIL_CATEGORIE_EUROS_JOUR, part: ecart !== 0 ? contribution / ecart : null };
+    }).sort((a, b) => Math.abs(b.contribution) - Math.abs(a.contribution));
+    const base = { etudiee, reference, global, categories, comparabilite, seuils: vide('x').seuils };
+    // Comparabilité faible : on garde la comparaison et on affiche la raison (comme Piste et FDJ).
+    const cand = categories.filter(c => c.candidate);
+    // Évolution masquée : une catégorie à 30 € par jour ou plus (hausse ou baisse), même seule, dont le sens
+    // n'est pas celui du total, ou dont le total est stable. La compensation en est le cas où deux sens s'opposent.
+    const masquantes = cand.filter(c => !eligible || (c.contribution > 0) !== (ecart > 0));
+    const hausses2 = cand.some(c => c.contribution > 0), baisses2 = cand.some(c => c.contribution < 0);
+    const candidats = [];
+    if (masquantes.length) candidats.push({ type: 'masquee', categories: cand.map(c => c.nom) });
+    const caBouge = pctCa !== null && Math.abs(pctCa) >= SEUIL_CA_DECROCHAGE_PCT;
+    const decroche = caBouge && (!eligible || (ecart > 0) !== (tE.ca - tR.ca > 0));
+    if (decroche) candidats.push({ type: 'decrochage', categories: cand.map(c => c.nom) });
+    const forte = eligible ? categories.find(c => c.part !== null && c.part > SEUIL_CONCENTRATION_CATEGORIE) : null;
+    if (eligible) candidats.push({ type: 'simple', categorie: forte ? forte.nom : null });
+    let retenue = null, motif = 'aucune variation à signaler';
+    const dec = candidats.find(c => c.type === 'decrochage'), mas = candidats.find(c => c.type === 'masquee');
+    if (dec) {
+      retenue = dec;
+      motif = mas ? 'le décrochage cite les catégories concernées, l\'évolution masquée n\'ouvre pas de découverte à part' : 'décrochage entre chiffre d\'affaires et marge';
+    } else if (mas) { retenue = mas; motif = hausses2 && baisses2 ? 'compensation entre catégories' : 'évolution masquée par une catégorie'; }
+    else if (candidats.length) { retenue = candidats[0]; motif = forte ? 'une catégorie explique plus de la moitié de la variation' : 'variation de la marge sans catégorie dominante'; }
+    return Object.assign(vide('ok'), base, { candidats, retenue, motif });
+  }
+
   // Vocabulaire d'évolution (lot V4) : fonction pure, jamais de conclusion sur le seul pourcentage.
   function libelleEvolution(cmp) {
     if (!cmp || cmp.etat !== 'ok' || cmp.pct === null || cmp.pct === undefined) return 'Tendance non déterminée';
@@ -2147,6 +2242,7 @@
     compositionCalendrier, evaluerComparabilite, prixMoyenMesure,
     joursCaPiste, joursCaBoutique, analysePiste, departagerDepassement, joursLitresCarburant, quartsLitresCarburant, horsServiceCarburant, CARBURANTS, JOURS_HORS_SERVICE, SEUIL_PART_POINTS, K_DEPASSEMENT, correlationResidus, relationBoutiqueFdj, rapportFdjQuart1, SEUIL_RELATION_JOURS,
     libelleEvolution,
+    analyseBoutique, SEUIL_MARGE_GLOBALE_PCT, SEUIL_MARGE_GLOBALE_EUROS_JOUR, SEUIL_CATEGORIE_EUROS_JOUR, SEUIL_CONCENTRATION_CATEGORIE, SEUIL_CA_DECROCHAGE_PCT,
     analyseFdj, constatCompositionFdj, detailPaliersFdj, detailJeuxFdj, joursFamilleFdj, FAMILLES_FDJ, SEUIL_PART_FAMILLE, AUTRE_FAMILLE_NETTE_EMPECHE_CITATION_SEULE,
   };
 })();
