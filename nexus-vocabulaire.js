@@ -518,14 +518,27 @@
     grise: 'Pas assez de jours pour conclure',
     jourGrise: 'Insuffisant',
     habituel: 'Variation habituelle',
-    entetes: { jour: 'Jour', vacances: 'Moyenne en vacances', hors: 'Moyenne hors vacances', jours: 'Jours comparés', ecart: 'Écart' },
-    effectifs: (v, h) => v + ' en vacances, ' + h + ' hors vacances',
+    entetes: { jour: 'Jour', vacances: 'Moyenne en vacances', hors: 'Moyenne hors vacances', jours: 'Jours (vacances / hors)', ecart: 'Écart' },
+    effectifs: (v, h) => v + ' / ' + h,
     ecart: pct => pctSigne(pct),
     moyenne: (v, a) => moisNb(v) + a.suffixe,
     observees: (periodes) => periodes.length
       ? 'Vacances observées : ' + periodes.map(p => p.libelle + ' (' + dateLongue(p.debut) + (p.fin !== p.debut ? ' au ' + dateLongue(p.fin) : '') + ', ' + p.nbJours + ' jour' + (p.nbJours > 1 ? 's' : '') + ')').join(', ') + '.'
       : 'Vacances observées : aucune période complète dans la fenêtre.',
-    fenetre: (semaines, debut, fin, bornee) => 'Fenêtre : ' + semaines + ' semaines closes, du ' + dateLongue(debut) + ' au ' + dateLongue(fin) + (bornee ? ', limitée au début des données de cette source' : '') + '.',
+    fenetre: (semaines, debut, fin, bornee) => bornee
+      ? 'Fenêtre : du ' + dateLongue(debut) + ' au ' + dateLongue(fin) + ' (' + semaines + ' semaines closes au plus, limitée au début des données de cette source).'
+      : 'Fenêtre : ' + semaines + ' semaines closes, du ' + dateLongue(debut) + ' au ' + dateLongue(fin) + '.',
+    // Ligne sous un verdict qui n'est pas « net » : écarts nets isolés, cités par sens. Dénominateur = jours lisibles.
+    ecartsIsoles: (parJour, lisibles) => {
+      const nets = parJour.filter(p => p.suffisant && p.net);
+      if (!nets.length) return '';
+      const liste = (sens) => {
+        const n = nets.filter(p => p.sens === sens).map(p => NexusVocab.vacances.noms[p.jourSemaine].toLowerCase());
+        return n.length ? 'en ' + sens + ' ' + n.map(x => 'le ' + x).join(', ').replace(/, ([^,]*)$/, ' et $1') : '';
+      };
+      const morceaux = [liste('hausse'), liste('baisse')].filter(Boolean);
+      return 'Écart net sur ' + nets.length + ' jour' + (nets.length > 1 ? 's' : '') + ' sur ' + lisibles + ' : ' + morceaux.join(', ') + '.';
+    },
     exclus: (e) => {
       const n = e.feries + e.ponts + e.ascension;
       if (!n) return 'Aucun jour férié ni pont dans la fenêtre.';

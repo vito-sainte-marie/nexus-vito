@@ -251,6 +251,8 @@ details.valeurs .tableau td, details.valeurs .tableau th{white-space:nowrap;}
 .groupe-vac .verdict{font-size:14px; font-weight:600; color:var(--t-text); margin:6px 0;}
 .groupe-vac.grise .verdict{color:var(--t-mid); font-weight:500;}
 .groupe-vac .tableau td.insuf{color:var(--t-mid);}
+.groupe-vac .tableau td.ec, .groupe-vac .tableau td.insuf{white-space:nowrap;}
+.groupe-vac .isoles{font-size:13px; color:var(--t-mid); margin:0 0 8px;}
 .vac-notes p{margin:6px 0;}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -361,7 +363,7 @@ details.valeurs .tableau td, details.valeurs .tableau th{white-space:nowrap;}
       t += '<tr><td>' + esc(V.noms[p.jourSemaine]) + '</td>' +
         '<td' + (p.suffisant ? '' : ' class="insuf"') + '>' + (p.suffisant ? esc(V.moyenne(p.moyenneVacances, act)) : '') + '</td>' +
         '<td' + (p.suffisant ? '' : ' class="insuf"') + '>' + (p.suffisant ? esc(V.moyenne(p.moyenneHors, act)) : '') + '</td>' +
-        '<td>' + esc(V.effectifs(p.effectifVacances, p.effectifHors)) + '</td><td' + cls + '>' + esc(ecart) + '</td></tr>';
+        '<td>' + esc(V.effectifs(p.effectifVacances, p.effectifHors)) + '</td><td' + (cls || ' class="ec"') + '>' + esc(ecart) + '</td></tr>';
     });
     return t + '</tbody></table>';
   }
@@ -370,7 +372,9 @@ details.valeurs .tableau td, details.valeurs .tableau th{white-space:nowrap;}
     const info = res.groupes[g], H = V.horsNorme;
     let h = '<div class="groupe-vac' + (info.sans.etat === 'grise' ? ' grise' : '') + '"><h4>' + esc(V.groupes[g]) + '</h4>' +
       '<div class="detail">' + esc(V.groupesDetail[g]) + '</div>' +
-      '<div class="verdict">' + esc(verdictTexte(info.sans)) + '</div>' + tableau(info.sans, act);
+      '<div class="verdict">' + esc(verdictTexte(info.sans)) + '</div>' +
+      (info.sans.etat === 'lisible' && info.sans.verdict !== 'net' && V.ecartsIsoles(info.sans.parJour, info.sans.lisibles) ? '<p class="isoles">' + esc(V.ecartsIsoles(info.sans.parJour, info.sans.lisibles)) + '</p>' : '') +
+      tableau(info.sans, act);
     h += '<p class="mention"><strong>' + esc(H.titre) + '</strong><br>' + esc(res.aDesExceptionnels ? H.nombre(res.exceptionnels.length) : H.aucune);
     if (res.aDesExceptionnels) {
       h += '<br>' + esc(H.sans) + ' : ' + esc(verdictTexte(info.sans)) + '<br>' + esc(H.avec) + ' : ' + esc(verdictTexte(info.avec)) +

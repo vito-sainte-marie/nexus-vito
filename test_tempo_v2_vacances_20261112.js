@@ -149,5 +149,46 @@ t('la tuile est un lien réel vers la page', () => {
   assert.ok(/<a[^>]*href="NEXUS-Tempo-v2-Vacances\.html"[^>]*>/.test(tuiles), 'tuile non câblée');
 });
 
+// --- Retouches de la recette Guardian (6839425612, 6839447353) ---
+const VV = window.NexusVocab.vacances;
+const pj = (js_, net, sens, suffisant = true) => ({ jourSemaine: js_, suffisant, net, sens: net ? sens : null });
+t('trois écarts nets sur sept : la ligne les nomme, sans changer le verdict', () => {
+  const g = { etat: 'lisible', verdict: 'pas-ecart', lisibles: 7, parJour: [pj(1, true, 'hausse'), pj(2, false), pj(3, true, 'hausse'), pj(4, false), pj(5, true, 'hausse'), pj(6, false), pj(0, false)] };
+  assert.strictEqual(VV.ecartsIsoles(g.parJour, g.lisibles), 'Écart net sur 3 jours sur 7 : en hausse le lundi, le mercredi et le vendredi.');
+  assert.strictEqual(VV.verdicts[g.verdict], 'Pas d’écart net');
+});
+t('aucun écart net : pas de ligne', () => {
+  assert.strictEqual(VV.ecartsIsoles([pj(1, false), pj(2, false)], 2), '');
+});
+t('un seul écart net : singulier', () => {
+  assert.strictEqual(VV.ecartsIsoles([pj(1, false), pj(4, true, 'baisse')], 5), 'Écart net sur 1 jour sur 5 : en baisse le jeudi.');
+});
+t('sens mêlés : les jours sont cités par sens', () => {
+  const l = VV.ecartsIsoles([pj(1, true, 'hausse'), pj(2, true, 'baisse'), pj(3, true, 'baisse'), pj(4, false)], 4);
+  assert.strictEqual(l, 'Écart net sur 3 jours sur 4 : en hausse le lundi, en baisse le mardi et le mercredi.');
+});
+t('le dénominateur est le nombre de jours lisibles, un jour insuffisant n’est pas compté', () => {
+  const l = VV.ecartsIsoles([pj(1, true, 'hausse'), pj(2, false, null, false)], 5);
+  assert.ok(/ sur 5 :/.test(l));
+  assert.strictEqual(VV.ecartsIsoles([pj(2, true, 'hausse', false)], 4), '');
+});
+t('la ligne est sans répétition de séparateur et sans terme interne', () => {
+  const l = VV.ecartsIsoles([pj(1, true, 'hausse'), pj(2, true, 'baisse')], 7);
+  assert.ok(!/ · | ; |—/.test(l));
+});
+t('la page n’affiche la ligne que pour un groupe lisible dont le verdict n’est pas « net »', () => {
+  assert.ok(/info\.sans\.etat === 'lisible' && info\.sans\.verdict !== 'net' && V\.ecartsIsoles\(/.test(html));
+});
+t('tableau étroit : effectifs « 7 / 7 », en-tête court, écart insécable', () => {
+  assert.strictEqual(VV.effectifs(7, 7), '7 / 7');
+  assert.strictEqual(VV.entetes.jours, 'Jours (vacances / hors)');
+  assert.ok(/\.groupe-vac \.tableau td\.ec[^{]*\{[^}]*white-space:nowrap/.test(html));
+  assert.ok(html.includes('class="ec"'));
+});
+t('libellé de fenêtre : bornée par les données ou pleine', () => {
+  assert.strictEqual(VV.fenetre(52, '2026-03-02', '2026-11-08', true), 'Fenêtre : du 2 mars au 8 novembre (52 semaines closes au plus, limitée au début des données de cette source).');
+  assert.strictEqual(VV.fenetre(52, '2025-11-10', '2026-11-08', false), 'Fenêtre : 52 semaines closes, du 10 novembre au 8 novembre.');
+});
+
 console.log(echecs ? echecs + ' échec(s)' : 'tous ok');
 process.exit(echecs ? 1 : 0);
