@@ -2235,8 +2235,8 @@
   const NB_DECOUVERTES_ACCUEIL = 3;
   const RANGS_PERDUS_FRAICHEUR = 1;
   const ACTIVITES_DECOUVERTES = ['piste', 'boutique', 'fdj'];
-  const RANG_PRIORITE = { masquee: 1, repartition: 1, decrochage: 1, variation: 2, simple: 2, relation: 3 };
-  const LIBELLE_PRIORITE = { masquee: 'masqué', repartition: 'répartition', decrochage: 'découplage', variation: 'variation simple', simple: 'variation simple', relation: 'relation croisée' };
+  const RANG_PRIORITE = { masquee: 1, repartition: 1, decrochage: 1, variation: 2, simple: 2, relation: 3, rupture: 3, mois: 3 };
+  const LIBELLE_PRIORITE = { masquee: 'masqué', repartition: 'répartition', decrochage: 'découplage', variation: 'variation simple', simple: 'variation simple', relation: 'relation croisée', rupture: 'changement durable', mois: 'mois inhabituel' };
   const signeDec = x => x > 0 ? 1 : x < 0 ? -1 : 0;
 
   // Candidats normalisés d'une activité, dans l'ordre du moteur : { etat, motif, candidats:[{activite, type, cle, sens, rang, net, source}] }.
@@ -2291,7 +2291,10 @@
     const croises = entrees && entrees.croise && entrees.croise.etat === 'ok'
       ? entrees.croise.candidats.filter(c => c.net !== false).map(c => Object.assign({}, c, { positionActivite: 1, motifMoteur: null })) : [];
     // Un candidat par activité d'abord, puis la suite dans l'ordre de priorité ; la relation croisée passe en dernier.
-    return trierDec(trierDec(premiers).concat(trierDec(suite)).concat(croises).slice(0, n));
+    // Découvertes historiques (lot D5b) : même rang que la relation croisée, après elle, dans l'ordre fourni (rupture, mois inhabituel, activités).
+    const historiques = entrees && entrees.historique && entrees.historique.etat === 'ok'
+      ? entrees.historique.candidats.filter(c => c.net !== false).map(c => Object.assign({}, c, { positionActivite: 1, motifMoteur: null, historique: true })) : [];
+    return trierDec(trierDec(premiers).concat(trierDec(suite)).concat(croises).concat(historiques).slice(0, n));
   }
   // Raison réelle pour laquelle la période précédente ne peut pas servir de repère.
   function raisonNonEvaluable(e) {
@@ -2325,11 +2328,13 @@
     const decores = courants.map(c => {
       const eAct = precedent && precedent[c.activite];
       let fraicheur;
-      if (!eAct || eAct.etat !== 'ok') fraicheur = { etat: 'non_evaluable', perdu: false, texte: 'Fraîcheur non évaluable : ' + raisonNonEvaluable(eAct) + ' Aucun effet sur le rang.' };
+      if (c.historique) fraicheur = { etat: 'non_evaluable', perdu: false, texte: 'Fraîcheur sans objet : une découverte historique se lit sur plusieurs semaines. Aucun effet sur le rang.' };
+      else if (!eAct || eAct.etat !== 'ok') fraicheur = { etat: 'non_evaluable', perdu: false, texte: 'Fraîcheur non évaluable : ' + raisonNonEvaluable(eAct) + ' Aucun effet sur le rang.' };
       else if (prec.some(p => identiteDec(p) === identiteDec(c))) fraicheur = { etat: 'evaluable', perdu: true, texte: 'Déjà retenue dans le même sens sur la période précédente : elle descend d\'un rang.' };
       else fraicheur = { etat: 'evaluable', perdu: false, texte: 'Nouvelle, ou de sens opposé à la période précédente : aucun effet sur le rang.' };
       let motifRang;
-      if (c.activite === 'croise') motifRang = 'Relation croisée : retenue parce qu\'une place restait.';
+      if (c.historique) motifRang = 'Découverte historique : retenue parce qu\'une place restait après les découvertes de la période.';
+      else if (c.activite === 'croise') motifRang = 'Relation croisée : retenue parce qu\'une place restait.';
       else if (c.positionActivite === 1 && c.motifMoteur && /dépassement/.test(c.motifMoteur)) motifRang = c.motifMoteur.charAt(0).toUpperCase() + c.motifMoteur.slice(1) + '.';
       else motifRang = ordinal(c.positionActivite - 1) + ' de son activité, ordre de priorité : ' + LIBELLE_PRIORITE[c.type] + '.';
       return Object.assign({}, c, { fraicheur, motifRang });
@@ -2448,6 +2453,62 @@
     return af && af.etat === 'ok' && af.constat ? af.constat.texte : null;
   }
 
+
+  // ------------------------------------------------------------
+  // Lot D5b : rupture de tendance et mois inhabituel (découvertes historiques). Fonctions pures, aucune lecture.
+  // Semaines du lundi au dimanche, entières, jusqu'au dernier jour complet. Tendance précédente = moyenne par jour complet des
+  // 8 semaines qui précèdent les 4 dernières. Il y a rupture quand chacune des 4 dernières semaines est du même côté de cette
+  // moyenne ET que la moyenne des 4 semaines s'en écarte nettement (Welch, 2 erreurs types). Au moins 12 semaines d'historique.
+  const SEMAINES_RECENTES = 4, SEMAINES_PRECEDENTES = 8, JOURS_SEMAINE_MIN = 6;
+  function ruptureTendance(jours, fin) {
+    const nonEval = motif => ({ etat: 'non_evaluable', motif, rupture: false });
+    if (!fin) return nonEval('aucun jour complet n\'est disponible.');
+    let dim = fin;
+    while (jourSemaineISO(dim) !== 0) dim = decalerJourISO(dim, -1);
+    const total = SEMAINES_RECENTES + SEMAINES_PRECEDENTES;
+    const semaines = []; // 0 = la plus récente
+    for (let k = 0; k < total; k++) {
+      const b = { debut: decalerJourISO(dim, -6 - 7 * k), fin: decalerJourISO(dim, -7 * k) };
+      const js = enPeriode(jours, b);
+      semaines.push({ bornes: b, jours: js, moyenne: js.length ? moyenneTab(js.map(j => j.valeur)) : null });
+    }
+    if (semaines.some(w => w.jours.length < JOURS_SEMAINE_MIN)) return nonEval('il faut ' + total + ' semaines d\'historique avec au moins ' + JOURS_SEMAINE_MIN + ' jours complets chacune.');
+    const rec = semaines.slice(0, SEMAINES_RECENTES), prec = semaines.slice(SEMAINES_RECENTES);
+    const vR = [].concat.apply([], rec.map(w => w.jours.map(j => j.valeur))), vP = [].concat.apply([], prec.map(w => w.jours.map(j => j.valeur)));
+    const mR = moyenneTab(vR), mP = moyenneTab(vP);
+    const se = Math.sqrt(varianceEchantillon(vR, mR) / vR.length + varianceEchantillon(vP, mP) / vP.length);
+    const ecart = mR - mP;
+    const dessus = rec.every(w => w.moyenne > mP), dessous = rec.every(w => w.moyenne < mP);
+    const nette = se > 0 ? Math.abs(ecart) > SEUIL_ECART_TYPES * se : ecart !== 0;
+    const memeCote = dessus || dessous;
+    const rupture = memeCote && nette;
+    return { etat: 'ok', rupture, sens: ecart > 0 ? 1 : ecart < 0 ? -1 : 0,
+      depuis: rec[SEMAINES_RECENTES - 1].bornes.debut, jusqu: rec[0].bornes.fin, debutPrecedent: prec[prec.length - 1].bornes.debut,
+      moyenneRecente: mR, moyennePrecedente: mP, pct: pourcentage(mR, mP), ecart, erreurType: se, memeCote, nette,
+      semainesRecentes: rec.map(w => ({ debut: w.bornes.debut, moyenne: w.moyenne })).reverse(), nbJoursRecents: vR.length, nbJoursPrecedents: vP.length };
+  }
+  function phraseRupture(r, unite, fmt) {
+    const f = fmt || (x => String(Math.round(x)));
+    if (!r || r.etat !== 'ok') return 'Le changement durable n\u2019a pas pu être évalué : ' + (r && r.motif ? r.motif : 'pas de donnée.');
+    const d = r.depuis.slice(8, 10) + '/' + r.depuis.slice(5, 7);
+    if (!r.rupture) return 'Pas de changement durable : ' + (r.memeCote ? 'les quatre dernières semaines sont du même côté, mais l\u2019écart à la tendance précédente reste dans la variation habituelle.' : 'les quatre dernières semaines ne sont pas toutes du même côté de la tendance précédente.');
+    return 'Changement durable depuis le ' + d + ' : ' + f(r.moyenneRecente) + ' ' + unite + ' par jour complet, contre ' + f(r.moyennePrecedente) + ' ' + unite + ' avant.';
+  }
+  // Mois inhabituel : le dernier mois entier écoulé, s'il a été en hausse ou en baisse nette par rapport au mois précédent (D5a).
+  function moisInhabituel(mois) {
+    const m = mois && mois.length ? mois[mois.length - 1] : null;
+    if (!m || !m.assez || !m.cmp || m.cmp.etat !== 'ok') return { etat: 'non_evaluable', motif: 'le dernier mois n\u2019a pas pu être comparé au précédent.', inhabituel: false, mois: m };
+    const inhabituel = m.evolution === 'Hausse confirmée' || m.evolution === 'Baisse confirmée';
+    return { etat: 'ok', inhabituel, sens: signeDec(m.cmp.ecart), mois: m };
+  }
+  // Entrée « historique » du sélecteur : ruptures d'abord, puis mois inhabituels, chacun dans l'ordre des activités.
+  function candidatsHistoriques(parActivite) {
+    const ordre = ['piste', 'fdj'], cands = [];
+    ordre.forEach(a => { const x = parActivite && parActivite[a]; if (x && x.rupture && x.rupture.etat === 'ok') cands.push({ activite: a, type: 'rupture', cle: x.rupture.depuis, sens: x.rupture.sens, rang: 3, net: x.rupture.rupture, source: x.rupture }); });
+    ordre.forEach(a => { const x = parActivite && parActivite[a]; if (x && x.mois && x.mois.etat === 'ok') cands.push({ activite: a, type: 'mois', cle: x.mois.mois.cle, sens: x.mois.sens, rang: 3, net: x.mois.inhabituel, source: x.mois }); });
+    return { etat: 'ok', motif: null, candidats: cands };
+  }
+
   window.NexusTempo = {
     SEUILS, NOM_JOURS, NOM_JOURS_COURT, NOM_MOIS, LITRAGE_INDISPONIBLE, VALORISATION_INDISPONIBLE, SOURCES_DONNEES, COORDONNEES_STATION,
     agregerParJour, filtrerJoursClos, regrouperParJourSemaine, calculerClassement,
@@ -2472,7 +2533,7 @@
     libelleEvolution,
     candidatsDecouvertes, candidatRelation, classerDecouvertes, selectionnerDecouvertes, decouvertesEcartees, NB_DECOUVERTES_ACCUEIL, RANGS_PERDUS_FRAICHEUR,
     analyseBoutique, SEUIL_MARGE_GLOBALE_PCT, SEUIL_MARGE_GLOBALE_EUROS_JOUR, SEUIL_CATEGORIE_EUROS_JOUR, SEUIL_CONCENTRATION_CATEGORIE, SEUIL_CA_DECROCHAGE_PCT,
-    moisParMois, phraseMois, compositionMoisFdj, clesMoisEcoules, bornesMois, DEBUT_MOIS_PISTE, DEBUT_MOIS_FDJ, ECART_JOURS_COMPOSITION_MAX,
+    moisParMois, phraseMois, ruptureTendance, phraseRupture, moisInhabituel, candidatsHistoriques, compositionMoisFdj, clesMoisEcoules, bornesMois, DEBUT_MOIS_PISTE, DEBUT_MOIS_FDJ, ECART_JOURS_COMPOSITION_MAX,
     analyseFdj, constatCompositionFdj, detailPaliersFdj, detailJeuxFdj, joursFamilleFdj, FAMILLES_FDJ, SEUIL_PART_FAMILLE, AUTRE_FAMILLE_NETTE_EMPECHE_CITATION_SEULE,
   };
 })();

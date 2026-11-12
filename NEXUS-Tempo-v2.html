@@ -872,14 +872,15 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
       return t;
     });
     const noteAnneePrecedente = 'Comparaison avec l\u2019année précédente : pas encore possible, il faudra un an de recul (juillet 2027 au plus tôt pour la piste, janvier 2027 pour la FDJ).';
+    let moisPiste = null, moisFdj = null;
     if (!rAudMois.error) {
-      const moisPiste = T.moisParMois(T.joursLitresCompletsPiste(rAudMois.data), T.DEBUT_MOIS_PISTE, bornes.exclu, rCal.error ? [] : rCal.data);
+      moisPiste = T.moisParMois(T.joursLitresCompletsPiste(rAudMois.data), T.DEBUT_MOIS_PISTE, bornes.exclu, rCal.error ? [] : rCal.data);
       detailExtra.indPiste.push({ titre: 'Mois par mois', lignes: (moisPiste.length
         ? lignesMois(moisPiste, 'L')
         : ['Aucun mois complet mesuré pour l\u2019instant. La piste se compare mois par mois à partir d\u2019août 2026 (juillet 2026 est incomplet).']).concat([noteAnneePrecedente]) });
     }
     if (!rFdjMois.error) {
-      const moisFdj = T.moisParMois(T.joursCaFdjComplets(rFdjMois.data), T.DEBUT_MOIS_FDJ, bornes.exclu, rCal.error ? [] : rCal.data);
+      moisFdj = T.moisParMois(T.joursCaFdjComplets(rFdjMois.data), T.DEBUT_MOIS_FDJ, bornes.exclu, rCal.error ? [] : rCal.data);
       detailExtra.indFdj.push({ titre: 'Mois par mois', lignes: (moisFdj.length
         ? lignesMois(moisFdj, '€', rFdjMois.data)
         : ['Aucun mois complet mesuré pour l\u2019instant. La FDJ se compare mois par mois à partir de janvier 2026.']).concat([noteAnneePrecedente]) });
@@ -1076,6 +1077,34 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
         ],
       };
     };
+    // Lot D5b : découvertes historiques (changement durable, mois inhabituel). Aucune lecture de plus : les mois déjà lus.
+    fiches.historique = c => {
+      const piste = c.activite === 'piste', nom = piste ? 'Piste' : 'FDJ', u = piste ? 'L' : '€';
+      if (c.type === 'rupture') {
+        const r = c.source;
+        return {
+          niveau: 'Changement durable', cls: 'relation', titre: nom + ' : ' + (r.sens > 0 ? 'hausse' : 'baisse') + ' durable',
+          lignes: [T.phraseRupture(r, u, x => fmtDec(x, 0)), 'Les quatre dernières semaines sont toutes du même côté de la tendance précédente.'],
+          source: 'Source : Verify · ' + pluriel(r.nbJoursRecents + r.nbJoursPrecedents, 'jour complet', 'jours complets'),
+          preuves: [
+            ['Périodes', 'Quatre dernières semaines depuis le ' + fmtDateCourte(r.depuis) + ' ; tendance précédente : les huit semaines d\u2019avant, depuis le ' + fmtDateCourte(r.debutPrecedent)],
+            ['Moyennes', fmtDec(r.moyenneRecente, 0) + ' ' + u + ' par jour complet contre ' + fmtDec(r.moyennePrecedente, 0) + ' ' + u + ' avant'],
+            ['Calcul', 'Écart de ' + fmtDec(r.ecart, 0) + ' ' + u + ', plus de deux erreurs types (' + fmtDec(r.erreurType, 1) + ') ; test de Welch'],
+            ['Sources', (piste ? 'audits_caisse' : 'view_fdj_daily_summary') + ' · lecture seule, filtrée par site'],
+          ],
+        };
+      }
+      const m = c.source.mois;
+      return {
+        niveau: 'Mois inhabituel', cls: 'relation', titre: nom + ' : ' + m.libelle + ' inhabituel',
+        lignes: [T.phraseMois ? T.phraseMois(m, u) : m.libelle, 'Comparé au mois précédent.'],
+        source: 'Source : Verify · ' + pluriel(m.nbJours, 'jour complet', 'jours complets'),
+        preuves: [
+          ['Mois', m.libelle + ' : ' + m.nbJours + ' jours complets, moyenne ' + fmtDec(m.moyenne, 0) + ' ' + u + ' par jour'],
+          ['Sources', (piste ? 'audits_caisse' : 'view_fdj_daily_summary') + ' · lecture seule, filtrée par site'],
+        ],
+      };
+    };
     // Lot D4 : sélecteur global. Les mêmes candidats que les moteurs, filtre « net », diversité, fraîcheur ; au plus trois cartes.
     (function () {
       const apPrec = (!rAudPrec.error && !rAudRef.error) ? T.analysePiste(rAudRef.data, rAudPrec.data, bPrec, bPrecRef) : null;
@@ -1084,7 +1113,11 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
       const abPrec = (ab && ab.etat === 'ok' && ab.reference && !rProd.error)
         ? T.analyseBoutique(rProd.data.filter(x => x.periode_fin <= ab.reference.fin), (rApp.data || []).map(x => x.article), NexusPeriodes.analyserPeriodes, rCal.error ? [] : rCal.data) : null;
       const cand = (a, x) => T.candidatsDecouvertes(a, x);
-      const entrees = { piste: cand('piste', ap0), boutique: cand('boutique', ab), fdj: cand('fdj', afFdj), croise: T.candidatRelation(rel) };
+      const entrees = { piste: cand('piste', ap0), boutique: cand('boutique', ab), fdj: cand('fdj', afFdj), croise: T.candidatRelation(rel),
+        historique: T.candidatsHistoriques({
+          piste: { rupture: rAudMois.error ? null : T.ruptureTendance(T.joursLitresCompletsPiste(rAudMois.data), bornes.fin), mois: moisPiste ? T.moisInhabituel(moisPiste) : null },
+          fdj: { rupture: rFdjMois.error ? null : T.ruptureTendance(T.joursCaFdjComplets(rFdjMois.data), bornes.fin), mois: moisFdj ? T.moisInhabituel(moisFdj) : null },
+        }) };
       const precedent = { piste: cand('piste', apPrec), boutique: cand('boutique', abPrec), fdj: cand('fdj', afPrec) };
       const choix = T.selectionnerDecouvertes(entrees, precedent, T.NB_DECOUVERTES_ACCUEIL);
       const ecartees = T.decouvertesEcartees(entrees, choix);
@@ -1092,7 +1125,7 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
       if (!entrees.fdj.candidats.length && !rFacts.error && T.rapportFdjQuart1(T.comparerQuarts(T.quartsFdj(rFacts.data), bornes))) ecartees.push('quart 1 FDJ : hypothèse en attente d\'arbitrage, non retenue');
       const noteRang = ecartees.length ? ' Non retenues : ' + ecartees.join(' ; ') + '.' : '';
       choix.slice(0, T.NB_DECOUVERTES_ACCUEIL).forEach((c, slot) => {
-        const f = fiches[c.activite] && fiches[c.activite](c.source);
+        const f = c.historique ? fiches.historique(c) : (fiches[c.activite] && fiches[c.activite](c.source));
         if (!f) return;
         const preuves = f.preuves.concat([['Rang', c.motifRang + noteRang], ['Fraîcheur', c.fraicheur.texte]]);
         remplirDecouverte(slot, Object.assign({}, f, { preuves }));
