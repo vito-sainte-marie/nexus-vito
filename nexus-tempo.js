@@ -2195,6 +2195,7 @@
     // Évolution masquée : une catégorie à 30 € par jour ou plus (hausse ou baisse), même seule, dont le sens
     // n'est pas celui du total, ou dont le total est stable. La compensation en est le cas où deux sens s'opposent.
     const masquantes = cand.filter(c => !eligible || (c.contribution > 0) !== (ecart > 0));
+    const hausses2 = cand.some(c => c.contribution > 0), baisses2 = cand.some(c => c.contribution < 0);
     const candidats = [];
     if (masquantes.length) candidats.push({ type: 'masquee', categories: cand.map(c => c.nom) });
     const caBouge = pctCa !== null && Math.abs(pctCa) >= SEUIL_CA_DECROCHAGE_PCT;
@@ -2206,8 +2207,8 @@
     const dec = candidats.find(c => c.type === 'decrochage'), mas = candidats.find(c => c.type === 'masquee');
     if (dec) {
       retenue = dec;
-      motif = mas ? 'le décrochage cite les catégories de la compensation, qui n\'ouvre pas de découverte à part' : 'décrochage entre chiffre d\'affaires et marge';
-    } else if (mas) { retenue = mas; motif = 'compensation entre catégories'; }
+      motif = mas ? 'le décrochage cite les catégories concernées, l\'évolution masquée n\'ouvre pas de découverte à part' : 'décrochage entre chiffre d\'affaires et marge';
+    } else if (mas) { retenue = mas; motif = hausses2 && baisses2 ? 'compensation entre catégories' : 'évolution masquée par une catégorie'; }
     else if (candidats.length) { retenue = candidats[0]; motif = forte ? 'une catégorie explique plus de la moitié de la variation' : 'variation de la marge sans catégorie dominante'; }
     return Object.assign(vide('ok'), base, { candidats, retenue, motif });
   }

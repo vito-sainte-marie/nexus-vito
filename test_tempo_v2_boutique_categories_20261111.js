@@ -154,6 +154,15 @@ t('page : étiquettes de la carte Boutique en langage courant, sans code d\'arbi
   assert.ok(!/\bG[0-9]\b/.test(bloc));
   assert.ok(/analyseBoutique\(/.test(bloc));
 });
+t('page : la fiche Boutique reçoit une évolution quand la comparaison existe', () => {
+  const i = scripts.indexOf("remplirCarte('indBoutique'");
+  assert.ok(i > scripts.indexOf('const ab = '), 'ab calculé avant la carte');
+  assert.ok(/evolution: ab && ab\.etat === 'ok' \? 'Marge par jour : '/.test(scripts.slice(i, i + 900)));
+});
+t('page : le libellé du choix suit le cas (compensation ou catégorie seule)', () => {
+  assert.ok(scripts.includes("'compensation entre catégories' : 'évolution masquée par une catégorie'"));
+  assert.ok(scripts.includes("Une catégorie masque l\\'évolution de la marge"));
+});
 t('page : une seule découverte Boutique, au quatrième rang la relation', () => {
   assert.strictEqual((scripts.match(/remplirDecouverte\(1,/g) || []).length, 1);
   assert.strictEqual((scripts.match(/remplirDecouverte\(3,/g) || []).length, 1);

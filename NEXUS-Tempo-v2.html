@@ -762,16 +762,17 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
       perBoutique = 'Du ' + fmtDateCourte(mi.debut) + ' au ' + fmtDate(mi.fin) + ' · ' + pluriel(nbJ, 'jour', 'jours') + ' · CA : ' + fmtNb(mi.ca) + ' €';
       if (mi.debut !== bornes.debut || mi.fin !== bornes.fin) perBoutique += ' · Période différente des litres et de la FDJ';
     }
-    remplirCarte('indBoutique', mi.etat === 'ok'
-      ? { ok: true, nombre: fmtNb(mi.marge) + ' €', unite: 'marge du ' + fmtDateCourte(mi.debut) + ' au ' + fmtDateCourte(mi.fin),
-          total: "Marge de la période d'import · " + fmtPct(mi.taux), periode: perBoutique }
-      : { ok: false, valeur: ABSENT, total: 'Total : ' + ABSENT.toLowerCase() });
     // Marge par catégorie (lot D2) : marges réelles des imports, hors produits d'appel, deux périodes d'import comparables.
     const ab = (rProd.error || rApp.error) ? null
       : T.analyseBoutique(rProd.data, (rApp.data || []).map(r => r.article), NexusPeriodes.analyserPeriodes, rCal.error ? [] : rCal.data);
     const evolBoutique = !ab || ab.etat !== 'ok' ? 'Tendance non déterminée'
       : ab.global.eligible ? (ab.global.sens === 'hausse' ? 'Marge en hausse' : 'Marge en baisse')
       : (ab.global.pctMarge === null ? '' : signePct(ab.global.pctMarge) + ' · ') + 'Marge stable';
+    remplirCarte('indBoutique', mi.etat === 'ok'
+      ? { ok: true, nombre: fmtNb(mi.marge) + ' €', unite: 'marge du ' + fmtDateCourte(mi.debut) + ' au ' + fmtDateCourte(mi.fin),
+          total: "Marge de la période d'import · " + fmtPct(mi.taux), periode: perBoutique,
+          evolution: ab && ab.etat === 'ok' ? 'Marge par jour : ' + fmtNb(ab.global.margeE) + ' € contre ' + fmtNb(ab.global.margeR) + ' € · ' + evolBoutique : '' }
+      : { ok: false, valeur: ABSENT, total: 'Total : ' + ABSENT.toLowerCase() });
     habiller('indBoutique', { evol: evolBoutique,
       couverture: mi.etat === 'ok' ? pluriel(Math.round((Date.parse(mi.fin) - Date.parse(mi.debut)) / 86400000) + 1, 'j', 'j') + ' d\'import' : '' });
     detailExtra.indBoutique = [];
@@ -962,7 +963,8 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
         lignes = ['Chiffre d\'affaires par jour : ' + fmtNb(g.caE) + ' € contre ' + fmtNb(g.caR) + ' € (' + signePct(g.pctCa) + ')',
           'Marge par jour : ' + fmtNb(g.margeE) + ' € contre ' + fmtNb(g.margeR) + ' € (' + (g.pctMarge === null ? 'non calculable' : signePct(g.pctMarge)) + ')'].concat(cats.map(lc));
       } else if (r.type === 'masquee') {
-        titre = 'Des catégories se compensent dans la marge';
+        const deuxSens = cats.some(c => c.contribution > 0) && cats.some(c => c.contribution < 0);
+        titre = deuxSens ? 'Des catégories se compensent dans la marge' : 'Une catégorie masque l\'évolution de la marge';
         lignes = cats.map(lc).concat(['Marge totale : ' + sg(g.ecart) + ' € par jour (' + (g.pctMarge === null ? 'non calculable' : signePct(g.pctMarge)) + ')']);
       } else {
         titre = 'Marge ' + (g.ecart > 0 ? 'en hausse' : 'en baisse') + ' de ' + fmtNb(Math.abs(g.ecart)) + ' € par jour (' + (g.pctMarge === null ? 'non calculable' : signePct(g.pctMarge)) + ')';
@@ -976,7 +978,7 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
         preuves: [
           ['Périodes', 'Étudiée : du ' + fmtDateCourte(ab.etudiee.debut) + ' au ' + fmtDate(ab.etudiee.fin) + ' (' + pluriel(ab.etudiee.jours, 'jour', 'jours') + ') · référence : du ' + fmtDateCourte(ab.reference.debut) + ' au ' + fmtDate(ab.reference.fin) + ' (' + pluriel(ab.reference.jours, 'jour', 'jours') + ')' + (ab.comparabilite.faible ? ' · comparabilité faible : ' + ab.comparabilite.raisons.map(x => x.texte).join(' ; ') : '')],
           ['Calcul', 'Total de chaque import divisé par sa durée. Une catégorie est signalée à partir de ' + fmtNb(ab.seuils.categorieEuros) + ' € de marge par jour d\'écart ; la marge globale à partir de ' + fmtDec(ab.seuils.margePct * 100, 0) + ' % ou ' + fmtNb(ab.seuils.margeEuros) + ' € par jour.'],
-          ['Choix de la découverte', 'Candidats : ' + ab.candidats.map(c => c.type === 'masquee' ? 'compensation entre catégories' : c.type === 'decrochage' ? 'chiffre d\'affaires et marge qui divergent' : 'variation de la marge').join(', ') + ' · ' + ab.motif + '.'],
+          ['Choix de la découverte', 'Candidats : ' + ab.candidats.map(c => c.type === 'masquee' ? (cats.some(x => x.contribution > 0) && cats.some(x => x.contribution < 0) ? 'compensation entre catégories' : 'évolution masquée par une catégorie') : c.type === 'decrochage' ? 'chiffre d\'affaires et marge qui divergent' : 'variation de la marge').join(', ') + ' · ' + ab.motif + '.'],
           ['Sources', 'products et produits_appel · lecture seule, filtrée par site'],
         ],
       });
