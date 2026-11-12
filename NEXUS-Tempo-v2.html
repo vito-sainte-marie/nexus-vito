@@ -709,6 +709,15 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
         .select('date, nb_quarts_controles, ca_grattage, caisse_tirages')
         .eq('site', siteId).gte('date', bPrecRef.debut).lte('date', bPrecRef.fin).order('date', { ascending: true })),
     ]);
+    // Lot D5a : lectures bornées pour le mois par mois (lecture seule, filtrées par site, jusqu'au dernier jour complet).
+    const [rAudMois, rFdjMois] = await Promise.all([
+      fetchAllRows(() => nexusClient.from('audits_caisse')
+        .select('date, quart, litrage_gazole, litrage_sp95, litrage_gnr, vente_piste, vente_boutique')
+        .eq('site', siteId).gte('date', T.DEBUT_MOIS_PISTE).lte('date', bornes.fin).order('date', { ascending: true })),
+      fetchAllRows(() => nexusClient.from('view_fdj_daily_summary')
+        .select('date, nb_quarts_controles, ca_grattage, caisse_tirages')
+        .eq('site', siteId).gte('date', T.DEBUT_MOIS_FDJ).lte('date', bornes.fin).order('date', { ascending: true })),
+    ]);
     // Lot D3 : détail du grattage par palier et par jeu (lecture seule, filtrée par site, sur les deux périodes).
     const [rPaliers, rJeux, rNomsJeux] = await Promise.all([
       fetchAllRows(() => nexusClient.from('view_fdj_price_tier_daily')
@@ -845,6 +854,36 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
           : ['Détail par jeu non disponible sur cette période'] });
       }
     }
+
+    // Lot D5a : mois par mois, moyenne par jour complet, jamais un total comparé. Le mois en cours est exclu.
+    const lignesMois = (mois, unite, rowsFdj) => mois.slice().reverse().map(m => {
+      const tete = m.libelle + ' : ' + pluriel(m.nbJours, 'jour complet', 'jours complets');
+      if (!m.assez) return tete + ' · pas assez de jours complets pour être comparé (il faut au moins ' + T.OCCURRENCES_MIN_JOUR + ' de chaque jour de la semaine)';
+      let t = tete + ' · ' + fmtNb(m.total) + ' ' + unite + ' au total · ' + fmtNb(m.moyenne) + ' ' + unite + ' par jour complet';
+      if (m.cmp && m.cmp.etat === 'ok') t += ' · ' + signePct(m.cmp.pct) + ' par rapport au mois précédent · ' + m.evolution;
+      t += '. ' + T.phraseMois(m);
+      if (m.comparabilite && m.comparabilite.faible) t += ' Comparaison à lire avec prudence : ' + m.comparabilite.raisons.map(x => x.texte).join(' ; ') + '.';
+      if (rowsFdj) {
+        const prec = mois.find(x => x.cle === m.precedent);
+        const comp = T.compositionMoisFdj(rowsFdj, m, prec);
+        if (comp) t += ' ' + comp;
+      }
+      return t;
+    });
+    const noteAnneePrecedente = 'Comparaison avec l\u2019année précédente : pas encore possible, il faudra un an de recul (juillet 2027 au plus tôt pour la piste, janvier 2027 pour la FDJ).';
+    if (!rAudMois.error) {
+      const moisPiste = T.moisParMois(T.joursLitresCompletsPiste(rAudMois.data), T.DEBUT_MOIS_PISTE, bornes.exclu, rCal.error ? [] : rCal.data);
+      detailExtra.indPiste.push({ titre: 'Mois par mois', lignes: (moisPiste.length
+        ? lignesMois(moisPiste, 'L')
+        : ['Aucun mois complet mesuré pour l\u2019instant. La piste se compare mois par mois à partir d\u2019août 2026 (juillet 2026 est incomplet).']).concat([noteAnneePrecedente]) });
+    }
+    if (!rFdjMois.error) {
+      const moisFdj = T.moisParMois(T.joursCaFdjComplets(rFdjMois.data), T.DEBUT_MOIS_FDJ, bornes.exclu, rCal.error ? [] : rCal.data);
+      detailExtra.indFdj.push({ titre: 'Mois par mois', lignes: (moisFdj.length
+        ? lignesMois(moisFdj, '€', rFdjMois.data)
+        : ['Aucun mois complet mesuré pour l\u2019instant. La FDJ se compare mois par mois à partir de janvier 2026.']).concat([noteAnneePrecedente]) });
+    }
+    detailExtra.indBoutique.push({ titre: 'Mois par mois', lignes: ['Pas de comparaison mois par mois pour la boutique : la marge vient d\u2019imports qui couvrent des périodes, pas des dates. La comparaison d\u2019un import à l\u2019autre est faite plus haut.', noteAnneePrecedente] });
 
     // Comparabilité (G5, G9) : lecture seule, aucune conclusion tirée d'une période peu comparable.
     if (refOk && !rCal.error) {

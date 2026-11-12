@@ -2337,6 +2337,94 @@
     return cmp.ecart < 0 ? 'Baisse confirmée' : cmp.ecart > 0 ? 'Hausse confirmée' : 'Variation habituelle';
   }
 
+  // ------------------------------------------------------------
+  // Lot D5a : mois contre mois précédent, en moyenne par jour complet (jamais en total).
+  // Un mois ne compte qu'avec au moins OCCURRENCES_MIN_JOUR occurrences de chaque jour de la semaine en jours complets ;
+  // le mois en cours, incomplet, est exclu. Fonctions pures : aucune lecture, aucune écriture.
+  const DEBUT_MOIS_PISTE = '2026-08-01'; // audits depuis le 18/07 : juillet est incomplet
+  const DEBUT_MOIS_FDJ = '2026-01-01';
+  const ECART_JOURS_COMPOSITION_MAX = 0; // composition des jours : même nombre de chaque jour de la semaine
+  const pad2 = n => (n < 10 ? '0' : '') + n;
+  function bornesMois(cle) {
+    const [a, m] = cle.split('-').map(Number);
+    const nb = new Date(Date.UTC(a, m, 0)).getUTCDate();
+    return { debut: cle + '-01', fin: cle + '-' + pad2(nb), jours: nb };
+  }
+  function moisPrecedentCle(cle) {
+    const [a, m] = cle.split('-').map(Number);
+    return m === 1 ? (a - 1) + '-12' : a + '-' + pad2(m - 1);
+  }
+  function libelleMois(cle) {
+    const [a, m] = cle.split('-').map(Number);
+    return NOM_MOIS[m - 1] + ' ' + a;
+  }
+  // Clés 'AAAA-MM' des mois entiers écoulés : de la date de disponibilité au mois précédant celui de la date du jour.
+  function clesMoisEcoules(debutDispo, exclu) {
+    const out = [];
+    const fin = exclu.slice(0, 7);
+    for (let c = debutDispo.slice(0, 7); c < fin; c = (() => { const [a, m] = c.split('-').map(Number); return m === 12 ? (a + 1) + '-01' : a + '-' + pad2(m + 1); })()) out.push(c);
+    return out;
+  }
+  function comptesJoursSemaine(jours) {
+    const c = [0, 0, 0, 0, 0, 0, 0];
+    jours.forEach(j => { c[jourSemaineISO(j.date)]++; });
+    return c;
+  }
+  function libelleJourSemaine(i, n) { return n + ' ' + NOM_JOURS[i].toLowerCase() + (n > 1 ? 's' : ''); }
+
+  // jours : [{date, valeur}] des jours complets. Retourne un élément par mois écoulé, du plus ancien au plus récent.
+  function moisParMois(jours, debutDispo, exclu, lignesFeries) {
+    const cles = clesMoisEcoules(debutDispo, exclu);
+    const parMois = cles.map(cle => {
+      const b = bornesMois(cle);
+      const js = enPeriode(jours, b);
+      const valeurs = js.map(j => j.valeur);
+      const total = valeurs.reduce((s, x) => s + x, 0);
+      const compte = comptesJoursSemaine(js);
+      return { cle, libelle: libelleMois(cle), bornes: b, jours: js, nbJours: js.length, total, moyenne: js.length ? total / js.length : null,
+        compte, assez: js.length > 0 && Math.min.apply(null, compte) >= OCCURRENCES_MIN_JOUR };
+    });
+    return parMois.map((m, i) => {
+      const sortie = { cle: m.cle, libelle: m.libelle, bornes: m.bornes, nbJours: m.nbJours, total: m.total, moyenne: m.moyenne, assez: m.assez,
+        evolution: null, comparabilite: null, precedent: null, cmp: null };
+      const p = i > 0 && parMois[i - 1].cle === moisPrecedentCle(m.cle) ? parMois[i - 1] : null;
+      if (!m.assez || !p) return sortie;
+      sortie.precedent = p.cle;
+      if (!p.assez) return sortie;
+      const cmp = comparerPeriodes(m.jours, p.jours, m.bornes, p.bornes);
+      sortie.cmp = cmp;
+      sortie.evolution = libelleEvolution(cmp);
+      // Comparabilité : calendrier (G5) et composition des jours, affichées sans bloquer.
+      const calE = compositionCalendrier(m.bornes, lignesFeries), calR = compositionCalendrier(p.bornes, lignesFeries);
+      const comp = evaluerComparabilite(m.bornes, p.bornes, calE, calR, (cmp.exceptionnels || []).map(x => ({ activite: 'ce mois', date: x.date })));
+      const raisons = comp.raisons.slice();
+      const ecarts = m.compte.map((n, k) => ({ k, n, nPrec: p.compte[k] })).filter(x => Math.abs(x.n - x.nPrec) > ECART_JOURS_COMPOSITION_MAX);
+      if (ecarts.length) {
+        raisons.push({ critere: 'composition', texte: 'composition des jours inégale (' + ecarts.map(x => libelleJourSemaine(x.k, x.n) + ' contre ' + x.nPrec).join(', ') + ')' });
+      }
+      sortie.comparabilite = { faible: raisons.length > 0, raisons };
+      return sortie;
+    });
+  }
+
+  // Phrase d'un mois, toujours au passé (« Ce mois a été … », jamais au présent). Aucune saisonnalité affirmée.
+  function phraseMois(m) {
+    if (!m || !m.assez) return 'Ce mois n’a pas assez de jours complets pour être comparé.';
+    if (!m.evolution) return 'Ce mois a été le premier mesuré, ou son précédent n\u2019a pas pu être comparé.';
+    if (m.evolution === 'Baisse confirmée') return 'Ce mois a été en baisse nette par rapport au mois précédent.';
+    if (m.evolution === 'Hausse confirmée') return 'Ce mois a été en hausse nette par rapport au mois précédent.';
+    if (m.evolution === 'Variation habituelle') return 'Ce mois a été dans la variation habituelle du mois précédent.';
+    return 'Ce mois a été sans tendance déterminée par rapport au mois précédent.';
+  }
+
+  // FDJ : composition grattage / tirages d'un mois par la règle D3 (analyseFdj), seulement si l'écart du mois est net.
+  function compositionMoisFdj(fdjRows, m, p) {
+    if (!m || !p || !m.cmp || m.cmp.etat !== 'ok' || m.cmp.dansVariationHabituelle) return null;
+    const rows = (b) => (fdjRows || []).filter(r => r && r.date >= b.debut && r.date <= b.fin);
+    const af = analyseFdj(rows(m.bornes), rows(p.bornes), m.bornes, p.bornes);
+    return af && af.etat === 'ok' && af.constat ? af.constat.texte : null;
+  }
+
   window.NexusTempo = {
     SEUILS, NOM_JOURS, NOM_JOURS_COURT, NOM_MOIS, LITRAGE_INDISPONIBLE, VALORISATION_INDISPONIBLE, SOURCES_DONNEES, COORDONNEES_STATION,
     agregerParJour, filtrerJoursClos, regrouperParJourSemaine, calculerClassement,
@@ -2361,6 +2449,7 @@
     libelleEvolution,
     candidatsDecouvertes, candidatRelation, classerDecouvertes, selectionnerDecouvertes, decouvertesEcartees, NB_DECOUVERTES_ACCUEIL, RANGS_PERDUS_FRAICHEUR,
     analyseBoutique, SEUIL_MARGE_GLOBALE_PCT, SEUIL_MARGE_GLOBALE_EUROS_JOUR, SEUIL_CATEGORIE_EUROS_JOUR, SEUIL_CONCENTRATION_CATEGORIE, SEUIL_CA_DECROCHAGE_PCT,
+    moisParMois, phraseMois, compositionMoisFdj, clesMoisEcoules, bornesMois, DEBUT_MOIS_PISTE, DEBUT_MOIS_FDJ, ECART_JOURS_COMPOSITION_MAX,
     analyseFdj, constatCompositionFdj, detailPaliersFdj, detailJeuxFdj, joursFamilleFdj, FAMILLES_FDJ, SEUIL_PART_FAMILLE, AUTRE_FAMILLE_NETTE_EMPECHE_CITATION_SEULE,
   };
 })();
