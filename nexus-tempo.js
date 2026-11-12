@@ -2546,7 +2546,24 @@
     return { etat: 'ok', motif: null, candidats: cands };
   }
 
+  // Synthèse « En bref » : 2 phrases au plus, bâties uniquement sur ce que la page affiche déjà (aucun chiffre nouveau, aucune consigne).
+  function syntheseEnBref(entree) {
+    const e = entree || {};
+    const ind = (e.activites || []).map(a => {
+      const t = String(a.evol || '').trim();
+      return a.nom + ' : ' + (!t || t === 'Tendance non déterminée' ? 'pas de comparaison disponible' : t);
+    });
+    if (!ind.length) return '';
+    let s = ind.join(' ; ');
+    if (e.faible === true) s += ', mais la comparabilité est faible : ces évolutions ne sont pas des conclusions';
+    let txt = s + '.';
+    const titre = e.decouverte ? String(e.decouverte).trim().replace(/[.\s]+$/, '') : '';
+    if (titre) txt += ' Première découverte : ' + titre + '.';
+    return txt;
+  }
+
   window.NexusTempo = {
+    syntheseEnBref,
     SEUILS, NOM_JOURS, NOM_JOURS_COURT, NOM_MOIS, LITRAGE_INDISPONIBLE, VALORISATION_INDISPONIBLE, SOURCES_DONNEES, COORDONNEES_STATION,
     agregerParJour, filtrerJoursClos, regrouperParJourSemaine, calculerClassement,
     calculerPeriodesProduitsAppel, attribuerValorisationBoutique, identifierJourPlusRentable,

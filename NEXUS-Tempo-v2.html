@@ -261,7 +261,7 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
 
   <section class="carte enbref" id="enBref">
     <div class="eyebrow">En bref</div>
-    <p style="margin-top:8px;">Donnée en cours de branchement</p>
+    <p id="enBrefTexte" style="margin-top:8px;">Donnée en cours de branchement</p>
   </section>
 
   <div class="titre-section">Trois indicateurs</div>
@@ -447,6 +447,17 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
 
   // Remplit une carte : état 'ok' = Fait mesuré ; sinon Non qualifié, jamais d'estimation.
   const detailExtra = {};
+  // « En bref » : relit les trois cartes déjà remplies, la comparabilité et la première découverte retenue.
+  const enBrefEtat = { faible: null, decouverte: '' };
+  function majEnBref() {
+    const p = document.getElementById('enBrefTexte');
+    if (!p) return;
+    const activites = [['indPiste', 'Piste'], ['indBoutique', 'Boutique'], ['indFdj', 'FDJ']].map(([id, nom]) => {
+      const el = document.getElementById(id), ev = el && el.querySelector('.evol-court');
+      return { nom, evol: ev ? ev.textContent : '' };
+    });
+    p.textContent = window.NexusTempo.syntheseEnBref({ activites, faible: enBrefEtat.faible, decouverte: enBrefEtat.decouverte });
+  }
   const evolCourt = cmp => (cmp && cmp.etat === 'ok' && cmp.pct !== null && cmp.pct !== undefined)
     ? signePct(cmp.pct) + ' · ' + window.NexusTempo.libelleEvolution(cmp) : window.NexusTempo.libelleEvolution(cmp);
   function habiller(id, o) {
@@ -949,6 +960,7 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
       pill.textContent = comp.faible ? 'Comparabilité faible avec la période précédente' : 'Périodes comparables';
       pill.className = 'pill' + (comp.faible ? ' ambre' : '');
       pill.hidden = false;
+      enBrefEtat.faible = comp.faible; majEnBref();
       const det = document.getElementById('comparabilite');
       det.querySelector('summary').textContent = comp.faible
         ? 'Comparabilité faible · Pourquoi ces évolutions ne sont pas des conclusions'
@@ -1186,9 +1198,11 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
         if (!f) return;
         const preuves = f.preuves.concat([['Rang', c.motifRang + noteRang], ['Fraîcheur', c.fraicheur.texte]]);
         remplirDecouverte(slot, Object.assign({}, f, { preuves }));
+        if (slot === 0) { enBrefEtat.decouverte = f.titre || ''; majEnBref(); }
       });
     })();
 
+    majEnBref();
     document.getElementById('pillPeriode').textContent = 'Période étudiée : du ' + fmtDateCourte(bornes.debut) + ' au ' + fmtDate(bornes.fin) +
       ' · ' + pluriel(bornes.jours, 'jour', 'jours');
     const tz = 'America/Martinique';
