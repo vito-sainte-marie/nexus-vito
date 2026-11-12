@@ -139,9 +139,9 @@ t('flèche des analyses : toujours cyan NEXUS', () => {
   assert.ok(/\.fleche\{[^}]*color:var\(--t-cyan\)/.test(css));
 });
 
-t('le JS de la page est celui du lot Jours fériés et ponts (empreinte du bloc script)', () => {
+t('le JS de la page est celui du lot Conseiller NEXUS et pictogrammes (empreinte du bloc script)', () => {
   const h = crypto.createHash('sha256').update(scripts).digest('hex');
-  assert.strictEqual(h, '9998922996ff8984baf408944be408785b4ee95ebba274b90c033f629afc893c');
+  assert.strictEqual(h, 'df2429f64a1965c88e35f2b5a38bd9d032063cc01107240fc2f49e0351e0e2bc');
 });
 
 t('nexus-tempo.js intact (aucune référence aux classes de signature)', () => {

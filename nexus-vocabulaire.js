@@ -462,7 +462,7 @@
     // Tuiles et lecture Tempo. « Récurrent » = qualification G5 ; « plus forte / plus faible moyenne » = classement descriptif.
     tuiles: {
       titres: { recurrent: { haut: 'Jour fort récurrent', bas: 'Jour faible récurrent' }, moyenne: { haut: 'Plus forte moyenne', bas: 'Plus faible moyenne' } },
-      titreLecture: 'Lecture Tempo',
+      titreLecture: 'Conseiller NEXUS',
       irregulier: 'Activité irrégulière',
       rythme: 'Concerné par un rythme potentiel, détaillé en dessous.',
       contre: 'par rapport aux six autres jours',

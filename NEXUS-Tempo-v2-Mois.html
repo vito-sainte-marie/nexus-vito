@@ -224,6 +224,7 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
 details.valeurs{margin-top:12px;}
 details.valeurs summary{cursor:pointer; min-height:44px; display:flex; align-items:center; font-size:13px; color:var(--t-mid);}
 details.valeurs .tableau td, details.valeurs .tableau th{white-space:nowrap;}
+.picto-s{width:24px; height:24px; vertical-align:middle; margin-right:6px;}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
@@ -323,6 +324,7 @@ details.valeurs .tableau td, details.valeurs .tableau th{white-space:nowrap;}
     $('titreBoutique').textContent = M.boutique.titre;
     $('phraseBoutique').textContent = M.boutique.phrase;
     $('anneePrecedente').textContent = M.anneePrecedente;
+      { const im = document.createElement('img'); im.className = 'picto-s'; im.src = 'assets/icones/tempo/simple/tempo-comparaison-historique.svg'; im.width = 24; im.height = 24; im.alt = ''; $('anneePrecedente').insertBefore(im, $('anneePrecedente').firstChild); }
   }
 
   // Graphique en barres, SVG inline : une barre par mois écoulé, hauteur = moyenne par jour complet.
