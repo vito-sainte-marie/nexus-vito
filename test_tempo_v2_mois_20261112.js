@@ -129,5 +129,22 @@ t('aucun tiret cadratin affiché, aucun conseil', () => {
   assert.ok(!VERBES.test(pieces));
 });
 
+t('bannière : trois fichiers copiés tels quels, même intégration que Quarts, cadrage de départ', () => {
+  const crypto = require('crypto');
+  const sha = { 800: '45ccbfdc', 1200: '597f374b', 1600: '89f6c677' };
+  Object.keys(sha).forEach(w => {
+    const p = path.join(__dirname, 'assets/tempo/tempo-mois-' + w + '.webp');
+    assert.ok(fs.existsSync(p), w);
+    assert.ok(crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex').startsWith(sha[w]), 'empreinte ' + w);
+  });
+  assert.ok(html.includes("const b = 'assets/tempo/tempo-mois';"));
+  assert.ok(html.includes('class="am-banniere" data-photo-jour="${b}-1200.webp" data-photo-nuit="${b}-1200.webp"'));
+  assert.ok(html.includes('srcset="${b}-800.webp 800w, ${b}-1200.webp 1200w, ${b}-1600.webp 1600w"'));
+  assert.ok(html.includes('width="800" height="267" alt="" decoding="async" onerror="this.parentNode.remove()"'));
+  assert.ok(html.includes('NexusBanniereStation.siteAvecBanniere(employee.site_id, NexusBanniereStation.apercuDemande())'));
+  assert.ok(/--banniere-cadrage:60% 45%/.test(html) && /--banniere-cadrage-tel:85% 50%/.test(html));
+  assert.ok(html.indexOf('nexus-banniere-station.js') > -1);
+});
+
 console.log(echecs ? echecs + ' échec(s)' : 'tous ok');
 process.exit(echecs ? 1 : 0);
