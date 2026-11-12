@@ -205,6 +205,20 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
 .sous-titre{font-size:12.5px; font-weight:600; margin:16px 0 6px; color:var(--t-text);}
 .preuves-liste{font-size:12.5px; line-height:1.55; color:var(--t-mid); margin:8px 0 0 18px;}
 .notes{font-size:12px; line-height:1.5; color:var(--t-amber); margin-top:8px;}
+/* Tuiles des jours : cadre à la couleur de l'activité, jamais de couleur de statut. */
+.tuiles-jours{margin-top:12px;}
+.tuiles-jours .rang{display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:10px; margin-top:8px;}
+.tuile-jour{border:1.5px solid rgba(var(--c-rgb), .85); border-radius:12px; padding:12px 14px; background:var(--t-panel); font-size:13px; line-height:1.4;}
+.tuile-jour .tj-titre{display:block; font-size:11.5px; font-weight:600; color:rgb(var(--c-rgb)); text-transform:none;}
+.tuile-jour .tj-jour{display:block; margin-top:4px; font-size:16px; font-weight:600; color:var(--t-text);}
+.tuile-jour .tj-ecart{display:block; margin-top:2px; color:var(--t-text);}
+.tuile-jour .tj-etiquette{display:block; margin-top:6px; font-size:12px; font-weight:500; color:var(--t-mid);}
+.tuile-jour .tj-petit{display:block; margin-top:4px; font-size:11.5px; font-weight:400; color:var(--t-mid);}
+.lecture-tempo{margin-top:12px; padding:12px 14px; border-radius:12px; background:var(--t-raised); border-left:3px solid rgb(var(--c-rgb)); font-size:13.5px; line-height:1.5;}
+.lecture-tempo .lt-titre{display:block; font-size:11.5px; font-weight:600; color:var(--t-mid); margin-bottom:4px;}
+.lecture-tempo .lt-preuve{display:block; margin-top:6px; font-size:11.5px; color:var(--t-mid);}
+.graphique svg .axe-grille{stroke:var(--t-line); stroke-width:1; stroke-opacity:.6;}
+.graphique svg text.axe-graduation{font-size:10.5px;}
 .graphique{position:relative; margin-top:10px;}
 .graphique .defilement{padding-bottom:4px;}
 .graphique svg.barres{display:block; width:100%; height:230px;}  /* hauteur fixe : le graphique ne grandit jamais en hauteur, quel que soit le nombre de mois */
@@ -264,6 +278,7 @@ details.valeurs .tableau td, details.valeurs .tableau th{white-space:nowrap;}
       <div class="tete-act"><span class="ico" aria-hidden="true"><svg aria-hidden="true"><use href="#i-piste"/></svg></span><h3 id="titrePiste"></h3></div>
       <p class="mention" id="uniteLignePiste"></p>
       <p class="phrase" id="constatPiste"></p>
+      <div class="tuiles-jours" id="tuilesPiste" hidden></div>
       <div class="graphique" id="graphPiste"></div>
       <p class="legende" id="verdictsPiste"></p>
       <p class="legende" id="ecartesPiste"></p>
@@ -275,6 +290,7 @@ details.valeurs .tableau td, details.valeurs .tableau th{white-space:nowrap;}
       <div class="tete-act"><span class="ico" aria-hidden="true"><svg aria-hidden="true"><use href="#i-fdj"/></svg></span><h3 id="titreFdj"></h3></div>
       <p class="mention" id="uniteLigneFdj"></p>
       <p class="phrase" id="constatFdj"></p>
+      <div class="tuiles-jours" id="tuilesFdj" hidden></div>
       <div class="graphique" id="graphFdj"></div>
       <p class="legende" id="verdictsFdj"></p>
       <p class="legende" id="ecartesFdj"></p>
@@ -286,6 +302,7 @@ details.valeurs .tableau td, details.valeurs .tableau th{white-space:nowrap;}
       <div class="tete-act"><span class="ico" aria-hidden="true"><svg aria-hidden="true"><use href="#i-boutique"/></svg></span><h3 id="titreBoutique"></h3></div>
       <p class="mention" id="uniteLigneBoutique"></p>
       <p class="phrase" id="constatBoutique"></p>
+      <div class="tuiles-jours" id="tuilesBoutique" hidden></div>
       <div class="graphique" id="graphBoutique"></div>
       <p class="legende" id="verdictsBoutique"></p>
       <p class="legende" id="ecartesBoutique"></p>
@@ -350,18 +367,41 @@ details.valeurs .tableau td, details.valeurs .tableau th{white-space:nowrap;}
     as.innerHTML = ry + (l.avecSans ? '<strong>' + esc(l.avecSans.titre) + '</strong><br>' + l.avecSans.jours.map(j => esc(j.texte)).join('<br>') + '<br>' + esc(l.avecSans.resume) + '<br>' + esc(l.avecSans.echantillon) : '');
     $('verdicts' + C).textContent = l.jours.filter(j => j.verdict === 'au-dessus' || j.verdict === 'en-dessous').map(j => j.nom + ' : ' + j.etiquette).join(' · ');
     if (res.etat === 'absent') { zone.innerHTML = '<p class="mention">' + esc(J.aucuneDonnee) + '</p>'; return; }
-    const LARG = 56, GAUCHE = 20, HAUT = 230, BASE = 190, MAXB = 150;
+    const lt = $('tuiles' + C), tu = l.tuiles;
+    if (tu) {
+      const tuile = x => '<div class="tuile-jour"><span class="tj-titre">' + esc(x.titre) + '</span><span class="tj-jour">' + esc(x.nom) + ' · ' + esc(x.moyenne) + '</span>' +
+        '<span class="tj-ecart">' + esc(x.ecart) + ' ' + esc(J.tuiles.contre) + '</span><span class="tj-etiquette">' + esc(x.etiquette) + '</span>' +
+        (x.irregulier ? '<span class="tj-petit">' + esc(x.irregulier) + '</span>' : '') + (x.rythme ? '<span class="tj-petit">' + esc(x.rythme) + '</span>' : '') + '</div>';
+      const rang = a => a.length ? '<div class="rang">' + a.map(tuile).join('') + '</div>' : '';
+      lt.innerHTML = rang(tu.haut) + rang(tu.bas) +
+        '<div class="lecture-tempo"><span class="lt-titre">' + esc(J.tuiles.titreLecture) + '</span>' + esc(tu.lecture) + '<span class="lt-preuve">' + esc(tu.preuve) + '</span></div>';
+      lt.hidden = false;
+    } else { lt.innerHTML = ''; lt.hidden = true; }
+    const LARG = 56, GAUCHE = 52, DROITE = 20, HAUT = 230, BASE = 190, MAXB = 150;
     const barres = l.jours;
-    const largeur = GAUCHE * 2 + LARG * barres.length;
+    const largeur = GAUCHE + DROITE + LARG * barres.length;
     const maxi = Math.max.apply(null, barres.filter(b => b.moyenne != null).map(b => b.moyenne).concat([1]));
+    // Axe vertical gradué : part de 0, pas ronds dans l'unité de l'activité, sommet = premier multiple du pas au-dessus du maximum.
+    const pas = (function () {
+      const brut = maxi / 4, puiss = Math.pow(10, Math.floor(Math.log10(brut)));
+      const f = [1, 2, 2.5, 5, 10].find(x => x * puiss >= brut) || 10;
+      return f * puiss;
+    })();
+    const sommet = Math.max(pas, Math.ceil(maxi / pas - 1e-9) * pas);
+    const etiquetteAxe = v => v === 0 ? '0' : (pas >= 1000 ? fmtNb(v / 1000) + ' k' : fmtNb(v)) + (v === sommet ? suffixe : '');
     let svg = '<svg class="barres" role="img" aria-label="' + esc(J.titre) + '" viewBox="0 0 ' + largeur + ' ' + HAUT + '" preserveAspectRatio="xMidYMid meet" style="min-width:' + largeur + 'px">';
-    svg += '<line class="base" x1="' + GAUCHE + '" y1="' + BASE + '" x2="' + (largeur - GAUCHE) + '" y2="' + BASE + '"/>';
+    for (let v = 0; v <= sommet + 1e-9; v += pas) {
+      const y = Math.round(BASE - v / sommet * MAXB);
+      if (v > 0) svg += '<line class="axe-grille" x1="' + GAUCHE + '" y1="' + y + '" x2="' + (largeur - DROITE) + '" y2="' + y + '"/>';
+      svg += '<text class="axe-graduation" x="' + (GAUCHE - 6) + '" y="' + (y + 4) + '" text-anchor="end">' + esc(etiquetteAxe(v)) + '</text>';
+    }
+    svg += '<line class="base" x1="' + GAUCHE + '" y1="' + BASE + '" x2="' + (largeur - DROITE) + '" y2="' + BASE + '"/>';
     barres.forEach((b, i) => {
       const x = GAUCHE + i * LARG, cx = x + LARG / 2;
       svg += '<g class="mois-groupe" tabindex="0" data-i="' + i + '" data-cle="' + esc(b.jourSemaine) + '" aria-label="' + esc(b.lignes.join('. ')) + '"><title>' + esc(b.lignes.join('\n')) + '</title>';
       svg += '<rect class="zone" x="' + x + '" y="8" width="' + LARG + '" height="' + (HAUT - 8) + '"/>';
       if (b.moyenne != null) {
-        const h = Math.max(2, Math.round(b.moyenne / maxi * MAXB));
+        const h = Math.max(2, Math.round(b.moyenne / sommet * MAXB));
         svg += '<rect class="barre-mois" x="' + (x + 10) + '" y="' + (BASE - h) + '" width="' + (LARG - 20) + '" height="' + h + '" rx="3"/>';
         svg += '<text class="valeur-barre" x="' + cx + '" y="' + (BASE - h - 8) + '" text-anchor="middle">' + fmtNb(b.moyenne) + '</text>';
       } else {
