@@ -31,7 +31,7 @@ t('aucun chiffre de la maquette (106/111) ni bloc « Progression du comptage »'
   assert(!/106\s*\/\s*111/.test(html) && !html.includes('Progression du comptage'));
 });
 t('le Conseiller garde son avatar', () => {
-  assert(html.includes('<img class="conseiller-avatar" src="nexus-avatar.png"'));
+  assert(html.includes('<img class="conseiller-avatar" src="assets/avatar/nexus-avatar-128.png"'));
 });
 t('fiche : « (périmètre antérieur) » si valeur_attendue vide', () => {
   assert(html.includes("' (périmètre antérieur)'"));

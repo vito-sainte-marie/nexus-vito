@@ -170,7 +170,7 @@
   .empty-state{padding:40px 20px; text-align:center; color:var(--text-dim); font-size:13px; line-height:1.6;}
 
   .conseiller-mini{display:flex; align-items:flex-start; gap:12px; padding:4px 20px 16px;}
-  .conseiller-avatar{width:52px; height:52px; object-fit:contain; flex-shrink:0; filter:drop-shadow(0 0 8px rgba(79,195,217,0.45));}
+  .conseiller-avatar{width:52px; height:52px; border-radius:50%; object-fit:cover; flex-shrink:0; filter:drop-shadow(0 0 8px rgba(79,195,217,0.45));}
   .conseiller-bubble{
     position:relative; flex:1; background:var(--panel); border:1px solid rgba(79,195,217,0.25); border-radius:14px;
     padding:13px 16px; box-shadow:0 4px 14px rgba(0,0,0,0.2);
@@ -342,7 +342,7 @@ body.nexus-desktop #resultSection > *{margin-bottom:12px;}
        nexus-desktop.js) — neutralisée ici, la fiche a sa propre disposition. -->
   <div class="section desktop-grid" id="resultSection">
     <div class="conseiller-mini empty-conseiller">
-      <img class="conseiller-avatar" src="assets/nexus-avatar.png" alt="Conseiller NEXUS">
+      <img class="conseiller-avatar" src="assets/avatar/nexus-avatar-128.png" srcset="assets/avatar/nexus-avatar-64.png 64w, assets/avatar/nexus-avatar-96.png 96w, assets/avatar/nexus-avatar-128.png 128w, assets/avatar/nexus-avatar-256.png 256w" sizes="52px" alt="Conseiller NEXUS">
       <div class="conseiller-bubble">
         <div class="conseiller-label">Conseiller NEXUS</div>
         <div class="conseiller-text">Recherchez une référence et je vous dis ce que les chiffres racontent vraiment dessus — pas ce qu'on croit en général.</div>
@@ -966,7 +966,7 @@ nexusRequireAuth().then(async employee => {
 
         <section class="card conseiller-card" aria-label="Conseiller NEXUS">
           <div class="conseiller-tete">
-            <img class="conseiller-avatar" src="assets/nexus-avatar.png" alt="" width="40" height="40" onerror="this.style.display='none'">
+            <img class="conseiller-avatar" src="assets/avatar/nexus-avatar-128.png" srcset="assets/avatar/nexus-avatar-64.png 64w, assets/avatar/nexus-avatar-96.png 96w, assets/avatar/nexus-avatar-128.png 128w, assets/avatar/nexus-avatar-256.png 256w" sizes="40px" alt="" width="40" height="40" onerror="this.style.display='none'">
             <h2>Conseiller NEXUS</h2>
           </div>
           <div class="conseiller-bubble"><div class="conseiller-text" id="conseillerProduitMsg"></div></div>

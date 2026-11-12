@@ -53,7 +53,7 @@
   .divider{height:1px; background:var(--hairline); margin:0 20px;}
 
   .conseiller-mini{display:flex; align-items:flex-start; gap:12px; padding:16px 20px;}
-  .conseiller-avatar{width:52px; height:52px; object-fit:contain; flex-shrink:0; filter:drop-shadow(0 0 8px rgba(212,175,55,0.4));}
+  .conseiller-avatar{width:52px; height:52px; border-radius:50%; object-fit:cover; flex-shrink:0; filter:drop-shadow(0 0 8px rgba(212,175,55,0.4));}
   .conseiller-bubble{
     position:relative; flex:1; background:var(--panel); border:1px solid rgba(212,175,55,0.3); border-radius:14px;
     padding:13px 16px; box-shadow:0 4px 14px rgba(0,0,0,0.2);
@@ -353,7 +353,7 @@
 
     root.innerHTML = `
       <div class="conseiller-mini">
-        <img class="conseiller-avatar" src="assets/nexus-avatar.png" alt="Conseiller NEXUS">
+        <img class="conseiller-avatar" src="assets/avatar/nexus-avatar-128.png" srcset="assets/avatar/nexus-avatar-64.png 64w, assets/avatar/nexus-avatar-96.png 96w, assets/avatar/nexus-avatar-128.png 128w, assets/avatar/nexus-avatar-256.png 256w" sizes="52px" alt="Conseiller NEXUS">
         <div class="conseiller-bubble">
           <div class="conseiller-label">Conseiller NEXUS</div>
           <div class="conseiller-text" id="conseillerStockMsg">Calcul en cours…</div>
