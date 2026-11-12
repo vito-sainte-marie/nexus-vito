@@ -155,6 +155,9 @@ details.compar[open] summary::after{transform:rotate(180deg);}
 .analyses-wrap{position:relative;}
 .fleche{display:none;}
 .tuile .t-titre{display:block;}
+.picto-p{display:block; width:48px; height:48px; margin-bottom:8px;}
+.picto-s{width:24px; height:24px; vertical-align:middle; margin-right:6px;}
+.decouverte .picto-p{margin:4px 0 8px;}
 .tuile .t-sous{display:block; margin-top:6px; font-size:12px; font-weight:400; color:var(--t-mid); line-height:1.4;}
 .tuile{min-height:44px; background:var(--t-panel); border:1px solid var(--t-line); border-radius:14px; padding:16px; font-size:13.5px; font-weight:500; line-height:1.4; cursor:default;}
 
@@ -409,11 +412,11 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
   <div class="titre-section">Analyses</div>
   <div class="analyses-wrap">
   <section class="analyses" id="analyses">
-    <a class="tuile croisee disponible" href="NEXUS-Tempo-v2-Quarts.html"><div class="pastilles"><span class="pastille a-piste"><svg aria-hidden="true"><use href="#i-piste"/></svg>Piste</span><span class="pastille a-boutique"><svg aria-hidden="true"><use href="#i-boutique"/></svg>Boutique</span><span class="pastille a-fdj"><svg aria-hidden="true"><use href="#i-fdj"/></svg>FDJ</span></div><span class="t-titre">Le quart 1 vend-il plus que le quart 2 ?</span><span class="t-sous">Litres, boutique et FDJ, jour par jour</span></a>
-    <div class="tuile act a-piste" aria-disabled="true"><div class="pastilles"><span class="pastille a-piste"><svg aria-hidden="true"><use href="#i-piste"/></svg>Piste</span></div><span class="t-titre">Comment se situent les pompistes ?</span><span class="t-sous">Écart à l'attendu de leur quart, sans classement</span><span class="prep">En préparation</span></div>
-    <a class="tuile croisee disponible" href="NEXUS-Tempo-v2-Jours.html"><div class="pastilles"><span class="pastille a-piste"><svg aria-hidden="true"><use href="#i-piste"/></svg>Piste</span><span class="pastille a-boutique"><svg aria-hidden="true"><use href="#i-boutique"/></svg>Boutique</span><span class="pastille a-fdj"><svg aria-hidden="true"><use href="#i-fdj"/></svg>FDJ</span></div><span class="t-titre">Quels sont mes jours forts et faibles ?</span><span class="t-sous">Par activité, sur les mêmes semaines</span></a>
-    <a class="tuile croisee disponible" href="NEXUS-Tempo-v2-Mois.html"><div class="pastilles"><span class="pastille a-piste"><svg aria-hidden="true"><use href="#i-piste"/></svg>Piste</span><span class="pastille a-boutique"><svg aria-hidden="true"><use href="#i-boutique"/></svg>Boutique</span><span class="pastille a-fdj"><svg aria-hidden="true"><use href="#i-fdj"/></svg>FDJ</span></div><span class="t-titre">Comment évoluent mes mois ?</span><span class="t-sous">FDJ, litres et boutique, mois par mois</span></a>
-    <div class="tuile croisee" aria-disabled="true"><div class="pastilles"><span class="pastille a-piste"><svg aria-hidden="true"><use href="#i-piste"/></svg>Piste</span><span class="pastille a-boutique"><svg aria-hidden="true"><use href="#i-boutique"/></svg>Boutique</span><span class="pastille a-fdj"><svg aria-hidden="true"><use href="#i-fdj"/></svg>FDJ</span></div><span class="t-titre">Les vacances changent-elles mon activité ?</span><span class="t-sous">À jour de semaine égal</span><span class="prep">En préparation</span></div>
+    <a class="tuile croisee disponible" href="NEXUS-Tempo-v2-Quarts.html"><div class="pastilles"><span class="pastille a-piste"><svg aria-hidden="true"><use href="#i-piste"/></svg>Piste</span><span class="pastille a-boutique"><svg aria-hidden="true"><use href="#i-boutique"/></svg>Boutique</span><span class="pastille a-fdj"><svg aria-hidden="true"><use href="#i-fdj"/></svg>FDJ</span></div><img class="picto-p" src="assets/icones/tempo/premium/tempo-comparaison-quarts.svg" srcset="assets/icones/tempo/premium/tempo-comparaison-quarts-48.webp 48w, assets/icones/tempo/premium/tempo-comparaison-quarts-96.webp 96w, assets/icones/tempo/premium/tempo-comparaison-quarts-144.webp 144w" sizes="48px" width="48" height="48" alt=""><span class="t-titre">Le quart 1 vend-il plus que le quart 2 ?</span><span class="t-sous">Litres, boutique et FDJ, jour par jour</span></a>
+    <div class="tuile act a-piste" aria-disabled="true"><div class="pastilles"><span class="pastille a-piste"><svg aria-hidden="true"><use href="#i-piste"/></svg>Piste</span></div><img class="picto-p" src="assets/icones/tempo/premium/tempo-performance-pompistes.svg" srcset="assets/icones/tempo/premium/tempo-performance-pompistes-48.webp 48w, assets/icones/tempo/premium/tempo-performance-pompistes-96.webp 96w, assets/icones/tempo/premium/tempo-performance-pompistes-144.webp 144w" sizes="48px" width="48" height="48" alt=""><span class="t-titre">Comment se situent les pompistes ?</span><span class="t-sous">Écart à l'attendu de leur quart, sans classement</span><span class="prep">En préparation</span></div>
+    <a class="tuile croisee disponible" href="NEXUS-Tempo-v2-Jours.html"><div class="pastilles"><span class="pastille a-piste"><svg aria-hidden="true"><use href="#i-piste"/></svg>Piste</span><span class="pastille a-boutique"><svg aria-hidden="true"><use href="#i-boutique"/></svg>Boutique</span><span class="pastille a-fdj"><svg aria-hidden="true"><use href="#i-fdj"/></svg>FDJ</span></div><img class="picto-p" src="assets/icones/tempo/premium/tempo-jours-forts-faibles.svg" srcset="assets/icones/tempo/premium/tempo-jours-forts-faibles-48.webp 48w, assets/icones/tempo/premium/tempo-jours-forts-faibles-96.webp 96w, assets/icones/tempo/premium/tempo-jours-forts-faibles-144.webp 144w" sizes="48px" width="48" height="48" alt=""><span class="t-titre">Quels sont mes jours forts et faibles ?</span><span class="t-sous">Par activité, sur les mêmes semaines</span></a>
+    <a class="tuile croisee disponible" href="NEXUS-Tempo-v2-Mois.html"><div class="pastilles"><span class="pastille a-piste"><svg aria-hidden="true"><use href="#i-piste"/></svg>Piste</span><span class="pastille a-boutique"><svg aria-hidden="true"><use href="#i-boutique"/></svg>Boutique</span><span class="pastille a-fdj"><svg aria-hidden="true"><use href="#i-fdj"/></svg>FDJ</span></div><img class="picto-p" src="assets/icones/tempo/premium/tempo-mois-favorables.svg" srcset="assets/icones/tempo/premium/tempo-mois-favorables-48.webp 48w, assets/icones/tempo/premium/tempo-mois-favorables-96.webp 96w, assets/icones/tempo/premium/tempo-mois-favorables-144.webp 144w" sizes="48px" width="48" height="48" alt=""><span class="t-titre">Comment évoluent mes mois ?</span><span class="t-sous">FDJ, litres et boutique, mois par mois</span></a>
+    <div class="tuile croisee" aria-disabled="true"><div class="pastilles"><span class="pastille a-piste"><svg aria-hidden="true"><use href="#i-piste"/></svg>Piste</span><span class="pastille a-boutique"><svg aria-hidden="true"><use href="#i-boutique"/></svg>Boutique</span><span class="pastille a-fdj"><svg aria-hidden="true"><use href="#i-fdj"/></svg>FDJ</span></div><img class="picto-p" src="assets/icones/tempo/premium/tempo-vacances.svg" srcset="assets/icones/tempo/premium/tempo-vacances-48.webp 48w, assets/icones/tempo/premium/tempo-vacances-96.webp 96w, assets/icones/tempo/premium/tempo-vacances-144.webp 144w" sizes="48px" width="48" height="48" alt=""><span class="t-titre">Les vacances changent-elles mon activité ?</span><span class="t-sous">À jour de semaine égal</span><span class="prep">En préparation</span></div>
     <div class="tuile croisee" aria-disabled="true"><div class="pastilles"><span class="pastille a-piste"><svg aria-hidden="true"><use href="#i-piste"/></svg>Piste</span><span class="pastille a-boutique"><svg aria-hidden="true"><use href="#i-boutique"/></svg>Boutique</span></div><span class="t-titre">Quand la piste tourne, la boutique suit-elle ?</span><span class="t-sous">Relation jour par jour et par quart</span><span class="prep">En préparation</span></div>
   </section>
   <button type="button" class="fleche masquee" id="flecheAnalyses" aria-label="Voir les analyses suivantes">›</button>
@@ -516,7 +519,7 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
       const clones = d ? [...d.childNodes].map(n => n.cloneNode(true)) : [];
       clones.forEach(n => { if (n.removeAttribute) n.removeAttribute('hidden'); });
       corps.appendChild(section('Chiffres et période', clones, true));
-      (detailExtra[id] || []).forEach(x => corps.appendChild(section(x.titre, x.lignes.map(t => noeud('p', 'total', t)), desktop())));
+      (detailExtra[id] || []).forEach(x => corps.appendChild(section(x.titre, x.lignes.map(t => { const n = noeud('p', 'total', t); if (t.indexOf('Comparaison avec l\u2019année précédente') === 0) { const im = document.createElement('img'); im.className = 'picto-s'; im.src = 'assets/icones/tempo/simple/tempo-comparaison-historique.svg'; im.width = 24; im.height = 24; im.alt = ''; n.insertBefore(im, n.firstChild); } return n; }), desktop())));
       corps.appendChild(section('Calcul et sources', [
         noeud('p', 'total', 'Moyennes par jour sur les jours complets ; aucune règle de calcul modifiée.'),
         noeud('p', 'total', document.getElementById('piedSources').textContent)], desktop()));
@@ -664,6 +667,15 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
     carte.textContent = '';
     carte.classList.remove('vide');
     carte.appendChild(noeud('span', 'niveau ' + d.cls, d.niveau));
+    if (d.picto) {
+      const im = document.createElement('img');
+      im.className = 'picto-p';
+      const base = 'assets/icones/tempo/premium/' + d.picto;
+      im.src = base + '.svg';
+      im.srcset = base + '-48.webp 48w, ' + base + '-96.webp 96w, ' + base + '-144.webp 144w';
+      im.sizes = '48px'; im.width = 48; im.height = 48; im.alt = '';
+      carte.appendChild(im);
+    }
     carte.appendChild(noeud('h3', '', d.titre));
     d.lignes.forEach(l => carte.appendChild(noeud('div', 'texte', l)));
     carte.appendChild(noeud('div', 'source', d.source));
@@ -979,6 +991,12 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
       const comp = T.evaluerComparabilite(bornes, bRef, calE, calR, exc);
       const pill = document.getElementById('pillComparabilite');
       pill.textContent = comp.faible ? 'Comparabilité faible avec la période précédente' : 'Périodes comparables';
+      if (comp.faible) {
+        const im = document.createElement('img');
+        im.className = 'picto-s'; im.src = 'assets/icones/tempo/simple/tempo-fiabilite-donnees.svg';
+        im.width = 24; im.height = 24; im.alt = '';
+        pill.insertBefore(im, pill.firstChild);
+      }
       pill.className = 'pill' + (comp.faible ? ' ambre' : '');
       pill.hidden = false;
       enBrefEtat.faible = comp.faible; majEnBref();
@@ -1218,7 +1236,7 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
         const f = c.historique ? fiches.historique(c) : (fiches[c.activite] && fiches[c.activite](c.source));
         if (!f) return;
         const preuves = f.preuves.concat([['Rang', c.motifRang + noteRang], ['Fraîcheur', c.fraicheur.texte]]);
-        remplirDecouverte(slot, Object.assign({}, f, { preuves }));
+        remplirDecouverte(slot, Object.assign({}, f, { preuves, picto: c.type === 'masquee' ? 'tempo-evolution-masquee' : 'tempo-decouverte' }));
         if (slot === 0) { enBrefEtat.decouverte = { activite: NOM_ACTIVITE_ENBREF[c.activite] || '', titre: f.titre || '', type: c.type, sens: c.sens < 0 ? 'baisse' : c.sens > 0 ? 'hausse' : '' }; majEnBref(); }
       });
     })();

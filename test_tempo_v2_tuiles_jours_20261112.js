@@ -76,7 +76,7 @@ function sansRepetitionLecture(txt) {
 });
 t('tuiles : une colonne sur téléphone, deux colonnes dès 640 px (haut sur une ligne, bas sur la suivante)', () => {
   assert.ok(/\.tuiles-jours \.rang\{[^}]*grid-template-columns:1fr/.test(html));
-  assert.ok(html.includes('tu.haut.concat(tu.bas)') && html.includes('rang(tous)') && !html.includes('rang(tu.haut)'), 'une seule grille pour haut puis bas');
+  assert.ok(html.includes('rang(tu.haut, tu.bas)') && !html.includes('rang(tous)'), 'une seule grille pour haut puis bas');
   assert.ok(/@media \(min-width:640px\)\{\.tuiles-jours \.rang\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/.test(html));
 });
 t('plus forte moyenne : absente quand c’est le jour récurrent lui-même', () => {
@@ -122,7 +122,7 @@ t('le moteur ne porte aucun mot d’affichage dans tuilesJours', () => {
 });
 t('la page charge le lexique avant le moteur et branche les tuiles', () => {
   assert.ok(html.indexOf('nexus-vocabulaire.js') > -1 && html.indexOf('nexus-vocabulaire.js') < html.indexOf('nexus-tempo.js'));
-  ['id="tuilesPiste"', 'id="tuilesFdj"', 'id="tuilesBoutique"', 'l.tuiles', 'lecture-tempo'].forEach(s => assert.ok(html.includes(s), 'manque : ' + s));
+  ['id="tuilesPiste"', 'id="tuilesFdj"', 'id="tuilesBoutique"', 'l.tuiles', 'conseiller-card'].forEach(s => assert.ok(html.includes(s), 'manque : ' + s));
 });
 t('aucune couleur de statut sur les tuiles : couleur d’activité seule', () => {
   const css = html.slice(html.indexOf('.tuiles-jours'), html.indexOf('.graphique'));

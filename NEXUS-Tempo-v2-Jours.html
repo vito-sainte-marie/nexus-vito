@@ -215,9 +215,15 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
 .tuile-jour .tj-ecart{display:block; margin-top:2px; color:var(--t-text);}
 .tuile-jour .tj-etiquette{display:block; margin-top:6px; font-size:12px; font-weight:500; color:var(--t-mid);}
 .tuile-jour .tj-petit{display:block; margin-top:4px; font-size:11.5px; font-weight:400; color:var(--t-mid);}
-.lecture-tempo{margin-top:12px; padding:12px 14px; border-radius:12px; background:var(--t-raised); border-left:3px solid rgb(var(--c-rgb)); font-size:13.5px; line-height:1.5;}
-.lecture-tempo .lt-titre{display:block; font-size:11.5px; font-weight:600; color:var(--t-mid); margin-bottom:4px;}
-.lecture-tempo .lt-preuve{display:block; margin-top:6px; font-size:11.5px; color:var(--t-mid);}
+.conseiller-card{display:flex; gap:14px; align-items:flex-start; margin-top:12px; padding:14px; border-radius:14px; background:linear-gradient(135deg, rgba(79,195,217,0.08), rgba(79,195,217,0.02)); border:1px solid rgba(79,195,217,0.25); font-size:13.5px; line-height:1.5;}
+.conseiller-avatar{width:44px; height:44px; border-radius:50%; object-fit:cover; background:var(--t-raised); border:1.5px solid rgba(79,195,217,0.4); flex-shrink:0; filter:drop-shadow(0 0 9px rgba(79,195,217,0.5));}
+.conseiller-body{min-width:0;}
+.conseiller-body .lt-titre{display:block; font-size:11.5px; font-weight:600; color:var(--t-mid); margin-bottom:4px;}
+.conseiller-body .lt-preuve{display:block; margin-top:6px; font-size:11.5px; color:var(--t-mid);}
+.tj-entete{display:flex; align-items:center; gap:8px;}
+.picto-p{width:48px; height:48px; flex-shrink:0;}
+.picto-s{width:24px; height:24px; flex-shrink:0; vertical-align:middle; margin-right:6px;}
+.tj-ligne{display:flex; align-items:center;}
 .graphique svg .axe-grille{stroke:var(--t-line); stroke-width:1; stroke-opacity:.6;}
 .graphique svg text.axe-graduation{font-size:10.5px;}
 .graphique{position:relative; margin-top:10px;}
@@ -350,7 +356,7 @@ details.valeurs .tableau td, details.valeurs .tableau th{white-space:nowrap;}
       $('resume' + C).textContent = J.tableau;
     });
     $('precisionBoutique').textContent = J.boutique.precision;
-    $('rythmeBoutique').textContent = J.boutique.rythme;
+    $('rythmeBoutique').innerHTML = '<img class="picto-s" src="assets/icones/tempo/simple/tempo-rythme-potentiel.svg" width="24" height="24" alt="">' + esc(J.boutique.rythme);
     $('appelBoutique').textContent = J.boutique.appel;
   }
 
@@ -370,13 +376,17 @@ details.valeurs .tableau td, details.valeurs .tableau th{white-space:nowrap;}
     if (res.etat === 'absent') { zone.innerHTML = '<p class="mention">' + esc(J.aucuneDonnee) + '</p>'; return; }
     const lt = $('tuiles' + C), tu = l.tuiles;
     if (tu) {
-      const tuile = x => '<div class="tuile-jour"><span class="tj-titre">' + esc(x.titre) + '</span><span class="tj-jour">' + esc(x.nom) + ' · ' + esc(x.moyenne) + '</span>' +
-        '<span class="tj-ecart">' + esc(x.ecart) + ' ' + esc(J.tuiles.contre) + '</span><span class="tj-etiquette">' + esc(x.etiquette) + '</span>' +
-        (x.irregulier ? '<span class="tj-petit">' + esc(x.irregulier) + '</span>' : '') + (x.rythme ? '<span class="tj-petit">' + esc(x.rythme) + '</span>' : '') + '</div>';
-      const tous = tu.haut.concat(tu.bas);
-      const rang = a => a.length ? '<div class="rang">' + a.map(tuile).join('') + '</div>' : '';
-      lt.innerHTML = rang(tous) +
-        '<div class="lecture-tempo"><span class="lt-titre">' + esc(J.tuiles.titreLecture) + '</span>' + esc(tu.lecture) + '<span class="lt-preuve">' + esc(tu.preuve) + '</span></div>';
+      const IC = 'assets/icones/tempo/';
+      const pP = nom => '<img class="picto-p" src="' + IC + 'premium/' + nom + '.svg" srcset="' + IC + 'premium/' + nom + '-48.webp 48w, ' + IC + 'premium/' + nom + '-96.webp 96w, ' + IC + 'premium/' + nom + '-144.webp 144w" sizes="48px" width="48" height="48" alt="">';
+      const pS = nom => '<img class="picto-s" src="' + IC + 'simple/' + nom + '.svg" width="24" height="24" alt="">';
+      const petit = (nom, txt) => '<span class="tj-petit tj-ligne">' + pS(nom) + '<span>' + esc(txt) + '</span></span>';
+      const tuile = cote => x => '<div class="tuile-jour"><div class="tj-entete">' + pP('tempo-' + (x.role === 'recurrent' ? 'jour-' + (cote === 'haut' ? 'fort' : 'faible') + '-recurrent' : 'plus-' + (cote === 'haut' ? 'forte' : 'faible') + '-moyenne')) + '<span class="tj-titre">' + esc(x.titre) + '</span></div><span class="tj-jour">' + esc(x.nom) + ' · ' + esc(x.moyenne) + '</span>' +
+        '<span class="tj-ecart">' + esc(x.ecart) + ' ' + esc(J.tuiles.contre) + '</span>' +
+        (x.etiquette === J.verdicts.habituel ? '<span class="tj-etiquette tj-ligne">' + pS('tempo-variation-habituelle') + '<span>' + esc(x.etiquette) + '</span></span>' : '<span class="tj-etiquette">' + esc(x.etiquette) + '</span>') +
+        (x.irregulier ? petit('tempo-activite-irreguliere', x.irregulier) : '') + (x.rythme ? petit('tempo-rythme-potentiel', x.rythme) : '') + '</div>';
+      const rang = (h, b) => h.length + b.length ? '<div class="rang">' + h.map(tuile('haut')).join('') + b.map(tuile('bas')).join('') + '</div>' : '';
+      lt.innerHTML = rang(tu.haut, tu.bas) +
+        '<div class="conseiller-card"><img class="conseiller-avatar" src="assets/avatar/nexus-avatar-64.png" srcset="assets/avatar/nexus-avatar-64.png 64w, assets/avatar/nexus-avatar-96.png 96w, assets/avatar/nexus-avatar-128.png 128w" sizes="44px" width="44" height="44" alt=""><div class="conseiller-body"><span class="lt-titre">' + esc(J.tuiles.titreLecture) + '</span>' + esc(tu.lecture) + '<span class="lt-preuve">' + esc(tu.preuve) + '</span></div></div>';
       lt.hidden = false;
     } else { lt.innerHTML = ''; lt.hidden = true; }
     const LARG = 56, GAUCHE = 52, DROITE = 20, HAUT = 230, BASE = 190, MAXB = 150;

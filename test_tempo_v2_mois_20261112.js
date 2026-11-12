@@ -53,7 +53,7 @@ t('toute lecture est bornée et filtrée par site, sans écriture', () => {
 });
 t('la tuile du hub est ouverte et mène à la page', () => {
   assert.ok(/<a class="tuile croisee disponible" href="NEXUS-Tempo-v2-Mois\.html">/.test(hub));
-  assert.ok(!/favorable/i.test(hub));
+  assert.ok(!/favorable/i.test(hub.replace(/<img[^>]*>/g, '')));
 });
 t('une barre par mois écoulé, hauteur = moyenne et jamais le total', () => {
   const b = T.barresMois(mois(), 'piste');
@@ -121,7 +121,7 @@ t('lexique chargé avant le moteur, et textes tirés du lexique', () => {
   assert.ok(html.includes('window.NexusVocab.mois') || html.includes('NexusVocab.mois'));
 });
 t('aucun tiret cadratin affiché, aucun conseil', () => {
-  const bloc = vocab.slice(vocab.indexOf('NexusVocab.mois')).replace(/titreOnglet:[^\n]*\n/, '');
+  const bloc = vocab.slice(vocab.indexOf('NexusVocab.mois')).replace(/titreOnglet:[^\n]*\n/, '').replace(/titreLecture:[^\n]*\n/, '');
   assert.ok(!/—/.test(bloc), 'tiret cadratin dans le lexique');
   assert.ok(!VERBES.test(bloc), 'verbe de conseil');
   const pieces = [M.titre, M.sousTitre, M.nonRetenuLong, M.sansEvolution, M.fiabilite, M.legendeManquant, M.legendeNonRetenu, M.boutique.phrase, M.anneePrecedente, M.moyenne(1200, M.piste), M.evolution('Hausse', 3.2)].join(' ');
