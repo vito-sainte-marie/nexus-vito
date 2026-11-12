@@ -2551,13 +2551,6 @@
   // Ordre : 1) situation générale, ce qui est stable d'abord, puis ce qui bouge après « tandis que » ;
   // 2) première découverte retenue, avec ses chiffres et son motif (masqué, découplage) ; 3) autre évolution notable, si elle existe.
   const MOIS_LONGS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
-  const SUJETS_EN_BREF = {
-    Piste: { sujet: 'les litres de la Piste', pluriel: true },
-    Boutique: { sujet: 'la marge de la Boutique', pluriel: false },
-    FDJ: { sujet: 'le chiffre d\u2019affaires de la FDJ', pluriel: false },
-  };
-  const MOTIF_EN_BREF = { masquee: 'une variation masquée', decrochage: 'un découplage', repartition: 'un changement de répartition',
-    variation: 'une variation', simple: 'une variation', relation: 'une relation croisée', rupture: 'un changement durable', mois: 'un mois inhabituel' };
   const dateLongue = (iso, avecAnnee) => {
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ''));
     if (!m) return '';
@@ -2568,56 +2561,49 @@
   function syntheseEnBref(entree) {
     const e = entree || {};
     const acts = e.activites || [];
-    if (!acts.length) return { periode: '', texte: '', note: '' };
+    const V = typeof window !== 'undefined' && window.NexusVocab && window.NexusVocab.enBref;
+    if (!acts.length || !V) return { periode: '', texte: '', note: '' };
     const per = e.periode && e.periode.debut && e.periode.fin ? e.periode : null;
     const periode = per ? 'Du ' + dateLongue(per.debut, per.debut.slice(0, 4) !== per.fin.slice(0, 4)) + ' au ' + dateLongue(per.fin, true) + '.' : '';
     const imp = e.importBoutique && e.importBoutique.debut && e.importBoutique.fin
       ? 'import du ' + dateLongue(e.importBoutique.debut, e.importBoutique.debut.slice(0, 4) !== e.importBoutique.fin.slice(0, 4)) + ' au ' + dateLongue(e.importBoutique.fin, true) : '';
-    const classe = a => {
-      const t = String(a.evol || '').trim();
-      if (!t || t === 'Tendance non déterminée') return 'inconnu';
-      if (/Variation habituelle|stable/i.test(t)) return 'stable';
-      if (/hausse/i.test(t)) return 'hausse';
-      if (/baisse/i.test(t)) return 'baisse';
-      return 'inconnu';
-    };
-    const stables = [], bougent = [], inconnus = [];
+    const liste = l => l.length > 1 ? l.slice(0, -1).join(', ') + ' et ' + l[l.length - 1] : l[0];
+    const maj = t => t.charAt(0).toUpperCase() + t.slice(1);
+    const stables = [], hausses = [], baisses = [], inconnus = [];
     acts.forEach(a => {
-      const d = SUJETS_EN_BREF[a.nom] || { sujet: a.nom, pluriel: false };
-      const c = classe(a);
+      const c = V.classe(a.evol);
       const reserves = [];
       if (a.nom === 'Boutique' && imp) reserves.push(imp);
       if (a.reserve) reserves.push(a.reserve);
-      const parenth = reserves.length ? ' (' + reserves.join(' ; ') + ')' : '';
-      if (c === 'inconnu') { inconnus.push(d.sujet + parenth); return; }
-      const pct = /^[+−-]/.test(String(a.evol)) ? String(a.evol).split(' · ')[0].trim() : '';
-      const verbe = c === 'stable' ? (d.pluriel ? 'restent stables' : 'reste stable')
-        : c === 'hausse' ? (d.pluriel ? 'progressent' : 'progresse') : (d.pluriel ? 'reculent' : 'recule');
-      const clause = d.sujet + ' ' + verbe + (pct ? ' (' + pct + ')' : '') + parenth;
-      (c === 'stable' ? stables : bougent).push(clause);
+      const parenth = reserves.length ? ' (' + reserves.join(', ') + ')' : '';
+      const pct = /^[+−-]/.test(String(a.evol)) ? String(a.evol).split(' · ')[0].trim().replace(/^[+−-]\s*/, '') : '';
+      const it = { nom: a.nom, parenth, pct };
+      (c === 'stable' ? stables : c === 'hausse' ? hausses : c === 'baisse' ? baisses : inconnus).push(it);
     });
-    const liste = l => l.length > 1 ? l.slice(0, -1).join(', ') + ' et ' + l[l.length - 1] : l[0];
-    let s1 = '';
-    if (stables.length && bougent.length) s1 = liste(stables) + ', tandis que ' + liste(bougent);
-    else if (stables.length || bougent.length) s1 = liste(stables.length ? stables : bougent);
+    // Ce qui est stable : un seul verbe, un seul sujet. Aucun pourcentage.
+    const partieStable = stables.length ? V.maintient + ' ' + liste(stables.map(x => V.sujet(x.nom, true) + x.parenth)) : '';
+    // Ce qui bouge : un verbe par sens ; le pourcentage n'est donné que lorsqu'un seul sujet porte ce sens.
+    const mouv = (l, classe) => {
+      if (!l.length) return '';
+      const seul = l.length === 1;
+      return liste(l.map(x => V.sujet(x.nom, false) + x.parenth)) + ' ' + V.mouvement(classe, !seul, seul ? l[0].pct : '');
+    };
+    const bouge = [mouv(hausses, 'hausse'), mouv(baisses, 'baisse')].filter(Boolean);
+    let s1 = partieStable && bouge.length ? partieStable + ', ' + V.contraste + ' ' + liste(bouge) : (partieStable || liste(bouge) || '');
     if (inconnus.length) {
-      const absent = 'aucune comparaison n\u2019est disponible pour ' + liste(inconnus.map(x => x.replace(/^(le|la|les) /, m => m)));
-      s1 = s1 ? s1 + ' ; ' + absent : absent;
+      const absent = V.absente + ' ' + liste(inconnus.map(x => V.sujet(x.nom, false) + x.parenth));
+      s1 = s1 ? s1 + ', mais ' + absent : absent;
     }
-    const phrases = [s1.charAt(0).toUpperCase() + s1.slice(1) + '.'];
+    const phrases = s1 ? [maj(s1) + '.'] : [];
     const d1 = e.decouverte;
     const titre1 = d1 && d1.titre ? sansPoint(d1.titre) : '';
     if (titre1) {
-      const motif = MOTIF_EN_BREF[d1.type] || '';
-      const cote = SUJETS_EN_BREF[d1.activite] ? 'Côté ' + d1.activite : 'Première découverte';
-      let p2 = cote + ', la première découverte retenue' + (motif ? ' est ' + motif : '') + ' : ' + casseMinuscule(titre1);
-      const det = sansPoint(d1.detail);
-      if (det) p2 += ' (' + det + ')';
-      phrases.push(p2 + '.');
+      const clause = V.masquee(d1.activite, d1.sens);
+      phrases.push(V.attention + casseMinuscule(titre1) + (clause ? ', ' + clause : '') + '.');
     }
     const titre2 = e.decouverte2 && e.decouverte2.titre ? sansPoint(e.decouverte2.titre) : '';
-    if (titre1 && titre2) phrases.push('À noter aussi : ' + casseMinuscule(titre2) + '.');
-    const note = e.faible === true ? 'La comparaison avec la période précédente reste fragile. Ces évolutions sont à interpréter avec prudence.' : '';
+    if (titre1 && titre2) phrases.push(V.aNoter + casseMinuscule(titre2) + '.');
+    const note = e.faible === true ? V.prudence : '';
     return { periode, texte: phrases.join(' '), note };
   }
 
