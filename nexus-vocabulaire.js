@@ -334,5 +334,53 @@
     return { constat, explication, decision };
   };
 
+  // ------------------------------------------------------------
+  // Tempo V2 : jours fériés et ponts. Le moteur ne rend que des chiffres
+  // et des états ; toute la phrase affichée vit ici.
+  // ------------------------------------------------------------
+  const FERIES_JOURS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+  const feriesJour = iso => FERIES_JOURS[new Date(iso + 'T12:00:00Z').getUTCDay()];
+  const feriesCourte = iso => iso.split('-').reverse().slice(0, 2).join('/');
+  const feriesPct = p => (p >= 0 ? '+' : '\u2212') + Math.abs(p).toFixed(1).replace('.', ',') + ' %';
+  const feriesNb = n => Math.round(n).toLocaleString('fr-FR');
+  const feriesCap = t => t.charAt(0).toUpperCase() + t.slice(1);
+  // « Pont, lendemain de X » (nom du moteur) -> « pont après le férié X » ; le moteur garde son nom, l'écran garde ce texte.
+  function feriesQualif(type, nom, sens) {
+    if (type === 'ferie') return nom || 'férié';
+    const s = sens || (/lendemain/i.test(nom || '') ? 'lendemain' : /veille/i.test(nom || '') ? 'veille' : '');
+    const f = String(nom || '').replace(/^.*?(?:lendemain|veille) de\s+/i, '');
+    if (s === 'lendemain') return 'pont après le férié ' + f;
+    if (s === 'veille') return 'pont avant le férié ' + f;
+    return 'pont';
+  }
+  NexusVocab.feries = {
+    titre: 'Jours fériés et ponts',
+    // Une ligne par jour spécial travaillé : jour du moteur, unité (« L », « € »).
+    ligneJour: function (j, unite) {
+      const tete = feriesCap(feriesJour(j.date)) + ' ' + feriesCourte(j.date) + ' (' + feriesQualif(j.type, j.nom, j.sens) + ') : ';
+      if (j.etat !== 'comparable') {
+        const motif = j.raison === 'jour_incomplet'
+          ? 'journée incomplète, non comparable'
+          : 'pas assez de ' + feriesJour(j.date) + 's habituels pour comparer';
+        return tete + motif;
+      }
+      return tete + feriesNb(j.valeur) + ' ' + unite + ', soit ' + feriesPct(j.ecartPct) + ' par rapport à un ' + feriesJour(j.date) + ' habituel';
+    },
+    aucun: 'Aucun jour férié ni pont dans la période étudiée.',
+    // Effet moyen par type ; en dessous du minimum, le compteur « n sur 4 » remplace le pourcentage.
+    effet: function (e) {
+      const nom = e.type === 'pont' ? 'ponts' : 'jours fériés';
+      if (e.etat !== 'ok') return 'Pas encore assez de ' + nom + ' observés pour dégager un effet : ' + e.n + ' sur ' + e.min + '.';
+      return 'Effet moyen des ' + nom + ' (' + e.n + ' observés) : ' + feriesPct(e.ecartPct) + ' par rapport à un jour habituel.';
+    },
+    prochains: function (liste) {
+      if (!liste || !liste.length) return 'Aucun pont à venir dans les deux prochaines années.';
+      return 'Prochains ponts : ' + liste.map(function (p) {
+        return feriesJour(p.date) + ' ' + p.date.split('-').reverse().join('/') + ' (' + feriesQualif('pont', p.nom, null) + ')';
+      }).join(', ') + '.';
+    },
+    boutique: 'Les jours fériés et les ponts ne sont pas comparés pour la boutique : la marge vient d\u2019imports qui couvrent des périodes, pas des journées.',
+  };
+
   global.NexusVocab = NexusVocab;
 })(window);

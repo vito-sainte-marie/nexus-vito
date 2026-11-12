@@ -1789,6 +1789,67 @@
     return { jours: dates.length, vacances, feries: ferie, weekends: weekend, pctVacances: vacances / n, pctFeries: ferie / n, pctWeekends: weekend / n };
   }
 
+  // ------------------------------------------------------------
+  // Jours fériés et ponts (Lot 3). Chaque férié ou pont travaillé est comparé à une
+  // journée habituelle : la moyenne du même jour de semaine sur les 8 semaines qui
+  // précèdent, journées complètes seulement, fériés et ponts exclus de la référence.
+  // Le moteur ne rend que des données et des codes ; les phrases vivent dans le lexique.
+  //   jours complets : [{ date, valeur }] (joursLitresCompletsPiste / joursCaFdjComplets)
+  //   bornes         : { debut, fin } (début de l'historique complet, veille du jour en cours)
+  //   etat 'comparable' | 'non_comparable' ; raison : 'jour_incomplet' | 'reference_insuffisante'
+  //   effets         : écart moyen des fériés puis des ponts, rendu à partir de 4 observés.
+  // ------------------------------------------------------------
+  const FERIES_SEMAINES_REFERENCE = 8;
+  const FERIES_REFERENCE_MIN = 4;
+  const FERIES_OBSERVES_MIN = 4;
+  function qualifierJourSpecial(date, feriesSite) {
+    const f = estJourFerieMartinique(date);
+    if (f.ferie || feriesSite.has(date)) return { type: 'ferie', nom: f.nom || null };
+    if (estPont(date).pont) {
+      const veille = estJourFerieMartinique(decalerJourISO(date, 1));
+      const lend = estJourFerieMartinique(decalerJourISO(date, -1));
+      return veille.ferie ? { type: 'pont', nom: veille.nom, sens: 'veille' } : { type: 'pont', nom: lend.nom, sens: 'lendemain' };
+    }
+    return null;
+  }
+  function analyseFeries(joursComplets, lignesFeries, bornes) {
+    const feriesSite = new Set((lignesFeries || []).filter(l => l && l.date && l.type === 'ferie').map(l => String(l.date).slice(0, 10)));
+    const parDate = new Map();
+    (joursComplets || []).forEach(j => { if (j && j.date && Number.isFinite(j.valeur)) parDate.set(j.date, j.valeur); });
+    const premier = [...parDate.keys()].sort()[0];
+    const special = d => qualifierJourSpecial(d, feriesSite);
+    const jours = [];
+    if (premier) {
+      datesDeLaPeriode({ debut: premier > bornes.debut ? premier : bornes.debut, fin: bornes.fin }).forEach(date => {
+        const q = special(date);
+        if (!q) return;
+        const jour = { date, type: q.type, nom: q.nom, sens: q.sens || null, jourSemaine: jourSemaineISO(date) };
+        if (!parDate.has(date)) return jours.push(Object.assign(jour, { etat: 'non_comparable', raison: 'jour_incomplet', valeur: null }));
+        const ref = [];
+        for (let k = 1; k <= FERIES_SEMAINES_REFERENCE; k++) {
+          const d = decalerJourISO(date, -7 * k);
+          if (parDate.has(d) && !special(d)) ref.push(parDate.get(d));
+        }
+        jour.valeur = parDate.get(date);
+        jour.reference = { n: ref.length, min: FERIES_REFERENCE_MIN, moyenne: ref.length ? moyenneTab(ref) : null };
+        if (ref.length < FERIES_REFERENCE_MIN || !(jour.reference.moyenne > 0)) {
+          return jours.push(Object.assign(jour, { etat: 'non_comparable', raison: 'reference_insuffisante' }));
+        }
+        jour.etat = 'comparable';
+        jour.ecartValeur = jour.valeur - jour.reference.moyenne;
+        jour.ecartPct = jour.ecartValeur / jour.reference.moyenne * 100;
+        jours.push(jour);
+      });
+    }
+    const effet = type => {
+      const c = jours.filter(j => j.type === type && j.etat === 'comparable');
+      const ok = c.length >= FERIES_OBSERVES_MIN;
+      return { type, n: c.length, min: FERIES_OBSERVES_MIN, etat: ok ? 'ok' : 'insuffisant',
+        ecartPct: ok ? moyenneTab(c.map(j => j.ecartPct)) : null, ecartValeur: ok ? moyenneTab(c.map(j => j.ecartValeur)) : null };
+    };
+    return { jours, effets: { ferie: effet('ferie'), pont: effet('pont') }, semaines: FERIES_SEMAINES_REFERENCE, referenceMin: FERIES_REFERENCE_MIN };
+  }
+
   // exceptionnels : [{ activite, date, valeur }] des deux périodes, toutes activités.
   function evaluerComparabilite(borneEtudiee, borneRef, calE, calR, exceptionnels) {
     const raisons = [];
@@ -2627,7 +2688,7 @@
     bornesPeriodeIndicateurs, joursLitresCompletsPiste, joursCaFdjComplets, resumerParJour, resumerMargeImport,
     quartsLitresPiste, quartsBoutique, quartsFdj, comparerQuarts, comparerQuartsParJour, exceptionsParJourSemaine, ORDRE_JOURS_SEMAINE,
     bornesReference, comparerPeriodes, joursExceptionnels, exclusionsPiste, exclusionsFdj,
-    compositionCalendrier, evaluerComparabilite, prixMoyenMesure,
+    compositionCalendrier, analyseFeries, FERIES_OBSERVES_MIN, evaluerComparabilite, prixMoyenMesure,
     joursCaPiste, joursCaBoutique, analysePiste, departagerDepassement, joursLitresCarburant, quartsLitresCarburant, horsServiceCarburant, CARBURANTS, JOURS_HORS_SERVICE, SEUIL_PART_POINTS, K_DEPASSEMENT, correlationResidus, relationBoutiqueFdj, rapportFdjQuart1, SEUIL_RELATION_JOURS,
     libelleEvolution,
     candidatsDecouvertes, candidatRelation, classerDecouvertes, selectionnerDecouvertes, decouvertesEcartees, NB_DECOUVERTES_ACCUEIL, RANGS_PERDUS_FRAICHEUR,
