@@ -364,7 +364,11 @@
           : 'pas assez de ' + feriesJour(j.date) + 's habituels pour comparer';
         return tete + motif;
       }
-      return tete + feriesNb(j.valeur) + ' ' + unite + ', soit ' + feriesPct(j.ecartPct) + ' par rapport à un ' + feriesJour(j.date) + ' habituel';
+      const ex = (j.reference && j.reference.exclus) || [];
+      const hors = !ex.length ? '' : ex.length === 1
+        ? ', hors journée exceptionnelle du ' + feriesCourte(ex[0])
+        : ', hors journées exceptionnelles du ' + ex.map(feriesCourte).join(' et du ');
+      return tete + feriesNb(j.valeur) + ' ' + unite + ', soit ' + feriesPct(j.ecartPct) + ' par rapport à un ' + feriesJour(j.date) + ' habituel' + hors;
     },
     aucun: 'Aucun jour férié ni pont dans la période étudiée.',
     // Effet moyen par type ; en dessous du minimum, le compteur « n sur 4 » remplace le pourcentage.

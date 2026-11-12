@@ -1802,9 +1802,9 @@
   const FERIES_SEMAINES_REFERENCE = 8;
   const FERIES_REFERENCE_MIN = 4;
   const FERIES_OBSERVES_MIN = 4;
-  function qualifierJourSpecial(date, feriesSite) {
+  function qualifierJourSpecial(date, feriesSite, libelles) {
     const f = estJourFerieMartinique(date);
-    if (f.ferie || feriesSite.has(date)) return { type: 'ferie', nom: f.nom || null };
+    if (f.ferie || feriesSite.has(date)) return { type: 'ferie', nom: f.nom || (libelles && libelles.get(date)) || null };
     if (estPont(date).pont) {
       const veille = estJourFerieMartinique(decalerJourISO(date, 1));
       const lend = estJourFerieMartinique(decalerJourISO(date, -1));
@@ -1814,10 +1814,14 @@
   }
   function analyseFeries(joursComplets, lignesFeries, bornes) {
     const feriesSite = new Set((lignesFeries || []).filter(l => l && l.date && l.type === 'ferie').map(l => String(l.date).slice(0, 10)));
+    const libelles = new Map();
+    (lignesFeries || []).forEach(l => { if (l && l.date && l.type === 'ferie' && l.libelle) libelles.set(String(l.date).slice(0, 10), String(l.libelle).trim()); });
     const parDate = new Map();
     (joursComplets || []).forEach(j => { if (j && j.date && Number.isFinite(j.valeur)) parDate.set(j.date, j.valeur); });
     const premier = [...parDate.keys()].sort()[0];
-    const special = d => qualifierJourSpecial(d, feriesSite);
+    const special = d => qualifierJourSpecial(d, feriesSite, libelles);
+    // Journées exceptionnelles (même règle que partout dans Tempo), repérées sur les jours ordinaires : elles ne servent pas de référence.
+    const exceptionnels = new Set(joursExceptionnels([...parDate.entries()].filter(e => !special(e[0])).map(e => ({ date: e[0], valeur: e[1] }))).map(j => j.date));
     const jours = [];
     if (premier) {
       datesDeLaPeriode({ debut: premier > bornes.debut ? premier : bornes.debut, fin: bornes.fin }).forEach(date => {
@@ -1825,13 +1829,14 @@
         if (!q) return;
         const jour = { date, type: q.type, nom: q.nom, sens: q.sens || null, jourSemaine: jourSemaineISO(date) };
         if (!parDate.has(date)) return jours.push(Object.assign(jour, { etat: 'non_comparable', raison: 'jour_incomplet', valeur: null }));
-        const ref = [];
+        const ref = [], exclus = [];
         for (let k = 1; k <= FERIES_SEMAINES_REFERENCE; k++) {
           const d = decalerJourISO(date, -7 * k);
-          if (parDate.has(d) && !special(d)) ref.push(parDate.get(d));
+          if (!parDate.has(d) || special(d)) continue;
+          if (exceptionnels.has(d)) exclus.push(d); else ref.push(parDate.get(d));
         }
         jour.valeur = parDate.get(date);
-        jour.reference = { n: ref.length, min: FERIES_REFERENCE_MIN, moyenne: ref.length ? moyenneTab(ref) : null };
+        jour.reference = { n: ref.length, min: FERIES_REFERENCE_MIN, moyenne: ref.length ? moyenneTab(ref) : null, exclus: exclus.sort() };
         if (ref.length < FERIES_REFERENCE_MIN || !(jour.reference.moyenne > 0)) {
           return jours.push(Object.assign(jour, { etat: 'non_comparable', raison: 'reference_insuffisante' }));
         }

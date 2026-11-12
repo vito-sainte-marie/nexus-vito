@@ -74,6 +74,23 @@ t('les prochains ponts et la phrase Boutique : aucun tiret cadratin, aucune cons
   assert.ok(!VERBES.test(txt), 'consigne');
   assert.ok(/Prochains ponts : /.test(LF.prochains(T.prochainsPonts('2026-11-12', 6))));
 });
+t('une journée exceptionnelle est écartée de la référence et nommée sur la ligne', () => {
+  const js = jeu(8, 1500).map(j => j.date === '2026-09-30' ? { date: j.date, valeur: 3000 } : j);
+  const j = T.analyseFeries(js, [], BORNES).jours.find(x => x.date === '2026-11-11');
+  assert.strictEqual(j.reference.n, 7);
+  assert.deepStrictEqual(j.reference.exclus, ['2026-09-30']);
+  assert.ok(Math.abs(j.ecartPct - 45.6) < 3, 'écart ' + j.ecartPct);
+  assert.ok(/, hors journée exceptionnelle du 30\/09$/.test(LF.ligneJour(j, 'L')), LF.ligneJour(j, 'L'));
+});
+t('un férié connu seulement du calendrier du site porte son libellé', () => {
+  const js = jeu(8, null);
+  js.push({ date: '2026-10-14', valeur: 1700 });
+  const a = T.analyseFeries(js, [{ date: '2026-10-14', type: 'ferie', libelle: 'Fête locale' }], BORNES);
+  const j = a.jours.find(x => x.date === '2026-10-14');
+  assert.strictEqual(j.nom, 'Fête locale');
+  assert.ok(/\(Fête locale\)/.test(LF.ligneJour(j, 'L')), LF.ligneJour(j, 'L'));
+  assert.ok(!/\(férié\)/.test(LF.ligneJour(j, 'L')));
+});
 t('le moteur ne porte pas de phrase d’affichage pour les fériés', () => {
   const corps = moteur.slice(moteur.indexOf('function qualifierJourSpecial'), moteur.indexOf('function evaluerComparabilite'));
   assert.ok(corps.length > 200);
