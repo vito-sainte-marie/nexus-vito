@@ -107,9 +107,10 @@ t('le seuil est une constante nommée, et la garde ne sert qu’à cette carte',
 t('textes passés par le lexique, langage prudent, aucune consigne ni saisonnalité établie', () => {
   const s = mercredi([0, 2, 5, 6], 400);
   const l = T.lignesJours(T.joursFortsFaibles(s, BORNES, []), 'piste');
-  assert.ok(l.rythmes && /^Rythme potentiel : Mercredi \(4 jours complets sur 8 nettement au-dessus de la médiane\)/.test(l.rythmes.texte));
+  assert.ok(l.rythmes && /^Rythme potentiel : Mercredi \(4 jours complets sur 8 hors norme, au-dessus de la médiane\)/.test(l.rythmes.texte));
+  assert.ok(!/nettement/.test(l.rythmes.texte), 'libellé G5 réservé au verdict');
   assert.ok(!/saisonnal|devez|faut|conseil|recommand|—/i.test(l.rythmes.texte + l.rythmes.avantApres));
-  assert.ok(!/Rythme potentiel|nettement au-dessus de la médiane/.test(moteur.slice(moteur.indexOf('function joursFortsFaibles'), moteur.indexOf('function lignesJours'))), 'mot d’affichage dans le moteur');
+  assert.ok(!/Rythme potentiel|hors norme, au-dessus/.test(moteur.slice(moteur.indexOf('function joursFortsFaibles'), moteur.indexOf('function lignesJours'))), 'mot d’affichage dans le moteur');
   assert.ok(/rythmes: \{/.test(vocab));
 });
 t('la page affiche le bloc du rythme', () => {

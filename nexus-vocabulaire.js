@@ -454,7 +454,7 @@
     // Garde des rythmes hebdomadaires : langage prudent, jamais une régularité présentée comme acquise, ni de consigne.
     rythmes: {
       titre: 'Rythme potentiel',
-      texte: liste => 'Rythme potentiel : ' + liste.map(r => r.nom + ' (' + r.nb + ' jours complets sur ' + r.occurrences + ' ' + (r.sens === 'au-dessus' ? 'nettement au-dessus' : 'nettement en dessous') + ' de la médiane)').join(', ') + '. Ces journées restent dans la lecture, car une récurrence observée ressemble à un rythme plutôt qu’à une exception.',
+      texte: liste => 'Rythme potentiel : ' + liste.map(r => r.nom + ' (' + r.nb + ' jours complets sur ' + r.occurrences + ' hors norme, ' + (r.sens === 'au-dessus' ? 'au-dessus' : 'en dessous') + ' de la médiane)').join(', ') + '. Ces journées restent dans la lecture, car une récurrence observée ressemble à un rythme plutôt qu’à une exception.',
       avantApres: (noms, etatAvant, etatApres) => noms.length
         ? 'Avant cette règle, la lecture était différente pour : ' + noms.join(', ') + '.'
         : (etatAvant === 'insuffisant' && etatApres !== 'insuffisant' ? 'Avant cette règle, la comparaison était impossible.' : 'Cette règle ne change la lecture d’aucun jour.'),
