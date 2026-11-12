@@ -129,7 +129,7 @@ t('revue 6786323566 : raccourci Tempo de l’accueil = constat en litres, urgenc
   assert.strictEqual(desc(T.calculerConstatLitres([])), 'Historique insuffisant');
   assert.strictEqual(desc(undefined), 'Historique insuffisant');
   assert.ok(!/jourARenforcer/.test(m[0]), 'aucune lecture de jourARenforcer dans la description');
-  assert.ok(/NEXUS-Tempo-v1\.html'\) return 0;/.test(a), 'urgence Tempo = 0');
+  assert.ok(/NEXUS-Tempo-v2\.html'\) return 0;/.test(a), 'urgence Tempo = 0');
   assert.ok(!/jourARenforcerTempo|totalJoursTempo/.test(a), 'contexte du raccourci sans jourARenforcer');
   assert.ok(/descriptionTempoHome\(ctx\.constatLitresTempo\)/.test(a));
 });

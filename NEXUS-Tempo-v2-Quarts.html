@@ -209,6 +209,7 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
 <script src="nexus-auth.js?v=20260904-0104"></script>
+<script src="nexus-forfait.js?v=20260904-0104"></script>
 <script src="nexus-icones.js?v=20260904-0104"></script>
 <script src="nexus-desktop.js?v=20260904-0104"></script>
 <script src="nexus-banniere-station.js"></script>
@@ -343,6 +344,7 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
       document.getElementById('app').innerHTML = '<div class="reserve">Cet écran est réservé aux managers.</div>';
       return;
     }
+    if (!(await NexusForfait.nexusRequireProfessional('NEXUS-Tempo-v2-Quarts.html', employee.site_id))) return;
     try {
       const ban = NexusBanniereStation.html(employee.site_id, { apercu: NexusBanniereStation.apercuDemande(), sizes: '(max-width:820px) 100vw, 50vw' });
       if (ban) document.getElementById('enTete').insertAdjacentHTML('afterbegin', ban);

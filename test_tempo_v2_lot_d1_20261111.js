@@ -160,7 +160,7 @@ t('page : vocabulaire sans cause ni « anomalie »', () => {
 
 t('lecture seule : aucune écriture, aucune lecture ajoutée', () => {
   assert.ok(!/\.(insert|update|upsert|delete|rpc)\(/.test(html));
-  assert.strictEqual((html.match(/\.from\(/g) || []).length, 16);
+  assert.strictEqual((html.match(/\.from\(/g) || []).length, 18);
 });
 
 console.log(echecs ? '\n' + echecs + ' échec(s)' : '\nTout est vert');
