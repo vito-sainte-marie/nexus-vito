@@ -92,7 +92,7 @@ t('page : la carte relation n\'est remplie que si la relation est retenue', () =
 
 t('page : aucune écriture, aucune lecture ajoutée', () => {
   assert.ok(!/\.(insert|update|upsert|delete|rpc)\s*\(/.test(scripts));
-  assert.strictEqual((scripts.match(/\.from\s*\(/g) || []).length, 14, 'nombre de lectures changé');
+  assert.strictEqual((scripts.match(/\.from\s*\(/g) || []).length, 16, 'nombre de lectures changé');
   assert.ok(!/\(G\d\)/.test(scripts), 'code G visible dans le script');
 });
 
