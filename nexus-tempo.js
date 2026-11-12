@@ -2290,7 +2290,8 @@
     const etat = e && e.etat ? e.etat : 'absent';
     if (etat === 'sans_reference') return 'la période précédente n\'a pas de période de référence pour être comparée.';
     if (etat === 'absent') return 'la période précédente n\'a pas de mesure pour cette activité.';
-    return 'la période précédente n\'a pas de mesure nette pour cette activité (' + etat.replace(/_/g, ' ') + ').';
+    if (etat === 'insuffisant') return 'la période précédente n\'a pas assez de jours mesurés, ni sur la période elle-même ni sur sa référence.';
+    return 'la période précédente n\'a pas pu être comparée à sa référence pour cette activité.';
   }
   const NOM_ACTIVITE_DEC = { piste: 'Piste', boutique: 'Boutique', fdj: 'FDJ', croise: 'Boutique et FDJ' };
   // Découvertes nettes qui n'ont pas eu de place, nommées une à une. Une relation non significative n'est pas une découverte.
@@ -2300,7 +2301,8 @@
     return tous.filter(c => pris.indexOf(identiteDec(c)) < 0)
       .map(c => NOM_ACTIVITE_DEC[c.activite] + ' : ' + LIBELLE_PRIORITE[c.type]);
   }
-  const identiteDec = c => [c.activite, c.type, c.cle, c.sens].join('/');
+  // Un découplage Boutique porte sur la boutique entière : les catégories citées sont des facteurs mesurés, pas le périmètre.
+  const identiteDec = c => [c.activite, c.type, c.type === 'decrochage' ? '' : c.cle, c.sens].join('/');
   function selectionnerDecouvertes(entrees, precedent, nb) {
     const courants = classerDecouvertes(entrees, nb);
     const prec = precedent ? classerDecouvertes(precedent, 99) : [];

@@ -159,4 +159,26 @@ t('fraîcheur Boutique : import précédent sans référence → non évaluable,
   assert.ok(/pas de période de référence/.test(r[0].fraicheur.texte));
   assert.strictEqual(r[0].fraicheur.perdu, false);
 });
+t('découplage Boutique : mêmes périmètre et sens, catégories citées différentes → perd un rang', () => {
+  const r = T.selectionnerDecouvertes({ piste: vide, boutique: e([c('boutique', 'decrochage', 'Gaz', 1)]), fdj: vide }, { piste: vide, boutique: e([c('boutique', 'decrochage', '', 1)]), fdj: vide });
+  assert.strictEqual(r[0].fraicheur.perdu, true);
+  const autre = T.selectionnerDecouvertes({ piste: vide, boutique: e([c('boutique', 'decrochage', 'Gaz', 1)]), fdj: vide }, { piste: vide, boutique: e([c('boutique', 'decrochage', 'Gaz', -1)]), fdj: vide });
+  assert.strictEqual(autre[0].fraicheur.perdu, false);
+});
+
+t('masqué sur deux carburants différents : ne perd pas de rang', () => {
+  const r = T.selectionnerDecouvertes({ piste: e([c('piste', 'masquee', 'sp95', -1)]), boutique: vide, fdj: vide }, { piste: e([c('piste', 'masquee', 'gazole', -1)]), boutique: vide, fdj: vide });
+  assert.strictEqual(r[0].fraicheur.perdu, false);
+  const meme = T.selectionnerDecouvertes({ piste: e([c('piste', 'masquee', 'sp95', -1)]), boutique: vide, fdj: vide }, { piste: e([c('piste', 'masquee', 'sp95', -1)]), boutique: vide, fdj: vide });
+  assert.strictEqual(meme[0].fraicheur.perdu, true);
+});
+
+t('fraîcheur non évaluable : jamais de code d\'état visible', () => {
+  ['insuffisant', 'absent', 'sans_reference', 'autre_chose'].forEach(etat => {
+    const r = T.selectionnerDecouvertes({ piste: e([c('piste', 'masquee', 'a')]), boutique: vide, fdj: vide }, { piste: { etat, motif: null, candidats: [] }, boutique: vide, fdj: vide });
+    assert.ok(!/\(|_|insuffisant\)/.test(r[0].fraicheur.texte.replace(/\(.*?\)/g, '')) && !/\((insuffisant|autre chose|sans reference)\)/.test(r[0].fraicheur.texte), r[0].fraicheur.texte);
+  });
+  const r = T.selectionnerDecouvertes({ piste: e([c('piste', 'masquee', 'a')]), boutique: vide, fdj: vide }, { piste: { etat: 'insuffisant', candidats: [] }, boutique: vide, fdj: vide });
+  assert.ok(/pas assez de jours mesurés/.test(r[0].fraicheur.texte));
+});
 console.log(n + ' épreuves');
