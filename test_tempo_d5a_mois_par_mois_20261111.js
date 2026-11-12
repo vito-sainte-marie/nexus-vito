@@ -7,15 +7,44 @@ const iso = (a, m, j) => a + '-' + String(m).padStart(2, '0') + '-' + String(j).
 const mois = (a, m, base, saut) => { const out = []; const nb = new Date(Date.UTC(a, m, 0)).getUTCDate();
   for (let j = 1; j <= nb; j++) { const d = iso(a, m, j); if (saut && saut.includes(d)) continue; out.push({ date: d, valeur: base + (j % 7) }); } return out; };
 
-t('mois incomplet exclu : un jour manquant fait passer sous 4 occurrences', () => {
-  // Septembre 2026 : 4 jeudis seulement ; on retire le jeudi 3 => 3 occurrences, le mois n'est plus assez fourni.
-  const jours = mois(2026, 8, 1000).concat(mois(2026, 9, 1000, [iso(2026, 9, 3)]));
+t('mois incomplet exclu : deux jours manquants, même sur deux jours de la semaine différents', () => {
+  // Septembre 2026 : 4 jeudis, 4 vendredis ; on retire jeudi 3 et vendredi 4 => deux manques, le mois est exclu.
+  const jours = mois(2026, 8, 1000).concat(mois(2026, 9, 1000, [iso(2026, 9, 3), iso(2026, 9, 4)]));
   const r = T.moisParMois(jours, '2026-08-01', '2026-10-15');
   assert.strictEqual(r.length, 2);
   assert.strictEqual(r[0].assez, true);
   assert.strictEqual(r[1].assez, false);
   assert.strictEqual(r[1].evolution, null);
   assert(/pas assez de jours complets/.test(T.phraseMois(r[1])));
+});
+t('un jour manquant est toléré : mois retenu, comparé, avec la mention du jour et de la date', () => {
+  const jours = mois(2026, 8, 1000).concat(mois(2026, 9, 1000, [iso(2026, 9, 17)]));
+  const r = T.moisParMois(jours, '2026-08-01', '2026-10-15');
+  assert.strictEqual(r[1].assez, true);
+  assert.strictEqual(r[1].cmp.etat, 'ok'); // pas de « tendance non déterminée » faute de jours
+  assert.notStrictEqual(r[1].evolution, null);
+  assert.strictEqual(r[1].mentionManquants, '1 jeudi manquant (17/09)');
+  assert.strictEqual(r[0].mentionManquants, null);
+  assert(r[1].comparabilite.raisons.some(x => x.critere === 'composition'));
+  const html = fs.readFileSync('./NEXUS-Tempo-v2.html', 'utf8');
+  assert(/m\.mentionManquants/.test(html));
+});
+t('la tolérance reste propre à moisParMois : comparerPeriodes garde sa règle stricte', () => {
+  const E = mois(2026, 9, 1000, [iso(2026, 9, 17)]), R = mois(2026, 8, 1000);
+  assert.strictEqual(T.comparerPeriodes(E, R, T.bornesMois('2026-09'), T.bornesMois('2026-08')).etat, 'insuffisant');
+  assert.strictEqual(T.comparerPeriodes(E, R, T.bornesMois('2026-09'), T.bornesMois('2026-08'), 1).etat, 'ok');
+  const E2 = mois(2026, 9, 1000, [iso(2026, 9, 3), iso(2026, 9, 4)]);
+  assert.strictEqual(T.comparerPeriodes(E2, R, T.bornesMois('2026-09'), T.bornesMois('2026-08'), 1).etat, 'insuffisant');
+});
+t('journée exceptionnelle attribuée au bon mois', () => {
+  // Une journée très haute le 13/09 (mois étudié) et une très basse le 13/08 (mois précédent).
+  const aout = mois(2026, 8, 1000).map(j => j.date === iso(2026, 8, 13) ? { date: j.date, valeur: 9000 } : j);
+  const sept = mois(2026, 9, 1000).map(j => j.date === iso(2026, 9, 13) ? { date: j.date, valeur: 9000 } : j);
+  const r = T.moisParMois(aout.concat(sept), '2026-08-01', '2026-10-15');
+  const txt = (r[1].comparabilite.raisons || []).map(x => x.texte).join(' | ');
+  assert(/13\/09\/2026 \(ce mois\)/.test(txt), txt);
+  assert(/13\/08\/2026 \(mois précédent\)/.test(txt), txt);
+  assert(!/13\/08\/2026 \(ce mois\)/.test(txt), txt);
 });
 t('mois en cours exclu', () => {
   const jours = mois(2026, 8, 1000).concat(mois(2026, 9, 1000), mois(2026, 10, 1000));

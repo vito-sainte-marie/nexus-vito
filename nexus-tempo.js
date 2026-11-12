@@ -1692,10 +1692,18 @@
   function pourcentage(m1, m0) { return m0 > 0 ? (m1 - m0) / m0 : null; }
 
   // jours* : [{date, valeur}] des jours complets de chaque période.
-  function comparerPeriodes(joursEtudie, joursRef, borneEtudiee, borneRef) {
+  // manquantsMax (optionnel, 0 par défaut) : nombre de jours de la semaine tolérés en moins sur OCCURRENCES_MIN_JOUR occurrences
+  // de chacun, par période. Seul moisParMois le passe ; tous les autres appelants gardent la règle stricte.
+  function deficitOccurrences(jours) {
+    const c = [0, 0, 0, 0, 0, 0, 0];
+    jours.forEach(j => { c[jourSemaineISO(j.date)]++; });
+    return c.reduce((s, n) => s + Math.max(0, OCCURRENCES_MIN_JOUR - n), 0);
+  }
+  function comparerPeriodes(joursEtudie, joursRef, borneEtudiee, borneRef, manquantsMax) {
     const E = enPeriode(joursEtudie, borneEtudiee), R = enPeriode(joursRef, borneRef);
     const minE = minParJourSemaine(E), minR = minParJourSemaine(R);
-    if (minE < OCCURRENCES_MIN_JOUR || minR < OCCURRENCES_MIN_JOUR) {
+    const tol = manquantsMax > 0 ? manquantsMax : 0;
+    if (tol === 0 ? (minE < OCCURRENCES_MIN_JOUR || minR < OCCURRENCES_MIN_JOUR) : (deficitOccurrences(E) > tol || deficitOccurrences(R) > tol)) {
       return { etat: 'insuffisant', minimum: OCCURRENCES_MIN_JOUR, minEtudiee: minE, minReference: minR, nEtudiee: E.length, nReference: R.length };
     }
     const vE = E.map(j => j.valeur), vR = R.map(j => j.valeur);
@@ -2343,6 +2351,7 @@
   // le mois en cours, incomplet, est exclu. Fonctions pures : aucune lecture, aucune écriture.
   const DEBUT_MOIS_PISTE = '2026-08-01'; // audits depuis le 18/07 : juillet est incomplet
   const DEBUT_MOIS_FDJ = '2026-01-01';
+  const JOURS_MANQUANTS_MAX_MOIS = 1; // un jour complet manquant par mois est toléré (arbitrage du 12/11/2026), jamais deux
   const ECART_JOURS_COMPOSITION_MAX = 0; // composition des jours : même nombre de chaque jour de la semaine
   const pad2 = n => (n < 10 ? '0' : '') + n;
   function bornesMois(cle) {
@@ -2372,6 +2381,15 @@
   }
   function libelleJourSemaine(i, n) { return n + ' ' + NOM_JOURS[i].toLowerCase() + (n > 1 ? 's' : ''); }
 
+  // « 1 jeudi manquant (17/09) » : le jour complet absent d'un mois retenu, avec sa date.
+  function mentionManquants(manq) {
+    if (!manq || !manq.length) return null;
+    const par = {};
+    manq.forEach(x => { (par[x.jour] = par[x.jour] || []).push(x.date); });
+    return Object.keys(par).map(j => par[j].length + ' ' + j + (par[j].length > 1 ? 's' : '') + ' manquant' + (par[j].length > 1 ? 's' : '')
+      + ' (' + par[j].map(d => d.slice(8, 10) + '/' + d.slice(5, 7)).join(', ') + ')').join(', ');
+  }
+
   // jours : [{date, valeur}] des jours complets. Retourne un élément par mois écoulé, du plus ancien au plus récent.
   function moisParMois(jours, debutDispo, exclu, lignesFeries) {
     const cles = clesMoisEcoules(debutDispo, exclu);
@@ -2381,22 +2399,27 @@
       const valeurs = js.map(j => j.valeur);
       const total = valeurs.reduce((s, x) => s + x, 0);
       const compte = comptesJoursSemaine(js);
+      const present = new Set(js.map(j => j.date));
+      const manquants = [];
+      datesDeLaPeriode(b).forEach(d => { if (!present.has(d) && compte[jourSemaineISO(d)] < OCCURRENCES_MIN_JOUR) manquants.push({ jour: NOM_JOURS[jourSemaineISO(d)].toLowerCase(), date: d }); });
+      const deficit = compte.reduce((a, n) => a + Math.max(0, OCCURRENCES_MIN_JOUR - n), 0);
       return { cle, libelle: libelleMois(cle), bornes: b, jours: js, nbJours: js.length, total, moyenne: js.length ? total / js.length : null,
-        compte, assez: js.length > 0 && Math.min.apply(null, compte) >= OCCURRENCES_MIN_JOUR };
+        compte, manquants, assez: js.length > 0 && deficit <= JOURS_MANQUANTS_MAX_MOIS };
     });
     return parMois.map((m, i) => {
       const sortie = { cle: m.cle, libelle: m.libelle, bornes: m.bornes, nbJours: m.nbJours, total: m.total, moyenne: m.moyenne, assez: m.assez,
+        manquants: m.assez ? m.manquants : [], mentionManquants: m.assez ? mentionManquants(m.manquants) : null,
         evolution: null, comparabilite: null, precedent: null, cmp: null };
       const p = i > 0 && parMois[i - 1].cle === moisPrecedentCle(m.cle) ? parMois[i - 1] : null;
       if (!m.assez || !p) return sortie;
       sortie.precedent = p.cle;
       if (!p.assez) return sortie;
-      const cmp = comparerPeriodes(m.jours, p.jours, m.bornes, p.bornes);
+      const cmp = comparerPeriodes(m.jours, p.jours, m.bornes, p.bornes, JOURS_MANQUANTS_MAX_MOIS);
       sortie.cmp = cmp;
       sortie.evolution = libelleEvolution(cmp);
       // Comparabilité : calendrier (G5) et composition des jours, affichées sans bloquer.
       const calE = compositionCalendrier(m.bornes, lignesFeries), calR = compositionCalendrier(p.bornes, lignesFeries);
-      const comp = evaluerComparabilite(m.bornes, p.bornes, calE, calR, (cmp.exceptionnels || []).map(x => ({ activite: 'ce mois', date: x.date })));
+      const comp = evaluerComparabilite(m.bornes, p.bornes, calE, calR, (cmp.exceptionnels || []).map(x => ({ activite: x.periode === 'etudiee' ? 'ce mois' : 'mois précédent', date: x.date })));
       const raisons = comp.raisons.slice();
       const ecarts = m.compte.map((n, k) => ({ k, n, nPrec: p.compte[k] })).filter(x => Math.abs(x.n - x.nPrec) > ECART_JOURS_COMPOSITION_MAX);
       if (ecarts.length) {

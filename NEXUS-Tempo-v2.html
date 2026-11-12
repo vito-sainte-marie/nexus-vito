@@ -858,10 +858,11 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
     // Lot D5a : mois par mois, moyenne par jour complet, jamais un total comparé. Le mois en cours est exclu.
     const lignesMois = (mois, unite, rowsFdj) => mois.slice().reverse().map(m => {
       const tete = m.libelle + ' : ' + pluriel(m.nbJours, 'jour complet', 'jours complets');
-      if (!m.assez) return tete + ' · pas assez de jours complets pour être comparé (il faut au moins ' + T.OCCURRENCES_MIN_JOUR + ' de chaque jour de la semaine)';
+      if (!m.assez) return tete + ' · pas assez de jours complets pour être comparé (il faut au moins ' + T.OCCURRENCES_MIN_JOUR + ' de chaque jour de la semaine, à un jour manquant près)';
       let t = tete + ' · ' + fmtNb(m.total) + ' ' + unite + ' au total · ' + fmtNb(m.moyenne) + ' ' + unite + ' par jour complet';
       if (m.cmp && m.cmp.etat === 'ok') t += ' · ' + signePct(m.cmp.pct) + ' par rapport au mois précédent · ' + m.evolution;
       t += '. ' + T.phraseMois(m);
+      if (m.mentionManquants) t += ' Jour complet absent : ' + m.mentionManquants + '.';
       if (m.comparabilite && m.comparabilite.faible) t += ' Comparaison à lire avec prudence : ' + m.comparabilite.raisons.map(x => x.texte).join(' ; ') + '.';
       if (rowsFdj) {
         const prec = mois.find(x => x.cle === m.precedent);
