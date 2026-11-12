@@ -64,7 +64,7 @@ t('textes de structure imposés', () => {
     'Comparer les quarts', 'Voir les pompistes',
     'Ce que Tempo a découvert', 'Voir les preuves', 'Analyses',
     'Le quart 1 vend-il plus que le quart 2 ?', 'Comment se situent les pompistes ?',
-    'Quels sont mes jours forts et faibles ?', 'Quels mois me sont favorables ?',
+    'Quels sont mes jours forts et faibles ?', 'Comment évoluent mes mois ?',
     'Les vacances changent-elles mon activité ?', 'Quand la piste tourne, la boutique suit-elle ?',
     'Tempo analyse et explique.', 'Les décisions se prennent dans le Cockpit.',
     'Non qualifié', 'Marge quotidienne non disponible pour cette période', 'Commissions FDJ non renseignées', 'Rattachement des tirages au quart à confirmer',
@@ -98,7 +98,7 @@ t('aucune mention de données de substitution (exemple, lorem, fictif)', () => {
 t('un seul lien actif vers une analyse : la page Quarts (lot B)', () => {
   const corps = html.slice(html.indexOf('<body>'));
   const liens = [...corps.matchAll(/<a\s[^>]*href="([^"]*)"/gi)].map(m => m[1]);
-  assert.deepStrictEqual(liens, ['NEXUS-Tempo-v2-Quarts.html', 'NEXUS-Cockpit-v2.html']);
+  assert.deepStrictEqual(liens, ['NEXUS-Tempo-v2-Quarts.html', 'NEXUS-Tempo-v2-Mois.html', 'NEXUS-Cockpit-v2.html']);
 });
 
 t('aucun nom d\'employé réel (liste vide de prénoms de pompistes)', () => {
@@ -106,12 +106,12 @@ t('aucun nom d\'employé réel (liste vide de prénoms de pompistes)', () => {
 });
 
 t('liens vers NEXUS-Tempo-v2 : seulement le menu basculé (lot confiance et menu, 12/11/2026)', () => {
-  const cibles = fs.readdirSync(racine).filter(f => /\.(html|js)$/.test(f) && f !== PAGE && f !== 'NEXUS-Tempo-v2-Quarts.html' && f !== 'nexus-auth.js' && !/^test_/.test(f));
+  const cibles = fs.readdirSync(racine).filter(f => /\.(html|js)$/.test(f) && f !== PAGE && f !== 'NEXUS-Tempo-v2-Quarts.html' && f !== 'NEXUS-Tempo-v2-Mois.html' && f !== 'nexus-auth.js' && !/^test_/.test(f));
   const fautifs = cibles.filter(f => /NEXUS-Tempo-v2/.test(lire(f)));
   assert.deepStrictEqual(fautifs, ['NEXUS-App-v1.html', 'NEXUS-Documentation-v1.html', 'NEXUS-Tempo-v1.html', 'nexus-conseiller.js', 'nexus-desktop.js', 'nexus-forfait.js', 'nexus-raccourcis-catalogue.js', 'nexus-recherche.js']);
   // nexus-auth.js ne porte que le classement d'accès (liste des écrans opérationnels), pas un lien.
   const auth = lire('nexus-auth.js').split('\n').filter(l => /NEXUS-Tempo-v2/.test(l));
-  assert.deepStrictEqual(auth.map(l => l.trim()), ["'NEXUS-Tempo-v2.html',", "'NEXUS-Tempo-v2-Quarts.html',"]);
+  assert.deepStrictEqual(auth.map(l => l.trim()), ["'NEXUS-Tempo-v2.html',", "'NEXUS-Tempo-v2-Quarts.html',", "'NEXUS-Tempo-v2-Mois.html',"]);
   for (const f of ['NEXUS-App-v1.html', 'NEXUS-Brief-v1.html', 'NEXUS-Cockpit-v2.html', 'nexus-menu-accueil.js']) {
     assert.ok(fs.existsSync(path.join(racine, f)), f + ' introuvable');
   }

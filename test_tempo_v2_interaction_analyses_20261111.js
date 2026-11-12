@@ -6,22 +6,23 @@ function t(n, fn) { try { fn(); console.log('  ok   ' + n); } catch (e) { echecs
 const css = html.match(/<style[\s\S]*?<\/style>/)[0];
 const tuiles = html.slice(html.indexOf('id="analyses"'), html.indexOf('id="flecheAnalyses"'));
 
-t('une seule tuile disponible : la première, lien vers la page Quarts (lot B)', () => {
-  assert.strictEqual((tuiles.match(/class="tuile[^"]*disponible/g) || []).length, 1);
+t('deux tuiles disponibles : Quarts (lot B) puis Mois (lot A)', () => {
+  assert.strictEqual((tuiles.match(/class="tuile[^"]*disponible/g) || []).length, 2);
   const liens = [...tuiles.matchAll(/<a\s[^>]*>/gi)].map(m => m[0]);
-  assert.strictEqual(liens.length, 1);
+  assert.strictEqual(liens.length, 2);
+  assert.strictEqual(liens[1], '<a class="tuile croisee disponible" href="NEXUS-Tempo-v2-Mois.html">');
   assert.ok(/^<a class="tuile croisee disponible" href="NEXUS-Tempo-v2-Quarts\.html">$/.test(liens[0]));
   assert.ok(tuiles.indexOf(liens[0]) < tuiles.indexOf('Comment se situent les pompistes'));
   assert.ok(!/aria-disabled/.test(liens[0]) && !/<span class="prep">/.test(tuiles.slice(tuiles.indexOf(liens[0]), tuiles.indexOf('</a>'))));
   assert.strictEqual((tuiles.match(/<(?:div|a) class="tuile /g) || []).length, 6);
 });
-t('cinq tuiles aria-disabled, sans tabindex ni href', () => {
-  assert.strictEqual((tuiles.match(/<div class="tuile [^>]*aria-disabled="true"/g) || []).length, 5);
+t('quatre tuiles aria-disabled, sans tabindex ni href', () => {
+  assert.strictEqual((tuiles.match(/<div class="tuile [^>]*aria-disabled="true"/g) || []).length, 4);
   assert.ok(!/tabindex/.test(tuiles));
-  assert.strictEqual((tuiles.match(/\shref="(?!#i-)/g) || []).length, 1);
+  assert.strictEqual((tuiles.match(/\shref="(?!#i-)/g) || []).length, 2);
 });
-t('cinq pastilles « En préparation », neutres', () => {
-  assert.strictEqual((tuiles.match(/<span class="prep">En préparation<\/span>/g) || []).length, 5);
+t('quatre pastilles « En préparation », neutres', () => {
+  assert.strictEqual((tuiles.match(/<span class="prep">En préparation<\/span>/g) || []).length, 4);
   assert.ok(/\.tuile \.prep\{[^}]*var\(--t-mid\)[^}]*var\(--t-raised\)/.test(css));
 });
 t('survol uniquement sur .tuile.disponible, dans @media (hover: hover) and (pointer: fine)', () => {

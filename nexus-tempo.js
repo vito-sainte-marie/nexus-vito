@@ -2548,6 +2548,45 @@
     return 'Ce mois a été sans tendance déterminée par rapport au mois précédent.';
   }
 
+  // Carte « Mois » : lignes du graphique, de l'infobulle et du tableau, tirées d'un seul calcul (moisParMois).
+  // Hauteur = moyenne par jour complet, jamais le total. Un mois non retenu garde sa place, sans hauteur.
+  // Aucun mot d'affichage ici : tout vient de NexusVocab.mois.
+  function barresMois(mois, activite, fdjRows) {
+    const V = typeof window !== 'undefined' ? window.NexusVocab : null;
+    const M = V && V.mois;
+    if (!M || !Array.isArray(mois)) return [];
+    const a = activite === 'fdj' ? M.fdj : M.piste;
+    return mois.map((m, i) => {
+      const retenu = !!m.assez && m.moyenne != null;
+      const mm = Number(m.cle.slice(5, 7));
+      const lignes = [m.libelle];
+      // cmp.pct est une fraction (0,167) ; le lexique et l'écran affichent des pourcentages (16,7).
+      const pct = retenu && m.cmp && m.cmp.etat === 'ok' && m.cmp.pct != null ? m.cmp.pct * 100 : null;
+      if (retenu) {
+        lignes.push(M.moyenne(m.moyenne, a), M.jours(m.nbJours));
+        if (m.evolution) lignes.push(M.evolution(m.evolution, pct));
+        else lignes.push(M.sansEvolution);
+        if (m.comparabilite && m.comparabilite.faible) (m.comparabilite.raisons || []).forEach(r => lignes.push(M.fiabilite + ' : ' + r.texte));
+        if (m.mentionManquants) lignes.push(M.mentionManquants(m.mentionManquants));
+        if (activite === 'fdj' && i > 0) {
+          const c = compositionMoisFdj(fdjRows, m, mois[i - 1]);
+          if (c) lignes.push(c);
+        }
+      } else {
+        lignes.push(M.nonRetenu);
+      }
+      return {
+        cle: m.cle, libelle: m.libelle, court: M.courts[mm - 1], annee: m.cle.slice(0, 4),
+        retenu, hauteur: retenu ? m.moyenne : null, nbJours: m.nbJours,
+        marqueManquant: retenu && !!m.mentionManquants, manquants: retenu ? m.mentionManquants || null : null,
+        evolution: retenu ? m.evolution || null : null,
+        pct,
+        fragile: retenu && !!(m.comparabilite && m.comparabilite.faible),
+        lignes,
+      };
+    });
+  }
+
   // FDJ : composition grattage / tirages d'un mois par la règle D3 (analyseFdj), seulement si l'écart du mois est net.
   function compositionMoisFdj(fdjRows, m, p) {
     if (!m || !p || !m.cmp || m.cmp.etat !== 'ok' || m.cmp.dansVariationHabituelle) return null;
@@ -2698,7 +2737,7 @@
     libelleEvolution,
     candidatsDecouvertes, candidatRelation, classerDecouvertes, selectionnerDecouvertes, decouvertesEcartees, NB_DECOUVERTES_ACCUEIL, RANGS_PERDUS_FRAICHEUR,
     analyseBoutique, SEUIL_MARGE_GLOBALE_PCT, SEUIL_MARGE_GLOBALE_EUROS_JOUR, SEUIL_CATEGORIE_EUROS_JOUR, SEUIL_CONCENTRATION_CATEGORIE, SEUIL_CA_DECROCHAGE_PCT,
-    moisParMois, phraseMois, ruptureTendance, phraseRupture, moisInhabituel, candidatsHistoriques, compositionMoisFdj, clesMoisEcoules, bornesMois, DEBUT_MOIS_PISTE, DEBUT_MOIS_FDJ, ECART_JOURS_COMPOSITION_MAX,
+    moisParMois, barresMois, phraseMois, ruptureTendance, phraseRupture, moisInhabituel, candidatsHistoriques, compositionMoisFdj, clesMoisEcoules, bornesMois, DEBUT_MOIS_PISTE, DEBUT_MOIS_FDJ, ECART_JOURS_COMPOSITION_MAX,
     analyseFdj, constatCompositionFdj, detailPaliersFdj, detailJeuxFdj, joursFamilleFdj, FAMILLES_FDJ, SEUIL_PART_FAMILLE, AUTRE_FAMILLE_NETTE_EMPECHE_CITATION_SEULE,
   };
 })();

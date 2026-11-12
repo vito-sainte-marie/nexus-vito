@@ -64,11 +64,11 @@ t('les six tuiles : pastilles dans l\'ordre, bande partagée pour les croisées'
     ['Le quart 1 vend-il plus que le quart 2 ?', ['piste', 'boutique', 'fdj']],
     ['Comment se situent les pompistes ?', ['piste']],
     ['Quels sont mes jours forts et faibles ?', ['piste', 'boutique', 'fdj']],
-    ['Quels mois me sont favorables ?', ['piste', 'boutique', 'fdj']],
+    ['Comment évoluent mes mois ?', ['piste', 'boutique', 'fdj']],
     ['Les vacances changent-elles mon activité ?', ['piste', 'boutique', 'fdj']],
     ['Quand la piste tourne, la boutique suit-elle ?', ['piste', 'boutique']],
   ];
-  const tuiles = [...sansScripts.matchAll(/<(?:div|a) class="tuile([^"]*)"(?: aria-disabled="true"| href="NEXUS-Tempo-v2-Quarts\.html")>([\s\S]*?)<span class="t-sous">/g)];
+  const tuiles = [...sansScripts.matchAll(/<(?:div|a) class="tuile([^"]*)"(?: aria-disabled="true"| href="NEXUS-Tempo-v2-(?:Quarts|Mois)\.html")>([\s\S]*?)<span class="t-sous">/g)];
   assert.strictEqual(tuiles.length, 6);
   const NOM = { piste: 'Piste', boutique: 'Boutique', fdj: 'FDJ' };
   attendu.forEach(([titre, acts], i) => {

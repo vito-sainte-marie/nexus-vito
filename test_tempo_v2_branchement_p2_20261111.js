@@ -86,7 +86,7 @@ t('lecture seule : aucune écriture', () => {
 
 t('FDJ garde Hypothèse et G4 ; pas de lien actif', () => {
   assert.ok(/id="qFdj"[\s\S]*?niveau hypothese[\s\S]*?data-arbitrage="G4"/.test(html));
-  assert.deepStrictEqual([...html.slice(html.indexOf('<body>')).matchAll(/<a\s[^>]*href="([^"]*)"/gi)].map(m => m[1]), ['NEXUS-Tempo-v2-Quarts.html', 'NEXUS-Cockpit-v2.html']);
+  assert.deepStrictEqual([...html.slice(html.indexOf('<body>')).matchAll(/<a\s[^>]*href="([^"]*)"/gi)].map(m => m[1]), ['NEXUS-Tempo-v2-Quarts.html', 'NEXUS-Tempo-v2-Mois.html', 'NEXUS-Cockpit-v2.html']);
 });
 
 console.log(echecs ? '\n' + echecs + ' échec(s)' : '\nTout est vert');

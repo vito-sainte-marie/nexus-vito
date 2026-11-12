@@ -386,5 +386,31 @@
     boutique: 'Les jours fériés et les ponts ne sont pas comparés pour la boutique : la marge vient d\u2019imports qui couvrent des périodes, pas des journées.',
   };
 
+  // Carte « Mois » de Tempo V2 (12/11/2026) : tous les mots de la page et des infobulles.
+  const moisNb = v => Math.round(v).toLocaleString('fr-FR');
+  NexusVocab.mois = {
+    titreOnglet: 'NEXUS — Tempo · Mois',
+    titre: 'Mois par mois',
+    sousTitre: 'Une barre par mois écoulé, en moyenne par jour complet.',
+    courts: ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'],
+    piste: { titre: 'Piste', unite: 'litres par jour complet', depuis: 'Depuis août 2026.', suffixe: ' L' },
+    fdj: { titre: 'FDJ', unite: 'chiffre d’affaires par jour complet', depuis: 'Depuis janvier 2026.', suffixe: ' €' },
+    nonRetenu: 'non retenu',
+    nonRetenuLong: 'Ce mois n’a pas assez de jours complets pour être comparé.',
+    moyenne: (v, a) => 'Moyenne : ' + moisNb(v) + a.suffixe + ' par jour',
+    jours: n => n + ' jour' + (n > 1 ? 's' : '') + ' complet' + (n > 1 ? 's' : ''),
+    evolution: (label, pct) => 'Par rapport au mois précédent : ' + label.toLowerCase() + (pct == null ? '' : ' (' + (Math.round(pct * 10) > 0 ? '+' : Math.round(pct * 10) < 0 ? '−' : '') + Math.abs(pct).toFixed(1).replace('.', ',') + ' %)'),
+    sansEvolution: 'Aucune comparaison avec le mois précédent.',
+    fiabilite: 'Comparaison fragile',
+    mentionManquants: m => 'Jour manquant : ' + m,
+    aucuneDonnee: 'Aucun mois écoulé n’est encore mesuré.',
+    tableau: 'Voir les valeurs en tableau',
+    entetes: { mois: 'Mois', moyenne: 'Moyenne par jour', jours: 'Jours complets', evolution: 'Évolution', remarque: 'Remarque' },
+    boutique: { titre: 'Boutique', phrase: 'Pas de chiffre mois par mois pour la boutique : la marge vient d’imports qui couvrent des périodes, pas des dates.', periodes: (liste) => liste.length ? 'Périodes importées : ' + liste.join(', ') + '.' : 'Aucun import n’est disponible.' },
+    anneePrecedente: 'Comparaison avec l’année précédente : pas encore possible, il faudra un an de recul (juillet 2027 au plus tôt pour la piste, janvier 2027 pour la FDJ).',
+    legendeManquant: 'Point : un jour manquant dans ce mois.',
+    legendeNonRetenu: 'Hachuré : mois non retenu.',
+  };
+
   global.NexusVocab = NexusVocab;
 })(window);
