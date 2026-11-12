@@ -74,6 +74,10 @@ function sansRepetitionLecture(txt) {
     });
   });
 });
+t('tuiles : une colonne sur téléphone, deux colonnes dès 640 px (haut sur une ligne, bas sur la suivante)', () => {
+  assert.ok(/\.tuiles-jours \.rang\{[^}]*grid-template-columns:1fr/.test(html));
+  assert.ok(/@media \(min-width:640px\)\{\.tuiles-jours \.rang\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/.test(html));
+});
 t('plus forte moyenne : absente quand c’est le jour récurrent lui-même', () => {
   const fortSeul = serie((js, w) => ({ 1: 4800 + N[w], 2: 4700 + N[(w + 2) % 8], 3: 4600 + N[(w + 4) % 8], 4: 4800 + N[(w + 6) % 8], 5: 4900 + N[(w + 3) % 8], 6: 6400 + SA[w] - 5338, 0: 4750 + N[(w + 1) % 8] })[js], '2026-09-14', 56);
   const r = T.joursFortsFaibles(fortSeul, BORNES, []);
