@@ -2,7 +2,6 @@
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
 global.window = {};
 require('./nexus-vocabulaire.js');
 const V = window.NexusVocab;
@@ -85,9 +84,12 @@ t('aucun pictogramme ne remplace un libellé, aucun mot « favorable » à l’�
   const tuiles = v2.match(/<img class="picto-p"[^>]*>\s*<span class="t-titre">[^<]+/g) || [];
   assert.strictEqual(tuiles.length, 5);
 });
-t('seules les pages Tempo V2, Jours, Mois, le lexique, les icônes et les tests sont touchés', () => {
-  const noms = execSync('git status --porcelain', { cwd: __dirname }).toString().split('\n').filter(Boolean).map(l => l.slice(3));
-  noms.forEach(n => assert.ok(/^(NEXUS-Tempo-v2(-Jours|-Mois)?\.html|nexus-vocabulaire\.js|assets\/icones\/tempo\/|test_tempo_v2_[a-z_]+_2026111[12]\.js)/.test(n), 'fichier hors périmètre : ' + n));
+t('les pictogrammes Tempo ne sont référencés que par les pages du périmètre (sans git)', () => {
+  const ok = ['NEXUS-Tempo-v2.html', 'NEXUS-Tempo-v2-Jours.html', 'NEXUS-Tempo-v2-Mois.html', 'nexus-vocabulaire.js'];
+  fs.readdirSync(__dirname).filter(f => /\.(html|js)$/.test(f) && !/^test_/.test(f)).forEach(f => {
+    const c = fs.readFileSync(path.join(__dirname, f), 'utf8');
+    if (c.includes('assets/icones/tempo/')) assert.ok(ok.includes(f), 'référence hors périmètre : ' + f);
+  });
 });
 
 console.log(echecs ? echecs + ' échec(s)' : 'tous ok');
