@@ -24,7 +24,7 @@ t('la bannière est posée dans l’en-tête, une seule image pour les deux thè
   assert.ok(/sizes="\(max-width:820px\) 100vw, 900px"/.test(html));
 });
 t('le cadrage est réglé pour l’ordinateur et le téléphone', () => {
-  assert.ok(/--banniere-cadrage:70% 50%/.test(html) && /--banniere-cadrage-tel:60% 50%/.test(html));
+  assert.ok(/--banniere-cadrage:70% 22%/.test(html) && /--banniere-cadrage-tel:60% 50%/.test(html));
 });
 t('la bannière reste réservée aux sites de la liste', () => {
   assert.ok(html.includes('NexusBanniereStation.siteAvecBanniere(employee.site_id, NexusBanniereStation.apercuDemande())'));
