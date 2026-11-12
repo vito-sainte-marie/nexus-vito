@@ -118,9 +118,9 @@ t('la page n\'écrit rien : ni insert/update/upsert/delete ni RPC', () => {
 
 t('la page lit uniquement les sources annoncées, filtrées par site', () => {
   const tables = [...scripts.matchAll(/\.from\('([a-z_]+)'\)/g)].map(m => m[1]).sort();
-  assert.deepStrictEqual(tables, ['audits_caisse', 'audits_caisse', 'fdj_games', 'inventaire_calendrier_site', 'products', 'produits_appel', 'sites', 'view_fdj_daily_summary', 'view_fdj_daily_summary', 'view_fdj_game_daily', 'view_fdj_price_tier_daily', 'view_fdj_shift_facts']); // 6 sources du lot indicateurs + période de référence, et calendrier (lot comparabilité)
+  assert.deepStrictEqual(tables, ['audits_caisse', 'audits_caisse', 'audits_caisse', 'fdj_games', 'inventaire_calendrier_site', 'products', 'produits_appel', 'sites', 'view_fdj_daily_summary', 'view_fdj_daily_summary', 'view_fdj_daily_summary', 'view_fdj_game_daily', 'view_fdj_price_tier_daily', 'view_fdj_shift_facts']); // 6 sources du lot indicateurs + période de référence, et calendrier (lot comparabilité)
   const eq = scripts.match(/\.eq\('site', siteId\)/g) || [];
-  assert.strictEqual(eq.length, 11); // 5 du lot indicateurs + 3 du lot comparabilité + 3 du lot D3 (paliers, jeux, noms de jeux) (sites se lit par site_id)
+  assert.strictEqual(eq.length, 13); // 5 du lot indicateurs + 3 du lot comparabilité + 3 du lot D3 (paliers, jeux, noms de jeux) (sites se lit par site_id)
 });
 
 t('jamais d\'horloge UTC : ni aujourdHuiISO ni filtrerJoursClos', () => {

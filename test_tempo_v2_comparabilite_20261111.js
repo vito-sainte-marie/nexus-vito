@@ -127,7 +127,7 @@ t('page : lecture seule — aucune écriture ni RPC', () => {
 
 t('page : les deux lectures d\'audits_caisse sélectionnent vente_piste et les trois litrages', () => {
   const sel = [...scripts.matchAll(/\.from\('audits_caisse'\)\s*\.select\('([^']*)'\)/g)].map(m => m[1]);
-  assert.strictEqual(sel.length, 2);
+  assert.strictEqual(sel.length, 3); // + période précédente (lot D4)
   for (const s of sel) for (const c of ['vente_piste', 'litrage_gazole', 'litrage_sp95', 'litrage_gnr']) assert.ok(s.includes(c), c + ' absent de : ' + s);
 });
 t('prix moyen de bout en bout : lignes portant vente_piste, pas 0 €/L', () => {

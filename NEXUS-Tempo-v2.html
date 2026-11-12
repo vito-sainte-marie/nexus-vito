@@ -699,6 +699,16 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
         .select('date, type, libelle')
         .eq('site', siteId).in('type', ['vacances', 'ferie']).gte('date', debutCalendrier).lte('date', bornes.fin).order('date', { ascending: true })),
     ]);
+    // Lot D4 : période précédente (lecture seule, filtrée par site) pour la fraîcheur des découvertes.
+    const bPrec = bRef, bPrecRef = T.bornesReference(bPrec);
+    const [rAudPrec, rFdjPrec] = await Promise.all([
+      fetchAllRows(() => nexusClient.from('audits_caisse')
+        .select('date, quart, litrage_gazole, litrage_sp95, litrage_gnr, vente_piste, vente_boutique')
+        .eq('site', siteId).gte('date', bPrecRef.debut).lte('date', bPrecRef.fin).order('date', { ascending: true })),
+      fetchAllRows(() => nexusClient.from('view_fdj_daily_summary')
+        .select('date, nb_quarts_controles, ca_grattage, caisse_tirages')
+        .eq('site', siteId).gte('date', bPrecRef.debut).lte('date', bPrecRef.fin).order('date', { ascending: true })),
+    ]);
     // Lot D3 : détail du grattage par palier et par jeu (lecture seule, filtrée par site, sur les deux périodes).
     const [rPaliers, rJeux, rNomsJeux] = await Promise.all([
       fetchAllRows(() => nexusClient.from('view_fdj_price_tier_daily')
@@ -908,8 +918,11 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
     ['qLitres', 'qBoutique', 'qFdj'].forEach(i => { const c = document.querySelector('#' + i + ' .couverture'); if (c) c.textContent = bornes.jours + ' j étudiés'; });
 
     // Découvertes : même fenêtre, mêmes jours complets et mêmes critères que les cartes ci-dessus.
+    const fiches = {}; const poser = (act, d) => { fiches[act] = d; };
+    let ap0 = null;
     if (!rAud.error && !rAudRef.error) {
       const ap = T.analysePiste(rAud.data, rAudRef.data, bornes, bRef);
+      ap0 = ap;
       const r0 = ap.retenue;
       if (ap.etat === 'ok' && r0) {
         const fcle = r0.carburant && ap.carburants.find(f => f.cle === r0.carburant);
@@ -935,7 +948,7 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
           lignes = [ligneCmp('Total des litres', ap.total, 0, true), 'Répartition : ' + repart];
         }
         if (ap.horsService.length) lignes.push(ap.horsService.map(n => n + ' 0 L').join(' · '));
-        remplirDecouverte(0, {
+        poser('piste', {
           niveau: 'Fait mesuré', cls: 'mesure', titre,
           lignes,
           source: 'Source : Verify · ' + pluriel(ap.total.cmp.nEtudiee, 'jour complet', 'jours complets'),
@@ -972,7 +985,7 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
         lignes = ['Marge par jour : ' + fmtNb(g.margeE) + ' € contre ' + fmtNb(g.margeR) + ' €'];
         if (f) lignes.push(lc(f) + ' · ' + fmtNb(f.part * 100) + ' % de la variation');
       }
-      remplirDecouverte(1, {
+      poser('boutique', {
         niveau: 'Fait mesuré', cls: 'mesure', titre, lignes,
         source: 'Source : imports produits · marge réelle, hors produits d\'appel',
         preuves: [
@@ -983,27 +996,6 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
         ],
       });
     }
-    if (!rAud.error && !rFdj.error) {
-      const rel = T.relationBoutiqueFdj(rAud.data, rFdj.data, bornes);
-      if (rel.etat === 'ok') {
-        const c = x => fmtDec(x.r, 2) + (x.significative ? ' (significative)' : ' (non significative)');
-        remplirDecouverte(3, {
-          niveau: 'Relation observée', cls: 'relation', titre: 'Boutique et FDJ varient ensemble',
-          lignes: [
-            'Boutique et FDJ : corrélation ' + c(rel.boutiqueFdj) + ' sur ' + rel.n + ' jours',
-            'Rappel boutique et litres : ' + c(rel.boutiqueLitres),
-            'Une relation, pas une cause.',
-          ],
-          source: 'Source : Verify · ' + pluriel(rel.n, 'jour complet', 'jours complets'),
-          preuves: [
-            ['Effectifs et période', rel.n + ' jours où piste, boutique et FDJ sont complets, du ' + fmtDateCourte(bornes.debut) + ' au ' + fmtDate(bornes.fin) + ' (minimum ' + rel.seuil + ')'],
-            ['Calcul', 'Corrélation des écarts à la moyenne du jour de semaine ; test de Student au seuil de 5 % (' + rel.boutiqueFdj.df + ' degrés de liberté). Litres et FDJ : ' + c(rel.litresFdj) + '.'],
-            ['Sources', 'audits_caisse et view_fdj_daily_summary · lecture seule, filtrée par site'],
-          ],
-        });
-      }
-    }
-    let decouverteFdj = false;
     if (afFdj && afFdj.etat === 'ok' && afFdj.retenue) {
       const r = afFdj.retenue, t = afFdj.total;
       const sens = x => x < 0 ? 'en baisse' : 'en hausse';
@@ -1019,8 +1011,7 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
         lignes = afFdj.familles.map(lf);
         if (afFdj.constat) lignes.push(afFdj.constat.texte);
       }
-      decouverteFdj = true;
-      remplirDecouverte(2, {
+      poser('fdj', {
         niveau: 'Fait mesuré', cls: 'mesure', titre, lignes,
         source: 'Source : NEXUS FDJ · ' + pluriel(t.cmp.nEtudiee, 'jour complet', 'jours complets'),
         preuves: [
@@ -1031,24 +1022,26 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
         ],
       });
     }
-    if (!decouverteFdj && !rFacts.error) {
-      const fq = T.rapportFdjQuart1(T.comparerQuarts(T.quartsFdj(rFacts.data), bornes));
-      if (fq) {
-        const cl = T.comparerQuarts(T.quartsLitresPiste(rAud.error ? [] : rAud.data), bornes), cb = T.comparerQuarts(T.quartsBoutique(rAud.error ? [] : rAud.data), bornes);
-        const ecartTxt = (nom, c) => nom + ' : ' + (c.etat === 'ok' && c.ecartPct !== null ? 'quart 1 ' + signePct(c.ecartPct / 100) + ' par rapport au quart 2' : 'écart non disponible');
-        remplirDecouverte(2, {
-          niveau: 'Hypothèse', cls: 'hypothese', titre: 'La FDJ encaisse ' + fmtDec(fq.rapport, 1) + ' fois plus au quart 1',
-          lignes: ['Rapport des moyennes du quart 1 et du quart 2 : ' + fmtDec(fq.rapport, 1), ecartTxt('Litres', cl), ecartTxt('Boutique', cb)],
-          source: 'Source : NEXUS FDJ et Verify · ' + fq.q1.effectif + ' quarts 1 et ' + fq.q2.effectif + ' quarts 2',
-          attente: 'Rattachement des tirages au quart à confirmer', arbitrage: 'G4',
-          preuves: [
-            ['Effectifs et période', fq.q1.effectif + ' quarts 1 et ' + fq.q2.effectif + ' quarts 2, du ' + fmtDateCourte(bornes.debut) + ' au ' + fmtDate(bornes.fin)],
-            ['Calcul', 'Moyenne du CA des jeux (grattage + tirages) par quart, quart 1 divisé par quart 2, arrondi au dixième.'],
-            ['Sources', 'view_fdj_shift_facts · lecture seule, filtrée par site'],
-          ],
-        });
-      }
-    }
+    // Lot D4 : sélecteur global. Les mêmes candidats que les moteurs, filtre « net », diversité, fraîcheur ; au plus trois cartes.
+    (function () {
+      const rel = (!rAud.error && !rFdj.error) ? T.relationBoutiqueFdj(rAud.data, rFdj.data, bornes) : null;
+      const apPrec = (!rAudPrec.error && !rAudRef.error) ? T.analysePiste(rAudRef.data, rAudPrec.data, bPrec, bPrecRef) : null;
+      const afPrec = (!rFdjPrec.error && !rFdjRef.error) ? T.analyseFdj(rFdjRef.data, rFdjPrec.data, bPrec, bPrecRef) : null;
+      const cand = (a, x) => T.candidatsDecouvertes(a, x);
+      const entrees = { piste: cand('piste', typeof ap0 === 'undefined' ? null : ap0), boutique: cand('boutique', ab), fdj: cand('fdj', afFdj), croise: T.candidatRelation(rel) };
+      const precedent = { piste: cand('piste', apPrec), boutique: cand('boutique', null), fdj: cand('fdj', afPrec) };
+      const choix = T.selectionnerDecouvertes(entrees, precedent, T.NB_DECOUVERTES_ACCUEIL);
+      let slot = 0;
+      choix.forEach(c => {
+        const f = fiches[c.activite];
+        if (!f || c.positionActivite !== 1 || slot >= T.NB_DECOUVERTES_ACCUEIL) return;
+        const preuves = f.preuves.concat([
+          ['Rang', c.motifRang + ' Les relations croisées et la découverte du quart n\'ont pas de place tant que chaque activité a une découverte nette.'],
+          ['Fraîcheur', c.fraicheur.texte + (c.activite === 'boutique' ? ' La marge vient d\'imports, pas de fenêtres de dates : la période précédente n\'est pas comparable.' : '')],
+        ]);
+        remplirDecouverte(slot++, Object.assign({}, f, { preuves }));
+      });
+    })();
 
     document.getElementById('pillPeriode').textContent = 'Période étudiée : du ' + fmtDateCourte(bornes.debut) + ' au ' + fmtDate(bornes.fin) +
       ' · ' + pluriel(bornes.jours, 'jour', 'jours');
