@@ -2268,7 +2268,7 @@
   }
   function candidatRelation(rel) {
     if (!rel || rel.etat !== 'ok') return { etat: rel && rel.etat ? rel.etat : 'absent', motif: null, candidats: [] };
-    return { etat: 'ok', motif: null, candidats: [{ activite: 'croise', type: 'relation', cle: '', sens: signeDec(rel.boutiqueFdj && rel.boutiqueFdj.r), rang: 3, net: true, source: rel }] };
+    return { etat: 'ok', motif: null, candidats: [{ activite: 'croise', type: 'relation', cle: '', sens: signeDec(rel.boutiqueFdj && rel.boutiqueFdj.r), rang: 3, net: !!(rel.boutiqueFdj && rel.boutiqueFdj.significative), source: rel }] };
   }
   const trierDec = liste => liste.map((c, i) => ({ c, i })).sort((a, b) => a.c.rang - b.c.rang || a.i - b.i).map(x => x.c);
   // Sélection sans fraîcheur. entrees = { piste, boutique, fdj, croise } (sorties de candidatsDecouvertes / candidatRelation).
@@ -2285,6 +2285,21 @@
     // Un candidat par activité d'abord, puis la suite dans l'ordre de priorité ; la relation croisée passe en dernier.
     return trierDec(trierDec(premiers).concat(trierDec(suite)).concat(croises).slice(0, n));
   }
+  // Raison réelle pour laquelle la période précédente ne peut pas servir de repère.
+  function raisonNonEvaluable(e) {
+    const etat = e && e.etat ? e.etat : 'absent';
+    if (etat === 'sans_reference') return 'la période précédente n\'a pas de période de référence pour être comparée.';
+    if (etat === 'absent') return 'la période précédente n\'a pas de mesure pour cette activité.';
+    return 'la période précédente n\'a pas de mesure nette pour cette activité (' + etat.replace(/_/g, ' ') + ').';
+  }
+  const NOM_ACTIVITE_DEC = { piste: 'Piste', boutique: 'Boutique', fdj: 'FDJ', croise: 'Boutique et FDJ' };
+  // Découvertes nettes qui n'ont pas eu de place, nommées une à une. Une relation non significative n'est pas une découverte.
+  function decouvertesEcartees(entrees, choix) {
+    const pris = (choix || []).map(c => identiteDec(c));
+    const tous = classerDecouvertes(entrees, 99);
+    return tous.filter(c => pris.indexOf(identiteDec(c)) < 0)
+      .map(c => NOM_ACTIVITE_DEC[c.activite] + ' : ' + LIBELLE_PRIORITE[c.type]);
+  }
   const identiteDec = c => [c.activite, c.type, c.cle, c.sens].join('/');
   function selectionnerDecouvertes(entrees, precedent, nb) {
     const courants = classerDecouvertes(entrees, nb);
@@ -2293,7 +2308,7 @@
     const decores = courants.map(c => {
       const eAct = precedent && precedent[c.activite];
       let fraicheur;
-      if (!eAct || eAct.etat !== 'ok') fraicheur = { etat: 'non_evaluable', perdu: false, texte: 'Fraîcheur non évaluable : la période précédente n\'a pas de mesure nette pour cette activité. Aucun effet sur le rang.' };
+      if (!eAct || eAct.etat !== 'ok') fraicheur = { etat: 'non_evaluable', perdu: false, texte: 'Fraîcheur non évaluable : ' + raisonNonEvaluable(eAct) + ' Aucun effet sur le rang.' };
       else if (prec.some(p => identiteDec(p) === identiteDec(c))) fraicheur = { etat: 'evaluable', perdu: true, texte: 'Déjà retenue dans le même sens sur la période précédente : elle descend d\'un rang.' };
       else fraicheur = { etat: 'evaluable', perdu: false, texte: 'Nouvelle, ou de sens opposé à la période précédente : aucun effet sur le rang.' };
       let motifRang;
@@ -2335,7 +2350,7 @@
     compositionCalendrier, evaluerComparabilite, prixMoyenMesure,
     joursCaPiste, joursCaBoutique, analysePiste, departagerDepassement, joursLitresCarburant, quartsLitresCarburant, horsServiceCarburant, CARBURANTS, JOURS_HORS_SERVICE, SEUIL_PART_POINTS, K_DEPASSEMENT, correlationResidus, relationBoutiqueFdj, rapportFdjQuart1, SEUIL_RELATION_JOURS,
     libelleEvolution,
-    candidatsDecouvertes, candidatRelation, classerDecouvertes, selectionnerDecouvertes, NB_DECOUVERTES_ACCUEIL, RANGS_PERDUS_FRAICHEUR,
+    candidatsDecouvertes, candidatRelation, classerDecouvertes, selectionnerDecouvertes, decouvertesEcartees, NB_DECOUVERTES_ACCUEIL, RANGS_PERDUS_FRAICHEUR,
     analyseBoutique, SEUIL_MARGE_GLOBALE_PCT, SEUIL_MARGE_GLOBALE_EUROS_JOUR, SEUIL_CATEGORIE_EUROS_JOUR, SEUIL_CONCENTRATION_CATEGORIE, SEUIL_CA_DECROCHAGE_PCT,
     analyseFdj, constatCompositionFdj, detailPaliersFdj, detailJeuxFdj, joursFamilleFdj, FAMILLES_FDJ, SEUIL_PART_FAMILLE, AUTRE_FAMILLE_NETTE_EMPECHE_CITATION_SEULE,
   };

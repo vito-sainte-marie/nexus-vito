@@ -80,7 +80,7 @@ t('FDJ au quart 1 : rapport arrondi au dixième, null sans quart 2', () => {
 });
 
 t('page : quatre cartes remplies par script, preuves en <details>, aucun lien', () => {
-  assert.ok(/remplirDecouverte\(slot\+\+,/.test(scripts) && /poser\('piste'/.test(scripts) && /poser\('boutique'/.test(scripts) && /poser\('fdj'/.test(scripts));
+  assert.ok(/remplirDecouverte\(slot,/.test(scripts) && /fiches\.piste = /.test(scripts) && /fiches\.boutique = /.test(scripts) && /fiches\.fdj = /.test(scripts) && /fiches\.croise = /.test(scripts));
   assert.ok(/'details'/.test(scripts) && /Voir les preuves/.test(scripts));
   assert.ok(/Fait mesuré/.test(scripts));
   assert.deepStrictEqual([...html.slice(html.indexOf('<body>')).matchAll(/<a\s[^>]*href="([^"]*)"/gi)].map(m => m[1]), ['NEXUS-Tempo-v2-Quarts.html', 'NEXUS-Cockpit-v2.html']);

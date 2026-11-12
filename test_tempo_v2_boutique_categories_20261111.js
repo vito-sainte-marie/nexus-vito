@@ -164,7 +164,7 @@ t('page : le libellé du choix suit le cas (compensation ou catégorie seule)', 
   assert.ok(scripts.includes("Une catégorie masque l\\'évolution de la marge"));
 });
 t('page : une seule fiche Boutique, posée dans le sélecteur (lot D4)', () => {
-  assert.strictEqual((scripts.match(/poser\('boutique',/g) || []).length, 1);
+  assert.strictEqual((scripts.match(/fiches\.boutique = /g) || []).length, 1);
   assert.ok(!/remplirDecouverte\(3,/.test(scripts));
 });
 t('page : lecture seule, aucune écriture ajoutée', () => {

@@ -137,8 +137,8 @@ t('câblage : constat sur la carte, fiche, découverte en emplacement 2, repli s
   assert.ok(/T\.analyseFdj\(/.test(page));
   assert.ok(/constat: afFdj/.test(page));
   assert.ok(/titre: 'Grattage et tirages'/.test(page));
-  assert.ok(/poser\('fdj', \{\s*niveau: 'Fait mesuré'/.test(page));
-  assert.ok(!/rapportFdjQuart1/.test(page)); // lot D4 : le repli sur le quart n'a plus de place
+  assert.ok(/fiches\.fdj = [\s\S]*?niveau: 'Fait mesuré'/.test(page));
+  assert.ok(/quart 1 FDJ : hypothèse en attente/.test(page)); // lot D4 : le quart 1 n'a plus de carte, il est nommé parmi les écartées
 });
 t('lien Cockpit présent sur les deux pages, cible identique au menu', () => {
   const app = lire('NEXUS-App-v1.html');

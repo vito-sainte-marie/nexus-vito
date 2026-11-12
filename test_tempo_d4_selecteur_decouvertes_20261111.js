@@ -105,4 +105,58 @@ t('adaptateurs : Piste masquée, Boutique découplage sans masquée à part', ()
   assert.strictEqual(T.candidatsDecouvertes('fdj', { etat: 'insuffisant' }).candidats.length, 0);
   assert.strictEqual(T.candidatRelation({ etat: 'non-significative' }).candidats.length, 0);
 });
+t('une activité sans candidat net : le 2e candidat d\'une autre activité prend la place', () => {
+  const r = T.selectionnerDecouvertes({ piste: e([c('piste', 'masquee', 'a'), c('piste', 'repartition', 'b')]), boutique: e([c('boutique', 'simple', '', 1, { net: false })]), fdj: vide });
+  assert.deepStrictEqual(r.map(x => x.activite + ':' + x.type), ['piste:masquee', 'piste:repartition']);
+  assert.ok(!r.some(x => x.activite === 'boutique'));
+});
+
+t('une relation non significative n\'est jamais retenue ni comptée parmi les écartées', () => {
+  const rel = T.candidatRelation({ etat: 'ok', boutiqueFdj: { r: 0.2, significative: false } });
+  assert.strictEqual(rel.candidats[0].net, false);
+  const entrees = { piste: e([c('piste', 'masquee', 'a')]), boutique: vide, fdj: vide, croise: rel };
+  const choix = T.selectionnerDecouvertes(entrees);
+  assert.ok(!choix.some(x => x.activite === 'croise'));
+  assert.deepStrictEqual(T.decouvertesEcartees(entrees, choix), []);
+  const sig = T.candidatRelation({ etat: 'ok', boutiqueFdj: { r: 0.8, significative: true } });
+  assert.strictEqual(sig.candidats[0].net, true);
+});
+
+t('les écartées sont nommées, une par une, et seulement quand il y en a', () => {
+  const entrees = { piste: e([c('piste', 'masquee', 'a'), c('piste', 'repartition', 'b')]), boutique: e([c('boutique', 'simple')]), fdj: e([c('fdj', 'variation')]) };
+  const choix = T.selectionnerDecouvertes(entrees, null, 3);
+  const ec = T.decouvertesEcartees(entrees, choix);
+  assert.strictEqual(ec.length, 1);
+  assert.ok(/^Piste : /.test(ec[0]));
+  assert.deepStrictEqual(T.decouvertesEcartees({ piste: e([c('piste', 'masquee', 'a')]), boutique: vide, fdj: vide }, T.selectionnerDecouvertes({ piste: e([c('piste', 'masquee', 'a')]), boutique: vide, fdj: vide })), []);
+});
+
+t('fraîcheur Boutique : calculée sur l\'import précédent (3 imports)', () => {
+  global.window.NexusPeriodes || require('./nexus-periodes.js');
+  const AP = window.NexusPeriodes.analyserPeriodes;
+  const jr = (d, f) => (Date.parse(f) - Date.parse(d)) / 86400000 + 1;
+  const L = (per, cats) => cats.map(([k, m, ca]) => ({ article: k + '-1', categorie: k, ca: ca * jr(per[0], per[1]), marge: m * jr(per[0], per[1]), periode_debut: per[0], periode_fin: per[1] }));
+  const P0 = ['2026-02-16', '2026-03-29'], P1 = ['2026-04-27', '2026-06-07'], P2 = ['2026-06-08', '2026-06-30'];
+  const rows = L(P0, [['Gaz', 100, 400], ['Boissons', 300, 1000]]).concat(L(P1, [['Gaz', 140, 560], ['Boissons', 270, 1000]]), L(P2, [['Gaz', 180, 720], ['Boissons', 240, 1000]]));
+  const ab = T.analyseBoutique(rows, [], AP, []);
+  assert.strictEqual(ab.etat, 'ok');
+  const abPrec = T.analyseBoutique(rows.filter(x => x.periode_fin <= ab.reference.fin), [], AP, []);
+  assert.strictEqual(abPrec.etat, 'ok');
+  const r = T.selectionnerDecouvertes({ piste: vide, boutique: T.candidatsDecouvertes('boutique', ab), fdj: vide }, { piste: vide, boutique: T.candidatsDecouvertes('boutique', abPrec), fdj: vide });
+  const b = r.find(x => x.activite === 'boutique');
+  assert.strictEqual(b.fraicheur.etat, 'evaluable');
+  assert.strictEqual(b.fraicheur.perdu, true);
+});
+
+t('fraîcheur Boutique : import précédent sans référence → non évaluable, raison réelle', () => {
+  global.window.NexusPeriodes || require('./nexus-periodes.js');
+  const AP = window.NexusPeriodes.analyserPeriodes;
+  const rows = [{ article: 'Gaz-1', categorie: 'Gaz', ca: 1000, marge: 200, periode_debut: '2026-04-27', periode_fin: '2026-06-07' }, { article: 'Gaz-1', categorie: 'Gaz', ca: 1200, marge: 220, periode_debut: '2026-06-08', periode_fin: '2026-06-30' }];
+  const abPrec = T.analyseBoutique(rows.filter(x => x.periode_fin <= '2026-06-07'), [], AP, []);
+  assert.strictEqual(abPrec.etat, 'sans_reference');
+  const r = T.selectionnerDecouvertes({ piste: vide, boutique: e([c('boutique', 'simple')]), fdj: vide }, { piste: vide, boutique: T.candidatsDecouvertes('boutique', abPrec), fdj: vide });
+  assert.strictEqual(r[0].fraicheur.etat, 'non_evaluable');
+  assert.ok(/pas de période de référence/.test(r[0].fraicheur.texte));
+  assert.strictEqual(r[0].fraicheur.perdu, false);
+});
 console.log(n + ' épreuves');
