@@ -33,8 +33,19 @@ const entrees = { piste: c('piste', 2), boutique: c('boutique', 2), fdj: c('fdj'
 const choix = T.selectionnerDecouvertes(entrees, {}, 3);
 assert.strictEqual(choix.length, 3); assert(!choix.some(x => x.historique));
 const ec = T.decouvertesEcartees(entrees, choix);
-assert(ec.some(x => x === 'Piste : changement durable'), JSON.stringify(ec)); ok('plus de place : historique nommée parmi les non retenues');
+const jj = r.depuis.slice(8, 10) + '/' + r.depuis.slice(5, 7);
+assert(ec.some(x => x === 'Piste : changement durable depuis le ' + jj), JSON.stringify(ec)); ok('plus de place : historique nommée avec sa période');
+const moisFdj = { etat: 'ok', inhabituel: true, sens: 1, mois: { cle: '2026-10', libelle: 'octobre 2026' } };
+const e3 = Object.assign({}, entrees, { historique: T.candidatsHistoriques({ fdj: { rupture: null, mois: moisFdj } }) });
+assert(T.decouvertesEcartees(e3, T.selectionnerDecouvertes(e3, {}, 3)).indexOf('FDJ : mois inhabituel (octobre 2026)') >= 0); ok('mois inhabituel écarté nommé avec son mois');
 // Et s'il reste une place, elle entre.
 const e2 = Object.assign({}, entrees, { boutique: { etat: 'ok', candidats: [] }, fdj: { etat: 'ok', candidats: [] } });
 assert(T.selectionnerDecouvertes(e2, {}, 3).some(x => x.historique)); ok('une place libre : historique retenue');
+// 5. Rupture et mois inhabituel sur la même activité, une seule place : la rupture passe.
+const e4 = Object.assign({}, entrees, { boutique: { etat: 'ok', candidats: [] }, fdj: { etat: 'ok', candidats: [] },
+  historique: T.candidatsHistoriques({ piste: { rupture: r, mois: { etat: 'ok', inhabituel: true, sens: 1, mois: { cle: '2026-10', libelle: 'octobre 2026' } } } }) });
+const ch4 = T.selectionnerDecouvertes(e4, {}, 2);
+assert.strictEqual(ch4.length, 2); const h4 = ch4.filter(x => x.historique);
+assert.strictEqual(h4.length, 1); assert.strictEqual(h4[0].type, 'rupture');
+assert(T.decouvertesEcartees(e4, ch4).some(x => /^Piste : mois inhabituel \(octobre 2026\)$/.test(x))); ok('rupture et mois sur la même activité, une place : la rupture passe');
 console.log(n + ' épreuves');

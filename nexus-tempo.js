@@ -2317,7 +2317,14 @@
     const pris = (choix || []).map(c => identiteDec(c));
     const tous = classerDecouvertes(entrees, 99);
     return tous.filter(c => pris.indexOf(identiteDec(c)) < 0)
-      .map(c => NOM_ACTIVITE_DEC[c.activite] + ' : ' + LIBELLE_PRIORITE[c.type]);
+      .map(c => NOM_ACTIVITE_DEC[c.activite] + ' : ' + LIBELLE_PRIORITE[c.type] + detailHistorique(c));
+  }
+  // Une découverte historique écartée est nommée avec sa période : « mois inhabituel (octobre 2026) », « changement durable depuis le 12/10 ».
+  function detailHistorique(c) {
+    if (!c.historique) return '';
+    if (c.type === 'mois') return c.source && c.source.mois && c.source.mois.libelle ? ' (' + c.source.mois.libelle + ')' : '';
+    const d = /^\d{4}-(\d{2})-(\d{2})$/.exec(c.cle || '');
+    return d ? ' depuis le ' + d[2] + '/' + d[1] : '';
   }
   // Un découplage Boutique porte sur la boutique entière : les catégories citées sont des facteurs mesurés, pas le périmètre.
   const identiteDec = c => [c.activite, c.type, c.type === 'decrochage' ? '' : c.cle, c.sens].join('/');

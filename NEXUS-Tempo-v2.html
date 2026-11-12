@@ -1083,7 +1083,7 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
       if (c.type === 'rupture') {
         const r = c.source;
         return {
-          niveau: 'Changement durable', cls: 'relation', titre: nom + ' : ' + (r.sens > 0 ? 'hausse' : 'baisse') + ' durable',
+          niveau: 'Fait mesuré', cls: 'mesure', titre: nom + ' : ' + (r.sens > 0 ? 'hausse' : 'baisse') + ' durable',
           lignes: [T.phraseRupture(r, u, x => fmtDec(x, 0)), 'Les quatre dernières semaines sont toutes du même côté de la tendance précédente.'],
           source: 'Source : Verify · ' + pluriel(r.nbJoursRecents + r.nbJoursPrecedents, 'jour complet', 'jours complets'),
           preuves: [
@@ -1094,13 +1094,19 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
           ],
         };
       }
-      const m = c.source.mois;
+      const m = c.source.mois, liste = piste ? moisPiste : moisFdj, prec = (liste || []).find(x => x.cle === m.precedent);
+      const lignes = [T.phraseMois(m)];
+      if (m.cmp && m.cmp.etat === 'ok') lignes.push(signePct(m.cmp.pct) + ' par rapport au mois précédent : ' + fmtNb(m.moyenne) + ' ' + u + ' par jour complet contre ' + (prec ? fmtNb(prec.moyenne) + ' ' + u : 'le mois d\u2019avant') + '.');
+      if (m.comparabilite && m.comparabilite.faible) lignes.push('Comparaison à lire avec prudence : ' + m.comparabilite.raisons.map(x => x.texte).join(' ; ') + '.');
+      const comp = !piste && prec ? T.compositionMoisFdj(rFdjMois.data, m, prec) : null;
+      if (comp) lignes.push(comp);
       return {
-        niveau: 'Mois inhabituel', cls: 'relation', titre: nom + ' : ' + m.libelle + ' inhabituel',
-        lignes: [T.phraseMois ? T.phraseMois(m, u) : m.libelle, 'Comparé au mois précédent.'],
+        niveau: 'Fait mesuré', cls: 'mesure', titre: nom + ' : ' + m.libelle + ' inhabituel',
+        lignes,
         source: 'Source : Verify · ' + pluriel(m.nbJours, 'jour complet', 'jours complets'),
         preuves: [
-          ['Mois', m.libelle + ' : ' + m.nbJours + ' jours complets, moyenne ' + fmtDec(m.moyenne, 0) + ' ' + u + ' par jour'],
+          ['Mois', m.libelle + ' : ' + m.nbJours + ' jours complets, moyenne ' + fmtNb(m.moyenne) + ' ' + u + ' par jour' + (prec ? ' ; ' + prec.libelle + ' : ' + prec.nbJours + ' jours complets, moyenne ' + fmtNb(prec.moyenne) + ' ' + u + ' par jour' : '')],
+          ['Comparabilité', m.comparabilite && m.comparabilite.faible ? 'Faible : ' + m.comparabilite.raisons.map(x => x.texte).join(' ; ') : 'Comparable'],
           ['Sources', (piste ? 'audits_caisse' : 'view_fdj_daily_summary') + ' · lecture seule, filtrée par site'],
         ],
       };
