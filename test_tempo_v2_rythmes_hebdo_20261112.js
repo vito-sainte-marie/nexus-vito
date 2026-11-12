@@ -101,7 +101,7 @@ t('la méthode commune n’est pas modifiée : joursExceptionnels reste identiqu
 });
 t('le seuil est une constante nommée, et la garde ne sert qu’à cette carte', () => {
   assert.ok(/const SEUIL_RYTHME_RECURRENT = 0\.5;/.test(moteur));
-  const hors = moteur.replace(/function joursFortsFaibles[\s\S]*?\n  \}\n\n  \/\/ Une série par mesure/, '');
+  const hors = moteur.replace(/function joursFortsFaibles[\s\S]*?\n  \}\n\n  \/\/ Une série par mesure/, '').replace(/function calculVacancesGroupe[\s\S]*?\n  \}\n  function vacancesParJourSemaine/, '');
   assert.ok(!/SEUIL_RYTHME_RECURRENT/.test(hors.replace(/const SEUIL_RYTHME_RECURRENT[^\n]*/, '').replace(/seuilRythme[^\n]*/g, '')), 'constante utilisée hors de la carte');
 });
 t('textes passés par le lexique, langage prudent, aucune consigne ni saisonnalité établie', () => {

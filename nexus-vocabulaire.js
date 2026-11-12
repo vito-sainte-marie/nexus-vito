@@ -498,5 +498,62 @@
     entetes: { jour: 'Jour', moyenne: 'Moyenne par jour', jours: 'Jours complets', ecart: 'Écart aux six autres', verdict: 'Lecture' },
   };
 
+  // Carte « Les vacances changent-elles mon activité ? » : tous les mots viennent d'ici, le moteur n'en porte aucun.
+  NexusVocab.vacances = {
+    titreOnglet: 'NEXUS Tempo, Vacances',
+    titre: 'Les vacances changent-elles mon activité ?',
+    sousTitre: 'À jour de semaine égal',
+    noms: { 1: 'Lundi', 2: 'Mardi', 3: 'Mercredi', 4: 'Jeudi', 5: 'Vendredi', 6: 'Samedi', 0: 'Dimanche' },
+    piste: { titre: 'Piste', unite: 'litres par jour complet', suffixe: ' L' },
+    fdj: { titre: 'FDJ', unite: 'chiffre d’affaires par jour complet', suffixe: ' €' },
+    boutique: { titre: 'CA Boutique, source Verify', unite: 'chiffre d’affaires par jour complet', suffixe: ' €' },
+    groupes: { petites: 'Petites vacances', ete: 'Vacances d’été' },
+    groupesDetail: { petites: 'Toussaint, Noël, Carnaval, Pâques', ete: 'Grandes vacances' },
+    comparaison: 'Chaque jour de vacances est comparé aux jours hors vacances de même jour de semaine.',
+    verdicts: {
+      net: { hausse: 'Écart net : plus d’activité pendant ces vacances', baisse: 'Écart net : moins d’activité pendant ces vacances' },
+      partage: 'Effet partagé selon les jours',
+      'pas-ecart': 'Pas d’écart net',
+    },
+    grise: 'Pas assez de jours pour conclure',
+    jourGrise: 'Insuffisant',
+    habituel: 'Variation habituelle',
+    entetes: { jour: 'Jour', vacances: 'Moyenne en vacances', hors: 'Moyenne hors vacances', jours: 'Jours comparés', ecart: 'Écart' },
+    effectifs: (v, h) => v + ' en vacances, ' + h + ' hors vacances',
+    ecart: pct => pctSigne(pct),
+    moyenne: (v, a) => moisNb(v) + a.suffixe,
+    observees: (periodes) => periodes.length
+      ? 'Vacances observées : ' + periodes.map(p => p.libelle + ' (' + dateLongue(p.debut) + (p.fin !== p.debut ? ' au ' + dateLongue(p.fin) : '') + ', ' + p.nbJours + ' jour' + (p.nbJours > 1 ? 's' : '') + ')').join(', ') + '.'
+      : 'Vacances observées : aucune période complète dans la fenêtre.',
+    fenetre: (semaines, debut, fin, bornee) => 'Fenêtre : ' + semaines + ' semaines closes, du ' + dateLongue(debut) + ' au ' + dateLongue(fin) + (bornee ? ', limitée au début des données de cette source' : '') + '.',
+    exclus: (e) => {
+      const n = e.feries + e.ponts + e.ascension;
+      if (!n) return 'Aucun jour férié ni pont dans la fenêtre.';
+      const parts = [];
+      if (e.feries) parts.push(e.feries + ' jour' + (e.feries > 1 ? 's' : '') + ' férié' + (e.feries > 1 ? 's' : ''));
+      if (e.ponts) parts.push(e.ponts + ' pont' + (e.ponts > 1 ? 's' : ''));
+      if (e.ascension) parts.push(e.ascension + ' jour' + (e.ascension > 1 ? 's' : '') + ' du pont de l’Ascension');
+      return 'Écartés des deux côtés : ' + parts.join(', ') + '.';
+    },
+    horsNorme: {
+      titre: 'Avec et sans les journées hors norme',
+      aucune: 'Aucune journée hors norme dans la fenêtre.',
+      sans: 'Sans ces journées',
+      avec: 'Avec ces journées',
+      change: 'La lecture change quand on les garde.',
+      memeLecture: 'La lecture reste la même avec ou sans elles.',
+      nombre: n => n + ' journée' + (n > 1 ? 's' : '') + ' hors norme.',
+    },
+    saison: (parMois) => {
+      const tot = parMois.reduce((a, b) => a + b, 0);
+      if (!tot) return '';
+      const haut = parMois.map((n, i) => ({ n, i })).filter(x => x.n > 0).sort((a, b) => b.n - a.n || a.i - b.i).slice(0, 2).map(x => x.i);
+      const noms = haut.sort((a, b) => a - b).map(i => 'en ' + MOIS_LONGS[i]);
+      return 'Les jours de vacances observés tombent surtout ' + noms.join(' et ') + ' : l’écart peut aussi venir de la saison.';
+    },
+    aucuneDonnee: 'Aucun jour complet n’est encore mesuré.',
+    tableau: 'Voir les valeurs en tableau',
+  };
+
   global.NexusVocab = NexusVocab;
 })(window);
