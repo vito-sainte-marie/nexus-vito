@@ -40,6 +40,7 @@
     'NEXUS-Tempo-v1.html',
     'NEXUS-Tempo-v2.html',
     'NEXUS-Tempo-v2-Quarts.html',
+    'NEXUS-Tempo-v2-Mois.html',
     'NEXUS-Campagne-v1.html',
     'NEXUS-Capital-v1.html',
     'NEXUS-Planning-v1.html',
