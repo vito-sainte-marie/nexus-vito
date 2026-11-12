@@ -2213,6 +2213,123 @@
     return Object.assign(vide('ok'), base, { candidats, retenue, motif });
   }
 
+  // ------------------------------------------------------------
+  // Lot D4 « Sélecteur global des découvertes » : fonctions pures, aucune règle nouvelle.
+  //   - Candidats : ceux que les moteurs produisent déjà (Piste, FDJ, Boutique) et la relation boutique/FDJ.
+  //   - Filtre : un candidat non net n'est pas une découverte. Il reste dans la fiche de son activité.
+  //   - Rang : masqué, répartition, découplage (1) ; variation simple (2) ; relation croisée (3).
+  //     Dans une activité, l'ordre du moteur (dépassement k compris) est conservé ; entre activités, aucun départage par z.
+  //   - Diversité : le premier candidat de chaque activité, puis on complète jusqu'à NB_DECOUVERTES_ACCUEIL.
+  //     La relation croisée n'est prise que s'il reste une place.
+  //   - Fraîcheur : même sélecteur sur la période précédente, sans mémoire stockée. Une découverte déjà retenue
+  //     dans le même sens descend de RANGS_PERDUS_FRAICHEUR rang ; sens opposé ou période précédente non nette : aucun effet.
+  // ------------------------------------------------------------
+  const NB_DECOUVERTES_ACCUEIL = 3;
+  const RANGS_PERDUS_FRAICHEUR = 1;
+  const ACTIVITES_DECOUVERTES = ['piste', 'boutique', 'fdj'];
+  const RANG_PRIORITE = { masquee: 1, repartition: 1, decrochage: 1, variation: 2, simple: 2, relation: 3 };
+  const LIBELLE_PRIORITE = { masquee: 'masqué', repartition: 'répartition', decrochage: 'découplage', variation: 'variation simple', simple: 'variation simple', relation: 'relation croisée' };
+  const signeDec = x => x > 0 ? 1 : x < 0 ? -1 : 0;
+
+  // Candidats normalisés d'une activité, dans l'ordre du moteur : { etat, motif, candidats:[{activite, type, cle, sens, rang, net, source}] }.
+  function candidatsDecouvertes(activite, analyse) {
+    if (!analyse || analyse.etat !== 'ok') return { etat: analyse && analyse.etat ? analyse.etat : 'absent', motif: null, candidats: [] };
+    const fab = (type, cle, sens, source) => ({ activite, type, cle: cle || '', sens, rang: RANG_PRIORITE[type], net: true, source });
+    let liste = [];
+    if (activite === 'piste') {
+      liste = (analyse.candidats || []).map(c => {
+        const f = c.carburant ? analyse.carburants.find(x => x.cle === c.carburant) : null;
+        const sens = c.type === 'masquee' ? signeDec(f && f.cmp ? f.cmp.ecart : 0) : c.type === 'repartition' ? signeDec(c.points) : signeDec(analyse.total.cmp.ecart);
+        return fab(c.type, c.carburant, sens, c);
+      });
+    } else if (activite === 'fdj') {
+      liste = (analyse.candidats || []).map(c => {
+        const f = c.famille ? analyse.familles.find(x => x.cle === c.famille) : null;
+        const sens = c.type === 'masquee' ? signeDec(f && f.cmp ? f.cmp.ecart : 0) : signeDec(analyse.total.cmp.ecart);
+        return fab(c.type, c.famille, sens, c);
+      });
+    } else if (activite === 'boutique') {
+      const g = analyse.global || {};
+      const tous = analyse.candidats || [];
+      const dec = tous.find(c => c.type === 'decrochage');
+      // Le découplage cite déjà les catégories : l'évolution masquée n'ouvre pas de découverte à part.
+      const ordre = [analyse.retenue].concat(tous.filter(c => c !== analyse.retenue && !(dec && c.type === 'masquee'))).filter(Boolean);
+      liste = ordre.map(c => {
+        let sens;
+        if (c.type === 'decrochage') sens = signeDec((g.caE || 0) - (g.caR || 0));
+        else if (c.type === 'masquee') {
+          const cat = (analyse.categories || []).find(x => x.nom === (c.categories || [])[0]);
+          sens = signeDec(cat ? cat.contribution : g.ecart);
+        } else sens = signeDec(g.ecart);
+        return fab(c.type, (c.categories || [c.categorie]).filter(Boolean).join('|'), sens, c);
+      });
+    }
+    return { etat: 'ok', motif: analyse.motif || null, candidats: liste };
+  }
+  function candidatRelation(rel) {
+    if (!rel || rel.etat !== 'ok') return { etat: rel && rel.etat ? rel.etat : 'absent', motif: null, candidats: [] };
+    return { etat: 'ok', motif: null, candidats: [{ activite: 'croise', type: 'relation', cle: '', sens: signeDec(rel.boutiqueFdj && rel.boutiqueFdj.r), rang: 3, net: !!(rel.boutiqueFdj && rel.boutiqueFdj.significative), source: rel }] };
+  }
+  const trierDec = liste => liste.map((c, i) => ({ c, i })).sort((a, b) => a.c.rang - b.c.rang || a.i - b.i).map(x => x.c);
+  // Sélection sans fraîcheur. entrees = { piste, boutique, fdj, croise } (sorties de candidatsDecouvertes / candidatRelation).
+  function classerDecouvertes(entrees, nb) {
+    const n = typeof nb === 'number' ? nb : NB_DECOUVERTES_ACCUEIL;
+    const premiers = [], suite = [];
+    ACTIVITES_DECOUVERTES.forEach(a => {
+      const e = entrees && entrees[a];
+      if (!e || e.etat !== 'ok') return;
+      e.candidats.filter(c => c.net !== false).forEach((c, i) => (i === 0 ? premiers : suite).push(Object.assign({}, c, { positionActivite: i + 1, motifMoteur: i === 0 ? e.motif : null })));
+    });
+    const croises = entrees && entrees.croise && entrees.croise.etat === 'ok'
+      ? entrees.croise.candidats.filter(c => c.net !== false).map(c => Object.assign({}, c, { positionActivite: 1, motifMoteur: null })) : [];
+    // Un candidat par activité d'abord, puis la suite dans l'ordre de priorité ; la relation croisée passe en dernier.
+    return trierDec(trierDec(premiers).concat(trierDec(suite)).concat(croises).slice(0, n));
+  }
+  // Raison réelle pour laquelle la période précédente ne peut pas servir de repère.
+  function raisonNonEvaluable(e) {
+    const etat = e && e.etat ? e.etat : 'absent';
+    if (etat === 'sans_reference') return 'la période précédente n\'a pas de période de référence pour être comparée.';
+    if (etat === 'absent') return 'la période précédente n\'a pas de mesure pour cette activité.';
+    if (etat === 'insuffisant') {
+      const cmp = e && e.total && e.total.cmp;
+      const min = cmp && cmp.minimum;
+      const pE = cmp && min != null && cmp.minEtudiee < min, pR = cmp && min != null && cmp.minReference < min;
+      if (pE && !pR) return 'la période précédente n\'a pas assez de jours mesurés.';
+      if (pR && !pE) return 'la référence de la période précédente n\'a pas assez de jours mesurés.';
+      return 'la période précédente ou sa référence n\'a pas assez de jours mesurés.';
+    }
+    return 'la période précédente n\'a pas pu être comparée à sa référence pour cette activité.';
+  }
+  const NOM_ACTIVITE_DEC = { piste: 'Piste', boutique: 'Boutique', fdj: 'FDJ', croise: 'Boutique et FDJ' };
+  // Découvertes nettes qui n'ont pas eu de place, nommées une à une. Une relation non significative n'est pas une découverte.
+  function decouvertesEcartees(entrees, choix) {
+    const pris = (choix || []).map(c => identiteDec(c));
+    const tous = classerDecouvertes(entrees, 99);
+    return tous.filter(c => pris.indexOf(identiteDec(c)) < 0)
+      .map(c => NOM_ACTIVITE_DEC[c.activite] + ' : ' + LIBELLE_PRIORITE[c.type]);
+  }
+  // Un découplage Boutique porte sur la boutique entière : les catégories citées sont des facteurs mesurés, pas le périmètre.
+  const identiteDec = c => [c.activite, c.type, c.type === 'decrochage' ? '' : c.cle, c.sens].join('/');
+  function selectionnerDecouvertes(entrees, precedent, nb) {
+    const courants = classerDecouvertes(entrees, nb);
+    const prec = precedent ? classerDecouvertes(precedent, 99) : [];
+    const ordinal = i => (i === 0 ? '1re' : (i + 1) + 'e');
+    const decores = courants.map(c => {
+      const eAct = precedent && precedent[c.activite];
+      let fraicheur;
+      if (!eAct || eAct.etat !== 'ok') fraicheur = { etat: 'non_evaluable', perdu: false, texte: 'Fraîcheur non évaluable : ' + raisonNonEvaluable(eAct) + ' Aucun effet sur le rang.' };
+      else if (prec.some(p => identiteDec(p) === identiteDec(c))) fraicheur = { etat: 'evaluable', perdu: true, texte: 'Déjà retenue dans le même sens sur la période précédente : elle descend d\'un rang.' };
+      else fraicheur = { etat: 'evaluable', perdu: false, texte: 'Nouvelle, ou de sens opposé à la période précédente : aucun effet sur le rang.' };
+      let motifRang;
+      if (c.activite === 'croise') motifRang = 'Relation croisée : retenue parce qu\'une place restait.';
+      else if (c.positionActivite === 1 && c.motifMoteur && /dépassement/.test(c.motifMoteur)) motifRang = c.motifMoteur.charAt(0).toUpperCase() + c.motifMoteur.slice(1) + '.';
+      else motifRang = ordinal(c.positionActivite - 1) + ' de son activité, ordre de priorité : ' + LIBELLE_PRIORITE[c.type] + '.';
+      return Object.assign({}, c, { fraicheur, motifRang });
+    });
+    const ordonnes = decores.map((c, i) => ({ c, cle: i + (c.fraicheur.perdu ? RANGS_PERDUS_FRAICHEUR + 0.5 : 0) })).sort((a, b) => a.cle - b.cle).map(x => x.c);
+    return ordonnes.map((c, i) => Object.assign(c, { rangAffiche: i + 1 }));
+  }
+
   // Vocabulaire d'évolution (lot V4) : fonction pure, jamais de conclusion sur le seul pourcentage.
   function libelleEvolution(cmp) {
     if (!cmp || cmp.etat !== 'ok' || cmp.pct === null || cmp.pct === undefined) return 'Tendance non déterminée';
@@ -2242,6 +2359,7 @@
     compositionCalendrier, evaluerComparabilite, prixMoyenMesure,
     joursCaPiste, joursCaBoutique, analysePiste, departagerDepassement, joursLitresCarburant, quartsLitresCarburant, horsServiceCarburant, CARBURANTS, JOURS_HORS_SERVICE, SEUIL_PART_POINTS, K_DEPASSEMENT, correlationResidus, relationBoutiqueFdj, rapportFdjQuart1, SEUIL_RELATION_JOURS,
     libelleEvolution,
+    candidatsDecouvertes, candidatRelation, classerDecouvertes, selectionnerDecouvertes, decouvertesEcartees, NB_DECOUVERTES_ACCUEIL, RANGS_PERDUS_FRAICHEUR,
     analyseBoutique, SEUIL_MARGE_GLOBALE_PCT, SEUIL_MARGE_GLOBALE_EUROS_JOUR, SEUIL_CATEGORIE_EUROS_JOUR, SEUIL_CONCENTRATION_CATEGORIE, SEUIL_CA_DECROCHAGE_PCT,
     analyseFdj, constatCompositionFdj, detailPaliersFdj, detailJeuxFdj, joursFamilleFdj, FAMILLES_FDJ, SEUIL_PART_FAMILLE, AUTRE_FAMILLE_NETTE_EMPECHE_CITATION_SEULE,
   };

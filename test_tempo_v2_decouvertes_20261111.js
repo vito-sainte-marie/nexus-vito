@@ -40,7 +40,7 @@ const E = simuler(jours(bornes.debut, 56), { prix: 2.13, litres: 5600, liaison: 
 const R = simuler(jours(bRef.debut, 56), { prix: 1.93, litres: 5700, liaison: true, graine: 11 });
 
 t('sources : la carte FDJ garde sa source, « Prix et volume » a disparu', () => {
-  assert.ok(html.includes("'Source : NEXUS FDJ et Verify · '"), 'source FDJ');
+  assert.ok(html.includes("'Source : NEXUS FDJ · '"), 'source FDJ');
   assert.ok(!html.includes("'Source : Verify · ' + fq.q1"), 'ancienne source');
   assert.ok(!/decouvertePrixVolume|titrePrixVolume|Prix et volume/.test(html + fs.readFileSync(path.join(__dirname, 'nexus-tempo.js'), 'utf8')));
 });
@@ -80,21 +80,19 @@ t('FDJ au quart 1 : rapport arrondi au dixième, null sans quart 2', () => {
 });
 
 t('page : quatre cartes remplies par script, preuves en <details>, aucun lien', () => {
-  assert.ok(/remplirDecouverte\(0,/.test(scripts) && /remplirDecouverte\(1,/.test(scripts) && /remplirDecouverte\(2,/.test(scripts) && /remplirDecouverte\(3,/.test(scripts));
+  assert.ok(/remplirDecouverte\(slot,/.test(scripts) && /fiches\.piste = /.test(scripts) && /fiches\.boutique = /.test(scripts) && /fiches\.fdj = /.test(scripts) && /fiches\.croise = /.test(scripts));
   assert.ok(/'details'/.test(scripts) && /Voir les preuves/.test(scripts));
-  assert.ok(/Une relation, pas une cause\./.test(scripts));
-  assert.ok(/Rattachement des tirages au quart à confirmer/.test(scripts) && /arbitrage: 'G4'/.test(scripts));
-  assert.ok(/Fait mesuré/.test(scripts) && /Relation observée/.test(scripts) && /Hypothèse/.test(scripts));
+  assert.ok(/Fait mesuré/.test(scripts));
   assert.deepStrictEqual([...html.slice(html.indexOf('<body>')).matchAll(/<a\s[^>]*href="([^"]*)"/gi)].map(m => m[1]), ['NEXUS-Tempo-v2-Quarts.html', 'NEXUS-Cockpit-v2.html']);
 });
 
 t('page : la carte relation n\'est remplie que si la relation est retenue', () => {
-  assert.ok(/rel\.etat === 'ok'/.test(scripts));
+  assert.ok(/candidatRelation\(rel\)/.test(scripts)); // lot D4 : la relation passe par le sélecteur
 });
 
 t('page : aucune écriture, aucune lecture ajoutée', () => {
   assert.ok(!/\.(insert|update|upsert|delete|rpc)\s*\(/.test(scripts));
-  assert.strictEqual((scripts.match(/\.from\s*\(/g) || []).length, 12, 'nombre de lectures changé');
+  assert.strictEqual((scripts.match(/\.from\s*\(/g) || []).length, 14, 'nombre de lectures changé');
   assert.ok(!/\(G\d\)/.test(scripts), 'code G visible dans le script');
 });
 

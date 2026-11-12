@@ -163,9 +163,9 @@ t('page : le libellé du choix suit le cas (compensation ou catégorie seule)', 
   assert.ok(scripts.includes("'compensation entre catégories' : 'évolution masquée par une catégorie'"));
   assert.ok(scripts.includes("Une catégorie masque l\\'évolution de la marge"));
 });
-t('page : une seule découverte Boutique, au quatrième rang la relation', () => {
-  assert.strictEqual((scripts.match(/remplirDecouverte\(1,/g) || []).length, 1);
-  assert.strictEqual((scripts.match(/remplirDecouverte\(3,/g) || []).length, 1);
+t('page : une seule fiche Boutique, posée dans le sélecteur (lot D4)', () => {
+  assert.strictEqual((scripts.match(/fiches\.boutique = /g) || []).length, 1);
+  assert.ok(!/remplirDecouverte\(3,/.test(scripts));
 });
 t('page : lecture seule, aucune écriture ajoutée', () => {
   assert.ok(!/\.(insert|update|upsert|delete)\(/.test(scripts));
