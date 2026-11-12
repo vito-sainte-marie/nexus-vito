@@ -1614,6 +1614,8 @@
   // Garde des rythmes hebdomadaires (carte « jours forts et faibles » seulement) : part minimale des occurrences
   // d'un jour de semaine repérées hors norme dans le même sens pour parler de rythme récurrent. Règle initiale, configurable.
   const SEUIL_RYTHME_RECURRENT = 0.5;
+  // Un jour est dit « irrégulier » quand son coefficient de variation vaut au moins 1,5 fois celui du jour fort ou faible récurrent de référence.
+  const RATIO_CV_IRREGULIER = 1.5;
   const SEUIL_RAPPORT_DUREES = 2;
   const SEUIL_POINTS_CALENDRIER = 20;
 
@@ -2773,7 +2775,10 @@
       const parJour = ORDRE_JOURS_SEMAINE.map((js, i) => {
         const v = valeurs[i];
         const suffisant = v.length >= OCCURRENCES_MIN_JOUR;
-        return { jourSemaine: js, effectif: v.length, suffisant, moyenne: suffisant ? moyenneTab(v) : null, ecart: null, ecartPct: null, erreurType: null, verdict: suffisant ? 'habituel' : 'grise' };
+        const moyenne = suffisant ? moyenneTab(v) : null;
+        const ecartType = suffisant ? Math.sqrt(varianceEchantillon(v, moyenne)) : null;
+        const cv = suffisant && moyenne > 0 ? ecartType / moyenne : null;
+        return { jourSemaine: js, effectif: v.length, suffisant, moyenne, ecartType, cv, ecart: null, ecartPct: null, erreurType: null, verdict: suffisant ? 'habituel' : 'grise' };
       });
       const toutLisible = retenus.length > 0 && parJour.every(p => p.suffisant);
       if (toutLisible) {
@@ -2810,6 +2815,29 @@
     });
   }
 
+  // Tuiles de la carte : données seules, aucun texte. Rien hors de l'état « designe ».
+  // Jour récurrent = jour désigné par G5 (plus grand écart aux six autres s'il y en a plusieurs).
+  // Plus forte / plus faible moyenne = classement descriptif, montré seulement si ce n'est pas le même jour.
+  function tuilesJours(res) {
+    if (!res || res.etat !== 'designe') return null;
+    const rythmes = (res.rythmes || []).map(r => r.jourSemaine);
+    const tuile = (p, role, ref) => ({
+      role, jourSemaine: p.jourSemaine, moyenne: p.moyenne, ecart: p.ecart, verdict: p.verdict, effectif: p.effectif,
+      cv: p.cv, irregulier: !!(ref && p.verdict === 'habituel' && ref.cv > 0 && p.cv != null && p.cv >= RATIO_CV_IRREGULIER * ref.cv),
+      rythme: rythmes.indexOf(p.jourSemaine) > -1,
+    });
+    const cote = (verdict, signe) => {
+      const designes = res.parJour.filter(p => p.verdict === verdict).sort((a, b) => signe * (b.ecart - a.ecart));
+      const ref = designes[0] || null;
+      const extreme = res.parJour.slice().sort((a, b) => signe * (b.moyenne - a.moyenne))[0];
+      return {
+        recurrent: ref ? tuile(ref, 'recurrent', null) : null,
+        moyenne: !ref || extreme.jourSemaine !== ref.jourSemaine ? tuile(extreme, 'moyenne', ref) : null,
+      };
+    };
+    return { haut: cote('au-dessus', 1), bas: cote('en-dessous', -1) };
+  }
+
   // Textes de la carte, tous tirés de NexusVocab.jours. Sans lexique : rien.
   function lignesJours(res, mesure) {
     const V = typeof window !== 'undefined' ? window.NexusVocab : null;
@@ -2825,6 +2853,24 @@
           : [J.noms[p.jourSemaine], J.pasAssez(p.effectif, res.seuil)],
       })),
       constat: J.constat[res.etat] || '',
+      tuiles: (() => {
+        const t = tuilesJours(res);
+        if (!t || !J.tuiles) return null;
+        const mise = (x, c) => x && {
+          role: x.role, titre: J.tuiles.titres[x.role][c],
+          jourSemaine: x.jourSemaine, nom: J.noms[x.jourSemaine], moyenne: J.tuiles.moyenne(x.moyenne, m), ecart: J.tuiles.ecart(x.ecart, m),
+          etiquette: J.verdicts[x.verdict], irregulier: x.irregulier ? J.tuiles.irregulier : '', rythme: x.rythme ? J.tuiles.rythme : '',
+        };
+        const jours = [];
+        ['haut', 'bas'].forEach(c => ['recurrent', 'moyenne'].forEach(r => { if (t[c][r] && jours.indexOf(t[c][r].jourSemaine) < 0) jours.push(t[c][r].jourSemaine); }));
+        const nomsJours = js => J.noms[js];
+        return {
+          haut: [mise(t.haut.recurrent, 'haut'), mise(t.haut.moyenne, 'haut')].filter(Boolean),
+          bas: [mise(t.bas.recurrent, 'bas'), mise(t.bas.moyenne, 'bas')].filter(Boolean),
+          lecture: (lh => [lh, J.tuiles.lecture(t.bas, 'bas', m, nomsJours, !!lh)].filter(Boolean).join(' '))(J.tuiles.lecture(t.haut, 'haut', m, nomsJours, false)),
+          preuve: J.tuiles.preuve(jours.map(js => ({ nom: J.noms[js], effectif: res.parJour.filter(p => p.jourSemaine === js)[0].effectif }))),
+        };
+      })(),
       ecartes: res.ecartes.length ? J.ecartes(res.ecartes, m) : '',
       rythmes: res.rythmes && res.rythmes.length && J.rythmes ? {
         texte: J.rythmes.texte(res.rythmes.map(r => ({ nom: J.noms[r.jourSemaine], sens: r.sens, nb: r.nb, occurrences: r.occurrences }))),
@@ -2844,7 +2890,7 @@
   }
 
   window.NexusTempo = {
-    syntheseEnBref, joursFortsFaibles, joursFortsFaiblesMesures, lignesJours,
+    syntheseEnBref, joursFortsFaibles, joursFortsFaiblesMesures, lignesJours, tuilesJours, RATIO_CV_IRREGULIER,
     SEUILS, NOM_JOURS, NOM_JOURS_COURT, NOM_MOIS, LITRAGE_INDISPONIBLE, VALORISATION_INDISPONIBLE, SOURCES_DONNEES, COORDONNEES_STATION,
     agregerParJour, filtrerJoursClos, regrouperParJourSemaine, calculerClassement,
     calculerPeriodesProduitsAppel, attribuerValorisationBoutique, identifierJourPlusRentable,

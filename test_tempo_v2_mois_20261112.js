@@ -103,7 +103,7 @@ t('défilement horizontal sur téléphone et libellés courts', () => {
   assert.ok(html.includes('b.court'));
 });
 t('plus de phrase « mois le plus haut / le plus bas », ni « favorable » ni « saison »', () => {
-  const affiche = (html.replace(/<script[\s\S]*?<\/script>/g, '') + vocab.slice(vocab.indexOf('NexusVocab.mois')));
+  const affiche = (html.replace(/<script[\s\S]*?<\/script>/g, '') + vocab.slice(vocab.indexOf('NexusVocab.mois'), vocab.indexOf('NexusVocab.jours =')));
   assert.ok(!/le plus haut|le plus bas|plus haut|plus bas/i.test(affiche));
   assert.ok(!/favorable|saison/i.test(affiche));
 });

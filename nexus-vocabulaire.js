@@ -421,13 +421,13 @@
     titre: 'Jours forts et faibles',
     sousTitre: 'Par activité, sur les mêmes semaines.',
     noms: { 1: 'Lundi', 2: 'Mardi', 3: 'Mercredi', 4: 'Jeudi', 5: 'Vendredi', 6: 'Samedi', 0: 'Dimanche' },
-    piste: { titre: 'Piste', unite: 'litres par jour complet', suffixe: ' L' },
-    fdj: { titre: 'FDJ', unite: 'chiffre d’affaires par jour complet', suffixe: ' €' },
-    ca: { titre: 'CA Boutique, source Verify', unite: 'chiffre d’affaires par jour complet', suffixe: ' €', precision: 'Chiffre d’affaires de la source Verify, pas la marge et pas le chiffre d’affaires du périmètre Produits utilisé pour la marge.', rythme: 'Un jour fort en chiffre d’affaires n’est pas forcément un jour fort en marge.', appel: 'Comprend les produits d’appel (cartes prépayées, tabac, etc.), exclus du calcul de marge Boutique.' },
-    boutique: { titre: 'CA Boutique, source Verify', unite: 'chiffre d’affaires par jour complet', suffixe: ' €', precision: 'Chiffre d’affaires de la source Verify, pas la marge et pas le chiffre d’affaires du périmètre Produits utilisé pour la marge.', rythme: 'Un jour fort en chiffre d’affaires n’est pas forcément un jour fort en marge.', appel: 'Comprend les produits d’appel (cartes prépayées, tabac, etc.), exclus du calcul de marge Boutique.' },
+    piste: { titre: 'Piste', unite: 'litres par jour complet', suffixe: ' L', lecture: { verbe: 'enregistre', plus: 'le volume moyen le plus élevé', moins: 'le volume moyen le plus faible' } },
+    fdj: { titre: 'FDJ', unite: 'chiffre d’affaires par jour complet', suffixe: ' €', lecture: { verbe: 'réalise', plus: 'le chiffre d’affaires moyen le plus élevé', moins: 'le chiffre d’affaires moyen le plus faible' } },
+    ca: { titre: 'CA Boutique, source Verify', unite: 'chiffre d’affaires par jour complet', suffixe: ' €', lecture: { verbe: 'réalise', plus: 'le chiffre d’affaires moyen le plus élevé', moins: 'le chiffre d’affaires moyen le plus faible' }, precision: 'Chiffre d’affaires de la source Verify, pas la marge et pas le chiffre d’affaires du périmètre Produits utilisé pour la marge.', rythme: 'Un jour fort en chiffre d’affaires n’est pas forcément un jour fort en marge.', appel: 'Comprend les produits d’appel (cartes prépayées, tabac, etc.), exclus du calcul de marge Boutique.' },
+    boutique: { titre: 'CA Boutique, source Verify', unite: 'chiffre d’affaires par jour complet', suffixe: ' €', lecture: { verbe: 'réalise', plus: 'le chiffre d’affaires moyen le plus élevé', moins: 'le chiffre d’affaires moyen le plus faible' }, precision: 'Chiffre d’affaires de la source Verify, pas la marge et pas le chiffre d’affaires du périmètre Produits utilisé pour la marge.', rythme: 'Un jour fort en chiffre d’affaires n’est pas forcément un jour fort en marge.', appel: 'Comprend les produits d’appel (cartes prépayées, tabac, etc.), exclus du calcul de marge Boutique.' },
     marge: { titre: 'Marge par jour', indisponible: 'Marge par jour : pas encore disponible. Elle demande les ventes de la caisse jour par jour.' },
     verdicts: { 'au-dessus': 'Nettement au-dessus', 'en-dessous': 'Nettement en dessous', habituel: 'Variation habituelle', grise: 'Pas assez de jours' },
-    constat: { designe: '', ressemblent: 'Les jours se ressemblent', insuffisant: 'Pas encore assez de semaines mesurées pour comparer les sept jours.', absent: 'Aucun jour complet n’est encore mesuré.' },
+    constat: { designe: '', ressemblent: 'Aucun jour ne ressort nettement des autres.', insuffisant: 'Pas encore assez de semaines mesurées pour comparer les sept jours.', absent: 'Aucun jour complet n’est encore mesuré.' },
     moyenne: (v, a) => 'Moyenne : ' + moisNb(v) + a.suffixe + ' par jour',
     occurrences: n => n + ' jour' + (n > 1 ? 's' : '') + ' complet' + (n > 1 ? 's' : ''),
     ecartAutres: (pct, afficher) => (afficher && pct != null) ? 'Par rapport aux six autres jours : ' + pctSigne(pct) : '',
@@ -458,6 +458,39 @@
       avantApres: (noms, etatAvant, etatApres) => noms.length
         ? 'Avant cette règle, la lecture était différente pour : ' + noms.join(', ') + '.'
         : (etatAvant === 'insuffisant' && etatApres !== 'insuffisant' ? 'Avant cette règle, la comparaison était impossible.' : 'Cette règle ne change la lecture d’aucun jour.'),
+    },
+    // Tuiles et lecture Tempo. « Récurrent » = qualification G5 ; « plus forte / plus faible moyenne » = classement descriptif.
+    tuiles: {
+      titres: { recurrent: { haut: 'Jour fort récurrent', bas: 'Jour faible récurrent' }, moyenne: { haut: 'Plus forte moyenne', bas: 'Plus faible moyenne' } },
+      titreLecture: 'Lecture Tempo',
+      irregulier: 'Activité irrégulière',
+      rythme: 'Concerné par un rythme potentiel, détaillé en dessous.',
+      contre: 'par rapport aux six autres jours',
+      moyenne: (v, a) => moisNb(v) + a.suffixe + ' par jour',
+      ecart: (e, a) => (Math.round(e) > 0 ? '+' : Math.round(e) < 0 ? '−' : '') + moisNb(Math.abs(e)) + a.suffixe + '/jour',
+      // cote = { recurrent, moyenne } (tuiles du moteur) ; nom(js) rend le nom du jour. Une phrase par jour, jamais de consigne.
+      lecture: (cote, sens, a, nom, suite) => {
+        const haut = sens === 'haut';
+        const jour = t => nom(t.jourSemaine).toLowerCase();
+        const r = cote.recurrent, m = cote.moyenne;
+        if (haut) {
+          const tete = t => 'Le ' + jour(t) + ' ' + (a.lecture ? a.lecture.verbe : 'réalise') + ' ' + (a.lecture ? a.lecture.plus : 'le total moyen le plus élevé');
+          if (r && !m) return tete(r) + ' et se détache nettement des autres jours.';
+          if (!r && m) return tete(m) + ', sans se détacher nettement des autres jours.';
+          if (r && m) return tete(m) + (m.irregulier ? ', mais ses résultats varient fortement d’une semaine à l’autre. ' : ', sans s’écarter nettement des autres jours. ') + 'Le ' + jour(r) + (m.irregulier ? ' se distingue par une activité supérieure plus régulière.' : ', lui, s’en détache.');
+          return '';
+        }
+        // Côté bas : jamais la mesure ni « nettement » déjà dits côté haut ; « À l’inverse » seulement s’il y a un côté haut.
+        const lie = suite ? 'À l’inverse, le ' : 'Le ';
+        if (r && !m) return lie + jour(r) + ' reste le jour le plus bas, clairement sous les autres.';
+        if (!r && m) return lie + jour(m) + ' reste le jour le plus bas, sans s’écarter clairement des autres.';
+        if (r && m) return lie + jour(m) + ' reste le jour le plus bas, sans s’écarter clairement des autres. Le ' + jour(r) + (m.irregulier ? ' ressort par une activité inférieure plus régulière.' : ', lui, passe en dessous.');
+        return '';
+      },
+      preuve: liste => {
+        const n = liste.map(x => x.effectif + ' ' + x.nom.toLowerCase() + 's');
+        return (n.length > 1 ? n.slice(0, -1).join(', ') + ' et ' + n[n.length - 1] : n.join('')) + ' observés · Qualification selon G5';
+      },
     },
     aucunEcart: 'Aucun jour écarté.',
     aucuneDonnee: 'Aucun jour complet n’est encore mesuré.',

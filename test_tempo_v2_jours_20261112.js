@@ -49,7 +49,7 @@ t('des jours qui se ressemblent : aucun désigné, sept moyennes de lundi à dim
   assert.strictEqual(r.designe, false);
   assert.deepStrictEqual(r.ordre.map(p => p.jourSemaine), [1, 2, 3, 4, 5, 6, 0]);
   assert.ok(r.ordre.every(p => p.verdict === 'habituel'));
-  assert.strictEqual(T.lignesJours(r, 'piste').constat, 'Les jours se ressemblent');
+  assert.strictEqual(T.lignesJours(r, 'piste').constat, 'Aucun jour ne ressort nettement des autres.');
 });
 t('moins de quatre occurrences un jour : il est grisé, sans moyenne, et aucun jour n’est désigné', () => {
   const peu = SEMAINE.filter(j => !(new Date(j.date + 'T00:00:00Z').getUTCDay() === 3 && j.date > '2026-09-02'));
@@ -123,7 +123,7 @@ t('sans lexique, le moteur ne rend rien plutôt que d’inventer', () => {
 });
 t('le moteur ne porte aucune phrase d’affichage pour les jours', () => {
   const corps = moteur.slice(moteur.indexOf('function joursFortsFaibles('), moteur.indexOf('window.NexusTempo = {')).replace(/^\s*\/\/.*$/gm, '');
-  assert.ok(!/Nettement|Variation habituelle|se ressemblent|Pas assez|pas encore disponible|écarté/.test(corps), 'mot d’affichage dans le moteur');
+  assert.ok(!/Nettement|Variation habituelle|Aucun jour ne ressort|se ressemblent|Pas assez|pas encore disponible|écarté/.test(corps), 'mot d’affichage dans le moteur');
 });
 t('la page charge le lexique avant le moteur, garde manager et forfait, lectures bornées par site, sans products', () => {
   assert.ok(html.indexOf('nexus-vocabulaire.js') > -1 && html.indexOf('nexus-vocabulaire.js') < html.indexOf('nexus-tempo.js'));
@@ -145,11 +145,11 @@ t('la tuile de l’accueil mène à la page', () => {
 
 // ---- Corrections de la revue (arbitrage du 12/11) ----
 const avecValeur = (s, d, v) => s.map(j => j.date === d ? { date: j.date, valeur: v } : j);
-t('jours grisés : jamais « Les jours se ressemblent », mais la phrase d’insuffisance', () => {
+t('jours grisés : jamais la phrase des jours qui se ressemblent, mais la phrase d’insuffisance', () => {
   const peu = SEMAINE.filter(j => !(new Date(j.date + 'T00:00:00Z').getUTCDay() === 3 && j.date > '2026-09-02'));
   const l = T.lignesJours(T.joursFortsFaibles(peu, BORNES, []), 'piste');
   assert.strictEqual(l.constat, 'Pas encore assez de semaines mesurées pour comparer les sept jours.');
-  assert.ok(!/se ressemblent/.test(l.constat));
+  assert.ok(!/se ressemblent|Aucun jour ne ressort/.test(l.constat));
 });
 t('les jours fériés et ponts écartés sont nommés avec leur date', () => {
   const feries = [{ date: '2026-09-09', type: 'ferie', libelle: 'Toussaint' }];
