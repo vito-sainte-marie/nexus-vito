@@ -13,14 +13,14 @@
 :root{
   --t-bg:#07131E; --t-panel:#0D202E; --t-raised:#0F2433; --t-line:#254354;
   --t-text:#EDF1F5; --t-mid:#9AA8B6; --t-cyan:#24D8E3; --t-green:#29C98A; --t-amber:#F5A12A; --t-red:#F0707A;
-  --boutique:#C47A55; --boutique-rgb:196,122,85;
+  --boutique:#C47A55; --boutique-rgb:196,122,85; --piste:#3F6E94; --piste-rgb:63,110,148;
   --t-mono:'IBM Plex Mono',ui-monospace,monospace; --t-sans:'IBM Plex Sans',system-ui,sans-serif;
   --banniere-cadrage:70% 50%;
 }
 :root[data-theme="jour"]{
   --t-bg:#F4F6F8; --t-panel:#FFFFFF; --t-raised:#EEF2F5; --t-line:#D5DCE3;
   --t-text:#0F172A; --t-mid:#475569; --t-cyan:#0B7285; --t-green:#047857; --t-amber:#B45309; --t-red:#B91C1C;
-  --boutique:#7A4A3A; --boutique-rgb:122,74,58;
+  --boutique:#7A4A3A; --boutique-rgb:122,74,58; --piste:#8DB4D4; --piste-rgb:141,180,212;
 }
 *{box-sizing:border-box; margin:0; padding:0;}
 html,body{background:var(--t-bg); color:var(--t-text); font-family:var(--t-sans); min-height:100vh;}
@@ -105,6 +105,61 @@ a{color:inherit;}
 .note{font-size:12.5px; color:var(--t-mid); line-height:1.5; padding-top:8px; border-top:1px solid var(--t-line);}
 .sous-titre{font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--t-mid); margin:10px 0 2px;}
 .vide{padding:24px 8px; text-align:center; color:var(--t-mid); font-size:13px;}
+/* Bilan visuel */
+.ico-p{display:inline-block; width:28px; height:28px; flex:none; object-fit:contain; vertical-align:middle;}
+.ico-t{width:22px; height:22px;}
+.conseiller-titre{display:flex; align-items:center; gap:8px;}
+.bilan{background:var(--t-panel); border:1px solid var(--t-amber); border-radius:14px; padding:18px; margin-top:12px;}
+.b-entete{display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap;}
+.b-eyebrow{font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--t-amber);}
+.b-nom{font-size:20px; font-weight:600; margin-top:4px; overflow-wrap:anywhere;}
+.b-meta{font-size:13px; color:var(--t-mid); margin-top:4px; line-height:1.5;}
+.b-meta span{display:inline-flex; align-items:center; gap:6px; margin-right:12px;}
+.b-grille{display:grid; grid-template-columns:1fr; gap:16px; margin-top:16px;}
+.b-tuiles{display:grid; grid-template-columns:1fr; gap:10px;}
+.b-tuile{background:var(--t-raised); border:1px solid var(--t-line); border-radius:12px; padding:14px; min-width:0;}
+.b-tuile-haut{display:flex; align-items:center; gap:8px; font-size:12px; color:var(--t-mid);}
+.b-val{font-family:var(--t-mono); font-size:21px; font-weight:600; margin-top:8px; overflow-wrap:anywhere;}
+.b-sous{font-size:12.5px; color:var(--t-mid); line-height:1.45; margin-top:4px; overflow-wrap:anywhere;}
+.b-g5{font-size:12.5px; font-weight:600; margin-top:6px; color:var(--t-text);}
+.b-g5.hausse{color:var(--t-green);}
+.b-g5.baisse{color:var(--t-red);}
+.b-lateral{display:flex; flex-direction:column; gap:12px; min-width:0;}
+.b-bloc{background:var(--t-raised); border:1px solid var(--t-line); border-radius:12px; padding:14px;}
+.b-bloc h3{display:flex; align-items:center; gap:8px; font-size:12px; font-weight:600; letter-spacing:.04em; color:var(--t-mid); margin-bottom:10px;}
+.b-etat{display:flex; align-items:center; gap:8px; font-weight:600; font-size:15px;}
+.b-etat img{width:24px; height:24px;}
+.b-bloc ul{list-style:none; display:flex; flex-direction:column; gap:8px; font-size:13.5px; line-height:1.5;}
+.b-bloc li{overflow-wrap:anywhere;}
+.b-graphe{margin-top:16px;}
+.b-barres{display:flex; align-items:flex-end; justify-content:space-around; gap:12px; height:170px; padding-top:8px; border-bottom:1px solid var(--t-line);}
+.b-col{flex:1; max-width:120px; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; height:100%; min-width:0;}
+.b-barre{width:100%; border-radius:6px 6px 0 0; background:rgba(var(--boutique-rgb),.45); min-height:3px;}
+.b-col.pendant .b-barre{background:var(--boutique);}
+.t-carburant .b-barre{background:rgba(var(--piste-rgb),.45);}
+.t-carburant .b-col.pendant .b-barre{background:var(--piste);}
+.t-mixte .b-barre{background:linear-gradient(to top,rgba(var(--boutique-rgb),.45),rgba(var(--piste-rgb),.45));}
+.t-mixte .b-col.pendant .b-barre{background:linear-gradient(to top,var(--boutique),var(--piste));}
+.b-barre-val{font-family:var(--t-mono); font-size:12px; margin-bottom:4px; white-space:nowrap;}
+.b-legendes{display:flex; justify-content:space-around; gap:12px;}
+.b-legende{flex:1; max-width:120px; text-align:center; font-size:12px; color:var(--t-mid); padding-top:6px; min-width:0;}
+.b-legende b{display:block; color:var(--t-text); font-weight:600;}
+.b-actions{display:flex; flex-wrap:wrap; gap:10px; margin-top:6px;}
+.b-actions .btn{margin-top:10px;}
+.b-detail{margin-top:16px; border-top:1px solid var(--t-line); padding-top:4px;}
+.b-detail[hidden]{display:none;}
+.b-cartes{display:grid; grid-template-columns:1fr; gap:10px;}
+.b-carte{display:block; width:100%; text-align:left; font-family:var(--t-sans); color:var(--t-text); background:var(--t-panel); border:1px solid var(--t-line); border-radius:14px; padding:14px 16px; min-height:44px; cursor:pointer;}
+.b-carte:hover{border-color:rgba(var(--boutique-rgb),.7);}
+.b-carte:focus-visible{outline:2px solid var(--t-cyan); outline-offset:2px;}
+.b-carte .promo-nom{margin-bottom:2px;}
+.b-carte .ligne:first-of-type{margin-top:8px;}
+.b-carte-lien{display:block; margin-top:8px; font-size:12.5px; font-weight:600; color:var(--t-cyan);}
+@media (min-width:768px){
+  .b-grille{grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);}
+  .b-tuiles{grid-template-columns:1fr 1fr;}
+  .b-cartes{grid-template-columns:1fr 1fr;}
+}
 .intro-historique{font-size:13px; color:var(--t-mid); margin-bottom:12px; line-height:1.5;}
 .intro-historique b{color:var(--t-text);}
 
@@ -214,8 +269,7 @@ button.tuile:hover, button.tuile:focus-visible{border-color:var(--t-cyan);}
 
   <div class="titre-section" id="tEnCours"></div>
   <div id="enCours"></div>
-  <div class="titre-section" id="tDerniere"></div>
-  <div id="derniere"></div>
+  <section id="derniere" aria-labelledby="bilanTitre"></section>
 
   <div class="titre-section" id="tOutils"></div>
   <div class="tuiles" id="tuiles"></div>
@@ -276,10 +330,10 @@ button.tuile:hover, button.tuile:focus-visible{border-color:var(--t-cyan);}
 <script src="nexus-icones.js?v=20260904-0104"></script>
 <script src="nexus-desktop.js?v=20260904-0104"></script>
 <script src="nexus-jours-feries.js?v=20261106-0100"></script>
-<script src="nexus-vocabulaire.js?v=20261112-1500"></script>
+<script src="nexus-vocabulaire.js?v=20261113-2000"></script>
 <script src="nexus-tempo.js?v=20261112-1500"></script>
 <script src="nexus-periodes.js?v=20260904-0104"></script>
-<script src="nexus-campagnes.js?v=20260904-0104"></script>
+<script src="nexus-campagnes.js?v=20261113-2000"></script>
 <script src="nexus-simulateur-promo.js?v=20261113-1000"></script>
 <script src="nexus-mesure-compensation.js?v=20261113-1800"></script>
 <script>
@@ -290,6 +344,10 @@ let EMPLOYEE = null, SITE_ID = null;
 let CATALOGUE_ARTICLES = [];
 let PRODUITS_ROWS = [];
 let IMPACTS = [];
+let CAMP_ROWS = [], PAN_ROWS = [], JOURS = [];
+let MES_TOUS = {mesures: new Map(), couts: new Map()};
+let BILAN_COURANT = null, BILAN_OUVERT = false;
+const BILANS = new Map();
 
 function esc(s){
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -332,7 +390,7 @@ function peindreTextesFixes(){
   $('hEyebrow').textContent = V.titre;
   $('hTitre').textContent = V.titre;
   $('hSous').textContent = V.sousTitre;
-  $('cTitre').textContent = V.conseillerTitre;
+  $('cTitre').innerHTML = ico('conseiller', 'ico-t') + '<span>' + esc(V.conseillerTitre) + '</span>';
   $('btnNouvelle').textContent = V.boutonNouvelle;
   $('lNom').textContent = V.formNom; $('promoNom').placeholder = V.formNomExemple;
   $('lDebut').textContent = V.formDebut; $('lFin').textContent = V.formFin;
@@ -343,10 +401,9 @@ function peindreTextesFixes(){
   $('promoObjectifLibre').placeholder = V.formObjectifLibre;
   $('btnValider').textContent = V.formValider;
   $('tEnCours').textContent = V.enCoursTitre;
-  $('tDerniere').textContent = V.derniereTitre;
   $('tOutils').textContent = V.outilsTitre;
-  $('tHistorique').textContent = V.historiqueTitre;
-  $('introHistorique').innerHTML = '<b>' + esc(V.historiqueIntro) + '.</b> ' + esc(V.historiqueNote);
+  $('tHistorique').textContent = V.bilan.terminees;
+  $('introHistorique').hidden = true;
   const apercuEtats = new URLSearchParams(location.search).get('apercu_etats') === '1';
   $('blocEtats').hidden = !apercuEtats;
   if (apercuEtats){
@@ -535,22 +592,205 @@ function texteConseiller(impacts){
   let h = '<p>' + esc(V.conseillerCompte(impacts.length, n('encours'), n('terminee'), n('avenir'))) + '</p>';
   const derniere = impacts.find((x, k) => st[k] === 'terminee') || impacts[0];
   h += '<p>' + esc(V.conseillerDerniere(derniere.nom, fmtDateCourt(derniere.dateDebut), fmtDateCourt(derniere.dateFin))) + '</p>';
-  let mesure;
-  if (!derniere.produitsConcernes.length) mesure = V.conseillerSansProduit;
-  else if (derniere.impactProduits && derniere.impactProduits.disponible) mesure = V.conseillerProduitsImportes;
-  else mesure = V.conseillerNonMesurable;
-  return h + '<p>' + esc(mesure) + '</p>';
+  return h;
+}
+
+/* ---------- Bilan visuel ---------- */
+function ico(cle, classe){
+  const b = IC + 'premium/campagne-' + cle;
+  return '<img class="ico-p ' + (classe || '') + '" src="' + b + '-96.webp" srcset="' + b + '-48.webp 48w, ' + b + '-96.webp 96w, ' + b + '-144.webp 144w" sizes="28px" width="28" height="28" alt="" loading="lazy">';
+}
+function objectifDe(i){
+  return i.objectif === 'autre' ? (i.objectifLibre || NC.OBJECTIF_CAMPAGNE_LABELS.autre) : NC.OBJECTIF_CAMPAGNE_LABELS[i.objectif];
+}
+function fmtPeriodeLongue(i){
+  const a = NexusTempo.dateLocale(i.dateDebut), b = NexusTempo.dateLocale(i.dateFin);
+  const mois = {month: 'long', year: 'numeric'};
+  let t;
+  if (a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth()) t = a.getDate() + ' au ' + b.toLocaleDateString('fr-FR', Object.assign({day: 'numeric'}, mois));
+  else t = a.toLocaleDateString('fr-FR', {day: 'numeric', month: 'long'}) + ' au ' + b.toLocaleDateString('fr-FR', Object.assign({day: 'numeric'}, mois));
+  return t + ' (' + V.bilan.jours(mesJoursCampagne(i)) + ')';
+}
+function g5Texte(g){ return V.bilan.g5[g ? g.label : 'non_mesurable']; }
+// Une couleur de statut seulement quand l'écart est net. Sinon, aucune.
+function g5Classe(g){ return g && g.label === 'hausse_nette' ? 'hausse' : (g && g.label === 'baisse_nette' ? 'baisse' : ''); }
+function fmtDec1b(v){ return v.toLocaleString('fr-FR', {minimumFractionDigits: 1, maximumFractionDigits: 1}); }
+
+function mesDepuisLigne(r){
+  const e = mesNouveau();
+  e.article = r.article; e.nouveau = !!r.nouveau_produit; e.ventes = saisie(r.ventes_mois_precedent); e.joursRef = saisie(r.jours_reference);
+  e.achatAvant = saisie(r.achat_avant_ht); e.achatPendant = saisie(r.achat_pendant_ht); e.venteAvant = saisie(r.vente_avant_ht); e.ventePendant = saisie(r.vente_pendant_ht);
+  e.stockDebut = saisie(r.stock_debut); e.srcDebut = r.stock_debut_source; e.stockFin = saisie(r.stock_fin); e.srcFin = r.stock_fin_source;
+  e.livraisons = saisie(r.livraisons_pendant);
+  e.info = SIM.suggestions(PRODUITS_ROWS, r.article, new Date());
+  return e;
+}
+// La rentabilité vient du moteur de mesure, sur les saisies produit par produit. Rien n'est calculé ici.
+function rentaDe(i){
+  const lignes = MES_TOUS.mesures.get(i.campagneId) || [];
+  const couts = (MES_TOUS.couts.get(i.campagneId) || []).map(c => ({montant_ht: Number(c.montant_ht) || 0}));
+  return MC.mesurerCampagne(lignes.map(r => mesEntree(mesDepuisLigne(r), i)), couts);
+}
+function bilanPour(i){
+  if (!BILANS.has(i.campagneId)){
+    const row = CAMP_ROWS.find(r => r.id === i.campagneId);
+    BILANS.set(i.campagneId, {b: row ? NC.analyserBilanCampagne(row, JOURS, PAN_ROWS) : null, renta: rentaDe(i)});
+  }
+  return BILANS.get(i.campagneId);
+}
+function fmtGain(renta){ return fmtSigne(renta.gainApresCouts); }
+function typeBilan(b){ return V.bilan.types[b && b.type] || V.bilan.types.boutique; }
+function objectifSpan(i){ const o = objectifDe(i); return o ? V.bilan.objectif + ' : ' + o : ''; }
+
+function tuileBilan(icone, titre, g, valeur, sous, fenetre){
+  return '<div class="b-tuile"><div class="b-tuile-haut">' + ico(icone) + '<span>' + esc(titre) + '</span></div>' +
+    '<div class="b-val">' + valeur + '</div>' +
+    (sous ? '<div class="b-sous">' + esc(sous) + '</div>' : '') +
+    (fenetre ? '<div class="b-sous">' + esc(fenetre) + '</div>' : '') +
+    (g ? '<div class="b-g5 ' + g5Classe(g) + '">' + esc(g5Texte(g)) + '</div>' : '') + '</div>';
+}
+function tuileIndicateur(icone, titre, ind, formater, unite, nbJours){
+  const B = V.bilan, g = ind ? ind.pendant : null;
+  if (!g || !g.mesurable) return tuileBilan(icone, titre, g || {label: 'non_mesurable'}, '–', '', '');
+  return tuileBilan(icone, titre, g, esc(formater(ind.moyPendant)) + esc(unite),
+    B.vsAvant(fmtPct(g.evolution), formater(ind.moyAvant) + unite), B.fenetre(nbJours));
+}
+function graphiqueBilan(b){
+  const B = V.bilan, ca = b.ca, T = typeBilan(b);
+  if (!ca.pendant || !ca.pendant.mesurable) return '';
+  const cols = [[V.avant, ca.moyAvant, b.nbJoursAvant, ''], [V.pendant, ca.moyPendant, b.nbJoursPendant, 'pendant']];
+  if (ca.apres && ca.moyApres !== null && ca.moyApres !== undefined) cols.push([V.apres, ca.moyApres, b.nbJoursApres, '']);
+  const max = Math.max.apply(null, cols.map(c => c[1] || 0)) || 1;
+  return '<div class="b-graphe t-' + esc(b.type) + '"><div class="titre-section" style="margin:0 0 8px">' + ico('comparatif-periodes', 'ico-t') + '<span>' + esc(T.graphTitre) + '</span></div>' +
+    '<div class="b-barres" role="img" aria-label="' + esc(T.graphTitre) + '">' +
+    cols.map(c => '<div class="b-col ' + c[3] + '"><div class="b-barre-val">' + esc(fmtEur(c[1] || 0)) + '</div><div class="b-barre" style="height:' + Math.max(2, Math.round((c[1] || 0) / max * 130)) + 'px"></div></div>').join('') +
+    '</div><div class="b-legendes">' + cols.map(c => '<div class="b-legende"><b>' + esc(c[0]) + '</b>' + esc(B.graphJours(c[2])) + '</div>').join('') + '</div></div>';
+}
+function blocRenta(i, renta){
+  const B = V.bilan;
+  const cle = renta.etat.replace(/_/g, '-');
+  let h = '<div class="b-bloc"><h3>' + esc(B.rentaTitre) + '</h3><div class="b-etat"><img src="' + IC + 'simple/campagne-rentabilite-' + cle + '.svg" alt="" width="24" height="24"><span>' + esc(MV.etats[renta.etat]) + '</span></div>';
+  if (renta.mesurable) h += '<div class="b-sous">' + esc(B.rentaGain + ' : ' + fmtGain(renta)) + '</div>';
+  else h += '<div class="b-sous">' + esc(B.rentaManque) + '</div>';
+  return h + '</div>';
+}
+function blocRetenir(b){
+  const B = V.bilan, T = typeBilan(b);
+  const ligneRetenir = (ind, f) => '<li>' + esc(ind && ind.pendant && ind.pendant.mesurable ? f(g5Texte(ind.pendant)) : B.retenirPasAssez) + '</li>';
+  return '<div class="b-bloc"><h3>' + ico('a-retenir', 'ico-t') + '<span>' + esc(B.retenirTitre) + '</span></h3><ul>' +
+    ligneRetenir(b.ca, g => B.retenirCa(g, T.ventes)) + ligneRetenir(b.tickets, B.retenirTickets) + ligneRetenir(b.panier, B.retenirPanier) + '</ul></div>';
+}
+function detailBilan(i, b, renta){
+  const B = V.bilan;
+  let h = '<div class="sous-titre">' + esc(B.secondaires) + '</div>';
+  const lignes = (titre, ind, f, unite) => {
+    if (!ind) return;
+    h += ligne(titre + ' · ' + V.avant, esc(f(ind.moyAvant) + unite));
+    h += ligne(titre + ' · ' + V.pendant, esc(f(ind.moyPendant) + unite));
+    if (ind.moyApres !== null && ind.moyApres !== undefined) h += ligne(titre + ' · ' + V.apres, esc(f(ind.moyApres) + unite));
+  };
+  if (b.tickets && b.tickets.moyAvant !== null) lignes(B.tuiles.frequentation, b.tickets, fmtDec1b, ' ' + B.ticketsParJour.replace(/^tickets /, ''));
+  if (b.panier && b.panier.moyAvant !== null && b.panier.moyAvant !== undefined) lignes(B.tuiles.panier, b.panier, fmtEur2, '');
+  h += '<div class="sous-titre">' + esc(B.periodes) + '</div>';
+  h += ligne(V.avant, esc(B.jours(b.nbJoursAvant)));
+  h += ligne(V.pendant, esc(fmtDateCourt(i.dateDebut) + ' → ' + fmtDateCourt(i.dateFin) + ' · ' + B.jours(b.nbJoursPendant)));
+  if (b.nbJoursApres) h += ligne(V.apres, esc(B.jours(b.nbJoursApres)));
+  if (b.joursEcartes && b.joursEcartes.length){
+    h += '<div class="sous-titre">' + esc(B.jourEcarteTitre) + '</div><div class="note">' + esc(B.joursEcartesIntro) + '</div>';
+    h += b.joursEcartes.map(j => ligne(fmtDateCourt(j.date), esc(B.periodeNom[j.periode] + ' · ' + B.jourEcarteRaison))).join('');
+  }
+  h += '<div class="sous-titre">' + esc(B.produitsListe) + '</div>';
+  h += i.produitsConcernes.length ? '<div class="promo-produits">' + i.produitsConcernes.map(esc).join(', ') + '</div>' : '<div class="note">' + esc(B.aucunProduit) + '</div>';
+  h += '<button type="button" class="btn" data-mesurer="' + esc(i.campagneId) + '">' + esc(B.mesurerLien) + '</button>';
+  return h;
+}
+function bilanVisuel(i){
+  const B = V.bilan, bl = bilanPour(i), b = bl.b, renta = bl.renta;
+  let h = '<div class="bilan"><div class="b-entete"><div><div class="b-eyebrow" id="bilanTitre">' + esc(B.blocTitre) + '</div>' +
+    '<div class="b-nom">' + esc(i.nom) + '</div>' +
+    '<div class="b-meta"><span>' + esc(fmtPeriodeLongue(i)) + '</span>' +
+    (objectifSpan(i) ? '<span>' + ico('objectif-commercial', 'ico-t') + esc(objectifSpan(i)) + '</span>' : '') +
+    '<span>' + esc(B.produits(i.produitsConcernes.length)) + '</span></div></div>' +
+    '<span class="statut">' + esc(libelleStatut('terminee')) + '</span></div>';
+  if (!b){ return h + '<div class="note">' + esc(B.retenirPasAssez) + '</div></div>'; }
+  const ca = b.ca;
+  const margeTuile = '<div class="b-tuile"><div class="b-tuile-haut">' + ico('marge-commerciale') + '<span>' + esc(B.tuiles.marge) + '</span></div>' +
+    '<div class="b-val">' + esc(MV.etats[renta.etat]) + '</div>' +
+    '<div class="b-sous">' + esc(renta.mesurable ? B.rentaGain + ' : ' + fmtGain(renta) : B.rentaManque) + '</div></div>';
+  h += '<div class="b-grille"><div><div class="b-tuiles">' +
+    tuileIndicateur('ca-boutique', typeBilan(b).tuile, ca, fmtEur, B.parJour, b.nbJoursAvant) +
+    tuileIndicateur('frequentation', B.tuiles.frequentation, b.tickets, fmtDec1b, ' ' + B.ticketsParJour, b.nbJoursAvantPanier) +
+    tuileIndicateur('panier-moyen', B.tuiles.panier, b.panier, fmtEur2, '', b.nbJoursAvantPanier) +
+    margeTuile + '</div>' + graphiqueBilan(b) + '</div>' +
+    '<div class="b-lateral">' + blocRenta(i, renta) + blocRetenir(b) +
+    '<div class="b-actions"><button type="button" class="btn" data-bilan-detail aria-expanded="' + (BILAN_OUVERT ? 'true' : 'false') + '">' + esc(BILAN_OUVERT ? B.bilanReduire : B.bilanComplet) + '</button></div></div></div>' +
+    '<div class="b-detail" id="bilanDetail"' + (BILAN_OUVERT ? '' : ' hidden') + '>' + detailBilan(i, b, renta) + '</div></div>';
+  return h;
+}
+function carteBilan(i){
+  const B = V.bilan, bl = bilanPour(i), g = bl.b ? bl.b.ca.pendant : null, renta = bl.renta;
+  let h = '<button type="button" class="b-carte" data-ouvrir="' + esc(i.campagneId) + '"><div class="promo-nom">' + esc(i.nom) + '</div>' +
+    '<div class="promo-dates">' + esc(fmtPeriodeLongue(i)) + '</div>' +
+    '<div class="badges">' + (objectifSpan(i) ? '<span class="badge">' + esc(objectifSpan(i)) + '</span>' : '') + '<span class="badge">' + esc(B.produits(i.produitsConcernes.length)) + '</span></div>' +
+    ligne(typeBilan(bl.b).tuile, g && g.mesurable ? '<span class="' + g5Classe(g) + '">' + esc(fmtPct(g.evolution)) + '</span>' : esc(g5Texte(g))) +
+    ligne(B.rentaTitre, esc(MV.etats[renta.etat]) + (renta.mesurable ? ' · ' + esc(fmtGain(renta)) : ''));
+  return h + '<span class="b-carte-lien">' + esc(B.ouvrir) + '</span></button>';
+}
+function conclusionBilan(){
+  const i = IMPACTS.find(x => x.campagneId === BILAN_COURANT);
+  if (!i) return '';
+  const bl = bilanPour(i), b = bl.b;
+  const renta = {etat: bl.renta.etat, mesurable: bl.renta.mesurable, gainTexte: bl.renta.mesurable ? fmtGain(bl.renta) : ''};
+  return b ? '<p>' + esc(V.bilan.conclusion(i.nom, b.ca.pendant, b.tickets.pendant, b.panier ? b.panier.pendant : null, renta)) + '</p>' : '';
+}
+function ouvrirMesure(campagneId){
+  const sel = $('mesCampagne');
+  $('mesure').hidden = false;
+  sel.innerHTML = '<option value="">' + esc(MV.choisirVide) + '</option>' +
+    IMPACTS.filter(i => statutDe(i) !== 'avenir').map(i => '<option value="' + esc(i.campagneId) + '">' + esc(i.nom + ' (' + fmtDateCourt(i.dateDebut) + ' au ' + fmtDateCourt(i.dateFin) + ')') + '</option>').join('');
+  if (!IMPACTS.length) $('mesIntro').textContent = MV.aucuneCampagne;
+  if (campagneId){ sel.value = campagneId; mesCharger(campagneId); }
+  $('mesure').scrollIntoView({behavior: 'smooth', block: 'start'});
+}
+function brancherBilan(){
+  const zone = $('derniere'), cartes = $('historique');
+  zone.addEventListener('click', ev => {
+    const b = ev.target.closest('button');
+    if (!b) return;
+    if (b.dataset.bilanDetail !== undefined){ BILAN_OUVERT = !BILAN_OUVERT; afficher(); }
+    else if (b.dataset.mesurer) ouvrirMesure(b.dataset.mesurer);
+  });
+  cartes.addEventListener('click', ev => {
+    const b = ev.target.closest('button[data-ouvrir]');
+    if (!b) return;
+    BILAN_COURANT = b.dataset.ouvrir; BILAN_OUVERT = true; afficher();
+    $('derniere').scrollIntoView({behavior: 'smooth', block: 'start'});
+  });
 }
 
 function afficher(){
-  $('cTexte').innerHTML = texteConseiller(IMPACTS);
+  const terminees = IMPACTS.filter(i => statutDe(i) === 'terminee');
+  if (!terminees.some(i => i.campagneId === BILAN_COURANT)) BILAN_COURANT = terminees.length ? terminees[0].campagneId : null;
+  $('cTexte').innerHTML = texteConseiller(IMPACTS) + conclusionBilan();
   const encours = IMPACTS.filter(i => statutDe(i) === 'encours');
   $('enCours').innerHTML = encours.length ? encours.map(carteResume).join('') : '<div class="vide">' + esc(V.enCoursAucune) + '</div>';
-  const terminees = IMPACTS.filter(i => statutDe(i) === 'terminee');
-  $('derniere').innerHTML = terminees.length ? carteResume(terminees[0]) : '<div class="vide">' + esc(V.derniereAucune) + '</div>';
-  $('historique').innerHTML = IMPACTS.length ? IMPACTS.map(carteHistorique).join('') : '<div class="vide">' + esc(V.historiqueVide) + '</div>';
+  const vedette = terminees.find(i => i.campagneId === BILAN_COURANT);
+  $('derniere').innerHTML = vedette ? bilanVisuel(vedette) : '<div class="vide">' + esc(V.bilan.aucuneTerminee) + '</div>';
+  const autres = terminees.filter(i => i.campagneId !== BILAN_COURANT);
+  $('tHistorique').hidden = $('historique').hidden = !autres.length;
+  $('historique').innerHTML = autres.map(carteBilan).join('');
 }
 
+async function chargerMesures(){
+  const [m, c] = await Promise.all([
+    nexusClient.from('campagne_mesures_produits').select('*').eq('site', SITE_ID),
+    nexusClient.from('campagne_couts').select('campagne_id, libelle, montant_ht').eq('site', SITE_ID),
+  ]);
+  [['campagne_mesures_produits', m], ['campagne_couts', c]].forEach(([n, r]) => { if (r.error) console.error(n, r.error); });
+  const grouper = rows => { const g = new Map(); (rows || []).forEach(r => { if (!g.has(r.campagne_id)) g.set(r.campagne_id, []); g.get(r.campagne_id).push(r); }); return g; };
+  MES_TOUS = {mesures: grouper(m.data), couts: grouper(c.data)};
+  BILANS.clear();
+}
 async function chargerEtAfficher(){
   const [aud, camp, prod, imp, pan] = await Promise.all([
     fetchAllRows(() => nexusClient.from('audits_caisse').select('date, quart, vente_piste, vente_boutique').eq('site', SITE_ID).order('date', {ascending: true})),
@@ -570,6 +810,8 @@ async function chargerEtAfficher(){
   CATALOGUE_ARTICLES = Array.from(cat.keys()).sort((a, b) => a.localeCompare(b, 'fr'));
 
   const jours = NexusTempo.filtrerJoursClos(NexusTempo.agregerParJour(aud.data || []));
+  CAMP_ROWS = camp.data || []; PAN_ROWS = pan.data || []; JOURS = jours;
+  await chargerMesures();
   IMPACTS = NC.analyserCampagnes(camp.data || [], jours);
   IMPACTS.forEach(i => {
     const liees = (imp.data || []).filter(x => x.campagne_id === i.campagneId);
@@ -881,8 +1123,9 @@ function mesPeindre(){
   mesPeindreCouts();
   mesCalculer();
 }
-function mesEntree(e){
-  const dureeCampagne = MES_CAMPAGNE ? mesJoursCampagne(MES_CAMPAGNE) : null;
+function mesEntree(e, camp){
+  const cible = camp === undefined ? MES_CAMPAGNE : camp;
+  const dureeCampagne = cible ? mesJoursCampagne(cible) : null;
   return { article: e.article, nouveauProduit: e.nouveau, ventesMoisPrecedent: nombre(e.ventes), joursReference: nombre(e.joursRef),
     achatAvant: nombre(e.achatAvant), achatPendant: nombre(e.achatPendant), venteAvant: nombre(e.venteAvant), ventePendant: nombre(e.ventePendant),
     jours: dureeCampagne, stockDebut: nombre(e.stockDebut), livraisons: nombre(e.livraisons) || 0, stockFin: nombre(e.stockFin), pertes: nombre(e.pertes),
@@ -906,7 +1149,7 @@ function mesBlocProduit(l){
 }
 function mesCalculer(){
   if (!MES_CAMPAGNE) return;
-  const entrees = MES_PRODUITS.map(mesEntree);
+  const entrees = MES_PRODUITS.map(e => mesEntree(e));
   const couts = MES_COUTS.map(c => ({montant_ht: nombre(c.montant) || 0}));
   const camp = MC.mesurerCampagne(entrees, couts);
   camp.lignes.forEach((l, i) => { const z = document.querySelector('[data-mres="' + i + '"]'); if (z) z.innerHTML = mesBlocProduit(l); });
@@ -938,15 +1181,7 @@ async function mesCharger(campagneId){
   [['campagne_mesures_produits', m], ['campagne_couts', c], ['fournisseurs_conditions', f]].forEach(([n, r]) => { if (r.error) console.error(n, r.error); });
   MES_FICHES = f.data || [];
   MES_COUTS = (c.data || []).map(x => ({libelle: x.libelle, montant: saisie(Number(x.montant_ht))}));
-  MES_PRODUITS = (m.data || []).map(r => {
-    const e = mesNouveau();
-    e.article = r.article; e.nouveau = !!r.nouveau_produit; e.ventes = saisie(r.ventes_mois_precedent); e.joursRef = saisie(r.jours_reference);
-    e.achatAvant = saisie(r.achat_avant_ht); e.achatPendant = saisie(r.achat_pendant_ht); e.venteAvant = saisie(r.vente_avant_ht); e.ventePendant = saisie(r.vente_pendant_ht);
-    e.stockDebut = saisie(r.stock_debut); e.srcDebut = r.stock_debut_source; e.stockFin = saisie(r.stock_fin); e.srcFin = r.stock_fin_source;
-    e.livraisons = saisie(r.livraisons_pendant);
-    e.info = SIM.suggestions(PRODUITS_ROWS, r.article, new Date());
-    return e;
-  });
+  MES_PRODUITS = (m.data || []).map(mesDepuisLigne);
   if (!MES_PRODUITS.length) MES_PRODUITS.push(mesNouveau());
   mesPeindre();
 }
@@ -996,6 +1231,7 @@ async function mesEnregistrer(){
     }
   }
   st.textContent = erreur ? MV.erreurEnregistrement : MV.enregistre;
+  if (!erreur){ await chargerMesures(); afficher(); }
 }
 function mesBrancher(){
   const sel = $('mesCampagne');
@@ -1057,13 +1293,7 @@ function mesBrancher(){
     mesPeindre();
   });
   const carte = document.querySelector('[data-carte="compensation"]');
-  if (carte) carte.addEventListener('click', () => {
-    $('mesure').hidden = false;
-    sel.innerHTML = '<option value="">' + esc(MV.choisirVide) + '</option>' +
-      IMPACTS.filter(i => statutDe(i) !== 'avenir').map(i => '<option value="' + esc(i.campagneId) + '">' + esc(i.nom + ' (' + fmtDateCourt(i.dateDebut) + ' au ' + fmtDateCourt(i.dateFin) + ')') + '</option>').join('');
-    if (!IMPACTS.length) $('mesIntro').textContent = MV.aucuneCampagne;
-    $('mesure').scrollIntoView({behavior: 'smooth', block: 'start'});
-  });
+  if (carte) carte.addEventListener('click', () => ouvrirMesure(null));
 }
 function mesPeindreFixes(){
   $('mesTitre').textContent = MV.titre; $('mesIntro').textContent = MV.intro; $('mesChoisirLib').textContent = MV.choisir;
@@ -1079,6 +1309,7 @@ simPeindreFixes();
 simBrancher();
 mesPeindreFixes();
 mesBrancher();
+brancherBilan();
 brancherFormulaire();
 nexusRequireAuth().then(async employee => {
   if (!employee) return;

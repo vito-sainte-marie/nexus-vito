@@ -214,6 +214,104 @@
     };
   }
 
+  // ------------------------------------------------------------
+  // Bilan visuel (13/11/2026) — fenêtres de 28 jours et écart significatif.
+  //
+  // Règle G5 de Tempo (nexus-tempo.js, SEUIL_ECART_TYPES = 2) : un écart
+  // n'est « net » que s'il dépasse 2 erreurs-types (Welch). Sinon il reste
+  // « dans la variation habituelle » et ne reçoit ni vert ni rouge.
+  // Tempo exige en plus des minimums par jour de semaine, inutilisables sur
+  // une fenêtre de campagne : la formule est reprise ici, le seuil est
+  // épinglé sur celui de Tempo par un test.
+  // ------------------------------------------------------------
+  const SEUIL_ECART_TYPES = 2;
+  const JOURS_FENETRE = 28;
+  // Minimum de jours complets par période pour que le bilan se prononce.
+  const MIN_JOURS_BILAN = 4;
+
+  // Un jour est complet quand les quarts 1 et 2 sont saisis (règle de Tempo).
+  function estJourComplet(j) {
+    const q = (j && j.quarts) || [];
+    return [1, 2].every(n => q.some(x => Number(x.quart) === n));
+  }
+
+  function varianceEchantillon(arr) {
+    if (arr.length < 2) return 0;
+    const m = moyenne(arr);
+    return arr.reduce((s, v) => s + (v - m) * (v - m), 0) / (arr.length - 1);
+  }
+
+  // Compare deux séries journalières. reference = avant, observe = pendant (ou après).
+  function comparerG5(reference, observe) {
+    const R = (reference || []).filter(v => typeof v === 'number' && isFinite(v));
+    const E = (observe || []).filter(v => typeof v === 'number' && isFinite(v));
+    if (R.length < MIN_JOURS_BILAN || E.length < MIN_JOURS_BILAN) {
+      return { mesurable: false, label: 'non_mesurable', nR: R.length, nE: E.length };
+    }
+    const moyR = moyenne(R), moyE = moyenne(E);
+    const ecart = moyE - moyR;
+    const se = Math.sqrt(varianceEchantillon(E) / E.length + varianceEchantillon(R) / R.length);
+    const nette = se > 0 ? Math.abs(ecart) > SEUIL_ECART_TYPES * se : ecart !== 0;
+    const sens = ecart > 0 ? 'hausse' : (ecart < 0 ? 'baisse' : null);
+    return {
+      mesurable: true, nR: R.length, nE: E.length, moyReference: moyR, moyObserve: moyE,
+      ecart, evolution: evolution(moyE, moyR), erreurType: se, nette, sens,
+      label: nette ? (sens === 'hausse' ? 'hausse_nette' : 'baisse_nette') : 'variation_habituelle',
+    };
+  }
+
+  // Avant = les 28 derniers jours complets avant le début (moins s'il y en a
+  // moins) ; Pendant = la campagne ; Après = les 28 premiers jours suivants.
+  function fenetresBilan(campagne, lignes) {
+    const tri = (lignes || []).slice().sort((a, b) => (a.date < b.date ? -1 : (a.date > b.date ? 1 : 0)));
+    const avantTous = tri.filter(l => l.date < campagne.date_debut);
+    return {
+      avant: avantTous.slice(-JOURS_FENETRE),
+      pendant: tri.filter(l => l.date >= campagne.date_debut && l.date <= campagne.date_fin),
+      apres: tri.filter(l => l.date > campagne.date_fin).slice(0, JOURS_FENETRE),
+    };
+  }
+
+  // Trois séries : CA/jour (selon le type), tickets/jour, panier moyen/jour.
+  function analyserBilanCampagne(campagne, joursAgreges, panierMoyenRows) {
+    // Jours complets seulement ; les autres sont écartés et listés.
+    const tousJours = joursAgreges || [];
+    const complets = tousJours.filter(estJourComplet);
+    const datesCompletes = new Set(complets.map(j => j.date));
+    const fj = fenetresBilan(campagne, complets);
+    const rowsP = (panierMoyenRows || []).filter(r => r.nb_tickets !== null && r.nb_tickets !== undefined && datesCompletes.has(r.date));
+    const fAll = fenetresBilan(campagne, tousJours);
+    const joursEcartes = [];
+    for (const [periode, liste] of [['avant', fAll.avant], ['pendant', fAll.pendant], ['apres', fAll.apres]]) {
+      liste.forEach(j => { if (!estJourComplet(j)) joursEcartes.push({ date: j.date, periode, raison: 'un seul quart saisi' }); });
+    }
+    const fp = fenetresBilan(campagne, rowsP);
+    const ca = l => valeurCampagne(campagne.type, l);
+    const pan = l => (l.panier_moyen_ttc === null || l.panier_moyen_ttc === undefined ? null : Number(l.panier_moyen_ttc));
+    const serie = (fen, f) => ({ avant: fen.avant.map(f), pendant: fen.pendant.map(f), apres: fen.apres.map(f) });
+    const mesure = (s) => {
+      const clean = a => a.filter(v => v !== null && v !== undefined);
+      const av = clean(s.avant), pe = clean(s.pendant), ap = clean(s.apres);
+      return {
+        pendant: comparerG5(av, pe),
+        apres: ap.length >= MIN_JOURS_BILAN ? comparerG5(av, ap) : null,
+        moyAvant: av.length ? moyenne(av) : null,
+        moyPendant: pe.length ? moyenne(pe) : null,
+        moyApres: ap.length >= MIN_JOURS_BILAN ? moyenne(ap) : null,
+      };
+    };
+    return {
+      campagneId: campagne.id, nom: campagne.nom, type: campagne.type,
+      dateDebut: campagne.date_debut, dateFin: campagne.date_fin,
+      nbJoursAvant: fj.avant.length, nbJoursPendant: fj.pendant.length, nbJoursApres: fj.apres.length,
+      joursEcartes,
+      nbJoursAvantPanier: fp.avant.length, nbJoursPendantPanier: fp.pendant.length,
+      ca: mesure(serie(fj, ca)),
+      tickets: mesure(serie(fp, l => l.nb_tickets)),
+      panier: mesure(serie(fp, pan)),
+    };
+  }
+
   // Analyse toutes les campagnes connues, la plus récente en premier.
   function analyserCampagnes(campagnesRows, joursAgreges) {
     return (campagnesRows || [])
@@ -252,8 +350,9 @@
   }
 
   global.NexusCampagnes = {
-    TYPE_CAMPAGNE_LABELS, NATURE_CAMPAGNE_LABELS, OBJECTIF_CAMPAGNE_LABELS, MIN_JOURS_COMPARABLES,
+    TYPE_CAMPAGNE_LABELS, NATURE_CAMPAGNE_LABELS, OBJECTIF_CAMPAGNE_LABELS, MIN_JOURS_COMPARABLES, MIN_JOURS_BILAN, estJourComplet,
     valeurCampagne, analyserImpactCampagne, analyserCampagnes, analyserImpactProduits, analyserImpactPanierMoyen,
     texteConseillerCampagne, moyenne, evolution,
+    SEUIL_ECART_TYPES, JOURS_FENETRE, comparerG5, fenetresBilan, analyserBilanCampagne,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

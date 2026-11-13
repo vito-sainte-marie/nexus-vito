@@ -34,7 +34,7 @@ t('états : tableau de démonstration seulement',()=>{
   assert(page.includes("get('apercu_etats') === '1'"),'tableau sans paramètre apercu_etats');
   assert(/<div id="blocEtats" hidden>/.test(page),'bloc des états visible par défaut');
   assert(/if \(apercuEtats\) \$\('etats'\)\.innerHTML/.test(page),'rendu des états hors paramètre');
-  const rendu=page.slice(page.indexOf('function carteResume'),page.indexOf('function afficher'));
+  const rendu=page.slice(page.indexOf('function carteResume'),page.indexOf('function ico('));
   assert(rendu.length>50); assert(!/etat|rentabilite/.test(rendu),'état dans le rendu des campagnes');
   assert(!/etat/.test(page.slice(page.indexOf('function afficher'),page.indexOf('async function chargerEtAfficher'))));
 });
@@ -65,7 +65,7 @@ t('empreintes et tailles de l\'image d\'en-tête',()=>{
 });
 t('kit d\'icônes : 84 fichiers, sans README ni aperçu',()=>{
   const n=d=>fs.readdirSync(path.join(__dirname,d)).length;
-  assert.strictEqual(n('assets/icones/campagne/premium')+n('assets/icones/campagne/simple'),84);
+  assert.strictEqual(n('assets/icones/campagne/premium')+n('assets/icones/campagne/simple'),108);
   assert(!fs.existsSync(path.join(__dirname,'assets/icones/campagne/README.txt'))&&!fs.existsSync(path.join(__dirname,'assets/icones/campagne/apercu.png')));
 });
 t('page déclarée (auth, forfait) et liée seulement depuis les points d\'entrée et le bandeau de la V1',()=>{

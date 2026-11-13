@@ -410,6 +410,87 @@
     conseillerNonMesurable: 'Sa rentabilité n’est pas mesurable : les ventes par produit avant et pendant la promotion n’ont pas été importées.',
     conseillerSansProduit: 'Sa rentabilité n’est pas mesurable : aucun produit précis n’est associé à cette promotion.',
     conseillerProduitsImportes: 'Les ventes par produit sont importées. Aucune qualification de rentabilité n’est encore définie.',
+    bilan: {
+      blocTitre: 'Dernière campagne analysée',
+      objectif: 'Objectif',
+      produits: function (n) { return n === 0 ? 'Aucun produit précisé' : (n === 1 ? '1 produit' : n + ' produits'); },
+      jours: function (n) { return n + (n > 1 ? ' jours' : ' jour'); },
+      parJour: ' par jour',
+      tuiles: { ca: 'CA Boutique', frequentation: 'Fréquentation', panier: 'Panier moyen TTC', marge: 'Marge des produits en promotion' },
+      ticketsParJour: 'tickets par jour',
+      g5: {
+        hausse_nette: 'en hausse nette',
+        baisse_nette: 'en baisse nette',
+        variation_habituelle: 'dans la variation habituelle',
+        non_mesurable: 'pas assez de jours pour comparer'
+      },
+      vsAvant: function (evolution, moyenneAvant) { return evolution + ' par rapport à avant (' + moyenneAvant + ')'; },
+      fenetre: function (n) { return 'Comparé aux ' + n + (n > 1 ? ' jours' : ' jour') + ' précédant la campagne'; },
+      graphTitre: 'Évolution du CA Boutique',
+      graphJours: function (n) { return n + (n > 1 ? ' jours' : ' jour'); },
+      rentaTitre: 'Rentabilité de la campagne',
+      rentaManque: 'Pour la mesurer, il faut saisir produit par produit le stock, les prix et les livraisons.',
+      rentaGain: 'Gain après coûts',
+      retenirTitre: 'À retenir',
+      retenirCa: function (g5, ventes) { return (ventes || 'Les ventes de la Boutique') + ' sont ' + g5 + '.'; },
+      retenirTickets: function (g5) { return 'La fréquentation est ' + g5 + '.'; },
+      retenirPanier: function (g5) { return 'Le panier moyen est ' + g5 + '.'; },
+      retenirPasAssez: 'Pas assez de jours pour comparer cet indicateur.',
+      bilanComplet: 'Voir le bilan complet',
+      bilanReduire: 'Masquer le bilan complet',
+      mesurerLien: 'Mesurer la compensation',
+      terminees: 'Campagnes passées',
+      ouvrir: 'Ouvrir le bilan',
+      secondaires: 'Chiffres secondaires',
+      periodes: 'Périodes comparées',
+      produitsListe: 'Produits en promotion',
+      aucunProduit: 'Aucun produit précis n’est associé à cette campagne.',
+      apresLigne: 'Après la campagne',
+      aucuneTerminee: 'Aucune campagne terminée à analyser pour l’instant.',
+      // Phrases validées par Frédéric (arbitrage du 13/11/2026). Le nom et le sens viennent des données.
+      types: {
+        boutique: { tuile: 'CA Boutique', graphTitre: 'Évolution du CA Boutique', ventes: 'Les ventes de la Boutique' },
+        carburant: { tuile: 'CA Piste', graphTitre: 'Évolution du CA Piste', ventes: 'Les ventes de la Piste' },
+        mixte: { tuile: 'CA Piste et Boutique', graphTitre: 'Évolution du CA Piste et Boutique', ventes: 'Les ventes de la Piste et de la Boutique' }
+      },
+      jourEcarteTitre: 'Jours écartés de la comparaison',
+      jourEcarteRaison: 'un seul quart saisi',
+      joursEcartesIntro: 'Ces jours ne comptent pas dans la comparaison, car les deux quarts ne sont pas saisis :',
+      periodeNom: { avant: 'avant', pendant: 'pendant', apres: 'après' },
+      // Phrase de rentabilité, tirée de l’état mesuré par le moteur de compensation.
+      rentaPhrase: function (etat, gainTexte) {
+        var apres = gainTexte ? ', ' + gainTexte + ' après coûts' : '';
+        if (etat === 'encourageante' || etat === 'a_renouveler') return 'La remise a été compensée : rentabilité ' + (etat === 'a_renouveler' ? 'à renouveler' : 'encourageante') + apres + '.';
+        if (etat === 'a_ameliorer') return 'La remise a été presque compensée : rentabilité à améliorer' + apres + '.';
+        if (etat === 'insuffisante') return 'La remise n’a pas été compensée : rentabilité insuffisante' + apres + '.';
+        return '';
+      },
+      // Phrases validées par Frédéric (arbitrage du 13/11/2026). Le nom et le sens viennent des données.
+      conclusion: function (nom, ca, tickets, panier, renta) {
+        var nette = function (x) { return x && x.label !== 'non_mesurable' && x.label !== 'variation_habituelle'; };
+        if (!ca || !tickets || ca.label === 'non_mesurable' || tickets.label === 'non_mesurable') {
+          return 'Pendant ' + nom + ', il n’y a pas assez de jours pour comparer les ventes et le nombre de tickets à la période d’avant.';
+        }
+        var fin = (renta && renta.mesurable && renta.etat) ? NexusVocab.campagne.bilan.rentaPhrase(renta.etat, renta.gainTexte) : '';
+        var reste = fin || 'Reste à vérifier si le volume vendu a compensé les remises accordées.';
+        var memeSens = ca.sens && ca.sens === tickets.sens;
+        if (ca.label === 'hausse_nette' && tickets.label === 'hausse_nette') {
+          var clause = '';
+          if (panier && panier.label === 'baisse_nette') clause = ', malgré un panier moyen légèrement inférieur';
+          else if (panier && panier.label === 'hausse_nette') clause = ', avec un panier moyen plus élevé';
+          return 'Pendant ' + nom + ', les ventes et le nombre de tickets ont augmenté' + clause + '. ' + (fin || 'Reste à vérifier si le volume supplémentaire a compensé les remises accordées.');
+        }
+        if (!nette(ca) && !nette(tickets) && memeSens) {
+          var plus = ca.sens === 'hausse' ? 'plus élevés' : 'plus bas';
+          return 'Pendant ' + nom + ', les ventes et le nombre de tickets ont été un peu ' + plus + ' qu’avant, sans sortir de la variation habituelle. ' + reste;
+        }
+        var g = function (x, sing) {
+          if (x.label === 'variation_habituelle') return sing ? 'reste dans la variation habituelle' : 'restent dans la variation habituelle';
+          return (sing ? 'est en ' : 'sont en ') + (x.label === 'hausse_nette' ? 'hausse nette' : 'baisse nette');
+        };
+        return 'Pendant ' + nom + ', les ventes ' + g(ca, false) + ' et le nombre de tickets ' + g(tickets, true) + '. ' + reste;
+      }
+    },
     boutonNouvelle: '➕ Nouvelle promotion',
     boutonAnnuler: '✕ Annuler',
     enCoursTitre: 'En cours',
