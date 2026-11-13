@@ -111,7 +111,7 @@ t('liens vers NEXUS-Tempo-v2 : seulement le menu basculé (lot confiance et menu
   assert.deepStrictEqual(fautifs, ['NEXUS-App-v1.html', 'NEXUS-Documentation-v1.html', 'NEXUS-Tempo-v1.html', 'nexus-conseiller.js', 'nexus-desktop.js', 'nexus-forfait.js', 'nexus-raccourcis-catalogue.js', 'nexus-recherche.js']);
   // nexus-auth.js ne porte que le classement d'accès (liste des écrans opérationnels), pas un lien.
   const auth = lire('nexus-auth.js').split('\n').filter(l => /NEXUS-Tempo-v2/.test(l));
-  assert.deepStrictEqual(auth.map(l => l.trim()), ["'NEXUS-Tempo-v2.html',", "'NEXUS-Tempo-v2-Quarts.html',", "'NEXUS-Tempo-v2-Mois.html',", "'NEXUS-Tempo-v2-Jours.html',", "'NEXUS-Tempo-v2-Vacances.html',"]);
+  assert.deepStrictEqual(auth.map(l => l.trim()), ["'NEXUS-Tempo-v2.html',", "'NEXUS-Tempo-v2-Quarts.html',", "'NEXUS-Tempo-v2-Mois.html',", "'NEXUS-Tempo-v2-Jours.html',", "'NEXUS-Tempo-v2-Vacances.html',", "'NEXUS-Tempo-v2-PisteBoutique.html',"]);
   for (const f of ['NEXUS-App-v1.html', 'NEXUS-Brief-v1.html', 'NEXUS-Cockpit-v2.html', 'nexus-menu-accueil.js']) {
     assert.ok(fs.existsSync(path.join(racine, f)), f + ' introuvable');
   }
