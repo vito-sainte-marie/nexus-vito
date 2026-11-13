@@ -44,6 +44,7 @@
     'NEXUS-Tempo-v2-Jours.html',
     'NEXUS-Tempo-v2-Vacances.html',
     'NEXUS-Tempo-v2-PisteBoutique.html',
+    'NEXUS-Tempo-v2-Pompistes.html',
     'NEXUS-Campagne-v1.html',
     'NEXUS-Capital-v1.html',
     'NEXUS-Planning-v1.html',

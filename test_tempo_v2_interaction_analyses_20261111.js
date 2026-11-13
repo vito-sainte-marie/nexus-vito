@@ -6,26 +6,27 @@ function t(n, fn) { try { fn(); console.log('  ok   ' + n); } catch (e) { echecs
 const css = html.match(/<style[\s\S]*?<\/style>/)[0];
 const tuiles = html.slice(html.indexOf('id="analyses"'), html.indexOf('id="flecheAnalyses"'));
 
-t('cinq tuiles disponibles : Quarts, Jours, Mois, Vacances, Piste et boutique', () => {
-  assert.strictEqual((tuiles.match(/class="tuile[^"]*disponible/g) || []).length, 5);
+t('six tuiles disponibles : Quarts, Pompistes, Jours, Mois, Vacances, Piste et boutique', () => {
+  assert.strictEqual((tuiles.match(/class="tuile[^"]*disponible/g) || []).length, 6);
   const liens = [...tuiles.matchAll(/<a\s[^>]*>/gi)].map(m => m[0]);
-  assert.strictEqual(liens.length, 5);
-  assert.strictEqual(liens[1], '<a class="tuile croisee disponible" href="NEXUS-Tempo-v2-Jours.html">');
-  assert.strictEqual(liens[2], '<a class="tuile croisee disponible" href="NEXUS-Tempo-v2-Mois.html">');
-  assert.strictEqual(liens[3], '<a class="tuile croisee disponible" href="NEXUS-Tempo-v2-Vacances.html">');
-  assert.strictEqual(liens[4], '<a class="tuile croisee disponible" href="NEXUS-Tempo-v2-PisteBoutique.html">');
+  assert.strictEqual(liens.length, 6);
+  assert.strictEqual(liens[1], '<a class="tuile act a-piste disponible" href="NEXUS-Tempo-v2-Pompistes.html">');
+  assert.strictEqual(liens[2], '<a class="tuile croisee disponible" href="NEXUS-Tempo-v2-Jours.html">');
+  assert.strictEqual(liens[3], '<a class="tuile croisee disponible" href="NEXUS-Tempo-v2-Mois.html">');
+  assert.strictEqual(liens[4], '<a class="tuile croisee disponible" href="NEXUS-Tempo-v2-Vacances.html">');
+  assert.strictEqual(liens[5], '<a class="tuile croisee disponible" href="NEXUS-Tempo-v2-PisteBoutique.html">');
   assert.ok(/^<a class="tuile croisee disponible" href="NEXUS-Tempo-v2-Quarts\.html">$/.test(liens[0]));
   assert.ok(tuiles.indexOf(liens[0]) < tuiles.indexOf('Comment se situent les pompistes'));
   assert.ok(!/aria-disabled/.test(liens[0]) && !/<span class="prep">/.test(tuiles.slice(tuiles.indexOf(liens[0]), tuiles.indexOf('</a>'))));
   assert.strictEqual((tuiles.match(/<(?:div|a) class="tuile /g) || []).length, 6);
 });
-t('une tuile aria-disabled, sans tabindex ni href', () => {
-  assert.strictEqual((tuiles.match(/<div class="tuile [^>]*aria-disabled="true"/g) || []).length, 1);
+t('plus aucune tuile aria-disabled, sans tabindex ; six href', () => {
+  assert.strictEqual((tuiles.match(/<div class="tuile [^>]*aria-disabled="true"/g) || []).length, 0);
   assert.ok(!/tabindex/.test(tuiles));
-  assert.strictEqual((tuiles.match(/\shref="(?!#i-)/g) || []).length, 5);
+  assert.strictEqual((tuiles.match(/\shref="(?!#i-)/g) || []).length, 6);
 });
-t('une pastille « En préparation », neutres', () => {
-  assert.strictEqual((tuiles.match(/<span class="prep">En préparation<\/span>/g) || []).length, 1);
+t('plus de pastille « En préparation » ; sa règle CSS reste, neutre', () => {
+  assert.strictEqual((tuiles.match(/<span class="prep">En préparation<\/span>/g) || []).length, 0);
   assert.ok(/\.tuile \.prep\{[^}]*var\(--t-mid\)[^}]*var\(--t-raised\)/.test(css));
 });
 t('survol uniquement sur .tuile.disponible, dans @media (hover: hover) and (pointer: fine)', () => {

@@ -170,7 +170,10 @@ const servicePompiste = { service: { id: 's-1', role: 'pompiste', quart: 'matin'
   //   +1 appel introduit le 12/11 par la carte Piste et boutique de Tempo V2
   //       (NEXUS-Tempo-v2-PisteBoutique.html : même garde manager, même règle unique ;
   //       la page ne fait que lire)
-  //   = 66 points de décision.
+  //   +1 appel introduit le 12/11 par la carte Pompistes de Tempo V2
+  //       (NEXUS-Tempo-v2-Pompistes.html : même garde manager, même règle unique ;
+  //       la page ne fait que lire)
+  //   = 67 points de décision.
   const RE_SOURCE = /\b(employee|employeCourant|employeeCourant|emp|e)\.role\b(?!_)/;
 
   // La DÉFINITION de `nexusEstManager` n'est PAS un point de décision : elle
@@ -195,8 +198,8 @@ const servicePompiste = { service: { id: 's-1', role: 'pompiste', quart: 'matin'
   }
   const permissions = Object.values(pointsParFichier).reduce((a, b) => a + b, 0);
   verifier(`les contrôles de permission sur la fiche sont intacts (${permissions}` +
-    `${permissions === 66 ? '' : ' — répartition : ' + JSON.stringify(pointsParFichier)})`,
-    permissions === 66);
+    `${permissions === 67 ? '' : ' — répartition : ' + JSON.stringify(pointsParFichier)})`,
+    permissions === 67);
   verifier('les ensembles de rôles autorisés restent sur la fiche employé',
     /ROLES_AUTORISES = new Set\(\['manager', 'gerant'\]\)/.test(lire('nexus-inventaire-transferts-internes.js'))
     && /ROLES = new Set\(\['manager', 'gerant'\]\)/.test(lire('nexus-inventaire-stock-controle-cible-v2.js')));
