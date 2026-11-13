@@ -226,6 +226,14 @@
   // ------------------------------------------------------------
   const SEUIL_ECART_TYPES = 2;
   const JOURS_FENETRE = 28;
+  // Minimum de jours complets par période pour que le bilan se prononce.
+  const MIN_JOURS_BILAN = 4;
+
+  // Un jour est complet quand les quarts 1 et 2 sont saisis (règle de Tempo).
+  function estJourComplet(j) {
+    const q = (j && j.quarts) || [];
+    return [1, 2].every(n => q.some(x => Number(x.quart) === n));
+  }
 
   function varianceEchantillon(arr) {
     if (arr.length < 2) return 0;
@@ -237,7 +245,7 @@
   function comparerG5(reference, observe) {
     const R = (reference || []).filter(v => typeof v === 'number' && isFinite(v));
     const E = (observe || []).filter(v => typeof v === 'number' && isFinite(v));
-    if (R.length < MIN_JOURS_COMPARABLES || E.length < MIN_JOURS_COMPARABLES) {
+    if (R.length < MIN_JOURS_BILAN || E.length < MIN_JOURS_BILAN) {
       return { mesurable: false, label: 'non_mesurable', nR: R.length, nE: E.length };
     }
     const moyR = moyenne(R), moyE = moyenne(E);
@@ -266,8 +274,17 @@
 
   // Trois séries : CA/jour (selon le type), tickets/jour, panier moyen/jour.
   function analyserBilanCampagne(campagne, joursAgreges, panierMoyenRows) {
-    const fj = fenetresBilan(campagne, joursAgreges);
-    const rowsP = (panierMoyenRows || []).filter(r => r.nb_tickets !== null && r.nb_tickets !== undefined);
+    // Jours complets seulement ; les autres sont écartés et listés.
+    const tousJours = joursAgreges || [];
+    const complets = tousJours.filter(estJourComplet);
+    const datesCompletes = new Set(complets.map(j => j.date));
+    const fj = fenetresBilan(campagne, complets);
+    const rowsP = (panierMoyenRows || []).filter(r => r.nb_tickets !== null && r.nb_tickets !== undefined && datesCompletes.has(r.date));
+    const fAll = fenetresBilan(campagne, tousJours);
+    const joursEcartes = [];
+    for (const [periode, liste] of [['avant', fAll.avant], ['pendant', fAll.pendant], ['apres', fAll.apres]]) {
+      liste.forEach(j => { if (!estJourComplet(j)) joursEcartes.push({ date: j.date, periode, raison: 'un seul quart saisi' }); });
+    }
     const fp = fenetresBilan(campagne, rowsP);
     const ca = l => valeurCampagne(campagne.type, l);
     const pan = l => (l.panier_moyen_ttc === null || l.panier_moyen_ttc === undefined ? null : Number(l.panier_moyen_ttc));
@@ -277,16 +294,17 @@
       const av = clean(s.avant), pe = clean(s.pendant), ap = clean(s.apres);
       return {
         pendant: comparerG5(av, pe),
-        apres: ap.length >= MIN_JOURS_COMPARABLES ? comparerG5(av, ap) : null,
+        apres: ap.length >= MIN_JOURS_BILAN ? comparerG5(av, ap) : null,
         moyAvant: av.length ? moyenne(av) : null,
         moyPendant: pe.length ? moyenne(pe) : null,
-        moyApres: ap.length >= MIN_JOURS_COMPARABLES ? moyenne(ap) : null,
+        moyApres: ap.length >= MIN_JOURS_BILAN ? moyenne(ap) : null,
       };
     };
     return {
       campagneId: campagne.id, nom: campagne.nom, type: campagne.type,
       dateDebut: campagne.date_debut, dateFin: campagne.date_fin,
       nbJoursAvant: fj.avant.length, nbJoursPendant: fj.pendant.length, nbJoursApres: fj.apres.length,
+      joursEcartes,
       nbJoursAvantPanier: fp.avant.length, nbJoursPendantPanier: fp.pendant.length,
       ca: mesure(serie(fj, ca)),
       tickets: mesure(serie(fp, l => l.nb_tickets)),
@@ -332,7 +350,7 @@
   }
 
   global.NexusCampagnes = {
-    TYPE_CAMPAGNE_LABELS, NATURE_CAMPAGNE_LABELS, OBJECTIF_CAMPAGNE_LABELS, MIN_JOURS_COMPARABLES,
+    TYPE_CAMPAGNE_LABELS, NATURE_CAMPAGNE_LABELS, OBJECTIF_CAMPAGNE_LABELS, MIN_JOURS_COMPARABLES, MIN_JOURS_BILAN, estJourComplet,
     valeurCampagne, analyserImpactCampagne, analyserCampagnes, analyserImpactProduits, analyserImpactPanierMoyen,
     texteConseillerCampagne, moyenne, evolution,
     SEUIL_ECART_TYPES, JOURS_FENETRE, comparerG5, fenetresBilan, analyserBilanCampagne,

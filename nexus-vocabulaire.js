@@ -432,7 +432,7 @@
       rentaManque: 'Pour la mesurer, il faut saisir produit par produit le stock, les prix et les livraisons.',
       rentaGain: 'Gain après coûts',
       retenirTitre: 'À retenir',
-      retenirCa: function (g5) { return 'Les ventes de la Boutique sont ' + g5 + '.'; },
+      retenirCa: function (g5, ventes) { return (ventes || 'Les ventes de la Boutique') + ' sont ' + g5 + '.'; },
       retenirTickets: function (g5) { return 'La fréquentation est ' + g5 + '.'; },
       retenirPanier: function (g5) { return 'Le panier moyen est ' + g5 + '.'; },
       retenirPasAssez: 'Pas assez de jours pour comparer cet indicateur.',
@@ -448,24 +448,47 @@
       apresLigne: 'Après la campagne',
       aucuneTerminee: 'Aucune campagne terminée à analyser pour l’instant.',
       // Phrases validées par Frédéric (arbitrage du 13/11/2026). Le nom et le sens viennent des données.
-      conclusion: function (nom, ca, tickets, panier) {
+      types: {
+        boutique: { tuile: 'CA Boutique', graphTitre: 'Évolution du CA Boutique', ventes: 'Les ventes de la Boutique' },
+        carburant: { tuile: 'CA Piste', graphTitre: 'Évolution du CA Piste', ventes: 'Les ventes de la Piste' },
+        mixte: { tuile: 'CA Piste et Boutique', graphTitre: 'Évolution du CA Piste et Boutique', ventes: 'Les ventes de la Piste et de la Boutique' }
+      },
+      jourEcarteTitre: 'Jours écartés de la comparaison',
+      jourEcarteRaison: 'un seul quart saisi',
+      joursEcartesIntro: 'Ces jours ne comptent pas dans la comparaison, car les deux quarts ne sont pas saisis :',
+      periodeNom: { avant: 'avant', pendant: 'pendant', apres: 'après' },
+      // Phrase de rentabilité, tirée de l’état mesuré par le moteur de compensation.
+      rentaPhrase: function (etat, gainTexte) {
+        var apres = gainTexte ? ', ' + gainTexte + ' après coûts' : '';
+        if (etat === 'encourageante' || etat === 'a_renouveler') return 'La remise a été compensée : rentabilité ' + (etat === 'a_renouveler' ? 'à renouveler' : 'encourageante') + apres + '.';
+        if (etat === 'a_ameliorer') return 'La remise a été presque compensée : rentabilité à améliorer' + apres + '.';
+        if (etat === 'insuffisante') return 'La remise n’a pas été compensée : rentabilité insuffisante' + apres + '.';
+        return '';
+      },
+      // Phrases validées par Frédéric (arbitrage du 13/11/2026). Le nom et le sens viennent des données.
+      conclusion: function (nom, ca, tickets, panier, renta) {
         var nette = function (x) { return x && x.label !== 'non_mesurable' && x.label !== 'variation_habituelle'; };
         if (!ca || !tickets || ca.label === 'non_mesurable' || tickets.label === 'non_mesurable') {
           return 'Pendant ' + nom + ', il n’y a pas assez de jours pour comparer les ventes et le nombre de tickets à la période d’avant.';
         }
+        var fin = (renta && renta.mesurable && renta.etat) ? NexusVocab.campagne.bilan.rentaPhrase(renta.etat, renta.gainTexte) : '';
+        var reste = fin || 'Reste à vérifier si le volume vendu a compensé les remises accordées.';
         var memeSens = ca.sens && ca.sens === tickets.sens;
         if (ca.label === 'hausse_nette' && tickets.label === 'hausse_nette') {
           var clause = '';
           if (panier && panier.label === 'baisse_nette') clause = ', malgré un panier moyen légèrement inférieur';
           else if (panier && panier.label === 'hausse_nette') clause = ', avec un panier moyen plus élevé';
-          return 'Pendant ' + nom + ', les ventes et le nombre de tickets ont augmenté' + clause + '. Reste à vérifier si le volume supplémentaire a compensé les remises accordées.';
+          return 'Pendant ' + nom + ', les ventes et le nombre de tickets ont augmenté' + clause + '. ' + (fin || 'Reste à vérifier si le volume supplémentaire a compensé les remises accordées.');
         }
         if (!nette(ca) && !nette(tickets) && memeSens) {
           var plus = ca.sens === 'hausse' ? 'plus élevés' : 'plus bas';
-          return 'Pendant ' + nom + ', les ventes et le nombre de tickets ont été un peu ' + plus + ' qu’avant, sans sortir de la variation habituelle. Reste à vérifier si le volume vendu a compensé les remises accordées.';
+          return 'Pendant ' + nom + ', les ventes et le nombre de tickets ont été un peu ' + plus + ' qu’avant, sans sortir de la variation habituelle. ' + reste;
         }
-        var g = function (x) { return x.label === 'variation_habituelle' ? 'restent dans la variation habituelle' : (x.label === 'hausse_nette' ? 'sont en hausse nette' : 'sont en baisse nette'); };
-        return 'Pendant ' + nom + ', les ventes ' + g(ca) + ' et le nombre de tickets ' + g(tickets) + '. Reste à vérifier si le volume vendu a compensé les remises accordées.';
+        var g = function (x, sing) {
+          if (x.label === 'variation_habituelle') return sing ? 'reste dans la variation habituelle' : 'restent dans la variation habituelle';
+          return (sing ? 'est en ' : 'sont en ') + (x.label === 'hausse_nette' ? 'hausse nette' : 'baisse nette');
+        };
+        return 'Pendant ' + nom + ', les ventes ' + g(ca, false) + ' et le nombre de tickets ' + g(tickets, true) + '. ' + reste;
       }
     },
     boutonNouvelle: '➕ Nouvelle promotion',

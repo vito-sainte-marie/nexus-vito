@@ -13,14 +13,14 @@
 :root{
   --t-bg:#07131E; --t-panel:#0D202E; --t-raised:#0F2433; --t-line:#254354;
   --t-text:#EDF1F5; --t-mid:#9AA8B6; --t-cyan:#24D8E3; --t-green:#29C98A; --t-amber:#F5A12A; --t-red:#F0707A;
-  --boutique:#C47A55; --boutique-rgb:196,122,85;
+  --boutique:#C47A55; --boutique-rgb:196,122,85; --piste:#3F6E94; --piste-rgb:63,110,148;
   --t-mono:'IBM Plex Mono',ui-monospace,monospace; --t-sans:'IBM Plex Sans',system-ui,sans-serif;
   --banniere-cadrage:70% 50%;
 }
 :root[data-theme="jour"]{
   --t-bg:#F4F6F8; --t-panel:#FFFFFF; --t-raised:#EEF2F5; --t-line:#D5DCE3;
   --t-text:#0F172A; --t-mid:#475569; --t-cyan:#0B7285; --t-green:#047857; --t-amber:#B45309; --t-red:#B91C1C;
-  --boutique:#7A4A3A; --boutique-rgb:122,74,58;
+  --boutique:#7A4A3A; --boutique-rgb:122,74,58; --piste:#8DB4D4; --piste-rgb:141,180,212;
 }
 *{box-sizing:border-box; margin:0; padding:0;}
 html,body{background:var(--t-bg); color:var(--t-text); font-family:var(--t-sans); min-height:100vh;}
@@ -136,6 +136,10 @@ a{color:inherit;}
 .b-col{flex:1; max-width:120px; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; height:100%; min-width:0;}
 .b-barre{width:100%; border-radius:6px 6px 0 0; background:rgba(var(--boutique-rgb),.45); min-height:3px;}
 .b-col.pendant .b-barre{background:var(--boutique);}
+.t-carburant .b-barre{background:rgba(var(--piste-rgb),.45);}
+.t-carburant .b-col.pendant .b-barre{background:var(--piste);}
+.t-mixte .b-barre{background:linear-gradient(to top,rgba(var(--boutique-rgb),.45),rgba(var(--piste-rgb),.45));}
+.t-mixte .b-col.pendant .b-barre{background:linear-gradient(to top,var(--boutique),var(--piste));}
 .b-barre-val{font-family:var(--t-mono); font-size:12px; margin-bottom:4px; white-space:nowrap;}
 .b-legendes{display:flex; justify-content:space-around; gap:12px;}
 .b-legende{flex:1; max-width:120px; text-align:center; font-size:12px; color:var(--t-mid); padding-top:6px; min-width:0;}
@@ -588,11 +592,7 @@ function texteConseiller(impacts){
   let h = '<p>' + esc(V.conseillerCompte(impacts.length, n('encours'), n('terminee'), n('avenir'))) + '</p>';
   const derniere = impacts.find((x, k) => st[k] === 'terminee') || impacts[0];
   h += '<p>' + esc(V.conseillerDerniere(derniere.nom, fmtDateCourt(derniere.dateDebut), fmtDateCourt(derniere.dateFin))) + '</p>';
-  let mesure;
-  if (!derniere.produitsConcernes.length) mesure = V.conseillerSansProduit;
-  else if (derniere.impactProduits && derniere.impactProduits.disponible) mesure = V.conseillerProduitsImportes;
-  else mesure = V.conseillerNonMesurable;
-  return h + '<p>' + esc(mesure) + '</p>';
+  return h;
 }
 
 /* ---------- Bilan visuel ---------- */
@@ -639,6 +639,8 @@ function bilanPour(i){
   return BILANS.get(i.campagneId);
 }
 function fmtGain(renta){ return fmtSigne(renta.gainApresCouts); }
+function typeBilan(b){ return V.bilan.types[b && b.type] || V.bilan.types.boutique; }
+function objectifSpan(i){ const o = objectifDe(i); return o ? V.bilan.objectif + ' : ' + o : ''; }
 
 function tuileBilan(icone, titre, g, valeur, sous, fenetre){
   return '<div class="b-tuile"><div class="b-tuile-haut">' + ico(icone) + '<span>' + esc(titre) + '</span></div>' +
@@ -654,12 +656,13 @@ function tuileIndicateur(icone, titre, ind, formater, unite, nbJours){
     B.vsAvant(fmtPct(g.evolution), formater(ind.moyAvant) + unite), B.fenetre(nbJours));
 }
 function graphiqueBilan(b){
-  const B = V.bilan, ca = b.ca;
+  const B = V.bilan, ca = b.ca, T = typeBilan(b);
+  if (!ca.pendant || !ca.pendant.mesurable) return '';
   const cols = [[V.avant, ca.moyAvant, b.nbJoursAvant, ''], [V.pendant, ca.moyPendant, b.nbJoursPendant, 'pendant']];
   if (ca.apres && ca.moyApres !== null && ca.moyApres !== undefined) cols.push([V.apres, ca.moyApres, b.nbJoursApres, '']);
   const max = Math.max.apply(null, cols.map(c => c[1] || 0)) || 1;
-  return '<div class="b-graphe"><div class="titre-section" style="margin:0 0 8px">' + ico('comparatif-periodes', 'ico-t') + '<span>' + esc(B.graphTitre) + '</span></div>' +
-    '<div class="b-barres" role="img" aria-label="' + esc(B.graphTitre) + '">' +
+  return '<div class="b-graphe t-' + esc(b.type) + '"><div class="titre-section" style="margin:0 0 8px">' + ico('comparatif-periodes', 'ico-t') + '<span>' + esc(T.graphTitre) + '</span></div>' +
+    '<div class="b-barres" role="img" aria-label="' + esc(T.graphTitre) + '">' +
     cols.map(c => '<div class="b-col ' + c[3] + '"><div class="b-barre-val">' + esc(fmtEur(c[1] || 0)) + '</div><div class="b-barre" style="height:' + Math.max(2, Math.round((c[1] || 0) / max * 130)) + 'px"></div></div>').join('') +
     '</div><div class="b-legendes">' + cols.map(c => '<div class="b-legende"><b>' + esc(c[0]) + '</b>' + esc(B.graphJours(c[2])) + '</div>').join('') + '</div></div>';
 }
@@ -672,10 +675,10 @@ function blocRenta(i, renta){
   return h + '</div>';
 }
 function blocRetenir(b){
-  const B = V.bilan;
+  const B = V.bilan, T = typeBilan(b);
   const ligneRetenir = (ind, f) => '<li>' + esc(ind && ind.pendant && ind.pendant.mesurable ? f(g5Texte(ind.pendant)) : B.retenirPasAssez) + '</li>';
   return '<div class="b-bloc"><h3>' + ico('a-retenir', 'ico-t') + '<span>' + esc(B.retenirTitre) + '</span></h3><ul>' +
-    ligneRetenir(b.ca, B.retenirCa) + ligneRetenir(b.tickets, B.retenirTickets) + ligneRetenir(b.panier, B.retenirPanier) + '</ul></div>';
+    ligneRetenir(b.ca, g => B.retenirCa(g, T.ventes)) + ligneRetenir(b.tickets, B.retenirTickets) + ligneRetenir(b.panier, B.retenirPanier) + '</ul></div>';
 }
 function detailBilan(i, b, renta){
   const B = V.bilan;
@@ -692,6 +695,10 @@ function detailBilan(i, b, renta){
   h += ligne(V.avant, esc(B.jours(b.nbJoursAvant)));
   h += ligne(V.pendant, esc(fmtDateCourt(i.dateDebut) + ' → ' + fmtDateCourt(i.dateFin) + ' · ' + B.jours(b.nbJoursPendant)));
   if (b.nbJoursApres) h += ligne(V.apres, esc(B.jours(b.nbJoursApres)));
+  if (b.joursEcartes && b.joursEcartes.length){
+    h += '<div class="sous-titre">' + esc(B.jourEcarteTitre) + '</div><div class="note">' + esc(B.joursEcartesIntro) + '</div>';
+    h += b.joursEcartes.map(j => ligne(fmtDateCourt(j.date), esc(B.periodeNom[j.periode] + ' · ' + B.jourEcarteRaison))).join('');
+  }
   h += '<div class="sous-titre">' + esc(B.produitsListe) + '</div>';
   h += i.produitsConcernes.length ? '<div class="promo-produits">' + i.produitsConcernes.map(esc).join(', ') + '</div>' : '<div class="note">' + esc(B.aucunProduit) + '</div>';
   h += '<button type="button" class="btn" data-mesurer="' + esc(i.campagneId) + '">' + esc(B.mesurerLien) + '</button>';
@@ -702,7 +709,7 @@ function bilanVisuel(i){
   let h = '<div class="bilan"><div class="b-entete"><div><div class="b-eyebrow" id="bilanTitre">' + esc(B.blocTitre) + '</div>' +
     '<div class="b-nom">' + esc(i.nom) + '</div>' +
     '<div class="b-meta"><span>' + esc(fmtPeriodeLongue(i)) + '</span>' +
-    '<span>' + ico('objectif-commercial', 'ico-t') + esc(B.objectif + ' : ' + (objectifDe(i) || '')) + '</span>' +
+    (objectifSpan(i) ? '<span>' + ico('objectif-commercial', 'ico-t') + esc(objectifSpan(i)) + '</span>' : '') +
     '<span>' + esc(B.produits(i.produitsConcernes.length)) + '</span></div></div>' +
     '<span class="statut">' + esc(libelleStatut('terminee')) + '</span></div>';
   if (!b){ return h + '<div class="note">' + esc(B.retenirPasAssez) + '</div></div>'; }
@@ -711,8 +718,8 @@ function bilanVisuel(i){
     '<div class="b-val">' + esc(MV.etats[renta.etat]) + '</div>' +
     '<div class="b-sous">' + esc(renta.mesurable ? B.rentaGain + ' : ' + fmtGain(renta) : B.rentaManque) + '</div></div>';
   h += '<div class="b-grille"><div><div class="b-tuiles">' +
-    tuileIndicateur('ca-boutique', B.tuiles.ca, ca, fmtEur, B.parJour, b.nbJoursAvant) +
-    tuileIndicateur('frequentation', B.tuiles.frequentation, b.tickets, fmtDec1b, ' ' + B.ticketsParJour, b.nbJoursAvant) +
+    tuileIndicateur('ca-boutique', typeBilan(b).tuile, ca, fmtEur, B.parJour, b.nbJoursAvant) +
+    tuileIndicateur('frequentation', B.tuiles.frequentation, b.tickets, fmtDec1b, ' ' + B.ticketsParJour, b.nbJoursAvantPanier) +
     tuileIndicateur('panier-moyen', B.tuiles.panier, b.panier, fmtEur2, '', b.nbJoursAvantPanier) +
     margeTuile + '</div>' + graphiqueBilan(b) + '</div>' +
     '<div class="b-lateral">' + blocRenta(i, renta) + blocRetenir(b) +
@@ -724,16 +731,17 @@ function carteBilan(i){
   const B = V.bilan, bl = bilanPour(i), g = bl.b ? bl.b.ca.pendant : null, renta = bl.renta;
   let h = '<button type="button" class="b-carte" data-ouvrir="' + esc(i.campagneId) + '"><div class="promo-nom">' + esc(i.nom) + '</div>' +
     '<div class="promo-dates">' + esc(fmtPeriodeLongue(i)) + '</div>' +
-    '<div class="badges"><span class="badge">' + esc(B.objectif + ' : ' + (objectifDe(i) || '')) + '</span><span class="badge">' + esc(B.produits(i.produitsConcernes.length)) + '</span></div>' +
-    ligne(B.tuiles.ca, g && g.mesurable ? '<span class="' + g5Classe(g) + '">' + esc(fmtPct(g.evolution)) + '</span>' : esc(g5Texte(g))) +
+    '<div class="badges">' + (objectifSpan(i) ? '<span class="badge">' + esc(objectifSpan(i)) + '</span>' : '') + '<span class="badge">' + esc(B.produits(i.produitsConcernes.length)) + '</span></div>' +
+    ligne(typeBilan(bl.b).tuile, g && g.mesurable ? '<span class="' + g5Classe(g) + '">' + esc(fmtPct(g.evolution)) + '</span>' : esc(g5Texte(g))) +
     ligne(B.rentaTitre, esc(MV.etats[renta.etat]) + (renta.mesurable ? ' · ' + esc(fmtGain(renta)) : ''));
   return h + '<span class="b-carte-lien">' + esc(B.ouvrir) + '</span></button>';
 }
 function conclusionBilan(){
   const i = IMPACTS.find(x => x.campagneId === BILAN_COURANT);
   if (!i) return '';
-  const b = bilanPour(i).b;
-  return b ? '<p>' + esc(V.bilan.conclusion(i.nom, b.ca.pendant, b.tickets.pendant, b.panier ? b.panier.pendant : null)) + '</p>' : '';
+  const bl = bilanPour(i), b = bl.b;
+  const renta = {etat: bl.renta.etat, mesurable: bl.renta.mesurable, gainTexte: bl.renta.mesurable ? fmtGain(bl.renta) : ''};
+  return b ? '<p>' + esc(V.bilan.conclusion(i.nom, b.ca.pendant, b.tickets.pendant, b.panier ? b.panier.pendant : null, renta)) + '</p>' : '';
 }
 function ouvrirMesure(campagneId){
   const sel = $('mesCampagne');

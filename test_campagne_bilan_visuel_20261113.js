@@ -8,7 +8,7 @@ const page=lire('NEXUS-Campagne-v2.html'); const B=V.campagne.bilan;
 const debut=page.indexOf('function ico('), fin=page.indexOf('async function chargerMesures');
 const code=page.slice(debut,fin);
 
-const jour=(i,v)=>{const d=new Date(Date.UTC(2026,0,1+i));return {date:d.toISOString().slice(0,10),venteBoutique:v,ventePiste:0}};
+const jour=(i,v)=>{const d=new Date(Date.UTC(2026,0,1+i));return {date:d.toISOString().slice(0,10),venteBoutique:v,ventePiste:0,quarts:[{quart:1},{quart:2}]}};
 const serie=(n,dep,f)=>Array.from({length:n},(_,k)=>jour(dep+k,f(k)));
 
 t('seuil G5 épinglé sur la source de Tempo',()=>{
@@ -26,7 +26,7 @@ t('G5 aux bornes : juste sous 2 erreurs-types = variation habituelle, au-dessus 
   assert.strictEqual(NC.comparerG5(R,decale(-1.99*se)).label,'variation_habituelle');
 });
 t('G5 : pas assez de jours = non mesurable',()=>{
-  const peu=Array.from({length:NC.MIN_JOURS_COMPARABLES-1},(_,k)=>k);
+  const peu=Array.from({length:NC.MIN_JOURS_BILAN-1},(_,k)=>k);
   assert.strictEqual(NC.comparerG5(peu,[3,4,5,6,7,8,9]).label,'non_mesurable');
   assert.strictEqual(NC.comparerG5([3,4,5,6,7,8,9],peu).label,'non_mesurable');
   assert.strictEqual(NC.comparerG5([],[]).label,'non_mesurable');
@@ -115,4 +115,25 @@ t('icônes : 8 nouveaux visuels × 3 tailles, srcset 48/96/144, alt vide si déc
   const ico=code.slice(code.indexOf('function ico('),code.indexOf('function ico(')+700);
   assert(/srcset/.test(ico)&&/48/.test(ico)&&/96/.test(ico)&&/144/.test(ico)&&/alt=""/.test(ico));
 });
-console.log(echecs?('\n'+echecs+' échec(s)'):'\ntous les tests passent'); process.exit(echecs?1:0);
+
+t('jour incomplet : écarté de la comparaison et listé',()=>{
+  const court={id:'c',date_debut:'2026-01-11',date_fin:'2026-01-13',type:'boutique'};
+  const l=serie(14,0,()=>100); l[2]={...l[2],quarts:[{quart:1}]};
+  const r=NC.analyserBilanCampagne(court,l,[]);
+  assert.strictEqual(r.nbJoursAvant,9);
+  assert(r.joursEcartes.some(j=>j.date===l[2].date&&j.periode==='avant'));
+});
+t('estJourComplet exige les quarts 1 et 2',()=>{
+  assert(NC.estJourComplet({quarts:[{quart:1},{quart:2}]}));
+  assert(!NC.estJourComplet({quarts:[{quart:2}]})); assert(!NC.estJourComplet({}));
+});
+t('libellés par type et accord de la conclusion',()=>{
+  ['boutique','carburant','mixte'].forEach(k=>{const T=B.types[k]; assert(T.tuile&&T.graphTitre&&T.ventes)});
+  assert(B.types.carburant.tuile.includes('Piste'));
+  assert(B.rentaPhrase('encourageante','+100 €')); assert.strictEqual(B.rentaPhrase('non_mesurable',''),''); assert(B.rentaPhrase('insuffisante','').includes('insuffisante'));
+});
+t('aucun tiret cadratin dans le lexique du bilan',()=>{ assert(!JSON.stringify(B,(k,v)=>typeof v==='function'?v.toString():v).includes('\u2014')); });
+t('page : fréquentation sur la fenêtre panier, objectif masqué si vide',()=>{
+  assert(code.includes('b.nbJoursAvantPanier')); assert(code.includes('objectifSpan(i) ?'));
+});
+console.log(echecs?'\n'+echecs+' échec(s)':'\ntout est vert'); process.exit(echecs?1:0);
