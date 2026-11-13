@@ -118,4 +118,10 @@ t('page : tableau sans débordement (layout fixe, retour à la ligne)', ()=>{
   assert(/\.sim-grille input[^{]*\{[^}]*min-width:0/.test(page));
 });
 
+t("retouches Guardian : avertissement daté, ventes arrondies, dates homogènes", ()=>{
+  const V = lire("nexus-vocabulaire.js");
+  assert(V.includes("a un prix moyen bas : promotion possible. La référence est prise sur le"));
+  assert(page.includes("Math.round(s.ventesMoisPrecedent)"));
+  assert(!page.includes("toLocaleDateString('fr-FR', {month"));
+});
 process.exit(echecs?1:0);

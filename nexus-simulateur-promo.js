@@ -146,6 +146,7 @@
       prixReference: a.prixReference,
       source: { debut: p.debut, fin: p.fin },
       prixBasRecent: a.prixBasRecent,
+      periodeRecente: a.periodes[0] ? { debut: a.periodes[0].debut, fin: a.periodes[0].fin } : null,
       reduites: a.reduites
     };
   }

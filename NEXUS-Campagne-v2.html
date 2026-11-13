@@ -565,12 +565,6 @@ const fmtSigne = v => (v >= 0 ? '+' : '-') + Math.abs(Math.round(v)).toLocaleStr
 const saisie = v => (v == null ? '' : String(Math.round(v * 1000) / 1000).replace('.', ','));
 
 function libellePeriode(p){
-  const d = NexusTempo.dateLocale(p.debut), f = NexusTempo.dateLocale(p.fin);
-  const finMois = new Date(f.getFullYear(), f.getMonth() + 1, 0).getDate();
-  if (d.getDate() === 1 && f.getDate() === finMois && d.getMonth() === f.getMonth() && d.getFullYear() === f.getFullYear()){
-    const m = d.toLocaleDateString('fr-FR', {month: 'long', year: 'numeric'});
-    return m.charAt(0).toUpperCase() + m.slice(1);
-  }
   return fmtDateCourt(p.debut) + ' au ' + fmtDateCourt(p.fin);
 }
 
@@ -585,7 +579,7 @@ function simPeindreProduit(e, i){
   if (e.info){
     info += '<div class="sim-source">' + esc(SV.source(fmtDateCourt(e.info.source.debut), fmtDateCourt(e.info.source.fin))) + '</div>';
     info += '<div class="sim-source">' + esc(SV.coutDecenium) + '</div>';
-    if (e.info.prixBasRecent) info += '<div class="sim-alerte">' + esc(SV.prixBas) + '</div>';
+    if (e.info.prixBasRecent) info += '<div class="sim-alerte">' + esc(SV.prixBas(fmtDateCourt(e.info.periodeRecente.debut) + ' au ' + fmtDateCourt(e.info.periodeRecente.fin), fmtDateCourt(e.info.source.debut) + ' au ' + fmtDateCourt(e.info.source.fin))) + '</div>';
     info += '<label>' + esc(SV.prixNormal) + '<input type="text" inputmode="decimal" autocomplete="off" data-i="' + i + '" data-champ="prixNormal" value="' + esc(saisie(e.info.prixReference)) + '"></label>';
     info += '<div class="sim-source">' + esc(SV.prixNormalNote) + '</div>';
     if (e.info.reduites.length){
@@ -690,7 +684,7 @@ function simPreremplir(i, article){
   const s = SIM.suggestions(PRODUITS_ROWS, article, new Date());
   e.info = s;
   if (s){
-    e.ventes = saisie(s.ventesMoisPrecedent);
+    e.ventes = saisie(Math.round(s.ventesMoisPrecedent));
     e.venteAvant = saisie(s.venteAvant);
     e.achatAvant = saisie(s.achatAvant);
   }

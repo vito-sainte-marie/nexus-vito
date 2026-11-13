@@ -493,7 +493,7 @@
       appliquer: 'Utiliser ce prix',
       source: (d, f) => 'Import du ' + d + ' au ' + f,
       coutDecenium: 'Coût Decenium : la remise fournisseur habituelle n’est peut-être pas incluse.',
-      prixBas: 'Prix moyen bas sur cette période : promotion possible.',
+      prixBas: (recente, reference) => 'La période la plus récente (' + recente + ') a un prix moyen bas : promotion possible. La référence est prise sur le ' + reference + '.',
       prixNormal: 'Prix normal (HT)',
       prixNormalNote: 'Le plus haut prix moyen des 12 derniers mois. Corrigez-le si besoin, sans enregistrement.',
       rappelTitre: 'Promotions passées de cet article',
