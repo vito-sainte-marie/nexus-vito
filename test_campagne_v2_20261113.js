@@ -68,11 +68,11 @@ t('kit d\'icônes : 84 fichiers, sans README ni aperçu',()=>{
   assert.strictEqual(n('assets/icones/campagne/premium')+n('assets/icones/campagne/simple'),84);
   assert(!fs.existsSync(path.join(__dirname,'assets/icones/campagne/README.txt'))&&!fs.existsSync(path.join(__dirname,'assets/icones/campagne/apercu.png')));
 });
-t('page déclarée (auth, forfait) et liée nulle part',()=>{
+t('page déclarée (auth, forfait) et liée seulement depuis les points d\'entrée et le bandeau de la V1',()=>{
   assert(lire('nexus-auth.js').includes("'NEXUS-Campagne-v2.html'"));
   assert(lire('nexus-forfait.js').includes("'NEXUS-Campagne-v2.html'"));
   const liens=fs.readdirSync(__dirname).filter(f=>/\.(html|js)$/.test(f)&&f!=='NEXUS-Campagne-v2.html'&&!/^test_/.test(f)&&f!=='nexus-auth.js'&&f!=='nexus-forfait.js').filter(f=>lire(f).includes('Campagne-v2'));
-  assert.deepStrictEqual(liens,[]);
+  assert.deepStrictEqual(liens.sort(),['NEXUS-App-v1.html','NEXUS-Campagne-v1.html','NEXUS-Documentation-v1.html','nexus-desktop.js','nexus-recherche.js']);
 });
 t('textes affichés issus du lexique',()=>{
   assert(page.includes('V.cartes')&&page.includes('V.enPreparation'));

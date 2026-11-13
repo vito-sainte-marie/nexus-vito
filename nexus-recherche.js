@@ -51,7 +51,7 @@
     { label: 'Rayon', desc: 'CA, marge, top ventes par catégorie', href: 'NEXUS-Rayon-v1.html', role: 'manager' },
     { label: 'Produits', desc: 'Fiche complète par référence', href: 'NEXUS-Produits-v1.html', role: 'manager' },
     { label: 'Tempo', desc: 'Les jours qui portent votre station, ceux qui la ralentissent', href: 'NEXUS-Tempo-v2.html', role: 'manager', forfait: 'professional' },
-    { label: 'Campagnes', desc: 'Déclarer une promotion, mesurer son impact', href: 'NEXUS-Campagne-v1.html', role: 'manager', forfait: 'professional' },
+    { label: 'Campagnes', desc: 'Déclarer une promotion, mesurer son impact', href: 'NEXUS-Campagne-v2.html', role: 'manager', forfait: 'professional' },
     { label: 'Scanner Stock', desc: 'Où vous perdez de l\'argent, quoi recompter', href: 'NEXUS-Scanner-Stock-v1.html', role: 'manager' },
     { label: 'Verify', desc: 'Contrôle caisse et écarts', href: 'NEXUS-Verify-v1.html', role: 'manager' },
     { label: 'Carburants', desc: 'Jaugeage à l\'ouverture, théorique et écart calculés', href: 'NEXUS-Carburants-v1.html', role: 'manager' },

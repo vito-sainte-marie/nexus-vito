@@ -74,7 +74,7 @@ const NEXUS_SIDEBAR_GROUPES = [
     items: [
       { label: 'Produits', module: 'mod-produits', href: 'NEXUS-Produits-v1.html', icon: 'assets/icons/icon-produits.png', desc: 'Analyse les ventes, rotations et performances produits.' },
       { label: 'Tempo', module: 'mod-tempo', href: 'NEXUS-Tempo-v2.html', icon: 'assets/icons/icon-nexus-tempo.png', desc: 'Repère les jours et périodes à renforcer.' },
-      { label: 'Campagnes', module: 'mod-campagnes', href: 'NEXUS-Campagne-v1.html', icon: 'assets/icons/icon-campagne-nexus.png', desc: 'Suit la performance de vos actions commerciales.' },
+      { label: 'Campagnes', module: 'mod-campagnes', href: 'NEXUS-Campagne-v2.html', icon: 'assets/icons/icon-campagne-nexus.png', desc: 'Suit la performance de vos actions commerciales.' },
       { label: 'Scanner Stock', module: 'mod-scanner-stock', href: 'NEXUS-Scanner-Stock-v1.html', icon: 'assets/icons/icon-scanner-stock.png', desc: 'Repère les écarts et références à recompter.' },
     ],
   },
