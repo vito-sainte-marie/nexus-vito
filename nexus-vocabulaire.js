@@ -410,6 +410,64 @@
     conseillerNonMesurable: 'Sa rentabilité n’est pas mesurable : les ventes par produit avant et pendant la promotion n’ont pas été importées.',
     conseillerSansProduit: 'Sa rentabilité n’est pas mesurable : aucun produit précis n’est associé à cette promotion.',
     conseillerProduitsImportes: 'Les ventes par produit sont importées. Aucune qualification de rentabilité n’est encore définie.',
+    bilan: {
+      blocTitre: 'Dernière campagne analysée',
+      objectif: 'Objectif',
+      produits: function (n) { return n === 0 ? 'Aucun produit précisé' : (n === 1 ? '1 produit' : n + ' produits'); },
+      jours: function (n) { return n + (n > 1 ? ' jours' : ' jour'); },
+      parJour: ' par jour',
+      tuiles: { ca: 'CA Boutique', frequentation: 'Fréquentation', panier: 'Panier moyen TTC', marge: 'Marge des produits en promotion' },
+      ticketsParJour: 'tickets par jour',
+      g5: {
+        hausse_nette: 'en hausse nette',
+        baisse_nette: 'en baisse nette',
+        variation_habituelle: 'dans la variation habituelle',
+        non_mesurable: 'pas assez de jours pour comparer'
+      },
+      vsAvant: function (evolution, moyenneAvant) { return evolution + ' par rapport à avant (' + moyenneAvant + ')'; },
+      fenetre: function (n) { return 'Comparé aux ' + n + (n > 1 ? ' jours' : ' jour') + ' précédant la campagne'; },
+      graphTitre: 'Évolution du CA Boutique',
+      graphJours: function (n) { return n + (n > 1 ? ' jours' : ' jour'); },
+      rentaTitre: 'Rentabilité de la campagne',
+      rentaManque: 'Pour la mesurer, il faut saisir produit par produit le stock, les prix et les livraisons.',
+      rentaGain: 'Gain après coûts',
+      retenirTitre: 'À retenir',
+      retenirCa: function (g5) { return 'Les ventes de la Boutique sont ' + g5 + '.'; },
+      retenirTickets: function (g5) { return 'La fréquentation est ' + g5 + '.'; },
+      retenirPanier: function (g5) { return 'Le panier moyen est ' + g5 + '.'; },
+      retenirPasAssez: 'Pas assez de jours pour comparer cet indicateur.',
+      bilanComplet: 'Voir le bilan complet',
+      bilanReduire: 'Masquer le bilan complet',
+      mesurerLien: 'Mesurer la compensation',
+      terminees: 'Campagnes passées',
+      ouvrir: 'Ouvrir le bilan',
+      secondaires: 'Chiffres secondaires',
+      periodes: 'Périodes comparées',
+      produitsListe: 'Produits en promotion',
+      aucunProduit: 'Aucun produit précis n’est associé à cette campagne.',
+      apresLigne: 'Après la campagne',
+      aucuneTerminee: 'Aucune campagne terminée à analyser pour l’instant.',
+      // Phrases validées par Frédéric (arbitrage du 13/11/2026). Le nom et le sens viennent des données.
+      conclusion: function (nom, ca, tickets, panier) {
+        var nette = function (x) { return x && x.label !== 'non_mesurable' && x.label !== 'variation_habituelle'; };
+        if (!ca || !tickets || ca.label === 'non_mesurable' || tickets.label === 'non_mesurable') {
+          return 'Pendant ' + nom + ', il n’y a pas assez de jours pour comparer les ventes et le nombre de tickets à la période d’avant.';
+        }
+        var memeSens = ca.sens && ca.sens === tickets.sens;
+        if (ca.label === 'hausse_nette' && tickets.label === 'hausse_nette') {
+          var clause = '';
+          if (panier && panier.label === 'baisse_nette') clause = ', malgré un panier moyen légèrement inférieur';
+          else if (panier && panier.label === 'hausse_nette') clause = ', avec un panier moyen plus élevé';
+          return 'Pendant ' + nom + ', les ventes et le nombre de tickets ont augmenté' + clause + '. Reste à vérifier si le volume supplémentaire a compensé les remises accordées.';
+        }
+        if (!nette(ca) && !nette(tickets) && memeSens) {
+          var plus = ca.sens === 'hausse' ? 'plus élevés' : 'plus bas';
+          return 'Pendant ' + nom + ', les ventes et le nombre de tickets ont été un peu ' + plus + ' qu’avant, sans sortir de la variation habituelle. Reste à vérifier si le volume vendu a compensé les remises accordées.';
+        }
+        var g = function (x) { return x.label === 'variation_habituelle' ? 'restent dans la variation habituelle' : (x.label === 'hausse_nette' ? 'sont en hausse nette' : 'sont en baisse nette'); };
+        return 'Pendant ' + nom + ', les ventes ' + g(ca) + ' et le nombre de tickets ' + g(tickets) + '. Reste à vérifier si le volume vendu a compensé les remises accordées.';
+      }
+    },
     boutonNouvelle: '➕ Nouvelle promotion',
     boutonAnnuler: '✕ Annuler',
     enCoursTitre: 'En cours',
