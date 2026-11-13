@@ -3090,7 +3090,15 @@
       const egal = sd > 0 ? Math.abs(a.ecartMoyen - b.ecartMoyen) <= SEUIL_ECART_TYPES * sd : a.ecartMoyen === b.ecartMoyen;
       if (egal) { a.egalSuivant = true; b.egalPrecedent = true; }
     }
-    return { classes, nonClasses };
+    // Aucune paire de classés ne se distingue (l'égalité de voisin à voisin n'est pas transitive).
+    let aucunEcart = classes.length >= 2;
+    for (let i = 0; aucunEcart && i < classes.length; i++) for (let j = i + 1; j < classes.length; j++) {
+      const a = classes[i], b = classes[j];
+      const sd = Math.sqrt(a.variance / a.n + b.variance / b.n);
+      const distincts = sd > 0 ? Math.abs(a.ecartMoyen - b.ecartMoyen) > SEUIL_ECART_TYPES * sd : a.ecartMoyen !== b.ecartMoyen;
+      if (distincts) { aucunEcart = false; break; }
+    }
+    return { classes, nonClasses, aucunEcart };
   }
   function pompistesParQuart(auditsRows, lignesCalendrier, aujourdhui, noms) {
     const rows = (auditsRows || []).filter(r => r && r.date);
@@ -3153,8 +3161,7 @@
     const sans = classerPompistes(groupe(compares.filter(c => !exc.has(c.date + '|' + c.quart))), noms);
     const ordre = r => r.classes.map(p => p.id).join(',');
     // Chaîne d'égalités : tous les classés sont reliés « à égalité » de proche en proche, les rangs n'ordonnent rien.
-    const chaine = r => r.classes.length >= 2 && r.classes.every((p, i) => i === r.classes.length - 1 || p.egalSuivant);
-    sans.chaineEgalite = chaine(sans); avec.chaineEgalite = chaine(avec);
+    sans.chaineEgalite = sans.aucunEcart === true; avec.chaineEgalite = avec.aucunEcart === true;
     return {
       fenetre: fen, semaines: FENETRE_VACANCES_SEMAINES, seuilClassement: QUARTS_CLASSEMENT_MIN_POMPISTES,
       exclus, nbQuartsAttribuables: nbAttribuables, nbQuartsCompares: compares.length,

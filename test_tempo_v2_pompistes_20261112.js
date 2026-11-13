@@ -56,7 +56,7 @@ t('seuil : 9 quarts → non classé, 10 quarts → classé (effectif affiché)',
   assert.strictEqual(r10.sans.classes.length, 1);
   assert.strictEqual(r10.sans.classes[0].n, 10);
   assert.strictEqual(r10.sans.nonClasses.length, 0);
-  const h = R.rendre(r9, { V, estCreateur: true });
+  const h = R.rendre(r9, { V });
   assert.ok(h.includes(V.classement.nonClasse(9)), 'l’effectif d’un non-classé est visible');
   assert.ok(!/data-classement/.test(h.replace(/<ul[\s\S]*<\/ul>/, '')) || true);
 });
@@ -84,29 +84,33 @@ t('une liste de 0 employé est écartée et comptée', () => {
 
 t('les comptes d’écartés sont rendus sous la carte, sans le mot marge', () => {
   const r = T.pompistesParQuart(jeu({ 'id-alice': { jours: jours('2026-08-04', 12), surplus: 300 } }), [], AUJ, NOMS);
-  const h = R.rendre(r, { V, estCreateur: false });
+  const h = R.rendre(r, { V });
   assert.ok(/data-ecartes="pompistes"/.test(h));
   assert.ok(h.includes(V.exclus(r.exclus)));
 });
 
-t('compte non créateur : le classement est absent du DOM (balise, noms, rangs)', () => {
+t('compte manager : le classement s’affiche avec les noms, sans mention du créateur', () => {
   const rows = jeu({
     'id-alice': { jours: jours('2026-08-04', 12), surplus: 300 },
     'id-bruno': { jours: jours('2026-08-05', 12), surplus: -300 },
   });
   const r = T.pompistesParQuart(rows, [], AUJ, NOMS);
-  const creat = R.rendre(r, { V, estCreateur: true });
-  assert.ok(/data-classement="pompistes"/.test(creat));
-  assert.ok(creat.includes('Alice Fictive') && creat.includes('Bruno Imaginaire'));
-  [false, undefined, null, 'true', 1, {}].forEach(v => {
-    const h = R.rendre(r, { V, estCreateur: v });
-    assert.ok(!/data-classement/.test(h), 'balise absente pour ' + String(v));
-    assert.ok(!h.includes('Alice') && !h.includes('Bruno'), 'aucun nom pour ' + String(v));
-    assert.ok(!/<table/.test(h), 'aucun tableau');
-    assert.ok(!/classement|créateur/i.test(h), 'aucune mention du classement ni du créateur pour ' + String(v));
-    assert.ok(!/Alice|Bruno|Carla|Dario/.test(h), 'aucun nom');
-    assert.ok(/<button[^>]*disabled/.test(h), 'bouton inactif');
-  });
+  const h = R.rendre(r, { V });
+  assert.ok(/data-classement="pompistes"/.test(h));
+  assert.ok(h.includes('Alice Fictive') && h.includes('Bruno Imaginaire'));
+  assert.ok(!/créateur/i.test(h));
+  assert.ok(/<button[^>]*disabled/.test(h), 'bouton inactif');
+});
+
+t('compte employé : page refusée avant tout chargement de données, déclarée opérationnelle', () => {
+  const g = html.indexOf('nexusEstManager(employee)');
+  assert.ok(g > 0, 'garde manager présente');
+  const garde = html.slice(g, g + 200);
+  assert.ok(/return;/.test(garde), 'la garde interrompt le chargement');
+  assert.ok(g < html.indexOf('nexusClient.from('), 'la garde précède toute lecture de données');
+  assert.ok(!/est_createur|estCreateur/.test(html), 'plus de contrôle créateur dans la page');
+  assert.ok(/NEXUS-Tempo-v2-Pompistes\.html/.test(lire('nexus-auth.js')), 'page déclarée dans nexus-auth');
+  assert.ok(!/réservé au créateur|compte créateur/i.test(rendu + moteur + lexique.slice(lexique.indexOf('pompistes:'))));
 });
 
 t('le classement trie par écart moyen, le plus haut en premier', () => {
@@ -130,7 +134,7 @@ t('« net » contre « variation habituelle » (écart comparé à zéro)', () =
   assert.strictEqual(hab.sens, null);
   const h = R.rendre({ nbQuartsAttribuables: 24, nbQuartsCompares: 24, exclus: {}, semaines: 52, fenetre: { debut: '2025-11-10', fin: '2026-11-08' },
     sans: T.classerPompistes({ 'id-alice': Array.from({ length: 12 }, (_, i) => 100 + (i % 3)), 'id-bruno': Array.from({ length: 12 }, (_, i) => (i % 2 ? 100 : -100)) }, NOMS),
-    avec: { classes: [], nonClasses: [] }, changeAvecSans: false, exceptionnels: [], aDesExceptionnels: false }, { V, estCreateur: true });
+    avec: { classes: [], nonClasses: [] }, changeAvecSans: false, exceptionnels: [], aDesExceptionnels: false }, { V });
   assert.ok(h.includes(V.lecture.net) && h.includes(V.lecture.habituelle));
 });
 
@@ -144,7 +148,7 @@ t('« à égalité » : deux voisins non distingués à ±2 erreurs-types', () =
   assert.strictEqual(b.egalSuivant, false, 'carla est nettement distinguée');
   assert.strictEqual(c.egalPrecedent, false);
   const h = R.rendre({ nbQuartsAttribuables: 36, nbQuartsCompares: 36, exclus: {}, semaines: 52, fenetre: { debut: '2025-11-10', fin: '2026-11-08' },
-    sans: r, avec: r, changeAvecSans: false, exceptionnels: [], aDesExceptionnels: false }, { V, estCreateur: true });
+    sans: r, avec: r, changeAvecSans: false, exceptionnels: [], aDesExceptionnels: false }, { V });
   assert.ok(h.includes(V.classement.egalite));
 });
 
@@ -213,13 +217,22 @@ t('phrase de tête : tous « à égalité » → phrase ; sinon pas de phrase', 
     'id-bruno': { jours: jours('2026-08-05', 12), surplus: 0 },
   }), [], AUJ, NOMS);
   assert.strictEqual(egal.sans.chaineEgalite, true);
-  assert.ok(R.rendre(egal, { V, estCreateur: true }).includes(V.classement.chaine));
+  assert.ok(R.rendre(egal, { V }).includes(V.classement.chaine));
   const net = T.pompistesParQuart(jeu({
     'id-alice': { jours: jours('2026-08-04', 12), surplus: 300 },
     'id-bruno': { jours: jours('2026-08-05', 12), surplus: -300 },
   }), [], AUJ, NOMS);
   assert.ok(!net.sans.chaineEgalite);
-  assert.ok(!R.rendre(net, { V, estCreateur: true }).includes(V.classement.chaine));
+  assert.ok(!R.rendre(net, { V }).includes(V.classement.chaine));
+});
+
+t('phrase de tête absente si l’égalité de voisin à voisin n’est pas transitive (A=B, B=C, A≠C)', () => {
+  const mk = (m, v, n) => ({ n, ecartMoyen: m, variance: v, erreurType: Math.sqrt(v / n), net: false, sens: null });
+  // sd paire = sqrt(2 * 10000/10) ≈ 44.7 ; seuil ≈ 89.4 : A-B 80 égal, B-C 80 égal, A-C 160 distincts
+  const par = { a: Array.from({ length: 10 }, (_, i) => 200 + (i % 2 ? 100 : -100)), b: Array.from({ length: 10 }, (_, i) => 120 + (i % 2 ? 100 : -100)), c: Array.from({ length: 10 }, (_, i) => 40 + (i % 2 ? 100 : -100)) };
+  const r = T.classerPompistes(par, { a: 'A', b: 'B', c: 'C' });
+  assert.deepStrictEqual(r.classes.map(p => p.egalSuivant), [true, true, false]);
+  assert.strictEqual(r.aucunEcart, false);
 });
 
 t('un pompiste sans quart comparé figure dans les non classés avec 0 quart ; libellé plusieurs pompistes', () => {
@@ -231,7 +244,7 @@ t('un pompiste sans quart comparé figure dans les non classés avec 0 quart ; l
 
 t('aucun mot « marge » dans le rendu, la page, le lexique pompistes, le moteur', () => {
   const r = T.pompistesParQuart(jeu({ 'id-alice': { jours: jours('2026-08-04', 12), surplus: 300 } }), [], AUJ, NOMS);
-  const h = R.rendre(r, { V, estCreateur: true });
+  const h = R.rendre(r, { V });
   assert.ok(!/marge/i.test(h));
   assert.ok(!/marge/i.test(JSON.stringify(V)));
   assert.ok(!/marge/i.test(html));
@@ -253,7 +266,6 @@ t('page : tuile active, pages autorisées, bannière tempo-pompistes, bouton ina
   ['800', '1200', '1600'].forEach(w => assert.ok(fs.existsSync(path.join(__dirname, 'assets/tempo/tempo-pompistes-' + w + '.webp'))));
   assert.ok(html.includes('assets/tempo/tempo-pompistes'));
   assert.ok(/alt=""/.test(html) || /\.alt\s*=\s*''/.test(html) || /alt=\\?""/.test(html));
-  assert.ok(/est_createur/.test(html));
   assert.ok(html.includes('nexus-tempo-pompistes-rendu.js'));
 });
 

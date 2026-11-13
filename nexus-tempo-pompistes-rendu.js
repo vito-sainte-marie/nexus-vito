@@ -1,6 +1,6 @@
 // Rendu de la carte « Comment se situent les pompistes ? » (fonction pure : résultat du moteur -> HTML).
-// Règle de Frédéric (12/11/2026) : le classement est réservé au compte créateur et doit être ABSENT du DOM
-// pour tout autre compte. Il n'est donc jamais construit, puis masqué : il n'est pas construit du tout.
+// Règle de Frédéric (13/11/2026) : le classement est visible des managers et des gérants ; l'accès à la page
+// est déjà refusé aux autres comptes par la page elle-même.
 // Aucun mot d'affichage ici : tout vient de NexusVocab.pompistes.
 (function (root) {
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -29,13 +29,13 @@
     return h + '</ul>';
   }
 
-  // res : résultat de NexusTempo.pompistesParQuart ; opts : { V, estCreateur }
+  // res : résultat de NexusTempo.pompistesParQuart ; opts : { V }
   function rendre(res, opts) {
-    const V = opts.V, creat = opts.estCreateur === true;
+    const V = opts.V;
     let h = '';
     if (!res || !res.nbQuartsAttribuables) {
       h += '<p class="mention">' + esc(V.aucuneDonnee) + '</p>';
-    } else if (creat) {
+    } else {
       const H = V.horsNorme;
       h += '<div class="sous-titre">' + esc(V.classement.titre) + '</div>' + tableauClasse(res.sans, V) + nonClasses(res.sans, V);
       h += '<p class="mention"><strong>' + esc(H.titre) + '</strong><br>' + esc(res.aDesExceptionnels ? H.nombre(res.exceptionnels.length) : H.aucune);
@@ -45,7 +45,6 @@
         h += '<details class="valeurs"><summary>' + esc(H.avec) + '</summary>' + tableauClasse(res.avec, V) + nonClasses(res.avec, V) + '</details>';
       }
     }
-    // Hors compte créateur : aucune mention du classement, ni de sa réserve.
     h += '<p class="mention">' + esc(V.fenetre(res.semaines, res.fenetre.debut, res.fenetre.fin, res.fenetre.borneParLesDonnees)) + '</p>';
     h += '<p class="mention" data-ecartes="pompistes">' + esc(V.exclus(res.exclus)) + '</p>';
     h += '<button type="button" class="indispo" disabled aria-disabled="true" title="' + esc(V.transmettreInactif) + '">' + esc(V.transmettre) + '</button>';

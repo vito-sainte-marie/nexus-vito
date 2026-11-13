@@ -354,7 +354,6 @@ details.valeurs .tableau td, details.valeurs .tableau th{white-space:nowrap;}
     $('sousTitrePage').textContent = V.sousTitre;
     $('comparaison').textContent = V.comparaison;
     $('nomMesure').textContent = V.mesure;
-    const estCreateur = employee.est_createur === true;
     const siteId = employee.site_id, T = window.NexusTempo;
     const aujourdhui = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Martinique' }).format(new Date());
     const debut = jourDecale(aujourdhui, -7 * 53), fin = aujourdhui;
@@ -365,8 +364,7 @@ details.valeurs .tableau td, details.valeurs .tableau th{white-space:nowrap;}
         .eq('site', siteId).gte('date', debut).lte('date', fin).order('date', { ascending: true })),
       nexusClient.from('inventaire_calendrier_site').select('date, type, libelle').eq('site', siteId)
         .in('type', ['vacances', 'ferie']).gte('date', debut).lte('date', fin).order('date', { ascending: true }),
-      // Les noms ne servent qu'au classement : un autre compte que le créateur ne les lit même pas.
-      estCreateur ? nexusClient.from('employees').select('id, nom').eq('site_id', siteId) : Promise.resolve({ data: [], error: null })
+      nexusClient.from('employees').select('id, nom').eq('site_id', siteId)
     ]);
     if (rSite && rSite.data && rSite.data.nom_entreprise) $('pillSite').textContent = rSite.data.nom_entreprise;
     const cal = rCal.error ? [] : rCal.data;
@@ -374,8 +372,8 @@ details.valeurs .tableau td, details.valeurs .tableau th{white-space:nowrap;}
     const noms = {};
     if (!rEmp.error) (rEmp.data || []).forEach(e => { noms[e.id] = e.nom; });
     if (rAud.error || rCal.error) { $('corps').innerHTML = '<p class="mention">' + V.aucuneDonnee.replace(/[<>&]/g, '') + '</p>'; }
-    else $('corps').innerHTML = window.NexusTempoPompistesRendu.rendre(T.pompistesParQuart(rAud.data, cal, aujourdhui, noms), { V, estCreateur });
-    $('piedSources').textContent = 'Sources : audits_caisse · inventaire_calendrier_site · sites' + (estCreateur ? ' · employees' : '') + ' · lecture seule · calculé le : ' +
+    else $('corps').innerHTML = window.NexusTempoPompistesRendu.rendre(T.pompistesParQuart(rAud.data, cal, aujourdhui, noms), { V });
+    $('piedSources').textContent = 'Sources : audits_caisse · inventaire_calendrier_site · sites' + ' · employees' + ' · lecture seule · calculé le : ' +
       new Intl.DateTimeFormat('fr-FR', { timeZone: 'America/Martinique', dateStyle: 'short', timeStyle: 'short' }).format(new Date()) + ' (heure de la station)';
   });
 })();
