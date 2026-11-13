@@ -46,6 +46,7 @@
     'NEXUS-Tempo-v2-PisteBoutique.html',
     'NEXUS-Tempo-v2-Pompistes.html',
     'NEXUS-Campagne-v1.html',
+    'NEXUS-Campagne-v2.html',
     'NEXUS-Capital-v1.html',
     'NEXUS-Planning-v1.html',
     'NEXUS-Scanner-v1.html',

@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#07131E">
+<title>NEXUS · Campagne</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="nexus-theme.js"></script>
+<style>
+:root{
+  --t-bg:#07131E; --t-panel:#0D202E; --t-raised:#0F2433; --t-line:#254354;
+  --t-text:#EDF1F5; --t-mid:#9AA8B6; --t-cyan:#24D8E3; --t-green:#29C98A; --t-amber:#F5A12A; --t-red:#F0707A;
+  --boutique:#C47A55; --boutique-rgb:196,122,85;
+  --t-mono:'IBM Plex Mono',ui-monospace,monospace; --t-sans:'IBM Plex Sans',system-ui,sans-serif;
+  --banniere-cadrage:70% 50%;
+}
+:root[data-theme="jour"]{
+  --t-bg:#F4F6F8; --t-panel:#FFFFFF; --t-raised:#EEF2F5; --t-line:#D5DCE3;
+  --t-text:#0F172A; --t-mid:#475569; --t-cyan:#0B7285; --t-green:#047857; --t-amber:#B45309; --t-red:#B91C1C;
+  --boutique:#7A4A3A; --boutique-rgb:122,74,58;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+html,body{background:var(--t-bg); color:var(--t-text); font-family:var(--t-sans); min-height:100vh;}
+body{display:flex; justify-content:center;}
+a{color:inherit;}
+.app{width:100%; max-width:1100px; min-height:100vh; display:flex; flex-direction:column; padding:env(safe-area-inset-top) 16px 40px; overflow-x:hidden;}
+
+/* En-tête avec image */
+.header{position:relative; margin:12px 0 0; border-radius:14px; overflow:hidden; border:1px solid var(--t-line); min-height:190px; display:flex; align-items:flex-end; background:var(--t-panel);}
+.header img.entete{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:var(--banniere-cadrage);}
+.header::after{content:''; position:absolute; inset:0; background:linear-gradient(0deg, rgba(7,19,30,.86) 0%, rgba(7,19,30,.55) 45%, rgba(7,19,30,.15) 100%);}
+:root[data-theme="jour"] .header::after{background:linear-gradient(0deg, rgba(7,19,30,.78) 0%, rgba(7,19,30,.45) 45%, rgba(7,19,30,.08) 100%);}
+@media (max-width:599px){
+  .header{min-height:210px;}
+  .header::after, :root[data-theme="jour"] .header::after{background:linear-gradient(0deg, rgba(7,19,30,.94) 0%, rgba(7,19,30,.82) 50%, rgba(7,19,30,.5) 100%);}
+}
+.header-texte{position:relative; z-index:1; padding:18px; width:100%; color:#EDF1F5;}
+.eyebrow{font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:#7FE9F0;}
+.title{font-size:26px; font-weight:600; margin-top:4px;}
+.subtitle{font-size:14px; color:#C9D3DC; margin-top:4px;}
+.menu-btn{position:absolute; z-index:2; top:12px; left:12px; text-decoration:none; font-size:12px; padding:9px 13px; min-height:44px; display:inline-flex; align-items:center; border-radius:20px; background:rgba(7,19,30,.72); color:#EDF1F5; border:1px solid rgba(255,255,255,.25);}
+.menu-btn:focus-visible{outline:2px solid var(--t-cyan); outline-offset:2px;}
+
+.carte{background:var(--t-panel); border:1px solid var(--t-line); border-radius:14px; padding:18px;}
+.titre-section{font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--t-mid); margin:28px 0 12px; display:flex; align-items:center; gap:10px;}
+.titre-section::after{content:''; flex:1; height:1px; background:var(--t-line);}
+
+/* Conseiller */
+.conseiller{border-color:var(--t-cyan); margin-top:18px; display:flex; gap:14px; align-items:flex-start;}
+.conseiller-avatar{width:38px; height:38px; border-radius:50%; flex:none; object-fit:cover;}
+.conseiller-corps{min-width:0;}
+.conseiller-titre{font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--t-cyan); margin-bottom:6px;}
+.conseiller p{font-size:14.5px; line-height:1.6; margin-top:4px; overflow-wrap:anywhere;}
+
+.btn{font-family:var(--t-sans); font-size:14px; font-weight:600; min-height:44px; padding:10px 18px; border-radius:10px; border:1px solid rgba(var(--boutique-rgb),.7); background:rgba(var(--boutique-rgb),.14); color:var(--t-text); cursor:pointer; margin-top:18px;}
+.btn:hover{background:rgba(var(--boutique-rgb),.24);}
+.btn:focus-visible{outline:2px solid var(--t-cyan); outline-offset:2px;}
+.btn[disabled]{opacity:.6; cursor:default;}
+
+/* Formulaire */
+.promo-form{display:none; margin-top:14px;}
+.promo-form.open{display:block;}
+.champ{margin-bottom:16px;}
+.champ:last-child{margin-bottom:0;}
+.champ label{display:block; font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--t-mid); margin-bottom:8px;}
+.champ input[type=text], .champ input[type=date]{width:100%; background:var(--t-raised); border:1px solid var(--t-line); border-radius:8px; padding:10px 11px; min-height:44px; color:var(--t-text); font-family:var(--t-sans); font-size:14px;}
+.champ input:focus-visible{outline:2px solid var(--t-cyan); outline-offset:1px;}
+.dates{display:flex; gap:10px; flex-wrap:wrap;}
+.dates > div{flex:1 1 140px; min-width:0;}
+.groupe{display:flex; flex-wrap:wrap; gap:8px;}
+.pill{font-family:var(--t-sans); font-size:12.5px; padding:10px 14px; min-height:44px; border-radius:22px; border:1px solid var(--t-line); background:var(--t-raised); color:var(--t-mid); cursor:pointer;}
+.pill.active{border-color:var(--t-cyan); color:var(--t-cyan); font-weight:600; background:color-mix(in srgb, var(--t-cyan) 12%, transparent);}
+.pill:focus-visible{outline:2px solid var(--t-cyan); outline-offset:2px;}
+.ligne-ajout{display:flex; gap:8px;}
+.ligne-ajout input{flex:1; min-width:0;}
+.sugg{display:none; margin-top:6px; border:1px solid var(--t-line); border-radius:8px; background:var(--t-raised); overflow:hidden;}
+.sugg.open{display:block;}
+.sugg button{display:block; width:100%; text-align:left; background:none; border:0; border-bottom:1px solid var(--t-line); padding:12px; min-height:44px; color:var(--t-text); font-family:var(--t-sans); font-size:13.5px; cursor:pointer; overflow-wrap:anywhere;}
+.sugg button:last-child{border-bottom:0;}
+.sugg button.actif, .sugg button:hover{background:color-mix(in srgb, var(--t-cyan) 12%, transparent);}
+.chips{display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;}
+.chips .vide{font-size:12px; color:var(--t-mid);}
+.chip{display:inline-flex; align-items:center; gap:6px; font-size:12.5px; padding:6px 6px 6px 12px; border-radius:18px; background:var(--t-raised); border:1px solid var(--t-line); overflow-wrap:anywhere;}
+.chip button{background:none; border:0; color:var(--t-mid); cursor:pointer; min-width:32px; min-height:32px; font-size:14px;}
+.msg-erreur{margin-top:10px; padding:9px 11px; background:color-mix(in srgb, var(--t-red) 14%, transparent); color:var(--t-red); border-radius:8px; font-size:12.5px;}
+.msg-ok{margin-top:10px; padding:9px 11px; background:color-mix(in srgb, var(--t-green) 14%, transparent); color:var(--t-green); border-radius:8px; font-size:12.5px; text-align:center;}
+
+/* Promotions */
+.promo{background:var(--t-panel); border:1px solid var(--t-line); border-radius:14px; padding:16px; margin-bottom:10px;}
+.promo-haut{display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap;}
+.promo-nom{font-size:15px; font-weight:600; overflow-wrap:anywhere; min-width:0;}
+.promo-dates{font-family:var(--t-mono); font-size:11.5px; color:var(--t-mid); margin-top:3px;}
+.statut{font-size:11px; padding:4px 10px; border-radius:20px; border:1px solid var(--t-line); color:var(--t-mid); white-space:nowrap;}
+.statut.encours{color:var(--t-green); border-color:var(--t-green);}
+.badges{display:flex; flex-wrap:wrap; gap:6px; margin:10px 0;}
+.badge{font-size:11px; padding:4px 10px; border-radius:20px; background:var(--t-raised); color:var(--t-mid); overflow-wrap:anywhere;}
+.promo-produits{font-size:12.5px; color:var(--t-mid); line-height:1.5; margin-bottom:8px; overflow-wrap:anywhere;}
+.promo-produits b{color:var(--t-text);}
+.ligne{display:flex; justify-content:space-between; gap:10px; font-size:13px; padding:7px 0; border-top:1px solid var(--t-line);}
+.ligne .cle{color:var(--t-mid);}
+.ligne .val{font-family:var(--t-mono); font-weight:500; text-align:right;}
+.note{font-size:12.5px; color:var(--t-mid); line-height:1.5; padding-top:8px; border-top:1px solid var(--t-line);}
+.sous-titre{font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--t-mid); margin:10px 0 2px;}
+.vide{padding:24px 8px; text-align:center; color:var(--t-mid); font-size:13px;}
+.intro-historique{font-size:13px; color:var(--t-mid); margin-bottom:12px; line-height:1.5;}
+.intro-historique b{color:var(--t-text);}
+
+/* Six cartes : une colonne en mobile, deux ensuite, jamais de défilement horizontal */
+.tuiles{display:grid; grid-template-columns:1fr; gap:12px;}
+@media (min-width:600px){.tuiles{grid-template-columns:1fr 1fr;}}
+@media (min-width:900px){.tuiles{grid-template-columns:repeat(3,1fr);}}
+.tuile{min-height:44px; background:var(--t-panel); border:1px solid var(--t-line); border-radius:14px; padding:16px; font-size:13.5px; cursor:default; min-width:0;}
+.picto-p{display:block; width:48px; height:48px; margin-bottom:8px;}
+.t-titre{display:block; font-weight:600; overflow-wrap:anywhere;}
+.t-sous{display:block; font-size:12px; color:var(--t-mid); margin-top:4px; line-height:1.5;}
+.prep{display:inline-block; margin-top:10px; font-size:11px; padding:3px 10px; border-radius:20px; background:var(--t-raised); color:var(--t-mid);}
+
+/* Planche de démonstration des états */
+.etats{display:flex; flex-wrap:wrap; gap:10px;}
+.etat{display:inline-flex; align-items:center; gap:8px; font-size:12.5px; padding:8px 14px; border-radius:22px; border:1px solid var(--t-line); background:var(--t-raised); color:var(--t-text);}
+.etat img, .etat svg{width:24px; height:24px; flex:none;}
+.etat.e-insuffisante{border-color:var(--t-red);}
+.etat.e-a-ameliorer{border-color:var(--t-amber);}
+.etat.e-encourageante{border-color:var(--t-cyan);}
+.etat.e-a-renouveler{border-color:var(--t-green);}
+.etat.e-non-mesurable{border-color:var(--t-mid); border-style:dashed;}
+.reserve{margin:40px auto; padding:24px; text-align:center; color:var(--t-mid);}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <header class="header">
+    <img class="entete" id="entete"
+      src="assets/campagne/campagne-entete-1200.webp"
+      srcset="assets/campagne/campagne-entete-800.webp 800w, assets/campagne/campagne-entete-1200.webp 1200w, assets/campagne/campagne-entete-1600.webp 1600w"
+      sizes="(min-width:1100px) 1100px, 100vw" width="1600" height="533" alt="">
+    <a href="NEXUS-App-v1.html" class="menu-btn" id="lienMenu"></a>
+    <div class="header-texte">
+      <div class="eyebrow" id="hEyebrow"></div>
+      <div class="title" id="hTitre"></div>
+      <div class="subtitle" id="hSous"></div>
+    </div>
+  </header>
+
+  <div class="carte conseiller" id="conseiller">
+    <img class="conseiller-avatar" src="assets/avatar/nexus-avatar-128.png"
+      srcset="assets/avatar/nexus-avatar-64.png 64w, assets/avatar/nexus-avatar-96.png 96w, assets/avatar/nexus-avatar-128.png 128w, assets/avatar/nexus-avatar-256.png 256w"
+      sizes="38px" width="38" height="38" alt="Conseiller NEXUS">
+    <div class="conseiller-corps">
+      <div class="conseiller-titre" id="cTitre"></div>
+      <div id="cTexte"></div>
+    </div>
+  </div>
+
+  <div><button type="button" class="btn" id="btnNouvelle"></button></div>
+
+  <section class="carte promo-form" id="promoForm" aria-label="Nouvelle promotion">
+    <div class="champ"><label for="promoNom" id="lNom"></label><input type="text" id="promoNom" maxlength="120" autocomplete="off"></div>
+    <div class="champ dates">
+      <div><label for="promoDateDebut" id="lDebut"></label><input type="date" id="promoDateDebut"></div>
+      <div><label for="promoDateFin" id="lFin"></label><input type="date" id="promoDateFin"></div>
+    </div>
+    <div class="champ"><label id="lType"></label><div class="groupe" id="gType"></div></div>
+    <div class="champ">
+      <label for="promoProduitInput" id="lProduits"></label>
+      <div class="ligne-ajout">
+        <input type="text" id="promoProduitInput" autocomplete="off">
+        <button type="button" class="pill" id="btnAjouterProduit"></button>
+      </div>
+      <div class="sugg" id="suggestions"></div>
+      <div class="chips" id="chips"></div>
+    </div>
+    <div class="champ"><label id="lNature"></label><div class="groupe" id="gNature"></div></div>
+    <div class="champ">
+      <label id="lObjectif"></label><div class="groupe" id="gObjectif"></div>
+      <div id="blocLibre" style="display:none;margin-top:10px"><input type="text" id="promoObjectifLibre" maxlength="120" aria-label="Objectif"></div>
+    </div>
+    <div class="champ"><button type="button" class="btn" id="btnValider" style="margin-top:0"></button><div id="formMessage"></div></div>
+  </section>
+
+  <div class="titre-section" id="tEnCours"></div>
+  <div id="enCours"></div>
+  <div class="titre-section" id="tDerniere"></div>
+  <div id="derniere"></div>
+
+  <div class="titre-section" id="tOutils"></div>
+  <div class="tuiles" id="tuiles"></div>
+
+  <div class="titre-section" id="tHistorique"></div>
+  <div class="intro-historique" id="introHistorique"></div>
+  <div id="historique"></div>
+
+  <div id="blocEtats" hidden>
+    <div class="titre-section" id="tEtats"></div>
+    <div class="intro-historique" id="introEtats"></div>
+    <div class="etats" id="etats" data-demo="etats"></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="nexus-build.js"></script>
+<script src="nexus-auth.js?v=20260904-0104"></script>
+<script src="nexus-forfait.js?v=20260904-0104"></script>
+<script src="nexus-icones.js?v=20260904-0104"></script>
+<script src="nexus-desktop.js?v=20260904-0104"></script>
+<script src="nexus-jours-feries.js?v=20261106-0100"></script>
+<script src="nexus-vocabulaire.js?v=20261112-1500"></script>
+<script src="nexus-tempo.js?v=20261112-1500"></script>
+<script src="nexus-periodes.js?v=20260904-0104"></script>
+<script src="nexus-campagnes.js?v=20260904-0104"></script>
+<script>
+const V = window.NexusVocab.campagne;
+const NC = window.NexusCampagnes;
+const IC = 'assets/icones/campagne/';
+let EMPLOYEE = null, SITE_ID = null;
+let CATALOGUE_ARTICLES = [];
+let IMPACTS = [];
+
+function esc(s){
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+const $ = id => document.getElementById(id);
+const fmtEur = v => Math.round(v).toLocaleString('fr-FR') + ' €';
+const fmtPct = v => (v === null || v === undefined) ? V.nonDisponible : ((v >= 0 ? '+' : '') + (v * 100).toFixed(1).replace('.', ',') + ' %');
+const fmtNb = v => Math.round(v).toLocaleString('fr-FR');
+const fmtEur2 = v => v.toLocaleString('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' €';
+function fmtDateCourt(iso){
+  return NexusTempo.dateLocale(iso).toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit', year:'numeric'});
+}
+function aujourdhui(){
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function statutDe(imp){
+  const t = aujourdhui();
+  if (imp.dateDebut > t) return 'avenir';
+  if (imp.dateFin < t) return 'terminee';
+  return 'encours';
+}
+
+async function fetchAllRows(factory, pageSize){
+  pageSize = pageSize || 1000;
+  let from = 0, all = [];
+  while (true){
+    const { data, error } = await factory().range(from, from + pageSize - 1);
+    if (error) return { data: null, error };
+    all = all.concat(data || []);
+    if (!data || data.length < pageSize) break;
+    from += pageSize;
+  }
+  return { data: all, error: null };
+}
+
+/* ---------- Textes fixes ---------- */
+function peindreTextesFixes(){
+  $('lienMenu').textContent = V.menu;
+  $('hEyebrow').textContent = V.titre;
+  $('hTitre').textContent = V.titre;
+  $('hSous').textContent = V.sousTitre;
+  $('cTitre').textContent = V.conseillerTitre;
+  $('btnNouvelle').textContent = V.boutonNouvelle;
+  $('lNom').textContent = V.formNom; $('promoNom').placeholder = V.formNomExemple;
+  $('lDebut').textContent = V.formDebut; $('lFin').textContent = V.formFin;
+  $('lType').textContent = V.formType; $('lProduits').textContent = V.formProduits;
+  $('promoProduitInput').placeholder = V.formProduitsSaisie;
+  $('btnAjouterProduit').textContent = V.formAjouter;
+  $('lNature').textContent = V.formNature; $('lObjectif').textContent = V.formObjectif;
+  $('promoObjectifLibre').placeholder = V.formObjectifLibre;
+  $('btnValider').textContent = V.formValider;
+  $('tEnCours').textContent = V.enCoursTitre;
+  $('tDerniere').textContent = V.derniereTitre;
+  $('tOutils').textContent = V.outilsTitre;
+  $('tHistorique').textContent = V.historiqueTitre;
+  $('introHistorique').innerHTML = '<b>' + esc(V.historiqueIntro) + '.</b> ' + esc(V.historiqueNote);
+  const apercuEtats = new URLSearchParams(location.search).get('apercu_etats') === '1';
+  $('blocEtats').hidden = !apercuEtats;
+  if (apercuEtats){
+    $('tEtats').textContent = V.etatsTitre;
+    $('introEtats').textContent = V.etatsIntro;
+  }
+  const pills = (groupe, labels) => Object.keys(labels).map(k =>
+    '<button type="button" class="pill" data-groupe="' + esc(groupe) + '" data-valeur="' + esc(k) + '">' + esc(labels[k]) + '</button>').join('');
+  $('gType').innerHTML = pills('type', NC.TYPE_CAMPAGNE_LABELS);
+  $('gNature').innerHTML = pills('nature', NC.NATURE_CAMPAGNE_LABELS);
+  $('gObjectif').innerHTML = pills('objectif', NC.OBJECTIF_CAMPAGNE_LABELS);
+  $('tuiles').innerHTML = V.cartes.map(c =>
+    '<div class="tuile" aria-disabled="true" data-carte="' + esc(c.cle) + '">' +
+      '<img class="picto-p" src="' + IC + 'premium/campagne-' + esc(c.cle) + '.svg"' +
+      ' srcset="' + IC + 'premium/campagne-' + esc(c.cle) + '-48.webp 48w, ' + IC + 'premium/campagne-' + esc(c.cle) + '-96.webp 96w, ' + IC + 'premium/campagne-' + esc(c.cle) + '-144.webp 144w"' +
+      ' sizes="48px" width="48" height="48" alt="">' +
+      '<span class="t-titre">' + esc(c.titre) + '</span>' +
+      '<span class="t-sous">' + esc(c.texte) + '</span>' +
+      '<span class="prep">' + esc(V.enPreparation) + '</span>' +
+    '</div>').join('');
+  if (apercuEtats) $('etats').innerHTML = V.etats.map(e =>
+    '<span class="etat e-' + esc(e.cle) + '"><img src="' + IC + 'simple/campagne-rentabilite-' + esc(e.cle) + '.svg" width="24" height="24" alt="">' + esc(e.libelle) + '</span>').join('');
+}
+
+/* ---------- Formulaire ---------- */
+const etatForm = { type: null, nature: null, objectif: null };
+let produitsSelectionnes = [];
+const MAX_SUGGESTIONS = 6;
+
+function toggleForm(){
+  const f = $('promoForm');
+  const ouvert = f.classList.toggle('open');
+  $('btnNouvelle').textContent = ouvert ? V.boutonAnnuler : V.boutonNouvelle;
+  if (!ouvert) reinitialiserForm();
+}
+function reinitialiserForm(){
+  $('promoNom').value = ''; $('promoDateDebut').value = ''; $('promoDateFin').value = '';
+  $('promoObjectifLibre').value = ''; $('blocLibre').style.display = 'none';
+  $('promoProduitInput').value = '';
+  etatForm.type = etatForm.nature = etatForm.objectif = null;
+  produitsSelectionnes = [];
+  document.querySelectorAll('#promoForm .pill.active').forEach(p => p.classList.remove('active'));
+  masquerSuggestions(); renderChips(); $('formMessage').innerHTML = '';
+}
+function choisirPill(groupe, valeur, el){
+  etatForm[groupe] = valeur;
+  document.querySelectorAll('.pill[data-groupe="' + groupe + '"]').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  if (groupe === 'objectif') $('blocLibre').style.display = valeur === 'autre' ? 'block' : 'none';
+}
+function ajouterUnProduit(nom){
+  nom = String(nom || '').trim();
+  if (!nom) return;
+  if (!produitsSelectionnes.some(p => p.toLowerCase() === nom.toLowerCase())) produitsSelectionnes.push(nom);
+  $('promoProduitInput').value = '';
+  masquerSuggestions(); renderChips();
+}
+function rechercherProduits(){
+  const q = $('promoProduitInput').value.trim().toLowerCase();
+  const box = $('suggestions');
+  if (!q){ masquerSuggestions(); return; }
+  const deja = new Set(produitsSelectionnes.map(p => p.toLowerCase()));
+  const libres = CATALOGUE_ARTICLES.filter(a => !deja.has(a.toLowerCase()));
+  const debut = libres.filter(a => a.toLowerCase().startsWith(q));
+  const contient = libres.filter(a => !a.toLowerCase().startsWith(q) && a.toLowerCase().includes(q));
+  const liste = debut.concat(contient).slice(0, MAX_SUGGESTIONS);
+  if (!liste.length){ masquerSuggestions(); return; }
+  box.innerHTML = liste.map((a, i) => '<button type="button" data-nom="' + esc(a) + '"' + (i === 0 ? ' class="actif"' : '') + '>' + esc(a) + '</button>').join('');
+  box.classList.add('open');
+}
+function masquerSuggestions(){ $('suggestions').classList.remove('open'); $('suggestions').innerHTML = ''; }
+function renderChips(){
+  const c = $('chips');
+  if (!produitsSelectionnes.length){ c.innerHTML = '<span class="vide">' + esc(V.formAucunProduit) + '</span>'; return; }
+  c.innerHTML = produitsSelectionnes.map((p, i) =>
+    '<span class="chip">' + esc(p) + '<button type="button" data-retirer="' + i + '" aria-label="Retirer">✕</button></span>').join('');
+}
+async function validerCampagne(){
+  const nom = $('promoNom').value.trim();
+  const dateDebut = $('promoDateDebut').value, dateFin = $('promoDateFin').value;
+  const msg = $('formMessage');
+  msg.innerHTML = '';
+  const erreur = t => { msg.innerHTML = '<div class="msg-erreur">' + esc(t) + '</div>'; };
+  if (!nom || !dateDebut || !dateFin || !etatForm.type || !etatForm.nature || !etatForm.objectif) return erreur(V.formManque);
+  if (dateFin < dateDebut) return erreur(V.formDates);
+  const libre = $('promoObjectifLibre').value.trim();
+  if (etatForm.objectif === 'autre' && !libre) return erreur(V.formAutre);
+  const btn = $('btnValider');
+  btn.disabled = true; btn.textContent = V.formEnregistrement;
+  const { error } = await nexusClient.from('campagnes_nexus').insert({
+    site: SITE_ID, nom, date_debut: dateDebut, date_fin: dateFin, type: etatForm.type,
+    produits_concernes: produitsSelectionnes, nature: etatForm.nature, objectif: etatForm.objectif,
+    objectif_libre: etatForm.objectif === 'autre' ? libre : null, cree_par: EMPLOYEE.id,
+  });
+  btn.disabled = false; btn.textContent = V.formValider;
+  if (error){ console.error('campagnes_nexus insert', error); return erreur(V.formErreur); }
+  msg.innerHTML = '<div class="msg-ok">' + esc(V.formOk) + '</div>';
+  setTimeout(async () => { toggleForm(); await chargerEtAfficher(); }, 700);
+}
+function brancherFormulaire(){
+  $('btnNouvelle').addEventListener('click', toggleForm);
+  $('btnValider').addEventListener('click', validerCampagne);
+  $('btnAjouterProduit').addEventListener('click', () => ajouterUnProduit($('promoProduitInput').value));
+  $('promoForm').addEventListener('click', e => {
+    const p = e.target.closest('.pill[data-groupe]');
+    if (p) choisirPill(p.dataset.groupe, p.dataset.valeur, p);
+    const r = e.target.closest('[data-retirer]');
+    if (r){ produitsSelectionnes.splice(Number(r.dataset.retirer), 1); renderChips(); }
+  });
+  $('suggestions').addEventListener('mousedown', e => {
+    const b = e.target.closest('button[data-nom]');
+    if (b){ e.preventDefault(); ajouterUnProduit(b.dataset.nom); }
+  });
+  $('promoProduitInput').addEventListener('input', rechercherProduits);
+  $('promoProduitInput').addEventListener('blur', () => setTimeout(masquerSuggestions, 150));
+  $('promoProduitInput').addEventListener('keydown', e => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    const a = document.querySelector('#suggestions button.actif') || document.querySelector('#suggestions button');
+    ajouterUnProduit(a ? a.dataset.nom : $('promoProduitInput').value);
+  });
+  renderChips();
+}
+
+/* ---------- Affichage ---------- */
+function ligne(cle, val){ return '<div class="ligne"><span class="cle">' + esc(cle) + '</span><span class="val">' + val + '</span></div>'; }
+function badgesDe(i){
+  const obj = i.objectif === 'autre' ? (i.objectifLibre || NC.OBJECTIF_CAMPAGNE_LABELS.autre) : NC.OBJECTIF_CAMPAGNE_LABELS[i.objectif];
+  return [NC.TYPE_CAMPAGNE_LABELS[i.type], NC.NATURE_CAMPAGNE_LABELS[i.nature], obj].filter(Boolean)
+    .map(t => '<span class="badge">' + esc(t) + '</span>').join('');
+}
+function libelleStatut(s){ return s === 'encours' ? V.badgeEnCours : (s === 'avenir' ? V.badgeAVenir : V.badgeTerminee); }
+
+function carteResume(i){
+  const s = statutDe(i);
+  return '<div class="promo"><div class="promo-haut"><div><div class="promo-nom">' + esc(i.nom) + '</div>' +
+    '<div class="promo-dates">' + esc(fmtDateCourt(i.dateDebut)) + ' → ' + esc(fmtDateCourt(i.dateFin)) + '</div></div>' +
+    '<span class="statut ' + (s === 'encours' ? 'encours' : '') + '">' + esc(libelleStatut(s)) + '</span></div>' +
+    '<div class="badges">' + badgesDe(i) + '</div></div>';
+}
+
+function bilanPanier(pm){
+  if (!pm) return '';
+  if (!pm.disponible){
+    const texte = pm.nbAvant === undefined ? V.panierAucun : V.panierInsuffisant;
+    return '<div class="sous-titre">' + esc(V.panier) + '</div><div class="note">' + esc(texte) + '</div>';
+  }
+  let h = '<div class="sous-titre">' + esc(V.tickets) + '</div>';
+  h += ligne(V.avant, esc(fmtNb(pm.moyTicketsAvant)));
+  h += ligne(V.pendant, esc(fmtNb(pm.moyTicketsPendant)) + ' (' + esc(fmtPct(pm.evolutionTicketsPendant)) + ')');
+  if (pm.moyTicketsApres !== null) h += ligne(V.apres, esc(fmtNb(pm.moyTicketsApres)) + ' (' + esc(fmtPct(pm.evolutionTicketsApres)) + ')');
+  h += '<div class="sous-titre">' + esc(V.panier) + '</div>';
+  if (pm.moyPanierAvant !== null) h += ligne(V.avant, esc(fmtEur2(pm.moyPanierAvant)));
+  if (pm.moyPanierPendant !== null) h += ligne(V.pendant, esc(fmtEur2(pm.moyPanierPendant)) + ' (' + esc(fmtPct(pm.evolutionPanierPendant)) + ')');
+  if (pm.moyPanierApres !== null) h += ligne(V.apres, esc(fmtEur2(pm.moyPanierApres)) + ' (' + esc(fmtPct(pm.evolutionPanierApres)) + ')');
+  return h;
+}
+
+function carteHistorique(i){
+  const s = statutDe(i);
+  let h = '<div class="promo"><div class="promo-haut"><div><div class="promo-nom">' + esc(i.nom) + '</div>' +
+    '<div class="promo-dates">' + esc(fmtDateCourt(i.dateDebut)) + ' → ' + esc(fmtDateCourt(i.dateFin)) + '</div></div>' +
+    '<span class="statut ' + (s === 'encours' ? 'encours' : '') + '">' + esc(libelleStatut(s)) + '</span></div>' +
+    '<div class="badges">' + badgesDe(i) + '</div>';
+  if (i.produitsConcernes.length){
+    h += '<div class="promo-produits"><b>' + esc(V.produitsLigne) + ' :</b> ' + i.produitsConcernes.map(esc).join(', ') + '</div>';
+  }
+  if (i.disponible){
+    h += ligne(V.avant, esc(i.nbAvant) + ' j · ' + esc(fmtEur(i.moyAvant)) + esc(V.parJour));
+    h += ligne(V.pendant, esc(fmtEur(i.moyPendant)) + esc(V.parJour) + ' (' + esc(fmtPct(i.evolutionPendant)) + ')');
+    if (i.moyApres !== null) h += ligne(V.apres, esc(fmtEur(i.moyApres)) + esc(V.parJour) + ' (' + esc(fmtPct(i.evolutionApres)) + ')');
+  } else {
+    h += '<div class="note">' + esc(V.nonCalculable(i.nbAvant, i.nbPendant, NC.MIN_JOURS_COMPARABLES)) + '</div>';
+  }
+  if (i.type === 'boutique' || i.type === 'mixte') h += bilanPanier(i.impactPanierMoyen);
+  return h + '</div>';
+}
+
+function texteConseiller(impacts){
+  if (!impacts.length) return '<p>' + esc(V.conseillerAucune) + '</p>';
+  const st = impacts.map(statutDe);
+  const n = k => st.filter(x => x === k).length;
+  let h = '<p>' + esc(V.conseillerCompte(impacts.length, n('encours'), n('terminee'), n('avenir'))) + '</p>';
+  const derniere = impacts.find((x, k) => st[k] === 'terminee') || impacts[0];
+  h += '<p>' + esc(V.conseillerDerniere(derniere.nom, fmtDateCourt(derniere.dateDebut), fmtDateCourt(derniere.dateFin))) + '</p>';
+  let mesure;
+  if (!derniere.produitsConcernes.length) mesure = V.conseillerSansProduit;
+  else if (derniere.impactProduits && derniere.impactProduits.disponible) mesure = V.conseillerProduitsImportes;
+  else mesure = V.conseillerNonMesurable;
+  return h + '<p>' + esc(mesure) + '</p>';
+}
+
+function afficher(){
+  $('cTexte').innerHTML = texteConseiller(IMPACTS);
+  const encours = IMPACTS.filter(i => statutDe(i) === 'encours');
+  $('enCours').innerHTML = encours.length ? encours.map(carteResume).join('') : '<div class="vide">' + esc(V.enCoursAucune) + '</div>';
+  const terminees = IMPACTS.filter(i => statutDe(i) === 'terminee');
+  $('derniere').innerHTML = terminees.length ? carteResume(terminees[0]) : '<div class="vide">' + esc(V.derniereAucune) + '</div>';
+  $('historique').innerHTML = IMPACTS.length ? IMPACTS.map(carteHistorique).join('') : '<div class="vide">' + esc(V.historiqueVide) + '</div>';
+}
+
+async function chargerEtAfficher(){
+  const [aud, camp, prod, imp, pan] = await Promise.all([
+    fetchAllRows(() => nexusClient.from('audits_caisse').select('date, quart, vente_piste, vente_boutique').eq('site', SITE_ID).order('date', {ascending: true})),
+    nexusClient.from('campagnes_nexus').select('id, nom, date_debut, date_fin, type, produits_concernes, nature, objectif, objectif_libre, cree_le').eq('site', SITE_ID).order('date_debut', {ascending: false}),
+    fetchAllRows(() => nexusClient.from('products').select('article, categorie, periode_debut, periode_fin, quantite, ca, marge').eq('site', SITE_ID)),
+    nexusClient.from('campagnes_nexus_imports').select('campagne_id, phase, periode_debut, periode_fin').eq('site', SITE_ID),
+    fetchAllRows(() => nexusClient.from('panier_moyen_quotidien').select('date, nb_tickets, panier_moyen_ht, panier_moyen_ttc').eq('site', SITE_ID).order('date', {ascending: true})),
+  ]);
+  [['audits_caisse', aud], ['campagnes_nexus', camp], ['products', prod], ['campagnes_nexus_imports', imp], ['panier_moyen_quotidien', pan]]
+    .forEach(([n, r]) => { if (r.error) console.error(n, r.error); });
+  if (camp.error){ $('cTexte').innerHTML = '<p>' + esc(V.erreurChargement) + '</p>'; return; }
+
+  const produitsRows = prod.data || [];
+  const cat = new Map();
+  produitsRows.forEach(p => { if (p.article && !cat.has(p.article)) cat.set(p.article, p.categorie); });
+  CATALOGUE_ARTICLES = Array.from(cat.keys()).sort((a, b) => a.localeCompare(b, 'fr'));
+
+  const jours = NexusTempo.filtrerJoursClos(NexusTempo.agregerParJour(aud.data || []));
+  IMPACTS = NC.analyserCampagnes(camp.data || [], jours);
+  IMPACTS.forEach(i => {
+    const liees = (imp.data || []).filter(x => x.campagne_id === i.campagneId);
+    i.impactProduits = NC.analyserImpactProduits(i, liees, produitsRows);
+    i.impactPanierMoyen = NC.analyserImpactPanierMoyen(i, pan.data || []);
+  });
+  afficher();
+}
+
+peindreTextesFixes();
+brancherFormulaire();
+nexusRequireAuth().then(async employee => {
+  if (!employee) return;
+  if (employee.role !== 'manager' && employee.role !== 'gerant'){
+    $('app').innerHTML = '<div class="reserve">' + esc(V.reserve) + '</div>';
+    return;
+  }
+  EMPLOYEE = employee; SITE_ID = employee.site_id;
+  if (!(await NexusForfait.nexusRequireProfessional('NEXUS-Campagne-v2.html', SITE_ID))) return;
+  await chargerEtAfficher();
+});
+</script>
+</body>
+</html>
