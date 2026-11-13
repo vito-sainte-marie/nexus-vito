@@ -2889,6 +2889,99 @@
     };
   }
 
+  // ------------------------------------------------------------
+  // Carte « Les vacances changent-elles mon activité ? » (12/11/2026, arbitrages A, B, C de Frédéric).
+  // Calcul pur, aucun mot d'affichage (tout vient de NexusVocab.vacances).
+  //   - Deux groupes comparés chacun à « hors vacances », à jour de semaine égal : petites vacances
+  //     (Toussaint, Noël, Carnaval, Pâques) et vacances d'été. Le pont de l'Ascension n'entre dans aucun groupe.
+  //   - G5 par groupe : 4 jours complets au moins par jour de semaine, des deux côtés, sinon ce jour est insuffisant.
+  //   - Fériés et ponts exclus des deux côtés (comptés). Jours hors norme : résultat sans eux et avec eux.
+  //   - Fenêtre : 52 semaines closes (lundi au dimanche), jour en cours exclu (date station), bornée au début des données.
+  //   - Verdict par groupe : 4 jours de semaine lisibles sur 7 au moins ; écart net si la moitié des jours lisibles
+  //     vont dans le même sens et qu'aucun écart net ne va dans l'autre ; sens opposés : partage ; sinon pas d'écart net.
+  // ------------------------------------------------------------
+  const FENETRE_VACANCES_SEMAINES = 52;
+  const JOURS_LISIBLES_MIN_VACANCES = 4;
+  const GROUPES_VACANCES = ['petites', 'ete'];
+  function groupeDeVacances(libelle) {
+    const l = String(libelle || '').toLowerCase();
+    if (/ascension/.test(l)) return 'pont';
+    if (/toussaint|noël|noel|carnaval|pâques|paques|pascal/.test(l)) return 'petites';
+    if (/été|grandes vacances/.test(l)) return 'ete';
+    return 'autre';
+  }
+  function fenetreVacances(joursTous, aujourdhui) {
+    const dimanche = j => { let d = j; while (jourSemaineISO(d) !== 0) d = decalerJourISO(d, -1); return d; };
+    const fin = dimanche(decalerJourISO(aujourdhui, -1));
+    const debutTheorique = decalerJourISO(fin, -(7 * FENETRE_VACANCES_SEMAINES - 1));
+    const dates = (joursTous || []).map(j => j.date).filter(Boolean).sort();
+    const premier = dates.length ? dates[0] : null;
+    const debut = premier && premier > debutTheorique ? premier : debutTheorique;
+    return { debut, fin, borneParLesDonnees: !!(premier && premier > debutTheorique) };
+  }
+  function calculVacancesGroupe(jours, groupe) {
+    const seuil = OCCURRENCES_MIN_JOUR;
+    const parJour = ORDRE_JOURS_SEMAINE.map(js => {
+      const V = jours.filter(j => j.groupe === groupe && jourSemaineISO(j.date) === js).map(j => j.valeur);
+      const H = jours.filter(j => j.groupe === 'hors' && jourSemaineISO(j.date) === js).map(j => j.valeur);
+      const suffisant = V.length >= seuil && H.length >= seuil;
+      const p = { jourSemaine: js, effectifVacances: V.length, effectifHors: H.length, suffisant };
+      if (!suffisant) return Object.assign(p, { sens: null, net: false, pct: null });
+      const mV = moyenneTab(V), mH = moyenneTab(H), ecart = mV - mH;
+      const se = Math.sqrt(varianceEchantillon(V, mV) / V.length + varianceEchantillon(H, mH) / H.length);
+      const net = se > 0 ? Math.abs(ecart) > SEUIL_ECART_TYPES * se : ecart !== 0;
+      return Object.assign(p, { moyenneVacances: mV, moyenneHors: mH, ecart, pct: net ? pourcentage(mV, mH) : null, net, sens: net ? (ecart > 0 ? 'hausse' : 'baisse') : null });
+    });
+    const lisibles = parJour.filter(p => p.suffisant);
+    if (lisibles.length < JOURS_LISIBLES_MIN_VACANCES) return { etat: 'grise', verdict: null, sens: null, parJour, lisibles: lisibles.length };
+    const hausse = lisibles.filter(p => p.sens === 'hausse').length, baisse = lisibles.filter(p => p.sens === 'baisse').length;
+    let verdict = 'pas-ecart', sens = null;
+    if (hausse > 0 && baisse > 0) verdict = 'partage';
+    else if (Math.max(hausse, baisse) > 0 && Math.max(hausse, baisse) >= SEUIL_RYTHME_RECURRENT * lisibles.length) { verdict = 'net'; sens = hausse ? 'hausse' : 'baisse'; }
+    return { etat: 'lisible', verdict, sens, parJour, lisibles: lisibles.length, nbHausse: hausse, nbBaisse: baisse };
+  }
+  function vacancesParJourSemaine(joursTous, lignesCalendrier, aujourdhui) {
+    const fen = fenetreVacances(joursTous, aujourdhui);
+    const lignes = (lignesCalendrier || []).filter(l => l && l.date);
+    const feriesSite = new Set(lignes.filter(l => l.type === 'ferie').map(l => String(l.date).slice(0, 10)));
+    const libellesFeries = new Map();
+    lignes.filter(l => l.type === 'ferie' && l.libelle).forEach(l => libellesFeries.set(String(l.date).slice(0, 10), String(l.libelle).trim()));
+    const vac = new Map();
+    lignes.filter(l => l.type === 'vacances').forEach(l => vac.set(String(l.date).slice(0, 10), String(l.libelle || '').trim()));
+    const exclus = { feries: 0, ponts: 0, ascension: 0, autres: 0 };
+    const jours = [];
+    (joursTous || []).filter(j => j && j.date && Number.isFinite(j.valeur) && j.date >= fen.debut && j.date <= fen.fin).forEach(j => {
+      const sp = qualifierJourSpecial(j.date, feriesSite, libellesFeries);
+      if (sp) { exclus[sp.type === 'ferie' ? 'feries' : 'ponts']++; return; }
+      if (!vac.has(j.date)) { jours.push({ date: j.date, valeur: j.valeur, groupe: 'hors' }); return; }
+      const g = groupeDeVacances(vac.get(j.date));
+      if (g === 'pont') { exclus.ascension++; return; }
+      if (g === 'autre') { exclus.autres++; return; }
+      jours.push({ date: j.date, valeur: j.valeur, groupe: g, libelle: vac.get(j.date) });
+    });
+    const exc = new Set(joursExceptionnels(jours).map(j => j.date));
+    const sansExc = jours.filter(j => !exc.has(j.date));
+    const groupes = {};
+    GROUPES_VACANCES.forEach(g => {
+      const sans = calculVacancesGroupe(sansExc, g), avec = calculVacancesGroupe(jours, g);
+      const pris = jours.filter(j => j.groupe === g).sort((a, b) => a.date < b.date ? -1 : 1);
+      const periodes = [];
+      pris.forEach(j => {
+        const dernier = periodes[periodes.length - 1];
+        if (dernier && dernier.libelle === j.libelle && j.date <= decalerJourISO(dernier.fin, 7)) { dernier.fin = j.date; dernier.nbJours++; }
+        else periodes.push({ libelle: j.libelle, debut: j.date, fin: j.date, nbJours: 1 });
+      });
+      const parMois = new Array(12).fill(0);
+      pris.forEach(j => { parMois[Number(j.date.slice(5, 7)) - 1]++; });
+      groupes[g] = { sans, avec, periodes, nbJours: pris.length, parMois, changeAvecSans: sans.verdict !== avec.verdict || sans.etat !== avec.etat };
+    });
+    return {
+      fenetre: fen, semaines: FENETRE_VACANCES_SEMAINES, groupes, exclus,
+      nbHors: jours.filter(j => j.groupe === 'hors').length,
+      exceptionnels: [...exc].sort(), aDesExceptionnels: exc.size > 0,
+    };
+  }
+
   window.NexusTempo = {
     syntheseEnBref, joursFortsFaibles, joursFortsFaiblesMesures, lignesJours, tuilesJours, RATIO_CV_IRREGULIER,
     SEUILS, NOM_JOURS, NOM_JOURS_COURT, NOM_MOIS, LITRAGE_INDISPONIBLE, VALORISATION_INDISPONIBLE, SOURCES_DONNEES, COORDONNEES_STATION,
@@ -2915,6 +3008,7 @@
     candidatsDecouvertes, candidatRelation, classerDecouvertes, selectionnerDecouvertes, decouvertesEcartees, NB_DECOUVERTES_ACCUEIL, RANGS_PERDUS_FRAICHEUR,
     analyseBoutique, SEUIL_MARGE_GLOBALE_PCT, SEUIL_MARGE_GLOBALE_EUROS_JOUR, SEUIL_CATEGORIE_EUROS_JOUR, SEUIL_CONCENTRATION_CATEGORIE, SEUIL_CA_DECROCHAGE_PCT,
     moisParMois, barresMois, phraseMois, ruptureTendance, phraseRupture, moisInhabituel, candidatsHistoriques, compositionMoisFdj, clesMoisEcoules, bornesMois, DEBUT_MOIS_PISTE, DEBUT_MOIS_FDJ, ECART_JOURS_COMPOSITION_MAX,
+    vacancesParJourSemaine, fenetreVacances, groupeDeVacances, FENETRE_VACANCES_SEMAINES,
     analyseFdj, constatCompositionFdj, detailPaliersFdj, detailJeuxFdj, joursFamilleFdj, FAMILLES_FDJ, SEUIL_PART_FAMILLE, AUTRE_FAMILLE_NETTE_EMPECHE_CITATION_SEULE,
   };
 })();
