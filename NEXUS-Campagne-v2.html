@@ -128,6 +128,35 @@ a{color:inherit;}
 .etat.e-a-renouveler{border-color:var(--t-green);}
 .etat.e-non-mesurable{border-color:var(--t-mid); border-style:dashed;}
 .reserve{margin:40px auto; padding:24px; text-align:center; color:var(--t-mid);}
+
+/* Simulateur de promotion */
+button.tuile{display:block; width:100%; text-align:left; font-family:var(--t-sans); color:var(--t-text); cursor:pointer;}
+button.tuile:hover, button.tuile:focus-visible{border-color:var(--t-cyan);}
+.sim{margin-top:16px;}
+.sim[hidden]{display:none;}
+.sim-banniere{border:1px solid var(--t-amber); border-radius:12px; padding:12px 14px; background:color-mix(in srgb, var(--t-amber) 10%, transparent); margin-bottom:14px;}
+.sim-banniere strong{display:block; overflow-wrap:anywhere;}
+.sim-banniere span{display:block; font-size:12.5px; color:var(--t-mid); margin-top:4px; overflow-wrap:anywhere;}
+.sim-produit{border:1px solid var(--t-line); border-radius:12px; padding:12px; margin-bottom:12px; background:var(--t-panel); min-width:0;}
+.sim-grille{display:grid; grid-template-columns:1fr; gap:10px; margin-top:10px;}
+@media (min-width:600px){.sim-grille{grid-template-columns:1fr 1fr;}}
+.sim-grille label, .sim-produit > label{display:block; font-size:12.5px; color:var(--t-mid); min-width:0; overflow-wrap:anywhere;}
+.sim-grille input, .sim-produit input{display:block; width:100%; min-width:0; min-height:44px; margin-top:4px; box-sizing:border-box; background:var(--t-raised); border:1px solid var(--t-line); border-radius:8px; color:var(--t-text); padding:8px 10px; font-family:var(--t-sans); font-size:14px;}
+.sim-source{font-size:12px; color:var(--t-mid); margin-top:4px; overflow-wrap:anywhere;}
+.sim-alerte{font-size:12.5px; margin-top:6px; color:var(--t-amber); overflow-wrap:anywhere;}
+.sim-aide{margin-top:10px; font-size:12.5px;}
+.sim-aide summary{cursor:pointer; min-height:44px; display:flex; align-items:center;}
+.sim-res{margin-top:12px; font-size:13.5px; overflow-wrap:anywhere;}
+.sim-res .ligne-res{display:flex; justify-content:space-between; gap:12px; padding:6px 0; border-bottom:1px solid var(--t-line);}
+.sim-res .ligne-res span:first-child{min-width:0; color:var(--t-mid);}
+.sim-res .ligne-res span:last-child{flex:none; text-align:right;}
+.sim-table{width:100%; table-layout:fixed; border-collapse:collapse; margin-top:10px; font-size:12px;}
+.sim-table th, .sim-table td{padding:6px 4px; border-bottom:1px solid var(--t-line); text-align:right; vertical-align:top; overflow-wrap:anywhere; word-break:break-word;}
+.sim-table th:first-child, .sim-table td:first-child{text-align:left;}
+.sim-etiquette{display:inline-block; font-size:12px; padding:3px 10px; border-radius:20px; border:1px solid var(--t-line); background:var(--t-raised); margin-bottom:6px;}
+.sim-perte{color:var(--t-red);}
+.sim-actions{display:flex; flex-wrap:wrap; gap:10px; margin-top:8px;}
+.sim-actions button{min-height:44px;}
 </style>
 </head>
 <body>
@@ -189,6 +218,14 @@ a{color:inherit;}
   <div class="titre-section" id="tOutils"></div>
   <div class="tuiles" id="tuiles"></div>
 
+  <section class="sim" id="simulateur" hidden aria-labelledby="simTitre">
+    <div class="sim-banniere" role="note"><strong id="simBanniere"></strong><span id="simBanniereTexte"></span></div>
+    <div class="titre-section" id="simTitre"></div>
+    <div id="simProduits"></div>
+    <div class="sim-actions"><button type="button" class="btn" id="simAjouter"></button><button type="button" class="btn" id="simFermer"></button></div>
+    <div class="sim-res" id="simResultat" aria-live="polite"></div>
+  </section>
+
   <div class="titre-section" id="tHistorique"></div>
   <div class="intro-historique" id="introHistorique"></div>
   <div id="historique"></div>
@@ -211,12 +248,14 @@ a{color:inherit;}
 <script src="nexus-tempo.js?v=20261112-1500"></script>
 <script src="nexus-periodes.js?v=20260904-0104"></script>
 <script src="nexus-campagnes.js?v=20260904-0104"></script>
+<script src="nexus-simulateur-promo.js?v=20261113-1000"></script>
 <script>
 const V = window.NexusVocab.campagne;
 const NC = window.NexusCampagnes;
 const IC = 'assets/icones/campagne/';
 let EMPLOYEE = null, SITE_ID = null;
 let CATALOGUE_ARTICLES = [];
+let PRODUITS_ROWS = [];
 let IMPACTS = [];
 
 function esc(s){
@@ -286,15 +325,18 @@ function peindreTextesFixes(){
   $('gType').innerHTML = pills('type', NC.TYPE_CAMPAGNE_LABELS);
   $('gNature').innerHTML = pills('nature', NC.NATURE_CAMPAGNE_LABELS);
   $('gObjectif').innerHTML = pills('objectif', NC.OBJECTIF_CAMPAGNE_LABELS);
-  $('tuiles').innerHTML = V.cartes.map(c =>
-    '<div class="tuile" aria-disabled="true" data-carte="' + esc(c.cle) + '">' +
+  $('tuiles').innerHTML = V.cartes.map(c => {
+    const corps =
       '<img class="picto-p" src="' + IC + 'premium/campagne-' + esc(c.cle) + '.svg"' +
       ' srcset="' + IC + 'premium/campagne-' + esc(c.cle) + '-48.webp 48w, ' + IC + 'premium/campagne-' + esc(c.cle) + '-96.webp 96w, ' + IC + 'premium/campagne-' + esc(c.cle) + '-144.webp 144w"' +
       ' sizes="48px" width="48" height="48" alt="">' +
       '<span class="t-titre">' + esc(c.titre) + '</span>' +
-      '<span class="t-sous">' + esc(c.texte) + '</span>' +
-      '<span class="prep">' + esc(V.enPreparation) + '</span>' +
-    '</div>').join('');
+      '<span class="t-sous">' + esc(c.texte) + '</span>';
+    return c.dispo
+      ? '<button type="button" class="tuile" data-carte="' + esc(c.cle) + '">' + corps + '</button>'
+      : '<div class="tuile" aria-disabled="true" data-carte="' + esc(c.cle) + '">' + corps +
+        '<span class="prep">' + esc(V.enPreparation) + '</span></div>';
+  }).join('');
   if (apercuEtats) $('etats').innerHTML = V.etats.map(e =>
     '<span class="etat e-' + esc(e.cle) + '"><img src="' + IC + 'simple/campagne-rentabilite-' + esc(e.cle) + '.svg" width="24" height="24" alt="">' + esc(e.libelle) + '</span>').join('');
 }
@@ -489,6 +531,7 @@ async function chargerEtAfficher(){
   if (camp.error){ $('cTexte').innerHTML = '<p>' + esc(V.erreurChargement) + '</p>'; return; }
 
   const produitsRows = prod.data || [];
+  PRODUITS_ROWS = produitsRows;
   const cat = new Map();
   produitsRows.forEach(p => { if (p.article && !cat.has(p.article)) cat.set(p.article, p.categorie); });
   CATALOGUE_ARTICLES = Array.from(cat.keys()).sort((a, b) => a.localeCompare(b, 'fr'));
@@ -503,7 +546,218 @@ async function chargerEtAfficher(){
   afficher();
 }
 
+/* ---------- Simulateur de promotion (aucune écriture : calcul local uniquement) ---------- */
+const SIM = window.NexusSimulateurPromo;
+const SV = V.sim;
+const SIM_CHAMPS = ['ventes', 'achatAvant', 'achatPendant', 'venteAvant', 'ventePendant', 'jours'];
+const SIM_VOLUMES_LANCEMENT = [100, 250, 500, 1000];
+let SIM_ETAT = [];
+
+const nombre = v => {
+  const t = String(v == null ? '' : v).replace(/\s/g, '').replace(',', '.');
+  if (t === '') return null;
+  const n = Number(t);
+  return isFinite(n) ? n : null;
+};
+const fmtPrix = v => v.toLocaleString('fr-FR', {minimumFractionDigits: 2, maximumFractionDigits: 3}) + ' €';
+const fmtDec1 = v => v.toLocaleString('fr-FR', {minimumFractionDigits: 1, maximumFractionDigits: 1});
+const fmtSigne = v => (v >= 0 ? '+' : '-') + Math.abs(Math.round(v)).toLocaleString('fr-FR') + ' €';
+const saisie = v => (v == null ? '' : String(Math.round(v * 1000) / 1000).replace('.', ','));
+
+function libellePeriode(p){
+  const d = NexusTempo.dateLocale(p.debut), f = NexusTempo.dateLocale(p.fin);
+  const finMois = new Date(f.getFullYear(), f.getMonth() + 1, 0).getDate();
+  if (d.getDate() === 1 && f.getDate() === finMois && d.getMonth() === f.getMonth() && d.getFullYear() === f.getFullYear()){
+    const m = d.toLocaleDateString('fr-FR', {month: 'long', year: 'numeric'});
+    return m.charAt(0).toUpperCase() + m.slice(1);
+  }
+  return fmtDateCourt(p.debut) + ' au ' + fmtDateCourt(p.fin);
+}
+
+function simNouveau(){
+  return { article: '', ventes: '', achatAvant: '', achatPendant: '', venteAvant: '', ventePendant: '', jours: '30',
+           info: null, catalogue: '', remise: '', octroi: '' };
+}
+
+function simPeindreProduit(e, i){
+  const champ = (cle, lib) => '<label>' + esc(lib) + '<input type="text" inputmode="decimal" autocomplete="off" data-i="' + i + '" data-champ="' + cle + '" value="' + esc(e[cle]) + '"></label>';
+  let info = '';
+  if (e.info){
+    info += '<div class="sim-source">' + esc(SV.source(fmtDateCourt(e.info.source.debut), fmtDateCourt(e.info.source.fin))) + '</div>';
+    info += '<div class="sim-source">' + esc(SV.coutDecenium) + '</div>';
+    if (e.info.prixBasRecent) info += '<div class="sim-alerte">' + esc(SV.prixBas) + '</div>';
+    info += '<label>' + esc(SV.prixNormal) + '<input type="text" inputmode="decimal" autocomplete="off" data-i="' + i + '" data-champ="prixNormal" value="' + esc(saisie(e.info.prixReference)) + '"></label>';
+    info += '<div class="sim-source">' + esc(SV.prixNormalNote) + '</div>';
+    if (e.info.reduites.length){
+      info += '<div class="sim-source"><strong>' + esc(SV.rappelTitre) + '</strong></div>' +
+        e.info.reduites.map(r => '<div class="sim-source">' + esc(SV.rappelLigne(libellePeriode(r), fmtEur2(r.prixMoyen), fmtDec1(r.parJour))) + '</div>').join('');
+    }
+  }
+  return '<div class="sim-produit" data-produit="' + i + '">' +
+    '<label>' + esc(SV.article) + '<input type="text" autocomplete="off" placeholder="' + esc(SV.articleSaisie) + '" data-i="' + i + '" data-champ="article" value="' + esc(e.article) + '"></label>' +
+    '<div class="sugg" data-sugg="' + i + '"></div>' + info +
+    '<div class="sim-grille">' + champ('ventes', SV.ventesMois) + champ('jours', SV.duree) +
+      champ('achatAvant', SV.achatAvant) + champ('achatPendant', SV.achatPendant) +
+      champ('venteAvant', SV.venteAvant) + champ('ventePendant', SV.ventePendant) + '</div>' +
+    '<details class="sim-aide"><summary>' + esc(SV.aideAchat) + '</summary><div class="sim-grille">' +
+      champ('catalogue', SV.prixCatalogue) + champ('remise', SV.remise) + champ('octroi', SV.octroi) +
+      '<div><div class="sim-source" data-net="' + i + '"></div><button type="button" class="btn" data-appliquer="' + i + '">' + esc(SV.appliquer) + '</button></div>' +
+    '</div></details>' +
+    '<div class="sim-actions"><button type="button" class="btn" data-retirer="' + i + '">' + esc(SV.retirer) + '</button></div>' +
+    '<div class="sim-res" data-res="' + i + '"></div>' +
+  '</div>';
+}
+
+function simPeindre(){
+  $('simProduits').innerHTML = SIM_ETAT.map(simPeindreProduit).join('');
+  SIM_ETAT.forEach((e, i) => simMajNet(i));
+  simCalculer();
+}
+
+function simMajNet(i){
+  const e = SIM_ETAT[i], zone = document.querySelector('[data-net="' + i + '"]');
+  if (!zone) return;
+  const c = nombre(e.catalogue);
+  if (c === null){ zone.textContent = ''; return; }
+  const net = SIM.prixNet(c, nombre(e.remise) || 0, nombre(e.octroi) || 0);
+  zone.textContent = SV.prixNet + ' : ' + fmtPrix(net);
+  zone.dataset.valeur = String(net);
+}
+
+function simMode(e){
+  const v = nombre(e.ventes);
+  return (v === null || v <= 0) ? 'lancement' : 'compensation';
+}
+
+function simResultatProduit(e){
+  const jours = nombre(e.jours) || 30;
+  const venteAvant = nombre(e.venteAvant), ventePendant = nombre(e.ventePendant);
+  const achatPendant = nombre(e.achatPendant), achatAvant = nombre(e.achatAvant);
+  if (simMode(e) === 'lancement'){
+    const achat = achatPendant !== null ? achatPendant : achatAvant;
+    if (achat === null || venteAvant === null || ventePendant === null) return { html: '', calc: null };
+    const r = SIM.calculerLancement({achat, venteNormale: venteAvant, ventePromo: ventePendant, jours}, SIM_VOLUMES_LANCEMENT);
+    let h = '<span class="sim-etiquette">' + esc(SV.lancement) + '</span><div class="sim-source">' + esc(SV.lancementTexte) + '</div>';
+    if (r.venteAPerte) h += '<div class="sim-alerte sim-perte">' + esc(SV.venteAPerte) + '</div>';
+    if (r.irrecuperable) h += '<div class="sim-alerte sim-perte">' + esc(SV.irrecuperable) + '</div>';
+    const mois = [1, 2, 3];
+    h += '<table class="sim-table"><thead><tr><th>' + esc(SV.lancementVolumes) + '</th><th>' + esc(SV.colCout) + '</th><th>' + esc(SV.margePromo) + '</th>' +
+      mois.map(m => '<th>' + esc(SV.colMensuel(m)) + '</th>').join('') + '</tr></thead><tbody>' +
+      r.lignes.map(l => '<tr><td>' + fmtNb(l.volume) + '</td><td>' + fmtEur(l.cout) + '</td><td>' + fmtEur(l.margePromo) + '</td>' +
+        l.mensuel.map(m => '<td>' + (m.ventes === null ? esc(SV.irrecuperable) : fmtNb(m.ventes)) + '</td>').join('') + '</tr>').join('') +
+      '</tbody></table>';
+    return { html: h, calc: null };
+  }
+  if ([achatAvant, achatPendant, venteAvant, ventePendant].some(v => v === null)) return { html: '', calc: null };
+  const r = SIM.calculerCompensation({ventesMoisPrecedent: nombre(e.ventes), achatAvant, achatPendant, venteAvant, ventePendant, jours});
+  const ligne = (a, b) => '<div class="ligne-res"><span>' + esc(a) + '</span><span>' + b + '</span></div>';
+  let h = ligne(SV.margeAvant, fmtPrix(r.margeAvant)) + ligne(SV.margePendant, fmtPrix(r.margePendant));
+  if (r.impossible){
+    h += '<div class="sim-alerte sim-perte">' + esc(SV.impossible) + '</div>';
+  } else {
+    h += ligne(SV.ratio, fmtDec1(r.ratio)) +
+      ligne(SV.ventesEquilibre, fmtNb(r.ventesEquilibre)) + ligne(SV.hausseEquilibre, '+' + fmtNb(r.hausseEquilibrePct) + ' %') +
+      ligne(SV.ventesRenouveler, fmtNb(r.ventesRenouveler)) + ligne(SV.hausseRenouveler, '+' + fmtNb(r.hausseRenouvelerPct) + ' %');
+  }
+  h += '<table class="sim-table"><thead><tr><th>' + esc(SV.colHypothese) + '</th><th>' + esc(SV.colVolume) + '</th><th>' + esc(SV.colMarge) + '</th><th>' + esc(SV.colEcart) + '</th></tr></thead><tbody>' +
+    r.hypotheses.map(x => '<tr><td>' + esc(SV.hyp[x.cle]) + '</td><td>' + fmtNb(x.volume) + '</td><td>' + fmtEur(x.margeTotale) + '</td><td>' + fmtSigne(x.ecart) + '</td></tr>').join('') +
+    '</tbody></table>';
+  return { html: h, calc: r };
+}
+
+function simCalculer(){
+  const calcs = [];
+  SIM_ETAT.forEach((e, i) => {
+    const r = simResultatProduit(e);
+    const zone = document.querySelector('[data-res="' + i + '"]');
+    if (zone) zone.innerHTML = r.html;
+    if (r.calc) calcs.push(r.calc);
+  });
+  let h = '';
+  if (!SIM_ETAT.length) h = '<div class="vide">' + esc(SV.vide) + '</div>';
+  if (calcs.length > 1){
+    const s = SIM.sommer(calcs);
+    h = '<div class="titre-section">' + esc(SV.total) + '</div><div class="sim-source">' + esc(SV.totalNote) + '</div>' +
+      '<table class="sim-table"><thead><tr><th>' + esc(SV.colHypothese) + '</th><th>' + esc(SV.colMarge) + '</th><th>' + esc(SV.colEcart) + '</th></tr></thead><tbody>' +
+      s.hypotheses.map(x => '<tr><td>' + esc(SV.hyp[x.cle]) + '</td><td>' + fmtEur(x.margeTotale) + '</td><td>' + fmtSigne(x.ecart) + '</td></tr>').join('') + '</tbody></table>';
+  }
+  $('simResultat').innerHTML = h;
+}
+
+function simPreremplir(i, article){
+  const e = SIM_ETAT[i];
+  e.article = article;
+  const s = SIM.suggestions(PRODUITS_ROWS, article, new Date());
+  e.info = s;
+  if (s){
+    e.ventes = saisie(s.ventesMoisPrecedent);
+    e.venteAvant = saisie(s.venteAvant);
+    e.achatAvant = saisie(s.achatAvant);
+  }
+  simPeindre();
+}
+
+function simBrancher(){
+  const zone = $('simProduits');
+  zone.addEventListener('input', ev => {
+    const el = ev.target;
+    if (!el.dataset || el.dataset.champ === undefined) return;
+    const i = Number(el.dataset.i), c = el.dataset.champ, e = SIM_ETAT[i];
+    if (c === 'article'){
+      e.article = el.value;
+      const q = el.value.trim().toLowerCase();
+      const box = document.querySelector('[data-sugg="' + i + '"]');
+      const liste = q ? CATALOGUE_ARTICLES.filter(a => a.toLowerCase().includes(q)).slice(0, 8) : [];
+      box.innerHTML = liste.map(a => '<button type="button" data-choix="' + i + '" data-article="' + esc(a) + '">' + esc(a) + '</button>').join('');
+      box.classList.toggle('open', liste.length > 0);
+      return;
+    }
+    if (c === 'prixNormal'){
+      e.venteAvant = el.value;
+      const cible = document.querySelector('[data-i="' + i + '"][data-champ="venteAvant"]');
+      if (cible) cible.value = el.value;
+    } else {
+      e[c] = el.value;
+    }
+    if (c === 'catalogue' || c === 'remise' || c === 'octroi') simMajNet(i);
+    simCalculer();
+  });
+  zone.addEventListener('click', ev => {
+    const b = ev.target.closest('button');
+    if (!b) return;
+    if (b.dataset.choix !== undefined) simPreremplir(Number(b.dataset.choix), b.dataset.article);
+    else if (b.dataset.retirer !== undefined){ SIM_ETAT.splice(Number(b.dataset.retirer), 1); simPeindre(); }
+    else if (b.dataset.appliquer !== undefined){
+      const i = Number(b.dataset.appliquer), z = document.querySelector('[data-net="' + i + '"]');
+      if (z && z.dataset.valeur){
+        SIM_ETAT[i].achatPendant = saisie(Number(z.dataset.valeur));
+        const cible = document.querySelector('[data-i="' + i + '"][data-champ="achatPendant"]');
+        if (cible) cible.value = SIM_ETAT[i].achatPendant;
+        simCalculer();
+      }
+    }
+  });
+  $('simAjouter').addEventListener('click', () => { SIM_ETAT.push(simNouveau()); simPeindre(); });
+  $('simFermer').addEventListener('click', () => { $('simulateur').hidden = true; });
+  const carte = document.querySelector('[data-carte="simulateur"]');
+  if (carte) carte.addEventListener('click', () => {
+    $('simulateur').hidden = false;
+    if (!SIM_ETAT.length) SIM_ETAT.push(simNouveau());
+    simPeindre();
+    $('simulateur').scrollIntoView({behavior: 'smooth', block: 'start'});
+  });
+}
+function simPeindreFixes(){
+  $('simBanniere').textContent = SV.banniere;
+  $('simBanniereTexte').textContent = SV.banniereTexte;
+  $('simTitre').textContent = SV.titre;
+  $('simAjouter').textContent = SV.ajouterProduit;
+  $('simFermer').textContent = SV.fermer;
+}
+
 peindreTextesFixes();
+simPeindreFixes();
+simBrancher();
 brancherFormulaire();
 nexusRequireAuth().then(async employee => {
   if (!employee) return;
