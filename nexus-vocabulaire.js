@@ -386,6 +386,98 @@
     boutique: 'Les jours fériés et les ponts ne sont pas comparés pour la boutique : la marge vient d\u2019imports qui couvrent des périodes, pas des journées.',
   };
 
+  // ------------------------------------------------------------
+  // Campagne NEXUS V2 (13/11/2026) : refonte visuelle, presentation seule.
+  // Aucun chiffre ni qualification de rentabilite n'est defini ici.
+  // ------------------------------------------------------------
+  NexusVocab.campagne = {
+    titre: 'Campagne NEXUS',
+    sousTitre: 'Vos promotions, en clair',
+    menu: '☰ Menu',
+    conseillerTitre: 'Conseiller NEXUS',
+    conseillerAucune: 'Aucune promotion n’est déclarée pour l’instant.',
+    conseillerCompte: function (total, enCours, terminees, aVenir) {
+      var s = total + (total > 1 ? ' promotions déclarées' : ' promotion déclarée');
+      var p = [];
+      if (enCours) p.push(enCours + ' en cours');
+      if (terminees) p.push(terminees + (terminees > 1 ? ' terminées' : ' terminée'));
+      if (aVenir) p.push(aVenir + ' à venir');
+      return s + (p.length ? ' : ' + p.join(', ') : '') + '.';
+    },
+    conseillerDerniere: function (nom, debut, fin) {
+      return 'Dernière promotion : « ' + nom + ' », du ' + debut + ' au ' + fin + '.';
+    },
+    conseillerNonMesurable: 'Sa rentabilité n’est pas mesurable : les ventes par produit avant et pendant la promotion n’ont pas été importées.',
+    conseillerSansProduit: 'Sa rentabilité n’est pas mesurable : aucun produit précis n’est associé à cette promotion.',
+    conseillerProduitsImportes: 'Les ventes par produit sont importées. Aucune qualification de rentabilité n’est encore définie.',
+    boutonNouvelle: '➕ Nouvelle promotion',
+    boutonAnnuler: '✕ Annuler',
+    enCoursTitre: 'En cours',
+    enCoursAucune: 'Aucune promotion en cours aujourd’hui.',
+    derniereTitre: 'Dernière promotion terminée',
+    derniereAucune: 'Aucune promotion terminée pour l’instant.',
+    outilsTitre: 'Pour aller plus loin',
+    enPreparation: 'En préparation',
+    cartes: [
+      { cle: 'promotions', titre: 'Mes promotions', texte: 'Retrouver toutes vos promotions au même endroit.' },
+      { cle: 'compensation', titre: 'Le volume compense-t-il la remise ?', texte: 'Voir si les ventes en plus couvrent la remise accordée.' },
+      { cle: 'produits-moteurs', titre: 'Mes produits moteurs', texte: 'Repérer les produits qui tirent vos promotions.' },
+      { cle: 'produits-a-revoir', titre: 'Mes produits à revoir', texte: 'Repérer les produits qui profitent peu des promotions.' },
+      { cle: 'simulateur', titre: 'Simuler une promotion', texte: 'Tester une idée de promotion avant de la lancer.' },
+      { cle: 'renouveler', titre: 'Quelles promotions renouveler ?', texte: 'Savoir quelles promotions méritent d’être reconduites.' },
+    ],
+    historiqueTitre: 'Historique des promotions',
+    historiqueIntro: 'Comparaison brute, non testée',
+    historiqueNote: 'Les chiffres ci-dessous comparent des moyennes. Ils ne disent pas si la promotion est rentable.',
+    historiqueVide: 'Aucune promotion déclarée pour l’instant. Utilisez « Nouvelle promotion » pour commencer.',
+    produitsLigne: 'Produits',
+    avant: 'Avant',
+    pendant: 'Pendant',
+    apres: 'Après',
+    tickets: 'Tickets par jour',
+    panier: 'Panier moyen',
+    nonCalculable: function (nbAvant, nbPendant, min) {
+      return 'Comparaison impossible : il faut au moins ' + min + ' jours avant et ' + min + ' jours pendant (' + nbAvant + ' avant, ' + nbPendant + ' pendant).';
+    },
+    panierAucun: 'Aucun panier moyen importé.',
+    panierInsuffisant: 'Panier moyen non comparable : il manque des jours avant ou pendant la période.',
+    nonDisponible: 'non disponible',
+    parJour: '/j',
+    formNom: 'Nom',
+    formNomExemple: 'Weekend Heineken',
+    formDebut: 'Date début',
+    formFin: 'Date fin',
+    formType: 'Type',
+    formProduits: 'Produits concernés',
+    formProduitsSaisie: 'Tapez les premières lettres…',
+    formAjouter: 'Ajouter',
+    formAucunProduit: 'Aucun produit ajouté pour l’instant (facultatif).',
+    formNature: 'Nature de la promotion',
+    formObjectif: 'Objectif',
+    formObjectifLibre: 'Ex : Animation Coupe du Monde',
+    formValider: 'Valider',
+    formEnregistrement: 'Enregistrement…',
+    formManque: 'Merci de remplir le nom, les deux dates, le type, la nature et l’objectif.',
+    formDates: 'La date de fin doit être après (ou égale à) la date de début.',
+    formAutre: 'Précisez l’objectif dans le champ « Autre ».',
+    formErreur: 'Erreur à l’enregistrement. Réessayez.',
+    formOk: 'Promotion enregistrée ✓',
+    reserve: 'Cet écran est réservé aux managers.',
+    erreurChargement: 'Chargement impossible. Réessayez dans un instant.',
+    badgeEnCours: 'En cours',
+    badgeTerminee: 'Terminée',
+    badgeAVenir: 'À venir',
+    etatsTitre: 'Planche de démonstration des cinq états',
+    etatsIntro: 'Composant visuel seul. Ces états ne qualifient aucune promotion réelle et aucun seuil n’est défini.',
+    etats: [
+      { cle: 'insuffisante', libelle: 'Insuffisante' },
+      { cle: 'a-ameliorer', libelle: 'À améliorer' },
+      { cle: 'encourageante', libelle: 'Encourageante' },
+      { cle: 'a-renouveler', libelle: 'À renouveler' },
+      { cle: 'non-mesurable', libelle: 'Non mesurable' },
+    ],
+  };
+
   // Carte « Mois » de Tempo V2 (12/11/2026) : tous les mots de la page et des infobulles.
   const moisNb = v => Math.round(v).toLocaleString('fr-FR');
   NexusVocab.mois = {

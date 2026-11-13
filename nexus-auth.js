@@ -263,6 +263,7 @@ const NEXUS_PAGES_CONSULTATION = [
   'NEXUS-Assignations-v1.html',
   'NEXUS-Paye-v1.html',
   'NEXUS-Campagne-v1.html',
+  'NEXUS-Campagne-v2.html',
   'NEXUS-Import-v1.html',
   'NEXUS-Admin-API-v1.html',
   'NEXUS-Admin-Sites-v1.html',
