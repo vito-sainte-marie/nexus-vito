@@ -82,7 +82,7 @@ t('aucun pictogramme ne remplace un libellé, aucun mot « favorable » à l’�
     assert.ok(!/favorable/i.test(visible), 'mot « favorable » affiché');
   });
   const tuiles = v2.match(/<img class="picto-p"[^>]*>\s*<span class="t-titre">[^<]+/g) || [];
-  assert.strictEqual(tuiles.length, 5);
+  assert.strictEqual(tuiles.length, 6);
 });
 t('les pictogrammes Tempo ne sont référencés que par les pages du périmètre (sans git)', () => {
   const ok = ['NEXUS-Tempo-v2.html', 'NEXUS-Tempo-v2-Jours.html', 'NEXUS-Tempo-v2-Mois.html', 'nexus-vocabulaire.js'];
