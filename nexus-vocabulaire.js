@@ -422,7 +422,7 @@
       { cle: 'promotions', titre: 'Mes promotions', texte: 'Retrouver toutes vos promotions au même endroit.' },
       { cle: 'compensation', titre: 'Le volume compense-t-il la remise ?', texte: 'Voir si les ventes en plus couvrent la remise accordée.' },
       { cle: 'produits-moteurs', titre: 'Mes produits moteurs', texte: 'Repérer les produits qui tirent vos promotions.' },
-      { cle: 'produits-a-revoir', titre: 'Mes produits à revoir', texte: 'Repérer les produits qui profitent peu des promotions.' },
+      { cle: 'produits-a-revoir', titre: 'Mes produits à revoir', texte: 'Repérer les produits dont les ventes ne compensent pas la remise.' },
       { cle: 'simulateur', titre: 'Simuler une promotion', texte: 'Tester une idée de promotion avant de la lancer.' },
       { cle: 'renouveler', titre: 'Quelles promotions renouveler ?', texte: 'Savoir quelles promotions méritent d’être reconduites.' },
     ],

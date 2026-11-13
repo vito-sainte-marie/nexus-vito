@@ -30,6 +30,9 @@ t('six cartes En préparation, sans chiffre',()=>{
 t('états : tableau de démonstration seulement',()=>{
   assert.deepStrictEqual(C.etats.map(e=>e.cle),['insuffisante','a-ameliorer','encourageante','a-renouveler','non-mesurable']);
   assert(/data-demo="etats"/.test(page));
+  assert(page.includes("get('apercu_etats') === '1'"),'tableau sans paramètre apercu_etats');
+  assert(/<div id="blocEtats" hidden>/.test(page),'bloc des états visible par défaut');
+  assert(/if \(apercuEtats\) \$\('etats'\)\.innerHTML/.test(page),'rendu des états hors paramètre');
   const rendu=page.slice(page.indexOf('function carteResume'),page.indexOf('function afficher'));
   assert(rendu.length>50); assert(!/etat|rentabilite/.test(rendu),'état dans le rendu des campagnes');
   assert(!/etat/.test(page.slice(page.indexOf('function afficher'),page.indexOf('async function chargerEtAfficher'))));
@@ -73,5 +76,14 @@ t('page déclarée (auth, forfait) et liée nulle part',()=>{
 t('textes affichés issus du lexique',()=>{
   assert(page.includes('V.cartes')&&page.includes('V.enPreparation'));
   assert(C.titre&&C.historiqueIntro);
+});
+t('retouches 20261113 : une seule mention, deux décimales, texte',()=>{
+  assert(!/class="acces"/.test(page),'deuxième mention En préparation');
+  assert((page.match(/V\.enPreparation/g)||[]).length===1);
+  assert(page.includes('minimumFractionDigits:2'));
+  assert(/const fmtNb = v => Math\.round\(v\)/.test(page));
+  assert((8.5).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})==='8,50');
+  assert(C.cartes.find(c=>c.cle==='produits-a-revoir').texte==='Repérer les produits dont les ventes ne compensent pas la remise.');
+  assert(/@media \(max-width:599px\)[\s\S]*\.header::after/.test(page),'dégradé mobile');
 });
 process.exit(echecs?1:0);

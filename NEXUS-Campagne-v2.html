@@ -33,6 +33,10 @@ a{color:inherit;}
 .header img.entete{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:var(--banniere-cadrage);}
 .header::after{content:''; position:absolute; inset:0; background:linear-gradient(0deg, rgba(7,19,30,.86) 0%, rgba(7,19,30,.55) 45%, rgba(7,19,30,.15) 100%);}
 :root[data-theme="jour"] .header::after{background:linear-gradient(0deg, rgba(7,19,30,.78) 0%, rgba(7,19,30,.45) 45%, rgba(7,19,30,.08) 100%);}
+@media (max-width:599px){
+  .header{min-height:210px;}
+  .header::after, :root[data-theme="jour"] .header::after{background:linear-gradient(0deg, rgba(7,19,30,.94) 0%, rgba(7,19,30,.82) 50%, rgba(7,19,30,.5) 100%);}
+}
 .header-texte{position:relative; z-index:1; padding:18px; width:100%; color:#EDF1F5;}
 .eyebrow{font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:#7FE9F0;}
 .title{font-size:26px; font-weight:600; margin-top:4px;}
@@ -113,7 +117,6 @@ a{color:inherit;}
 .t-titre{display:block; font-weight:600; overflow-wrap:anywhere;}
 .t-sous{display:block; font-size:12px; color:var(--t-mid); margin-top:4px; line-height:1.5;}
 .prep{display:inline-block; margin-top:10px; font-size:11px; padding:3px 10px; border-radius:20px; background:var(--t-raised); color:var(--t-mid);}
-.acces{display:block; margin-top:10px; font-size:12px; color:var(--t-mid); opacity:.7;}
 
 /* Planche de démonstration des états */
 .etats{display:flex; flex-wrap:wrap; gap:10px;}
@@ -190,9 +193,11 @@ a{color:inherit;}
   <div class="intro-historique" id="introHistorique"></div>
   <div id="historique"></div>
 
-  <div class="titre-section" id="tEtats"></div>
-  <div class="intro-historique" id="introEtats"></div>
-  <div class="etats" id="etats" data-demo="etats"></div>
+  <div id="blocEtats" hidden>
+    <div class="titre-section" id="tEtats"></div>
+    <div class="intro-historique" id="introEtats"></div>
+    <div class="etats" id="etats" data-demo="etats"></div>
+  </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -220,7 +225,8 @@ function esc(s){
 const $ = id => document.getElementById(id);
 const fmtEur = v => Math.round(v).toLocaleString('fr-FR') + ' €';
 const fmtPct = v => (v === null || v === undefined) ? V.nonDisponible : ((v >= 0 ? '+' : '') + (v * 100).toFixed(1).replace('.', ',') + ' %');
-const fmtNb = v => (Math.round(v * 10) / 10).toLocaleString('fr-FR');
+const fmtNb = v => Math.round(v).toLocaleString('fr-FR');
+const fmtEur2 = v => v.toLocaleString('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' €';
 function fmtDateCourt(iso){
   return NexusTempo.dateLocale(iso).toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit', year:'numeric'});
 }
@@ -269,24 +275,27 @@ function peindreTextesFixes(){
   $('tOutils').textContent = V.outilsTitre;
   $('tHistorique').textContent = V.historiqueTitre;
   $('introHistorique').innerHTML = '<b>' + esc(V.historiqueIntro) + '.</b> ' + esc(V.historiqueNote);
-  $('tEtats').textContent = V.etatsTitre;
-  $('introEtats').textContent = V.etatsIntro;
+  const apercuEtats = new URLSearchParams(location.search).get('apercu_etats') === '1';
+  $('blocEtats').hidden = !apercuEtats;
+  if (apercuEtats){
+    $('tEtats').textContent = V.etatsTitre;
+    $('introEtats').textContent = V.etatsIntro;
+  }
   const pills = (groupe, labels) => Object.keys(labels).map(k =>
     '<button type="button" class="pill" data-groupe="' + esc(groupe) + '" data-valeur="' + esc(k) + '">' + esc(labels[k]) + '</button>').join('');
   $('gType').innerHTML = pills('type', NC.TYPE_CAMPAGNE_LABELS);
   $('gNature').innerHTML = pills('nature', NC.NATURE_CAMPAGNE_LABELS);
   $('gObjectif').innerHTML = pills('objectif', NC.OBJECTIF_CAMPAGNE_LABELS);
   $('tuiles').innerHTML = V.cartes.map(c =>
-    '<div class="tuile" data-carte="' + esc(c.cle) + '">' +
+    '<div class="tuile" aria-disabled="true" data-carte="' + esc(c.cle) + '">' +
       '<img class="picto-p" src="' + IC + 'premium/campagne-' + esc(c.cle) + '.svg"' +
       ' srcset="' + IC + 'premium/campagne-' + esc(c.cle) + '-48.webp 48w, ' + IC + 'premium/campagne-' + esc(c.cle) + '-96.webp 96w, ' + IC + 'premium/campagne-' + esc(c.cle) + '-144.webp 144w"' +
       ' sizes="48px" width="48" height="48" alt="">' +
       '<span class="t-titre">' + esc(c.titre) + '</span>' +
       '<span class="t-sous">' + esc(c.texte) + '</span>' +
       '<span class="prep">' + esc(V.enPreparation) + '</span>' +
-      '<span class="acces" aria-disabled="true">' + esc(V.enPreparation) + '</span>' +
     '</div>').join('');
-  $('etats').innerHTML = V.etats.map(e =>
+  if (apercuEtats) $('etats').innerHTML = V.etats.map(e =>
     '<span class="etat e-' + esc(e.cle) + '"><img src="' + IC + 'simple/campagne-rentabilite-' + esc(e.cle) + '.svg" width="24" height="24" alt="">' + esc(e.libelle) + '</span>').join('');
 }
 
@@ -418,9 +427,9 @@ function bilanPanier(pm){
   h += ligne(V.pendant, esc(fmtNb(pm.moyTicketsPendant)) + ' (' + esc(fmtPct(pm.evolutionTicketsPendant)) + ')');
   if (pm.moyTicketsApres !== null) h += ligne(V.apres, esc(fmtNb(pm.moyTicketsApres)) + ' (' + esc(fmtPct(pm.evolutionTicketsApres)) + ')');
   h += '<div class="sous-titre">' + esc(V.panier) + '</div>';
-  if (pm.moyPanierAvant !== null) h += ligne(V.avant, esc(fmtEur(pm.moyPanierAvant)));
-  if (pm.moyPanierPendant !== null) h += ligne(V.pendant, esc(fmtEur(pm.moyPanierPendant)) + ' (' + esc(fmtPct(pm.evolutionPanierPendant)) + ')');
-  if (pm.moyPanierApres !== null) h += ligne(V.apres, esc(fmtEur(pm.moyPanierApres)) + ' (' + esc(fmtPct(pm.evolutionPanierApres)) + ')');
+  if (pm.moyPanierAvant !== null) h += ligne(V.avant, esc(fmtEur2(pm.moyPanierAvant)));
+  if (pm.moyPanierPendant !== null) h += ligne(V.pendant, esc(fmtEur2(pm.moyPanierPendant)) + ' (' + esc(fmtPct(pm.evolutionPanierPendant)) + ')');
+  if (pm.moyPanierApres !== null) h += ligne(V.apres, esc(fmtEur2(pm.moyPanierApres)) + ' (' + esc(fmtPct(pm.evolutionPanierApres)) + ')');
   return h;
 }
 
