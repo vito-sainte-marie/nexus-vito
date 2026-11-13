@@ -519,6 +519,7 @@
     jourGrise: 'Insuffisant',
     habituel: 'Variation habituelle',
     entetes: { jour: 'Jour', vacances: 'Moyenne en vacances', hors: 'Moyenne hors vacances', jours: 'Jours (vacances / hors)', ecart: 'Écart' },
+    entetesCourts: { jour: 'Jour', vacances: 'En vacances', hors: 'Hors vacances', jours: 'Jours', ecart: 'Écart' },
     effectifs: (v, h) => v + ' / ' + h,
     ecart: pct => pctSigne(pct),
     moyenne: (v, a) => moisNb(v) + a.suffixe,

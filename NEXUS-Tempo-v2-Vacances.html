@@ -252,6 +252,13 @@ details.valeurs .tableau td, details.valeurs .tableau th{white-space:nowrap;}
 .groupe-vac.grise .verdict{color:var(--t-mid); font-weight:500;}
 .groupe-vac .tableau td.insuf{color:var(--t-mid);}
 .groupe-vac .tableau td.ec{white-space:nowrap;}
+.groupe-vac .tableau .court{display:none;}
+@media (max-width:480px){
+  .groupe-vac .tableau th, .groupe-vac .tableau td{padding:8px 5px; font-size:12.5px;}
+  .groupe-vac .tableau td:nth-child(2), .groupe-vac .tableau td:nth-child(3), .groupe-vac .tableau td:nth-child(4){white-space:nowrap;}
+  .groupe-vac .tableau .long{display:none;}
+  .groupe-vac .tableau .court{display:inline;}
+}
 .groupe-vac .isoles{font-size:13px; color:var(--t-mid); margin:0 0 8px;}
 .vac-notes p{margin:6px 0;}
 </style>
@@ -355,7 +362,9 @@ details.valeurs .tableau td, details.valeurs .tableau th{white-space:nowrap;}
 
   function tableau(calc, act) {
     const E = V.entetes;
-    let t = '<table class="tableau"><thead><tr><th>' + esc(E.jour) + '</th><th>' + esc(E.vacances) + '</th><th>' + esc(E.hors) + '</th><th>' + esc(E.jours) + '</th><th>' + esc(E.ecart) + '</th></tr></thead><tbody>';
+    const C = V.entetesCourts;
+    const th = k => '<th><span class="long">' + esc(E[k]) + '</span><span class="court">' + esc(C[k]) + '</span></th>';
+    let t = '<table class="tableau"><thead><tr>' + ['jour', 'vacances', 'hors', 'jours', 'ecart'].map(th).join('') + '</tr></thead><tbody>';
     calc.parJour.forEach(p => {
       let ecart, cls = '';
       if (!p.suffisant) { ecart = V.jourGrise; cls = ' class="insuf"'; }

@@ -186,6 +186,13 @@ t('tableau étroit : effectifs « 7 / 7 », en-tête court, seul le pourcentage 
   assert.ok(html.includes('class="ec"'));
   // Un texte (« Variation habituelle », « Insuffisant ») doit pouvoir passer à la ligne : nowrap réservé au pourcentage.
   assert.ok(!/td\.insuf[^{]*\{[^}]*white-space:nowrap/.test(html), 'nowrap sur une cellule textuelle');
+  // Tableau étroit (recette Guardian 6839693154) : marges réduites, en-têtes courts, nowrap seulement sur les colonnes 2 à 4.
+  const m = html.match(/@media \(max-width:480px\)\{([\s\S]*?)\n\}/);
+  assert.ok(m, 'règle @media 480 px absente');
+  const pad = m[1].match(/padding:\s*\d+px\s+(\d+)px/);
+  assert.ok(pad && Number(pad[1]) <= 6, 'marge horizontale > 6 px');
+  assert.ok(window.NexusVocab.vacances.entetesCourts && ['jour', 'vacances', 'hors', 'jours', 'ecart'].every(k => window.NexusVocab.vacances.entetesCourts[k]), 'entetesCourts incomplet');
+  assert.ok(!/td:nth-child\(5\)[^{]*\{[^}]*nowrap/.test(html), 'nowrap sur la colonne 5');
   assert.ok(/else if \(p\.net\) \{ ecart = V\.ecart\(p\.pct\); cls = ' class="ec"'; \}/.test(html), 'class ec hors pourcentage');
   assert.ok(!/cls \|\| ' class="ec"'/.test(html));
 });
