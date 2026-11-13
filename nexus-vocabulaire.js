@@ -624,10 +624,10 @@
     comparaison: 'Chaque quart est comparé à son habitude : la moyenne du même quart, le même jour de semaine, une et deux semaines avant et après. Un quart n’est attribué à un pompiste que s’il était seul à la piste.',
     classement: {
       titre: 'Classement',
-      reserve: 'Classement visible du créateur uniquement.',
+      chaine: 'Aucun écart entre ces pompistes n’est assez net pour les départager.',
       entetes: { rang: 'Rang', pompiste: 'Pompiste', quarts: 'Quarts', ecart: 'Écart moyen par quart', lecture: 'Lecture' },
       egalite: 'À égalité avec le voisin',
-      nonClasse: n => 'Non classé : ' + n + ' quart' + (n > 1 ? 's' : '') + ' sur 10 nécessaires',
+      nonClasse: n => 'Non classé : ' + n + ' quart' + (n > 1 ? 's' : '') + ' comparé' + (n > 1 ? 's' : '') + ', 10 nécessaires',
       nonClassesTitre: 'Pompistes non classés',
     },
     lecture: { net: 'Écart net', habituelle: 'Variation habituelle' },
@@ -641,7 +641,8 @@
       const s = (n, un, plus) => n + ' ' + (n > 1 ? plus : un);
       const parts = [];
       if (e.aucunPompiste) parts.push(s(e.aucunPompiste, 'quart sans pompiste identifié', 'quarts sans pompiste identifié'));
-      if (e.plusieursPompistes) parts.push(s(e.plusieursPompistes, 'quart à plusieurs pompistes', 'quarts à plusieurs pompistes'));
+      if (e.plusieursPompistes) parts.push(s(e.plusieursPompistes, 'quart à attribution impossible (plusieurs pompistes ou remplacement)', 'quarts à attribution impossible (plusieurs pompistes ou remplacement)'));
+      if (e.rupture) parts.push(s(e.rupture, 'quart en rupture de carburant', 'quarts en rupture de carburant'));
       if (e.litresIncomplets) parts.push(s(e.litresIncomplets, 'quart aux litres incomplets', 'quarts aux litres incomplets'));
       if (e.feries) parts.push(s(e.feries, 'quart un jour férié', 'quarts un jour férié'));
       if (e.ponts) parts.push(s(e.ponts, 'quart un jour de pont', 'quarts un jour de pont'));

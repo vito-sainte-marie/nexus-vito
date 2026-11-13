@@ -3102,11 +3102,30 @@
     const special = d => qualifierJourSpecial(d, feriesSite, libellesFeries);
     const litres = new Map();
     quartsLitresPiste(rows).forEach(q => litres.set(q.date + '|' + q.quart, q.valeur));
-    const habitude = (date, quart) => {
-      const v = [-14, -7, 7, 14].map(d => decalerJourISO(date, d)).filter(d => litres.has(d + '|' + quart) && !special(d)).map(d => litres.get(d + '|' + quart));
+    // Rupture de carburant (13/11/2026) : gazole ou SP95 à 0 L (le GNR n'est pas concerné). Le quart est écarté et
+    // n'entre pas non plus dans l'habitude de ses voisins : on le retire de la table des litres.
+    const rupture = new Set();
+    rows.forEach(r => {
+      const k = r.date + '|' + String(r.quart);
+      if (!litres.has(k)) return;
+      if (nombreOuNull(r.litrage_gazole) === 0 || nombreOuNull(r.litrage_sp95) === 0) rupture.add(k);
+    });
+    rupture.forEach(k => litres.delete(k));
+    // Qui tenait chaque quart (toutes les lignes, y compris hors fenêtre : ce sont les voisins de l'habitude).
+    const tenuPar = new Map();
+    rows.forEach(r => { const k = r.date + '|' + String(r.quart); if (!tenuPar.has(k)) tenuPar.set(k, pompistesDuQuart(r.employes_piste)); });
+    // Habitude du pompiste X : voisins à ±7 et ±14 jours tenus par d'autres que X (au moins un pompiste connu, X absent).
+    const habitude = (date, quart, pompiste) => {
+      const v = [-14, -7, 7, 14].map(d => decalerJourISO(date, d)).filter(d => {
+        const k = d + '|' + quart;
+        if (!litres.has(k) || special(d)) return false;
+        const ids = tenuPar.get(k) || [];
+        return ids.length > 0 && !ids.includes(pompiste);
+      }).map(d => litres.get(d + '|' + quart));
       return v.length >= VOISINS_HABITUDE_MIN ? moyenneTab(v) : null;
     };
-    const exclus = { feries: 0, ponts: 0, litresIncomplets: 0, aucunPompiste: 0, plusieursPompistes: 0, sansHabitude: 0 };
+    const exclus = { feries: 0, ponts: 0, litresIncomplets: 0, rupture: 0, aucunPompiste: 0, plusieursPompistes: 0, sansHabitude: 0 };
+    const vusPompistes = new Set();
     const compares = [];
     let nbAttribuables = 0;
     const vus = new Set();
@@ -3116,20 +3135,26 @@
       vus.add(cle);
       const sp = special(r.date);
       if (sp) { exclus[sp.type === 'ferie' ? 'feries' : 'ponts']++; return; }
+      if (rupture.has(cle)) { exclus.rupture++; return; }
       if (!litres.has(cle)) { exclus.litresIncomplets++; return; }
       const ids = pompistesDuQuart(r.employes_piste);
       if (ids.length === 0) { exclus.aucunPompiste++; return; }
       if (ids.length >= 2) { exclus.plusieursPompistes++; return; }
       nbAttribuables++;
-      const h = habitude(r.date, String(r.quart));
+      vusPompistes.add(ids[0]);
+      const h = habitude(r.date, String(r.quart), ids[0]);
       if (h === null) { exclus.sansHabitude++; return; }
       compares.push({ date: r.date, quart: String(r.quart), pompiste: ids[0], litres: litres.get(cle), habitude: h, ecart: litres.get(cle) - h });
     });
     const exc = new Set(joursExceptionnels(compares.map(c => ({ date: c.date + '|' + c.quart, valeur: c.ecart }))).map(j => j.date));
-    const groupe = liste => { const o = {}; liste.forEach(c => { (o[c.pompiste] = o[c.pompiste] || []).push(c.ecart); }); return o; };
+    // Un pompiste dont aucun quart n'est comparé reste sur la carte : « non classé », avec 0 quart.
+    const groupe = liste => { const o = {}; vusPompistes.forEach(id => { o[id] = []; }); liste.forEach(c => { (o[c.pompiste] = o[c.pompiste] || []).push(c.ecart); }); return o; };
     const avec = classerPompistes(groupe(compares), noms);
     const sans = classerPompistes(groupe(compares.filter(c => !exc.has(c.date + '|' + c.quart))), noms);
     const ordre = r => r.classes.map(p => p.id).join(',');
+    // Chaîne d'égalités : tous les classés sont reliés « à égalité » de proche en proche, les rangs n'ordonnent rien.
+    const chaine = r => r.classes.length >= 2 && r.classes.every((p, i) => i === r.classes.length - 1 || p.egalSuivant);
+    sans.chaineEgalite = chaine(sans); avec.chaineEgalite = chaine(avec);
     return {
       fenetre: fen, semaines: FENETRE_VACANCES_SEMAINES, seuilClassement: QUARTS_CLASSEMENT_MIN_POMPISTES,
       exclus, nbQuartsAttribuables: nbAttribuables, nbQuartsCompares: compares.length,

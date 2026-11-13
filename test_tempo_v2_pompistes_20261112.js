@@ -103,7 +103,8 @@ t('compte non créateur : le classement est absent du DOM (balise, noms, rangs)'
     assert.ok(!/data-classement/.test(h), 'balise absente pour ' + String(v));
     assert.ok(!h.includes('Alice') && !h.includes('Bruno'), 'aucun nom pour ' + String(v));
     assert.ok(!/<table/.test(h), 'aucun tableau');
-    assert.ok(h.includes(V.classement.reserve));
+    assert.ok(!/classement|créateur/i.test(h), 'aucune mention du classement ni du créateur pour ' + String(v));
+    assert.ok(!/Alice|Bruno|Carla|Dario/.test(h), 'aucun nom');
     assert.ok(/<button[^>]*disabled/.test(h), 'bouton inactif');
   });
 });
@@ -171,6 +172,61 @@ t('mesure : litres du quart seulement, trois carburants renseignés', () => {
   const r = T.pompistesParQuart(rows, [], AUJ, NOMS);
   assert.strictEqual(r.exclus.litresIncomplets, base.exclus.litresIncomplets + 1);
   assert.ok(!/vente_boutique|ca_total|montant|prix/i.test(moteur.slice(moteur.indexOf('function pompistesParQuart'), moteur.indexOf('window.NexusTempo = {'))));
+});
+
+t('rupture de carburant : SP95 à 0 écarté (motif) et absent de l’habitude des voisins ; GNR à 0 non concerné', () => {
+  const base = jeu({ 'id-alice': { jours: jours('2026-08-04', 12), surplus: 300 } });
+  const avant = T.pompistesParQuart(base, [], AUJ, NOMS);
+  const rows = JSON.parse(JSON.stringify(base));
+  rows.find(r => r.date === '2026-08-04').litrage_sp95 = 0;
+  const apres = T.pompistesParQuart(rows, [], AUJ, NOMS);
+  assert.strictEqual(apres.exclus.rupture, 1);
+  const n = r => r.sans.classes.concat(r.sans.nonClasses).find(p => p.id === 'id-alice').n;
+  assert.strictEqual(n(apres), n(avant) - 1);
+  assert.ok(V.exclus(apres.exclus).includes('rupture de carburant'));
+  const gnr = JSON.parse(JSON.stringify(base));
+  gnr.find(r => r.date === '2026-08-04').litrage_gnr = 0;
+  const rg = T.pompistesParQuart(gnr, [], AUJ, NOMS);
+  assert.ok(!rg.exclus.rupture);
+  // absent de l'habitude des voisins : le quart du 2026-08-11 (±7) ne voit plus le quart en rupture
+  const rows2 = JSON.parse(JSON.stringify(base));
+  rows2.find(r => r.date === '2026-08-11').employes_piste = ['id-bruno'];
+  const sans = T.pompistesParQuart(rows2, [], AUJ, NOMS);
+  rows2.find(r => r.date === '2026-08-04').litrage_sp95 = 0;
+  const avec = T.pompistesParQuart(rows2, [], AUJ, NOMS);
+  assert.strictEqual(avec.exclus.rupture, 1);
+  assert.notDeepStrictEqual(JSON.stringify(sans.sans), JSON.stringify(avec.sans));
+});
+
+t('habitude sans le pompiste jugé : moins de 3 voisins tenus par d’autres → sans habitude', () => {
+  const rows = jeu({});
+  rows.forEach(r => { r.employes_piste = ['id-alice']; });
+  const r = T.pompistesParQuart(rows, [], AUJ, NOMS);
+  assert.strictEqual(r.nbQuartsAttribuables > 0 ? r.sans.classes.length + r.sans.nonClasses.length : 0, 1);
+  const p = r.sans.nonClasses.concat(r.sans.classes)[0];
+  assert.strictEqual(p.n, 0, 'tous les voisins sont tenus par le même pompiste : aucun quart comparé');
+});
+
+t('phrase de tête : tous « à égalité » → phrase ; sinon pas de phrase', () => {
+  const egal = T.pompistesParQuart(jeu({
+    'id-alice': { jours: jours('2026-08-04', 12), surplus: 0 },
+    'id-bruno': { jours: jours('2026-08-05', 12), surplus: 0 },
+  }), [], AUJ, NOMS);
+  assert.strictEqual(egal.sans.chaineEgalite, true);
+  assert.ok(R.rendre(egal, { V, estCreateur: true }).includes(V.classement.chaine));
+  const net = T.pompistesParQuart(jeu({
+    'id-alice': { jours: jours('2026-08-04', 12), surplus: 300 },
+    'id-bruno': { jours: jours('2026-08-05', 12), surplus: -300 },
+  }), [], AUJ, NOMS);
+  assert.ok(!net.sans.chaineEgalite);
+  assert.ok(!R.rendre(net, { V, estCreateur: true }).includes(V.classement.chaine));
+});
+
+t('un pompiste sans quart comparé figure dans les non classés avec 0 quart ; libellé plusieurs pompistes', () => {
+  const rows = jeu({ 'id-alice': { jours: jours('2026-08-04', 12), surplus: 300 } });
+  const r = T.pompistesParQuart(rows, [], AUJ, NOMS);
+  assert.ok(V.exclus({ plusieursPompistes: 2 }).includes('attribution impossible (plusieurs pompistes ou remplacement)'));
+  assert.ok(r.sans.classes.length + r.sans.nonClasses.length >= 1);
 });
 
 t('aucun mot « marge » dans le rendu, la page, le lexique pompistes, le moteur', () => {

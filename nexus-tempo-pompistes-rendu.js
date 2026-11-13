@@ -15,7 +15,8 @@
 
   function tableauClasse(liste, V) {
     const E = V.classement.entetes;
-    let t = '<table class="tableau" data-classement="pompistes"><thead><tr>' +
+    let t = liste.chaineEgalite ? '<p class="mention" data-chaine="egalite">' + esc(V.classement.chaine) + '</p>' : '';
+    t += '<table class="tableau" data-classement="pompistes"><thead><tr>' +
       ['rang', 'pompiste', 'quarts', 'ecart', 'lecture'].map(k => '<th>' + esc(E[k]) + '</th>').join('') + '</tr></thead><tbody>';
     liste.classes.forEach(p => { t += ligneClassee(p, V); });
     return t + '</tbody></table>';
@@ -43,9 +44,8 @@
       if (res.aDesExceptionnels && res.changeAvecSans) {
         h += '<details class="valeurs"><summary>' + esc(H.avec) + '</summary>' + tableauClasse(res.avec, V) + nonClasses(res.avec, V) + '</details>';
       }
-    } else {
-      h += '<p class="mention">' + esc(V.classement.reserve) + '</p>';
     }
+    // Hors compte créateur : aucune mention du classement, ni de sa réserve.
     h += '<p class="mention">' + esc(V.fenetre(res.semaines, res.fenetre.debut, res.fenetre.fin, res.fenetre.borneParLesDonnees)) + '</p>';
     h += '<p class="mention" data-ecartes="pompistes">' + esc(V.exclus(res.exclus)) + '</p>';
     h += '<button type="button" class="indispo" disabled aria-disabled="true" title="' + esc(V.transmettreInactif) + '">' + esc(V.transmettre) + '</button>';
