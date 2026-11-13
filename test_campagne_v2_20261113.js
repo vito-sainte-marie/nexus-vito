@@ -19,7 +19,8 @@ t('expressions interdites absentes',()=>{
 t('aucun tiret cadratin (page et bloc lexique)',()=>{
   assert(!page.includes('—')); assert(!bloc.includes('—'));
 });
-t('six cartes En préparation, sans chiffre',()=>{
+t('six cartes, cinq En préparation, seul le simulateur disponible, sans chiffre',()=>{
+  assert.deepStrictEqual(C.cartes.filter(c=>c.dispo).map(c=>c.cle),['simulateur']);
   assert.deepStrictEqual(C.cartes.map(c=>c.cle),['promotions','compensation','produits-moteurs','produits-a-revoir','simulateur','renouveler']);
   assert.strictEqual(C.enPreparation,'En préparation');
   C.cartes.forEach(c=>assert(!/\d/.test(c.titre+c.texte),'chiffre dans '+c.cle));
