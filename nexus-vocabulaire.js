@@ -482,6 +482,7 @@
       nouveauProduit: 'Produit nouveau (lancement)',
       ventesMois: 'Ventes du mois précédent (unités)',
       joursRef: 'Jours de référence',
+      joursDefaut: '30 jours par défaut',
       achatAvant: 'Prix d’achat HT avant',
       achatPendant: 'Prix d’achat HT pendant la promotion',
       venteAvant: 'Prix de vente HT avant',

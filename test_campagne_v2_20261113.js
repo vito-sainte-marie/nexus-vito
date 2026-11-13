@@ -101,4 +101,13 @@ t('mesure de la compensation : câblage de la page et lexique',()=>{
   assert(!/va dans le bon sens|achats avancés/i.test(tout));
   ['campagne_mesures_produits','campagne_couts','fournisseurs_conditions'].forEach(n=>assert(page.includes(n),n));
 });
+t('mesure : retrait des produits supprimés, coûts insérés avant suppression, 30 jours par défaut signalés',()=>{
+  const i=page.indexOf('async function mesEnregistrer'); const f=page.slice(i,i+4500);
+  assert(/campagne_mesures_produits'\)\.delete\(\)\.in\('id'/.test(f),'retrait des lignes absentes de la liste');
+  const ins=f.indexOf("from('campagne_couts').insert"), del=f.indexOf("from('campagne_couts').delete()");
+  assert(ins>0 && del>ins,'coûts : insertion avant suppression');
+  assert(/\.delete\(\)\.in\('id', anciens\)/.test(f),'suppression par identifiants');
+  assert(page.includes('MV.joursDefaut') && C.mesure.joursDefaut==='30 jours par défaut');
+  Object.keys(C.mesure.sources).forEach(k=>assert(['comptage','decenium','saisie'].includes(k),k));
+});
 process.exit(echecs?1:0);

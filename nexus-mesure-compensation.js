@@ -8,7 +8,6 @@
   var SEUIL_RENOUVELER = 1.10;
   var GAIN_MIN_RENOUVELER = 100;
   var PART_MIN_MESURABLE = 0.80;
-  var POIDS_MIN_MANQUANT = 0.20;
   var JOURS_REFERENCE_DEFAUT = 30;
   var SEUIL_PRIX_SOUS_NORMAL = 0.03;
   var EPS = 1e-9;
@@ -97,10 +96,7 @@
     });
     var lancements = lignes.filter(function (l) { return l.lancement; });
     var partMesurable = poidsTotal > EPS ? poidsMesure / poidsTotal : (hors.length ? 0 : null);
-    var manquantGros = hors.some(function (l) {
-      return !l.mesurable && poidsTotal > EPS && l.margeJourAvant !== null && l.margeJourAvant / poidsTotal >= POIDS_MIN_MANQUANT - EPS;
-    });
-    var mesurable = hors.length > 0 && partMesurable !== null && arr(partMesurable) >= PART_MIN_MESURABLE && !manquantGros;
+    var mesurable = hors.length > 0 && partMesurable !== null && arr(partMesurable) >= PART_MIN_MESURABLE;
     var taux = mesurable && avant > EPS ? pendant / avant : null;
     var gainApresCouts = gain - totalCouts;
     return {

@@ -848,13 +848,13 @@ async function mesPreremplir(i, article){
 }
 function mesSource(src){ return MV.sources[src] || MV.sourceAucune; }
 function mesPeindreProduit(e, i){
-  const champ = (cle, lib) => '<label>' + esc(lib) + '<input type="text" inputmode="decimal" autocomplete="off" data-mi="' + i + '" data-mchamp="' + cle + '" value="' + esc(e[cle]) + '"></label>';
+  const champ = (cle, lib, defaut) => '<label>' + esc(lib) + '<input type="text" inputmode="decimal" autocomplete="off" data-mi="' + i + '" data-mchamp="' + cle + '" value="' + esc(e[cle]) + '">' + (defaut ? '<span class="sim-source" data-mjdef="' + i + '">' + (String(e[cle]).trim() === '' ? esc(MV.joursDefaut) : '') + '</span>' : '') + '</label>';
   const opts = '<option value=""></option>' + MES_FICHES.map(f => '<option value="' + esc(f.fournisseur) + '"' + (f.fournisseur === e.fournisseur ? ' selected' : '') + '>' + esc(f.fournisseur) + '</option>').join('');
   return '<div class="sim-produit" data-mproduit="' + i + '">' +
     '<label>' + esc(MV.produit) + '<input type="text" autocomplete="off" data-mi="' + i + '" data-mchamp="article" value="' + esc(e.article) + '"></label>' +
     '<div class="sugg" data-msugg="' + i + '"></div>' +
     '<label class="sim-case"><input type="checkbox" data-mi="' + i + '" data-mchamp="nouveau"' + (e.nouveau ? ' checked' : '') + '> ' + esc(MV.nouveauProduit) + '</label>' +
-    '<div class="sim-grille">' + champ('ventes', MV.ventesMois) + champ('joursRef', MV.joursRef) +
+    '<div class="sim-grille">' + champ('ventes', MV.ventesMois) + champ('joursRef', MV.joursRef, true) +
       champ('venteAvant', MV.venteAvant) + champ('ventePendant', MV.ventePendant) +
       champ('achatAvant', MV.achatAvant) + champ('achatPendant', MV.achatPendant) +
       '<label>' + esc(MV.stockDebut) + '<input type="text" inputmode="decimal" autocomplete="off" data-mi="' + i + '" data-mchamp="stockDebut" value="' + esc(e.stockDebut) + '"><span class="sim-source">' + esc(mesSource(e.srcDebut)) + '</span></label>' +
@@ -960,19 +960,36 @@ async function mesEnregistrer(){
     livraisons_pendant: nombre(e.livraisons) || 0, saisi_par: EMPLOYEE.id || null, modifie_le: new Date().toISOString(),
   }));
   let erreur = null;
-  if (lignes.length){
+  const camp = MES_CAMPAGNE.campagneId;
+  // Les lignes déjà en base avant l'enregistrement : servent à retirer ce qui ne figure plus dans la liste.
+  const avantP = await nexusClient.from('campagne_mesures_produits').select('id, article').eq('site', SITE_ID).eq('campagne_id', camp);
+  const avantC = await nexusClient.from('campagne_couts').select('id').eq('site', SITE_ID).eq('campagne_id', camp);
+  if (avantP.error || avantC.error){ console.error(avantP.error || avantC.error); erreur = avantP.error || avantC.error; }
+  if (!erreur && lignes.length){
     const r = await nexusClient.from('campagne_mesures_produits').upsert(lignes, {onConflict: 'campagne_id,article'});
     if (r.error){ console.error(r.error); erreur = r.error; }
   }
   if (!erreur){
-    const d = await nexusClient.from('campagne_couts').delete().eq('site', SITE_ID).eq('campagne_id', MES_CAMPAGNE.campagneId);
-    if (d.error){ console.error(d.error); erreur = d.error; }
-    else {
-      const couts = MES_COUTS.filter(c => c.libelle.trim() && nombre(c.montant) != null && nombre(c.montant) >= 0)
-        .map(c => ({site: SITE_ID, campagne_id: MES_CAMPAGNE.campagneId, libelle: c.libelle.trim(), montant_ht: nombre(c.montant), saisi_par: EMPLOYEE.id || null}));
-      if (couts.length){
-        const r = await nexusClient.from('campagne_couts').insert(couts);
-        if (r.error){ console.error(r.error); erreur = r.error; }
+    const gardes = new Set(lignes.map(l => l.article));
+    const retires = (avantP.data || []).filter(x => !gardes.has(x.article)).map(x => x.id);
+    if (retires.length){
+      const d = await nexusClient.from('campagne_mesures_produits').delete().in('id', retires);
+      if (d.error){ console.error(d.error); erreur = d.error; }
+    }
+  }
+  if (!erreur){
+    // Coûts : on insère d'abord, puis on retire les anciennes lignes par identifiant (une insertion refusée ne perd rien).
+    const couts = MES_COUTS.filter(c => c.libelle.trim() && nombre(c.montant) != null && nombre(c.montant) >= 0)
+      .map(c => ({site: SITE_ID, campagne_id: camp, libelle: c.libelle.trim(), montant_ht: nombre(c.montant), saisi_par: EMPLOYEE.id || null}));
+    if (couts.length){
+      const r = await nexusClient.from('campagne_couts').insert(couts);
+      if (r.error){ console.error(r.error); erreur = r.error; }
+    }
+    if (!erreur){
+      const anciens = (avantC.data || []).map(x => x.id);
+      if (anciens.length){
+        const d = await nexusClient.from('campagne_couts').delete().in('id', anciens);
+        if (d.error){ console.error(d.error); erreur = d.error; }
       }
     }
   }
@@ -997,6 +1014,7 @@ function mesBrancher(){
     }
     if (c === 'nouveau'){ e.nouveau = el.checked; mesCalculer(); return; }
     e[c] = el.value;
+    if (c === 'joursRef'){ const sp = document.querySelector('[data-mjdef="' + i + '"]'); if (sp) sp.textContent = el.value.trim() === '' ? MV.joursDefaut : ''; }
     if (c === 'stockDebut') e.srcDebut = 'saisie';
     if (c === 'stockFin') e.srcFin = 'saisie';
     if (c === 'fournisseur' || c === 'catalogue') mesMajAchatAvant(e);

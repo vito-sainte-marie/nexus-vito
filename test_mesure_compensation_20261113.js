@@ -70,7 +70,7 @@ t('données manquantes : non mesurable, jamais zéro inventé',()=>{
   const r2=M.mesurerProduit(Object.assign({},floup,{stockDebut:''})); assert(r2.manquants.includes('stockDebut'));
   const r3=M.mesurerProduit(Object.assign({},floup,{jours:0})); assert(r3.manquants.includes('jours'));
 });
-t('part mesurable : 79 % non mesurable, 81 % mesurable ; 80 % exact bloque (manquant de 20 %)',()=>{
+t('part mesurable : 79 % non mesurable, 81 % mesurable ; 80 % exact mesurable',()=>{
   // Deux produits à marge/jour avant : A pèse w, B pèse le reste. B sans données.
   const A=Object.assign({},pourTaux(1.0),{article:'A'});
   const mA=903/30*(0.93-0.486);
@@ -83,13 +83,13 @@ t('part mesurable : 79 % non mesurable, 81 % mesurable ; 80 % exact bloque (manq
   const c81=M.mesurerCampagne([A,unB(0.81)]); proche(c81.partMesurable,0.81,1e-6);
   assert(c81.mesurable);
   const c80=M.mesurerCampagne([A,unB(0.80)]); proche(c80.partMesurable,0.80,1e-6);
-  assert(!c80.mesurable,'un manquant de 20 % pile bloque (règle des 20 %)');
+  assert(c80.mesurable,'80 % exact : mesurable (une seule règle)');
 });
-t('un produit manquant pesant 20 % ou plus bloque la mesure',()=>{
+t('un seul produit incomplet à 20 % : mesurable',()=>{
   const A=Object.assign({},pourTaux(1.0),{article:'A'});
   const mA=903/30*(0.93-0.486);
-  const B=Object.assign({},floup,{article:'B',venteAvant:0.486+mA*0.25/(903/30),stockFin:null}); // 20 % du total
-  const c=M.mesurerCampagne([A,B]); assert(!c.mesurable);
+  const B=Object.assign({},floup,{article:'B',venteAvant:0.486+mA*0.25/(903/30),stockFin:null}); // 20 % du total (A pèse 80 %)
+  const c=M.mesurerCampagne([A,B]); proche(c.partMesurable,0.8,1e-6); assert(c.mesurable);
 });
 t('lancement : pas de référence avant, exclu du taux, marge pendant affichée',()=>{
   const L={article:'NOUVEAU',nouveauProduit:true,achatPendant:1,ventePendant:1.3,jours:10,stockDebut:0,livraisons:200,stockFin:50};

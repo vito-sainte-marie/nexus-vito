@@ -72,7 +72,7 @@ begin
         with check (site = current_employee_site_id() and current_employee_role() in ('manager','gerant'))$p$, t);
     end if;
     if not exists (select 1 from pg_policies where schemaname='public' and tablename=t and policyname='createur_lit_si_autorise') then
-      execute format('create policy createur_lit_si_autorise on %I for select using (je_suis_createur())', t);
+      execute format('create policy createur_lit_si_autorise on %I for select using (je_suis_createur() and exists (select 1 from sites s where s.site_id = %I.site and s.acces_createur_autorise = true))', t, t);
     end if;
   end loop;
 end $$;
