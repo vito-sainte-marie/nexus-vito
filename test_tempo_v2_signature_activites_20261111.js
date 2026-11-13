@@ -68,7 +68,7 @@ t('les six tuiles : pastilles dans l\'ordre, bande partagée pour les croisées'
     ['Les vacances changent-elles mon activité ?', ['piste', 'boutique', 'fdj']],
     ['Quand la piste tourne, la boutique suit-elle ?', ['piste', 'boutique']],
   ];
-  const tuiles = [...sansScripts.matchAll(/<(?:div|a) class="tuile([^"]*)"(?: aria-disabled="true"| href="NEXUS-Tempo-v2-(?:Quarts|Mois|Jours|Vacances|PisteBoutique)\.html")>([\s\S]*?)<span class="t-sous">/g)];
+  const tuiles = [...sansScripts.matchAll(/<(?:div|a) class="tuile([^"]*)"(?: aria-disabled="true"| href="NEXUS-Tempo-v2-(?:Quarts|Pompistes|Mois|Jours|Vacances|PisteBoutique)\.html")>([\s\S]*?)<span class="t-sous">/g)];
   assert.strictEqual(tuiles.length, 6);
   const NOM = { piste: 'Piste', boutique: 'Boutique', fdj: 'FDJ' };
   attendu.forEach(([titre, acts], i) => {
@@ -121,7 +121,7 @@ t('« En attente d\'arbitrage » : horloge ◷ avant chaque ligne d\'attente', (
 
 t('charte complète aussi sur .colonne.act et .tuile.act (spécificité relevée)', () => {
   assert.ok(/\.act, \.colonne\.act, \.tuile\.act\{/.test(css), 'règle relevée en spécificité');
-  assert.ok(/class="tuile act a-piste"/.test(sansScripts), 'tuile simple Piste');
+  assert.ok(/class="tuile act a-piste disponible"/.test(sansScripts), 'tuile simple Piste');
   assert.ok((sansScripts.match(/class="colonne act a-(piste|boutique|fdj)"/g) || []).length === 3);
 });
 

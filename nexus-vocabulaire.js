@@ -614,5 +614,53 @@
     tableau: 'Voir les valeurs en tableau',
   };
 
+  // Carte « Comment se situent les pompistes ? » : tous les mots viennent d'ici, le moteur n'en porte aucun.
+  // Aucune cause, aucune piste d'action, et le mot réservé à la Boutique n'apparaît jamais ici. Prénoms d'affichage seulement, effectifs toujours visibles.
+  NexusVocab.pompistes = {
+    titreOnglet: 'NEXUS Tempo, Pompistes',
+    titre: 'Comment se situent les pompistes ?',
+    sousTitre: 'Litres du quart, par rapport aux habitudes du même quart',
+    mesure: 'Litres piste du quart',
+    comparaison: 'Chaque quart est comparé à son habitude : la moyenne du même quart, le même jour de semaine, une et deux semaines avant et après. Un quart n’est attribué à un pompiste que s’il était seul à la piste.',
+    classement: {
+      titre: 'Classement',
+      reserve: 'Classement visible du créateur uniquement.',
+      entetes: { rang: 'Rang', pompiste: 'Pompiste', quarts: 'Quarts', ecart: 'Écart moyen par quart', lecture: 'Lecture' },
+      egalite: 'À égalité avec le voisin',
+      nonClasse: n => 'Non classé : ' + n + ' quart' + (n > 1 ? 's' : '') + ' sur 10 nécessaires',
+      nonClassesTitre: 'Pompistes non classés',
+    },
+    lecture: { net: 'Écart net', habituelle: 'Variation habituelle' },
+    sens: { hausse: 'au-dessus de l’habitude', baisse: 'en dessous de l’habitude' },
+    effectif: n => n + ' quart' + (n > 1 ? 's' : ''),
+    litres: v => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(Math.round(v)).toLocaleString('fr-FR') + ' L',
+    fenetre: (semaines, debut, fin, bornee) => bornee
+      ? 'Fenêtre : du ' + dateLongue(debut) + ' au ' + dateLongue(fin) + ' (' + semaines + ' semaines closes au plus, limitée au début des données).'
+      : 'Fenêtre : ' + semaines + ' semaines closes, du ' + dateLongue(debut) + ' au ' + dateLongue(fin) + '.',
+    exclus: (e) => {
+      const s = (n, un, plus) => n + ' ' + (n > 1 ? plus : un);
+      const parts = [];
+      if (e.aucunPompiste) parts.push(s(e.aucunPompiste, 'quart sans pompiste identifié', 'quarts sans pompiste identifié'));
+      if (e.plusieursPompistes) parts.push(s(e.plusieursPompistes, 'quart à plusieurs pompistes', 'quarts à plusieurs pompistes'));
+      if (e.litresIncomplets) parts.push(s(e.litresIncomplets, 'quart aux litres incomplets', 'quarts aux litres incomplets'));
+      if (e.feries) parts.push(s(e.feries, 'quart un jour férié', 'quarts un jour férié'));
+      if (e.ponts) parts.push(s(e.ponts, 'quart un jour de pont', 'quarts un jour de pont'));
+      if (e.sansHabitude) parts.push(s(e.sansHabitude, 'quart sans habitude locale', 'quarts sans habitude locale'));
+      return parts.length ? 'Quarts écartés : ' + parts.join(', ') + '.' : 'Aucun quart écarté dans la fenêtre.';
+    },
+    horsNorme: {
+      titre: 'Avec et sans les quarts hors norme',
+      aucune: 'Aucun quart hors norme dans la fenêtre.',
+      sans: 'Sans ces quarts',
+      avec: 'Avec ces quarts',
+      change: 'Le classement change quand on les garde.',
+      memeLecture: 'Le classement reste le même avec ou sans eux.',
+      nombre: n => n + ' quart' + (n > 1 ? 's' : '') + ' hors norme.',
+    },
+    transmettre: 'Transmettre au Cockpit',
+    transmettreInactif: 'Pas encore disponible',
+    aucuneDonnee: 'Aucun quart attribuable à un pompiste n’est encore mesuré.',
+  };
+
   global.NexusVocab = NexusVocab;
 })(window);

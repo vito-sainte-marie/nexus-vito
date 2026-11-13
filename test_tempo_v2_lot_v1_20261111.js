@@ -98,7 +98,7 @@ t('aucune mention de données de substitution (exemple, lorem, fictif)', () => {
 t('un seul lien actif vers une analyse : la page Quarts (lot B)', () => {
   const corps = html.slice(html.indexOf('<body>'));
   const liens = [...corps.matchAll(/<a\s[^>]*href="([^"]*)"/gi)].map(m => m[1]);
-  assert.deepStrictEqual(liens, ['NEXUS-Tempo-v2-Quarts.html', 'NEXUS-Tempo-v2-Jours.html', 'NEXUS-Tempo-v2-Mois.html', 'NEXUS-Tempo-v2-Vacances.html', 'NEXUS-Tempo-v2-PisteBoutique.html', 'NEXUS-Cockpit-v2.html']);
+  assert.deepStrictEqual(liens, ['NEXUS-Tempo-v2-Quarts.html', 'NEXUS-Tempo-v2-Pompistes.html', 'NEXUS-Tempo-v2-Jours.html', 'NEXUS-Tempo-v2-Mois.html', 'NEXUS-Tempo-v2-Vacances.html', 'NEXUS-Tempo-v2-PisteBoutique.html', 'NEXUS-Cockpit-v2.html']);
 });
 
 t('aucun nom d\'employé réel (liste vide de prénoms de pompistes)', () => {
@@ -106,12 +106,12 @@ t('aucun nom d\'employé réel (liste vide de prénoms de pompistes)', () => {
 });
 
 t('liens vers NEXUS-Tempo-v2 : seulement le menu basculé (lot confiance et menu, 12/11/2026)', () => {
-  const cibles = fs.readdirSync(racine).filter(f => /\.(html|js)$/.test(f) && f !== PAGE && f !== 'NEXUS-Tempo-v2-Quarts.html' && f !== 'NEXUS-Tempo-v2-Mois.html' && f !== 'NEXUS-Tempo-v2-Jours.html' && f !== 'NEXUS-Tempo-v2-Vacances.html' && f !== 'NEXUS-Tempo-v2-PisteBoutique.html' && f !== 'nexus-auth.js' && !/^test_/.test(f));
+  const cibles = fs.readdirSync(racine).filter(f => /\.(html|js)$/.test(f) && f !== PAGE && f !== 'NEXUS-Tempo-v2-Quarts.html' && f !== 'NEXUS-Tempo-v2-Mois.html' && f !== 'NEXUS-Tempo-v2-Jours.html' && f !== 'NEXUS-Tempo-v2-Vacances.html' && f !== 'NEXUS-Tempo-v2-PisteBoutique.html' && f !== 'NEXUS-Tempo-v2-Pompistes.html' && f !== 'nexus-auth.js' && !/^test_/.test(f));
   const fautifs = cibles.filter(f => /NEXUS-Tempo-v2/.test(lire(f)));
   assert.deepStrictEqual(fautifs, ['NEXUS-App-v1.html', 'NEXUS-Documentation-v1.html', 'NEXUS-Tempo-v1.html', 'nexus-conseiller.js', 'nexus-desktop.js', 'nexus-forfait.js', 'nexus-raccourcis-catalogue.js', 'nexus-recherche.js']);
   // nexus-auth.js ne porte que le classement d'accès (liste des écrans opérationnels), pas un lien.
   const auth = lire('nexus-auth.js').split('\n').filter(l => /NEXUS-Tempo-v2/.test(l));
-  assert.deepStrictEqual(auth.map(l => l.trim()), ["'NEXUS-Tempo-v2.html',", "'NEXUS-Tempo-v2-Quarts.html',", "'NEXUS-Tempo-v2-Mois.html',", "'NEXUS-Tempo-v2-Jours.html',", "'NEXUS-Tempo-v2-Vacances.html',", "'NEXUS-Tempo-v2-PisteBoutique.html',"]);
+  assert.deepStrictEqual(auth.map(l => l.trim()), ["'NEXUS-Tempo-v2.html',", "'NEXUS-Tempo-v2-Quarts.html',", "'NEXUS-Tempo-v2-Mois.html',", "'NEXUS-Tempo-v2-Jours.html',", "'NEXUS-Tempo-v2-Vacances.html',", "'NEXUS-Tempo-v2-PisteBoutique.html',", "'NEXUS-Tempo-v2-Pompistes.html',"]);
   for (const f of ['NEXUS-App-v1.html', 'NEXUS-Brief-v1.html', 'NEXUS-Cockpit-v2.html', 'nexus-menu-accueil.js']) {
     assert.ok(fs.existsSync(path.join(racine, f)), f + ' introuvable');
   }
@@ -141,7 +141,7 @@ t('bannière de station chargée et utilisée', () => {
 });
 
 t('six sous-titres fixes sous les tuiles Analyses, sans chiffre', () => {
-  const sous = ['Litres, boutique et FDJ, jour par jour', "Écart à l'attendu de leur quart, sans classement",
+  const sous = ['Litres, boutique et FDJ, jour par jour', 'Litres du quart, face aux habitudes',
     'Par activité, sur les mêmes semaines', 'FDJ, litres et boutique, mois par mois',
     'À jour de semaine égal', 'Relation jour par jour et par quart'];
   let dernier = -1;

@@ -3046,6 +3046,98 @@
     };
   }
 
+  // ------------------------------------------------------------
+  // Carte « Comment se situent les pompistes ? » (12/11/2026, règles validées par Frédéric, 21 h 37).
+  // Calcul pur, aucun mot d'affichage (tout vient de NexusVocab.pompistes).
+  //   - Un quart est attribué au pompiste quand audits_caisse.employes_piste compte EXACTEMENT un employé.
+  //     Zéro, ou deux et plus : écarté et compté (remplacement, responsable indéterminé, caisse boutique tenue).
+  //   - Mesure : les litres piste du quart (gazole + SP95 + GNR, les trois renseignés), jamais un montant.
+  //   - Habitude : même jour de semaine et même quart, à ±7 et ±14 jours, 3 valeurs au moins ; fériés, ponts et le quart
+  //     lui-même exclus. Jours hors norme : résultat sans eux et avec eux.
+  //   - Classement : 10 quarts au moins, sinon « non classé ». « À égalité » : deux voisins que le test de Welch
+  //     (±2 erreurs-types) ne distingue pas. Chaque écart est « net » ou « variation habituelle » par rapport à zéro.
+  //   - L'ordre ne dépend pas de l'ordre des données : tri par écart moyen décroissant, puis nom, puis identifiant.
+  // ------------------------------------------------------------
+  const QUARTS_CLASSEMENT_MIN_POMPISTES = 10;
+  function pompistesDuQuart(valeur) {
+    if (!valeur) return [];
+    const liste = Array.isArray(valeur) ? valeur : [valeur];
+    return [...new Set(liste.map(v => {
+      if (typeof v === 'string') return v;
+      if (!v || typeof v !== 'object') return null;
+      return v.id || v.employee_id || v.employeeId || null;
+    }).filter(Boolean))];
+  }
+  function statPompiste(ecarts) {
+    const n = ecarts.length;
+    const m = n ? moyenneTab(ecarts) : null;
+    const v = n > 1 ? varianceEchantillon(ecarts, m) : 0;
+    const se = n > 1 ? Math.sqrt(v / n) : 0;
+    const net = n > 1 ? (se > 0 ? Math.abs(m) > SEUIL_ECART_TYPES * se : m !== 0) : false;
+    return { n, ecartMoyen: m, variance: v, erreurType: se, net, sens: net ? (m > 0 ? 'hausse' : 'baisse') : null };
+  }
+  function classerPompistes(parPompiste, noms) {
+    const nom = id => (noms && noms[id]) ? String(noms[id]) : String(id);
+    const tous = Object.keys(parPompiste).map(id => Object.assign({ id, nom: nom(id) }, statPompiste(parPompiste[id].slice().sort((x, y) => x - y))));  // tri : la somme flottante ne dépend plus de l'ordre des lignes
+    const classes = tous.filter(p => p.n >= QUARTS_CLASSEMENT_MIN_POMPISTES).sort((a, b) =>
+      (b.ecartMoyen - a.ecartMoyen) || (a.nom < b.nom ? -1 : a.nom > b.nom ? 1 : 0) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    const nonClasses = tous.filter(p => p.n < QUARTS_CLASSEMENT_MIN_POMPISTES).sort((a, b) =>
+      (b.n - a.n) || (a.nom < b.nom ? -1 : a.nom > b.nom ? 1 : 0) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    classes.forEach((p, i) => { p.rang = i + 1; p.egalPrecedent = false; p.egalSuivant = false; });
+    for (let i = 0; i + 1 < classes.length; i++) {
+      const a = classes[i], b = classes[i + 1];
+      const sd = Math.sqrt(a.variance / a.n + b.variance / b.n);
+      const egal = sd > 0 ? Math.abs(a.ecartMoyen - b.ecartMoyen) <= SEUIL_ECART_TYPES * sd : a.ecartMoyen === b.ecartMoyen;
+      if (egal) { a.egalSuivant = true; b.egalPrecedent = true; }
+    }
+    return { classes, nonClasses };
+  }
+  function pompistesParQuart(auditsRows, lignesCalendrier, aujourdhui, noms) {
+    const rows = (auditsRows || []).filter(r => r && r.date);
+    const fen = fenetreVacances(rows.map(r => ({ date: r.date })), aujourdhui);
+    const lignes = (lignesCalendrier || []).filter(l => l && l.date);
+    const feriesSite = new Set(lignes.filter(l => l.type === 'ferie').map(l => String(l.date).slice(0, 10)));
+    const libellesFeries = new Map();
+    lignes.filter(l => l.type === 'ferie' && l.libelle).forEach(l => libellesFeries.set(String(l.date).slice(0, 10), String(l.libelle).trim()));
+    const special = d => qualifierJourSpecial(d, feriesSite, libellesFeries);
+    const litres = new Map();
+    quartsLitresPiste(rows).forEach(q => litres.set(q.date + '|' + q.quart, q.valeur));
+    const habitude = (date, quart) => {
+      const v = [-14, -7, 7, 14].map(d => decalerJourISO(date, d)).filter(d => litres.has(d + '|' + quart) && !special(d)).map(d => litres.get(d + '|' + quart));
+      return v.length >= VOISINS_HABITUDE_MIN ? moyenneTab(v) : null;
+    };
+    const exclus = { feries: 0, ponts: 0, litresIncomplets: 0, aucunPompiste: 0, plusieursPompistes: 0, sansHabitude: 0 };
+    const compares = [];
+    let nbAttribuables = 0;
+    const vus = new Set();
+    rows.filter(r => r.date >= fen.debut && r.date <= fen.fin).forEach(r => {
+      const cle = r.date + '|' + String(r.quart);
+      if (vus.has(cle)) return;
+      vus.add(cle);
+      const sp = special(r.date);
+      if (sp) { exclus[sp.type === 'ferie' ? 'feries' : 'ponts']++; return; }
+      if (!litres.has(cle)) { exclus.litresIncomplets++; return; }
+      const ids = pompistesDuQuart(r.employes_piste);
+      if (ids.length === 0) { exclus.aucunPompiste++; return; }
+      if (ids.length >= 2) { exclus.plusieursPompistes++; return; }
+      nbAttribuables++;
+      const h = habitude(r.date, String(r.quart));
+      if (h === null) { exclus.sansHabitude++; return; }
+      compares.push({ date: r.date, quart: String(r.quart), pompiste: ids[0], litres: litres.get(cle), habitude: h, ecart: litres.get(cle) - h });
+    });
+    const exc = new Set(joursExceptionnels(compares.map(c => ({ date: c.date + '|' + c.quart, valeur: c.ecart }))).map(j => j.date));
+    const groupe = liste => { const o = {}; liste.forEach(c => { (o[c.pompiste] = o[c.pompiste] || []).push(c.ecart); }); return o; };
+    const avec = classerPompistes(groupe(compares), noms);
+    const sans = classerPompistes(groupe(compares.filter(c => !exc.has(c.date + '|' + c.quart))), noms);
+    const ordre = r => r.classes.map(p => p.id).join(',');
+    return {
+      fenetre: fen, semaines: FENETRE_VACANCES_SEMAINES, seuilClassement: QUARTS_CLASSEMENT_MIN_POMPISTES,
+      exclus, nbQuartsAttribuables: nbAttribuables, nbQuartsCompares: compares.length,
+      sans, avec, changeAvecSans: ordre(sans) !== ordre(avec) || sans.classes.length !== avec.classes.length,
+      exceptionnels: [...exc].sort(), aDesExceptionnels: exc.size > 0,
+    };
+  }
+
 
   window.NexusTempo = {
     syntheseEnBref, joursFortsFaibles, joursFortsFaiblesMesures, lignesJours, tuilesJours, RATIO_CV_IRREGULIER,
@@ -3070,6 +3162,7 @@
     compositionCalendrier, analyseFeries, FERIES_OBSERVES_MIN, evaluerComparabilite, prixMoyenMesure,
     joursCaPiste, joursCaBoutique, analysePiste, departagerDepassement, joursLitresCarburant, quartsLitresCarburant, horsServiceCarburant, CARBURANTS, JOURS_HORS_SERVICE, SEUIL_PART_POINTS, K_DEPASSEMENT, correlationResidus, relationBoutiqueFdj, rapportFdjQuart1, SEUIL_RELATION_JOURS,
     libelleEvolution,
+    pompistesParQuart, pompistesDuQuart, classerPompistes, statPompiste, QUARTS_CLASSEMENT_MIN_POMPISTES,
     candidatsDecouvertes, candidatRelation, classerDecouvertes, selectionnerDecouvertes, decouvertesEcartees, NB_DECOUVERTES_ACCUEIL, RANGS_PERDUS_FRAICHEUR,
     analyseBoutique, SEUIL_MARGE_GLOBALE_PCT, SEUIL_MARGE_GLOBALE_EUROS_JOUR, SEUIL_CATEGORIE_EUROS_JOUR, SEUIL_CONCENTRATION_CATEGORIE, SEUIL_CA_DECROCHAGE_PCT,
     moisParMois, barresMois, phraseMois, ruptureTendance, phraseRupture, moisInhabituel, candidatsHistoriques, compositionMoisFdj, clesMoisEcoules, bornesMois, DEBUT_MOIS_PISTE, DEBUT_MOIS_FDJ, ECART_JOURS_COMPOSITION_MAX,
