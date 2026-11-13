@@ -179,11 +179,15 @@ t('la ligne est sans répétition de séparateur et sans terme interne', () => {
 t('la page n’affiche la ligne que pour un groupe lisible dont le verdict n’est pas « net »', () => {
   assert.ok(/info\.sans\.etat === 'lisible' && info\.sans\.verdict !== 'net' && V\.ecartsIsoles\(/.test(html));
 });
-t('tableau étroit : effectifs « 7 / 7 », en-tête court, écart insécable', () => {
+t('tableau étroit : effectifs « 7 / 7 », en-tête court, seul le pourcentage est insécable', () => {
   assert.strictEqual(VV.effectifs(7, 7), '7 / 7');
   assert.strictEqual(VV.entetes.jours, 'Jours (vacances / hors)');
   assert.ok(/\.groupe-vac \.tableau td\.ec[^{]*\{[^}]*white-space:nowrap/.test(html));
   assert.ok(html.includes('class="ec"'));
+  // Un texte (« Variation habituelle », « Insuffisant ») doit pouvoir passer à la ligne : nowrap réservé au pourcentage.
+  assert.ok(!/td\.insuf[^{]*\{[^}]*white-space:nowrap/.test(html), 'nowrap sur une cellule textuelle');
+  assert.ok(/else if \(p\.net\) \{ ecart = V\.ecart\(p\.pct\); cls = ' class="ec"'; \}/.test(html), 'class ec hors pourcentage');
+  assert.ok(!/cls \|\| ' class="ec"'/.test(html));
 });
 t('libellé de fenêtre : bornée par les données ou pleine', () => {
   assert.strictEqual(VV.fenetre(52, '2026-03-02', '2026-11-08', true), 'Fenêtre : du 2 mars au 8 novembre (52 semaines closes au plus, limitée au début des données de cette source).');

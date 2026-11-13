@@ -251,7 +251,7 @@ details.valeurs .tableau td, details.valeurs .tableau th{white-space:nowrap;}
 .groupe-vac .verdict{font-size:14px; font-weight:600; color:var(--t-text); margin:6px 0;}
 .groupe-vac.grise .verdict{color:var(--t-mid); font-weight:500;}
 .groupe-vac .tableau td.insuf{color:var(--t-mid);}
-.groupe-vac .tableau td.ec, .groupe-vac .tableau td.insuf{white-space:nowrap;}
+.groupe-vac .tableau td.ec{white-space:nowrap;}
 .groupe-vac .isoles{font-size:13px; color:var(--t-mid); margin:0 0 8px;}
 .vac-notes p{margin:6px 0;}
 </style>
@@ -359,11 +359,12 @@ details.valeurs .tableau td, details.valeurs .tableau th{white-space:nowrap;}
     calc.parJour.forEach(p => {
       let ecart, cls = '';
       if (!p.suffisant) { ecart = V.jourGrise; cls = ' class="insuf"'; }
-      else ecart = p.net ? V.ecart(p.pct) : V.habituel;
+      else if (p.net) { ecart = V.ecart(p.pct); cls = ' class="ec"'; }
+      else ecart = V.habituel;
       t += '<tr><td>' + esc(V.noms[p.jourSemaine]) + '</td>' +
         '<td' + (p.suffisant ? '' : ' class="insuf"') + '>' + (p.suffisant ? esc(V.moyenne(p.moyenneVacances, act)) : '') + '</td>' +
         '<td' + (p.suffisant ? '' : ' class="insuf"') + '>' + (p.suffisant ? esc(V.moyenne(p.moyenneHors, act)) : '') + '</td>' +
-        '<td>' + esc(V.effectifs(p.effectifVacances, p.effectifHors)) + '</td><td' + (cls || ' class="ec"') + '>' + esc(ecart) + '</td></tr>';
+        '<td>' + esc(V.effectifs(p.effectifVacances, p.effectifHors)) + '</td><td' + cls + '>' + esc(ecart) + '</td></tr>';
     });
     return t + '</tbody></table>';
   }
