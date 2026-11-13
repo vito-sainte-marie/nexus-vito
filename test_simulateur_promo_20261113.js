@@ -42,7 +42,7 @@ t('somme de deux produits en euros',()=>{
   proche(h.ecart,a.hypotheses[2].ecart+b.hypotheses[2].ecart,1e-9);
   assert(!('ratio' in s)&&!('pourcentage' in s));
 });
-t('prix net : 0,54 € remise 10 % octroi 2,5 %',()=>{ proche(S.prixNet(0.54,10,2.5),0.498,0.001); });
+t('prix net : 0,54 € remise 10 %, sans octroi de mer',()=>{ proche(S.prixNet(0.54,10),0.486,1e-9); proche(S.prixNet(0.54,10,2.5),0.486,1e-9); });
 t('lancement : exemple du cahier',()=>{
   const r=S.calculerLancement({achat:1,venteNormale:1.6,ventePromo:1.3},[200]);
   proche(r.lignes[0].cout,60,1e-9); proche(r.lignes[0].margePromo,60,1e-9); proche(r.margeNormale,0.6,1e-9);
@@ -91,8 +91,9 @@ t('article inconnu : aucune suggestion',()=>{ assert.strictEqual(S.suggestions(r
 
 t('aucune écriture ni git dans le moteur et la page',()=>{
   const moteur=lire('nexus-simulateur-promo.js'), page=lire('NEXUS-Campagne-v2.html');
+  const sansMesure=src=>src.replace(/nexusClient\s*\.from\('(campagne_mesures_produits|campagne_couts|fournisseurs_conditions)'\)\s*\.(insert|upsert|delete)\(/g,'');
   [moteur,page].forEach(src=>{
-    assert(!/\.(insert|upsert|update|delete)\s*\(/.test(src.replace(/nexusClient\s*\.from\('campagnes_nexus'\)\s*\.insert\(/,'')),'écriture');
+    assert(!/\.(insert|upsert|update|delete)\s*\(/.test(sansMesure(src).replace(/nexusClient\s*\.from\('campagnes_nexus'\)\s*\.insert\(/,'')),'écriture');
     assert(!/from\('(products|campagnes_nexus_imports)'\)\s*\.(insert|upsert|update|delete)/.test(src));
     assert(!/child_process|execSync|spawn/.test(src));
   });
@@ -105,7 +106,7 @@ t('page : bandeau permanent, moteur chargé, pas d’écriture sur products ni i
   const sansV2 = page.replace(/from\('campagnes_nexus'\)\s*\.insert/g,'');
   assert(!/from\('(products|campagnes_nexus_imports)'\)\s*\.(insert|update|upsert|delete)/.test(sansV2));
   const zone = page.slice(page.indexOf('Simulateur de promotion (aucune'));
-  assert(!/\.(insert|update|upsert|delete)\(/.test(zone));
+  assert(!/\.(insert|update|upsert|delete)\(/.test(zone.replace(/nexusClient\s*\.from\('(campagne_mesures_produits|campagne_couts|fournisseurs_conditions)'\)\s*\.(insert|upsert|delete)\(/g,'')));
 });
 t('page : noms d’article échappés, aucune saisie injectée brute', ()=>{
   const zone = page.slice(page.indexOf('Simulateur de promotion (aucune'));

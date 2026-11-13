@@ -226,6 +226,36 @@ button.tuile:hover, button.tuile:focus-visible{border-color:var(--t-cyan);}
     <div class="sim-res" id="simResultat" aria-live="polite"></div>
   </section>
 
+  <section class="sim" id="mesure" hidden aria-labelledby="mesTitre">
+    <div class="titre-section" id="mesTitre"></div>
+    <p class="intro-historique" id="mesIntro"></p>
+    <label class="sim-choix">
+      <span id="mesChoisirLib"></span>
+      <select id="mesCampagne"></select>
+    </label>
+    <div id="mesCorps" hidden>
+      <div class="sim-source" id="mesPrefillNote"></div>
+      <div id="mesProduits"></div>
+      <div class="sim-actions"><button type="button" class="btn" id="mesAjouter"></button></div>
+      <div class="titre-section" id="mesCoutsTitre"></div>
+      <div class="sim-source" id="mesCoutsNote"></div>
+      <div id="mesCouts"></div>
+      <div class="sim-actions"><button type="button" class="btn" id="mesCoutAjouter"></button></div>
+      <div class="sim-actions"><button type="button" class="btn" id="mesEnregistrer"></button><button type="button" class="btn" id="mesFermer"></button></div>
+      <div class="sim-source" id="mesStatut" role="status"></div>
+      <div class="sim-res" id="mesResultat" aria-live="polite"></div>
+      <details class="sim-aide"><summary id="mesFournTitre"></summary>
+        <div class="sim-source" id="mesFournNote"></div>
+        <div class="sim-grille">
+          <label><span id="mesFournNomLib"></span><input type="text" id="mesFournNom" autocomplete="off"></label>
+          <label><span id="mesFournRemLib"></span><input type="text" id="mesFournRem" inputmode="decimal" autocomplete="off"></label>
+        </div>
+        <div class="sim-actions"><button type="button" class="btn" id="mesFournEnr"></button></div>
+        <div class="sim-source" id="mesFournStatut" role="status"></div>
+      </details>
+    </div>
+  </section>
+
   <div class="titre-section" id="tHistorique"></div>
   <div class="intro-historique" id="introHistorique"></div>
   <div id="historique"></div>
@@ -249,6 +279,7 @@ button.tuile:hover, button.tuile:focus-visible{border-color:var(--t-cyan);}
 <script src="nexus-periodes.js?v=20260904-0104"></script>
 <script src="nexus-campagnes.js?v=20260904-0104"></script>
 <script src="nexus-simulateur-promo.js?v=20261113-1000"></script>
+<script src="nexus-mesure-compensation.js?v=20261113-1800"></script>
 <script>
 const V = window.NexusVocab.campagne;
 const NC = window.NexusCampagnes;
@@ -570,7 +601,7 @@ function libellePeriode(p){
 
 function simNouveau(){
   return { article: '', ventes: '', achatAvant: '', achatPendant: '', venteAvant: '', ventePendant: '', jours: '30',
-           info: null, catalogue: '', remise: '', octroi: '' };
+           info: null, catalogue: '', remise: '' };
 }
 
 function simPeindreProduit(e, i){
@@ -594,7 +625,7 @@ function simPeindreProduit(e, i){
       champ('achatAvant', SV.achatAvant) + champ('achatPendant', SV.achatPendant) +
       champ('venteAvant', SV.venteAvant) + champ('ventePendant', SV.ventePendant) + '</div>' +
     '<details class="sim-aide"><summary>' + esc(SV.aideAchat) + '</summary><div class="sim-grille">' +
-      champ('catalogue', SV.prixCatalogue) + champ('remise', SV.remise) + champ('octroi', SV.octroi) +
+      champ('catalogue', SV.prixCatalogue) + champ('remise', SV.remise) +
       '<div><div class="sim-source" data-net="' + i + '"></div><button type="button" class="btn" data-appliquer="' + i + '">' + esc(SV.appliquer) + '</button></div>' +
     '</div></details>' +
     '<div class="sim-actions"><button type="button" class="btn" data-retirer="' + i + '">' + esc(SV.retirer) + '</button></div>' +
@@ -613,7 +644,7 @@ function simMajNet(i){
   if (!zone) return;
   const c = nombre(e.catalogue);
   if (c === null){ zone.textContent = ''; return; }
-  const net = SIM.prixNet(c, nombre(e.remise) || 0, nombre(e.octroi) || 0);
+  const net = SIM.prixNet(c, nombre(e.remise) || 0);
   zone.textContent = SV.prixNet + ' : ' + fmtPrix(net);
   zone.dataset.valeur = String(net);
 }
@@ -713,7 +744,7 @@ function simBrancher(){
     } else {
       e[c] = el.value;
     }
-    if (c === 'catalogue' || c === 'remise' || c === 'octroi') simMajNet(i);
+    if (c === 'catalogue' || c === 'remise') simMajNet(i);
     simCalculer();
   });
   zone.addEventListener('click', ev => {
@@ -749,9 +780,285 @@ function simPeindreFixes(){
   $('simFermer').textContent = SV.fermer;
 }
 
+/* ---------- Mesure de la compensation (écrit dans campagne_mesures_produits, campagne_couts, fournisseurs_conditions ; jamais dans products) ---------- */
+const MC = window.NexusMesureCompensation;
+const MV = V.mesure;
+const MES_CHAMPS = ['ventes', 'joursRef', 'achatAvant', 'achatPendant', 'venteAvant', 'ventePendant', 'stockDebut', 'stockFin', 'livraisons', 'pertes'];
+let MES_CAMPAGNE = null, MES_PRODUITS = [], MES_COUTS = [], MES_FICHES = [];
+
+function mesNouveau(){
+  return { article: '', nouveau: false, fournisseur: '', catalogue: '', info: null, ventes: '', joursRef: '30', achatAvant: '', achatPendant: '', venteAvant: '', ventePendant: '',
+           stockDebut: '', stockFin: '', livraisons: '', pertes: '', srcDebut: null, srcFin: null, notes: [] };
+}
+function mesJoursCampagne(c){
+  const a = NexusTempo.dateLocale(c.dateDebut), b = NexusTempo.dateLocale(c.dateFin);
+  return Math.round((b - a) / 86400000) + 1;
+}
+function mesBornes(iso){
+  const d = NexusTempo.dateLocale(iso), f = new Date(d.getTime()); f.setDate(f.getDate() + 1);
+  return [d.toISOString(), f.toISOString()];
+}
+// Stock à une date : comptage NEXUS du jour, sinon relevé Decenium du jour exact. Retourne {comptage, decenium}.
+async function mesStockADate(article, iso){
+  const [d0, d1] = mesBornes(iso);
+  const out = { comptage: null, decenium: null };
+  try {
+    const zp = await nexusClient.from('inventaire_zone_produit').select('id').eq('site', SITE_ID).eq('designation', article);
+    const ids = (zp.data || []).map(x => x.id);
+    if (ids.length){
+      const c = await nexusClient.from('inventaire_comptages').select('produit_id, quantite, compte_le, statut')
+        .in('produit_id', ids).gte('compte_le', d0).lt('compte_le', d1).order('compte_le', {ascending: false});
+      const parProduit = new Map();
+      (c.data || []).forEach(r => { if (r.quantite != null && !parProduit.has(r.produit_id)) parProduit.set(r.produit_id, Number(r.quantite)); });
+      if (parProduit.size) out.comptage = Array.from(parProduit.values()).reduce((s, v) => s + v, 0);
+    }
+  } catch (e) { console.error('comptage', e); }
+  try {
+    const s = await nexusClient.from('stock_releves').select('quantite_reelle, releve_le').eq('site', SITE_ID).eq('article', article)
+      .gte('releve_le', d0).lt('releve_le', d1).order('releve_le', {ascending: false}).limit(1);
+    if (s.data && s.data.length && s.data[0].quantite_reelle != null) out.decenium = Number(s.data[0].quantite_reelle);
+  } catch (e) { console.error('decenium', e); }
+  return out;
+}
+function mesFiche(nom){ return MES_FICHES.find(f => f.fournisseur === nom) || null; }
+function mesMajAchatAvant(e){
+  const f = mesFiche(e.fournisseur), cat = nombre(e.catalogue);
+  if (f && cat != null){
+    e.achatAvant = saisie(cat * (1 - Number(f.remise_habituelle_pct) / 100));
+    e.notes = [MV.achatNetNote];
+  }
+}
+async function mesPreremplir(i, article){
+  const e = MES_PRODUITS[i];
+  e.article = article;
+  const s = SIM.suggestions(PRODUITS_ROWS, article, new Date());
+  e.info = s; e.notes = [];
+  if (s){
+    e.ventes = saisie(Math.round(s.ventesMoisPrecedent));
+    e.venteAvant = saisie(s.venteAvant);
+    e.achatAvant = saisie(s.achatAvant);
+    e.notes = [MV.achatDecenium];
+  }
+  const [debut, fin] = await Promise.all([mesStockADate(article, MES_CAMPAGNE.dateDebut), mesStockADate(article, MES_CAMPAGNE.dateFin)]);
+  const d = MC.choisirStock({comptage: debut.comptage, decenium: debut.decenium});
+  const f = MC.choisirStock({comptage: fin.comptage, decenium: fin.decenium});
+  if (d.valeur !== null){ e.stockDebut = saisie(d.valeur); e.srcDebut = d.source; } else { e.srcDebut = null; }
+  if (f.valeur !== null){ e.stockFin = saisie(f.valeur); e.srcFin = f.source; } else { e.srcFin = null; }
+  mesPeindre();
+}
+function mesSource(src){ return MV.sources[src] || MV.sourceAucune; }
+function mesPeindreProduit(e, i){
+  const champ = (cle, lib) => '<label>' + esc(lib) + '<input type="text" inputmode="decimal" autocomplete="off" data-mi="' + i + '" data-mchamp="' + cle + '" value="' + esc(e[cle]) + '"></label>';
+  const opts = '<option value=""></option>' + MES_FICHES.map(f => '<option value="' + esc(f.fournisseur) + '"' + (f.fournisseur === e.fournisseur ? ' selected' : '') + '>' + esc(f.fournisseur) + '</option>').join('');
+  return '<div class="sim-produit" data-mproduit="' + i + '">' +
+    '<label>' + esc(MV.produit) + '<input type="text" autocomplete="off" data-mi="' + i + '" data-mchamp="article" value="' + esc(e.article) + '"></label>' +
+    '<div class="sugg" data-msugg="' + i + '"></div>' +
+    '<label class="sim-case"><input type="checkbox" data-mi="' + i + '" data-mchamp="nouveau"' + (e.nouveau ? ' checked' : '') + '> ' + esc(MV.nouveauProduit) + '</label>' +
+    '<div class="sim-grille">' + champ('ventes', MV.ventesMois) + champ('joursRef', MV.joursRef) +
+      champ('venteAvant', MV.venteAvant) + champ('ventePendant', MV.ventePendant) +
+      champ('achatAvant', MV.achatAvant) + champ('achatPendant', MV.achatPendant) +
+      '<label>' + esc(MV.stockDebut) + '<input type="text" inputmode="decimal" autocomplete="off" data-mi="' + i + '" data-mchamp="stockDebut" value="' + esc(e.stockDebut) + '"><span class="sim-source">' + esc(mesSource(e.srcDebut)) + '</span></label>' +
+      '<label>' + esc(MV.stockFin) + '<input type="text" inputmode="decimal" autocomplete="off" data-mi="' + i + '" data-mchamp="stockFin" value="' + esc(e.stockFin) + '"><span class="sim-source">' + esc(mesSource(e.srcFin)) + '</span></label>' +
+      champ('livraisons', MV.livraisons) + champ('pertes', MV.pertes) + '</div>' +
+    '<div class="sim-source">' + esc(MV.pertesNote) + '</div>' +
+    '<details class="sim-aide"><summary>' + esc(V.sim.aideAchat) + '</summary><div class="sim-grille">' +
+      '<label>' + esc(MV.fournisseurNom) + '<select data-mi="' + i + '" data-mchamp="fournisseur">' + opts + '</select></label>' +
+      champ('catalogue', V.sim.prixCatalogue) + '</div></details>' +
+    e.notes.map(n => '<div class="sim-source">' + esc(n) + '</div>').join('') +
+    '<div data-mres="' + i + '"></div>' +
+    '<div class="sim-actions"><button type="button" class="btn" data-mretirer="' + i + '">' + esc(MV.retirer) + '</button></div></div>';
+}
+function mesPeindreCouts(){
+  $('mesCouts').innerHTML = MES_COUTS.map((c, i) =>
+    '<div class="sim-grille"><label>' + esc(MV.coutLibelle) + '<input type="text" autocomplete="off" data-ci="' + i + '" data-cchamp="libelle" value="' + esc(c.libelle) + '"></label>' +
+    '<label>' + esc(MV.coutMontant) + '<input type="text" inputmode="decimal" autocomplete="off" data-ci="' + i + '" data-cchamp="montant" value="' + esc(c.montant) + '"></label>' +
+    '<button type="button" class="btn" data-cretirer="' + i + '">' + esc(MV.retirer) + '</button></div>').join('');
+}
+function mesPeindre(){
+  $('mesProduits').innerHTML = MES_PRODUITS.map(mesPeindreProduit).join('');
+  mesPeindreCouts();
+  mesCalculer();
+}
+function mesEntree(e){
+  const dureeCampagne = MES_CAMPAGNE ? mesJoursCampagne(MES_CAMPAGNE) : null;
+  return { article: e.article, nouveauProduit: e.nouveau, ventesMoisPrecedent: nombre(e.ventes), joursReference: nombre(e.joursRef),
+    achatAvant: nombre(e.achatAvant), achatPendant: nombre(e.achatPendant), venteAvant: nombre(e.venteAvant), ventePendant: nombre(e.ventePendant),
+    jours: dureeCampagne, stockDebut: nombre(e.stockDebut), livraisons: nombre(e.livraisons) || 0, stockFin: nombre(e.stockFin), pertes: nombre(e.pertes),
+    prixNormal: e.info ? e.info.prixReference : null, promotionDeclaree: true };
+}
+function mesBlocProduit(l){
+  if (!l.mesurable){
+    return '<div class="sim-res"><strong>' + esc(MV.etats.non_mesurable) + '</strong><div class="sim-source">' + esc(MV.manquants + ' ' + l.manquants.map(m => MV.champs[m] || m).join(', ')) + '</div></div>';
+  }
+  if (l.lancement){
+    return '<div class="sim-res"><strong>' + esc(MV.etats.lancement) + '</strong><div class="sim-source">' + esc(MV.lancement + ' ' + fmtEur(l.margePendantTotale)) + '</div></div>';
+  }
+  let h = '<div class="sim-res"><strong>' + esc(MV.etats[l.etat]) + '</strong>';
+  if (l.impossible) h += '<div class="sim-alerte">' + esc(MV.impossible) + '</div>';
+  else h += '<div class="sim-source">' + esc(MV.seuil + ' : ' + fmtDec1(l.seuil)) + '</div>';
+  if (l.taux !== null) h += '<div class="sim-source">' + esc(MV.taux + ' : ' + fmtDec1(l.taux * 100) + ' %') + '</div>';
+  h += '<div class="sim-source">' + esc(MV.ventesJourPendant + ' : ' + fmtDec1(l.ventesJourPendant)) + '</div>';
+  if (l.gain !== null) h += '<div class="sim-source">' + esc(MV.gain + ' : ' + fmtSigne(l.gain)) + '</div>';
+  if (l.prixSousNormal) h += '<div class="sim-alerte">' + esc(MV.prixSousNormal) + '</div>';
+  return h + '</div>';
+}
+function mesCalculer(){
+  if (!MES_CAMPAGNE) return;
+  const entrees = MES_PRODUITS.map(mesEntree);
+  const couts = MES_COUTS.map(c => ({montant_ht: nombre(c.montant) || 0}));
+  const camp = MC.mesurerCampagne(entrees, couts);
+  camp.lignes.forEach((l, i) => { const z = document.querySelector('[data-mres="' + i + '"]'); if (z) z.innerHTML = mesBlocProduit(l); });
+  let h = '<div class="titre-section">' + esc(MV.resultatTitre) + '</div><div class="sim-res"><strong>' + esc(MV.etats[camp.etat]) + '</strong>';
+  h += '<div class="sim-source">' + esc(MV.etatsNote[camp.etat]) + '</div>';
+  if (camp.mesurable){
+    h += '<div class="sim-source">' + esc(MV.taux + ' : ' + fmtDec1(camp.taux * 100) + ' %') + '</div>';
+    h += '<div class="sim-source">' + esc(MV.tauxNote) + '</div>';
+    h += '<div class="sim-source">' + esc(MV.gain + ' : ' + fmtSigne(camp.gain)) + '</div>';
+    h += '<div class="sim-source">' + esc(MV.couts + ' : ' + fmtEur(camp.couts)) + '</div>';
+    h += '<div class="sim-source">' + esc(MV.gainApresCouts + ' : ' + fmtSigne(camp.gainApresCouts)) + '</div>';
+  } else if (camp.nbProduits){
+    h += '<div class="sim-alerte">' + esc(MV.pasAssez) + '</div>';
+  }
+  if (camp.partMesurable !== null) h += '<div class="sim-source">' + esc(MV.partMesurable(Math.round(camp.partMesurable * 100))) + '</div>';
+  if (camp.nbLancements) h += '<div class="sim-source">' + esc(MV.lancement + ' ' + fmtEur(camp.margeLancement)) + '</div>';
+  $('mesResultat').innerHTML = h + '</div>';
+}
+async function mesCharger(campagneId){
+  MES_CAMPAGNE = IMPACTS.find(i => i.campagneId === campagneId) || null;
+  $('mesCorps').hidden = !MES_CAMPAGNE;
+  $('mesStatut').textContent = '';
+  if (!MES_CAMPAGNE) return;
+  const [m, c, f] = await Promise.all([
+    nexusClient.from('campagne_mesures_produits').select('*').eq('site', SITE_ID).eq('campagne_id', campagneId),
+    nexusClient.from('campagne_couts').select('libelle, montant_ht').eq('site', SITE_ID).eq('campagne_id', campagneId),
+    nexusClient.from('fournisseurs_conditions').select('fournisseur, remise_habituelle_pct').eq('site', SITE_ID).order('fournisseur'),
+  ]);
+  [['campagne_mesures_produits', m], ['campagne_couts', c], ['fournisseurs_conditions', f]].forEach(([n, r]) => { if (r.error) console.error(n, r.error); });
+  MES_FICHES = f.data || [];
+  MES_COUTS = (c.data || []).map(x => ({libelle: x.libelle, montant: saisie(Number(x.montant_ht))}));
+  MES_PRODUITS = (m.data || []).map(r => {
+    const e = mesNouveau();
+    e.article = r.article; e.nouveau = !!r.nouveau_produit; e.ventes = saisie(r.ventes_mois_precedent); e.joursRef = saisie(r.jours_reference);
+    e.achatAvant = saisie(r.achat_avant_ht); e.achatPendant = saisie(r.achat_pendant_ht); e.venteAvant = saisie(r.vente_avant_ht); e.ventePendant = saisie(r.vente_pendant_ht);
+    e.stockDebut = saisie(r.stock_debut); e.srcDebut = r.stock_debut_source; e.stockFin = saisie(r.stock_fin); e.srcFin = r.stock_fin_source;
+    e.livraisons = saisie(r.livraisons_pendant);
+    e.info = SIM.suggestions(PRODUITS_ROWS, r.article, new Date());
+    return e;
+  });
+  if (!MES_PRODUITS.length) MES_PRODUITS.push(mesNouveau());
+  mesPeindre();
+}
+async function mesEnregistrer(){
+  const st = $('mesStatut');
+  st.textContent = '';
+  const lignes = MES_PRODUITS.filter(e => e.article.trim()).map(e => ({
+    site: SITE_ID, campagne_id: MES_CAMPAGNE.campagneId, article: e.article.trim(), nouveau_produit: !!e.nouveau,
+    ventes_mois_precedent: nombre(e.ventes), jours_reference: nombre(e.joursRef) || 30,
+    achat_avant_ht: nombre(e.achatAvant), achat_pendant_ht: nombre(e.achatPendant), vente_avant_ht: nombre(e.venteAvant), vente_pendant_ht: nombre(e.ventePendant),
+    stock_debut: nombre(e.stockDebut), stock_debut_source: e.srcDebut || (nombre(e.stockDebut) != null ? 'saisie' : null),
+    stock_fin: nombre(e.stockFin), stock_fin_source: e.srcFin || (nombre(e.stockFin) != null ? 'saisie' : null),
+    livraisons_pendant: nombre(e.livraisons) || 0, saisi_par: EMPLOYEE.id || null, modifie_le: new Date().toISOString(),
+  }));
+  let erreur = null;
+  if (lignes.length){
+    const r = await nexusClient.from('campagne_mesures_produits').upsert(lignes, {onConflict: 'campagne_id,article'});
+    if (r.error){ console.error(r.error); erreur = r.error; }
+  }
+  if (!erreur){
+    const d = await nexusClient.from('campagne_couts').delete().eq('site', SITE_ID).eq('campagne_id', MES_CAMPAGNE.campagneId);
+    if (d.error){ console.error(d.error); erreur = d.error; }
+    else {
+      const couts = MES_COUTS.filter(c => c.libelle.trim() && nombre(c.montant) != null && nombre(c.montant) >= 0)
+        .map(c => ({site: SITE_ID, campagne_id: MES_CAMPAGNE.campagneId, libelle: c.libelle.trim(), montant_ht: nombre(c.montant), saisi_par: EMPLOYEE.id || null}));
+      if (couts.length){
+        const r = await nexusClient.from('campagne_couts').insert(couts);
+        if (r.error){ console.error(r.error); erreur = r.error; }
+      }
+    }
+  }
+  st.textContent = erreur ? MV.erreurEnregistrement : MV.enregistre;
+}
+function mesBrancher(){
+  const sel = $('mesCampagne');
+  sel.addEventListener('change', () => mesCharger(sel.value));
+  const zone = $('mesProduits');
+  const maj = ev => {
+    const el = ev.target;
+    if (!el.dataset || el.dataset.mchamp === undefined) return;
+    const i = Number(el.dataset.mi), c = el.dataset.mchamp, e = MES_PRODUITS[i];
+    if (c === 'article'){
+      e.article = el.value;
+      const q = el.value.trim().toLowerCase();
+      const box = document.querySelector('[data-msugg="' + i + '"]');
+      const liste = q ? CATALOGUE_ARTICLES.filter(a => a.toLowerCase().includes(q)).slice(0, 8) : [];
+      box.innerHTML = liste.map(a => '<button type="button" data-mchoix="' + i + '" data-article="' + esc(a) + '">' + esc(a) + '</button>').join('');
+      box.classList.toggle('open', liste.length > 0);
+      return;
+    }
+    if (c === 'nouveau'){ e.nouveau = el.checked; mesCalculer(); return; }
+    e[c] = el.value;
+    if (c === 'stockDebut') e.srcDebut = 'saisie';
+    if (c === 'stockFin') e.srcFin = 'saisie';
+    if (c === 'fournisseur' || c === 'catalogue') mesMajAchatAvant(e);
+    if (ev.type === 'change' && (c === 'fournisseur')) { mesPeindre(); return; }
+    mesCalculer();
+  };
+  zone.addEventListener('input', maj);
+  zone.addEventListener('change', maj);
+  zone.addEventListener('click', ev => {
+    const b = ev.target.closest('button');
+    if (!b) return;
+    if (b.dataset.mchoix !== undefined) mesPreremplir(Number(b.dataset.mchoix), b.dataset.article);
+    else if (b.dataset.mretirer !== undefined){ MES_PRODUITS.splice(Number(b.dataset.mretirer), 1); mesPeindre(); }
+  });
+  $('mesCouts').addEventListener('input', ev => {
+    const el = ev.target;
+    if (!el.dataset || el.dataset.cchamp === undefined) return;
+    MES_COUTS[Number(el.dataset.ci)][el.dataset.cchamp === 'montant' ? 'montant' : 'libelle'] = el.value;
+    mesCalculer();
+  });
+  $('mesCouts').addEventListener('click', ev => {
+    const b = ev.target.closest('button');
+    if (b && b.dataset.cretirer !== undefined){ MES_COUTS.splice(Number(b.dataset.cretirer), 1); mesPeindreCouts(); mesCalculer(); }
+  });
+  $('mesAjouter').addEventListener('click', () => { MES_PRODUITS.push(mesNouveau()); mesPeindre(); });
+  $('mesCoutAjouter').addEventListener('click', () => { MES_COUTS.push({libelle: '', montant: ''}); mesPeindreCouts(); });
+  $('mesEnregistrer').addEventListener('click', mesEnregistrer);
+  $('mesFermer').addEventListener('click', () => { $('mesure').hidden = true; });
+  $('mesFournEnr').addEventListener('click', async () => {
+    const nom = $('mesFournNom').value.trim(), rem = nombre($('mesFournRem').value);
+    const st = $('mesFournStatut');
+    if (!nom || rem == null || rem < 0 || rem >= 100){ st.textContent = MV.erreurEnregistrement; return; }
+    const r = await nexusClient.from('fournisseurs_conditions').upsert({site: SITE_ID, fournisseur: nom, remise_habituelle_pct: rem, maj_par: EMPLOYEE.id || null, maj_le: new Date().toISOString()}, {onConflict: 'site,fournisseur'});
+    if (r.error){ console.error(r.error); st.textContent = MV.erreurEnregistrement; return; }
+    st.textContent = MV.fournisseurEnregistre;
+    const f = MES_FICHES.find(x => x.fournisseur === nom);
+    if (f) f.remise_habituelle_pct = rem; else MES_FICHES.push({fournisseur: nom, remise_habituelle_pct: rem});
+    mesPeindre();
+  });
+  const carte = document.querySelector('[data-carte="compensation"]');
+  if (carte) carte.addEventListener('click', () => {
+    $('mesure').hidden = false;
+    sel.innerHTML = '<option value="">' + esc(MV.choisirVide) + '</option>' +
+      IMPACTS.filter(i => statutDe(i) !== 'avenir').map(i => '<option value="' + esc(i.campagneId) + '">' + esc(i.nom + ' (' + fmtDateCourt(i.dateDebut) + ' au ' + fmtDateCourt(i.dateFin) + ')') + '</option>').join('');
+    if (!IMPACTS.length) $('mesIntro').textContent = MV.aucuneCampagne;
+    $('mesure').scrollIntoView({behavior: 'smooth', block: 'start'});
+  });
+}
+function mesPeindreFixes(){
+  $('mesTitre').textContent = MV.titre; $('mesIntro').textContent = MV.intro; $('mesChoisirLib').textContent = MV.choisir;
+  $('mesPrefillNote').textContent = MV.prefillNote; $('mesAjouter').textContent = MV.ajouterProduit;
+  $('mesCoutsTitre').textContent = MV.coutsTitre; $('mesCoutsNote').textContent = MV.coutsNote; $('mesCoutAjouter').textContent = MV.coutAjouter;
+  $('mesEnregistrer').textContent = MV.enregistrer; $('mesFermer').textContent = MV.fermer;
+  $('mesFournTitre').textContent = MV.fournisseurTitre; $('mesFournNote').textContent = MV.fournisseurNote;
+  $('mesFournNomLib').textContent = MV.fournisseurNom; $('mesFournRemLib').textContent = MV.fournisseurRemise; $('mesFournEnr').textContent = MV.fournisseurEnregistrer;
+}
+
 peindreTextesFixes();
 simPeindreFixes();
 simBrancher();
+mesPeindreFixes();
+mesBrancher();
 brancherFormulaire();
 nexusRequireAuth().then(async employee => {
   if (!employee) return;

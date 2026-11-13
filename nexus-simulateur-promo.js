@@ -13,9 +13,9 @@
 
   function num(v) { var n = Number(v); return isFinite(n) ? n : 0; }
 
-  // Prix net d'achat HT : catalogue × (1 − remise) × (1 + octroi de mer). Pourcentages en points (10 = 10 %).
-  function prixNet(catalogue, remisePct, octroiPct) {
-    return num(catalogue) * (1 - num(remisePct) / 100) * (1 + num(octroiPct) / 100);
+  // Prix net d'achat HT : catalogue × (1 − remise habituelle). Pas d'octroi de mer. Pourcentage en points (10 = 10 %).
+  function prixNet(catalogue, remisePct) {
+    return num(catalogue) * (1 - num(remisePct) / 100);
   }
 
   function margeUnitaire(vente, achat) { return num(vente) - num(achat); }
