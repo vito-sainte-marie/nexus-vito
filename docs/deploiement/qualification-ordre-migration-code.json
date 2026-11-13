@@ -985,6 +985,47 @@
         "verdict": "APPLIQUÉE — public.station_config, site = vito-sainte-marie : carburant_commande_config->jours_commande_iso = [1,2,3,4,5]. Estampille 20261110140000 présente dans supabase_migrations.schema_migrations (name carburant_commande_jours_commande_sainte_marie, statements identiques au fichier).",
         "blob_migration": "9cc53cb7c3f149919972c4cefc1a56369adc36d1"
       }
+    },
+    "20261113180000": {
+      "etat": "migration_deja_appliquee",
+      "justification": "Appliquee en Production (uzhjpqpctpvxytxpxoqz) le 13/11/2026 apres GO de Frederic (comment 6866015599), puis mesuree par Guardian sur le catalogue a 22:15:11Z (commentaire Guardian 6866253363 sur #160). Les 3 tables (campagne_mesures_produits 20 colonnes, campagne_couts 7, fournisseurs_conditions 6) existent avec RLS active, contraintes CHECK/unicite/cles etrangeres, index, et les 3 politiques lecture_meme_site, ecriture_manager_meme_site, createur_lit_si_autorise. anon : aucun droit ; authenticated : SELECT, INSERT, UPDATE, DELETE seulement. Estampille du registre : 20261113221337 campagne_mesure_compensation.",
+      "prochaine_action": "aucune ; effet constate le 13/11/2026",
+      "mesure": {
+        "source": "catalogue",
+        "le": "2026-11-13T22:15:11Z",
+        "cible": "uzhjpqpctpvxytxpxoqz",
+        "par": "guardian",
+        "outil": "connecteur Supabase execute_sql, catalogue en lecture seule (commentaire Guardian 6866253363 sur #160)",
+        "verdict": "APPLIQUEE — 6/6 objets constates sur le catalogue Production, conforme au fichier de la tete 42f1d0be.",
+        "blob_migration": "5e48b90053d3ac3a0db055f9b41743f76b455960"
+      },
+      "objets_constates": [
+        "campagne_mesures_produits",
+        "campagne_couts",
+        "fournisseurs_conditions",
+        "lecture_meme_site",
+        "ecriture_manager_meme_site",
+        "createur_lit_si_autorise"
+      ],
+      "reserve": "L'alerte « DDL destructif : truncate » de la garde est le `revoke truncate, references, trigger ... from authenticated`, c'est-a-dire une FERMETURE de droits, et non un TRUNCATE de donnees. Aucune donnee n'a ete ecrite ni lue. Cette qualification n'autorise ni la fusion ni le deploiement : elle constate seulement l'etat de la base. Les estampilles du registre (20261113221337, 20261113221348) different des noms de fichiers ; ce sont les estampilles des fichiers qui servent de repere a la garde."
+    },
+    "20261113190000": {
+      "etat": "migration_deja_appliquee",
+      "justification": "Appliquee en Production (uzhjpqpctpvxytxpxoqz) le 13/11/2026 apres GO de Frederic (comment 6866015599), puis mesuree par Guardian sur le catalogue a 22:15:11Z (commentaire Guardian 6866253363 sur #160). La politique createur_lit_si_autorise des 3 tables vaut je_suis_createur() AND EXISTS (sites ... acces_createur_autorise = true). Estampille du registre : 20261113221348 campagne_mesure_createur_acces_autorise.",
+      "prochaine_action": "aucune ; effet constate le 13/11/2026",
+      "mesure": {
+        "source": "catalogue",
+        "le": "2026-11-13T22:15:11Z",
+        "cible": "uzhjpqpctpvxytxpxoqz",
+        "par": "guardian",
+        "outil": "connecteur Supabase execute_sql, catalogue en lecture seule (commentaire Guardian 6866253363 sur #160)",
+        "verdict": "APPLIQUEE — politique createur_lit_si_autorise constatee sur les 3 tables, conforme au fichier de la tete 42f1d0be.",
+        "blob_migration": "4ff696924393f46e921116e2584d318933da6ed7"
+      },
+      "objets_constates": [
+        "createur_lit_si_autorise"
+      ],
+      "reserve": "Aucune donnee n'a ete ecrite. Cette qualification n'autorise ni la fusion ni le deploiement. L'estampille du registre (20261113221348) differe du nom de fichier ; c'est l'estampille du fichier qui sert de repere a la garde."
     }
   },
   "prochaine_action": "Axe SS4 migration -> code : LEVE pour 20260919103000 (13/13 objets constates sur le catalogue le 01/10/2026) et pour 20261001160000 (ACL constatee fermee le 03/10/2026). Ces qualifications restent acquises tant que leur fichier de migration ne change pas : la garde compare mesure.blob_migration a l'empreinte du candidat, et une migration retouchee fait tomber sa qualification. Il n'y a plus d'echeance horaire (l'ancienne fraicheur de 72 h aurait fait retomber l'axe le 04/10/2026 sans que rien ne bouge). CE QUE LA GARDE NE VOIT PAS : une base modifiee sans que le depot bouge - c'est exactement ce que la relecture du 03/10 a trouve pour 20261001160000. Toute procedure d'application relit donc la base avant d'ecrire. CE QUE CELA N'AUTORISE PAS : aucune fusion ni aucun deploiement ; chacun reste un GO distinct de Frederic. RESTE A FAIRE, separement : (1) les 11 migrations du rail toujours non qualifiees ; (2) le cablage de garde-ordre-migration-code.js dans deploiement-production.yml. Lecture du verdict et table de decision : SS18.4 ; recit de la mesure : SS20. MISE A JOUR DU 04/10/2026 : les 13 migrations du candidat rebuild/fdj-62-20260922 sont qualifiees (12 atomiques en serie avant le code, 20261004120000 code d abord) ; ordre et gestes dans docs/deploiement/procedure-fdj-62-production.md."

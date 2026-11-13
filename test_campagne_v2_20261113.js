@@ -19,8 +19,8 @@ t('expressions interdites absentes',()=>{
 t('aucun tiret cadratin (page et bloc lexique)',()=>{
   assert(!page.includes('—')); assert(!bloc.includes('—'));
 });
-t('six cartes, cinq En préparation, seul le simulateur disponible, sans chiffre',()=>{
-  assert.deepStrictEqual(C.cartes.filter(c=>c.dispo).map(c=>c.cle),['simulateur']);
+t('six cartes, quatre En préparation, compensation et simulateur disponibles, sans chiffre',()=>{
+  assert.deepStrictEqual(C.cartes.filter(c=>c.dispo).map(c=>c.cle),['compensation','simulateur']);
   assert.deepStrictEqual(C.cartes.map(c=>c.cle),['promotions','compensation','produits-moteurs','produits-a-revoir','simulateur','renouveler']);
   assert.strictEqual(C.enPreparation,'En préparation');
   C.cartes.forEach(c=>assert(!/\d/.test(c.titre+c.texte),'chiffre dans '+c.cle));
@@ -86,5 +86,28 @@ t('retouches 20261113 : une seule mention, deux décimales, texte',()=>{
   assert((8.5).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})==='8,50');
   assert(C.cartes.find(c=>c.cle==='produits-a-revoir').texte==='Repérer les produits dont les ventes ne compensent pas la remise.');
   assert(/@media \(max-width:599px\)[\s\S]*\.header::after/.test(page),'dégradé mobile');
+});
+t('mesure de la compensation : câblage de la page et lexique',()=>{
+  assert(/<script src="nexus-mesure-compensation\.js/.test(page));
+  assert(/id="mesure"/.test(page));
+  assert(/data-carte="compensation"/.test(page) || /querySelector\('\[data-carte="compensation"\]'\)/.test(page));
+  assert(!/octroi/i.test(page), 'octroi encore dans la page');
+  assert(!/octroi/i.test(bloc), 'octroi encore dans le lexique');
+  assert(!/campagne_mesures_produits[^;]*from\('products'\)/.test(page));
+  assert(!/from\('products'\)\s*\.(insert|update|upsert|delete)/.test(page), 'écriture dans products');
+  const M=C.mesure;
+  assert(M && Object.keys(M).length>=50);
+  const tout=JSON.stringify(M);
+  assert(!/va dans le bon sens|achats avancés/i.test(tout));
+  ['campagne_mesures_produits','campagne_couts','fournisseurs_conditions'].forEach(n=>assert(page.includes(n),n));
+});
+t('mesure : retrait des produits supprimés, coûts insérés avant suppression, 30 jours par défaut signalés',()=>{
+  const i=page.indexOf('async function mesEnregistrer'); const f=page.slice(i,i+4500);
+  assert(/campagne_mesures_produits'\)\.delete\(\)\.in\('id'/.test(f),'retrait des lignes absentes de la liste');
+  const ins=f.indexOf("from('campagne_couts').insert"), del=f.indexOf("from('campagne_couts').delete()");
+  assert(ins>0 && del>ins,'coûts : insertion avant suppression');
+  assert(/\.delete\(\)\.in\('id', anciens\)/.test(f),'suppression par identifiants');
+  assert(page.includes('MV.joursDefaut') && C.mesure.joursDefaut==='30 jours par défaut');
+  Object.keys(C.mesure.sources).forEach(k=>assert(['comptage','decenium','saisie'].includes(k),k));
 });
 process.exit(echecs?1:0);

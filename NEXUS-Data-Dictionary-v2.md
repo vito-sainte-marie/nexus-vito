@@ -5448,3 +5448,15 @@ Lot Guardian 6769932054. Quatre migrations (Test d'abord, Production après vér
 - Les migrations de données sont **conditionnelles à l'existence du site** (Test n'a pas `vito-sainte-marie`).
 - Automatisation : `calendrier-feries.yml` (1er janvier) et `calendrier-vacances.yml` (1er du mois) ouvrent
   une PR depuis `production` ; aucune écriture directe en base.
+
+---
+
+## Mesure de la compensation : trois tables (13/11/2026)
+
+Lot Guardian, cahier des charges 6865021911, GO 6865137328. Migration `20261113180000_campagne_mesure_compensation.sql`, **appliquée sur Test seulement** (en deux temps : tables et politiques, puis révocations). Rien en Production tant qu'un GO écrit de Frédéric n'a pas suivi la recette de Guardian.
+
+- **`campagne_mesures_produits`** : une ligne par produit mesuré d'une campagne (`campagne_id`, `article`, unique sur les deux). Porte les stocks de début et de fin, les livraisons, les prix d'achat et de vente HT, les ventes par jour avant, la source de chaque stock (`nexus`, `decenium` ou `saisie`, contrainte CHECK) et le drapeau `nouveau_produit` (mode lancement).
+- **`campagne_couts`** : coûts de la campagne rattachés à `campagne_id` (libellé, montant). Déduits du gain pour décider « à renouveler ».
+- **`fournisseurs_conditions`** : fiche fournisseur, remise habituelle seulement. Prix net = prix catalogue × (1 − remise). Pas d'octroi de mer.
+- RLS calquée sur `campagnes_nexus` : lecture du même site, écriture manager ou gérant du même site, lecture du créateur si autorisé. `TRUNCATE`, `REFERENCES` et `TRIGGER` retirés à `anon` et `authenticated`.
+- Dette connue : `campagnes_nexus` garde ses privilèges complets.
