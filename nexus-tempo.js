@@ -2982,6 +2982,71 @@
     };
   }
 
+  // ------------------------------------------------------------
+  // Carte « Quand la piste tourne, la boutique suit-elle ? » (12/11/2026, règles du commentaire 6839654482).
+  // Calcul pur, aucun mot d'affichage (tout vient de NexusVocab.pisteBoutique). Ni cause, ni conseil, ni marge.
+  //   - Séries : piste = litres totaux, boutique = CA boutique source Verify ; même jour, jour complet des deux côtés.
+  //   - Habitude locale, calculée à part pour chaque série : moyenne des mêmes jours de semaine, 2 semaines avant et
+  //     2 semaines après, jour lui-même exclu. Moins de 3 valeurs : jour écarté et compté.
+  //   - Sens du jour : au-dessus ou au-dessous de son habitude ; un jour exactement égal à l'habitude est écarté et compté.
+  //   - Concordance : n jours comparés, k dans le même sens, p = k / n. p − 0,5 > 2·√(0,25 / n) : la boutique suit ;
+  //     0,5 − p > 2·√(0,25 / n) : sens opposés ; sinon pas de lien net. Verdict à partir de n ≥ 20, sinon carte grisée.
+  //   - Fériés et ponts écartés des deux séries (comptés), y compris comme voisins. Jours hors norme : avec et sans.
+  //   - Fenêtre : même règle que Vacances. Le tableau par jour de semaine est informatif (effectifs, sans verdict).
+  // ------------------------------------------------------------
+  const JOURS_COMPARES_MIN_PISTE_BOUTIQUE = 20;
+  const VOISINS_HABITUDE_MIN = 3;
+  const SEUIL_CONCORDANCE_ECARTS_TYPES = 2;
+  function verdictConcordance(n, k) {
+    if (!(n >= JOURS_COMPARES_MIN_PISTE_BOUTIQUE)) return { etat: 'grise', verdict: null, n, k, p: n > 0 ? k / n : null };
+    const p = k / n;
+    const seuil = SEUIL_CONCORDANCE_ECARTS_TYPES * Math.sqrt(0.25 / n);
+    const verdict = (p - 0.5 > seuil) ? 'suit' : (0.5 - p > seuil) ? 'oppose' : 'pas-de-lien';
+    return { etat: 'lisible', verdict, n, k, p, seuil };
+  }
+  function concordancePisteBoutique(seriePiste, serieBoutique, lignesCalendrier, aujourdhui) {
+    const valides = s => (s || []).filter(j => j && j.date && Number.isFinite(j.valeur));
+    const piste = valides(seriePiste), boutique = valides(serieBoutique);
+    const fen = fenetreVacances(piste.concat(boutique), aujourdhui);
+    const lignes = (lignesCalendrier || []).filter(l => l && l.date);
+    const feriesSite = new Set(lignes.filter(l => l.type === 'ferie').map(l => String(l.date).slice(0, 10)));
+    const libellesFeries = new Map();
+    lignes.filter(l => l.type === 'ferie' && l.libelle).forEach(l => libellesFeries.set(String(l.date).slice(0, 10), String(l.libelle).trim()));
+    const special = d => !!qualifierJourSpecial(d, feriesSite, libellesFeries);
+    const mapP = new Map(piste.map(j => [j.date, j.valeur])), mapB = new Map(boutique.map(j => [j.date, j.valeur]));
+    const habitude = (map, date) => {
+      const v = [-14, -7, 7, 14].map(d => decalerJourISO(date, d)).filter(d => map.has(d) && !special(d)).map(d => map.get(d));
+      return v.length >= VOISINS_HABITUDE_MIN ? moyenneTab(v) : null;
+    };
+    const exclus = { feries: 0, ponts: 0, incomplets: 0, sansHabitude: 0, egaux: 0 };
+    const compares = [];
+    const dates = [...new Set(piste.map(j => j.date).concat(boutique.map(j => j.date)))].filter(d => d >= fen.debut && d <= fen.fin).sort();
+    dates.forEach(d => {
+      const sp = qualifierJourSpecial(d, feriesSite, libellesFeries);
+      if (sp) { exclus[sp.type === 'ferie' ? 'feries' : 'ponts']++; return; }
+      if (!mapP.has(d) || !mapB.has(d)) { exclus.incomplets++; return; }
+      const hp = habitude(mapP, d), hb = habitude(mapB, d);
+      if (hp === null || hb === null) { exclus.sansHabitude++; return; }
+      const dp = mapP.get(d) - hp, db = mapB.get(d) - hb;
+      if (dp === 0 || db === 0) { exclus.egaux++; return; }
+      compares.push({ date: d, valeurPiste: mapP.get(d), valeurBoutique: mapB.get(d), memeSens: (dp > 0) === (db > 0) });
+    });
+    const exc = new Set(joursExceptionnels(compares.map(j => ({ date: j.date, valeur: j.valeurPiste }))).map(j => j.date));
+    joursExceptionnels(compares.map(j => ({ date: j.date, valeur: j.valeurBoutique }))).forEach(j => exc.add(j.date));
+    const calcul = liste => verdictConcordance(liste.length, liste.filter(j => j.memeSens).length);
+    const avec = calcul(compares), sans = calcul(compares.filter(j => !exc.has(j.date)));
+    const parJour = ORDRE_JOURS_SEMAINE.map(js => {
+      const l = compares.filter(j => jourSemaineISO(j.date) === js);
+      return { jourSemaine: js, n: l.length, k: l.filter(j => j.memeSens).length };
+    });
+    return {
+      fenetre: fen, semaines: FENETRE_VACANCES_SEMAINES, exclus, nbCompares: compares.length,
+      sans, avec, changeAvecSans: sans.verdict !== avec.verdict || sans.etat !== avec.etat,
+      parJour, exceptionnels: [...exc].sort(), aDesExceptionnels: exc.size > 0,
+    };
+  }
+
+
   window.NexusTempo = {
     syntheseEnBref, joursFortsFaibles, joursFortsFaiblesMesures, lignesJours, tuilesJours, RATIO_CV_IRREGULIER,
     SEUILS, NOM_JOURS, NOM_JOURS_COURT, NOM_MOIS, LITRAGE_INDISPONIBLE, VALORISATION_INDISPONIBLE, SOURCES_DONNEES, COORDONNEES_STATION,
@@ -3009,6 +3074,7 @@
     analyseBoutique, SEUIL_MARGE_GLOBALE_PCT, SEUIL_MARGE_GLOBALE_EUROS_JOUR, SEUIL_CATEGORIE_EUROS_JOUR, SEUIL_CONCENTRATION_CATEGORIE, SEUIL_CA_DECROCHAGE_PCT,
     moisParMois, barresMois, phraseMois, ruptureTendance, phraseRupture, moisInhabituel, candidatsHistoriques, compositionMoisFdj, clesMoisEcoules, bornesMois, DEBUT_MOIS_PISTE, DEBUT_MOIS_FDJ, ECART_JOURS_COMPOSITION_MAX,
     vacancesParJourSemaine, fenetreVacances, groupeDeVacances, FENETRE_VACANCES_SEMAINES,
+    concordancePisteBoutique, verdictConcordance, JOURS_COMPARES_MIN_PISTE_BOUTIQUE, VOISINS_HABITUDE_MIN,
     analyseFdj, constatCompositionFdj, detailPaliersFdj, detailJeuxFdj, joursFamilleFdj, FAMILLES_FDJ, SEUIL_PART_FAMILLE, AUTRE_FAMILLE_NETTE_EMPECHE_CITATION_SEULE,
   };
 })();

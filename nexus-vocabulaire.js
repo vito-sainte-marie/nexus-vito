@@ -569,5 +569,50 @@
     tableau: 'Voir les valeurs en tableau',
   };
 
+  // Carte « Quand la piste tourne, la boutique suit-elle ? » : tous les mots viennent d'ici, le moteur n'en porte aucun.
+  NexusVocab.pisteBoutique = {
+    titreOnglet: 'NEXUS Tempo, Piste et boutique',
+    titre: 'Quand la piste tourne, la boutique suit-elle ?',
+    sousTitre: 'Jour par jour, par rapport aux habitudes locales',
+    noms: { 1: 'Lundi', 2: 'Mardi', 3: 'Mercredi', 4: 'Jeudi', 5: 'Vendredi', 6: 'Samedi', 0: 'Dimanche' },
+    piste: { titre: 'Piste', unite: 'litres par jour complet' },
+    boutique: { titre: 'CA Boutique, source Verify', unite: 'chiffre d’affaires par jour complet' },
+    comparaison: 'Chaque jour est comparé à son habitude : la moyenne des mêmes jours de semaine, deux semaines avant et deux semaines après. On regarde si la piste et la boutique s’écartent du même côté.',
+    verdicts: {
+      suit: 'La boutique suit la piste',
+      oppose: 'Sens opposés',
+      'pas-de-lien': 'Pas de lien net',
+    },
+    grise: 'Pas assez de jours pour conclure',
+    resultat: (k, n) => k + ' jour' + (k > 1 ? 's' : '') + ' sur ' + n + ' dans le même sens',
+    entetes: { jour: 'Jour', jours: 'Jours comparés', memeSens: 'Dans le même sens' },
+    entetesCourts: { jour: 'Jour', jours: 'Jours', memeSens: 'Même sens' },
+    informatif: 'Tableau donné à titre indicatif : aucun verdict par jour de semaine.',
+    fenetre: (semaines, debut, fin, bornee) => bornee
+      ? 'Fenêtre : du ' + dateLongue(debut) + ' au ' + dateLongue(fin) + ' (' + semaines + ' semaines closes au plus, limitée au début des données de ces sources).'
+      : 'Fenêtre : ' + semaines + ' semaines closes, du ' + dateLongue(debut) + ' au ' + dateLongue(fin) + '.',
+    exclus: (e) => {
+      const s = (n, un, plus) => n + ' ' + (n > 1 ? plus : un);
+      const parts = [];
+      if (e.feries) parts.push(s(e.feries, 'jour férié', 'jours fériés'));
+      if (e.ponts) parts.push(s(e.ponts, 'pont', 'ponts'));
+      if (e.incomplets) parts.push(s(e.incomplets, 'jour incomplet', 'jours incomplets'));
+      if (e.sansHabitude) parts.push(s(e.sansHabitude, 'jour sans habitude locale', 'jours sans habitude locale'));
+      if (e.egaux) parts.push(s(e.egaux, 'jour égal à son habitude', 'jours égaux à leur habitude'));
+      return parts.length ? 'Écartés : ' + parts.join(', ') + '.' : 'Aucun jour écarté dans la fenêtre.';
+    },
+    horsNorme: {
+      titre: 'Avec et sans les journées hors norme',
+      aucune: 'Aucune journée hors norme dans la fenêtre.',
+      sans: 'Sans ces journées',
+      avec: 'Avec ces journées',
+      change: 'La lecture change quand on les garde.',
+      memeLecture: 'La lecture reste la même avec ou sans elles.',
+      nombre: n => n + ' journée' + (n > 1 ? 's' : '') + ' hors norme.',
+    },
+    aucuneDonnee: 'Aucun jour complet n’est encore mesuré.',
+    tableau: 'Voir les valeurs en tableau',
+  };
+
   global.NexusVocab = NexusVocab;
 })(window);
