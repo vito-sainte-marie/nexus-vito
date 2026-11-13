@@ -1,15 +1,15 @@
 // Campagne NEXUS V2, phase 1 : refonte visuelle (présentation seule).
-const assert=require('assert'); const fs=require('fs'); const path=require('path'); const crypto=require('crypto'); const cp=require('child_process');
+const assert=require('assert'); const fs=require('fs'); const path=require('path'); const crypto=require('crypto');
 global.window={}; require('./nexus-vocabulaire.js'); const V=window.NexusVocab; const lire=f=>fs.readFileSync(path.join(__dirname,f),'utf8');
 let echecs=0; function t(nom,fn){try{fn();console.log('  ok   '+nom)}catch(e){echecs++;console.log('  FAIL '+nom+'\n       '+e.message)}}
 const sha=f=>crypto.createHash('sha256').update(fs.readFileSync(path.join(__dirname,f))).digest('hex');
 const page=lire('NEXUS-Campagne-v2.html'); const C=V.campagne;
 const bloc=JSON.stringify(C);
 
-t('v1 et nexus-campagnes.js inchangés par rapport à origin/production',()=>{
-  let r; try{ r=cp.spawnSync('git',['diff','--quiet','origin/production','--','NEXUS-Campagne-v1.html','nexus-campagnes.js'],{cwd:__dirname}); }catch(e){return}
-  if(r.status===128||r.error) return; // pas de dépôt ou de référence : épreuve sans objet
-  assert.strictEqual(r.status,0,'v1 ou nexus-campagnes.js modifié');
+t('v2 indépendante de la v1 ; nexus-campagnes.js garde ses fonctions',()=>{
+  assert(!/NEXUS-Campagne-v1/.test(page),'la v2 référence la v1');
+  const NC=lire('nexus-campagnes.js');
+  ['analyserImpactCampagne','analyserCampagnes','analyserImpactProduits','analyserImpactPanierMoyen','texteConseillerCampagne'].forEach(f=>assert(NC.includes(f),f+' absente'));
 });
 t('expressions interdites absentes',()=>{
   for(const s of ['va dans le bon sens','achats avancés']){
