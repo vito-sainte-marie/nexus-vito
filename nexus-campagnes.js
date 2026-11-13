@@ -125,7 +125,7 @@
     const importPendant = (importsCampagne || []).find(i => i.phase === 'pendant');
     if (!importAvant || !importPendant) {
       const manquants = [!importAvant && 'avant', !importPendant && 'pendant'].filter(Boolean).join(' et ');
-      return { disponible: false, message: `Import ${manquants} manquant — importez les ventes du produit via Import > Campagne NEXUS pour mesurer l'impact par produit.` };
+      return { disponible: false, message: `Impact par produit non disponible dans cette version.` };
     }
 
     const trouverLigne = (article, imp) => {
