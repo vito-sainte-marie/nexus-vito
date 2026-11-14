@@ -1218,7 +1218,10 @@
         "blob_migration": "00da5f6aebfd7053f95c8086e757a2e08e88f015"
       },
       "objets_constates": [
-        "campagne_pmp_reference"
+        "campagne_pmp_reference",
+        "lecture_manager_meme_site",
+        "insertion_manager_meme_site",
+        "createur_lit_si_autorise"
       ],
       "reserve": "Cette qualification n autorise ni la fusion ni le deploiement ; elle constate seulement l ordre migration/code."
     }
