@@ -10,6 +10,11 @@
   var DELAI_RECUPERATION_LANCEMENT_MOIS = 3;
   var MOIS_REFERENCE = 12;
   var EPS = 1e-9;
+  var MOTEUR_VERSION = 'objectifs-1';
+  var HAUSSE_OBJECTIF = 0.10;             // objectif : retrouver la marge de référence + 10 %
+  // D1 (Frédéric, 14/11/2026) : `products.prix_vente` est un HT. Le PV habituel TTC proposé = prix HT × (1 + TVA/100).
+  // Seule constante à basculer : true = prix_vente importé est un TTC, false = c'est un HT (converti en TTC avec la TVA du produit).
+  var PRIX_VENTE_IMPORTE_EST_TTC = false;
 
   function num(v) { var n = Number(v); return isFinite(n) ? n : 0; }
 
@@ -19,6 +24,20 @@
   }
 
   function margeUnitaire(vente, achat) { return num(vente) - num(achat); }
+
+  // Entier supérieur, avec tolérance contre les erreurs de flottant (67,0000000001 ne devient pas 68).
+  function plafond(x) { return Math.ceil(x - EPS); }
+
+  function tvaValide(t) { return t !== null && t !== undefined && t !== '' && isFinite(Number(t)) && Number(t) >= 0; }
+  // PV HT = PV TTC / (1 + TVA/100). Retourne null si la TVA manque (calcul suspendu).
+  function ttcVersHt(ttc, tva) {
+    if (ttc === null || ttc === undefined || ttc === '' || !isFinite(Number(ttc)) || !tvaValide(tva)) return null;
+    return Number(ttc) / (1 + Number(tva) / 100);
+  }
+  function htVersTtc(ht, tva) {
+    if (ht === null || ht === undefined || ht === '' || !isFinite(Number(ht)) || !tvaValide(tva)) return null;
+    return Number(ht) * (1 + Number(tva) / 100);
+  }
 
   function ligneHypothese(cle, volume, margePendant, volumeHabituel, margeAvant) {
     var marge = volume * margePendant;
@@ -31,10 +50,11 @@
     var ventesMois = Math.max(0, num(p.ventesMoisPrecedent));
     var margeAvant = margeUnitaire(p.venteAvant, p.achatAvant);
     var margePendant = margeUnitaire(p.ventePendant, p.achatPendant);
-    var habituel = ventesMois / JOURS_MOIS * jours;
+    var ventesJour = p.ventesJour !== undefined && p.ventesJour !== null ? Math.max(0, num(p.ventesJour)) : ventesMois / JOURS_MOIS;
+    var habituel = ventesJour * jours;
     var r = {
       jours: jours, volumeHabituel: habituel, margeAvant: margeAvant, margePendant: margePendant,
-      impossible: margePendant <= EPS || margeAvant <= EPS,
+      ventesJour: ventesJour, impossible: margePendant <= EPS || margeAvant <= EPS,
       ratio: null, ventesEquilibre: null, ventesRenouveler: null, hausseEquilibrePct: null, hausseRenouvelerPct: null,
       hypotheses: []
     };
@@ -48,9 +68,48 @@
       r.ventesRenouveler = r.ventesEquilibre * MARGE_RENOUVELER;
       r.hausseEquilibrePct = (r.ratio - 1) * 100;
       r.hausseRenouvelerPct = (r.ratio * MARGE_RENOUVELER - 1) * 100;
+      r.seuilEquilibre = plafond(r.ventesEquilibre);
+      r.seuilRenouveler = plafond(r.ventesRenouveler);
+      r.aucuneHausse = r.ratio <= 1 + EPS;
       r.hypotheses.push(ligneHypothese('equilibre', r.ventesEquilibre, margePendant, habituel, margeAvant));
       r.hypotheses.push(ligneHypothese('renouveler', r.ventesRenouveler, margePendant, habituel, margeAvant));
     }
+    return r;
+  }
+
+  // Analyse d'objectif d'un produit (moteur partagé : simulateur indépendant et préparation de campagne).
+  // p : paHabituelHt, paPromoHt, pvHabituelTtc, pvPromoTtc, tva (%), ventesJour (référence), jours (durée de la promotion),
+  //     meilleurRythmeObserve (ventes/jour, promotions passées ; null si aucune période comparable).
+  // Retourne un `statut` (code) ; le libellé affiché relève du vocabulaire, pas du moteur.
+  function analyserObjectif(p) {
+    var r = { statut: 'ok', moteurVersion: MOTEUR_VERSION, tva: null, pvHabituelHt: null, pvPromoHt: null,
+      margeHabituelle: null, margePromo: null, margeReference: null, margeCible: null,
+      seuil: null, seuilPlus10: null, rythmeMin: null, rythmePlus10: null, objectifPropose: null,
+      faisabilite: null, jours: num(p.jours), ventesJour: null };
+    function manque(v) { return v === null || v === undefined || v === '' || !isFinite(Number(v)); }
+    if (manque(p.paHabituelHt) || manque(p.paPromoHt) || manque(p.pvHabituelTtc) || manque(p.pvPromoTtc) || !(num(p.jours) > 0)) { r.statut = 'prix-manquant'; return r; }
+    if (!tvaValide(p.tva)) { r.statut = 'tva-manquante'; return r; }
+    r.tva = Number(p.tva);
+    r.pvHabituelHt = ttcVersHt(p.pvHabituelTtc, r.tva);
+    r.pvPromoHt = ttcVersHt(p.pvPromoTtc, r.tva);
+    r.margeHabituelle = r.pvHabituelHt - Number(p.paHabituelHt);
+    r.margePromo = r.pvPromoHt - Number(p.paPromoHt);
+    if (r.margeHabituelle <= EPS) { r.statut = 'marge-habituelle-nulle'; return r; }
+    if (r.margePromo <= EPS) { r.statut = 'marge-promo-nulle'; return r; }
+    if (manque(p.ventesJour) || !(Number(p.ventesJour) > 0)) { r.statut = 'sans-reference'; return r; }
+    r.ventesJour = Number(p.ventesJour);
+    r.margeReference = r.ventesJour * r.jours * r.margeHabituelle;
+    r.margeCible = r.margeReference * (1 + HAUSSE_OBJECTIF);
+    if (r.margePromo >= r.margeHabituelle - EPS) { r.statut = 'aucune-hausse'; return r; }
+    r.seuil = plafond(r.margeReference / r.margePromo);
+    r.seuilPlus10 = plafond(r.margeCible / r.margePromo);
+    r.rythmeMin = r.seuil / r.jours;
+    r.rythmePlus10 = r.seuilPlus10 / r.jours;
+    r.objectifPropose = plafond(r.rythmePlus10);
+    var meilleur = p.meilleurRythmeObserve;
+    if (manque(meilleur) || !(Number(meilleur) > 0)) r.faisabilite = 'a-confirmer';
+    else r.faisabilite = r.rythmePlus10 > Number(meilleur) + EPS ? 'depasse-observe' : 'dans-observe';
+    r.meilleurRythmeObserve = manque(meilleur) ? null : Number(meilleur);
     return r;
   }
 
@@ -104,6 +163,7 @@
       var k = r.periode_debut + '|' + r.periode_fin;
       var p = map[k] || (map[k] = { debut: r.periode_debut, fin: r.periode_fin, quantite: 0, ca: 0, marge: 0 });
       p.quantite += num(r.quantite); p.ca += num(r.ca); p.marge += num(r.marge);
+      if (r.tva !== null && r.tva !== undefined && r.tva !== '' && isFinite(Number(r.tva))) p.tva = Number(r.tva);
     });
     return Object.keys(map).map(function (k) {
       var p = map[k];
@@ -139,9 +199,15 @@
     var a = analyserPeriodes(rows, article, aujourdhui);
     var p = a.periodeReference;
     if (!p) return null;
+    var rythmes = a.reduites.map(function (x) { return x.parJour; }).filter(function (x) { return x > 0; });
     return {
+      ventesJour: p.quantite / p.jours,
+      joursReference: p.jours,
+      meilleurRythmeObserve: rythmes.length ? Math.max.apply(null, rythmes) : null,
       ventesMoisPrecedent: p.quantite / p.jours * JOURS_MOIS,
       venteAvant: p.prixMoyen,
+      tva: p.tva === undefined ? null : p.tva,
+      pvHabituelTtc: p.tva === undefined ? null : (PRIX_VENTE_IMPORTE_EST_TTC ? p.prixMoyen : htVersTtc(p.prixMoyen, p.tva)),
       achatAvant: p.coutMoyen,
       prixReference: a.prixReference,
       source: { debut: p.debut, fin: p.fin },
@@ -156,7 +222,8 @@
     JOURS_MOIS: JOURS_MOIS, MARGE_RENOUVELER: MARGE_RENOUVELER,
     prixNet: prixNet, margeUnitaire: margeUnitaire, calculerCompensation: calculerCompensation, sommer: sommer,
     calculerLancement: calculerLancement, periodesArticle: periodesArticle, analyserPeriodes: analyserPeriodes,
-    suggestions: suggestions
+    suggestions: suggestions, analyserObjectif: analyserObjectif, plafond: plafond, ttcVersHt: ttcVersHt, htVersTtc: htVersTtc, tvaValide: tvaValide,
+    MOTEUR_VERSION: MOTEUR_VERSION, HAUSSE_OBJECTIF: HAUSSE_OBJECTIF, PRIX_VENTE_IMPORTE_EST_TTC: PRIX_VENTE_IMPORTE_EST_TTC
   };
   root.NexusSimulateurPromo = API;
 })(typeof window !== 'undefined' ? window : globalThis);
