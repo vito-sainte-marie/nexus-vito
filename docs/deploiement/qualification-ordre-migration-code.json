@@ -1155,15 +1155,15 @@
     },
     "20261114190000": {
       "etat": "migration_deja_appliquee",
-      "justification": "Appliquee en Production (uzhjpqpctpvxytxpxoqz) le 14/11/2026 sur « go migration » de Frederic en session, annoncee sur #160 (commentaire 6882729673) apres une premiere tentative en delai depasse qui n avait rien applique (catalogue et registre vides), puis une seconde avec le SQL identique. Cinq tables append-only (livraisons, annulations, lignes, conditionnement d achat, stock de depart), RLS active, trois politiques par table (lecture_meme_site, insertion_manager_meme_site, createur_lit_si_autorise), anon sans droit, authenticated en SELECT et INSERT seulement. Estampille du registre : 20261114190604 (l outil ne permet pas d imposer la version).",
+      "justification": "Appliquee en Production (uzhjpqpctpvxytxpxoqz) le 14/11/2026 sur « go migration » de Frederic en session, annoncee sur #160 (commentaire 6882729673) apres une premiere tentative en delai depasse qui n avait rien applique (catalogue et registre vides), puis une seconde avec le SQL identique. Cinq tables append-only (livraisons, annulations, lignes, conditionnement d achat, stock de depart), RLS active, trois politiques par table (lecture_meme_site, insertion_manager_meme_site, createur_lit_si_autorise), anon sans droit, authenticated en SELECT et INSERT seulement. Lecture de controle de Claude le 14/11/2026 a 19:10Z (meme resultat, information seulement). Estampille du registre : 20261114190604 (l outil ne permet pas d imposer la version).",
       "prochaine_action": "aucune ; effet constate le 14/11/2026",
       "mesure": {
         "source": "catalogue",
-        "le": "2026-11-14T19:10:00Z",
+        "le": "2026-11-14T19:20:00Z",
         "cible": "uzhjpqpctpvxytxpxoqz",
-        "par": "claude",
-        "outil": "connecteur Supabase execute_sql, catalogue en lecture seule (pg_class, pg_policies, has_table_privilege) et list_migrations, aucune donnee lue",
-        "verdict": "APPLIQUEE — 5 tables, RLS active, 3 politiques par table, anon sans droit, authenticated SELECT et INSERT seulement ; registre 20261114190604 campagne_livraisons_stock_depart.",
+        "par": "guardian",
+        "outil": "connecteur Supabase execute_sql, catalogue en lecture seule, comparaison par empreintes Test/Production (commentaire Guardian 6882874207 sur #160)",
+        "verdict": "APPLIQUEE — 5 tables identiques à Test (colonnes, contraintes, politiques, droits), 0 ligne",
         "blob_migration": "815cb3f327abd3bb544a642dddb6c5b3c6ef18fa"
       },
       "objets_constates": [
