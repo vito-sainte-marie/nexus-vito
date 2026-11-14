@@ -386,6 +386,7 @@ details.lv-det[open] summary::after{transform:rotate(180deg);}
       <label class="sim-choix"><span id="lvFourLib"></span><input type="text" id="lvFour"></label>
       <label class="sim-choix"><span id="lvDateLivLib"></span><input type="date" id="lvDateLiv"></label>
       <label class="sim-choix"><span id="lvNoteLib"></span><input type="text" id="lvNote"></label>
+      <label class="sim-choix" id="lvCmdBloc" hidden><span id="lvCmdLib"></span><select id="lvCmd"></select></label>
       <div id="lvLignes"></div>
       <div class="sim-actions"><button type="button" class="btn" id="lvEnr"></button></div>
       <div class="vt-msg" id="lvMsg" role="status"></div></div>
@@ -400,15 +401,16 @@ details.lv-det[open] summary::after{transform:rotate(180deg);}
 <script src="nexus-forfait.js?v=20260904-0104"></script>
 <script src="nexus-icones.js?v=20260904-0104"></script>
 <script src="nexus-desktop.js?v=20260904-0104"></script>
-<script src="nexus-vocabulaire.js?v=20261114-1900"></script>
+<script src="nexus-vocabulaire.js?v=20261115-1000"></script>
 <script src="nexus-import-moteur.js?v=20260904-0104"></script>
 <script src="nexus-import-donnees.js?v=20260904-0104"></script>
 <script src="nexus-campagne-ventes.js?v=20261114-1900"></script>
 <script src="nexus-campagne-stock.js?v=20261114-1900"></script>
+<script src="nexus-campagne-achats.js?v=20261115-1000"></script>
 <script>
 const V = window.NexusVocab.campagne, P = V.livraisonPage;
-const M = NexusImportMoteur, D = NexusImportDonnees, CV = NexusCampagneVentes, CS = NexusCampagneStock;
-let EMPLOYEE = null, SITE_ID = null, CAMPAGNES = [], CAMPAGNE = null, OBJECTIFS = [], REGLAGES = [], DEPART = [], LIVRAISONS = [], ANNULS = [], LIGNES = [], POINTS = [], VENTES_ANNULS = [], ALIAS = [], INVENT = [], RELEVE = null;
+const M = NexusImportMoteur, D = NexusImportDonnees, CV = NexusCampagneVentes, CS = NexusCampagneStock, A = NexusCampagneAchats;
+let EMPLOYEE = null, SITE_ID = null, CAMPAGNES = [], CAMPAGNE = null, OBJECTIFS = [], REGLAGES = [], DEPART = [], LIVRAISONS = [], ANNULS = [], LIGNES = [], POINTS = [], VENTES_ANNULS = [], ALIAS = [], INVENT = [], RELEVE = null, COMMANDES = [], CMD_ANNULS = [], CMD_CLOTURES = [], CMD_LIGNES = [], CMD_LIENS = [];
 const $ = id => document.getElementById(id);
 function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function jma(iso){ const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || '')); return m ? m[3] + '/' + m[2] + '/' + m[1] : String(iso || ''); }
@@ -423,7 +425,7 @@ function reglageDe(article){ return derniers(REGLAGES, 'article').find(r => r.ar
 
 async function chargerCampagne(){
   const q = t => nexusClient.from(t);
-  const [o, rg, dp, lv, an, ln, pt, va, inv] = await Promise.all([
+  const [o, rg, dp, lv, an, ln, pt, va, inv, cm, ca, cc, cl, ci] = await Promise.all([
     q('campagne_objectifs_produits').select('article, version, pa_promo_ht').eq('campagne_id', CAMPAGNE.id).eq('site', SITE_ID).order('version', {ascending: true}),
     q('campagne_conditionnement_achat').select('article, version, mode, unites_par_carton').eq('site', SITE_ID),
     q('campagne_stock_depart').select('article, version, quantite, date_stock, source, a_confirmer').eq('campagne_id', CAMPAGNE.id).eq('site', SITE_ID),
@@ -433,17 +435,23 @@ async function chargerCampagne(){
     q('campagne_ventes_points').select('batch_id, article, date_fin, importe_le, quantite').eq('campagne_id', CAMPAGNE.id).eq('site', SITE_ID),
     q('campagne_ventes_annulations').select('batch_id, motif').eq('site', SITE_ID),
     q('inventaire_mouvements').select('type_mouvement, quantite, cree_le, inventaire_zone_produit(designation)').eq('site', SITE_ID).eq('type_mouvement', 'livraison'),
+    q('campagne_commandes').select('id, fournisseur, date_commande, remplace_commande_id').eq('campagne_id', CAMPAGNE.id).eq('site', SITE_ID).order('date_commande', {ascending: false}),
+    q('campagne_commandes_annulations').select('commande_id').eq('site', SITE_ID),
+    q('campagne_commandes_clotures').select('commande_id').eq('site', SITE_ID),
+    q('campagne_commande_lignes').select('commande_id, article, unites_commandees').eq('site', SITE_ID),
+    q('campagne_livraison_commandes').select('livraison_id, commande_id').eq('site', SITE_ID),
   ]);
-  [o, rg, dp, lv, an, ln, pt, va, inv].forEach(r => { if (r.error) console.error(r.error); });
+  [o, rg, dp, lv, an, ln, pt, va, inv, cm, ca, cc, cl, ci].forEach(r => { if (r.error) console.error(r.error); });
   OBJECTIFS = derniers(o.data || [], 'article'); REGLAGES = rg.data || []; DEPART = dp.data || []; LIVRAISONS = lv.data || []; ANNULS = an.data || [];
   LIGNES = ln.data || []; POINTS = pt.data || []; VENTES_ANNULS = va.data || [];
   INVENT = (inv.data || []).map(m => ({type_mouvement: m.type_mouvement, article: m.inventaire_zone_produit && m.inventaire_zone_produit.designation, date: String(m.cree_le || '').slice(0, 10), quantite: m.quantite})).filter(m => m.article);
+  COMMANDES = cm.data || []; CMD_ANNULS = ca.data || []; CMD_CLOTURES = cc.data || []; CMD_LIGNES = cl.data || []; CMD_LIENS = ci.data || [];
   ALIAS = await D.chargerAliasProduits(nexusClient, SITE_ID, 'campagne');
   RELEVE = null;
   $('lvDateDepart').value = aujourdhui(); $('lvDateLiv').value = aujourdhui();
   peindreTout();
 }
-function peindreTout(){ peindreDepart(); peindreLignes(); peindreStock(); peindreHisto(); }
+function peindreTout(){ peindreDepart(); peindreCommandes(); peindreLignes(); peindreStock(); peindreHisto(); }
 
 function peindreDepart(){
   const arts = articlesPromo();
@@ -456,7 +464,7 @@ function peindreDepart(){
     const d = cour.get(cleA(a));
     const ecart = d ? CS.ecartDepart(d.date_stock, CAMPAGNE.date_debut) : 0;
     const rl = RELEVE && RELEVE.get(a);
-    const note = rl ? P.departReleveArticle(jma(rl.date), rl.libelle_source) + (rl.rapproche_par === 'code_barres' ? ' · ' + P.departReleveCodeBarres : '') : d ? 'v' + d.version + ' · ' + jma(d.date_stock) + (d.a_confirmer || ecart > 0 ? ' · ' + P.departAConfirmer : '') + (ecart > 0 ? ' · ' + P.departEcart(ecart) : '') : '';
+    const note = rl ? P.departReleveArticle(jma(rl.date), rl.libelle_source, CS.ecartDepart(rl.date, CAMPAGNE.date_debut)) + (rl.rapproche_par === 'code_barres' ? ' · ' + P.departReleveCodeBarres : '') : d ? 'v' + d.version + ' · ' + jma(d.date_stock) + (d.a_confirmer || ecart > 0 ? ' · ' + P.departAConfirmer : '') + (ecart > 0 ? ' · ' + P.departEcart(ecart) : '') : '';
     return '<tr><td>' + esc(a) + '<div class="vt-aide">' + esc(note) + '</div></td><td><input type="number" min="0" step="1" data-depart="' + i + '" value="' + (RELEVE && RELEVE.has(a) ? RELEVE.get(a).quantite : (d ? d.quantite : '')) + '" style="width:90px"></td></tr>';
   }).join('') + '</tbody></table>';
 }
@@ -517,6 +525,35 @@ function peindreLignes(){
       + '<label><input type="checkbox" data-f="unite"' + (aLU ? ' checked' : '') + '>' + esc(P.alUnite) + '</label>'
       + '<div class="vt-aide" data-f="ecart"></div></div></details></div>';
   }).join('');
+  majResteLignes();
+}
+function commandesOuvertes(){
+  const clos = new Set(CMD_CLOTURES.map(c => c.commande_id));
+  return A.commandesValides(COMMANDES, CMD_ANNULS).filter(c => !clos.has(c.id));
+}
+function resteParArticle(){
+  return A.resteARecevoir({commandes: COMMANDES, annulations: CMD_ANNULS, clotures: CMD_CLOTURES, lignesCommande: CMD_LIGNES, livraisons: LIVRAISONS, livraisonsAnnulations: ANNULS, liens: CMD_LIENS, lignesLivraison: LIGNES});
+}
+function peindreCommandes(){
+  $('lvCmdLib').textContent = P.commandeLiee;
+  const ouv = commandesOuvertes();
+  $('lvCmdBloc').hidden = !ouv.length;
+  const cour = $('lvCmd').value;
+  $('lvCmd').innerHTML = '<option value="">' + esc(P.commandeAucune) + '</option>' + ouv.map(c => '<option value="' + esc(c.id) + '">' + esc(P.commandeOption(jma(c.date_commande), c.fournisseur, CMD_LIGNES.filter(l => l.commande_id === c.id).length)) + '</option>').join('');
+  if (cour && ouv.some(c => c.id === cour)) $('lvCmd').value = cour;
+  majResteLignes();
+}
+$('lvCmd').addEventListener('change', () => majResteLignes());
+function majResteLignes(){
+  const cmd = $('lvCmd').value;
+  const reste = cmd ? A.resteARecevoir({commandes: COMMANDES.filter(c => c.id === cmd), annulations: [], clotures: [], lignesCommande: CMD_LIGNES, livraisons: LIVRAISONS, livraisonsAnnulations: ANNULS, liens: CMD_LIENS, lignesLivraison: LIGNES}) : null;
+  $('lvLignes').querySelectorAll('.lv-ligne[data-i]').forEach(tr => {
+    const o = OBJECTIFS[+tr.dataset.i];
+    let z = tr.querySelector('[data-reste]');
+    if (!z){ z = document.createElement('div'); z.className = 'vt-aide'; z.setAttribute('data-reste', ''); tr.appendChild(z); }
+    const f = reste && reste.get(String(o.article).trim().toLowerCase());
+    z.textContent = f ? P.resteARecevoirLigne(fmt(f.reste)) : '';
+  });
 }
 function majCalc(l){
   const g = f => l.querySelector('[data-f=' + f + ']');
@@ -560,8 +597,14 @@ async function enregistrerLivraison(){
       await nexusClient.from('campagne_livraisons_annulations').insert({site: SITE_ID, livraison_id: l.data.id, motif: 'Enregistrement des lignes échoué, livraison neutralisée', annule_par: EMPLOYEE.id});
       throw r.error;
     }
+    let lienEchec = false;
+    const cmdId = $('lvCmd').value;
+    if (cmdId){
+      const k = await nexusClient.from('campagne_livraison_commandes').insert({site: SITE_ID, livraison_id: l.data.id, commande_id: cmdId, lie_par: EMPLOYEE.id});
+      if (k.error){ console.error(k.error); lienEchec = true; }
+    }
     if (reglages.length) { const g = await nexusClient.from('campagne_conditionnement_achat').insert(reglages); if (g.error) console.error(g.error); }
-    msg('lvMsg', P.livraisonFaite(lignes.length)); await chargerCampagne();
+    msg('lvMsg', lienEchec ? P.lienEchec : P.livraisonFaite(lignes.length), lienEchec); await chargerCampagne();
   } catch (err){ console.error(err); msg('lvMsg', P.livraisonEchec, true); }
   finally { $('lvEnr').disabled = false; }
 }
