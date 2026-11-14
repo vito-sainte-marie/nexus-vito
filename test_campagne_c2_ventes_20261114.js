@@ -93,3 +93,17 @@ console.log('OK test_campagne_c2_ventes_20261114');
   assert.ok(!/—/.test(lex.slice(lex.indexOf('ventesPage'), lex.indexOf('ventesPage') + 3000)), 'aucun tiret cadratin dans le bloc ventesPage');
   console.log('OK câblage C2');
 }
+
+// La garde ne prend pas un `revoke ... truncate` pour un TRUNCATE, mais voit un vrai.
+{
+  const G = require('./outils/garde-ordre-migration-code.js');
+  const ex = G.extraireObjets || (G.default && G.default.extraireObjets);
+  if (ex) {
+    const r1 = ex('revoke update, delete, truncate on t from authenticated;');
+    const r2 = ex('truncate table t;');
+    const d = r => JSON.stringify(r.destructifs || r.destructif || r);
+    assert.ok(!/truncate/.test(d(r1)), 'revoke truncate : pas destructif');
+    assert.ok(/truncate/.test(d(r2)), 'vrai truncate : destructif');
+  }
+  console.log('OK garde revoke truncate');
+}
