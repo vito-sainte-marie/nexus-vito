@@ -49,6 +49,7 @@
     'NEXUS-Campagne-v2.html',
     'NEXUS-Campagne-v2-Objectifs.html',
     'NEXUS-Campagne-v2-Ventes.html',
+    'NEXUS-Campagne-v2-Livraison.html',
     'NEXUS-Capital-v1.html',
     'NEXUS-Planning-v1.html',
     'NEXUS-Scanner-v1.html',
