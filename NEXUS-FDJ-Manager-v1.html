@@ -160,6 +160,7 @@
   .jeu-row.anomalie{background:rgba(240,87,90,0.08); box-shadow:inset 3px 0 0 var(--red);}
   .jeu-input.auto{color:var(--text-mid);}
   .jeu-input.continuite-rompue{border-color:var(--amber); color:var(--amber); background:var(--amber-dim);}
+  .jeu-note-continuite{font-family:var(--mono); font-size:10px; color:var(--amber); margin-top:4px;}
   .jeu-inputs{display:flex; gap:6px;}
   .jeu-input-wrap{flex:1;}
   .jeu-input-label{font-family:var(--mono); font-size:8px; color:var(--text-dim); text-transform:uppercase; margin-bottom:3px; text-align:center;}
@@ -582,8 +583,45 @@
   function controleCaisseEnCours() {
     return !!(edition && !edition.estNouveau && edition.confirmeLe && !edition.valideLe);
   }
+  // Quart en cours, comptage de caisse pas encore confirmé, et le manager ne
+  // passe pas à « Validé » : aucun verdict n'est dû, il n'y a rien à
+  // certifier. Une correction de stock s'enregistre alors avec son seul motif.
+  function quartEnCoursSansComptage() {
+    return !!(edition && !edition.estNouveau && !edition.confirmeLe && !edition.valideLe && edition.statutShift !== 'valide');
+  }
+  // Ce que le manager a touché côté caisse (hors comptages de stock).
+  function caisseSaisieModifiee() {
+    if (!edition || !edition.avant) return true;
+    const a = edition.avant;
+    return nombreOuNull(a.lotsPayes) !== nombreOuNull(edition.lotsPayes)
+        || nombreOuNull(a.caisseTirages) !== nombreOuNull(edition.caisseTirages)
+        || nombreOuNull(a.regularisations) !== nombreOuNull(edition.regularisations)
+        || nombreOuNull(a.caisseReelle) !== nombreOuNull(edition.caisseReelle)
+        || (a.resultatControle || '') !== (edition.resultatControle || '')
+        || (a.motifEcart || '') !== (edition.motifEcart || '')
+        || (a.motifEcartTexte || '') !== (edition.motifEcartTexte || '');
+  }
+  function brouillonSansVerdict() {
+    return quartEnCoursSansComptage() && !caisseSaisieModifiee();
+  }
+  // Un seul motif : quand le manager a déjà donné la cause de l'écart de
+  // caisse, elle sert aussi de motif à la correction de stock.
+  function motifStockCouvertParEcart() {
+    if (!edition || !edition.motifEcart) return false;
+    if (NexusFdjMoteur.situationVerificationEcart(ecartCaisseEdition(), edition.ecartOrigine) === 'aucun_ecart') return false;
+    if (edition.motifEcart === 'autre' && !(edition.motifEcartTexte || '').trim()) return false;
+    return NexusFdjMoteur.motifCorrectionStockValide(motifCaisseManager());
+  }
+  function motifCorrectionStockEffectif() {
+    return motifStockCouvertParEcart() ? motifCaisseManager() : (edition.motifCorrectionStock || '').trim();
+  }
   function certificationDemandee() {
+    if (quartEnCoursSansComptage()) return false;
     return !controleCaisseEnCours() || !!edition.certifier;
+  }
+  function majBlocMotifStock() {
+    const bloc = document.getElementById('blocMotifCorrectionStock');
+    if (bloc) bloc.style.display = correctionsStockEdition().length > 0 && !motifStockCouvertParEcart() ? '' : 'none';
   }
   function libelleBoutonEdition() {
     if (edition.estNouveau) return 'Enregistrer';
@@ -1316,7 +1354,11 @@
     jeux.forEach(j => {
       if (!edition.counts[j.id]) edition.counts[j.id] = { stock_initial: null, appro: 0, stock_final: null };
       const vide = edition.counts[j.id].stock_initial === null || edition.counts[j.id].stock_initial === undefined;
-      if (vide || edition.stockInitialAuto[j.id]) {
+      // Une valeur déjà en base n'est jamais remplacée à l'affichage, héritée
+      // ou saisie : l'écran montre ce que la base contient, et signale l'écart
+      // avec la fin du quart précédent (marque de continuité).
+      const enBase = !!(edition.stockInitialBase && edition.stockInitialBase[j.id]);
+      if (vide || (edition.stockInitialAuto[j.id] && !enBase)) {
         edition.counts[j.id].stock_initial = herite[j.id] ?? 0;
         edition.stockInitialAuto[j.id] = true;
       }
@@ -5453,6 +5495,7 @@
     ]);
     const countsMap = {};
     const stockInitialAutoCharge = {};
+    const stockInitialBaseCharge = {};
     jeux.forEach(j => { countsMap[j.id] = { stock_initial: null, appro: 0, stock_final: null }; });
     (counts || []).forEach(c => {
       countsMap[c.game_id] = { stock_initial: c.stock_initial, appro: c.appro, stock_final: c.stock_final };
@@ -5462,6 +5505,7 @@
       // éligible à une future réécriture automatique par
       // reconcilierAlertesChaine.
       stockInitialAutoCharge[c.game_id] = c.stock_initial_auto === true;
+      stockInitialBaseCharge[c.game_id] = c.stock_initial !== null && c.stock_initial !== undefined;
     });
     const repJournalier = (reports || []).find(r => r.type_rapport === 'journalier');
     const repTempsReel = (reports || []).find(r => r.type_rapport === 'temps_reel');
@@ -5469,7 +5513,7 @@
 
     edition = {
       shiftId: shift.id, date: shift.date, quart: shift.quart, employeeId: shift.employee_id,
-      statutShift: shift.statut, counts: countsMap, stockInitialAuto: stockInitialAutoCharge,
+      statutShift: shift.statut, counts: countsMap, stockInitialAuto: stockInitialAutoCharge, stockInitialBase: stockInitialBaseCharge,
       statutShiftBase: shift.statut,
       lotsPayes: repJournalier ? repJournalier.lots_payes_grattage : null,
       caisseTirages: repTempsReel ? repTempsReel.caisse_tirages : null,
@@ -5714,8 +5758,10 @@
 
       ${edition.estNouveau ? '' : `
       <div class="champ-sep"></div>
+      <div id="blocMotifCorrectionStock" style="${correctionsStockEdition().length > 0 && !motifStockCouvertParEcart() ? '' : 'display:none;'}">
       <label class="champ-label" for="champMotifCorrectionStock">Motif de correction des stocks</label>
-      <input class="champ-input" id="champMotifCorrectionStock" type="text" style="margin-bottom:12px;" placeholder="Obligatoire si un stock déjà enregistré change (5 caractères au moins)…" value="${(edition.motifCorrectionStock || '').replace(/"/g, '&quot;')}">`}
+      <input class="champ-input" id="champMotifCorrectionStock" type="text" style="margin-bottom:12px;" placeholder="Obligatoire si un stock déjà enregistré change (5 caractères au moins)…" value="${(edition.motifCorrectionStock || '').replace(/"/g, '&quot;')}">
+      </div>`}
       ${controleCaisseEnCours() ? `
       <label class="champ-label" style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
         <input type="checkbox" id="champCertifier" ${edition.certifier ? 'checked' : ''}> Certifier le contrôle
@@ -5746,6 +5792,7 @@
           <div class="jeu-input-wrap"><div class="jeu-input-label">Appro</div><input type="number" inputmode="decimal" class="jeu-input" data-jeu="${jeu.id}" data-champ="appro" value="${s.appro ?? 0}"></div>
           <div class="jeu-input-wrap"><div class="jeu-input-label">Final</div><input type="number" inputmode="decimal" class="jeu-input${mF ? ' continuite-rompue' : ''}" data-jeu="${jeu.id}" data-champ="stock_final" value="${s.stock_final ?? ''}"${mF ? ` title="Le quart suivant démarre à ${fmtNum(mF.suivant)}"` : ''}></div>
         </div>
+        <div class="jeu-note-continuite" data-jeu-note="${jeu.id}" style="${mI ? '' : 'display:none;'}">${mI ? `Fin du quart précédent : ${fmtNum(mI.precedent)}` : ''}</div>
       </div>
     `;
   }
@@ -5940,7 +5987,7 @@
       const selMotif = document.getElementById('champMotifEcart');
       if (selMotif) selMotif.addEventListener('change', e => { edition.motifEcart = e.target.value; renderEdition(); });
       const txtMotif = document.getElementById('champMotifTexte');
-      if (txtMotif) txtMotif.addEventListener('input', e => edition.motifEcartTexte = e.target.value);
+      if (txtMotif) txtMotif.addEventListener('input', e => { edition.motifEcartTexte = e.target.value; majBlocMotifStock(); });
     }
   }
 
@@ -5973,7 +6020,7 @@
     const selMotifInit = document.getElementById('champMotifEcart');
     if (selMotifInit) selMotifInit.addEventListener('change', e => { edition.motifEcart = e.target.value; renderEdition(); });
     const txtMotifInit = document.getElementById('champMotifTexte');
-    if (txtMotifInit) txtMotifInit.addEventListener('input', e => edition.motifEcartTexte = e.target.value);
+    if (txtMotifInit) txtMotifInit.addEventListener('input', e => { edition.motifEcartTexte = e.target.value; majBlocMotifStock(); });
     // 21/08/2026 : le verdict n'est plus une simple mutation silencieuse —
     // il détermine le statut de caisse dérivé (synchroniserVerdictAvecEcart)
     // et le badge "Quart" en haut de page, d'où le re-rendu complet.
@@ -6002,6 +6049,9 @@
           inI.classList.toggle('continuite-rompue', !!mI);
           inI.title = mI ? `Ne suit pas le quart précédent (${fmtNum(mI.precedent)} → ${fmtNum(mI.courant)})` : (edition.stockInitialAuto[gameId] ? 'Hérité automatiquement du quart précédent' : '');
         }
+        const noteC = document.querySelector(`[data-jeu-note="${gameId}"]`);
+        if (noteC) { noteC.style.display = mI ? '' : 'none'; noteC.textContent = mI ? `Fin du quart précédent : ${fmtNum(mI.precedent)}` : ''; }
+        majBlocMotifStock();
         if (inF) {
           inF.classList.toggle('continuite-rompue', !!mF);
           inF.title = mF ? `Le quart suivant démarre à ${fmtNum(mF.suivant)}` : '';
@@ -6333,6 +6383,9 @@
     // 10/10/2026 : une correction sans certification (cas B, case décochée)
     // n'écrit aucun verdict ; elle n'a donc pas à en exiger un.
     const certifie = certificationDemandee();
+    // Quart en cours sans comptage confirmé et sans saisie de caisse : seul le
+    // motif de la correction de stock est dû, ni verdict ni motif d'écart.
+    const sansVerdict = brouillonSansVerdict();
     if (certifie && !edition.resultatControle) {
       alert('Choisissez un verdict du contrôle (Conforme / Conforme avec écart justifié / Écart à régulariser) avant d\'enregistrer.');
       const selVerdict = document.getElementById('champResultatControle');
@@ -6344,7 +6397,7 @@
       renderEdition();
       return;
     }
-    if (NexusFdjMoteur.motifEcartObligatoire(ecartValidation, edition.ecartOrigine) && !edition.motifEcart) {
+    if (!sansVerdict && NexusFdjMoteur.motifEcartObligatoire(ecartValidation, edition.ecartOrigine) && !edition.motifEcart) {
       alert('Un motif est nécessaire — choisissez la cause réelle de l\'écart avant d\'enregistrer.');
       const selMotif = document.getElementById('champMotifEcart');
       if (selMotif) selMotif.focus();
@@ -6352,7 +6405,7 @@
     }
     // F4 (20/08/2026, cahier §3, tableau des motifs) : "Autre motif — Champ
     // texte obligatoire".
-    if (edition.motifEcart === 'autre' && !(edition.motifEcartTexte || '').trim()) {
+    if (!sansVerdict && edition.motifEcart === 'autre' && !(edition.motifEcartTexte || '').trim()) {
       alert('« Autre motif » nécessite un commentaire — précisez la raison de la modification dans le champ Commentaire / justificatif.');
       const txtMotif = document.getElementById('champMotifTexte');
       if (txtMotif) txtMotif.focus();
@@ -6374,13 +6427,19 @@
     // enregistrée exige un motif, conservé avec l'ancienne et la nouvelle
     // valeur. Refusé ici, avant tout appel réseau, champ sous les yeux.
     const correctionsStock = correctionsStockEdition();
-    if (correctionsStock.length && !NexusFdjMoteur.motifCorrectionStockValide(edition.motifCorrectionStock)) {
-      alert('Vous modifiez ' + correctionsStock.length + ' valeur(s) de stock d\u00e9j\u00e0 enregistr\u00e9e(s) : indiquez un motif de correction d\'au moins ' + NexusFdjMoteur.MOTIF_CORRECTION_STOCK_MIN + ' caract\u00e8res.');
+    const motifStockEffectif = motifCorrectionStockEffectif();
+    const revelerChampMotifStock = () => {
+      const bloc = document.getElementById('blocMotifCorrectionStock');
+      if (bloc) bloc.style.display = '';
       const champM = document.getElementById('champMotifCorrectionStock');
       if (champM) champM.focus();
+    };
+    if (correctionsStock.length && !NexusFdjMoteur.motifCorrectionStockValide(motifStockEffectif)) {
+      alert('Vous modifiez ' + correctionsStock.length + ' valeur(s) de stock d\u00e9j\u00e0 enregistr\u00e9e(s) : indiquez un motif de correction d\'au moins ' + NexusFdjMoteur.MOTIF_CORRECTION_STOCK_MIN + ' caract\u00e8res.');
+      revelerChampMotifStock();
       return;
     }
-    const motifStock = correctionsStock.length ? edition.motifCorrectionStock.trim() : null;
+    const motifStock = correctionsStock.length ? motifStockEffectif : null;
     // Arbitrage du 10/10/2026, §2 : dès qu'un stock initial est renseigné ou
     // modifié, il fait autorité sur la fin du quart précédent, rapprochée
     // après l'enregistrement (étape 8). Si ce rapprochement corrige une fin
@@ -6405,13 +6464,12 @@
         const debutsQ2 = {};
         jeux.forEach(j => { if (edition.counts[j.id] && finsQ1.hasOwnProperty(j.id)) debutsQ2[j.id] = edition.counts[j.id].stock_initial; });
         const { alerteManager } = NexusFdjMoteur.rapprochementFinQ1(debutsQ2, finsQ1);
-        if (alerteManager && !NexusFdjMoteur.motifCorrectionStockValide(edition.motifCorrectionStock)) {
+        if (alerteManager && !NexusFdjMoteur.motifCorrectionStockValide(motifStockEffectif)) {
           alert('Ce stock initial corrigera la fin d\u00e9j\u00e0 enregistr\u00e9e du quart pr\u00e9c\u00e9dent : indiquez un motif de correction d\'au moins ' + NexusFdjMoteur.MOTIF_CORRECTION_STOCK_MIN + ' caract\u00e8res.');
-          const champM = document.getElementById('champMotifCorrectionStock');
-          if (champM) champM.focus();
+          revelerChampMotifStock();
           return;
         }
-        if (alerteManager) motifAlignement = edition.motifCorrectionStock.trim();
+        if (alerteManager) motifAlignement = motifStockEffectif;
       }
     }
     // decision-1 (11/10/2026), règles 2 à 6 : aucune quantité finale ne
@@ -6672,7 +6730,10 @@
       alert(message);
     };
 
-    if (!edition.confirmeLe) {
+    if (!edition.confirmeLe && sansVerdict) {
+      // Quart en cours, rien à écrire côté caisse : les comptages et le motif
+      // suffisent, ni verdict ni statut de caisse ne sont touchés.
+    } else if (!edition.confirmeLe) {
       // A) L'employé n'a rien confirmé — le manager saisit la feuille à sa
       // place. `fdj_saisir_caisse_manager` refuse d'écraser une caisse déjà
       // confirmée, ce qui évite la course entre l'écran employé et celui-ci.
