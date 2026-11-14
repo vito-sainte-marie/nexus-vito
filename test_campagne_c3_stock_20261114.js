@@ -107,6 +107,22 @@ t('C4 : EAN prioritaire, désignation voisine sans EAN commun non appariée', ()
   const sans = S.choisirReleves(rel.filter(r => r.id !== 'r2'), { articles: [promo, 'Eau didier gazeux 50 cl -8P'], campagneDebut: '2026-11-12' });
   assert.strictEqual(sans.retenus.length, 0); assert.strictEqual(sans.sans.length, 2);
 });
+t('C4 : voisins réels non appariés (chips, eau, jus)', () => {
+  const paires = [
+    ['Chips lays bbq 75g - 15P', 'Chips Lays Nature 75gr - 15P'],
+    ['Eau didier 113 minerale plate 50cl -8P', 'Eau didier gazeux 50 cl -8P'],
+    ['Jus caresse 50cl canne a sucre', 'Jus caresse 50cl TS PARF'],
+  ];
+  paires.forEach(([promo, voisin]) => {
+    const rel = [{ id: 'v1', article: voisin, code_barres: null, quantite_reelle: 7, releve_le: '2026-11-10' }];
+    const r = S.choisirReleves(rel, { articles: [promo], campagneDebut: '2026-11-12' });
+    assert.strictEqual(r.retenus.length, 0, promo + ' ne prend pas le relevé de ' + voisin);
+    assert.strictEqual(r.sans.length, 1, promo);
+    // Et dans l'autre sens.
+    const inv = S.choisirReleves([{ id: 'v2', article: promo, code_barres: null, quantite_reelle: 3, releve_le: '2026-11-10' }], { articles: [voisin], campagneDebut: '2026-11-12' });
+    assert.strictEqual(inv.retenus.length, 0, voisin + ' ne prend pas le relevé de ' + promo);
+  });
+});
 t('C4 : signal carton dépassant le besoin, arrondi inchangé', () => {
   const c = { source: 'suffixe_np', unitesParCarton: 24, aRenseigner: false };
   assert.strictEqual(S.cartonDepasseBesoin(2, c), true);
