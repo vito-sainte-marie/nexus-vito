@@ -72,7 +72,8 @@ console.log('ok');
     assert(/\+ 1/.test(objPage));
     assert(/moteur_version/.test(objPage) && /valide_par/.test(objPage));
     assert(!/campagne_objectifs_produits/.test(page), 'la page principale ne porte plus le bloc objectifs');
-    assert(/NEXUS-Campagne-v2-Objectifs\.html\?campagne=/.test(page), 'Suivre ma promotion ouvre la page dédiée');
+    assert(/NEXUS-Campagne-v2-Ventes\.html\?campagne=/.test(page), 'Suivre ma promotion ouvre le suivi des ventes (décision du 14/11)');
+    assert(/NEXUS-Campagne-v2-Objectifs\.html/.test(page), 'les objectifs restent joignables par la tuile');
   });
   t2('objectifs : page câblée (tva lue, tableau, bouton, vocabulaire)', () => {
     assert(/select\([^)]*tva/.test(objPage));

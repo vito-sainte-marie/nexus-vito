@@ -177,7 +177,9 @@ const servicePompiste = { service: { id: 's-1', role: 'pompiste', quart: 'matin'
   //       (bouton « Modifier » réservé au manager ; même règle unique, la RLS UPDATE reste la barrière)
   //   +1 appel introduit le 14/11 par la page NEXUS-Campagne-v2-Objectifs.html (garde manager/gérant ;
   //       le bloc objectifs a quitté NEXUS-Campagne-v2.html, la RLS d'insertion reste la barrière)
-  //   = 70 points de décision.
+  //   +1 appel introduit le 14/11 par la page NEXUS-Campagne-v2-Ventes.html (garde manager/gérant ;
+  //       la page ne publie que par la RPC campagne_ventes_publier, la RLS d'insertion reste la barrière)
+  //   = 71 points de décision.
   const RE_SOURCE = /\b(employee|employeCourant|employeeCourant|emp|e)\.role\b(?!_)/;
 
   // La DÉFINITION de `nexusEstManager` n'est PAS un point de décision : elle
@@ -202,8 +204,8 @@ const servicePompiste = { service: { id: 's-1', role: 'pompiste', quart: 'matin'
   }
   const permissions = Object.values(pointsParFichier).reduce((a, b) => a + b, 0);
   verifier(`les contrôles de permission sur la fiche sont intacts (${permissions}` +
-    `${permissions === 70 ? '' : ' — répartition : ' + JSON.stringify(pointsParFichier)})`,
-    permissions === 70);
+    `${permissions === 71 ? '' : ' — répartition : ' + JSON.stringify(pointsParFichier)})`,
+    permissions === 71);
   verifier('les ensembles de rôles autorisés restent sur la fiche employé',
     /ROLES_AUTORISES = new Set\(\['manager', 'gerant'\]\)/.test(lire('nexus-inventaire-transferts-internes.js'))
     && /ROLES = new Set\(\['manager', 'gerant'\]\)/.test(lire('nexus-inventaire-stock-controle-cible-v2.js')));

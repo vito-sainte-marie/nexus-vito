@@ -265,6 +265,7 @@ const NEXUS_PAGES_CONSULTATION = [
   'NEXUS-Campagne-v1.html',
   'NEXUS-Campagne-v2.html',
   'NEXUS-Campagne-v2-Objectifs.html',
+  'NEXUS-Campagne-v2-Ventes.html',
   'NEXUS-Import-v1.html',
   'NEXUS-Admin-API-v1.html',
   'NEXUS-Admin-Sites-v1.html',

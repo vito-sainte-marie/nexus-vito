@@ -352,8 +352,9 @@ tbody tr:hover{background:var(--panel);}
           <label style="font-family:var(--mono); font-size:10px; color:var(--text-mid); text-transform:uppercase; letter-spacing:0.04em;">Ce fichier couvre…</label>
           <div class="btn-row" style="margin-top:6px;">
             <div class="btn btn-ghost" id="phaseAvant" style="cursor:pointer;">Avant la promo</div>
-            <div class="btn btn-ghost" id="phasePendant" style="cursor:pointer;">Pendant la promo</div>
+            <a class="btn btn-ghost" id="phasePendant" href="NEXUS-Campagne-v2-Ventes.html" style="cursor:pointer; text-decoration:none;">Pendant la promo : actualiser mes ventes</a>
           </div>
+          <div style="margin-top:8px; font-size:11.5px; color:var(--text-dim); line-height:1.5;">Pour suivre les ventes d'une promotion en cours, passez par « Actualiser mes ventes » : le fichier y est contrôlé sans toucher à vos produits.</div>
         </div>
         <div id="campagnePeriodeInfo" style="display:none; margin-top:12px; padding:12px 14px; background:var(--panel); border:1px solid var(--hairline); border-radius:10px; font-size:12.5px; color:var(--text-mid); line-height:1.6;"></div>
         <div id="campagneChevauchement" style="display:none; margin-top:8px; padding:10px 12px; background:var(--amber-dim); color:var(--amber); border-radius:8px; font-size:11.5px; line-height:1.5;"></div>
@@ -735,7 +736,7 @@ nexusRequireAuth().then(async employee => {
   }
   document.getElementById('campagneSelect').addEventListener('change', e => { campagneChoisieId = e.target.value; rafraichirPeriodeCampagne(); });
   document.getElementById('phaseAvant').addEventListener('click', function () { phaseChoisie = 'avant'; this.className = 'btn btn-primary'; document.getElementById('phasePendant').className = 'btn btn-ghost'; rafraichirPeriodeCampagne(); });
-  document.getElementById('phasePendant').addEventListener('click', function () { phaseChoisie = 'pendant'; this.className = 'btn btn-primary'; document.getElementById('phaseAvant').className = 'btn btn-ghost'; rafraichirPeriodeCampagne(); });
+  document.getElementById('phasePendant').addEventListener('click', function (ev) { var sel = document.getElementById('campagneSelect'); var id = sel && sel.value; if (id) this.href = 'NEXUS-Campagne-v2-Ventes.html?campagne=' + encodeURIComponent(id); });
 
   // ------------------------------------------------------------
   // ÉTAPE 2 — Source : parsing fichier (inchangé, éprouvé)
