@@ -579,7 +579,7 @@
       motifRequis: 'Le motif est obligatoire pour annuler un import.',
       annulationFaite: 'Import annulé. Le point précédent fait de nouveau foi.',
       annulationEchec: 'L’annulation a échoué. Rien n’a été modifié, réessayez.',
-      annuler: 'Annuler', confirmerAnnulation: 'Confirmer l’annulation',
+      renoncer: 'Renoncer', confirmerAnnulation: 'Confirmer l’annulation',
       ligneHisto: function (vente, importe) { return 'Ventes au ' + vente + ' · importé le ' + importe; },
       voirObjectifs: 'Voir mes objectifs',
       csvVirgule: 'Ce fichier CSV est lu tel quel : les nombres avec une virgule décimale sont acceptés.',

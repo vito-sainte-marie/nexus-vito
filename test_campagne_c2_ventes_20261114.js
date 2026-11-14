@@ -155,5 +155,9 @@ console.log('OK test_campagne_c2_ventes_20261114');
   assert.ok(/raw: true/.test(ven), 'CSV lu en texte');
   const M = require('./nexus-import-moteur.js');
   assert.strictEqual(M.toNumber('1,47'), 1.47, 'virgule décimale lue comme 1,47 et non 147');
+  assert.ok(/\.vt-annul\[hidden\]\{display:none/.test(ven), 'zone d\'annulation masquée tant que hidden');
+  assert.ok(/<span class="vt-annul"[^>]* hidden>/.test(ven), 'zone masquée au chargement');
+  assert.ok(/data-annuler[\s\S]{0,400}\.hidden = false|z\.hidden = false|hidden = false/.test(ven), 'affichée après le clic');
+  assert.ok(/renoncer: 'Renoncer'/.test(voc) && /esc\(P\.renoncer\)/.test(ven), 'bouton nommé Renoncer');
   console.log('OK recette Guardian');
 }
