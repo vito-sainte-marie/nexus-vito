@@ -456,21 +456,23 @@ function peindreDepart(){
     const d = cour.get(cleA(a));
     const ecart = d ? CS.ecartDepart(d.date_stock, CAMPAGNE.date_debut) : 0;
     const rl = RELEVE && RELEVE.get(a);
-    const note = rl ? P.departReleveArticle(jma(rl.date), rl.libelle_source) : d ? 'v' + d.version + ' · ' + jma(d.date_stock) + (d.a_confirmer || ecart > 0 ? ' · ' + P.departAConfirmer : '') + (ecart > 0 ? ' · ' + P.departEcart(ecart) : '') : '';
+    const note = rl ? P.departReleveArticle(jma(rl.date), rl.libelle_source) + (rl.rapproche_par === 'code_barres' ? ' · ' + P.departReleveCodeBarres : '') : d ? 'v' + d.version + ' · ' + jma(d.date_stock) + (d.a_confirmer || ecart > 0 ? ' · ' + P.departAConfirmer : '') + (ecart > 0 ? ' · ' + P.departEcart(ecart) : '') : '';
     return '<tr><td>' + esc(a) + '<div class="vt-aide">' + esc(note) + '</div></td><td><input type="number" min="0" step="1" data-depart="' + i + '" value="' + (RELEVE && RELEVE.has(a) ? RELEVE.get(a).quantite : (d ? d.quantite : '')) + '" style="width:90px"></td></tr>';
   }).join('') + '</tbody></table>';
 }
 async function reprendreReleve(posterieurs){
   msg('lvDepartMsg', '');
   const arts = articlesPromo();
-  const r = await nexusClient.from('stock_releves').select('id, article, quantite_reelle, quantite_theorique, releve_le').eq('site', SITE_ID).in('article', arts).order('releve_le', {ascending: false});
+  const r = await nexusClient.from('stock_releves').select('id, article, code_barres, quantite_reelle, quantite_theorique, releve_le').eq('site', SITE_ID).order('releve_le', {ascending: false});
   if (r.error || !(r.data || []).length){ msg('lvDepartMsg', P.departAucunReleve, true); return; }
-  const ch = CS.choisirReleves(r.data, {articles: arts, campagneDebut: CAMPAGNE.date_debut, resoudre});
+  const pr = await nexusClient.from('products').select('article, code_barres').eq('site', SITE_ID).not('code_barres', 'is', null);
+  const eans = new Map(); (pr.data || []).forEach(x => { if (x.code_barres) eans.set(CS.cleResolue(resoudre)(x.article), x.code_barres); });
+  const ch = CS.choisirReleves(r.data, {articles: arts, campagneDebut: CAMPAGNE.date_debut, resoudre, eanDe: a => eans.get(CS.cleResolue(resoudre)(a))});
   RELEVE = new Map();
   ch.retenus.forEach(x => RELEVE.set(x.article, x));
   if (posterieurs === true) ch.posterieurs.forEach(x => RELEVE.set(x.article, x));
   if (!RELEVE.size){ msg('lvDepartMsg', P.departReleveSeulementPosterieur(ch.posterieurs.length), true); }
-  else msg('lvDepartMsg', P.departReleveParArticle(RELEVE.size, ch.sans.length));
+  else msg('lvDepartMsg', P.departReleveParArticle(RELEVE.size, ch.sans.length) + (ch.a_verifier.length ? ' ' + P.departReleveAVerifier(ch.a_verifier.length) : ''));
   if (posterieurs !== true && ch.posterieurs.length){
     $('lvDepartMsg').insertAdjacentHTML('beforeend', ' <button type="button" class="vt-btn" id="lvRelevePoster">' + esc(P.departReprendrePosterieurs(ch.posterieurs.length)) + '</button>');
     $('lvRelevePoster').addEventListener('click', () => reprendreReleve(true));

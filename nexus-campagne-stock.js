@@ -151,44 +151,58 @@
   // C3 : choix du relevé par article. Chaque article garde la date et la référence de SON relevé le plus récent.
   // Un relevé postérieur au début de la campagne n'est pas repris : il est signalé (`posterieurs`), à proposer explicitement.
   // Source : `comptage` si une quantité réelle est saisie, sinon `releve_theorique_decenium` (jamais présentée comme un comptage).
-  // Appariement : le code-barres d'abord (`eanDe(article)` côté promotion, `code_barres` côté relevé), la désignation exacte en repli.
-  // Deux désignations voisines mais différentes ne s'apparient jamais sans EAN commun.
+  // Appariement (décision de Frédéric, 14/11) : la désignation exacte par défaut, le code-barres seulement en cas de confusion.
+  // Confusion : (a) plusieurs relevés de même désignation avec des EAN différents ; (b) l'EAN du relevé trouvé par le nom diffère de
+  // l'EAN connu de l'article (`eanDe`) ; (c) aucune désignation exacte, mais un relevé porte l'EAN de l'article.
+  // En confusion, le relevé de même EAN est retenu (`rapproche_par: 'code_barres'`). Sans EAN utilisable, sans EAN concordant, ou avec
+  // plusieurs relevés du même EAN à la même date : aucun rapprochement, l'article va dans `sans` et dans `a_verifier`.
+  // Jamais d'approximation : deux désignations voisines sans EAN commun restent distinctes.
   function choisirReleves(releves, { articles, campagneDebut, resoudre, eanDe } = {}) {
-    const cleNom = cleResolue(resoudre);
+    const cle = cleResolue(resoudre);
     const ean = v => { const x = String(v == null ? '' : v).replace(/\D/g, ''); return x.length >= 8 ? x : null; };
-    const cle = a => cleNom(a);
     const deb = String(campagneDebut || '').slice(0, 10);
     const parArticle = new Map();
     const parEan = new Map();
+    const ajout = (m, k, x) => { if (!m.has(k)) m.set(k, []); m.get(k).push(x); };
     (releves || []).forEach(r => {
-      const e = ean(r.code_barres);
-      const k = cle(r.article);
-      if (e) { if (!parEan.has(e)) parEan.set(e, []); parEan.get(e).push({ r, date: String(r.releve_le || '').slice(0, 10) }); }
       const date = String(r.releve_le || '').slice(0, 10);
       if (!date) return;
-      if (!parArticle.has(k)) parArticle.set(k, []);
-      parArticle.get(k).push({ r, date });
+      const x = { r, date, ean: ean(r.code_barres) };
+      ajout(parArticle, cle(r.article), x);
+      if (x.ean) ajout(parEan, x.ean, x);
     });
-    const retenus = [];
-    const posterieurs = [];
-    const sans = [];
+    const tri = l => l.slice().sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+    const retenus = [], posterieurs = [], sans = [], aVerifier = [];
     (articles || []).forEach(article => {
-      const e = eanDe ? ean(eanDe(article)) : null;
-      const parCode = e ? (parEan.get(e) || []).filter(x => x.date) : [];
-      const liste = (parCode.length ? parCode : (parArticle.get(cle(article)) || [])).sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+      const eA = eanDe ? ean(eanDe(article)) : null;
+      const parNom = parArticle.get(cle(article)) || [];
+      const eansNom = new Set(parNom.map(x => x.ean).filter(Boolean));
+      const confusion = parNom.length
+        ? (eansNom.size > 1 || (!!eA && eansNom.size === 1 && !eansNom.has(eA)))
+        : !!(eA && parEan.get(eA));
+      let liste = parNom, mode = 'nom';
+      if (confusion) {
+        liste = eA ? (parEan.get(eA) || []) : [];
+        mode = 'code_barres';
+        if (!liste.length) { sans.push(article); aVerifier.push(article); return; }
+      }
+      liste = tri(liste);
       if (!liste.length) { sans.push(article); return; }
       const reprise = liste.find(x => !deb || x.date <= deb);
       const poster = liste.find(x => deb && x.date > deb);
+      const ambigu = x => x && liste.filter(y => y.date === x.date).length > 1 && mode === 'code_barres';
+      if (ambigu(reprise) || ambigu(poster)) { sans.push(article); aVerifier.push(article); return; }
       const fabrique = x => {
         const reel = x.r.quantite_reelle != null;
         return { article, quantite: Number(reel ? x.r.quantite_reelle : x.r.quantite_theorique), date: x.date, reference: x.r.id || null,
           source: reel ? 'comptage' : 'releve_theorique_decenium',
-          libelle_source: reel ? 'comptage' : 'quantité théorique Decenium' };
+          libelle_source: reel ? 'comptage' : 'quantité théorique Decenium',
+          rapproche_par: mode };
       };
       if (poster) posterieurs.push(fabrique(poster));
       if (reprise) retenus.push(fabrique(reprise)); else sans.push(article);
     });
-    return { retenus, posterieurs, sans };
+    return { retenus, posterieurs, sans, a_verifier: aVerifier };
   }
 
   // Articles de la promotion sans stock de départ, avec la même clé que le calcul du stock.

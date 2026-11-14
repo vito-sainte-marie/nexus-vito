@@ -595,6 +595,8 @@
       departReleve: function (d) { return 'Dernier relevé de stock : ' + d + '.'; },
       departReleveArticle: function (d, lib) { return 'Relevé du ' + d + ' (' + lib + ') · à confirmer si antérieur au début.'; },
       departReleveParArticle: function (n, sans) { return n + ' article(s) repris avec la date de leur propre relevé' + (sans ? ', ' + sans + ' sans relevé utilisable.' : '.'); },
+      departReleveCodeBarres: 'rapproché par code-barres : désignation différente ou ambiguë',
+      departReleveAVerifier: function (n) { return n + ' article(s) sans relevé, à vérifier : désignation ambiguë et aucun code-barres concordant.'; },
       departReleveSeulementPosterieur: function (n) { return 'Seuls des relevés postérieurs au début de la promotion existent (' + n + ' article(s)). Aucun n’est repris sans votre accord.'; },
       departReprendrePosterieurs: function (n) { return 'Reprendre aussi les ' + n + ' relevé(s) postérieur(s) au début'; },
       departAucunReleve: 'Aucun relevé de stock trouvé. Saisissez un comptage.',

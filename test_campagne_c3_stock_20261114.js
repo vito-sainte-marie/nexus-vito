@@ -88,24 +88,52 @@ t('douze désignations réelles Petromix novembre 2026 : conditionnement', () =>
   assert.strictEqual(S.conditionnement('Jus caresse 50cl TS PARF', { mode: 'a_l_unite', unites_par_carton: 1 }).source, 'a_l_unite');
   assert.strictEqual(S.conditionnement('Biere Heineken 0.0 25 cl - 24P', { mode: 'a_l_unite', unites_par_carton: 1 }).unitesParCarton, 1);
 });
-t('C4 : EAN prioritaire, désignation voisine sans EAN commun non appariée', () => {
+t('C4 : nom exact par défaut, même si un voisin porte un EAN', () => {
   const rel = [
     { id: 'r1', article: 'Biere Heineken 25cl -24P', code_barres: '8712000000011', quantite_reelle: 10, releve_le: '2026-11-10' },
-    { id: 'r2', article: 'Biere Heineken 0.0 25 cl - 24P', code_barres: '8712000000028', quantite_reelle: 99, releve_le: '2026-11-10' },
-    { id: 'r3', article: 'Eau didier plat 50 cl -8P', code_barres: '3000000000031', quantite_reelle: 5, releve_le: '2026-11-10' },
+    { id: 'r2', article: 'Biere Heineken 0.0 25 cl - 24P', code_barres: null, quantite_reelle: 99, releve_le: '2026-11-10' },
   ];
   const promo = 'Biere Heineken 0.0 25 cl - 24P';
-  const parEan = S.choisirReleves(rel, { articles: [promo], campagneDebut: '2026-11-12', eanDe: () => '8712000000028' });
-  assert.strictEqual(parEan.retenus[0].reference, 'r2');
-  // EAN d'un voisin : l'EAN fait foi, pas la désignation.
-  const autreEan = S.choisirReleves(rel, { articles: [promo], campagneDebut: '2026-11-12', eanDe: () => '8712000000011' });
-  assert.strictEqual(autreEan.retenus[0].reference, 'r1');
-  // Repli sur la désignation exacte, sans EAN.
-  const repli = S.choisirReleves(rel, { articles: [promo], campagneDebut: '2026-11-12' });
-  assert.strictEqual(repli.retenus[0].reference, 'r2');
-  // Voisins non appariés : le relevé du Heineken classique ne sert pas l'article 0.0, ni l'eau plate l'eau gazeuse.
-  const sans = S.choisirReleves(rel.filter(r => r.id !== 'r2'), { articles: [promo, 'Eau didier gazeux 50 cl -8P'], campagneDebut: '2026-11-12' });
-  assert.strictEqual(sans.retenus.length, 0); assert.strictEqual(sans.sans.length, 2);
+  const r = S.choisirReleves(rel, { articles: [promo], campagneDebut: '2026-11-12', eanDe: () => null });
+  assert.strictEqual(r.retenus[0].reference, 'r2'); assert.strictEqual(r.retenus[0].rapproche_par, 'nom'); assert.deepStrictEqual(r.a_verifier, []);
+  const sans = S.choisirReleves(rel.filter(x => x.id !== 'r2'), { articles: [promo, 'Eau didier gazeux 50 cl -8P'], campagneDebut: '2026-11-12' });
+  assert.strictEqual(sans.retenus.length, 0); assert.strictEqual(sans.sans.length, 2); assert.deepStrictEqual(sans.a_verifier, []);
+});
+t('C4 : confusion (a) même désignation, EAN différents : l\u2019EAN de l\u2019article tranche', () => {
+  const rel = [
+    { id: 'a1', article: 'Chips X 75g', code_barres: '3000000000011', quantite_reelle: 4, releve_le: '2026-11-10' },
+    { id: 'a2', article: 'Chips X 75g', code_barres: '3000000000028', quantite_reelle: 9, releve_le: '2026-11-10' },
+  ];
+  const r = S.choisirReleves(rel, { articles: ['Chips X 75g'], campagneDebut: '2026-11-12', eanDe: () => '3000000000028' });
+  assert.strictEqual(r.retenus[0].reference, 'a2'); assert.strictEqual(r.retenus[0].rapproche_par, 'code_barres');
+  const sansEan = S.choisirReleves(rel, { articles: ['Chips X 75g'], campagneDebut: '2026-11-12' });
+  assert.strictEqual(sansEan.retenus.length, 0); assert.deepStrictEqual(sansEan.a_verifier, ['Chips X 75g']); assert.deepStrictEqual(sansEan.sans, ['Chips X 75g']);
+});
+t('C4 : confusion (b) l\u2019EAN du relevé trouvé par le nom diffère de celui de l\u2019article', () => {
+  const rel = [
+    { id: 'b1', article: 'Jus Y 50cl', code_barres: '3000000000011', quantite_reelle: 4, releve_le: '2026-11-10' },
+    { id: 'b2', article: 'Jus Y ancien libellé', code_barres: '3000000000028', quantite_reelle: 9, releve_le: '2026-11-10' },
+  ];
+  const r = S.choisirReleves(rel, { articles: ['Jus Y 50cl'], campagneDebut: '2026-11-12', eanDe: () => '3000000000028' });
+  assert.strictEqual(r.retenus[0].reference, 'b2'); assert.strictEqual(r.retenus[0].rapproche_par, 'code_barres');
+  const aucun = S.choisirReleves(rel, { articles: ['Jus Y 50cl'], campagneDebut: '2026-11-12', eanDe: () => '3000000000099' });
+  assert.deepStrictEqual(aucun.a_verifier, ['Jus Y 50cl']); assert.strictEqual(aucun.retenus.length, 0);
+});
+t('C4 : confusion (c) aucune désignation exacte, un relevé porte l\u2019EAN de l\u2019article', () => {
+  const rel = [{ id: 'c1', article: 'Libellé Decenium différent', code_barres: '3000000000028', quantite_theorique: 6, releve_le: '2026-11-10' }];
+  const r = S.choisirReleves(rel, { articles: ['Libellé promotion'], campagneDebut: '2026-11-12', eanDe: () => '3000000000028' });
+  assert.strictEqual(r.retenus[0].reference, 'c1'); assert.strictEqual(r.retenus[0].rapproche_par, 'code_barres');
+  const sansEan = S.choisirReleves(rel, { articles: ['Libellé promotion'], campagneDebut: '2026-11-12' });
+  assert.strictEqual(sansEan.retenus.length, 0); assert.deepStrictEqual(sansEan.a_verifier, []);
+});
+t('C4 : même EAN, deux relevés à la même date : à vérifier', () => {
+  const rel = [
+    { id: 'd1', article: 'Z', code_barres: '3000000000011', quantite_reelle: 1, releve_le: '2026-11-10' },
+    { id: 'd2', article: 'Z', code_barres: '3000000000028', quantite_reelle: 2, releve_le: '2026-11-10' },
+    { id: 'd3', article: 'Z bis', code_barres: '3000000000028', quantite_reelle: 3, releve_le: '2026-11-10' },
+  ];
+  const r = S.choisirReleves(rel, { articles: ['Z'], campagneDebut: '2026-11-12', eanDe: () => '3000000000028' });
+  assert.strictEqual(r.retenus.length, 0); assert.deepStrictEqual(r.a_verifier, ['Z']);
 });
 t('C4 : voisins réels non appariés (chips, eau, jus)', () => {
   const paires = [
