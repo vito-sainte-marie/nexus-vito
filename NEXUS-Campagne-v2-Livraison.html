@@ -343,15 +343,22 @@ details.obj-hab[open] summary::after{transform:rotate(180deg);}
 .vt-table th,.vt-table td{padding:6px 4px; text-align:left; border-bottom:1px solid var(--t-line); overflow-wrap:anywhere;}
 .vt-table td.n{font-family:var(--t-mono); text-align:right;}
 .vt-lien{display:inline-block; margin-top:8px; color:var(--t-text); text-decoration:underline;}
-@media (max-width:600px){
-  #lvLignes table, #lvLignes thead, #lvLignes tbody, #lvLignes tr, #lvLignes td{display:block;width:100%;box-sizing:border-box;}
-  #lvLignes thead{display:none;}
-  #lvLignes tr{border:1px solid var(--bordure,#ddd);border-radius:12px;padding:10px;margin-bottom:12px;}
-  #lvLignes td{padding:6px 0;border:0;}
-  #lvLignes td[data-l]{display:flex;flex-wrap:wrap;align-items:center;gap:8px;}
-  #lvLignes td[data-l]::before{content:attr(data-l);flex:0 0 100%;font-size:13px;opacity:.75;}
-  #lvLignes input[type=number], #lvLignes input[type=text]{width:100% !important;min-height:44px;font-size:16px;}
-}
+.lv-ligne{background:var(--t-panel); border:1px solid var(--t-line); border-radius:12px; padding:10px 12px; margin-top:8px;}
+.lv-haut{display:grid; grid-template-columns:minmax(0,1fr) 96px; gap:6px 10px; align-items:center;}
+.lv-haut h3{margin:0; font-size:14px; font-weight:600; overflow-wrap:anywhere; grid-column:1 / -1;}
+.lv-ligne label{display:block; font-size:12px; color:var(--t-mid); min-width:0;}
+.lv-ligne input[type=number], .lv-ligne input[type=text]{display:block; width:100%; min-width:0; min-height:44px; box-sizing:border-box; background:var(--t-raised); border:1px solid var(--t-line); border-radius:8px; color:var(--t-text); padding:8px 10px; font-family:var(--t-sans); font-size:16px;}
+.lv-ligne input[type=checkbox]{min-height:0; width:auto; margin-right:6px;}
+.lv-ligne input:disabled{opacity:.55;}
+.lv-calc{font-family:var(--t-mono); font-size:13px; color:var(--t-mid);}
+.lv-ligne[data-unite] [data-champ=cartons]{display:none;}
+.lv-ligne:not([data-unite]) [data-champ=unites-direct]{display:none;}
+details.lv-det{margin-top:6px;}
+details.lv-det summary{cursor:pointer; font-size:12.5px; color:var(--t-mid); list-style:none; min-height:32px; display:flex; align-items:center; gap:6px;}
+details.lv-det summary::-webkit-details-marker{display:none;}
+details.lv-det summary::after{content:'▾'; transition:transform .2s;}
+details.lv-det[open] summary::after{transform:rotate(180deg);}
+.lv-grille{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:6px; align-items:end;}
 </style>
 </head>
 <body>
@@ -440,12 +447,13 @@ function peindreTout(){ peindreDepart(); peindreLignes(); peindreStock(); peindr
 
 function peindreDepart(){
   const arts = articlesPromo();
-  const cour = CS.stockDepartCourant(DEPART, resoudre);
-  const manque = arts.filter(a => !cour.has(String(resoudre(a) || a).trim().toLowerCase()));
+  const cleA = CS.cleResolue(resoudre);
+  const cour = CS.stockDepartCourant(DEPART, cleA);
+  const manque = CS.articlesSansDepart(arts, DEPART, resoudre);
   $('lvDepartInfo').textContent = manque.length ? P.departManque(manque.length) : '';
   $('lvDepartInfo').className = 'vt-msg' + (manque.length ? ' vt-alerte' : '');
   $('lvDepart').innerHTML = '<table class="vt-table"><tbody>' + arts.map((a, i) => {
-    const d = cour.get(String(resoudre(a) || a).trim().toLowerCase());
+    const d = cour.get(cleA(a));
     const ecart = d ? CS.ecartDepart(d.date_stock, CAMPAGNE.date_debut) : 0;
     const note = d ? 'v' + d.version + ' · ' + jma(d.date_stock) + (d.a_confirmer || ecart > 0 ? ' · ' + P.departAConfirmer : '') + (ecart > 0 ? ' · ' + P.departEcart(ecart) : '') : '';
     return '<tr><td>' + esc(a) + '<div class="vt-aide">' + esc(note) + '</div></td><td><input type="number" min="0" step="1" data-depart="' + i + '" value="' + (RELEVE && RELEVE.has(a) ? RELEVE.get(a) : (d ? d.quantite : '')) + '" style="width:90px"></td></tr>';
@@ -478,15 +486,28 @@ async function enregistrerDepart(){
 }
 
 function peindreLignes(){
-  $('lvLignes').innerHTML = '<table class="vt-table"><thead><tr><th>' + esc(P.colArticle) + '</th><th>' + esc(P.colCartons) + '</th><th>' + esc(P.colUnitesCarton) + '</th><th>' + esc(P.colUnites) + '</th><th>' + esc(P.colPa) + '</th></tr></thead><tbody>' + OBJECTIFS.map((o, i) => {
+  $('lvLignes').innerHTML = OBJECTIFS.map((o, i) => {
     const c = CS.conditionnement(o.article, reglageDe(o.article));
     const upc = c.unitesParCarton == null ? '' : c.unitesParCarton;
-    return '<tr data-i="' + i + '"><td>' + esc(o.article) + (c.aRenseigner ? '<div class="vt-aide">' + esc(P.conditionnementARenseigner) + '</div>' : '') + '</td>'
-      + '<td data-l="' + esc(P.colCartons) + '"><input type="number" min="0" step="1" data-f="cartons" style="width:70px"></td>'
-      + '<td data-l="' + esc(P.colUnitesCarton) + '"><input type="number" min="1" step="1" data-f="upc" value="' + upc + '" style="width:70px"' + (c.source === 'a_l_unite' ? ' disabled' : '') + '><label class="vt-aide"><input type="checkbox" data-f="unite"' + (c.source === 'a_l_unite' ? ' checked' : '') + '> ' + esc(P.alUnite) + '</label></td>'
-      + '<td data-l="' + esc(P.colUnites) + '"><input type="number" min="0" step="1" data-f="unites" style="width:70px"></td>'
-      + '<td data-l="' + esc(P.colPa) + '"><input type="text" inputmode="decimal" data-f="pa" value="' + (o.pa_promo_ht == null ? '' : o.pa_promo_ht) + '" style="width:80px"><div class="vt-aide" data-f="ecart"></div></td></tr>';
-  }).join('') + '</tbody></table>';
+    const aLU = c.source === 'a_l_unite';
+    const pa = o.pa_promo_ht == null ? '' : String(o.pa_promo_ht).replace('.', ',');
+    return '<div class="lv-ligne" data-i="' + i + '"' + (aLU ? ' data-unite' : '') + '><div class="lv-haut"><h3>' + esc(o.article) + '</h3>'
+      + '<label data-champ="cartons">' + esc(P.colCartons) + '<input type="number" min="0" step="1" inputmode="numeric" data-f="cartons"></label>'
+      + '<label data-champ="unites-direct">' + esc(P.colUnites) + '<input type="number" min="0" step="1" inputmode="numeric" data-f="unites"></label>'
+      + '<span class="lv-calc" data-f="calc" aria-live="polite"></span></div>'
+      + (c.aRenseigner ? '<div class="vt-aide">' + esc(P.conditionnementARenseigner) + '</div>' : '')
+      + '<details class="lv-det"><summary>' + esc(P.conditionnementDetails) + '</summary><div class="lv-grille">'
+      + '<label>' + esc(P.colUnitesCarton) + '<input type="number" min="1" step="1" inputmode="numeric" data-f="upc" value="' + upc + '"' + (aLU ? ' disabled' : '') + '></label>'
+      + '<label>' + esc(P.colPa) + '<input type="text" inputmode="decimal" data-f="pa" value="' + esc(pa) + '"></label>'
+      + '<label><input type="checkbox" data-f="unite"' + (aLU ? ' checked' : '') + '>' + esc(P.alUnite) + '</label>'
+      + '<div class="vt-aide" data-f="ecart"></div></div></details></div>';
+  }).join('');
+}
+function majCalc(l){
+  const g = f => l.querySelector('[data-f=' + f + ']');
+  const aLU = g('unite').checked;
+  const conv = CS.convertirLigne({cartons: aLU ? null : num(g('cartons').value), unites: aLU ? num(g('unites').value) : null, unitesParCarton: aLU ? 1 : num(g('upc').value)});
+  g('calc').textContent = conv.unites != null && !conv.aRenseigner && (aLU ? num(g('unites').value) != null : num(g('cartons').value) != null) ? P.egaleUnites(fmt(conv.unites)) : '';
 }
 function majEcartPa(tr){
   const o = OBJECTIFS[+tr.dataset.i]; const pa = num(tr.querySelector('[data-f=pa]').value);
@@ -498,11 +519,11 @@ async function enregistrerLivraison(){
   if (!four){ msg('lvMsg', P.livraisonFournisseurRequis, true); return; }
   if (!date){ msg('lvMsg', P.livraisonDateRequise, true); return; }
   const lignes = [], reglages = [];
-  for (const tr of $('lvLignes').querySelectorAll('tr[data-i]')){
+  for (const tr of $('lvLignes').querySelectorAll('.lv-ligne[data-i]')){
     const o = OBJECTIFS[+tr.dataset.i], g = f => tr.querySelector('[data-f=' + f + ']');
-    const cartons = num(g('cartons').value), unites = num(g('unites').value);
-    if (cartons == null && unites == null) continue;
     const aLUnite = g('unite').checked;
+    const cartons = aLUnite ? null : num(g('cartons').value), unites = aLUnite ? num(g('unites').value) : null;
+    if (cartons == null && unites == null) continue;
     const upcSaisi = aLUnite ? 1 : num(g('upc').value);
     const conv = CS.convertirLigne({cartons, unites, unitesParCarton: upcSaisi});
     if (conv.aRenseigner || conv.unites == null || conv.unites < 0){ msg('lvMsg', P.conditionnementManquant(o.article), true); return; }
@@ -534,7 +555,7 @@ function peindreStock(){
   const pc = CV.pointCourant(POINTS, VENTES_ANNULS);
   const res = CS.stockTheorique({articles: articlesPromo(), stockDepart: DEPART, livraisons: LIVRAISONS, annulations: ANNULS, lignesLivraison: LIGNES, ventes: pc ? pc.lignes : [], dateVentes: pc ? pc.date_fin : null, campagneDebut: CAMPAGNE.date_debut, resoudre});
   $('lvStock').innerHTML = (pc ? '<div class="vt-aide">' + esc(P.stockDate(jma(pc.date_fin))) + '</div>' : '<div class="vt-aide">' + esc(P.stockSansVentes) + '</div>')
-    + '<table class="vt-table"><tbody>' + res.map(r => '<tr><td>' + esc(r.article) + '<div class="vt-aide">' + esc(r.manque_depart ? P.stockManque : P.stockSources(r.sources.join(', '))) + (r.a_confirmer && !r.manque_depart ? ' · ' + esc(P.departAConfirmer) : '') + (r.jours_non_couverts > 0 ? ' · ' + esc(P.departEcart(r.jours_non_couverts)) : '') + '</div></td><td class="n">' + (r.stock == null ? '·' : fmt(r.stock)) + '<div class="vt-aide">' + esc(P.stockLibelle) + '</div></td></tr>').join('') + '</tbody></table>';
+    + '<table class="vt-table"><tbody>' + res.map(r => '<tr><td>' + esc(r.article) + '<div class="vt-aide">' + esc(r.manque_depart ? P.stockManque : P.stockSources(r.sources.join(', '))) + (r.a_confirmer && !r.manque_depart ? ' · ' + esc(P.departAConfirmer) : '') + (r.jours_non_couverts > 0 ? ' · ' + esc(P.departEcart(r.jours_non_couverts)) : '') + '</div>' + (r.livraison_meme_jour_a_verifier > 0 ? '<div class="vt-aide vt-alerte" data-meme-jour>' + esc(P.livraisonMemeJour(r.livraison_meme_jour_a_verifier, CS.dateLongue(r.date_depart))) + '</div>' : '') + '</td><td class="n">' + (r.stock == null ? '·' : fmt(r.stock)) + '<div class="vt-aide">' + esc(P.stockLibelle) + '</div></td></tr>').join('') + '</tbody></table>';
   const nc = CS.livraisonsInventaireNonComptees(INVENT, {articles: articlesPromo(), campagneDebut: CAMPAGNE.date_debut, campagneFin: CAMPAGNE.date_fin, resoudre});
   $('lvInv').innerHTML = nc.map(m => esc(P.inventaireNonCompte(m.article, jma(m.date), m.quantite))).join('<br>');
 }
@@ -583,8 +604,8 @@ $('lvCampagne').addEventListener('change', e => choisir(e.target.value));
 $('lvReprendre').addEventListener('click', reprendreReleve);
 $('lvEnrDepart').addEventListener('click', enregistrerDepart);
 $('lvEnr').addEventListener('click', enregistrerLivraison);
-$('lvLignes').addEventListener('input', e => { const tr = e.target.closest('tr[data-i]'); if (tr && e.target.dataset.f === 'pa') majEcartPa(tr); });
-$('lvLignes').addEventListener('change', e => { if (e.target.dataset.f === 'unite'){ const tr = e.target.closest('tr'); const u = tr.querySelector('[data-f=upc]'); u.disabled = e.target.checked; if (e.target.checked) u.value = 1; } });
+$('lvLignes').addEventListener('input', e => { const tr = e.target.closest('.lv-ligne[data-i]'); if (!tr) return; if (e.target.dataset.f === 'pa') majEcartPa(tr); majCalc(tr); });
+$('lvLignes').addEventListener('change', e => { if (e.target.dataset.f === 'unite'){ const tr = e.target.closest('.lv-ligne'); const u = tr.querySelector('[data-f=upc]'); u.disabled = e.target.checked; if (e.target.checked) u.value = 1; tr.toggleAttribute('data-unite', e.target.checked); majCalc(tr); } });
 $('lvHistoCorps').addEventListener('click', e => {
   const t = e.target;
   if (t.dataset.annuler) ouvrirAnnulation(t.dataset.annuler);

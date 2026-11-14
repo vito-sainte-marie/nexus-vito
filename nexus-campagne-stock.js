@@ -13,6 +13,13 @@
   }
   function ecartJours(a, b) { return Math.round((aDate(b) - aDate(a)) / JOUR_MS); }
   function cle(s) { return String(s || '').trim().toLowerCase(); }
+  // Une seule fonction de clé pour tout : l'alias résolu, sinon le nom lui-même.
+  function cleResolue(resoudre) { return s => cle((resoudre ? resoudre(s) : null) || s); }
+  const MOIS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+  function dateLongue(iso) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ''));
+    return m ? (+m[3]) + (m[3] === '01' ? 'er' : '') + ' ' + MOIS[+m[2] - 1] : 'inconnue';
+  }
 
   // Conditionnement d'achat : trois cas distincts. « À l'unité » = 1 par carton, explicite ; différent d'inconnu.
   // `reglage` est la dernière version du réglage par article (ou null).
@@ -83,7 +90,7 @@
   // `resoudre(designation)` rend la désignation canonique après alias (ou null) : une vente sous un alias
   // encore dû est comptée sur l'article canonique, jamais perdue.
   function stockTheorique({ articles, stockDepart, livraisons, annulations, lignesLivraison, ventes, dateVentes, campagneDebut, resoudre }) {
-    const cle = s => { const c = resoudre ? resoudre(s) : null; return String(c || s || '').trim().toLowerCase(); };
+    const cle = cleResolue(resoudre);
     const dep = stockDepartCourant(stockDepart, cle);
     const valides = new Map(livraisonsValides(livraisons, annulations).map(l => [l.id, l]));
     // Une livraison compte seulement si elle est datée strictement après le stock de départ de l'article.
@@ -112,11 +119,19 @@
         manque_depart: false,
         a_confirmer: !!d.a_confirmer || jours > 0 || memeJour.has(k),
         livraison_meme_jour_a_verifier: memeJour.get(k) || 0,
+        date_depart: String(d.date_stock).slice(0, 10),
         jours_non_couverts: jours,
-        sources: ['stock de départ du ' + String(d.date_stock).slice(0, 10) + ' (' + d.source + ')', 'livraisons valides', 'ventes au ' + (dateVentes ? String(dateVentes).slice(0, 10) : 'inconnu')],
+        sources: ['stock de départ du ' + dateLongue(d.date_stock) + ' (' + String(d.source || '').replace(/_/g, ' ') + ')', 'livraisons valides', 'ventes au ' + (dateVentes ? dateLongue(dateVentes) : 'inconnu')],
         libelle: 'Stock théorique',
       };
     });
+  }
+
+  // Articles de la promotion sans stock de départ, avec la même clé que le calcul du stock.
+  function articlesSansDepart(articles, stockDepart, resoudre) {
+    const k = cleResolue(resoudre);
+    const dep = stockDepartCourant(stockDepart, k);
+    return (articles || []).filter(a => !dep.has(k(a)));
   }
 
   // Arrondi d'une recommandation d'achat : à l'unité supérieure pour un article « à l'unité », au carton sinon.
@@ -130,7 +145,7 @@
 
   global.NexusCampagneStock = {
     conditionnement, convertirLigne, ecartPa, livraisonsValides, stockDepartCourant, ecartDepart,
-    livraisonsInventaireNonComptees, stockTheorique, arrondirAchat,
+    livraisonsInventaireNonComptees, stockTheorique, arrondirAchat, cleResolue, dateLongue, articlesSansDepart,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = global.NexusCampagneStock;
 })(typeof window !== 'undefined' ? window : globalThis);

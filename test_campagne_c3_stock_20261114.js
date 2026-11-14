@@ -99,4 +99,26 @@ t('livraison avant, le jour même, après le stock de départ', () => {
   assert.strictEqual(mk('2026-11-13').stock, 150);
 });
 
+t('article avec stock de départ non compté comme manquant (clé partagée)', () => {
+  assert.deepStrictEqual(S.articlesSansDepart(['A', 'B'], [{ article: 'A', date_stock: '2026-11-12', quantite: 5 }]), ['B']);
+  const alias = a => (a === 'A-alias' ? 'A' : null);
+  assert.deepStrictEqual(S.articlesSansDepart(['A-alias'], [{ article: 'A', date_stock: '2026-11-12', quantite: 5 }], alias), []);
+});
+t('dates longues en français, jamais ISO', () => {
+  assert.strictEqual(S.dateLongue('2026-11-10'), '10 novembre');
+  assert.strictEqual(S.dateLongue('2026-12-01'), '1er décembre');
+  const r = S.stockTheorique(base)[0];
+  assert.ok(r.sources.some(x => /12 novembre/.test(x)) && !r.sources.some(x => /\d{4}-\d{2}-\d{2}/.test(x)));
+  assert.strictEqual(r.date_depart, '2026-11-12');
+});
+t('page Livraison : même jour, unités en direct, PA à virgule, détails repliables', () => {
+  const fs = require('fs'), h = fs.readFileSync(__dirname + '/NEXUS-Campagne-v2-Livraison.html', 'utf8');
+  const w = {}; new Function('window', fs.readFileSync(__dirname + '/nexus-vocabulaire.js', 'utf8'))(w);
+  const find = (o, d) => { if (!o || typeof o !== 'object' || d > 3) return null; if (typeof o.livraisonMemeJour === 'function') return o; for (const k of Object.keys(o)) { const r = find(o[k], d + 1); if (r) return r; } return null; };
+  const P = find(w, 0);
+  assert.ok(P, 'vocabulaire exposé');
+  assert.strictEqual(P.livraisonMemeJour(24, '10 novembre'), '24 unités livrées le 10 novembre, le jour du relevé : à vérifier.');
+  assert.strictEqual(P.egaleUnites(48), '= 48 unités');
+});
+
 console.log(n + ' épreuves C3 passent.');
