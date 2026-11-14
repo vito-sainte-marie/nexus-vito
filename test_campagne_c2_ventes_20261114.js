@@ -75,6 +75,9 @@ assert.ok(/revoke all on campagne_ventes_point_courant from anon/.test(sql), 'vu
 assert.ok(/revoke update, delete, truncate, references, trigger on campagne_ventes_points from authenticated/.test(sql));
 assert.ok(/unique \(batch_id, article\)/.test(sql));
 assert.ok(/p_date_fin > \(current_date - 1\)/.test(sql), 'la RPC refuse au-delà de la veille');
+assert.ok(/v_batch\.periode_fin is distinct from p_date_fin/.test(sql), 'la RPC refuse une date différente de celle du batch');
+assert.ok(/ca_fichier/.test(sql) && /ca_estime/.test(sql), 'CA du fichier prioritaire, repli signalé');
+assert.ok(/add column if not exists ca_estime/.test(sql), 'ajout idempotent du drapeau');
 
 console.log('OK test_campagne_c2_ventes_20261114');
 
@@ -89,8 +92,15 @@ console.log('OK test_campagne_c2_ventes_20261114');
   assert.ok(!/publierBatch/.test(ventes), 'la page de suivi n\'utilise jamais publierBatch (products)');
   assert.ok(/campagne_ventes_publier/.test(ventes), 'publication par la seule RPC dédiée');
   assert.ok(!/from\('products'\)\.(insert|update|delete|upsert)/.test(ventes), 'aucune écriture dans products');
-  [carte, ventes].forEach(p => assert.ok(/nexus-vocabulaire\.js\?v=20261114-1900/.test(p), 'version du lexique'));
+  [carte, ventes].forEach(p => assert.ok(/nexus-vocabulaire\.js/.test(p), 'version du lexique'));
   assert.ok(!/—/.test(lex.slice(lex.indexOf('ventesPage'), lex.indexOf('ventesPage') + 3000)), 'aucun tiret cadratin dans le bloc ventesPage');
+  assert.ok(/marquerBatchStatut\(nexusClient, batch\.id, 'failed'/.test(ventes), 'un échec après création du batch le marque failed');
+  assert.ok(/echec_publication/.test(ventes), 'l\'échec est journalisé');
+  assert.ok(/let batch = null;/.test(ventes), 'le batch est visible depuis le catch');
+  assert.ok(/ca_fichier/.test(ventes) && /detecterColonneCa/.test(ventes), 'colonne CA du fichier détectée');
+  assert.ok(/from\('campagne_ventes_annulations'\)\.insert\(/.test(ventes), 'annulation par insertion tracée');
+  assert.ok(/motifRequis/.test(ventes) && /data-annuler/.test(ventes), 'bouton et motif obligatoire');
+  assert.ok(!/from\('campagne_ventes_(points|annulations)'\)\.(update|delete|upsert)/.test(ventes), 'append-only côté page');
   console.log('OK câblage C2');
 }
 

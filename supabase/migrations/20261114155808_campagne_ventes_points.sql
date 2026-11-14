@@ -14,12 +14,16 @@ create table if not exists campagne_ventes_points (
   date_fin date not null,
   quantite numeric not null default 0 check (quantite >= 0),
   ca_ht numeric not null default 0,
+  ca_estime boolean not null default false,
   absent_du_fichier boolean not null default false,
   importe_par uuid references employees(id),
   importe_le timestamptz not null default now(),
   constraint campagne_ventes_points_unique unique (batch_id, article),
   constraint campagne_ventes_points_dates check (date_fin >= date_debut)
 );
+-- Table déjà créée sur Test avant l'ajout de ce drapeau : ajout idempotent.
+alter table campagne_ventes_points add column if not exists ca_estime boolean not null default false;
+comment on column campagne_ventes_points.ca_estime is 'Vrai si le CA HT est estimé (quantité x prix de vente HT) faute de colonne CA dans le fichier.';
 create index if not exists campagne_ventes_points_campagne_idx on campagne_ventes_points (campagne_id, importe_le);
 
 create table if not exists campagne_ventes_annulations (
@@ -108,6 +112,7 @@ begin
   if not found or v_camp.site <> v_batch.site then raise exception 'Promotion introuvable sur ce site.'; end if;
 
   if p_date_fin is null then raise exception 'Date de fin des ventes manquante.'; end if;
+  if v_batch.periode_fin is distinct from p_date_fin then raise exception 'La date de fin demandée ne correspond pas à celle de l''import.'; end if;
   if p_date_fin > (current_date - 1) then raise exception 'La date de fin ne peut pas dépasser la veille.'; end if;
   if p_date_fin > v_camp.date_fin then raise exception 'La date de fin ne peut pas dépasser la fin de la promotion.'; end if;
   if p_date_fin < v_camp.date_debut then raise exception 'La date de fin précède le début de la promotion.'; end if;
@@ -129,15 +134,17 @@ begin
     select lower(trim(r.valeurs->>'article')) as cle,
            max(r.valeurs->>'article') as article,
            sum(coalesce(nullif(r.valeurs->>'quantite','')::numeric, 0)) as quantite,
-           sum(coalesce(nullif(r.valeurs->>'quantite','')::numeric, 0) * coalesce(nullif(r.valeurs->>'prix_vente','')::numeric, 0)) as ca_ht
+           sum(coalesce(nullif(r.valeurs->>'ca_fichier','')::numeric,
+                        coalesce(nullif(r.valeurs->>'quantite','')::numeric, 0) * coalesce(nullif(r.valeurs->>'prix_vente','')::numeric, 0))) as ca_ht,
+           bool_or(nullif(r.valeurs->>'ca_fichier','') is null) as ca_estime
     from import_row_results r
     where r.batch_id = p_batch_id and r.statut not in ('rejetee','doublon_fichier')
       and coalesce(trim(r.valeurs->>'article'),'') <> ''
     group by 1
   )
-  insert into campagne_ventes_points (site, campagne_id, batch_id, article, date_debut, date_fin, quantite, ca_ht, absent_du_fichier, importe_par)
+  insert into campagne_ventes_points (site, campagne_id, batch_id, article, date_debut, date_fin, quantite, ca_ht, ca_estime, absent_du_fichier, importe_par)
   select v_batch.site, v_camp.id, p_batch_id, pr.article, v_camp.date_debut, p_date_fin,
-         coalesce(f.quantite, 0), coalesce(f.ca_ht, 0), f.cle is null, v_batch.auteur_id
+         coalesce(f.quantite, 0), coalesce(f.ca_ht, 0), coalesce(f.ca_estime, false), f.cle is null, v_batch.auteur_id
   from promo pr
   left join fichier f on f.cle = lower(trim(pr.article));
   get diagnostics v_nb = row_count;

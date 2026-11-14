@@ -1100,7 +1100,7 @@
         "par": "claude",
         "outil": "connecteur Supabase execute_sql, catalogue de Test en lecture seule ; aucune lecture de Production (pas de GO)",
         "verdict": "APPLIQUEE SUR TEST SEULEMENT : tables, vue security_invoker, fonction EXECUTE reserve a authenticated, droits de table limites a SELECT et INSERT. Etat Production non mesure.",
-        "blob_migration": "df3d339a2058533a1b5c5ad80a76f0c8392b9bb5"
+        "blob_migration": "8ce4c3b73f69ce0016940bd22bb2942769263aa0"
       }
     }
   },

@@ -411,6 +411,10 @@ function lireFichier(file){
     fr.readAsArrayBuffer(file);
   });
 }
+function detecterColonneCa(entetes){
+  const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+  return (entetes || []).find(e => { const n = norm(e); return !/ttc/.test(n) && (/^ca( ht)?$/.test(n) || /chiffre d affaires?/.test(n) || /^ca ht /.test(n)); }) || null;
+}
 function articlesPromo(){ return OBJECTIFS.map(o => o.article); }
 function derniersObjectifs(rows){
   const m = new Map();
@@ -444,7 +448,27 @@ function peindreHisto(){
   const h = CV.historique(POINTS, ANNULATIONS);
   $('vtHisto').hidden = !h.length;
   $('vtHistoCorps').innerHTML = h.map(x => '<div class="obj-histo">' + esc(jma(x.date_fin)) + ' · ' + esc(String(x.importe_le || '').slice(0, 10).split('-').reverse().join('/'))
-    + (x.annule ? ' · ' + esc(P.annule) + ' (' + esc(P.motif) + ' : ' + esc(x.motif) + ')' : '') + '</div>').join('');
+    + (x.annule ? ' · ' + esc(P.annule) + ' (' + esc(P.motif) + ' : ' + esc(x.motif) + ')'
+      : ' · <button type="button" class="btn-lien" data-annuler="' + esc(x.batch_id) + '">' + esc(P.annulerImport) + '</button>'
+        + '<span class="vt-annul" data-zone="' + esc(x.batch_id) + '" hidden> <input type="text" data-motif="' + esc(x.batch_id) + '" placeholder="' + esc(P.motifDemande) + '"> '
+        + '<button type="button" data-confirmer="' + esc(x.batch_id) + '">' + esc(P.confirmerAnnulation) + '</button> <button type="button" data-renoncer="' + esc(x.batch_id) + '">' + esc(P.annuler) + '</button></span>')
+    + '</div>').join('');
+  $('vtHistoCorps').querySelectorAll('[data-annuler]').forEach(b => b.addEventListener('click', () => {
+    const z = $('vtHistoCorps').querySelector('[data-zone="' + b.getAttribute('data-annuler') + '"]'); if (z) z.hidden = false; }));
+  $('vtHistoCorps').querySelectorAll('[data-renoncer]').forEach(b => b.addEventListener('click', () => {
+    const z = $('vtHistoCorps').querySelector('[data-zone="' + b.getAttribute('data-renoncer') + '"]'); if (z) z.hidden = true; }));
+  $('vtHistoCorps').querySelectorAll('[data-confirmer]').forEach(b => b.addEventListener('click', () => annulerImport(b.getAttribute('data-confirmer'))));
+}
+async function annulerImport(batchId){
+  const champ = $('vtHistoCorps').querySelector('[data-motif="' + batchId + '"]');
+  const motif = champ ? champ.value.trim() : '';
+  if (!motif){ msg('vtPublierMsg', P.motifRequis, true); return; }
+  if (EMPLOYEE.role !== 'manager' && EMPLOYEE.role !== 'gerant'){ msg('vtPublierMsg', P.annulationEchec, true); return; }
+  const r = await nexusClient.from('campagne_ventes_annulations').insert({site: SITE_ID, batch_id: batchId, motif, annule_par: EMPLOYEE.id});
+  if (r.error){ console.error(r.error); msg('vtPublierMsg', P.annulationEchec, true); return; }
+  await D.journaliser(nexusClient, {batchId, site: SITE_ID, action: 'annulation', employeId: EMPLOYEE.id, details: {motif, source: 'campagne-v2-ventes'}});
+  msg('vtPublierMsg', P.annulationFaite);
+  await chargerCampagne();
 }
 function dernierImportFin(){ const pt = CV.pointCourant(POINTS, ANNULATIONS); return pt ? pt.date_fin : null; }
 
@@ -462,22 +486,25 @@ async function analyser(){
   const aliases = await D.chargerAliasProduits(nexusClient, SITE_ID, 'campagne');
   const promo = new Set(articlesPromo().map(a => String(a).trim().toLowerCase()));
   const vus = new Set(), ignores = [];
+  const colCa = detecterColonneCa(HEADERS);
   const lignes = ROWS.map(r => {
     const brut = String(r[k.article] || '');
     if (!brut) return {invalide: true, raisonInvalide: 'Article manquant.', valeurs: null};
     const q = M.toNumber(r[k.quantite]), pv = M.toNumber(r[k.prix_vente]);
+    const caF = colCa ? M.toNumber(r[colCa]) : NaN;
     const article = M.resoudreAlias(brut, aliases) || brut;
     const cle = article.trim().toLowerCase();
     if (promo.has(cle)) vus.add(cle); else ignores.push(article);
     return {valeurs: {periodeDebut: CAMPAGNE.date_debut, periodeFin: dateFin, categorie: k.categorie ? M.corrigerCategorie(String(r[k.categorie] || 'Non classé'), article) : 'Non classé', article,
-      quantite: isNaN(q) ? null : q, prix_vente: isNaN(pv) ? null : pv, prix_achat: null, tva: null, code_barres: null,
+      quantite: isNaN(q) ? null : q, prix_vente: isNaN(pv) ? null : pv, ca_fichier: isNaN(caF) ? null : caF, prix_achat: null, tva: null, code_barres: null,
       ca: (!isNaN(q) && !isNaN(pv)) ? Math.round(q * pv * 100) / 100 : 0, marge: 0}};
   });
   const resultats = M.classifierLignesImport({intention: 'campagne', lignes, connuesParCle: new Map()});
   const absents = articlesPromo().filter(a => !vus.has(String(a).trim().toLowerCase()));
   const rapport = M.construireQualityReport({lignesTotal: resultats.length, resultats, referencesInconnues: [], joursManquants: []});
-  ANALYSE = {dateFin, resultats, rapport, ignores: Array.from(new Set(ignores)), absents};
+  ANALYSE = {dateFin, caColonne: colCa, resultats, rapport, ignores: Array.from(new Set(ignores)), absents};
   $('vtRapportCorps').innerHTML = '<div>' + esc(P.fichierLu(ROWS.length)) + '</div>'
+    + '<div class="vt-msg">' + esc(colCa ? P.caFichier + ' : ' + colCa : P.caEstime) + '</div>'
     + '<div class="vt-msg">' + esc(ANALYSE.ignores.length ? P.ignores(ANALYSE.ignores.length) : '') + '</div>'
     + (ANALYSE.ignores.length ? '<div class="obj-histo">' + esc(ANALYSE.ignores.join(', ')) + '</div>' : '')
     + '<div class="vt-msg">' + esc(absents.length ? P.absents(absents.length) : P.toutPresent) + '</div>'
@@ -487,9 +514,10 @@ async function analyser(){
 async function publier(){
   if (!ANALYSE) return;
   msg('vtPublierMsg', ''); $('vtPublier').disabled = true;
+  let batch = null;
   try {
     const hash = FICHIER ? await D.calculerHashFichier(await FICHIER.arrayBuffer()) : null;
-    const batch = await D.creerBatch(nexusClient, {site: SITE_ID, intention: 'campagne', fichierNom: FICHIER.name, fichierTailleOctets: FICHIER.size, fichierHash: hash,
+    batch = await D.creerBatch(nexusClient, {site: SITE_ID, intention: 'campagne', fichierNom: FICHIER.name, fichierTailleOctets: FICHIER.size, fichierHash: hash,
       periodeDebut: CAMPAGNE.date_debut, periodeFin: ANALYSE.dateFin, campagneId: CAMPAGNE.id, phase: 'pendant', auteurId: EMPLOYEE.id});
     if (!batch) throw new Error('batch');
     await D.journaliser(nexusClient, {batchId: batch.id, site: SITE_ID, action: 'depot_fichier', employeId: EMPLOYEE.id, details: {fichier: FICHIER.name, source: 'campagne-v2-ventes'}});
@@ -505,7 +533,14 @@ async function publier(){
     await chargerCampagne();
   } catch (err) {
     console.error(err);
-    msg('vtPublierMsg', P.erreur, true);
+    const raison = String((err && err.message) || err || 'erreur inconnue');
+    if (batch){
+      try {
+        await D.marquerBatchStatut(nexusClient, batch.id, 'failed', {echoue_le: new Date().toISOString(), motif: raison});
+        await D.journaliser(nexusClient, {batchId: batch.id, site: SITE_ID, action: 'echec_publication', employeId: EMPLOYEE.id, details: {motif: raison, source: 'campagne-v2-ventes'}});
+      } catch (e2){ console.error(e2); }
+    }
+    msg('vtPublierMsg', batch ? P.echecPublication(raison) : P.erreur, true);
   } finally { $('vtPublier').disabled = false; }
 }
 async function choisir(id){ CAMPAGNE = CAMPAGNES.find(c => c.id === id) || null; if (CAMPAGNE) await chargerCampagne(); }
