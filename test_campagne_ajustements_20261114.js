@@ -7,7 +7,7 @@ let ko = 0;
 const t = (n, f) => { try { f(); console.log('ok   ' + n); } catch (e) { ko++; console.log('FAIL ' + n + ' : ' + e.message); } };
 const fn = (a, b) => { const i = page.indexOf(a), j = page.indexOf(b, i + 1); assert(i >= 0 && j > i, a); return page.slice(i, j); };
 
-t('ordre : conseiller, en cours, six cartes, dernier bilan, historique', () => {
+t('ordre : conseiller, en cours, huit cartes, dernier bilan, historique', () => {
   const ids = ['id="conseiller"', 'id="enCours"', 'id="tuiles"', 'id="derniere"', 'id="historique"'].map(k => page.indexOf(k));
   ids.forEach(i => assert(i > 0));
   assert.deepStrictEqual(ids.slice().sort((a, b) => a - b), ids, 'ordre des sections');

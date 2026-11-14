@@ -91,7 +91,7 @@ t('article inconnu : aucune suggestion',()=>{ assert.strictEqual(S.suggestions(r
 
 t('aucune écriture ni git dans le moteur et la page',()=>{
   const moteur=lire('nexus-simulateur-promo.js'), page=lire('NEXUS-Campagne-v2.html');
-  const sansMesure=src=>src.replace(/nexusClient\s*\.from\('(campagne_mesures_produits|campagne_couts|fournisseurs_conditions)'\)\s*\.(insert|upsert|delete)\(/g,'');
+  const sansMesure=src=>src.replace(/nexusClient\s*\.from\('(campagne_mesures_produits|campagne_couts|fournisseurs_conditions|campagne_objectifs_produits)'\)\s*\.(insert|upsert|delete)\(/g,'');
   [moteur,page].forEach(src=>{
     assert(!/\.(insert|upsert|update|delete)\s*\(/.test(sansMesure(src).replace(/nexusClient\s*\.from\('campagnes_nexus'\)\s*\.insert\(/,'').replace(/nexusClient\s*\.from\('campagnes_nexus'\)\s*\.update\(/,'') /* modification d'une campagne existante (lot Consulter/Modifier) : seul update autorisé, sur campagnes_nexus */),'écriture');
     assert(!/from\('(products|campagnes_nexus_imports)'\)\s*\.(insert|upsert|update|delete)/.test(src));
@@ -106,7 +106,7 @@ t('page : bandeau permanent, moteur chargé, pas d’écriture sur products ni i
   const sansV2 = page.replace(/from\('campagnes_nexus'\)\s*\.(insert|update)/g,'');
   assert(!/from\('(products|campagnes_nexus_imports)'\)\s*\.(insert|update|upsert|delete)/.test(sansV2));
   const zone = page.slice(page.indexOf('Simulateur de promotion (aucune'));
-  assert(!/\.(insert|update|upsert|delete)\(/.test(zone.replace(/nexusClient\s*\.from\('(campagne_mesures_produits|campagne_couts|fournisseurs_conditions)'\)\s*\.(insert|upsert|delete)\(/g,'')));
+  assert(!/\.(insert|update|upsert|delete)\(/.test(zone.replace(/nexusClient\s*\.from\('(campagne_mesures_produits|campagne_couts|fournisseurs_conditions|campagne_objectifs_produits)'\)\s*\.(insert|upsert|delete)\(/g,'')));
 });
 t('page : noms d’article échappés, aucune saisie injectée brute', ()=>{
   const zone = page.slice(page.indexOf('Simulateur de promotion (aucune'));

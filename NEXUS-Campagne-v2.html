@@ -181,10 +181,10 @@ a{color:inherit;}
 .intro-historique{font-size:13px; color:var(--t-mid); margin-bottom:12px; line-height:1.5;}
 .intro-historique b{color:var(--t-text);}
 
-/* Six cartes : une colonne en mobile, deux ensuite, jamais de défilement horizontal */
+/* Huit cartes : une colonne en mobile, deux ensuite, quatre sur grand écran, jamais de défilement horizontal */
 .tuiles{display:grid; grid-template-columns:1fr; gap:12px;}
 @media (min-width:600px){.tuiles{grid-template-columns:1fr 1fr;}}
-@media (min-width:900px){.tuiles{grid-template-columns:repeat(3,1fr);}}
+@media (min-width:900px){.tuiles{grid-template-columns:repeat(4,1fr);}}
 .tuile{min-height:44px; background:var(--t-panel); border:1px solid var(--t-line); border-radius:14px; padding:16px; font-size:13.5px; cursor:default; min-width:0;}
 .picto-p{display:block; width:56px; height:56px; margin-bottom:8px;}
 .t-titre{display:block; font-weight:600; font-size:14.5px; overflow-wrap:anywhere;}
@@ -403,11 +403,11 @@ a{color:inherit;}
 <script src="nexus-icones.js?v=20260904-0104"></script>
 <script src="nexus-desktop.js?v=20260904-0104"></script>
 <script src="nexus-jours-feries.js?v=20261106-0100"></script>
-<script src="nexus-vocabulaire.js?v=20261114-1100"></script>
+<script src="nexus-vocabulaire.js?v=20261114-1800"></script>
 <script src="nexus-tempo.js?v=20261112-1500"></script>
 <script src="nexus-periodes.js?v=20260904-0104"></script>
 <script src="nexus-campagnes.js?v=20261113-2000"></script>
-<script src="nexus-simulateur-promo.js?v=20261113-1000"></script>
+<script src="nexus-simulateur-promo.js?v=20261114-1400"></script>
 <script src="nexus-mesure-compensation.js?v=20261113-1800"></script>
 <script>
 const V = window.NexusVocab.campagne;
@@ -491,8 +491,8 @@ function peindreTextesFixes(){
   $('gObjectif').innerHTML = pills('objectif', NC.OBJECTIF_CAMPAGNE_LABELS);
   $('tuiles').innerHTML = V.cartes.map(c => {
     const corps =
-      '<img class="picto-p" src="' + IC + 'premium/campagne-' + esc(c.cle) + '.svg"' +
-      ' srcset="' + IC + 'premium/campagne-' + esc(c.cle) + '-48.webp 48w, ' + IC + 'premium/campagne-' + esc(c.cle) + '-96.webp 96w, ' + IC + 'premium/campagne-' + esc(c.cle) + '-144.webp 144w"' +
+      '<img class="picto-p" src="' + IC + 'premium/campagne-' + esc(c.picto || c.cle) + (c.picto ? '-96.webp' : '.svg') + '"' +
+      ' srcset="' + IC + 'premium/campagne-' + esc(c.picto || c.cle) + '-48.webp 48w, ' + IC + 'premium/campagne-' + esc(c.picto || c.cle) + '-96.webp 96w, ' + IC + 'premium/campagne-' + esc(c.picto || c.cle) + '-144.webp 144w"' +
       ' sizes="56px" width="56" height="56" alt="">' +
       '<span class="t-titre">' + esc(c.titre) + '</span>' +
       '<span class="t-sous">' + esc(c.texte) + '</span>';
@@ -1088,7 +1088,7 @@ function brancherBilan(){
   const zone = $('derniere'), cartes = $('historique');
   $('enCours').addEventListener('click', ev => {
     const b = ev.target.closest('button[data-suivre]');
-    if (b) ouvrirMesure(b.dataset.suivre);
+    if (b) location.href = 'NEXUS-Campagne-v2-Objectifs.html?campagne=' + encodeURIComponent(b.dataset.suivre);
   });
   zone.addEventListener('click', ev => {
     const b = ev.target.closest('button');
@@ -1131,7 +1131,7 @@ async function chargerEtAfficher(){
   const [aud, camp, prod, imp, pan] = await Promise.all([
     fetchAllRows(() => nexusClient.from('audits_caisse').select('date, quart, vente_piste, vente_boutique').eq('site', SITE_ID).order('date', {ascending: true})),
     nexusClient.from('campagnes_nexus').select('id, nom, date_debut, date_fin, type, produits_concernes, nature, objectif, objectif_libre, cree_le, modifie_le').eq('site', SITE_ID).order('date_debut', {ascending: false}),
-    fetchAllRows(() => nexusClient.from('products').select('article, categorie, periode_debut, periode_fin, quantite, ca, marge').eq('site', SITE_ID)),
+    fetchAllRows(() => nexusClient.from('products').select('article, categorie, periode_debut, periode_fin, quantite, ca, marge, tva').eq('site', SITE_ID)),
     nexusClient.from('campagnes_nexus_imports').select('campagne_id, phase, periode_debut, periode_fin').eq('site', SITE_ID),
     fetchAllRows(() => nexusClient.from('panier_moyen_quotidien').select('date, nb_tickets, panier_moyen_ht, panier_moyen_ttc').eq('site', SITE_ID).order('date', {ascending: true})),
   ]);
@@ -1180,7 +1180,7 @@ function libellePeriode(p){
 }
 
 function simNouveau(){
-  return { article: '', ventes: '', achatAvant: '', achatPendant: '', venteAvant: '', ventePendant: '', jours: '30',
+  return { article: '', ventes: '', achatAvant: '', achatPendant: '', venteAvant: '', ventePendant: '', jours: '30', tva: '',
            info: null, catalogue: '', remise: '' };
 }
 
@@ -1191,7 +1191,7 @@ function simPeindreProduit(e, i){
     info += '<div class="sim-source">' + esc(SV.source(fmtDateCourt(e.info.source.debut), fmtDateCourt(e.info.source.fin))) + '</div>';
     info += '<div class="sim-source">' + esc(SV.coutDecenium) + '</div>';
     if (e.info.prixBasRecent) info += '<div class="sim-alerte">' + esc(SV.prixBas(fmtDateCourt(e.info.periodeRecente.debut) + ' au ' + fmtDateCourt(e.info.periodeRecente.fin), fmtDateCourt(e.info.source.debut) + ' au ' + fmtDateCourt(e.info.source.fin))) + '</div>';
-    info += '<label>' + esc(SV.prixNormal) + '<input type="text" inputmode="decimal" autocomplete="off" data-i="' + i + '" data-champ="prixNormal" value="' + esc(saisie(e.info.prixReference)) + '"></label>';
+    info += '<label>' + esc(SV.prixNormal) + '<input type="text" inputmode="decimal" autocomplete="off" data-i="' + i + '" data-champ="prixNormal" value="' + esc(SIM.tvaValide(nombre(e.tva)) ? saisie(Math.round(SIM.htVersTtc(e.info.prixReference, nombre(e.tva)) * 100) / 100) : '') + '"></label>';
     info += '<div class="sim-source">' + esc(SV.prixNormalNote) + '</div>';
     if (e.info.reduites.length){
       info += '<div class="sim-source"><strong>' + esc(SV.rappelTitre) + '</strong></div>' +
@@ -1203,7 +1203,7 @@ function simPeindreProduit(e, i){
     '<div class="sugg" data-sugg="' + i + '"></div>' + info +
     '<div class="sim-grille">' + champ('ventes', SV.ventesMois) + champ('jours', SV.duree) +
       champ('achatAvant', SV.achatAvant) + champ('achatPendant', SV.achatPendant) +
-      champ('venteAvant', SV.venteAvant) + champ('ventePendant', SV.ventePendant) + '</div>' +
+      champ('venteAvant', SV.venteAvant) + champ('ventePendant', SV.ventePendant) + champ('tva', SV.tva) + '</div>' +
     '<details class="sim-aide"><summary>' + esc(SV.aideAchat) + '</summary><div class="sim-grille">' +
       champ('catalogue', SV.prixCatalogue) + champ('remise', SV.remise) +
       '<div><div class="sim-source" data-net="' + i + '"></div><button type="button" class="btn" data-appliquer="' + i + '">' + esc(SV.appliquer) + '</button></div>' +
@@ -1236,8 +1236,13 @@ function simMode(e){
 
 function simResultatProduit(e){
   const jours = nombre(e.jours) || 30;
-  const venteAvant = nombre(e.venteAvant), ventePendant = nombre(e.ventePendant);
   const achatPendant = nombre(e.achatPendant), achatAvant = nombre(e.achatAvant);
+  const venteAvantTtc = nombre(e.venteAvant), ventePendantTtc = nombre(e.ventePendant), tva = nombre(e.tva);
+  if (!SIM.tvaValide(tva)){
+    return { html: (venteAvantTtc !== null || ventePendantTtc !== null) ? '<div class="sim-alerte">' + esc(SV.tvaAComplete) + '</div>' : '', calc: null };
+  }
+  const venteAvant = venteAvantTtc === null ? null : SIM.ttcVersHt(venteAvantTtc, tva);
+  const ventePendant = ventePendantTtc === null ? null : SIM.ttcVersHt(ventePendantTtc, tva);
   if (simMode(e) === 'lancement'){
     const achat = achatPendant !== null ? achatPendant : achatAvant;
     if (achat === null || venteAvant === null || ventePendant === null) return { html: '', calc: null };
@@ -1296,7 +1301,8 @@ function simPreremplir(i, article){
   e.info = s;
   if (s){
     e.ventes = saisie(Math.round(s.ventesMoisPrecedent));
-    e.venteAvant = saisie(s.venteAvant);
+    e.tva = s.tva != null ? saisie(s.tva) : '';
+    e.venteAvant = s.pvHabituelTtc != null ? saisie(Math.round(s.pvHabituelTtc * 100) / 100) : '';
     e.achatAvant = saisie(s.achatAvant);
   }
   simPeindre();
@@ -1504,6 +1510,7 @@ function mesCalculer(){
   if (camp.nbLancements) h += '<div class="sim-source">' + esc(MV.lancement + ' ' + fmtEur(camp.margeLancement)) + '</div>';
   $('mesResultat').innerHTML = h + '</div>';
 }
+
 async function mesCharger(campagneId){
   MES_CAMPAGNE = IMPACTS.find(i => i.campagneId === campagneId) || null;
   $('mesCorps').hidden = !MES_CAMPAGNE;
@@ -1628,6 +1635,8 @@ function mesBrancher(){
     if (f) f.remise_habituelle_pct = rem; else MES_FICHES.push({fournisseur: nom, remise_habituelle_pct: rem});
     mesPeindre();
   });
+  const carteObj = document.querySelector('[data-carte="objectifs"]');
+  if (carteObj) carteObj.addEventListener('click', () => { location.href = 'NEXUS-Campagne-v2-Objectifs.html'; });
   const carte = document.querySelector('[data-carte="compensation"]');
   if (carte) carte.addEventListener('click', () => ouvrirMesure(null));
 }
