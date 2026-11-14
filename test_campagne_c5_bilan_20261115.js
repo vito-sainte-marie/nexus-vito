@@ -154,6 +154,50 @@ nomsA.forEach((n, k) => {
 });
 assert.strictEqual(rgA.totaux.estimee, false);
 
+// --- Règles de dates des livraisons (FIFO) : stock de départ daté du 2026-11-11.
+{
+  const dated = Object.assign({}, baseAsm, { depart: [{ article: 'Heineken', version: 1, quantite: 14, date_stock: '2026-11-11' }] });
+  const avecLiv = (date, unites) => Object.assign({}, dated, {
+    livraisons: dated.livraisons.concat([{ id: 'l2', date_livraison: date, cree_le: date + 'T09:00' }]),
+    lignesLivraison: dated.lignesLivraison.concat([{ livraison_id: 'l2', article: 'Heineken', unites, pa_ht_facture: 0.94 }]) });
+  // Heineken 14 / 48 / 30 inchangé quand les dates sont cohérentes.
+  const base = B.bilanCampagne(dated).articles[0];
+  assert.strictEqual(base.cout_ventes, 31.56);
+  assert.strictEqual(base.stock_restant.unites, 32);
+  // Avant la date du stock : exclue.
+  const av = B.bilanCampagne(avecLiv('2026-11-10', 100)).articles[0];
+  assert.strictEqual(av.stock_restant.unites, 32);
+  assert.strictEqual(av.cout_ventes, 31.56);
+  // Même jour : exclue de l'imputation, signalée, marge estimée.
+  const mj = B.bilanCampagne(avecLiv('2026-11-11', 6)).articles[0];
+  assert.strictEqual(mj.stock_restant.unites, 32);
+  assert.strictEqual(mj.estimee, true);
+  assert.ok(JSON.stringify(mj).indexOf('à vérifier') >= 0);
+  // Après le dernier point de ventes : jamais consommée par les ventes connues, dans le stock restant avec mention.
+  const ap = B.bilanCampagne(avecLiv('2026-11-25', 5)).articles[0];
+  assert.strictEqual(ap.cout_ventes, 31.56);
+  assert.strictEqual(ap.stock_restant.unites, 37);
+  assert.ok(ap.mentions.some(m => m.indexOf('reçue après les ventes au 20/11/2026') >= 0 && m.indexOf('5 unités') >= 0));
+}
+
+// --- Recalcul après annulation d'un import.
+{
+  const pts = [{ batch_id: 'b1', importe_le: '2026-11-14T08:00:00Z' }, { batch_id: 'b2', importe_le: '2026-11-15T08:00:00Z' }];
+  assert.strictEqual(B.derniereAnnulation(pts, []), null);
+  assert.strictEqual(B.derniereAnnulation(pts, [{ batch_id: 'zz', annule_le: '2026-11-16T00:00:00Z' }]), null);
+  const an = B.derniereAnnulation(pts, [{ batch_id: 'b1', annule_le: '2026-11-16T10:00:00Z' }]);
+  assert.strictEqual(an.import_du, '2026-11-14T08:00:00Z');
+  const rr = B.bilanCampagne(Object.assign({}, baseAsm, { recalcul: an }));
+  assert.strictEqual(rr.recalcule.texte, 'Recalculé le 16/11/2026 après annulation de l\'import du 14/11/2026');
+  assert.ok(!B.bilanCampagne(baseAsm).recalcule);
+}
+// chargerBilan lit date_stock et borne la lecture de products aux articles de la campagne.
+{
+  const src = require('fs').readFileSync(__dirname + '/nexus-campagne-bilan.js', 'utf8');
+  assert.ok(/date_stock/.test(src.slice(src.indexOf('function chargerBilan'))));
+  assert.ok(/\.in\('article'/.test(src.slice(src.indexOf('function chargerBilan'))));
+}
+
 // --- Économie attendue sur la page Achats : information seule, quantité inchangée.
 {
   const A = require('./nexus-campagne-achats.js');

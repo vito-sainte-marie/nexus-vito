@@ -15,6 +15,7 @@
   const num = v => (v === null || v === undefined || v === '' || !isFinite(Number(v)) ? null : Number(v));
   const arrondi = v => (v === null ? null : Math.round(v * 100) / 100);
   const jour = d => (d ? String(d).slice(0, 10) : '');
+  const frDate = d => { const j = jour(d); return j ? j.slice(8, 10) + '/' + j.slice(5, 7) + '/' + j.slice(0, 4) : '?'; };
 
   // Ordre chronologique des livraisons : date_livraison, puis cree_le.
   function ordonnerLivraisons(livraisons) {
@@ -65,8 +66,15 @@
       if (lot.pa === null) raisons.push(lot.origine === 'stock_depart' ? 'PMP avant promotion absent' : 'PA de livraison inconnu');
     }
     const excedent = aImputer;
+    // Livraisons reçues après le dernier point de ventes : jamais consommées par des ventes connues, elles entrent dans le stock restant.
+    ordonnerLivraisons(e.livraisonsApres).forEach(l => {
+      const u = num(l.unites);
+      if (!(u > 0)) return;
+      const facture = num(l.pa_ht_facture);
+      lots.push({ origine: 'livraison', unites: u, pa: facture !== null ? facture : num(l.pa_promo_ht), estime: facture === null, apres: true });
+    });
     if (excedent > 0) raisons.push('ventes supérieures au stock de départ et aux livraisons : coût des unités en excédent inconnu');
-    const restant = lots.filter(l => l.unites > 0).map(l => ({ origine: l.origine, unites: l.unites, pa: l.pa, estime: l.estime }));
+    const restant = lots.filter(l => l.unites > 0).map(l => ({ origine: l.origine, unites: l.unites, pa: l.pa, estime: l.estime, apres: !!l.apres }));
     if (restant.some(l => l.estime)) raisons.push('stock restant valorisé au PA promo négocié');
     return {
       cout_ventes: arrondi(cout),
@@ -89,9 +97,13 @@
     const fifo = imputerFifo({
       stockDepart: { unites: a.stockDepart && a.stockDepart.unites, pmp: pmpUtilisable },
       livraisons: a.livraisons,
+      livraisonsApres: a.livraisonsApres,
       unitesVendues: a.unitesVendues,
     });
     const raisons = fifo.raisons.slice();
+    const mentions = [];
+    (a.livraisonsApres || []).forEach(l => { if (num(l.unites) > 0) mentions.push('reçue après les ventes au ' + frDate(a.date_ventes) + ' : ' + num(l.unites) + ' unités dans le stock restant'); });
+    if (num(a.unites_meme_jour) > 0) raisons.push('livraison du jour du stock de départ, à vérifier : ' + num(a.unites_meme_jour) + ' unités non imputées');
     if (fiab.raison) raisons.push(fiab.raison);
     const ca = num(a.ca_ht_promo);
     const pvHab = num(a.pv_habituel_ht);
@@ -137,6 +149,7 @@
       excedent_unites: fifo.excedent_unites,
       estimee: raisons.length > 0,
       raisons: Array.from(new Set(raisons)),
+      mentions: Array.from(new Set(mentions)),
     };
   }
 
@@ -183,24 +196,42 @@
     const lignesPoint = new Map(((d.point && d.point.lignes) || []).map(l => [l.article, l]));
     const joursCouverts = d.point ? Math.max(0, joursEntre(d.campagne.date_debut, d.point.date_fin) + 1) : null;
     return Array.from(objs.values()).map(o => {
-      const lv = (d.lignesLivraison || []).filter(l => l.article === o.article && liv.has(l.livraison_id)).map(l => ({
-        unites: l.unites, pa_ht_facture: l.pa_ht_facture, pa_promo_ht: o.pa_promo_ht,
-        date_livraison: liv.get(l.livraison_id).date_livraison, cree_le: liv.get(l.livraison_id).cree_le }));
       const dep = deps.get(o.article), pt = lignesPoint.get(o.article);
+      const dd = jour(dep && dep.date_stock), dv = d.point ? jour(d.point.date_fin) : '';
+      const lv = [], apres = [];
+      let memeJour = 0;
+      (d.lignesLivraison || []).filter(l => l.article === o.article && liv.has(l.livraison_id)).forEach(l => {
+        const v = { unites: l.unites, pa_ht_facture: l.pa_ht_facture, pa_promo_ht: o.pa_promo_ht,
+          date_livraison: liv.get(l.livraison_id).date_livraison, cree_le: liv.get(l.livraison_id).cree_le };
+        const dl = jour(v.date_livraison);
+        if (dep && dl && dd && dl < dd) return;
+        if (dep && dl && dd && dl === dd) { memeJour += Number(l.unites || 0); return; }
+        if (dv && dl && dl > dv) { apres.push(v); return; }
+        lv.push(v);
+      });
       const tva = num(o.tva_pct), ttc = num(o.pv_habituel_ttc);
       const act = d.actualises && d.actualises.get ? d.actualises.get(o.article) : null;
       return {
         article: o.article, date_debut: d.campagne.date_debut,
         pmp_avant: refs.get(o.article) || null, pmp_actualise: act === undefined ? null : act,
         pa_promo_negocie: o.pa_promo_ht,
-        stockDepart: { unites: dep ? dep.quantite : 0, a_confirmer: !!(dep && dep.a_confirmer) },
-        livraisons: lv, unitesVendues: pt ? pt.quantite : 0, ca_ht_promo: pt ? pt.ca_ht : (d.point ? 0 : null),
+        stockDepart: { unites: dep ? dep.quantite : 0, a_confirmer: !!(dep && dep.a_confirmer), date_stock: dep ? dep.date_stock || null : null },
+        livraisons: lv, livraisonsApres: apres, unites_meme_jour: memeJour, date_ventes: dv || null, unitesVendues: pt ? pt.quantite : 0, ca_ht_promo: pt ? pt.ca_ht : (d.point ? 0 : null),
         ca_estime: !!(pt && pt.ca_estime),
         pv_habituel_ht: ttc === null ? null : (tva === null ? null : ttc / (1 + tva / 100)),
         ventes_ref_jour: o.ventes_ref_jour, jours_couverts: joursCouverts,
         pa_habituel_objectif: o.pa_habituel_ht,
       };
     });
+  }
+
+  // Dernière annulation d'un import de ventes : le bilan en est recalculé. { le, import_du } ou null.
+  function derniereAnnulation(points, annulations) {
+    const importe = new Map();
+    (points || []).forEach(p => { if (!importe.has(p.batch_id)) importe.set(p.batch_id, p.importe_le); });
+    const a = (annulations || []).filter(x => importe.has(x.batch_id) && x.annule_le)
+      .sort((x, y) => String(y.annule_le).localeCompare(String(x.annule_le)))[0];
+    return a ? { le: a.annule_le, import_du: importe.get(a.batch_id) || null } : null;
   }
 
   // Bilan d'une campagne : un bilan par article, plus les totaux par grandeur.
@@ -213,34 +244,39 @@
       if (e.ca_estime) raisons.push('chiffre d\'affaires estimé');
       return Object.assign({ article: e.article }, b, { raisons: Array.from(new Set(raisons)), estimee: raisons.length > 0 });
     });
+    const rc = d.recalcul || null;
     return { articles, totaux: totaux(articles), arrete_au: d.point ? d.point.date_fin : null,
+      recalcule: rc ? { le: jour(rc.le), import_du: jour(rc.import_du),
+        texte: 'Recalculé le ' + frDate(rc.le) + ' après annulation de l\'import du ' + frDate(rc.import_du) } : null,
       pertes: 'pertes non renseignées' };
   }
 
   // Lecture en base (aucune écriture). SC / CV : modules stock et ventes.
   async function chargerBilan(client, site, campagne, SC, CV) {
     const q = t => client.from(t);
+    const ob = await q('campagne_objectifs_produits').select('article, version, pa_habituel_ht, pa_promo_ht, pv_habituel_ttc, tva_pct, ventes_ref_jour').eq('campagne_id', campagne.id).eq('site', site);
+    const articlesCampagne = (ob.data || []).map(o => o.article);
     const r = await Promise.all([
-      q('campagne_objectifs_produits').select('article, version, pa_habituel_ht, pa_promo_ht, pv_habituel_ttc, tva_pct, ventes_ref_jour').eq('campagne_id', campagne.id).eq('site', site),
-      q('campagne_stock_depart').select('article, version, quantite, a_confirmer').eq('campagne_id', campagne.id).eq('site', site),
+      Promise.resolve(ob),
+      q('campagne_stock_depart').select('article, version, quantite, a_confirmer, date_stock').eq('campagne_id', campagne.id).eq('site', site),
       q('campagne_livraisons').select('id, date_livraison, remplace_livraison_id, cree_le').eq('campagne_id', campagne.id).eq('site', site),
       q('campagne_livraisons_annulations').select('livraison_id').eq('site', site),
       q('campagne_livraison_lignes').select('livraison_id, article, unites, pa_ht_facture').eq('site', site),
       q('campagne_ventes_points').select('batch_id, article, date_fin, importe_le, quantite, ca_ht, ca_estime').eq('campagne_id', campagne.id).eq('site', site),
-      q('campagne_ventes_annulations').select('batch_id').eq('site', site),
+      q('campagne_ventes_annulations').select('batch_id, annule_le').eq('site', site),
       q('campagne_pmp_reference').select('article, version, pmp_ht, date_reference').eq('campagne_id', campagne.id).eq('site', site),
-      q('products').select('article, prix_achat, periode_fin').eq('site', site).not('prix_achat', 'is', null).order('periode_fin', { ascending: false }),
+      q('products').select('article, prix_achat, periode_fin').eq('site', site).in('article', Array.from(new Set(articlesCampagne))).not('prix_achat', 'is', null).order('periode_fin', { ascending: false }),
     ]);
     r.forEach(x => { if (x.error) console.error('bilan', x.error); });
     const D = r.map(x => x.data || []);
     const actualises = new Map();
     D[8].forEach(p => { if (!actualises.has(p.article)) actualises.set(p.article, Number(p.prix_achat)); });
     return bilanCampagne({ campagne, objectifs: D[0], depart: D[1], livraisons: SC.livraisonsValides(D[2], D[3]), lignesLivraison: D[4],
-      point: CV.pointCourant(D[5], D[6]), pmp: D[7], actualises });
+      point: CV.pointCourant(D[5], D[6]), pmp: D[7], actualises, recalcul: derniereAnnulation(D[5], D[6]) });
   }
 
   global.NexusCampagneBilan = {
-    LIBELLE_PMP, LIBELLE_METHODE, ordonnerLivraisons, fiabiliteReference, imputerFifo, bilanArticle, totaux, economieAttendue, assemblerEntrees, bilanCampagne, chargerBilan,
+    LIBELLE_PMP, LIBELLE_METHODE, ordonnerLivraisons, fiabiliteReference, imputerFifo, bilanArticle, totaux, economieAttendue, assemblerEntrees, bilanCampagne, chargerBilan, derniereAnnulation,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = global.NexusCampagneBilan;
 })(typeof window !== 'undefined' ? window : globalThis);
