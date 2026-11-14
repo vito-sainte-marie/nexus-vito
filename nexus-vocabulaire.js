@@ -438,6 +438,7 @@
       graphTitre: 'Évolution du CA Boutique',
       graphJours: function (n) { return n + (n > 1 ? ' jours' : ' jour'); },
       rentaTitre: 'Rentabilité de la campagne',
+      rentaManqueCourt: 'Données de marge à compléter',
       rentaManque: 'Pour la mesurer, il faut saisir produit par produit le stock, les prix et les livraisons.',
       rentaGain: 'Gain après coûts',
       retenirTitre: 'À retenir',

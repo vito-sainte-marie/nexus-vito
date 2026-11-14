@@ -49,7 +49,7 @@ t('page : Suivre/Modifier sur la promotion en cours, Modifier au pied du bilan, 
   assert(/data-suivre/.test(page),'Suivre ma promotion');
   assert(/peutModifier\(\) \? '<button[^']*data-modifier/.test(fn('function carteResume','function ico(')),'Modifier sur la carte en cours');
   assert(/data-modifier/.test(fn('function bilanVisuel','function conclusionBilan')),'Modifier au pied du bilan');
-  assert(!/data-consulter/.test(fn('function carteResume','function ico(').split('actionsCampagne')[0].slice(0,0)));
+  assert(!/data-consulter/.test(fn('function carteResume','function bilanPanier')),'pas de Consulter sur la carte en cours');
   assert(/actionsCampagne\(i\.campagneId\)/.test(page),'Consulter conservé pour l\'historique');});
 t('page : modifie_le lu ; ligne « Modifiée le » sans nom d\'employé',()=>{
   assert(/objectif_libre, cree_le, modifie_le'/.test(page));

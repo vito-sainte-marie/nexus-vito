@@ -38,4 +38,29 @@ t('interactions Tempo réservées aux cartes disponibles', () => {
 t('calcul, seuil et règles de comparaison non touchés', () => {
   assert(!/nbJoursAvantPanier *=|seuil *=|MIN_JOURS *=/.test(fn('function bilanVisuel', 'function conclusionBilan')));
 });
+t('tuiles du bilan : valeur, unité, évolution seulement', () => {
+  const f = fn('function tuileIndicateur', 'function graphiqueBilan');
+  assert(!/vsAvant|fenetre|moyAvant/.test(f), 'répétition de la fenêtre ou de la valeur avant dans la tuile');
+  assert(/fmtPct\(g\.evolution\)/.test(f));
+  assert(/B\.fenetre\(/.test(fn('function detailBilan', 'function bilanVisuel')), 'fenêtre dans le bilan complet');
+});
+t('en-tête du bilan : une ligne, objectif dans le bilan complet', () => {
+  const b = fn('function bilanVisuel', 'function carteBilan');
+  assert(/fmtPeriodeCourte\(i\)/.test(b) && !/objectifSpan/.test(b.split("'<div class=\"b-tuiles\">'")[0]));
+  assert(/ligne\(B\.objectif,/.test(fn('function detailBilan', 'function bilanVisuel')));
+});
+t('rentabilité : icône officielle premium, texte court', () => {
+  const r = fn('function tuileRenta', 'function phraseRetenir');
+  assert(/ico\('rentabilite-'/.test(r) && !/simple\//.test(r) && /rentaManqueCourt/.test(r));
+  assert(/rentaManqueCourt: 'Données de marge à compléter'/.test(voc));
+  assert(/B\.rentaManque\b/.test(fn('function detailBilan', 'function bilanVisuel')));
+});
+t('conseiller : titre 18 px semi-gras, sans « Dernier bilan : »', () => {
+  assert(/\.conseiller-sous\{[^}]*font-size:18px[^}]*font-weight:600/.test(page));
+  assert(!/conseillerDernierBilan/.test(page));
+});
+t('en cours : un seul libellé, vignette mobile 64 px', () => {
+  assert(!/ec-surtitre">/.test(fn('function carteResume', 'function bilanPanier')));
+  assert(/@media \(max-width:767px\)\{[^\n]*\.ec-vignette\{width:64px; height:64px;/.test(page));
+});
 console.log(ko ? ko + ' échec(s)' : 'tout est vert'); process.exit(ko ? 1 : 0);

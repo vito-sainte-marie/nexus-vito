@@ -51,7 +51,7 @@ a{color:inherit;}
 /* Conseiller */
 .conseiller{border-color:var(--t-cyan); margin-top:18px; display:flex; gap:14px; align-items:flex-start;}
 .conseiller-avatar{width:80px;height:80px;border-radius:50%;flex:none;object-fit:cover;}
-.conseiller-sous{font-size:13px;color:var(--t-mid);margin-bottom:6px;}
+.conseiller-sous{font-size:18px;font-weight:600;line-height:1.3;color:var(--t-text);margin-bottom:6px;}
 @media (min-width:768px){.conseiller{gap:22px;align-items:center;} .conseiller-avatar{width:120px;height:120px;}}
 .conseiller-corps{min-width:0;}
 .conseiller-titre{font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--t-cyan); margin-bottom:6px;}
@@ -241,7 +241,7 @@ a{color:inherit;}
 .ec-actions .ec-modifier{background:transparent; display:inline-flex; align-items:center; justify-content:center; gap:8px;}
 .ec-actions svg{width:16px; height:16px;}
 @media (min-width:768px){ .ec-tuiles{grid-template-columns:repeat(3,1fr);} .b-tuiles{grid-template-columns:1fr 1fr;} }
-@media (max-width:767px){ .ec{padding:16px;} .ec-vignette{width:72px; height:72px;} .ec-nom{font-size:22px;} .ec-haut{align-items:flex-start;} }
+@media (max-width:767px){ .ec{padding:16px;} .ec-vignette{width:64px; height:64px; border-radius:14px;} .ec-nom{font-size:22px;} .ec-haut{align-items:flex-start;} }
 /* Dernier bilan */
 .b-retenir{background:var(--t-raised); border:1px solid var(--t-line); border-radius:14px; padding:14px; margin-top:14px; display:flex; gap:12px; align-items:flex-start;}
 .b-retenir h3{font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--t-cyan); margin-bottom:4px;}
@@ -403,7 +403,7 @@ a{color:inherit;}
 <script src="nexus-icones.js?v=20260904-0104"></script>
 <script src="nexus-desktop.js?v=20260904-0104"></script>
 <script src="nexus-jours-feries.js?v=20261106-0100"></script>
-<script src="nexus-vocabulaire.js?v=20261114-1000"></script>
+<script src="nexus-vocabulaire.js?v=20261114-1100"></script>
 <script src="nexus-tempo.js?v=20261112-1500"></script>
 <script src="nexus-periodes.js?v=20260904-0104"></script>
 <script src="nexus-campagnes.js?v=20261113-2000"></script>
@@ -869,8 +869,8 @@ function carteResume(i){
   const tuile = (src, lib, val) => '<div class="ec-tuile"><div class="ec-tuile-haut"><img src="' + IC + 'simple/campagne-' + src + '.svg" alt="" width="28" height="28"><span>' + esc(lib) + '</span></div><div class="ec-val">' + esc(val) + '</div></div>';
   const ligneType = badgesDe(i).replace(/<[^>]+>/g, '|').split('|').map(x => x.trim()).filter(Boolean).join(' · ');
   return '<div class="ec" data-campagne="' + esc(i.campagneId) + '"><div class="ec-haut">' +
-    '<img class="ec-vignette" src="' + IC + 'premium/campagne-promotions-144.webp" srcset="' + IC + 'premium/campagne-promotions-96.webp 96w, ' + IC + 'premium/campagne-promotions-144.webp 144w" sizes="(max-width: 767px) 72px, 120px" width="120" height="120" alt="">' +
-    '<div><div class="ec-surtitre">' + esc(V.enCoursSurtitre) + '</div><div class="ec-nom">' + esc(i.nom) + '</div>' +
+    '<img class="ec-vignette" src="' + IC + 'premium/campagne-promotions-144.webp" srcset="' + IC + 'premium/campagne-promotions-96.webp 96w, ' + IC + 'premium/campagne-promotions-144.webp 144w" sizes="(max-width: 767px) 64px, 120px" width="120" height="120" alt="">' +
+    '<div><div class="ec-nom">' + esc(i.nom) + '</div>' +
     '<div class="ec-dates">' + esc(periodeEnCours(i, jr.total)) + '</div><div class="ec-ligne">' + esc(ligneType) + '</div></div>' +
     '<span class="statut encours ec-statut">' + esc(libelleStatut(s)) + '</span></div>' +
     '<div class="ec-avance"><div class="ec-avance-haut"><span>' + esc(E.avancement) + '</span><span>' + esc(E.jourSur(jr.jour, jr.total)) + '</span></div>' +
@@ -940,6 +940,12 @@ function fmtPeriodeLongue(i){
   else t = a.toLocaleDateString('fr-FR', {day: 'numeric', month: 'long'}) + ' au ' + b.toLocaleDateString('fr-FR', Object.assign({day: 'numeric'}, mois));
   return t + ' (' + V.bilan.jours(mesJoursCampagne(i)) + ')';
 }
+function fmtPeriodeCourte(i){
+  const a = NexusTempo.dateLocale(i.dateDebut), b = NexusTempo.dateLocale(i.dateFin);
+  const mois = {month: 'long'};
+  if (a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth()) return a.getDate() + ' au ' + b.toLocaleDateString('fr-FR', Object.assign({day: 'numeric'}, mois));
+  return a.toLocaleDateString('fr-FR', Object.assign({day: 'numeric'}, mois)) + ' au ' + b.toLocaleDateString('fr-FR', Object.assign({day: 'numeric'}, mois));
+}
 function g5Texte(g){ return V.bilan.g5[g ? g.label : 'non_mesurable']; }
 // Une couleur de statut seulement quand l'écart est net. Sinon, aucune.
 function g5Classe(g){ return g && g.label === 'hausse_nette' ? 'hausse' : (g && g.label === 'baisse_nette' ? 'baisse' : ''); }
@@ -976,11 +982,11 @@ function tuileBilan(icone, titre, g, valeur, sous){
     '<div class="b-val ' + (g ? g5Classe(g) : '') + '">' + valeur + '</div>' +
     (sous ? '<div class="b-sous">' + esc(sous) + '</div>' : '') + '</div>';
 }
-function tuileIndicateur(icone, titre, ind, formater, unite, nbJours){
+function tuileIndicateur(icone, titre, ind, formater, unite){
   const B = V.bilan, g = ind ? ind.pendant : null;
   if (!g || !g.mesurable) return tuileBilan(ico(icone), titre, g, '–', V.mesure.etats.non_mesurable);
   return tuileBilan(ico(icone), titre, g, esc(formater(ind.moyPendant)) + '<small>' + esc(unite) + '</small>',
-    B.vsAvant(fmtPct(g.evolution), formater(ind.moyAvant) + unite) + ' · ' + B.fenetre(nbJours));
+    fmtPct(g.evolution));
 }
 function graphiqueBilan(b){
   const B = V.bilan, ca = b.ca, T = typeBilan(b);
@@ -996,8 +1002,7 @@ function graphiqueBilan(b){
 }
 function tuileRenta(renta){
   const B = V.bilan, cle = renta.etat.replace(/_/g, '-');
-  const icone = '<img class="ico-p" src="' + IC + 'simple/campagne-rentabilite-' + cle + '.svg" alt="" width="28" height="28">';
-  return tuileBilan(icone, B.tuiles.marge, null, esc(MV.etats[renta.etat]), renta.mesurable ? B.rentaGain + ' : ' + fmtGain(renta) : B.rentaManque);
+  return tuileBilan(ico('rentabilite-' + cle), B.tuiles.marge, null, esc(MV.etats[renta.etat]), renta.mesurable ? B.rentaGain + ' : ' + fmtGain(renta) : B.rentaManqueCourt);
 }
 function phraseRetenir(i, bl){
   const b = bl.b;
@@ -1016,10 +1021,14 @@ function detailBilan(i, b, renta){
     h += ligne(titre + ' · ' + V.pendant, esc(f(ind.moyPendant) + unite));
     if (ind.moyApres !== null && ind.moyApres !== undefined) h += ligne(titre + ' · ' + V.apres, esc(f(ind.moyApres) + unite));
   };
+  lignes(typeBilan(b).tuile, b.ca, fmtEur, ' ' + B.parJour);
   if (b.tickets && b.tickets.moyAvant !== null) lignes(B.tuiles.frequentation, b.tickets, fmtDec1b, ' ' + B.ticketsParJour);
   if (b.panier && b.panier.moyAvant !== null && b.panier.moyAvant !== undefined) lignes(B.tuiles.panier, b.panier, fmtEur2, '');
   h += '<div class="sous-titre">' + esc(B.periodes) + '</div>';
-  h += ligne(V.avant, esc(B.jours(b.nbJoursAvant)));
+  h += ligne(V.avant, esc(B.fenetre(b.nbJoursAvant)));
+  if (b.nbJoursAvantPanier && b.nbJoursAvantPanier !== b.nbJoursAvant) h += ligne(B.tuiles.panier + ' · ' + V.avant, esc(B.fenetre(b.nbJoursAvantPanier)));
+  if (objectifSpan(i)) h += ligne(B.objectif, esc(objectifSpan(i)));
+  if (!renta.mesurable) h += '<div class="note">' + esc(B.rentaManque) + '</div>';
   h += ligne(V.pendant, esc(fmtDateCourt(i.dateDebut) + ' → ' + fmtDateCourt(i.dateFin) + ' · ' + B.jours(b.nbJoursPendant)));
   if (b.nbJoursApres) h += ligne(V.apres, esc(B.jours(b.nbJoursApres)));
   if (b.joursEcartes && b.joursEcartes.length){
@@ -1035,16 +1044,14 @@ function bilanVisuel(i){
   const B = V.bilan, bl = bilanPour(i), b = bl.b, renta = bl.renta;
   let h = '<div class="bilan"><div class="b-entete"><div><div class="b-eyebrow" id="bilanTitre">' + esc(B.blocTitre) + '</div>' +
     '<div class="b-nom">' + esc(i.nom) + '</div>' +
-    '<div class="b-meta"><span>' + esc(fmtPeriodeLongue(i)) + '</span>' +
-    (objectifSpan(i) ? '<span>' + ico('objectif-commercial', 'ico-t') + esc(objectifSpan(i)) + '</span>' : '') +
-    '<span>' + esc(B.produits(i.produitsConcernes.length)) + '</span></div></div>' +
+    '<div class="b-meta">' + esc(fmtPeriodeCourte(i) + ' · ' + B.jours(mesJoursCampagne(i)) + ' · ' + B.produits(i.produitsConcernes.length)) + '</div></div>' +
     '<span class="statut">' + esc(libelleStatut('terminee')) + '</span></div>';
   if (!b){ return h + '<div class="note">' + esc(B.retenirPasAssez) + '</div></div>'; }
   const retenir = phraseRetenir(i, bl);
   h += '<div class="b-tuiles">' +
-    tuileIndicateur('ca-boutique', typeBilan(b).tuile, b.ca, fmtEur, B.parJour, b.nbJoursAvant) +
-    tuileIndicateur('frequentation', B.tuiles.frequentation, b.tickets, fmtDec1b, ' ' + B.ticketsParJour, b.nbJoursAvantPanier) +
-    tuileIndicateur('panier-moyen', B.tuiles.panier, b.panier, fmtEur2, '', b.nbJoursAvantPanier) +
+    tuileIndicateur('ca-boutique', typeBilan(b).tuile, b.ca, fmtEur, B.parJour) +
+    tuileIndicateur('frequentation', B.tuiles.frequentation, b.tickets, fmtDec1b, ' ' + B.ticketsParJour) +
+    tuileIndicateur('panier-moyen', B.tuiles.panier, b.panier, fmtEur2, '') +
     tuileRenta(renta) + '</div>' + graphiqueBilan(b) +
     (retenir ? '<div class="b-retenir">' + ico('a-retenir') + '<div><h3>' + esc(B.retenirTitre) + '</h3><p>' + esc(retenir) + '</p></div></div>' : '') +
     '<div class="b-pied"><button type="button" class="b-lien" data-bilan-detail aria-expanded="' + (BILAN_OUVERT ? 'true' : 'false') + '">' + esc(BILAN_OUVERT ? B.bilanReduire : B.bilanComplet) + '</button>' +
@@ -1066,7 +1073,7 @@ function conclusionBilan(){
   if (!i) return '';
   const bl = bilanPour(i);
   const ph = phraseRetenir(i, bl);
-  return ph ? '<p>' + esc(V.conseillerDernierBilan(i.nom) + ' ' + ph) + '</p>' : '';
+  return ph ? '<p>' + esc(ph) + '</p>' : '';
 }
 function ouvrirMesure(campagneId){
   const sel = $('mesCampagne');
