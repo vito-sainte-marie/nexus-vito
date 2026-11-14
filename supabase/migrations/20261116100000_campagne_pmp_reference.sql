@@ -20,7 +20,7 @@ create table if not exists campagne_pmp_reference (
   constraint campagne_pmp_reference_unique unique (campagne_id, article, version),
   constraint campagne_pmp_reference_periode check (periode_debut is null or periode_fin is null or periode_fin >= periode_debut),
   constraint campagne_pmp_reference_source_products check (source <> 'products' or periode_fin = date_reference),
-  constraint campagne_pmp_reference_motif check (version = 1 or (motif is not null and length(trim(motif)) > 0))
+  constraint campagne_pmp_reference_motif check ((version = 1 and source <> 'reprise_objectif') or (motif is not null and length(trim(motif)) > 0))
 );
 create index if not exists campagne_pmp_reference_campagne_idx on campagne_pmp_reference (campagne_id, article);
 
