@@ -73,7 +73,7 @@ t('page déclarée (auth, forfait) et liée seulement depuis les points d\'entr�
   assert(lire('nexus-auth.js').includes("'NEXUS-Campagne-v2.html'"));
   assert(lire('nexus-forfait.js').includes("'NEXUS-Campagne-v2.html'"));
   const liens=fs.readdirSync(__dirname).filter(f=>/\.(html|js)$/.test(f)&&f!=='NEXUS-Campagne-v2.html'&&!/^test_/.test(f)&&f!=='nexus-auth.js'&&f!=='nexus-forfait.js').filter(f=>lire(f).includes('Campagne-v2'));
-  assert.deepStrictEqual(liens.sort(),['NEXUS-App-v1.html','NEXUS-Campagne-v1.html','NEXUS-Campagne-v2-Objectifs.html','NEXUS-Documentation-v1.html','nexus-desktop.js','nexus-recherche.js']);
+  assert.deepStrictEqual(liens.sort(),['NEXUS-App-v1.html','NEXUS-Campagne-v1.html','NEXUS-Campagne-v2-Objectifs.html','NEXUS-Campagne-v2-Ventes.html','NEXUS-Documentation-v1.html','NEXUS-Import-v1.html','nexus-desktop.js','nexus-recherche.js']);
 });
 t('textes affichés issus du lexique',()=>{
   assert(page.includes('V.cartes')&&page.includes('V.enPreparation'));

@@ -184,7 +184,9 @@ function extraireObjets(sql) {
   const recrees = new Set(objets.map(o => o.nom.toLowerCase()));
   const destructifs = [];
   for (const [code, motif] of MOTIFS_DESTRUCTIFS) {
-    if (!motif.test(sql)) continue;
+    // `revoke ... truncate ... on T from R` retire un privilège : ce n'est pas un TRUNCATE.
+    const cible = code === 'truncate' ? sql.replace(/\b(?:revoke|grant)\b[^;]*;/gi, '') : sql;
+    if (!motif.test(cible)) continue;
     if (code === 'drop_column' || code === 'drop_table') { destructifs.push(code); continue; }
     destructifs.push(code);
   }
