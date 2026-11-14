@@ -89,7 +89,10 @@ begin
       execute format('create policy lecture_meme_site on %I for select using (site = current_employee_site_id())', t);
     end if;
     if not exists (select 1 from pg_policies where schemaname='public' and tablename=t and policyname='insertion_manager_meme_site') then
-      execute format('create policy insertion_manager_meme_site on %I for insert with check (site = current_employee_site_id() and current_employee_role() in (''manager'',''gerant''))', t);
+      execute format('create policy insertion_manager_meme_site on %I for insert with check (site = current_employee_site_id() and current_employee_role() in (''manager'',''gerant'')%s)', t,
+        case when t in ('campagne_livraison_lignes','campagne_livraisons_annulations')
+          then format(' and exists (select 1 from campagne_livraisons l where l.id = %I.livraison_id and l.site = %I.site)', t, t)
+          else '' end);
     end if;
     if not exists (select 1 from pg_policies where schemaname='public' and tablename=t and policyname='createur_lit_si_autorise') then
       execute format('create policy createur_lit_si_autorise on %I for select using (je_suis_createur() and exists (select 1 from sites s where s.site_id = %I.site and s.acces_createur_autorise = true))', t, t);

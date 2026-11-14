@@ -343,6 +343,15 @@ details.obj-hab[open] summary::after{transform:rotate(180deg);}
 .vt-table th,.vt-table td{padding:6px 4px; text-align:left; border-bottom:1px solid var(--t-line); overflow-wrap:anywhere;}
 .vt-table td.n{font-family:var(--t-mono); text-align:right;}
 .vt-lien{display:inline-block; margin-top:8px; color:var(--t-text); text-decoration:underline;}
+@media (max-width:600px){
+  #lvLignes table, #lvLignes thead, #lvLignes tbody, #lvLignes tr, #lvLignes td{display:block;width:100%;box-sizing:border-box;}
+  #lvLignes thead{display:none;}
+  #lvLignes tr{border:1px solid var(--bordure,#ddd);border-radius:12px;padding:10px;margin-bottom:12px;}
+  #lvLignes td{padding:6px 0;border:0;}
+  #lvLignes td[data-l]{display:flex;flex-wrap:wrap;align-items:center;gap:8px;}
+  #lvLignes td[data-l]::before{content:attr(data-l);flex:0 0 100%;font-size:13px;opacity:.75;}
+  #lvLignes input[type=number], #lvLignes input[type=text]{width:100% !important;min-height:44px;font-size:16px;}
+}
 </style>
 </head>
 <body>
@@ -416,12 +425,12 @@ async function chargerCampagne(){
     q('campagne_livraison_lignes').select('livraison_id, article, cartons, unites_par_carton, unites, pa_ht_facture, pa_ht_propose').eq('site', SITE_ID),
     q('campagne_ventes_points').select('batch_id, article, date_fin, importe_le, quantite').eq('campagne_id', CAMPAGNE.id).eq('site', SITE_ID),
     q('campagne_ventes_annulations').select('batch_id, motif').eq('site', SITE_ID),
-    q('inventaire_mouvements').select('type_mouvement, quantite, cree_le, products(article)').eq('site', SITE_ID).eq('type_mouvement', 'livraison'),
+    q('inventaire_mouvements').select('type_mouvement, quantite, cree_le, inventaire_zone_produit(designation)').eq('site', SITE_ID).eq('type_mouvement', 'livraison'),
   ]);
   [o, rg, dp, lv, an, ln, pt, va, inv].forEach(r => { if (r.error) console.error(r.error); });
   OBJECTIFS = derniers(o.data || [], 'article'); REGLAGES = rg.data || []; DEPART = dp.data || []; LIVRAISONS = lv.data || []; ANNULS = an.data || [];
   LIGNES = ln.data || []; POINTS = pt.data || []; VENTES_ANNULS = va.data || [];
-  INVENT = (inv.data || []).map(m => ({type_mouvement: m.type_mouvement, article: m.products && m.products.article, date: String(m.cree_le || '').slice(0, 10), quantite: m.quantite})).filter(m => m.article);
+  INVENT = (inv.data || []).map(m => ({type_mouvement: m.type_mouvement, article: m.inventaire_zone_produit && m.inventaire_zone_produit.designation, date: String(m.cree_le || '').slice(0, 10), quantite: m.quantite})).filter(m => m.article);
   ALIAS = await D.chargerAliasProduits(nexusClient, SITE_ID, 'campagne');
   RELEVE = null;
   $('lvDateDepart').value = aujourdhui(); $('lvDateLiv').value = aujourdhui();
@@ -473,10 +482,10 @@ function peindreLignes(){
     const c = CS.conditionnement(o.article, reglageDe(o.article));
     const upc = c.unitesParCarton == null ? '' : c.unitesParCarton;
     return '<tr data-i="' + i + '"><td>' + esc(o.article) + (c.aRenseigner ? '<div class="vt-aide">' + esc(P.conditionnementARenseigner) + '</div>' : '') + '</td>'
-      + '<td><input type="number" min="0" step="1" data-f="cartons" style="width:70px"></td>'
-      + '<td><input type="number" min="1" step="1" data-f="upc" value="' + upc + '" style="width:70px"' + (c.source === 'a_l_unite' ? ' disabled' : '') + '><label class="vt-aide"><input type="checkbox" data-f="unite"' + (c.source === 'a_l_unite' ? ' checked' : '') + '> ' + esc(P.alUnite) + '</label></td>'
-      + '<td><input type="number" min="0" step="1" data-f="unites" style="width:70px"></td>'
-      + '<td><input type="text" inputmode="decimal" data-f="pa" value="' + (o.pa_promo_ht == null ? '' : o.pa_promo_ht) + '" style="width:80px"><div class="vt-aide" data-f="ecart"></div></td></tr>';
+      + '<td data-l="' + esc(P.colCartons) + '"><input type="number" min="0" step="1" data-f="cartons" style="width:70px"></td>'
+      + '<td data-l="' + esc(P.colUnitesCarton) + '"><input type="number" min="1" step="1" data-f="upc" value="' + upc + '" style="width:70px"' + (c.source === 'a_l_unite' ? ' disabled' : '') + '><label class="vt-aide"><input type="checkbox" data-f="unite"' + (c.source === 'a_l_unite' ? ' checked' : '') + '> ' + esc(P.alUnite) + '</label></td>'
+      + '<td data-l="' + esc(P.colUnites) + '"><input type="number" min="0" step="1" data-f="unites" style="width:70px"></td>'
+      + '<td data-l="' + esc(P.colPa) + '"><input type="text" inputmode="decimal" data-f="pa" value="' + (o.pa_promo_ht == null ? '' : o.pa_promo_ht) + '" style="width:80px"><div class="vt-aide" data-f="ecart"></div></td></tr>';
   }).join('') + '</tbody></table>';
 }
 function majEcartPa(tr){
@@ -526,7 +535,7 @@ function peindreStock(){
   const res = CS.stockTheorique({articles: articlesPromo(), stockDepart: DEPART, livraisons: LIVRAISONS, annulations: ANNULS, lignesLivraison: LIGNES, ventes: pc ? pc.lignes : [], dateVentes: pc ? pc.date_fin : null, campagneDebut: CAMPAGNE.date_debut, resoudre});
   $('lvStock').innerHTML = (pc ? '<div class="vt-aide">' + esc(P.stockDate(jma(pc.date_fin))) + '</div>' : '<div class="vt-aide">' + esc(P.stockSansVentes) + '</div>')
     + '<table class="vt-table"><tbody>' + res.map(r => '<tr><td>' + esc(r.article) + '<div class="vt-aide">' + esc(r.manque_depart ? P.stockManque : P.stockSources(r.sources.join(', '))) + (r.a_confirmer && !r.manque_depart ? ' · ' + esc(P.departAConfirmer) : '') + (r.jours_non_couverts > 0 ? ' · ' + esc(P.departEcart(r.jours_non_couverts)) : '') + '</div></td><td class="n">' + (r.stock == null ? '·' : fmt(r.stock)) + '<div class="vt-aide">' + esc(P.stockLibelle) + '</div></td></tr>').join('') + '</tbody></table>';
-  const nc = CS.livraisonsInventaireNonComptees(INVENT, {articles: articlesPromo(), campagneDebut: CAMPAGNE.date_debut, campagneFin: CAMPAGNE.date_fin});
+  const nc = CS.livraisonsInventaireNonComptees(INVENT, {articles: articlesPromo(), campagneDebut: CAMPAGNE.date_debut, campagneFin: CAMPAGNE.date_fin, resoudre});
   $('lvInv').innerHTML = nc.map(m => esc(P.inventaireNonCompte(m.article, jma(m.date), m.quantite))).join('<br>');
 }
 

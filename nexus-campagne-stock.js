@@ -19,7 +19,8 @@
   function conditionnement(article, reglage) {
     if (reglage && reglage.mode === 'a_l_unite') return { source: 'a_l_unite', unitesParCarton: 1, aRenseigner: false };
     if (reglage && reglage.mode === 'suffixe_np' && Number(reglage.unites_par_carton) > 0) return { source: 'suffixe_np', unitesParCarton: Number(reglage.unites_par_carton), aRenseigner: false };
-    if (/-NP\s*$/i.test(String(article || '')) && reglage && Number(reglage.unites_par_carton) > 0) return { source: 'suffixe_np', unitesParCarton: Number(reglage.unites_par_carton), aRenseigner: false };
+    const m = /-\s*(\d+)\s*P\s*$/i.exec(String(article || ''));
+    if (m && Number(m[1]) > 0) return { source: 'suffixe_np', unitesParCarton: Number(m[1]), aRenseigner: false };
     return { source: 'inconnu', unitesParCarton: null, aRenseigner: true };
   }
 
@@ -68,10 +69,11 @@
   }
 
   // Livraisons saisies dans Inventaire pendant la promotion : affichées, jamais ajoutées.
-  function livraisonsInventaireNonComptees(mouvements, { articles, campagneDebut, campagneFin }) {
-    const cibles = new Set((articles || []).map(cle));
+  function livraisonsInventaireNonComptees(mouvements, { articles, campagneDebut, campagneFin, resoudre }) {
+    const cl = s => { const c = resoudre ? resoudre(s) : null; return String(c || s || '').trim().toLowerCase(); };
+    const cibles = new Set((articles || []).map(cl));
     return (mouvements || []).filter(m =>
-      m.type_mouvement === 'livraison' && cibles.has(cle(m.article)) &&
+      m.type_mouvement === 'livraison' && cibles.has(cl(m.article)) &&
       m.date >= String(campagneDebut).slice(0, 10) && m.date <= String(campagneFin).slice(0, 10))
       .map(m => ({ article: m.article, date: m.date, quantite: Number(m.quantite || 0), mention: 'livraison saisie dans Inventaire, non comptée ici' }));
   }
@@ -83,10 +85,19 @@
   function stockTheorique({ articles, stockDepart, livraisons, annulations, lignesLivraison, ventes, dateVentes, campagneDebut, resoudre }) {
     const cle = s => { const c = resoudre ? resoudre(s) : null; return String(c || s || '').trim().toLowerCase(); };
     const dep = stockDepartCourant(stockDepart, cle);
-    const valides = new Set(livraisonsValides(livraisons, annulations).map(l => l.id));
+    const valides = new Map(livraisonsValides(livraisons, annulations).map(l => [l.id, l]));
+    // Une livraison compte seulement si elle est datée strictement après le stock de départ de l'article.
+    // Le jour même, on ne sait pas si elle est déjà dans le stock compté : elle est signalée, pas comptée.
     const livre = new Map();
+    const memeJour = new Map();
     (lignesLivraison || []).filter(l => valides.has(l.livraison_id)).forEach(l => {
-      livre.set(cle(l.article), (livre.get(cle(l.article)) || 0) + Number(l.unites || 0));
+      const k = cle(l.article);
+      const d = dep.get(k);
+      const dl = String(valides.get(l.livraison_id).date_livraison || '').slice(0, 10);
+      const dd = d ? String(d.date_stock || '').slice(0, 10) : '';
+      if (d && dl && dd && dl < dd) return;
+      if (d && dl && dd && dl === dd) { memeJour.set(k, (memeJour.get(k) || 0) + Number(l.unites || 0)); return; }
+      livre.set(k, (livre.get(k) || 0) + Number(l.unites || 0));
     });
     const vendu = new Map();
     (ventes || []).forEach(v => vendu.set(cle(v.article), (vendu.get(cle(v.article)) || 0) + Number(v.quantite || 0)));
@@ -99,7 +110,8 @@
         article,
         stock: Number(d.quantite) + (livre.get(k) || 0) - (vendu.get(k) || 0),
         manque_depart: false,
-        a_confirmer: !!d.a_confirmer || jours > 0,
+        a_confirmer: !!d.a_confirmer || jours > 0 || memeJour.has(k),
+        livraison_meme_jour_a_verifier: memeJour.get(k) || 0,
         jours_non_couverts: jours,
         sources: ['stock de départ du ' + String(d.date_stock).slice(0, 10) + ' (' + d.source + ')', 'livraisons valides', 'ventes au ' + (dateVentes ? String(dateVentes).slice(0, 10) : 'inconnu')],
         libelle: 'Stock théorique',

@@ -80,4 +80,23 @@ t('vente sous un alias encore dû comptée sur l\'article canonique', () => {
   const sans = S.stockTheorique({ ...base, ventes: [{ article: 'Coca 33 canette', quantite: 7 }, { article: 'A', quantite: 3 }] })[0];
   assert.strictEqual(sans.stock - r.stock, 7);
 });
+t('douze noms réels Petromix : conditionnement extrait du suffixe', () => {
+  const att = { 'Heineken 25cl-24P': 24, 'Oreo 154g-20P': 20, 'Quadratini Noisette-12P': 12, 'Quadratini Choco-12P': 12, 'Quadratini Vanille-12P': 12, 'Pringles 165g-19P': 19, 'Lays 130g-15P': 15, 'Didier 1l-8P': 8, 'Schweppes Agrumes-8P': 8, 'Schweppes Tonic-8P': 8, 'Schweppes Zero-8P': 8 };
+  Object.keys(att).forEach(n => { const c = S.conditionnement(n, null); assert.strictEqual(c.source, 'suffixe_np'); assert.strictEqual(c.unitesParCarton, att[n]); assert.strictEqual(c.aRenseigner, false); });
+  assert.strictEqual(S.conditionnement('Jus Caresse 50cl', null).source, 'inconnu');
+  assert.strictEqual(S.conditionnement('Jus Caresse 50cl', { mode: 'a_l_unite', unites_par_carton: 1 }).source, 'a_l_unite');
+  assert.strictEqual(S.conditionnement('Heineken 25cl-24P', { mode: 'a_l_unite', unites_par_carton: 1 }).unitesParCarton, 1);
+});
+t('livraison Inventaire retrouvée par désignation après alias', () => {
+  const mv = [{ type_mouvement: 'livraison', article: 'Coca 33 canette', date: '2026-11-13', quantite: 20 }];
+  const r = S.livraisonsInventaireNonComptees(mv, { articles: ['Coca-Cola 33cl'], campagneDebut: '2026-11-12', campagneFin: '2026-11-30', resoudre: a => (a === 'Coca 33 canette' ? 'Coca-Cola 33cl' : a) });
+  assert.strictEqual(r.length, 1);
+});
+t('livraison avant, le jour même, après le stock de départ', () => {
+  const mk = d => S.stockTheorique({ ...base, ventes: [], livraisons: [{ id: 'l1', date_livraison: d }] })[0];
+  assert.strictEqual(mk('2026-11-10').stock, 100);
+  const m = mk('2026-11-12'); assert.strictEqual(m.stock, 100); assert.strictEqual(m.a_confirmer, true); assert.strictEqual(m.livraison_meme_jour_a_verifier, 50);
+  assert.strictEqual(mk('2026-11-13').stock, 150);
+});
+
 console.log(n + ' épreuves C3 passent.');
