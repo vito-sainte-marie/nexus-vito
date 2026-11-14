@@ -80,25 +80,32 @@ t('vente sous un alias encore dû comptée sur l\'article canonique', () => {
   const sans = S.stockTheorique({ ...base, ventes: [{ article: 'Coca 33 canette', quantite: 7 }, { article: 'A', quantite: 3 }] })[0];
   assert.strictEqual(sans.stock - r.stock, 7);
 });
-t('douze noms réels Petromix : conditionnement extrait du suffixe', () => {
-  const att = { 'Heineken 25cl-24P': 24, 'Oreo 154g-20P': 20, 'Quadratini Noisette-12P': 12, 'Quadratini Choco-12P': 12, 'Quadratini Vanille-12P': 12, 'Pringles 165g-19P': 19, 'Lays 130g-15P': 15, 'Didier 1l-8P': 8, 'Schweppes Agrumes-8P': 8, 'Schweppes Tonic-8P': 8, 'Schweppes Zero-8P': 8 };
-  Object.keys(att).forEach(n => { const c = S.conditionnement(n, null); assert.strictEqual(c.source, 'suffixe_np'); assert.strictEqual(c.unitesParCarton, att[n]); assert.strictEqual(c.aRenseigner, false); });
-  assert.strictEqual(S.conditionnement('Jus Caresse 50cl', null).source, 'inconnu');
-  assert.strictEqual(S.conditionnement('Jus Caresse 50cl', { mode: 'a_l_unite', unites_par_carton: 1 }).source, 'a_l_unite');
-  assert.strictEqual(S.conditionnement('Heineken 25cl-24P', { mode: 'a_l_unite', unites_par_carton: 1 }).unitesParCarton, 1);
+t('douze désignations réelles Petromix novembre 2026 : conditionnement', () => {
+  // Lues dans campagnes_nexus.produits_concernes (Production, lecture filtrée, 14/11/2026).
+  const att = { 'Biere Heineken 0.0 25 cl - 24P': 24, 'Bisc Oreo 66gr -20P': 20, 'Quadratini chocolate 125g -12P': 12, 'Quadratini napoliter 125g - 12P': 12, 'Quadratini vanille 125g -12P': 12, 'Pringles Origl 175g - 19P': 19, 'Chips Lays Nature 75gr - 15P': 15, 'Eau didier gazeux 50 cl -8P': 8, 'Schweppes agrumes 50cl -8P': 8, 'Schweppes pomme 50cl -8P': 8, 'Schweppes Tonic 50cl -8P': 8 };
+  Object.keys(att).forEach(n => { const c = S.conditionnement(n, null); assert.strictEqual(c.source, 'suffixe_np', n); assert.strictEqual(c.unitesParCarton, att[n], n); assert.strictEqual(c.aRenseigner, false); });
+  assert.strictEqual(S.conditionnement('Jus caresse 50cl TS PARF', null).source, 'inconnu');
+  assert.strictEqual(S.conditionnement('Jus caresse 50cl TS PARF', { mode: 'a_l_unite', unites_par_carton: 1 }).source, 'a_l_unite');
+  assert.strictEqual(S.conditionnement('Biere Heineken 0.0 25 cl - 24P', { mode: 'a_l_unite', unites_par_carton: 1 }).unitesParCarton, 1);
 });
 t('C4 : EAN prioritaire, désignation voisine sans EAN commun non appariée', () => {
   const rel = [
     { id: 'r1', article: 'Biere Heineken 25cl -24P', code_barres: '8712000000011', quantite_reelle: 10, releve_le: '2026-11-10' },
     { id: 'r2', article: 'Biere Heineken 0.0 25 cl - 24P', code_barres: '8712000000028', quantite_reelle: 99, releve_le: '2026-11-10' },
+    { id: 'r3', article: 'Eau didier plat 50 cl -8P', code_barres: '3000000000031', quantite_reelle: 5, releve_le: '2026-11-10' },
   ];
-  const eans = { 'Heineken 25cl-24P': '8712000000011' };
-  const r = S.choisirReleves(rel, { articles: ['Heineken 25cl-24P'], campagneDebut: '2026-11-12', eanDe: a => eans[a] });
-  assert.strictEqual(r.retenus.length, 1); assert.strictEqual(r.retenus[0].reference, 'r1');
-  const voisin = S.choisirReleves(rel, { articles: ['Biere Heineken 25cl -24P'], campagneDebut: '2026-11-12' });
-  assert.strictEqual(voisin.retenus[0].reference, 'r1');
-  const sansEan = S.choisirReleves(rel, { articles: ['Heineken 25cl-24P'], campagneDebut: '2026-11-12' });
-  assert.strictEqual(sansEan.sans.length, 1);
+  const promo = 'Biere Heineken 0.0 25 cl - 24P';
+  const parEan = S.choisirReleves(rel, { articles: [promo], campagneDebut: '2026-11-12', eanDe: () => '8712000000028' });
+  assert.strictEqual(parEan.retenus[0].reference, 'r2');
+  // EAN d'un voisin : l'EAN fait foi, pas la désignation.
+  const autreEan = S.choisirReleves(rel, { articles: [promo], campagneDebut: '2026-11-12', eanDe: () => '8712000000011' });
+  assert.strictEqual(autreEan.retenus[0].reference, 'r1');
+  // Repli sur la désignation exacte, sans EAN.
+  const repli = S.choisirReleves(rel, { articles: [promo], campagneDebut: '2026-11-12' });
+  assert.strictEqual(repli.retenus[0].reference, 'r2');
+  // Voisins non appariés : le relevé du Heineken classique ne sert pas l'article 0.0, ni l'eau plate l'eau gazeuse.
+  const sans = S.choisirReleves(rel.filter(r => r.id !== 'r2'), { articles: [promo, 'Eau didier gazeux 50 cl -8P'], campagneDebut: '2026-11-12' });
+  assert.strictEqual(sans.retenus.length, 0); assert.strictEqual(sans.sans.length, 2);
 });
 t('C4 : signal carton dépassant le besoin, arrondi inchangé', () => {
   const c = { source: 'suffixe_np', unitesParCarton: 24, aRenseigner: false };
