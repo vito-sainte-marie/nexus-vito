@@ -95,8 +95,13 @@
     const valides = new Map(livraisonsValides(livraisons, annulations).map(l => [l.id, l]));
     // Une livraison compte seulement si elle est datée strictement après le stock de départ de l'article.
     // Le jour même, on ne sait pas si elle est déjà dans le stock compté : elle est signalée, pas comptée.
+    // C2 : le stock est daté au dernier point de ventes valide. Une livraison après cette date n'est pas retirée
+    // des ventes qu'on ne connaît pas : elle est montrée à part, jamais mêlée au stock.
+    const dv = String(dateVentes || '').slice(0, 10);
     const livre = new Map();
     const memeJour = new Map();
+    const apres = new Map();
+    const apresDate = new Map();
     (lignesLivraison || []).filter(l => valides.has(l.livraison_id)).forEach(l => {
       const k = cle(l.article);
       const d = dep.get(k);
@@ -104,6 +109,11 @@
       const dd = d ? String(d.date_stock || '').slice(0, 10) : '';
       if (d && dl && dd && dl < dd) return;
       if (d && dl && dd && dl === dd) { memeJour.set(k, (memeJour.get(k) || 0) + Number(l.unites || 0)); return; }
+      if (dv && dl && dl > dv) {
+        apres.set(k, (apres.get(k) || 0) + Number(l.unites || 0));
+        if (!apresDate.has(k) || dl > apresDate.get(k)) apresDate.set(k, dl);
+        return;
+      }
       livre.set(k, (livre.get(k) || 0) + Number(l.unites || 0));
     });
     const vendu = new Map();
@@ -111,19 +121,30 @@
     return (articles || []).map(article => {
       const k = cle(article);
       const d = dep.get(k);
-      if (!d) return { article, stock: null, manque_depart: true, a_confirmer: true, sources: [], libelle: 'Stock théorique' };
+      if (!d) return { article, stock: null, manque_depart: true, a_confirmer: true, fiable_pour_achat: false, sources: [], libelle: 'Stock théorique' };
       const jours = ecartDepart(d.date_stock, campagneDebut);
-      return {
+      const base = {
         article,
-        stock: Number(d.quantite) + (livre.get(k) || 0) - (vendu.get(k) || 0),
         manque_depart: false,
-        a_confirmer: !!d.a_confirmer || jours > 0 || memeJour.has(k),
-        livraison_meme_jour_a_verifier: memeJour.get(k) || 0,
         date_depart: String(d.date_stock).slice(0, 10),
         jours_non_couverts: jours,
-        sources: ['stock de départ du ' + dateLongue(d.date_stock) + ' (' + String(d.source || '').replace(/_/g, ' ') + ')', 'livraisons valides', 'ventes au ' + (dateVentes ? dateLongue(dateVentes) : 'inconnu')],
+        livraison_meme_jour_a_verifier: memeJour.get(k) || 0,
+        livraisons_apres_ventes: apres.get(k) || 0,
+        livraisons_apres_ventes_date: apresDate.get(k) || null,
         libelle: 'Stock théorique',
       };
+      // Sans import de ventes, aucun chiffre : retirer zéro vente donnerait un stock faux et rassurant.
+      if (!dv) {
+        return Object.assign(base, { stock: null, non_calculable: true, a_confirmer: true, fiable_pour_achat: false, sources: [] });
+      }
+      const aConfirmer = !!d.a_confirmer || jours > 0 || memeJour.has(k);
+      return Object.assign(base, {
+        stock: Number(d.quantite) + (livre.get(k) || 0) - (vendu.get(k) || 0),
+        non_calculable: false,
+        a_confirmer: aConfirmer,
+        fiable_pour_achat: !aConfirmer && !apres.has(k),
+        sources: ['stock de départ du ' + dateLongue(d.date_stock) + ' (' + String(d.source || '').replace(/_/g, ' ') + ')', 'livraisons valides jusqu\u2019au ' + dateLongue(dv), 'ventes au ' + dateLongue(dv)],
+      });
     });
   }
 

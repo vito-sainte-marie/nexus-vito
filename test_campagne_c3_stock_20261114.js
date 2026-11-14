@@ -99,6 +99,31 @@ t('livraison avant, le jour même, après le stock de départ', () => {
   assert.strictEqual(mk('2026-11-13').stock, 150);
 });
 
+t('C2 : livraison après le dernier point de ventes, montrée à part', () => {
+  const r = S.stockTheorique({ ...base, livraisons: [{ id: 'l1', date_livraison: '2026-11-20' }] })[0];
+  assert.strictEqual(r.stock, 70); assert.strictEqual(r.livraisons_apres_ventes, 50);
+  assert.strictEqual(r.livraisons_apres_ventes_date, '2026-11-20'); assert.strictEqual(r.fiable_pour_achat, false);
+});
+t('C2 : livraison le jour même du point de ventes, comptée', () => {
+  const r = S.stockTheorique({ ...base, livraisons: [{ id: 'l1', date_livraison: '2026-11-15' }] })[0];
+  assert.strictEqual(r.stock, 120); assert.strictEqual(r.livraisons_apres_ventes, 0); assert.strictEqual(r.fiable_pour_achat, true);
+});
+t('C2 : sans import de ventes, aucun chiffre', () => {
+  const r = S.stockTheorique({ ...base, dateVentes: null, ventes: [], livraisons: [{ id: 'l1', date_livraison: '2026-11-13' }] })[0];
+  assert.strictEqual(r.stock, null); assert.strictEqual(r.non_calculable, true); assert.strictEqual(r.fiable_pour_achat, false);
+});
+t('C2 : règle « avant le départ » conservée avec la borne des ventes', () => {
+  const mk = d => S.stockTheorique({ ...base, livraisons: [{ id: 'l1', date_livraison: d }] })[0];
+  assert.strictEqual(mk('2026-11-10').stock, 70);
+  const m = mk('2026-11-12'); assert.strictEqual(m.a_confirmer, true); assert.strictEqual(m.fiable_pour_achat, false);
+  assert.strictEqual(mk('2026-11-13').stock, 120);
+});
+t('C2 : départ antérieur à la campagne ou à confirmer, jamais fiable', () => {
+  const dep = [{ article: 'A', version: 1, quantite: 100, date_stock: '2026-11-10', source: 'inventaire' }];
+  assert.strictEqual(S.stockTheorique({ ...base, stockDepart: dep })[0].fiable_pour_achat, false);
+  const conf = [{ article: 'A', version: 1, quantite: 100, date_stock: '2026-11-12', source: 'saisie_initiale', a_confirmer: true }];
+  assert.strictEqual(S.stockTheorique({ ...base, stockDepart: conf })[0].fiable_pour_achat, false);
+});
 t('article avec stock de départ non compté comme manquant (clé partagée)', () => {
   assert.deepStrictEqual(S.articlesSansDepart(['A', 'B'], [{ article: 'A', date_stock: '2026-11-12', quantite: 5 }]), ['B']);
   const alias = a => (a === 'A-alias' ? 'A' : null);
