@@ -1152,6 +1152,30 @@
         "insertion_manager_meme_site",
         "ecriture_manager_meme_site"
       ]
+    },
+    "20261114190000": {
+      "etat": "additive_compatible_avant_code",
+      "justification": "Cree cinq tables append-only (livraisons, annulations, lignes, conditionnement d achat, stock de depart) avec RLS, sans toucher a aucune table existante. Le code C3 les lit et les ecrit ; tant qu elles manquent, la page Nouvelle livraison echoue proprement et rien d autre ne change. Appliquee sur Test seulement. Perimetre strict, aucun GO de Production.",
+      "mesure": {
+        "source": "catalogue",
+        "le": "2026-11-14T00:00:00Z",
+        "cible": "udljdqxerrbbbajxubfn",
+        "par": "claude",
+        "outil": "connecteur Supabase, migration appliquee et verifiee sur Test",
+        "verdict": "NON APPLIQUEE en Production : mesure du catalogue Production a fournir par Guardian ; appliquee et verifiee sur Test seulement.",
+        "blob_migration": "9c7e146fa2be70edfacef9a2bb9450c67e63df9c"
+      },
+      "objets_constates": [
+        "campagne_livraisons",
+        "campagne_livraisons_annulations",
+        "campagne_livraison_lignes",
+        "campagne_conditionnement_achat",
+        "campagne_stock_depart",
+        "lecture_meme_site",
+        "insertion_manager_meme_site",
+        "createur_lit_si_autorise"
+      ],
+      "reserve": "Mesure Production a obtenir de Guardian ; cette fiche n autorise ni fusion ni deploiement ni migration Production."
     }
   },
   "prochaine_action": "Axe SS4 migration -> code : LEVE pour 20260919103000 (13/13 objets constates sur le catalogue le 01/10/2026) et pour 20261001160000 (ACL constatee fermee le 03/10/2026). Ces qualifications restent acquises tant que leur fichier de migration ne change pas : la garde compare mesure.blob_migration a l'empreinte du candidat, et une migration retouchee fait tomber sa qualification. Il n'y a plus d'echeance horaire (l'ancienne fraicheur de 72 h aurait fait retomber l'axe le 04/10/2026 sans que rien ne bouge). CE QUE LA GARDE NE VOIT PAS : une base modifiee sans que le depot bouge - c'est exactement ce que la relecture du 03/10 a trouve pour 20261001160000. Toute procedure d'application relit donc la base avant d'ecrire. CE QUE CELA N'AUTORISE PAS : aucune fusion ni aucun deploiement ; chacun reste un GO distinct de Frederic. RESTE A FAIRE, separement : (1) les 11 migrations du rail toujours non qualifiees ; (2) le cablage de garde-ordre-migration-code.js dans deploiement-production.yml. Lecture du verdict et table de decision : SS18.4 ; recit de la mesure : SS20. MISE A JOUR DU 04/10/2026 : les 13 migrations du candidat rebuild/fdj-62-20260922 sont qualifiees (12 atomiques en serie avant le code, 20261004120000 code d abord) ; ordre et gestes dans docs/deploiement/procedure-fdj-62-production.md."
