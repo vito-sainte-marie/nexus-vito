@@ -636,6 +636,7 @@
         objectifCourt: o => o + ' par jour',
         versionCourte: (v, o) => 'Version ' + v + ' : ' + o + ' par jour',
         sansVersion: 'Pas encore validé',
+        valideCourt: 'Validé',
         versionLigne: (v, o) => 'Version ' + v + ' validée : ' + o + ' par jour.',
         objectifInitial: o => 'Objectif initial : ' + o + ' par jour.'
       },

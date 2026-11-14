@@ -297,8 +297,8 @@ details.compar[open] summary::after{transform:rotate(180deg);}
 @media (max-width:480px){.obj-grille{grid-template-columns:1fr 1fr;}}
 .obj-ligne label{display:block; font-size:12px; color:var(--t-mid); min-width:0;}
 .obj-ligne input{display:block; width:100%; min-width:0; min-height:44px; margin-top:4px; box-sizing:border-box; background:var(--t-raised); border:1px solid var(--t-line); border-radius:8px; color:var(--t-text); padding:8px 10px; font-family:var(--t-sans); font-size:14px;}
-.obj-cel{font-size:13px; color:var(--t-mid); min-width:0; overflow-wrap:anywhere;}
-.obj-cel b{display:block; font-family:var(--t-mono); font-size:15px; color:var(--t-text); font-weight:600;}
+.obj-cel{font-family:var(--t-sans); font-size:13px; color:var(--t-mid); min-width:0; overflow-wrap:anywhere;}
+.obj-cel b{display:block; font-family:var(--t-sans); font-size:15px; color:var(--t-text); font-weight:600;}
 details.obj-hab{margin-top:8px;}
 details.obj-hab summary{cursor:pointer; font-size:12.5px; color:var(--t-mid); list-style:none; min-height:32px; display:flex; align-items:center; gap:6px;}
 details.obj-hab summary::-webkit-details-marker{display:none;}
@@ -346,7 +346,7 @@ details.obj-hab[open] summary::after{transform:rotate(180deg);}
 <script src="nexus-icones.js?v=20260904-0104"></script>
 <script src="nexus-desktop.js?v=20260904-0104"></script>
 <script src="nexus-jours-feries.js?v=20261106-0100"></script>
-<script src="nexus-vocabulaire.js?v=20261114-1700"></script>
+<script src="nexus-vocabulaire.js?v=20261114-1800"></script>
 <script src="nexus-tempo.js?v=20261112-1500"></script>
 <script src="nexus-periodes.js?v=20260904-0104"></script>
 <script src="nexus-campagnes.js?v=20261113-2000"></script>
@@ -379,6 +379,15 @@ function ligneDepuis(article){
     paPromo: '', pvPromo: '', versions: [] };
 }
 function dec2(v){ return v == null ? '' : (Math.round(v * 100) / 100).toFixed(2).replace('.', ','); }
+function c100(x){ return x == null || isNaN(x) ? null : Math.round(x * 100); }
+function modifie(l, r){
+  const v = l.versions[l.versions.length - 1];
+  if (!v) return r.statut === 'ok';
+  return r.statut === 'ok' && (c100(nombre(l.paPromo)) !== c100(v.pa_promo_ht) || c100(nombre(l.pvPromo)) !== c100(v.pv_promo_ttc) ||
+    c100(nombre(l.paHab)) !== c100(v.pa_habituel_ht) || c100(nombre(l.pvHab)) !== c100(v.pv_habituel_ttc) || c100(r.tva) !== c100(v.tva_pct) ||
+    r.objectifPropose !== v.objectif_valide_jour);
+}
+function statutTexte(l, r){ return r.statut === 'ok' && l.versions.length && !modifie(l, r) ? O.valideCourt : (O.statutCourt[r.statut] || ''); }
 function analyser(l){
   const s = l.info;
   return SIM.analyserObjectif({ paHabituelHt: nombre(l.paHab), paPromoHt: nombre(l.paPromo), pvHabituelTtc: nombre(l.pvHab), pvPromoTtc: nombre(l.pvPromo),
@@ -406,25 +415,25 @@ function peindre(){
     const champ = (cle, lib) => '<label>' + esc(lib) + '<input type="text" inputmode="decimal" autocomplete="off" data-oi="' + i + '" data-ochamp="' + cle + '" value="' + esc(l[cle]) + '"></label>';
     return '<div class="obj-ligne" data-oproduit="' + i + '"><div class="obj-haut"><h3>' + esc(l.article) + '</h3>' +
       '<div class="obj-duo">' + champ('paPromo', O.champPaPromo) + champ('pvPromo', O.champPvPromo) + '</div>' +
-      '<div data-ores="' + i + '">' + celluleHtml(l, r) + '</div><div class="obj-cel" data-ostatut="' + i + '">' + esc(O.statutCourt[r.statut] || '') + '</div>' + versionHtml(l) + '</div>' +
+      '<div data-ores="' + i + '">' + celluleHtml(l, r) + '</div><div class="obj-cel" data-ostatut="' + i + '">' + esc(statutTexte(l, r)) + '</div>' + versionHtml(l) + '</div>' +
       '<details class="obj-hab"><summary>' + esc(O.habituels) + '</summary><div class="obj-grille">' + champ('paHab', O.paHab) + champ('pvHab', O.pvHab) + champ('tva', O.tva) + '</div></details></div>';
   }).join('') : '<div class="sim-source">' + esc(O.aucunProduit) + '</div>';
   majDetails();
-  $('objValider').disabled = !LIGNES.some(l => analyser(l).statut === 'ok');
+  $('objValider').disabled = !LIGNES.some(l => modifie(l, analyser(l)));
 }
 function majDetails(){
   $('objComparCorps').innerHTML = LIGNES.map(l => detailHtml(l, analyser(l))).join('') + '<p>' + esc(P.methode) + '</p>';
 }
 function majResultats(){
   LIGNES.forEach((l, i) => { const r = analyser(l), el = document.querySelector('[data-ores="' + i + '"]'), st = document.querySelector('[data-ostatut="' + i + '"]');
-    if (el) el.innerHTML = celluleHtml(l, r); if (st) st.textContent = O.statutCourt[r.statut] || ''; });
+    if (el) el.innerHTML = celluleHtml(l, r); if (st) st.textContent = statutTexte(l, r); });
   majDetails();
-  $('objValider').disabled = !LIGNES.some(l => analyser(l).statut === 'ok');
+  $('objValider').disabled = !LIGNES.some(l => modifie(l, analyser(l)));
 }
 async function charger(){
   $('objStatut').textContent = '';
   LIGNES = articles(CAMPAGNE).map(ligneDepuis);
-  const r = await nexusClient.from('campagne_objectifs_produits').select('article, version, objectif_valide_jour, pa_promo_ht, pv_promo_ttc, valide_le')
+  const r = await nexusClient.from('campagne_objectifs_produits').select('article, version, objectif_valide_jour, pa_habituel_ht, pa_promo_ht, pv_habituel_ttc, pv_promo_ttc, tva_pct, valide_le')
     .eq('site', SITE_ID).eq('campagne_id', CAMPAGNE.id).order('version', {ascending: true});
   if (r.error) console.error('campagne_objectifs_produits', r.error);
   (r.data || []).forEach(x => { const l = LIGNES.find(y => y.article === x.article); if (l) l.versions.push(x); });
@@ -436,7 +445,7 @@ async function valider(){
   const maintenant = new Date().toISOString(), lignes = [];
   LIGNES.forEach(l => {
     const r = analyser(l);
-    if (r.statut !== 'ok') return;
+    if (!modifie(l, r)) return;
     lignes.push({ site: SITE_ID, campagne_id: CAMPAGNE.id, article: l.article, version: l.versions.length ? l.versions[l.versions.length - 1].version + 1 : 1,
       pa_habituel_ht: nombre(l.paHab), pa_promo_ht: nombre(l.paPromo), pv_habituel_ttc: nombre(l.pvHab), pv_promo_ttc: nombre(l.pvPromo), tva_pct: r.tva,
       ventes_ref_jour: r.ventesJour, periode_ref_debut: l.info ? l.info.source.debut : null, periode_ref_fin: l.info ? l.info.source.fin : null,

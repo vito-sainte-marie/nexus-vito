@@ -9,8 +9,9 @@ const els = {}, handlers = {};
 const el = id => els[id] || (els[id] = { id, innerHTML: '', textContent: '', hidden: false, disabled: false, value: '', addEventListener(ev, f){ handlers[id + ':' + ev] = f; } });
 const bdd = { campagne_objectifs_produits: [] };
 const donnees = {
-  campagnes_nexus: [{ id: 'c1', nom: 'Promo test', date_debut: '2026-10-20', date_fin: '2026-11-18', produits_concernes: ['X'] }],
-  products: [{ article: 'X', categorie: 'C', periode_debut: '2026-09-01', periode_fin: '2026-09-30', quantite: 60, ca: 120, marge: 60, tva: 8.5 }]
+  campagnes_nexus: [{ id: 'c1', nom: 'Promo test', date_debut: '2026-10-20', date_fin: '2026-11-18', produits_concernes: ['X', 'Y'] }],
+  products: [{ article: 'X', categorie: 'C', periode_debut: '2026-09-01', periode_fin: '2026-09-30', quantite: 60, ca: 120, marge: 60, tva: 8.5 },
+    { article: 'Y', categorie: 'C', periode_debut: '2026-09-01', periode_fin: '2026-09-30', quantite: 60, ca: 120, marge: 60, tva: 8.5 }]
 };
 function table(nom){
   const q = { _ins: null, select(){ return q; }, eq(){ return q; }, order(){ return q; }, range(){ return q; },
@@ -18,7 +19,7 @@ function table(nom){
     then(ok){ return Promise.resolve({ data: nom in bdd ? bdd[nom].slice().sort((a, b) => a.version - b.version) : donnees[nom], error: null }).then(ok); } };
   return q;
 }
-const sandbox = { window: global, console, document: { getElementById: el, querySelector: () => null },
+const sandbox = { window: global, console, document: { getElementById: el, querySelector: sel => el(sel) },
   location: { search: '' }, URLSearchParams, Date, Math, Number, String, Array, Object, Promise, Set,
   NexusVocab: global.NexusVocab, NexusSimulateurPromo: global.NexusSimulateurPromo,
   NexusTempo: { dateLocale: d => new Date(d + 'T00:00:00') },
@@ -26,7 +27,7 @@ const sandbox = { window: global, console, document: { getElementById: el, query
   nexusRequireAuth: () => Promise.resolve({ role: 'manager', site_id: 's', id: 'e1' }),
   NexusForfait: { nexusRequireProfessional: () => Promise.resolve(true) } };
 sandbox.globalThis = sandbox; vm.createContext(sandbox);
-const saisir = (champ, v) => handlers['objTable:input']({ target: { dataset: { oi: '0', ochamp: champ }, value: v } });
+const saisir = (champ, v, i) => handlers['objTable:input']({ target: { dataset: { oi: String(i || 0), ochamp: champ }, value: v } });
 (async () => {
   vm.runInContext(code, sandbox);
   await new Promise(r => setTimeout(r, 50));
@@ -34,18 +35,23 @@ const saisir = (champ, v) => handlers['objTable:input']({ target: { dataset: { o
   assert(!/2026-/.test(el('objComparCorps').innerHTML), 'aucune date ISO');
   assert(/du 01\/09 au 30\/09\/2026/.test(el('objComparCorps').innerHTML), 'période jj/mm/aaaa : ' + el('objComparCorps').innerHTML);
   assert(/<details class="obj-hab"><summary>Prix habituels proposés/.test(el('objTable').innerHTML), 'prix habituels derrière un chevron par ligne');
-  saisir('paPromo', '0,9'); saisir('pvPromo', '1,8');
+  saisir('paPromo', '0,9'); saisir('pvPromo', '1,8'); saisir('paPromo', '0,9', 1); saisir('pvPromo', '1,8', 1);
   await handlers['objValider:click']();
-  assert.strictEqual(bdd.campagne_objectifs_produits.length, 1); assert.strictEqual(bdd.campagne_objectifs_produits[0].version, 1);
+  assert.strictEqual(bdd.campagne_objectifs_produits.length, 2);
   const h1 = el('objTable').innerHTML;
   assert(/value="0,90"/.test(h1) && /value="1,80"/.test(h1), 'prix promo conservés après validation');
-  assert(!/Renseignez les quatre prix/.test(h1) && /Version 1 :/.test(h1));
-  assert(!el('objValider').disabled, 'seconde validation possible');
+  assert(!/À valider/.test(h1) && (h1.match(/Validé/g) || []).length === 2, 'statut Validé après validation : ' + h1.slice(0, 900));
+  assert(el('objValider').disabled, 'rien à revalider');
   saisir('pvPromo', '1,9');
+  assert(!el('objValider').disabled && els['[data-ostatut="0"]'].textContent === 'À valider' && els['[data-ostatut="1"]'].textContent === 'Validé', 'seul le produit modifié repasse à À valider');
   await handlers['objValider:click']();
-  assert.strictEqual(bdd.campagne_objectifs_produits.length, 2); assert.strictEqual(bdd.campagne_objectifs_produits[1].version, 2);
+  const bd = bdd.campagne_objectifs_produits;
+  assert.strictEqual(bd.length, 3, 'une seule nouvelle version, pour le produit modifié');
+  assert.deepStrictEqual(bd.map(x => x.article + x.version), ['X1', 'Y1', 'X2']);
   const h2 = el('objTable').innerHTML;
   assert(/Version 2 :/.test(h2) && /Version 1 :/.test(h2), 'version 2 affichée, version 1 conservée');
+  assert(!/À valider/.test(h2), 'plus de À valider après revalidation');
+  assert(!/font-family:var\(--t-mono\)/.test(html.match(/\.obj-cel b\{[^}]*\}/)[0]), 'objectif en IBM Plex Sans');
   const C = global.NexusVocab.campagne.cartes.map(c => c.cle);
   assert.deepStrictEqual(C.slice(0, 4), ['promotions', 'compensation', 'objectifs', 'opportunites-achat']);
   console.log('ok revalidation');
