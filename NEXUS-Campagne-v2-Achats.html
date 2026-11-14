@@ -406,12 +406,12 @@ details.lv-det[open] summary::after{transform:rotate(180deg);}
 <script src="nexus-import-donnees.js?v=20260904-0104"></script>
 <script src="nexus-campagne-ventes.js?v=20261114-1900"></script>
 <script src="nexus-campagne-stock.js?v=20261114-1900"></script>
-<script src="nexus-campagne-achats.js?v=20261115-1000"></script>
+<script src="nexus-campagne-achats.js?v=20261115-1200"></script>
 <script>
 const V = window.NexusVocab.campagne, P = V.achatsPage;
 const M = NexusImportMoteur, D = NexusImportDonnees, CV = NexusCampagneVentes, CS = NexusCampagneStock, A = NexusCampagneAchats;
 let EMPLOYEE = null, SITE_ID = null, CAMPAGNES = [], CAMPAGNE = null, OBJECTIFS = [], CONDS = [], REGLAGES_ACHATS = [], DEPART = [], LIVRAISONS = [], ANNULS = [], LIGNES = [], POINTS = [], VENTES_ANNULS = [], ALIAS = [], INVENT = [];
-let COMMANDES = [], CMD_LIGNES = [], CMD_ANNULS = [], CMD_CLOTURES = [], LIENS = [], RECO = [], REMPLACE_ID = null;
+let COMMANDES = [], CMD_LIGNES = [], CMD_ANNULS = [], CMD_CLOTURES = [], LIENS = [], RECO = [], DONNEES = null, REMPLACE_ID = null;
 const $ = id => document.getElementById(id);
 function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function jma(iso){ const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || '')); return m ? m[3] + '/' + m[2] + '/' + m[1] : String(iso || ''); }
@@ -420,58 +420,26 @@ function fmt(v, d){ return Number(v).toLocaleString('fr-FR', {minimumFractionDig
 function msg(id, texte, alerte){ const e = $(id); e.textContent = texte || ''; e.className = 'vt-msg' + (alerte ? ' vt-alerte' : ''); }
 function num(v){ return v === '' || v == null ? null : Number(String(v).replace(',', '.')); }
 function resoudre(a){ return M.resoudreAlias(a, ALIAS); }
-function derniers(rows, cle){ const m = new Map(); rows.forEach(r => { const a = m.get(r[cle]); if (!a || r.version > a.version) m.set(r[cle], r); }); return Array.from(m.values()); }
 function articlesPromo(){ return OBJECTIFS.map(o => o.article); }
-function condDe(article){ return derniers(CONDS, 'article').find(r => r.article === article) || null; }
 function cleA(a){ return String(a || '').trim().toLowerCase(); }
 
 async function chargerCampagne(){
-  const q = t => nexusClient.from(t);
-  const [o, cd, rg, dp, lv, an, ln, pt, va, inv, co, cl, ca, cc, li] = await Promise.all([
-    q('campagne_objectifs_produits').select('article, version, objectif_valide_jour, ventes_ref_jour').eq('campagne_id', CAMPAGNE.id).eq('site', SITE_ID).order('version', {ascending: true}),
-    q('campagne_conditionnement_achat').select('article, version, mode, unites_par_carton').eq('site', SITE_ID),
-    q('campagne_achats_reglages').select('version, jours_couverture_apres, delai_commande_jours').eq('site', SITE_ID),
-    q('campagne_stock_depart').select('article, version, quantite, date_stock, source, a_confirmer').eq('campagne_id', CAMPAGNE.id).eq('site', SITE_ID),
-    q('campagne_livraisons').select('id, fournisseur, date_livraison, note, remplace_livraison_id, cree_le').eq('campagne_id', CAMPAGNE.id).eq('site', SITE_ID),
-    q('campagne_livraisons_annulations').select('livraison_id, motif').eq('site', SITE_ID),
-    q('campagne_livraison_lignes').select('livraison_id, article, cartons, unites_par_carton, unites').eq('site', SITE_ID),
-    q('campagne_ventes_points').select('batch_id, article, date_fin, importe_le, quantite').eq('campagne_id', CAMPAGNE.id).eq('site', SITE_ID),
-    q('campagne_ventes_annulations').select('batch_id, motif').eq('site', SITE_ID),
-    q('inventaire_mouvements').select('type_mouvement, quantite, cree_le, inventaire_zone_produit(designation)').eq('site', SITE_ID).eq('type_mouvement', 'livraison'),
-    q('campagne_commandes').select('id, fournisseur, date_commande, date_livraison_prevue, note, remplace_commande_id, cree_le').eq('campagne_id', CAMPAGNE.id).eq('site', SITE_ID).order('date_commande', {ascending: false}),
-    q('campagne_commande_lignes').select('commande_id, article, unites_commandees, cartons, unites_par_carton, recommande_unites').eq('site', SITE_ID),
-    q('campagne_commandes_annulations').select('commande_id, motif').eq('site', SITE_ID),
-    q('campagne_commandes_clotures').select('commande_id, motif').eq('site', SITE_ID),
-    q('campagne_livraison_commandes').select('livraison_id, commande_id').eq('site', SITE_ID),
-  ]);
-  [o, cd, rg, dp, lv, an, ln, pt, va, inv, co, cl, ca, cc, li].forEach(r => { if (r.error) console.error(r.error); });
-  OBJECTIFS = derniers(o.data || [], 'article'); CONDS = cd.data || []; REGLAGES_ACHATS = rg.data || [];
-  DEPART = dp.data || []; LIVRAISONS = lv.data || []; ANNULS = an.data || []; LIGNES = ln.data || [];
-  POINTS = pt.data || []; VENTES_ANNULS = va.data || [];
-  INVENT = (inv.data || []).map(m => ({type_mouvement: m.type_mouvement, article: m.inventaire_zone_produit && m.inventaire_zone_produit.designation, date: String(m.cree_le || '').slice(0, 10), quantite: m.quantite})).filter(m => m.article);
-  COMMANDES = co.data || []; CMD_LIGNES = cl.data || []; CMD_ANNULS = ca.data || []; CMD_CLOTURES = cc.data || []; LIENS = li.data || [];
-  ALIAS = await D.chargerAliasProduits(nexusClient, SITE_ID, 'campagne');
+  const d = await A.chargerDonnees(nexusClient, SITE_ID, CAMPAGNE, D.chargerAliasProduits);
+  OBJECTIFS = d.objectifs; CONDS = d.conds; REGLAGES_ACHATS = d.reglages;
+  DEPART = d.depart; LIVRAISONS = d.livraisons; ANNULS = d.livraisonsAnnulations; LIGNES = d.lignesLivraison;
+  POINTS = d.points; VENTES_ANNULS = d.ventesAnnulations;
+  COMMANDES = d.commandes; CMD_LIGNES = d.lignesCommande; CMD_ANNULS = d.commandesAnnulations; CMD_CLOTURES = d.clotures; LIENS = d.liens;
+  ALIAS = d.alias; DONNEES = d;
   $('acDate').value = aujourdhui();
   REMPLACE_ID = null;
   peindreTout();
 }
 
+// Calcul unique, partagé avec l'accueil et le point du menu (NexusCampagneAchats).
 function calculer(){
-  const reg = A.reglages(REGLAGES_ACHATS);
-  const lim = A.dateLimiteCommande(CAMPAGNE.date_fin, CAMPAGNE.date_debut, reg.delaiCommande);
-  const pc = CV.pointCourant(POINTS, VENTES_ANNULS);
-  const stocks = CS.stockTheorique({articles: articlesPromo(), stockDepart: DEPART, livraisons: LIVRAISONS, annulations: ANNULS, lignesLivraison: LIGNES, ventes: pc ? pc.lignes : [], dateVentes: pc ? pc.date_fin : null, campagneDebut: CAMPAGNE.date_debut, resoudre});
-  const reste = A.resteARecevoir({commandes: COMMANDES, annulations: CMD_ANNULS, clotures: CMD_CLOTURES, lignesCommande: CMD_LIGNES, livraisons: LIVRAISONS, livraisonsAnnulations: ANNULS, liens: LIENS, lignesLivraison: LIGNES});
-  const jr = pc ? A.joursPromoRestants(pc.date_fin, CAMPAGNE.date_fin) : 0;
-  const auj = aujourdhui();
-  RECO = OBJECTIFS.map(ob => {
-    const st = stocks.find(s => s.article === ob.article) || {stock: null, fiable_pour_achat: false};
-    const rs = reste.get(cleA(ob.article)) || {commande: 0, recu: 0, reste: 0, exces: 0};
-    const cond = CS.conditionnement(ob.article, condDe(ob.article));
-    const b = A.besoinAchat({article: ob.article, objectifJour: ob.objectif_valide_jour, joursRestants: jr, ventesRefJour: ob.ventes_ref_jour, joursCouverture: reg.joursCouverture, stock: st.stock, fiable: !!st.fiable_pour_achat, resteARecevoir: rs.reste, cond, aujourdhui: auj, limite: lim ? lim.date : null});
-    return {ob, cond, rs, b};
-  });
-  return {reg, lim, pc, auj};
+  const ctx = A.recommandationsCampagne({campagne: CAMPAGNE, donnees: DONNEES, aujourdhui: aujourdhui()});
+  RECO = ctx.reco;
+  return ctx;
 }
 
 function textePrevision(r){

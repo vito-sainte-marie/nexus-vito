@@ -1,12 +1,15 @@
 // ============================================================
 // Campagne V2, lot C4 : moteur pur des achats de promotion (besoin, date limite, reste à recevoir, alerte).
 // Aucune écriture, aucun accès réseau, rien n'est jamais envoyé à un fournisseur : une commande est une trace interne.
-// Dépend de nexus-campagne-stock.js (arrondirAchat, cartonDepasseBesoin, conditionnement, stockTheorique).
+// Dépend de nexus-campagne-ventes.js, nexus-import-moteur.js et nexus-campagne-stock.js (arrondirAchat, cartonDepasseBesoin, conditionnement, stockTheorique).
 // Inclure : <script src="nexus-campagne-achats.js?v=20261115-1000"></script> après nexus-campagne-stock.js
 // ============================================================
 (function (global) {
   'use strict';
-  const S = (typeof require === 'function' && typeof module !== 'undefined') ? require('./nexus-campagne-stock.js') : global.NexusCampagneStock;
+  const NODE = typeof require === 'function' && typeof module !== 'undefined';
+  const S = NODE ? require('./nexus-campagne-stock.js') : global.NexusCampagneStock;
+  const CV = NODE ? require('./nexus-campagne-ventes.js') : global.NexusCampagneVentes;
+  const M = NODE ? require('./nexus-import-moteur.js') : global.NexusImportMoteur;
   const JOUR_MS = 86400000;
   const COUVERTURE_DEFAUT = 15;
   const DELAI_DEFAUT = 7;
@@ -119,7 +122,64 @@
     return { code: 'achats', date: limite, couvert: nb === 0 };
   }
 
-  const api = { COUVERTURE_DEFAUT, DELAI_DEFAUT, reglages, dateLimiteCommande, statutDelai, joursPromoRestants, commandesValides, resteARecevoir, besoinAchat, alerteAchats, echeanceAchats };
+  // ---- Chargement et calcul PARTAGÉS : la page Achats, l'accueil des campagnes et le point du menu appellent exactement ce code. ----
+  function derniers(rows, k) { const m = new Map(); (rows || []).forEach(r => { const a = m.get(r[k]); if (!a || r.version > a.version) m.set(r[k], r); }); return Array.from(m.values()); }
+
+  // Lit toutes les données d'une campagne pour un site. client = client Supabase ; chargerAlias(client, site, 'campagne') = NexusImportDonnees.chargerAliasProduits.
+  async function chargerDonnees(client, site, campagne, chargerAlias) {
+    const q = t => client.from(t);
+    const r = await Promise.all([
+      q('campagne_objectifs_produits').select('article, version, objectif_valide_jour, ventes_ref_jour').eq('campagne_id', campagne.id).eq('site', site).order('version', { ascending: true }),
+      q('campagne_conditionnement_achat').select('article, version, mode, unites_par_carton').eq('site', site),
+      q('campagne_achats_reglages').select('version, jours_couverture_apres, delai_commande_jours').eq('site', site),
+      q('campagne_stock_depart').select('article, version, quantite, date_stock, source, a_confirmer').eq('campagne_id', campagne.id).eq('site', site),
+      q('campagne_livraisons').select('id, fournisseur, date_livraison, note, remplace_livraison_id, cree_le').eq('campagne_id', campagne.id).eq('site', site),
+      q('campagne_livraisons_annulations').select('livraison_id, motif').eq('site', site),
+      q('campagne_livraison_lignes').select('livraison_id, article, cartons, unites_par_carton, unites').eq('site', site),
+      q('campagne_ventes_points').select('batch_id, article, date_fin, importe_le, quantite').eq('campagne_id', campagne.id).eq('site', site),
+      q('campagne_ventes_annulations').select('batch_id, motif').eq('site', site),
+      q('campagne_commandes').select('id, fournisseur, date_commande, date_livraison_prevue, note, remplace_commande_id, cree_le').eq('campagne_id', campagne.id).eq('site', site).order('date_commande', { ascending: false }),
+      q('campagne_commande_lignes').select('commande_id, article, unites_commandees, cartons, unites_par_carton, recommande_unites').eq('site', site),
+      q('campagne_commandes_annulations').select('commande_id, motif').eq('site', site),
+      q('campagne_commandes_clotures').select('commande_id, motif').eq('site', site),
+      q('campagne_livraison_commandes').select('livraison_id, commande_id').eq('site', site),
+    ]);
+    r.forEach(x => { if (x.error) console.error(x.error); });
+    const d = r.map(x => x.data || []);
+    const alias = chargerAlias ? await chargerAlias(client, site, 'campagne') : [];
+    return { objectifs: derniers(d[0], 'article'), conds: d[1], reglages: d[2], depart: d[3], livraisons: d[4], livraisonsAnnulations: d[5], lignesLivraison: d[6],
+      points: d[7], ventesAnnulations: d[8], commandes: d[9], lignesCommande: d[10], commandesAnnulations: d[11], clotures: d[12], liens: d[13], alias };
+  }
+
+  // Recommandations d'une campagne à une date : le calcul unique de la page Achats.
+  function recommandationsCampagne({ campagne, donnees: d, aujourdhui }) {
+    const reg = reglages(d.reglages);
+    const lim = dateLimiteCommande(campagne.date_fin, campagne.date_debut, reg.delaiCommande);
+    const pc = CV.pointCourant(d.points, d.ventesAnnulations);
+    const resoudre = a => M.resoudreAlias(a, d.alias);
+    const stocks = S.stockTheorique({ articles: d.objectifs.map(o => o.article), stockDepart: d.depart, livraisons: d.livraisons, annulations: d.livraisonsAnnulations, lignesLivraison: d.lignesLivraison, ventes: pc ? pc.lignes : [], dateVentes: pc ? pc.date_fin : null, campagneDebut: campagne.date_debut, resoudre });
+    const reste = resteARecevoir({ commandes: d.commandes, annulations: d.commandesAnnulations, clotures: d.clotures, lignesCommande: d.lignesCommande, livraisons: d.livraisons, livraisonsAnnulations: d.livraisonsAnnulations, liens: d.liens, lignesLivraison: d.lignesLivraison });
+    const jr = pc ? joursPromoRestants(pc.date_fin, campagne.date_fin) : 0;
+    const reco = d.objectifs.map(ob => {
+      const st = stocks.find(s => s.article === ob.article) || { stock: null, fiable_pour_achat: false };
+      const rs = reste.get(cle(ob.article)) || { commande: 0, recu: 0, reste: 0, exces: 0 };
+      const cd = derniers(d.conds, 'article').find(x => x.article === ob.article) || null;
+      const cond = S.conditionnement(ob.article, cd);
+      const b = besoinAchat({ article: ob.article, objectifJour: ob.objectif_valide_jour, joursRestants: jr, ventesRefJour: ob.ventes_ref_jour, joursCouverture: reg.joursCouverture, stock: st.stock, fiable: !!st.fiable_pour_achat, resteARecevoir: rs.reste, cond, aujourdhui, limite: lim ? lim.date : null });
+      return { ob, cond, rs, b };
+    });
+    return { reg, lim, pc, auj: aujourdhui, reco };
+  }
+
+  // Ce que montrent le menu et l'accueil : alerte du point et échéance « Préparer les achats », issues des MÊMES recommandations.
+  function etatAchats({ campagne, donnees, aujourdhui }) {
+    const ctx = recommandationsCampagne({ campagne, donnees, aujourdhui });
+    const limite = ctx.lim ? ctx.lim.date : null;
+    const recs = ctx.reco.map(r => r.b);
+    return { ctx, alerte: alerteAchats({ aujourdhui, limite, recommandations: recs }), echeance: echeanceAchats({ limite, recommandations: recs }) };
+  }
+
+  const api = { COUVERTURE_DEFAUT, DELAI_DEFAUT, reglages, dateLimiteCommande, statutDelai, joursPromoRestants, commandesValides, resteARecevoir, besoinAchat, alerteAchats, echeanceAchats, chargerDonnees, recommandationsCampagne, etatAchats };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else global.NexusCampagneAchats = api;
 })(typeof window !== 'undefined' ? window : globalThis);

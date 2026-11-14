@@ -151,4 +151,61 @@ t('la tuile Mes opportunités d\u2019achat est disponible et mène à la page Ac
   assert.strictEqual(carte.picto, 'a-retenir');
   assert.ok(/NEXUS-Campagne-v2-Achats\.html/.test(fs.readFileSync('./NEXUS-Campagne-v2.html', 'utf8')));
 });
-console.log(n + ' tests OK');
+
+// ---- Un seul moteur pour la page Achats, l'accueil et le point du menu (consigne de Guardian, #160 6884997471). ----
+const m_fausseBase = tables => ({ from: nom => { const b = { select: () => b, eq: () => b, order: () => b, then: (ok, ko) => Promise.resolve({ data: tables[nom] || [], error: null }).then(ok, ko) }; return b; } });
+const m_CAMP = { id: 'c1', date_debut: '2026-11-01', date_fin: '2026-11-30' };
+const m_base = (commandes, lignesCmd) => ({
+  campagne_objectifs_produits: [
+    { article: 'Petromix A - 8P', version: 1, objectif_valide_jour: 4, ventes_ref_jour: 1.5 },
+    { article: 'Petromix B - 8P', version: 1, objectif_valide_jour: 4, ventes_ref_jour: 1.5 }],
+  campagne_stock_depart: [
+    { article: 'Petromix A - 8P', version: 1, quantite: 0, date_stock: '2026-11-19', source: 'comptage', a_confirmer: false },
+    { article: 'Petromix B - 8P', version: 1, quantite: 0, date_stock: '2026-11-19', source: 'comptage', a_confirmer: false }],
+  campagne_ventes_points: [
+    { batch_id: 'b1', article: 'Petromix A - 8P', date_fin: '2026-11-19', importe_le: '2026-11-19T10:00:00Z', quantite: 0 },
+    { batch_id: 'b1', article: 'Petromix B - 8P', date_fin: '2026-11-19', importe_le: '2026-11-19T10:00:00Z', quantite: 0 }],
+  campagne_commandes: commandes, campagne_commande_lignes: lignesCmd,
+});
+const m_lg = (a, u) => ({ commande_id: 'o1', article: a, unites_commandees: u, cartons: u / 8, unites_par_carton: 8, recommande_unites: u });
+const m_cmd1 = [{ id: 'o1', fournisseur: 'F', date_commande: '2026-11-19', date_livraison_prevue: null, note: null, remplace_commande_id: null, cree_le: '2026-11-19T10:00:00Z' }];
+const m_etat = async (tables, auj) => { const d = await A.chargerDonnees(m_fausseBase(tables), 'site', m_CAMP, async () => []); return { d, e: A.etatAchats({ campagne: m_CAMP, donnees: d, aujourdhui: auj }) }; };
+
+(async () => {
+  const sans = await m_etat(m_base([], []), '2026-11-20');
+  const un = await m_etat(m_base(m_cmd1, [m_lg('Petromix A - 8P', 400)]), '2026-11-20');
+  const deux = await m_etat(m_base(m_cmd1, [m_lg('Petromix A - 8P', 400), m_lg('Petromix B - 8P', 400)]), '2026-11-20');
+  t('deux articles fiables, un seul commandé : le point du menu est allumé', () => {
+    assert.ok(sans.e.ctx.reco.every(r => !r.b.indicatif), 'les deux recommandations sont fiables');
+    assert.strictEqual(un.e.alerte.actif, true);
+    assert.strictEqual(un.e.echeance.couvert, false);
+  });
+  t('deux articles fiables, les deux commandés : le point du menu est éteint', () => {
+    assert.strictEqual(deux.e.alerte.actif, false);
+    assert.strictEqual(deux.e.echeance.couvert, true);
+  });
+  const hors = await m_etat(m_base([], []), '2026-11-10');
+  const apres = await m_etat(m_base([], []), '2026-11-24');
+  t('hors de D7-7 à D7 inclus, le point est éteint', () => {
+    assert.strictEqual(hors.e.alerte.actif, false);
+    assert.strictEqual(apres.e.alerte.actif, false);
+    assert.strictEqual(sans.e.alerte.actif, true);
+  });
+  t('égalité : page Achats, accueil et menu obtiennent le même résultat des mêmes données', async () => {
+    const page = A.recommandationsCampagne({ campagne: m_CAMP, donnees: un.d, aujourdhui: '2026-11-20' });
+    assert.deepStrictEqual(page.reco.map(r => r.b), un.e.ctx.reco.map(r => r.b));
+    const accueil = A.etatAchats({ campagne: m_CAMP, donnees: un.d, aujourdhui: '2026-11-20' }).echeance;
+    assert.deepStrictEqual(accueil, un.e.echeance);
+    assert.strictEqual(un.e.alerte.actif, un.e.echeance.couvert === false);
+  });
+  t('le chargement est un seul code, appelé par les trois écrans', () => {
+    const page = fs.readFileSync('./NEXUS-Campagne-v2-Achats.html', 'utf8');
+    const accueil = fs.readFileSync('./NEXUS-Campagne-v2.html', 'utf8');
+    const menu = fs.readFileSync('./nexus-desktop.js', 'utf8');
+    assert.ok(/A\.chargerDonnees\(/.test(page) && /A\.recommandationsCampagne\(/.test(page));
+    assert.ok(/NexusCampagneAchats\.chargerDonnees\(/.test(accueil) && /NexusCampagneAchats\.etatAchats\(/.test(accueil) && !/COMMANDES_VALIDES/.test(accueil));
+    assert.ok(/A\.chargerDonnees\(/.test(menu) && /A\.etatAchats\(/.test(menu));
+    assert.ok(!/campagne_commandes'\)/.test(menu));
+  });
+  console.log(n + ' tests OK');
+})().catch(e => { console.error(e); process.exit(1); });

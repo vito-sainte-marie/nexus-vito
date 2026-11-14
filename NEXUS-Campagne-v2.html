@@ -416,9 +416,11 @@ a{color:inherit;}
 <script src="nexus-campagnes.js?v=20261113-2000"></script>
 <script src="nexus-simulateur-promo.js?v=20261114-1400"></script>
 <script src="nexus-mesure-compensation.js?v=20261113-1800"></script>
+<script src="nexus-import-moteur.js?v=20260904-0104"></script>
+<script src="nexus-import-donnees.js?v=20260904-0104"></script>
 <script src="nexus-campagne-ventes.js?v=20261114-1900"></script>
 <script src="nexus-campagne-stock.js?v=20261114-1900"></script>
-<script src="nexus-campagne-achats.js?v=20261115-1000"></script>
+<script src="nexus-campagne-achats.js?v=20261115-1200"></script>
 <script>
 const V = window.NexusVocab.campagne;
 const CV = window.NexusCampagneVentes;
@@ -429,7 +431,7 @@ let CATALOGUE_ARTICLES = [];
 let PRODUITS_ROWS = [];
 let IMPACTS = [];
 let DERNIERE_ACTU = new Map();
-let COMMANDES_VALIDES = new Map();
+let ECHEANCES_ACHATS = new Map();
 let CAMP_ROWS = [], PAN_ROWS = [], JOURS = [];
 let MES_TOUS = {mesures: new Map(), couts: new Map()};
 let BILAN_COURANT = null, BILAN_OUVERT = false;
@@ -878,8 +880,8 @@ function mesureEntamee(i){ const l = MES_TOUS && MES_TOUS.mesures && MES_TOUS.me
 const PENCIL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
 function jmaCourt(iso){ const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || '')); return m ? m[3] + '/' + m[2] : String(iso || ''); }
 function prochaineLigne(i){
-  const E = V.enCours, lim = NexusCampagneAchats.dateLimiteCommande(i.dateFin, i.dateDebut, NexusCampagneAchats.DELAI_DEFAUT),
-    e = CV.prochaineEcheance({campagneFin: i.dateFin, dernierImportFin: DERNIERE_ACTU.get(i.campagneId) || null, autres: lim ? [{code: 'achats', date: lim.date, couvert: (COMMANDES_VALIDES.get(i.campagneId) || 0) > 0}] : []});
+  const E = V.enCours, ech = ECHEANCES_ACHATS.get(i.campagneId),
+    e = CV.prochaineEcheance({campagneFin: i.dateFin, dernierImportFin: DERNIERE_ACTU.get(i.campagneId) || null, autres: ech && ech.date ? [ech] : []});
   if (!e) return '<div class="ec-rang prochaine"><span class="cle">' + esc(E.labelProchaine) + '</span><span class="val">' + esc(E.rienAFaire) + '</span></div>';
   return '<div class="ec-rang prochaine"><span class="cle">' + esc(E.labelProchaine) + '</span><span class="val">' + esc((E.echeances[e.code] || E.prochaineActualiser) + ' · ' + fmtJourMois(e.date)) + '</span></div>';
 }
@@ -1193,10 +1195,13 @@ async function chargerEtAfficher(){
     (pts.data || []).forEach(p => { if (annules.has(p.batch_id)) return; const c = DERNIERE_ACTU.get(p.campagne_id); if (!c || p.date_fin > c) DERNIERE_ACTU.set(p.campagne_id, p.date_fin); });
   } catch (e) { console.error('campagne_ventes_points', e); }
   try {
-    const cmd = await nexusClient.from('campagne_commandes').select('id, campagne_id, remplace_commande_id').eq('site', SITE_ID);
-    const can = await nexusClient.from('campagne_commandes_annulations').select('commande_id').eq('site', SITE_ID);
-    COMMANDES_VALIDES = new Map();
-    NexusCampagneAchats.commandesValides(cmd.data || [], can.data || []).forEach(c => COMMANDES_VALIDES.set(c.campagne_id, (COMMANDES_VALIDES.get(c.campagne_id) || 0) + 1));
+    // Même moteur et mêmes données que la page Achats et le point du menu (NexusCampagneAchats.etatAchats).
+    ECHEANCES_ACHATS = new Map();
+    const dj = new Date(), auj = dj.getFullYear() + '-' + String(dj.getMonth() + 1).padStart(2, '0') + '-' + String(dj.getDate()).padStart(2, '0');
+    for (const c of (camp.data || []).filter(c => c.date_fin >= auj)) {
+      const donnees = await NexusCampagneAchats.chargerDonnees(nexusClient, SITE_ID, c, NexusImportDonnees.chargerAliasProduits);
+      ECHEANCES_ACHATS.set(c.id, NexusCampagneAchats.etatAchats({campagne: c, donnees, aujourdhui: auj}).echeance);
+    }
   } catch (e) { console.error('campagne_commandes', e); }
   IMPACTS = NC.analyserCampagnes(camp.data || [], jours);
   IMPACTS.forEach(i => {

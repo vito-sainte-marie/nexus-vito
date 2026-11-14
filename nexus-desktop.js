@@ -555,9 +555,18 @@ async function nexusVerifierAlertesFdj() {
   } catch (e) { console.error('Vérification alertes FDJ (sidebar):', e); }
 }
 
-// Point « achats » du menu Campagnes (lot C4) : de D7 - 7 à D7 inclus, D7 = dernier jour du mois de fin de promotion moins 7 jours,
-// tant qu'une promotion en cours ou à venir n'a aucune commande valide. Mesure légère (approximation de « recommandation fiable non
-// couverte ») : le détail article par article reste sur NEXUS-Campagne-v2-Achats.html. Jamais bloquant ; rien n'est envoyé à un fournisseur.
+// Point « achats » du menu Campagnes (lot C4). Il appelle le MÊME moteur (nexus-campagne-achats.js) avec les MÊMES données que la page
+// Achats : il s'allume de D7 - 7 à D7 inclus tant qu'une recommandation fiable n'est pas couverte (NexusCampagneAchats.etatAchats).
+// Seule la fenêtre de dates (la précondition de l'alerte) est testée avant de charger les scripts, pour ne rien charger hors période.
+// Jamais bloquant ; rien n'est envoyé à un fournisseur.
+function nexusChargerScript(src) {
+  return new Promise((ok, ko) => {
+    if (document.querySelector('script[data-nexus-dyn="' + src + '"]')) return ok();
+    const s = document.createElement('script');
+    s.src = src; s.dataset.nexusDyn = src; s.onload = () => ok(); s.onerror = () => ko(new Error(src));
+    document.head.appendChild(s);
+  });
+}
 async function nexusVerifierAlerteAchats() {
   try {
     if (typeof nexusClient === 'undefined') return;
@@ -567,7 +576,8 @@ async function nexusVerifierAlerteAchats() {
     if (!employee || !['manager', 'gerant'].includes(employee.role)) return;
     const lien = document.querySelector('.nexus-sidebar-link[href="NEXUS-Campagne-v2.html"]');
     if (!lien) return;
-    const jour = new Date().toISOString().slice(0, 10);
+    const d = new Date();
+    const jour = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
     const { data: camps } = await nexusClient.from('campagnes_nexus').select('id, date_debut, date_fin').eq('site', employee.site_id).gte('date_fin', jour);
     const proches = (camps || []).filter(c => {
       const f = new Date(c.date_fin + 'T00:00:00Z');
@@ -576,12 +586,14 @@ async function nexusVerifierAlerteAchats() {
       return j >= 0 && j <= 7;
     });
     if (!proches.length) return;
-    const { data: cmd } = await nexusClient.from('campagne_commandes').select('id, campagne_id, remplace_commande_id').eq('site', employee.site_id);
-    const { data: ann } = await nexusClient.from('campagne_commandes_annulations').select('commande_id').eq('site', employee.site_id);
-    const annule = new Set((ann || []).map(a => a.commande_id));
-    const valides = (cmd || []).filter(c => !annule.has(c.id));
-    const sansCommande = proches.filter(c => !valides.some(v => v.campagne_id === c.id));
-    if (!sansCommande.length) return;
+    for (const src of ['nexus-import-moteur.js?v=20260904-0104', 'nexus-import-donnees.js?v=20260904-0104', 'nexus-campagne-ventes.js?v=20261114-1900', 'nexus-campagne-stock.js?v=20261114-1900', 'nexus-campagne-achats.js?v=20261115-1200']) await nexusChargerScript(src);
+    const A = window.NexusCampagneAchats, D = window.NexusImportDonnees;
+    let actif = false;
+    for (const c of proches) {
+      const donnees = await A.chargerDonnees(nexusClient, employee.site_id, c, D.chargerAliasProduits);
+      if (A.etatAchats({ campagne: c, donnees, aujourdhui: jour }).alerte.actif) { actif = true; break; }
+    }
+    if (!actif || lien.querySelector('.nexus-sidebar-dot')) return;
     const dot = document.createElement('span');
     dot.className = 'nexus-sidebar-dot';
     dot.title = 'Achats de promotion à préparer';
