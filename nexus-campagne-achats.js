@@ -27,7 +27,7 @@
   function reglages(lignes) {
     const l = (lignes || []).slice().sort((a, b) => Number(b.version) - Number(a.version))[0];
     return {
-      joursCouverture: l && Number(l.jours_couverture_apres) > 0 ? Number(l.jours_couverture_apres) : COUVERTURE_DEFAUT,
+      joursCouverture: l && Number(l.jours_couverture_apres) >= 0 ? Number(l.jours_couverture_apres) : COUVERTURE_DEFAUT,
       delaiCommande: l && Number(l.delai_commande_jours) >= 0 ? Number(l.delai_commande_jours) : DELAI_DEFAUT,
       version: l ? Number(l.version) : 0,
     };
@@ -118,8 +118,10 @@
   // Entrée pour prochaineEcheance(..., autres) : la carte affiche « Préparer les achats » à la date limite.
   function echeanceAchats({ limite, recommandations }) {
     if (!limite) return null;
-    const nb = (recommandations || []).filter(r => !r.indicatif && !r.hors_delai && r.a_commander > 0).length;
-    return { code: 'achats', date: limite, couvert: nb === 0 };
+    // Tant qu'une recommandation chiffrée reste non commandée (fiable OU indicative) et que la date limite n'est pas passée, la carte garde « Préparer les achats ».
+    const restantes = (recommandations || []).filter(r => !r.hors_delai && r.a_commander > 0);
+    const fiables = restantes.filter(r => !r.indicatif).length;
+    return { code: 'achats', date: limite, couvert: restantes.length === 0, aConfirmer: restantes.length > 0 && fiables === 0 };
   }
 
   // ---- Chargement et calcul PARTAGÉS : la page Achats, l'accueil des campagnes et le point du menu appellent exactement ce code. ----
@@ -179,7 +181,21 @@
     return { ctx, alerte: alerteAchats({ aujourdhui, limite, recommandations: recs }), echeance: echeanceAchats({ limite, recommandations: recs }) };
   }
 
-  const api = { COUVERTURE_DEFAUT, DELAI_DEFAUT, reglages, dateLimiteCommande, statutDelai, joursPromoRestants, commandesValides, resteARecevoir, besoinAchat, alerteAchats, echeanceAchats, chargerDonnees, recommandationsCampagne, etatAchats };
+  // Saisie d'une commande : en cartons si le conditionnement est connu et réel, sinon en unités.
+  function modeSaisie(cond) {
+    const upc = cond && Number(cond.unitesParCarton) > 0 ? Number(cond.unitesParCarton) : null;
+    if (cond && !cond.aRenseigner && cond.source !== 'a_l_unite' && upc) return { mode: 'cartons', upc };
+    return { mode: 'unites', upc };
+  }
+  // Ligne enregistrée : un article à l'unité ou sans conditionnement n'a jamais de cartons.
+  function ligneCommande({ cond, saisie, article, recommande }) {
+    const m = modeSaisie(cond), v = Number(saisie);
+    const rec = recommande == null ? null : recommande;
+    if (m.mode === 'cartons') return { article, unites_commandees: v * m.upc, cartons: v, unites_par_carton: m.upc, recommande_unites: rec };
+    const upc = cond && cond.source === 'a_l_unite' ? 1 : null;
+    return { article, unites_commandees: v, cartons: null, unites_par_carton: upc, recommande_unites: rec };
+  }
+  const api = { modeSaisie, ligneCommande, COUVERTURE_DEFAUT, DELAI_DEFAUT, reglages, dateLimiteCommande, statutDelai, joursPromoRestants, commandesValides, resteARecevoir, besoinAchat, alerteAchats, echeanceAchats, chargerDonnees, recommandationsCampagne, etatAchats };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else global.NexusCampagneAchats = api;
 })(typeof window !== 'undefined' ? window : globalThis);

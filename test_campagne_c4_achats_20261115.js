@@ -207,5 +207,42 @@ const m_etat = async (tables, auj) => { const d = await A.chargerDonnees(m_fauss
     assert.ok(/A\.chargerDonnees\(/.test(menu) && /A\.etatAchats\(/.test(menu));
     assert.ok(!/campagne_commandes'\)/.test(menu));
   });
+  // Corrections de revue (Guardian, 6885148762)
+  t('réglage : une couverture de 0 jour reste 0, elle n’est pas remplacée par 15', () => {
+    assert.strictEqual(A.reglages([{ version: 1, jours_couverture_apres: 0, delai_commande_jours: 7 }]).joursCouverture, 0);
+  });
+  t('tout indicatif : l’échéance reste affichée « à confirmer », le point du menu reste éteint', () => {
+    const rec = [{ indicatif: true, hors_delai: false, a_commander: 8 }, { indicatif: true, hors_delai: false, a_commander: null }];
+    const e = A.echeanceAchats({ limite: '2026-11-23', recommandations: rec });
+    assert.strictEqual(e.couvert, false); assert.strictEqual(e.aConfirmer, true);
+    assert.strictEqual(A.alerteAchats({ aujourdhui: '2026-11-20', limite: { date: '2026-11-23' }, recommandations: rec }).actif, false);
+    assert.strictEqual(A.echeanceAchats({ limite: '2026-11-23', recommandations: [{ indicatif: false, a_commander: 5 }] }).aConfirmer, false);
+    assert.strictEqual(A.echeanceAchats({ limite: '2026-11-23', recommandations: [{ indicatif: true, a_commander: 0 }] }).couvert, true);
+  });
+  t('article à l’unité : la ligne enregistrée n’a pas de cartons', () => {
+    const l = A.ligneCommande({ cond: S.conditionnement('Article seul', { 'article seul': 1 }) || { source: 'a_l_unite', unitesParCarton: 1 }, saisie: 559, article: 'X', recommande: 559 });
+    const u = A.ligneCommande({ cond: { source: 'a_l_unite', unitesParCarton: 1, aRenseigner: false }, saisie: 559, article: 'X', recommande: 559 });
+    assert.strictEqual(u.cartons, null); assert.strictEqual(u.unites_commandees, 559); assert.strictEqual(u.unites_par_carton, 1);
+    assert.ok(l.cartons == null || l.cartons > 0);
+    const inconnu = A.ligneCommande({ cond: S.conditionnement('Sans suffixe', null), saisie: 10, article: 'Y', recommande: null });
+    assert.strictEqual(inconnu.cartons, null); assert.strictEqual(inconnu.unites_par_carton, null);
+  });
+  t('article en carton : la saisie en cartons donne les unités', () => {
+    assert.deepStrictEqual(A.modeSaisie(cond8), { mode: 'cartons', upc: 8 });
+    const l = A.ligneCommande({ cond: cond8, saisie: 7, article: 'Tonic - 8P', recommande: 56 });
+    assert.strictEqual(l.cartons, 7); assert.strictEqual(l.unites_commandees, 56); assert.strictEqual(l.unites_par_carton, 8);
+  });
+  t('la page : libellé du menu, pas de « carton de 1 », une ligne repliable par article, saisie en cartons', () => {
+    const page = fs.readFileSync('./NEXUS-Campagne-v2-Achats.html', 'utf8');
+    assert.ok(/\$\('lienMenu'\)\.textContent = V\.menu \|\| '☰ Menu'/.test(page));
+    assert.ok(/b\.cartons == null/.test(page));
+    assert.ok(!/<table class="vt-table">/.test(page) && /<details class="vt-prod"/.test(page));
+    assert.ok(/A\.ligneCommande\(/.test(page) && /A\.modeSaisie\(/.test(page));
+  });
+  t('le point du menu suit le délai de commande du site', () => {
+    const menu = fs.readFileSync('./nexus-desktop.js', 'utf8');
+    assert.ok(/campagne_achats_reglages/.test(menu) && /delai_commande_jours/.test(menu));
+    assert.ok(!/- 7 \* 86400000/.test(menu));
+  });
   console.log(n + ' tests OK');
 })().catch(e => { console.error(e); process.exit(1); });

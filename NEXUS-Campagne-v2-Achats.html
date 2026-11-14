@@ -448,6 +448,7 @@ function textePrevision(r){
   let t;
   if (b.a_commander === 0) t = esc(P.rienACommander);
   else if (c.aRenseigner || !c.unitesParCarton) t = esc(P.uniteLibelle(fmt(b.a_commander))) + '<div class="vt-aide">' + esc(P.conditionnementARenseigner) + '</div>';
+  else if (b.cartons == null) t = esc(P.uniteLibelle(fmt(b.a_commander)));
   else t = esc(P.cartonsDe(fmt(b.cartons), fmt(c.unitesParCarton))) + '<div class="vt-aide">' + esc(P.uniteLibelle(fmt(b.a_commander))) + '</div>';
   if (b.indicatif) t = '<span style="opacity:.6">' + t + '</span><div class="vt-aide">' + esc(P.indicatif(b.motif_indicatif)) + '</div>';
   if (b.alerte_carton && !b.indicatif) t += '<div class="vt-aide vt-alerte" data-alerte-carton>' + esc(P.alerteCarton) + '</div>';
@@ -467,9 +468,17 @@ function peindreReco(ctx){
   msg('acLimite', l, !!lim && (lim.aVerifier || A.statutDelai(ctx.auj, lim.date) === 'hors_delai'));
   msg('acVentesAu', ctx.pc ? P.ventesAu(CS.dateLongue(ctx.pc.date_fin)) : P.ventesAucune);
   if (!RECO.length) { $('acReco').innerHTML = '<div class="vt-aide">' + esc(P.aucunArticle) + '</div>'; return; }
-  $('acReco').innerHTML = '<table class="vt-table"><thead><tr><th>' + esc(P.colArticle) + '</th><th>' + esc(P.colReco) + '</th><th class="n">' + esc(P.colCommande) + '</th><th class="n">' + esc(P.colRecu) + '</th><th class="n">' + esc(P.colReste) + '</th></tr></thead><tbody>'
-    + RECO.map(r => '<tr data-article="' + esc(r.ob.article) + '"><td>' + esc(r.ob.article) + (r.b.hors_delai ? '<div class="vt-aide vt-alerte">' + esc(P.limiteHorsDelai) + '</div>' : '') + (r.rs.exces > 0 ? '<div class="vt-aide vt-alerte" data-exces>' + esc(P.excesRecu(fmt(r.rs.exces))) + '</div>' : '') + '</td><td>' + textePrevision(r) + '</td><td class="n">' + fmt(r.rs.commande) + '</td><td class="n">' + fmt(r.rs.recu) + '</td><td class="n">' + fmt(r.rs.reste) + '</td></tr>').join('')
-    + '</tbody></table>';
+  $('acReco').innerHTML = RECO.map(r => {
+    const b = r.b, c = r.cond;
+    const court = b.a_commander == null ? '·' : (b.a_commander === 0 ? P.rienACommander : (b.cartons != null && !c.aRenseigner && c.unitesParCarton ? P.cartonsCourt(fmt(b.cartons)) : P.uniteLibelle(fmt(b.a_commander))));
+    return '<details class="vt-prod" data-article="' + esc(r.ob.article) + '"><summary><span class="vt-nom">' + esc(r.ob.article) + '</span><span class="vt-n">' + esc(court) + '</span></summary>'
+      + '<div class="vt-aide">' + esc(P.colReco) + '</div>' + textePrevision(r)
+      + (b.hors_delai ? '<div class="vt-aide vt-alerte">' + esc(P.limiteHorsDelai) + '</div>' : '')
+      + (r.rs.exces > 0 ? '<div class="vt-aide vt-alerte" data-exces>' + esc(P.excesRecu(fmt(r.rs.exces))) + '</div>' : '')
+      + '<div class="vt-r"><span>' + esc(P.colCommande) + '</span><b>' + fmt(r.rs.commande) + '</b></div>'
+      + '<div class="vt-r"><span>' + esc(P.colRecu) + '</span><b>' + fmt(r.rs.recu) + '</b></div>'
+      + '<div class="vt-r"><span>' + esc(P.colReste) + '</span><b>' + fmt(r.rs.reste) + '</b></div></details>';
+  }).join('');
 }
 
 // Lignes du formulaire : préremplies pour les seuls articles fiables (preremplir). En remplacement, reprises de la commande remplacée.
@@ -479,11 +488,13 @@ function peindreLignes(){
   $('acLignes').innerHTML = RECO.map((r, i) => {
     const rep = repris.get(cleA(r.ob.article));
     let val = '';
-    if (REMPLACE_ID) val = rep ? String(rep.unites_commandees) : '';
-    else if (r.b.preremplir) val = String(r.b.a_commander);
+    const m = A.modeSaisie(r.cond), car = m.mode === 'cartons';
+    if (REMPLACE_ID) val = rep ? String(car ? (rep.cartons != null ? rep.cartons : Math.round(rep.unites_commandees / m.upc * 100) / 100) : rep.unites_commandees) : '';
+    else if (r.b.preremplir) val = String(car ? Math.round(r.b.a_commander / m.upc * 100) / 100 : r.b.a_commander);
     const rec = r.b.a_commander != null ? r.b.a_commander : null;
     return '<div class="lv-ligne" data-i="' + i + '"><div class="lv-haut"><h3>' + esc(r.ob.article) + '</h3>'
-      + '<label>' + esc(P.colQuantite) + '<input type="number" inputmode="decimal" min="0" step="1" data-champ="quantite" value="' + esc(val) + '"></label>'
+      + '<label>' + esc(car ? P.colQuantiteCartons : P.colQuantite) + '<input type="number" inputmode="decimal" min="0" step="' + (car ? '0.01' : '1') + '" data-champ="quantite" value="' + esc(val) + '"></label>'
+      + (car ? '<div class="lv-calc" data-unites>' + esc(val !== '' ? P.unitesCalculees(fmt(Number(val) * m.upc)) : '') + '</div>' : '')
       + '<div class="lv-calc">' + (rec != null ? esc(P.recommande(fmt(rec))) : '') + '</div></div></div>';
   }).join('');
 }
@@ -521,9 +532,8 @@ async function enregistrerCommande(){
     const r = RECO[Number(el.dataset.i)];
     const u = num(el.querySelector('[data-champ=quantite]').value);
     if (u == null || !(u > 0)) return;
-    const c = r.cond;
-    const upc = c && !c.aRenseigner && c.unitesParCarton ? c.unitesParCarton : null;
-    lignes.push({site: SITE_ID, article: r.ob.article, unites_commandees: u, cartons: upc ? Math.round(u / upc * 100) / 100 : null, unites_par_carton: upc, recommande_unites: r.b.a_commander});
+    const l = A.ligneCommande({cond: r.cond, saisie: u, article: r.ob.article, recommande: r.b.a_commander});
+    l.site = SITE_ID; lignes.push(l);
   });
   if (!lignes.length) { msg('acMsg', P.commandeVide, true); return; }
   const btn = $('acEnr'); btn.disabled = true;
@@ -574,6 +584,11 @@ $('acHistoCorps').addEventListener('click', e => {
   else if (b.dataset.confirmer) confirmerAction(b.dataset.confirmer, b.dataset.id);
   else if (b.dataset.renoncer) { const z = document.querySelector('[data-zone="' + b.dataset.renoncer + '"]'); if (z) z.innerHTML = ''; }
 });
+$('acLignes').addEventListener('input', e => {
+  const el = e.target.closest('.lv-ligne'); if (!el || !el.querySelector('[data-unites]')) return;
+  const m = A.modeSaisie(RECO[Number(el.dataset.i)].cond), v = num(e.target.value);
+  el.querySelector('[data-unites]').textContent = v != null && v >= 0 ? P.unitesCalculees(fmt(v * m.upc)) : '';
+});
 $('acEnr').addEventListener('click', enregistrerCommande);
 $('acRenoncerRempl').addEventListener('click', renoncerRemplacement);
 
@@ -585,7 +600,7 @@ async function choisir(id){
 
 async function demarrer(){
   $('hEyebrow').textContent = P.eyebrow; $('hTitre').textContent = P.titre; $('hSous').textContent = P.sous;
-  $('lienRetour').textContent = P.retour; $('acChoisirLib').textContent = P.choisir;
+  $('lienMenu').textContent = V.menu || '☰ Menu'; $('lienRetour').textContent = P.retour; $('acChoisirLib').textContent = P.choisir;
   $('acT1').textContent = P.etapeReco; $('acT2').textContent = P.etapeCommande; $('acT3').textContent = P.etapeHisto;
   $('acFourLib').textContent = P.fournisseur; $('acDateLib').textContent = P.dateCommande; $('acPrevueLib').textContent = P.datePrevue; $('acNoteLib').textContent = P.note;
   $('acEnr').textContent = P.enregistrer; $('acRenoncerRempl').textContent = P.renoncer;

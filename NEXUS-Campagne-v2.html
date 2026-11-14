@@ -883,7 +883,7 @@ function prochaineLigne(i){
   const E = V.enCours, ech = ECHEANCES_ACHATS.get(i.campagneId),
     e = CV.prochaineEcheance({campagneFin: i.dateFin, dernierImportFin: DERNIERE_ACTU.get(i.campagneId) || null, autres: ech && ech.date ? [ech] : []});
   if (!e) return '<div class="ec-rang prochaine"><span class="cle">' + esc(E.labelProchaine) + '</span><span class="val">' + esc(E.rienAFaire) + '</span></div>';
-  return '<div class="ec-rang prochaine"><span class="cle">' + esc(E.labelProchaine) + '</span><span class="val">' + esc((E.echeances[e.code] || E.prochaineActualiser) + ' · ' + fmtJourMois(e.date)) + '</span></div>';
+  return '<div class="ec-rang prochaine"><span class="cle">' + esc(E.labelProchaine) + '</span><span class="val">' + esc((E.echeances[e.code] || E.prochaineActualiser) + ' · ' + fmtJourMois(e.date) + (e.code === 'achats' && ech && ech.aConfirmer && E.stockAConfirmer ? E.stockAConfirmer : '')) + '</span></div>';
 }
 function majBoutonActualiser(){
   const b = $('btnActualiser'), c = document.querySelector('#enCours .ec[data-campagne]');

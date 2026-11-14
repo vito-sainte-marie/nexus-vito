@@ -531,7 +531,8 @@
       prochaineActualiser: 'Actualiser mes ventes',
       labelDerniere: 'Dernière actualisation des ventes', labelProchaine: 'Prochaine action', aucune: 'Aucune',
       rienAFaire: 'Aucune pour l’instant',
-      echeances: { actualiser_j14: 'Actualiser mes ventes', actualiser_j7: 'Actualiser mes ventes', actualiser_fin: 'Actualiser mes ventes', achats: 'Préparer les achats' }
+      echeances: { actualiser_j14: 'Actualiser mes ventes', actualiser_j7: 'Actualiser mes ventes', actualiser_fin: 'Actualiser mes ventes', achats: 'Préparer les achats' },
+      stockAConfirmer: ' (stock à confirmer)'
     },
     historiqueAucune: 'Aucune autre campagne terminée pour l’instant.',
     enPreparation: 'En préparation',
@@ -664,7 +665,7 @@
       rienACommander: 'Rien à commander pour cet article.',
       aucunArticle: 'Aucun article dans cette promotion.',
       fournisseur: 'Fournisseur', dateCommande: 'Date de commande', datePrevue: 'Livraison prévue (facultatif)', note: 'Note (facultatif)',
-      colQuantite: 'Quantité commandée (unités)', recommande: function (n) { return 'recommandé : ' + n; },
+      colQuantite: 'Quantité commandée (unités)', colQuantiteCartons: 'Cartons commandés', cartonsCourt: function (n) { return n + ' carton' + (Number(String(n).replace(',', '.')) > 1 ? 's' : ''); }, unitesCalculees: function (n) { return '= ' + n + ' unité' + (n > 1 ? 's' : ''); }, detailArticle: 'Commandé, reçu, reste', recommande: function (n) { return 'recommandé : ' + n; },
       enregistrer: 'Enregistrer cette commande',
       commandeFaite: function (n) { return 'Commande enregistrée (' + n + ' ligne' + (n > 1 ? 's' : '') + '). Elle n’a pas été envoyée au fournisseur.'; },
       commandeEchec: 'L’enregistrement a échoué. Rien n’a été compté, réessayez.',

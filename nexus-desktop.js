@@ -579,9 +579,13 @@ async function nexusVerifierAlerteAchats() {
     const d = new Date();
     const jour = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
     const { data: camps } = await nexusClient.from('campagnes_nexus').select('id, date_debut, date_fin').eq('site', employee.site_id).gte('date_fin', jour);
+    // Délai de commande du site (dernière version des réglages d'achat), comme le moteur ; 7 jours à défaut.
+    const { data: regs } = await nexusClient.from('campagne_achats_reglages').select('version, delai_commande_jours').eq('site', employee.site_id);
+    const dernier = (regs || []).reduce((m, r) => (!m || r.version > m.version ? r : m), null);
+    const delai = dernier && Number(dernier.delai_commande_jours) >= 0 ? Number(dernier.delai_commande_jours) : 7;
     const proches = (camps || []).filter(c => {
       const f = new Date(c.date_fin + 'T00:00:00Z');
-      const d7 = Date.UTC(f.getUTCFullYear(), f.getUTCMonth() + 1, 0) - 7 * 86400000;
+      const d7 = Date.UTC(f.getUTCFullYear(), f.getUTCMonth() + 1, 0) - delai * 86400000;
       const j = Math.round((d7 - new Date(jour + 'T00:00:00Z').getTime()) / 86400000);
       return j >= 0 && j <= 7;
     });
