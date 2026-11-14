@@ -78,9 +78,19 @@ a{color:inherit;}
 .ligne-ajout input{flex:1; min-width:0;}
 .sugg{display:none; margin-top:6px; border:1px solid var(--t-line); border-radius:8px; background:var(--t-raised); overflow:hidden;}
 .sugg.open{display:block;}
-.sugg button{display:block; width:100%; text-align:left; background:none; border:0; border-bottom:1px solid var(--t-line); padding:12px; min-height:44px; color:var(--t-text); font-family:var(--t-sans); font-size:13.5px; cursor:pointer; overflow-wrap:anywhere;}
-.sugg button:last-child{border-bottom:0;}
-.sugg button.actif, .sugg button:hover{background:color-mix(in srgb, var(--t-cyan) 12%, transparent);}
+.sugg-liste{max-height:264px; overflow-y:auto;}
+.sugg-ligne{display:flex; align-items:center; gap:10px; width:100%; box-sizing:border-box; border-bottom:1px solid var(--t-line); padding:0 12px; height:44px; color:var(--t-text); font-family:var(--t-sans); font-size:13.5px; cursor:pointer;}
+.sugg-ligne input{width:20px; height:20px; flex:none; margin:0;}
+.sugg-ligne span{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.sugg-ligne.actif, .sugg-ligne:hover{background:color-mix(in srgb, var(--t-cyan) 12%, transparent);}
+.sugg-pied{padding:8px 12px;}
+.sugg-total{display:block; font-size:12px; color:var(--t-muted, var(--t-text)); margin-bottom:6px;}
+.sugg-pied .btn{margin-top:0;}
+.sugg-pied .btn:disabled{opacity:.5; cursor:default;}
+.reprise{display:none; margin-top:10px;}
+.reprise.open{display:block;}
+.reprise .groupe{margin-top:10px;}
+.reprise .pill{min-height:44px;}
 .chips{display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;}
 .chips .vide{font-size:12px; color:var(--t-mid);}
 .chip{display:inline-flex; align-items:center; gap:6px; font-size:12.5px; padding:6px 6px 6px 12px; border-radius:18px; background:var(--t-raised); border:1px solid var(--t-line); overflow-wrap:anywhere;}
@@ -243,6 +253,11 @@ button.tuile:hover, button.tuile:focus-visible{border-color:var(--t-cyan);}
 
   <div><button type="button" class="btn" id="btnNouvelle"></button></div>
 
+  <section class="carte reprise" id="brouillonReprise" role="group" aria-live="polite">
+    <div id="brouillonTexte"></div>
+    <div class="groupe"><button type="button" class="pill" id="btnReprendre"></button><button type="button" class="pill" id="btnVierge"></button></div>
+  </section>
+
   <section class="carte promo-form" id="promoForm" aria-label="Nouvelle promotion">
     <div class="champ"><label for="promoNom" id="lNom"></label><input type="text" id="promoNom" maxlength="120" autocomplete="off"></div>
     <div class="champ dates">
@@ -397,6 +412,7 @@ function peindreTextesFixes(){
   $('lType').textContent = V.formType; $('lProduits').textContent = V.formProduits;
   $('promoProduitInput').placeholder = V.formProduitsSaisie;
   $('btnAjouterProduit').textContent = V.formAjouter;
+  $('btnReprendre').textContent = V.brouillonReprendre; $('btnVierge').textContent = V.brouillonVierge;
   $('lNature').textContent = V.formNature; $('lObjectif').textContent = V.formObjectif;
   $('promoObjectifLibre').placeholder = V.formObjectifLibre;
   $('btnValider').textContent = V.formValider;
@@ -434,13 +450,101 @@ function peindreTextesFixes(){
 /* ---------- Formulaire ---------- */
 const etatForm = { type: null, nature: null, objectif: null };
 let produitsSelectionnes = [];
-const MAX_SUGGESTIONS = 6;
+let selectionSugg = {};
+const nbSelection = () => Object.keys(selectionSugg).length;
+let suggActif = -1, suggNaviguee = false;
 
+/* Brouillon local : reprise d'une saisie interrompue (stockage de l'appareil, jamais la base). */
+const BROUILLON_DUREE_MS = 24 * 3600 * 1000;
+function brouillonCle(site, empId){ return 'nexus_campagne_brouillon_' + site + '_' + empId; }
+function brouillonVide(d){
+  return !(d.nom || d.dateDebut || d.dateFin || d.type || d.nature || d.objectif || d.objectifLibre || (d.produits && d.produits.length));
+}
+function brouillonLire(stock, cle, maintenant){
+  try {
+    const brut = stock.getItem(cle);
+    if (!brut) return null;
+    const d = JSON.parse(brut);
+    if (!d || typeof d.t !== 'number' || maintenant - d.t >= BROUILLON_DUREE_MS){
+      try { stock.removeItem(cle); } catch (e) {}
+      return null;
+    }
+    return d;
+  } catch (e) { return null; }
+}
+function brouillonEcrire(stock, cle, d, maintenant){
+  try {
+    if (brouillonVide(d)){ stock.removeItem(cle); return false; }
+    stock.setItem(cle, JSON.stringify(Object.assign({}, d, { t: maintenant })));
+    return true;
+  } catch (e) { return false; }
+}
+function brouillonEffacer(stock, cle){ try { stock.removeItem(cle); } catch (e) {} }
+function brouillonQuestion(d, textes){
+  const dt = new Date(d.t), z = n => String(n).padStart(2, '0');
+  const nom = d.nom ? textes.brouillonNom.replace('{nom}', d.nom) : '';
+  return textes.brouillonQuestion.replace('{date}', z(dt.getDate()) + '/' + z(dt.getMonth() + 1))
+    .replace('{heure}', z(dt.getHours()) + ' h ' + z(dt.getMinutes())).replace('{nom}', nom);
+}
+function listeSuggestions(catalogue, q, deja){
+  q = String(q || '').trim().toLowerCase();
+  if (!q) return [];
+  const libres = catalogue.filter(a => !deja.has(a.toLowerCase()));
+  const debut = libres.filter(a => a.toLowerCase().startsWith(q));
+  const contient = libres.filter(a => !a.toLowerCase().startsWith(q) && a.toLowerCase().includes(q));
+  return debut.concat(contient);
+}
+function stockage(){ try { return window.localStorage || null; } catch (e) { return null; } }
+function cleBrouillonCourante(){ return brouillonCle(SITE_ID, EMPLOYEE && EMPLOYEE.id); }
+function etatBrouillon(){
+  return { nom: $('promoNom').value, dateDebut: $('promoDateDebut').value, dateFin: $('promoDateFin').value,
+    type: etatForm.type, nature: etatForm.nature, objectif: etatForm.objectif,
+    objectifLibre: $('promoObjectifLibre').value, produits: produitsSelectionnes.slice() };
+}
+function sauverBrouillon(){
+  const st = stockage(); if (!st) return;
+  brouillonEcrire(st, cleBrouillonCourante(), etatBrouillon(), Date.now());
+}
+function effacerBrouillon(){ const st = stockage(); if (st) brouillonEffacer(st, cleBrouillonCourante()); }
+function remplirDepuis(d){
+  $('promoNom').value = d.nom || ''; $('promoDateDebut').value = d.dateDebut || ''; $('promoDateFin').value = d.dateFin || '';
+  $('promoObjectifLibre').value = d.objectifLibre || '';
+  ['type', 'nature', 'objectif'].forEach(g => {
+    etatForm[g] = d[g] || null;
+    document.querySelectorAll('.pill[data-groupe="' + g + '"]').forEach(p => p.classList.toggle('active', p.dataset.valeur === etatForm[g]));
+  });
+  $('blocLibre').style.display = etatForm.objectif === 'autre' ? 'block' : 'none';
+  produitsSelectionnes = Array.isArray(d.produits) ? d.produits.slice() : [];
+  renderChips();
+}
+function ouvrirForm(){
+  $('promoForm').classList.add('open'); $('btnNouvelle').textContent = V.boutonAnnuler;
+}
+function cacherReprise(){ $('brouillonReprise').classList.remove('open'); }
 function toggleForm(){
   const f = $('promoForm');
+  if (!f.classList.contains('open')){
+    const st = stockage();
+    const d = st ? brouillonLire(st, cleBrouillonCourante(), Date.now()) : null;
+    if (d){
+      $('brouillonTexte').textContent = brouillonQuestion(d, V);
+      $('brouillonReprise').classList.add('open');
+      return;
+    }
+  }
+  cacherReprise();
   const ouvert = f.classList.toggle('open');
   $('btnNouvelle').textContent = ouvert ? V.boutonAnnuler : V.boutonNouvelle;
   if (!ouvert) reinitialiserForm();
+}
+function reprendreSaisie(){
+  const st = stockage();
+  const d = st ? brouillonLire(st, cleBrouillonCourante(), Date.now()) : null;
+  cacherReprise(); ouvrirForm();
+  if (d) remplirDepuis(d);
+}
+function nouvelleSaisieVierge(){
+  effacerBrouillon(); cacherReprise(); reinitialiserForm(); ouvrirForm();
 }
 function reinitialiserForm(){
   $('promoNom').value = ''; $('promoDateDebut').value = ''; $('promoDateFin').value = '';
@@ -448,6 +552,7 @@ function reinitialiserForm(){
   $('promoProduitInput').value = '';
   etatForm.type = etatForm.nature = etatForm.objectif = null;
   produitsSelectionnes = [];
+  selectionSugg = {};
   document.querySelectorAll('#promoForm .pill.active').forEach(p => p.classList.remove('active'));
   masquerSuggestions(); renderChips(); $('formMessage').innerHTML = '';
 }
@@ -456,28 +561,52 @@ function choisirPill(groupe, valeur, el){
   document.querySelectorAll('.pill[data-groupe="' + groupe + '"]').forEach(p => p.classList.remove('active'));
   el.classList.add('active');
   if (groupe === 'objectif') $('blocLibre').style.display = valeur === 'autre' ? 'block' : 'none';
+  sauverBrouillon();
 }
 function ajouterUnProduit(nom){
   nom = String(nom || '').trim();
   if (!nom) return;
   if (!produitsSelectionnes.some(p => p.toLowerCase() === nom.toLowerCase())) produitsSelectionnes.push(nom);
   $('promoProduitInput').value = '';
-  masquerSuggestions(); renderChips();
+  masquerSuggestions(); renderChips(); sauverBrouillon();
+}
+function ajouterSelection(){
+  if (!nbSelection()) return;
+  Object.keys(selectionSugg).forEach(k => { const nom = selectionSugg[k];
+    if (!produitsSelectionnes.some(p => p.toLowerCase() === nom.toLowerCase())) produitsSelectionnes.push(nom);
+  });
+  selectionSugg = {};
+  $('promoProduitInput').value = '';
+  masquerSuggestions(); renderChips(); sauverBrouillon();
+}
+function majBoutonSelection(){
+  const b = $('btnAjouterSel'); if (!b) return;
+  b.disabled = !nbSelection();
+  b.textContent = V.suggAjouterSelection.replace('{n}', nbSelection());
+}
+function lignesSugg(){ return Array.from(document.querySelectorAll('#suggestions .sugg-ligne')); }
+function marquerActif(i, defiler){
+  const l = lignesSugg(); if (!l.length) return;
+  suggActif = Math.max(0, Math.min(l.length - 1, i));
+  l.forEach((el, k) => el.classList.toggle('actif', k === suggActif));
+  if (defiler && l[suggActif].scrollIntoView) l[suggActif].scrollIntoView({ block: 'nearest' });
 }
 function rechercherProduits(){
-  const q = $('promoProduitInput').value.trim().toLowerCase();
   const box = $('suggestions');
-  if (!q){ masquerSuggestions(); return; }
   const deja = new Set(produitsSelectionnes.map(p => p.toLowerCase()));
-  const libres = CATALOGUE_ARTICLES.filter(a => !deja.has(a.toLowerCase()));
-  const debut = libres.filter(a => a.toLowerCase().startsWith(q));
-  const contient = libres.filter(a => !a.toLowerCase().startsWith(q) && a.toLowerCase().includes(q));
-  const liste = debut.concat(contient).slice(0, MAX_SUGGESTIONS);
+  const liste = listeSuggestions(CATALOGUE_ARTICLES, $('promoProduitInput').value, deja);
   if (!liste.length){ masquerSuggestions(); return; }
-  box.innerHTML = liste.map((a, i) => '<button type="button" data-nom="' + esc(a) + '"' + (i === 0 ? ' class="actif"' : '') + '>' + esc(a) + '</button>').join('');
+  suggActif = 0; suggNaviguee = false;
+  box.innerHTML = '<div class="sugg-liste" role="listbox" aria-multiselectable="true">' +
+    liste.map((a, i) => '<label class="sugg-ligne' + (i === 0 ? ' actif' : '') + '" role="option"><input type="checkbox" data-nom="' + esc(a) + '"' +
+      (selectionSugg[a.toLowerCase()] ? ' checked' : '') + '><span>' + esc(a) + '</span></label>').join('') +
+    '</div><div class="sugg-pied">' +
+    (liste.length > 6 ? '<span class="sugg-total">' + esc(V.suggTotal.replace('{n}', liste.length)) + '</span>' : '') +
+    '<button type="button" class="btn" id="btnAjouterSel"></button></div>';
+  majBoutonSelection();
   box.classList.add('open');
 }
-function masquerSuggestions(){ $('suggestions').classList.remove('open'); $('suggestions').innerHTML = ''; }
+function masquerSuggestions(){ $('suggestions').classList.remove('open'); $('suggestions').innerHTML = ''; suggActif = -1; suggNaviguee = false; }
 function renderChips(){
   const c = $('chips');
   if (!produitsSelectionnes.length){ c.innerHTML = '<span class="vide">' + esc(V.formAucunProduit) + '</span>'; return; }
@@ -503,6 +632,7 @@ async function validerCampagne(){
   });
   btn.disabled = false; btn.textContent = V.formValider;
   if (error){ console.error('campagnes_nexus insert', error); return erreur(V.formErreur); }
+  effacerBrouillon();
   msg.innerHTML = '<div class="msg-ok">' + esc(V.formOk) + '</div>';
   setTimeout(async () => { toggleForm(); await chargerEtAfficher(); }, 700);
 }
@@ -514,20 +644,53 @@ function brancherFormulaire(){
     const p = e.target.closest('.pill[data-groupe]');
     if (p) choisirPill(p.dataset.groupe, p.dataset.valeur, p);
     const r = e.target.closest('[data-retirer]');
-    if (r){ produitsSelectionnes.splice(Number(r.dataset.retirer), 1); renderChips(); }
+    if (r){ produitsSelectionnes.splice(Number(r.dataset.retirer), 1); renderChips(); sauverBrouillon(); }
   });
-  $('suggestions').addEventListener('mousedown', e => {
-    const b = e.target.closest('button[data-nom]');
-    if (b){ e.preventDefault(); ajouterUnProduit(b.dataset.nom); }
+  $('suggestions').addEventListener('change', e => {
+    const c = e.target.closest('input[data-nom]'); if (!c) return;
+    const k = c.dataset.nom.toLowerCase();
+    if (c.checked) selectionSugg[k] = c.dataset.nom; else delete selectionSugg[k];
+    majBoutonSelection();
+  });
+  $('suggestions').addEventListener('click', e => { if (e.target.closest('#btnAjouterSel')) ajouterSelection(); });
+  $('suggestions').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && nbSelection()){ e.preventDefault(); ajouterSelection(); }
+    if (e.key === 'Escape'){ masquerSuggestions(); $('promoProduitInput').focus(); }
+  });
+  document.addEventListener('mousedown', e => {
+    if (!$('suggestions').classList.contains('open')) return;
+    if (e.target.closest('#suggestions') || e.target.closest('#promoProduitInput')) return;
+    masquerSuggestions();
   });
   $('promoProduitInput').addEventListener('input', rechercherProduits);
-  $('promoProduitInput').addEventListener('blur', () => setTimeout(masquerSuggestions, 150));
   $('promoProduitInput').addEventListener('keydown', e => {
+    const ouvert = $('suggestions').classList.contains('open');
+    if (e.key === 'Escape'){ masquerSuggestions(); return; }
+    if (ouvert && (e.key === 'ArrowDown' || e.key === 'ArrowUp')){
+      e.preventDefault(); suggNaviguee = true;
+      marquerActif(suggActif + (e.key === 'ArrowDown' ? 1 : -1), true); return;
+    }
+    if (ouvert && e.key === ' ' && suggNaviguee){
+      e.preventDefault();
+      const c = lignesSugg()[suggActif] && lignesSugg()[suggActif].querySelector('input');
+      if (c){ c.checked = !c.checked; c.dispatchEvent(new Event('change', { bubbles: true })); }
+      return;
+    }
     if (e.key !== 'Enter') return;
     e.preventDefault();
-    const a = document.querySelector('#suggestions button.actif') || document.querySelector('#suggestions button');
-    ajouterUnProduit(a ? a.dataset.nom : $('promoProduitInput').value);
+    if (nbSelection()){ ajouterSelection(); return; }
+    const l = lignesSugg()[suggActif >= 0 ? suggActif : 0];
+    const c = l && l.querySelector('input');
+    ajouterUnProduit(c ? c.dataset.nom : $('promoProduitInput').value);
   });
+  const enregistrerSaisie = e => {
+    if (e.target.id === 'promoProduitInput' || e.target.closest('#suggestions')) return;
+    sauverBrouillon();
+  };
+  $('promoForm').addEventListener('input', enregistrerSaisie);
+  $('promoForm').addEventListener('change', enregistrerSaisie);
+  $('btnReprendre').addEventListener('click', reprendreSaisie);
+  $('btnVierge').addEventListener('click', nouvelleSaisieVierge);
   renderChips();
 }
 
