@@ -1112,7 +1112,11 @@
         "campagne_ventes_points.createur_lit_si_autorise",
         "campagne_ventes_annulations.lecture_meme_site",
         "campagne_ventes_annulations.insertion_manager_meme_site",
-        "campagne_ventes_annulations.createur_lit_si_autorise"
+        "campagne_ventes_annulations.createur_lit_si_autorise",
+        "ca_estime",
+        "lecture_meme_site",
+        "insertion_manager_meme_site",
+        "createur_lit_si_autorise"
       ],
       "reserve": "Cette qualification n'autorise ni la fusion ni le deploiement. L'estampille du registre (20261114170909) differe du nom de fichier ; c'est l'estampille du fichier qui sert de repere a la garde."
     }
