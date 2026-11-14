@@ -87,6 +87,26 @@ t('douze noms réels Petromix : conditionnement extrait du suffixe', () => {
   assert.strictEqual(S.conditionnement('Jus Caresse 50cl', { mode: 'a_l_unite', unites_par_carton: 1 }).source, 'a_l_unite');
   assert.strictEqual(S.conditionnement('Heineken 25cl-24P', { mode: 'a_l_unite', unites_par_carton: 1 }).unitesParCarton, 1);
 });
+t('C4 : EAN prioritaire, désignation voisine sans EAN commun non appariée', () => {
+  const rel = [
+    { id: 'r1', article: 'Biere Heineken 25cl -24P', code_barres: '8712000000011', quantite_reelle: 10, releve_le: '2026-11-10' },
+    { id: 'r2', article: 'Biere Heineken 0.0 25 cl - 24P', code_barres: '8712000000028', quantite_reelle: 99, releve_le: '2026-11-10' },
+  ];
+  const eans = { 'Heineken 25cl-24P': '8712000000011' };
+  const r = S.choisirReleves(rel, { articles: ['Heineken 25cl-24P'], campagneDebut: '2026-11-12', eanDe: a => eans[a] });
+  assert.strictEqual(r.retenus.length, 1); assert.strictEqual(r.retenus[0].reference, 'r1');
+  const voisin = S.choisirReleves(rel, { articles: ['Biere Heineken 25cl -24P'], campagneDebut: '2026-11-12' });
+  assert.strictEqual(voisin.retenus[0].reference, 'r1');
+  const sansEan = S.choisirReleves(rel, { articles: ['Heineken 25cl-24P'], campagneDebut: '2026-11-12' });
+  assert.strictEqual(sansEan.sans.length, 1);
+});
+t('C4 : signal carton dépassant le besoin, arrondi inchangé', () => {
+  const c = { source: 'suffixe_np', unitesParCarton: 24, aRenseigner: false };
+  assert.strictEqual(S.cartonDepasseBesoin(2, c), true);
+  assert.strictEqual(S.cartonDepasseBesoin(20, c), false);
+  assert.strictEqual(S.cartonDepasseBesoin(2, { source: 'a_l_unite', unitesParCarton: 1 }), false);
+  assert.strictEqual(S.arrondirAchat(2, c).unites, 24);
+});
 t('livraison Inventaire retrouvée par désignation après alias', () => {
   const mv = [{ type_mouvement: 'livraison', article: 'Coca 33 canette', date: '2026-11-13', quantite: 20 }];
   const r = S.livraisonsInventaireNonComptees(mv, { articles: ['Coca-Cola 33cl'], campagneDebut: '2026-11-12', campagneFin: '2026-11-30', resoudre: a => (a === 'Coca 33 canette' ? 'Coca-Cola 33cl' : a) });

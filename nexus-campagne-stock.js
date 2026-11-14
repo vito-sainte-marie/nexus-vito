@@ -151,12 +151,19 @@
   // C3 : choix du relevé par article. Chaque article garde la date et la référence de SON relevé le plus récent.
   // Un relevé postérieur au début de la campagne n'est pas repris : il est signalé (`posterieurs`), à proposer explicitement.
   // Source : `comptage` si une quantité réelle est saisie, sinon `releve_theorique_decenium` (jamais présentée comme un comptage).
-  function choisirReleves(releves, { articles, campagneDebut, resoudre } = {}) {
-    const cle = cleResolue(resoudre);
+  // Appariement : le code-barres d'abord (`eanDe(article)` côté promotion, `code_barres` côté relevé), la désignation exacte en repli.
+  // Deux désignations voisines mais différentes ne s'apparient jamais sans EAN commun.
+  function choisirReleves(releves, { articles, campagneDebut, resoudre, eanDe } = {}) {
+    const cleNom = cleResolue(resoudre);
+    const ean = v => { const x = String(v == null ? '' : v).replace(/\D/g, ''); return x.length >= 8 ? x : null; };
+    const cle = a => cleNom(a);
     const deb = String(campagneDebut || '').slice(0, 10);
     const parArticle = new Map();
+    const parEan = new Map();
     (releves || []).forEach(r => {
+      const e = ean(r.code_barres);
       const k = cle(r.article);
+      if (e) { if (!parEan.has(e)) parEan.set(e, []); parEan.get(e).push({ r, date: String(r.releve_le || '').slice(0, 10) }); }
       const date = String(r.releve_le || '').slice(0, 10);
       if (!date) return;
       if (!parArticle.has(k)) parArticle.set(k, []);
@@ -166,7 +173,9 @@
     const posterieurs = [];
     const sans = [];
     (articles || []).forEach(article => {
-      const liste = (parArticle.get(cle(article)) || []).sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+      const e = eanDe ? ean(eanDe(article)) : null;
+      const parCode = e ? (parEan.get(e) || []).filter(x => x.date) : [];
+      const liste = (parCode.length ? parCode : (parArticle.get(cle(article)) || [])).sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
       if (!liste.length) { sans.push(article); return; }
       const reprise = liste.find(x => !deb || x.date <= deb);
       const poster = liste.find(x => deb && x.date > deb);
@@ -189,6 +198,16 @@
     return (articles || []).filter(a => !dep.has(k(a)));
   }
 
+  // Signal : un carton complet dépasse nettement le besoin. `seuil` = part du carton qui resterait en surplus (à valider, 0,5 par défaut).
+  // L'arrondi au carton supérieur ne change pas : c'est une alerte, pas une correction.
+  function cartonDepasseBesoin(besoinUnites, cond, seuil) {
+    if (!cond || cond.aRenseigner || cond.source === 'a_l_unite' || !(cond.unitesParCarton > 0)) return false;
+    const b = Math.max(0, Math.ceil(Number(besoinUnites || 0)));
+    if (!(b > 0)) return false;
+    const surplus = Math.ceil(b / cond.unitesParCarton) * cond.unitesParCarton - b;
+    return surplus / cond.unitesParCarton > (seuil == null ? 0.5 : seuil);
+  }
+
   // Arrondi d'une recommandation d'achat : à l'unité supérieure pour un article « à l'unité », au carton sinon.
   function arrondirAchat(besoinUnites, cond) {
     const b = Math.max(0, Math.ceil(Number(besoinUnites || 0)));
@@ -200,7 +219,7 @@
 
   global.NexusCampagneStock = {
     conditionnement, convertirLigne, ecartPa, livraisonsValides, stockDepartCourant, ecartDepart,
-    livraisonsInventaireNonComptees, choisirReleves, stockTheorique, arrondirAchat, cleResolue, dateLongue, articlesSansDepart,
+    livraisonsInventaireNonComptees, choisirReleves, stockTheorique, arrondirAchat, cartonDepasseBesoin, cleResolue, dateLongue, articlesSansDepart,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = global.NexusCampagneStock;
 })(typeof window !== 'undefined' ? window : globalThis);
