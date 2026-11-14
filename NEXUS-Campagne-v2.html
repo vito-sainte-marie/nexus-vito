@@ -590,7 +590,7 @@ function texteConseiller(impacts){
   const st = impacts.map(statutDe);
   const n = k => st.filter(x => x === k).length;
   let h = '<p>' + esc(V.conseillerCompte(impacts.length, n('encours'), n('terminee'), n('avenir'))) + '</p>';
-  const derniere = impacts.find((x, k) => st[k] === 'terminee') || impacts[0];
+  const derniere = impacts.find((x, k) => st[k] === 'terminee' && x.campagneId === BILAN_COURANT) || impacts.find((x, k) => st[k] === 'terminee') || impacts[0];
   h += '<p>' + esc(V.conseillerDerniere(derniere.nom, fmtDateCourt(derniere.dateDebut), fmtDateCourt(derniere.dateFin))) + '</p>';
   return h;
 }
@@ -689,7 +689,7 @@ function detailBilan(i, b, renta){
     h += ligne(titre + ' · ' + V.pendant, esc(f(ind.moyPendant) + unite));
     if (ind.moyApres !== null && ind.moyApres !== undefined) h += ligne(titre + ' · ' + V.apres, esc(f(ind.moyApres) + unite));
   };
-  if (b.tickets && b.tickets.moyAvant !== null) lignes(B.tuiles.frequentation, b.tickets, fmtDec1b, ' ' + B.ticketsParJour.replace(/^tickets /, ''));
+  if (b.tickets && b.tickets.moyAvant !== null) lignes(B.tuiles.frequentation, b.tickets, fmtDec1b, ' ' + B.ticketsParJour);
   if (b.panier && b.panier.moyAvant !== null && b.panier.moyAvant !== undefined) lignes(B.tuiles.panier, b.panier, fmtEur2, '');
   h += '<div class="sous-titre">' + esc(B.periodes) + '</div>';
   h += ligne(V.avant, esc(B.jours(b.nbJoursAvant)));
