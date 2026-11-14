@@ -45,8 +45,12 @@ t('page : Modifier réservé au manager, Consulter pour tous',()=>{
   assert(/nexusEstManager\(EMPLOYEE\)/.test(a));
   assert(/data-consulter=/.test(a)&&/\(peutModifier\(\) \? '<button[^']*data-modifier/.test(a));
   assert(/function ouvrirModification\(id\)\{\s*if \(!peutModifier\(\)\) return;/.test(page));});
-t('page : boutons sur les cartes en cours, le bilan détaillé et l\'historique',()=>{
-  const n=(page.match(/actionsCampagne\(i\.campagneId\)/g)||[]).length;assert(n>=3,'3 emplacements, trouvé '+n);});
+t('page : Suivre/Modifier sur la promotion en cours, Modifier au pied du bilan, Consulter dans l\'historique',()=>{
+  assert(/data-suivre/.test(page),'Suivre ma promotion');
+  assert(/peutModifier\(\) \? '<button[^']*data-modifier/.test(fn('function carteResume','function ico(')),'Modifier sur la carte en cours');
+  assert(/data-modifier/.test(fn('function bilanVisuel','function conclusionBilan')),'Modifier au pied du bilan');
+  assert(!/data-consulter/.test(fn('function carteResume','function ico(').split('actionsCampagne')[0].slice(0,0)));
+  assert(/actionsCampagne\(i\.campagneId\)/.test(page),'Consulter conservé pour l\'historique');});
 t('page : modifie_le lu ; ligne « Modifiée le » sans nom d\'employé',()=>{
   assert(/objectif_libre, cree_le, modifie_le'/.test(page));
   const l=fn('function ligneModifiee','function ouvrirFiche');assert(!/modifie_par|employ/i.test(l));
