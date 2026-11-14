@@ -471,7 +471,9 @@ function peindreReco(ctx){
   $('acReco').innerHTML = RECO.map(r => {
     const b = r.b, c = r.cond;
     const court = b.a_commander == null ? '·' : (b.a_commander === 0 ? P.rienACommander : (b.cartons != null && !c.aRenseigner && c.unitesParCarton ? P.cartonsCourt(fmt(b.cartons)) : P.uniteLibelle(fmt(b.a_commander))));
-    return '<details class="vt-prod" data-article="' + esc(r.ob.article) + '"><summary><span class="vt-nom">' + esc(r.ob.article) + '</span><span class="vt-n">' + esc(court) + '</span></summary>'
+    const marque = b.hors_delai ? P.horsDelaiCourt : (b.indicatif ? P.indicatifCourt : '');
+    const resume = marque ? esc(court) + ' · ' + esc(marque) : esc(court);
+    return '<details class="vt-prod" data-article="' + esc(r.ob.article) + '"><summary><span class="vt-nom">' + esc(r.ob.article) + '</span><span class="vt-n"' + (marque ? ' data-marque style="color:var(--t-mid);opacity:.75"' : '') + '>' + resume + '</span></summary>'
       + '<div class="vt-aide">' + esc(P.colReco) + '</div>' + textePrevision(r)
       + (b.hors_delai ? '<div class="vt-aide vt-alerte">' + esc(P.limiteHorsDelai) + '</div>' : '')
       + (r.rs.exces > 0 ? '<div class="vt-aide vt-alerte" data-exces>' + esc(P.excesRecu(fmt(r.rs.exces))) + '</div>' : '')

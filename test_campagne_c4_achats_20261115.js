@@ -244,5 +244,14 @@ const m_etat = async (tables, auj) => { const d = await A.chargerDonnees(m_fauss
     assert.ok(/campagne_achats_reglages/.test(menu) && /delai_commande_jours/.test(menu));
     assert.ok(!/- 7 \* 86400000/.test(menu));
   });
+  t('ligne repliée : « indicatif » et « hors délai » visibles dans le résumé, en grisé', () => {
+    const page = fs.readFileSync('./NEXUS-Campagne-v2-Achats.html', 'utf8');
+    assert.ok(/P\.indicatifCourt/.test(page) && /P\.horsDelaiCourt/.test(page));
+    const dec = page.slice(page.indexOf('const marque ='), page.indexOf("</summary>'"));
+    assert.ok(/b\.indicatif/.test(dec) && /b\.hors_delai/.test(dec) && /data-marque/.test(dec) && /var\(--t-mid\)/.test(dec), 'la marque est dans le summary');
+    const V = require('./nexus-vocabulaire.js');
+    const ap = (V.campagne || V).achatsPage || (V.campagne && V.campagne.achatsPage);
+    if (ap) { assert.strictEqual(ap.indicatifCourt, 'indicatif'); assert.strictEqual(ap.horsDelaiCourt, 'hors délai'); }
+  });
   console.log(n + ' tests OK');
 })().catch(e => { console.error(e); process.exit(1); });

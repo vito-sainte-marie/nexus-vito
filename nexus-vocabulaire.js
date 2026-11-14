@@ -657,6 +657,8 @@
       ventesAucune: 'Aucune vente importée : les besoins ne peuvent pas être calculés.',
       colArticle: 'Article', colReco: 'À commander', colCommande: 'Commandé', colRecu: 'Reçu', colReste: 'Reste à recevoir',
       indicatif: function (m) { return 'indicatif, ' + m; },
+      indicatifCourt: 'indicatif',
+      horsDelaiCourt: 'hors délai',
       conditionnementARenseigner: 'conditionnement à renseigner',
       cartonsDe: function (c, u) { return c + ' carton' + (c > 1 ? 's' : '') + ' de ' + u; },
       uniteLibelle: function (n) { return n + ' unité' + (n > 1 ? 's' : ''); },
