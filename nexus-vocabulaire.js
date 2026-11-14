@@ -528,7 +528,10 @@
       derniereActu: function (d) { return 'Dernière actualisation des ventes : ' + d; },
       aucuneActu: 'Aucune actualisation des ventes pour l’instant.',
       prochaine: function (txt) { return 'Prochaine action : ' + txt; },
-      prochaineActualiser: 'actualiser vos ventes'
+      prochaineActualiser: 'actualiser vos ventes',
+      labelDerniere: 'Dernière actualisation des ventes', labelProchaine: 'Prochaine action', aucune: 'Aucune',
+      rienAFaire: 'Aucune pour l’instant',
+      echeances: { actualiser_j14: 'Actualiser vos ventes', actualiser_j7: 'Actualiser vos ventes', actualiser_fin: 'Actualiser vos ventes', achats: 'Préparer les achats' }
     },
     historiqueAucune: 'Aucune autre campagne terminée pour l’instant.',
     enPreparation: 'En préparation',
@@ -567,7 +570,7 @@
       moteur: 'Moteur', aRevoir: 'À revoir', nonMesurable: 'Sans objectif',
       atteint: 'Seuil atteint', termine: 'Promotion terminée', absentMarque: 'absent du fichier',
       parJour: function (n) { return n + ' / jour'; },
-      margeInconnue: 'PA promo inconnu',
+      margeInconnue: 'PA promo inconnu', margeEstimee: 'estimée', detail: 'Détail', labelEffort: 'À vendre par jour', labelMarge: 'Marge HT',
       historique: 'Historique des imports', annule: 'Annulé', motif: 'Motif',
       lienActualiser: 'Actualiser mes ventes',
       echecPublication: function (r) { return 'L’enregistrement a échoué : ' + r + ' Le dépôt est marqué en échec, rien n’est compté.'; },

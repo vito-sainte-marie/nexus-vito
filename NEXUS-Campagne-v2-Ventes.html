@@ -319,6 +319,18 @@ details.obj-hab[open] summary::after{transform:rotate(180deg);}
 .vt-aide{font-size:12.5px; color:var(--t-mid); margin-top:6px;}
 .vt-msg{margin-top:8px; font-size:13.5px; overflow-wrap:anywhere;}
 .vt-alerte{color:var(--red,#ff6b6b);}
+.vt-liste{margin-top:8px;}
+.vt-prod{border-top:1px solid var(--t-line);}
+.vt-prod summary{list-style:none; cursor:pointer; min-height:44px; display:flex; align-items:center; gap:8px; font-size:13px;}
+.vt-prod summary::-webkit-details-marker{display:none;}
+.vt-prod summary::after{content:'▾'; color:var(--t-mid); transition:transform .2s;}
+.vt-prod[open] summary::after{transform:rotate(180deg);}
+.vt-nom{flex:1; min-width:0; overflow-wrap:anywhere;}
+.vt-n{font-family:var(--t-mono); flex:none;}
+.vt-st{flex:none; color:var(--t-mid); font-size:12px;}
+.vt-det{padding:0 0 10px;}
+.vt-r{display:flex; justify-content:space-between; gap:12px; font-size:12.5px; padding:4px 0; color:var(--t-mid);}
+.vt-r b{color:var(--t-text); font-weight:600; text-align:right;}
 .vt-table{width:100%; border-collapse:collapse; font-size:13px; margin-top:8px;}
 .vt-table th,.vt-table td{padding:6px 4px; text-align:left; border-bottom:1px solid var(--t-line); overflow-wrap:anywhere;}
 .vt-table td.n{font-family:var(--t-mono); text-align:right;}
@@ -424,7 +436,7 @@ function derniersObjectifs(rows){
 async function chargerCampagne(){
   const [o, p, a] = await Promise.all([
     nexusClient.from('campagne_objectifs_produits').select('article, version, seuil_unites, objectif_valide_jour, pa_promo_ht').eq('campagne_id', CAMPAGNE.id).eq('site', SITE_ID).order('version', {ascending: true}),
-    nexusClient.from('campagne_ventes_points').select('batch_id, article, date_fin, importe_le, quantite, ca_ht, absent_du_fichier').eq('campagne_id', CAMPAGNE.id).eq('site', SITE_ID).order('importe_le', {ascending: false}),
+    nexusClient.from('campagne_ventes_points').select('batch_id, article, date_fin, importe_le, quantite, ca_ht, ca_estime, absent_du_fichier').eq('campagne_id', CAMPAGNE.id).eq('site', SITE_ID).order('importe_le', {ascending: false}),
     nexusClient.from('campagne_ventes_annulations').select('batch_id, motif').eq('site', SITE_ID),
   ]);
   if (o.error) console.error(o.error); if (p.error) console.error(p.error); if (a.error) console.error(a.error);
@@ -438,11 +450,14 @@ function peindreSuivi(){
   const pt = CV.pointCourant(POINTS, ANNULATIONS);
   const s = CV.suivre({point: pt, objectifs: OBJECTIFS, campagneDebut: CAMPAGNE.date_debut, campagneFin: CAMPAGNE.date_fin});
   if (s.vide){ $('vtSuivi').innerHTML = '<div>' + esc(P.vide) + '</div>'; return; }
-  const lignes = s.lignes.map(l => '<tr><td>' + esc(l.article) + (l.absent_du_fichier ? '<br><small>' + esc(P.absentMarque) + '</small>' : '') + '</td>'
-    + '<td class="n">' + fmt(l.vendu) + '</td><td class="n">' + (l.seuil == null ? '' : fmt(l.seuil)) + '</td>'
-    + '<td>' + esc(libEffort(l.effort)) + '</td><td class="n">' + (l.marge_ht == null ? esc(P.margeInconnue) : fmt(l.marge_ht, 2) + ' €') + '</td>'
-    + '<td>' + esc(libStatut(l.statut)) + '</td></tr>').join('');
-  $('vtSuivi').innerHTML = '<div>' + esc(P.pointDu(jma(s.date_fin))) + '</div><table class="vt-table"><thead><tr><th>' + esc(P.colArticle) + '</th><th>' + esc(P.colVendu) + '</th><th>' + esc(P.colSeuil) + '</th><th>' + esc(P.colEffort) + '</th><th>' + esc(P.colMarge) + '</th><th>' + esc(P.colStatut) + '</th></tr></thead><tbody>' + lignes + '</tbody></table>';
+  const lignes = s.lignes.map(l => {
+    const marge = l.marge_ht == null ? esc(P.margeInconnue) : fmt(l.marge_ht, 2) + ' €' + (l.marge_estimee ? ' (' + esc(P.margeEstimee) + ')' : '');
+    return '<details class="vt-prod"><summary><span class="vt-nom">' + esc(l.article) + '</span><span class="vt-n">' + fmt(l.vendu) + (l.seuil == null ? '' : ' / ' + fmt(l.seuil)) + '</span><span class="vt-st">' + esc(libStatut(l.statut)) + '</span></summary>'
+      + '<div class="vt-det"><div class="vt-r"><span>' + esc(P.labelEffort) + '</span><b>' + esc(libEffort(l.effort)) + '</b></div>'
+      + '<div class="vt-r"><span>' + esc(P.labelMarge) + '</span><b>' + marge + '</b></div>'
+      + (l.absent_du_fichier ? '<div class="vt-r"><span>' + esc(P.absentMarque) + '</span></div>' : '') + '</div></details>';
+  }).join('');
+  $('vtSuivi').innerHTML = '<div>' + esc(P.pointDu(jma(s.date_fin))) + '</div><div class="vt-liste">' + lignes + '</div>';
 }
 function peindreHisto(){
   const h = CV.historique(POINTS, ANNULATIONS);

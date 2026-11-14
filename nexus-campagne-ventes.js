@@ -120,14 +120,33 @@
         effort: o.seuil_unites == null ? null : effortRestant(o.seuil_unites, l.quantite, restants),
         statut: classer(l.quantite, o.objectif_valide_jour, jours),
         marge_ht: margeHt(l, o.pa_promo_ht),
+        marge_estimee: !!l.ca_estime,
       };
     });
     return { vide: false, date_fin: point.date_fin, jours_ecoules: jours, jours_restants: restants, lignes };
   }
 
+  function ajouterJours(d, n) { const x = aDate(d); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); }
+
+  // Prochaine échéance de suivi : J-14, J-7 et le lendemain de la fin de promotion.
+  // Un jalon P est couvert si le dernier import valide va jusqu'à la veille de P au moins.
+  // `autres` accueille d'autres échéances ({code, date, couvert}) : préparer les achats, date limite fournisseur.
+  // Retourne { code, date } ou null si tout est couvert.
+  function prochaineEcheance({ campagneFin, dernierImportFin, autres } = {}) {
+    if (!aDate(campagneFin)) return null;
+    const jalons = [
+      { code: 'actualiser_j14', date: ajouterJours(campagneFin, -14) },
+      { code: 'actualiser_j7', date: ajouterJours(campagneFin, -7) },
+      { code: 'actualiser_fin', date: ajouterJours(campagneFin, 1) },
+    ].filter(j => !(aDate(dernierImportFin) && jourIso(dernierImportFin) >= ajouterJours(j.date, -1)));
+    const reste = jalons.concat((autres || []).filter(a => a && a.date && !a.couvert).map(a => ({ code: a.code, date: jourIso(a.date) })));
+    reste.sort((x, y) => (x.date < y.date ? -1 : x.date > y.date ? 1 : 0));
+    return reste.length ? reste[0] : null;
+  }
+
   global.NexusCampagneVentes = {
     SEUIL_MOTEUR, importsValides, pointCourant, historique, verifierDateFin, joursRestants,
-    effortRestant, avancement, classer, margeHt, suivre, jourIso, ecartJours,
+    effortRestant, avancement, classer, margeHt, suivre, jourIso, ecartJours, prochaineEcheance,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = global.NexusCampagneVentes;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -79,6 +79,20 @@ assert.ok(/v_batch\.periode_fin is distinct from p_date_fin/.test(sql), 'la RPC 
 assert.ok(/ca_fichier/.test(sql) && /ca_estime/.test(sql), 'CA du fichier prioritaire, repli signalé');
 assert.ok(/add column if not exists ca_estime/.test(sql), 'ajout idempotent du drapeau');
 
+// Prochaine échéance (Petromix, fin 30/11) : 16/11, 23/11, puis 1er décembre.
+{
+  const e = d => V.prochaineEcheance({ campagneFin: '2026-11-30', dernierImportFin: d });
+  assert.deepStrictEqual(e(null), { code: 'actualiser_j14', date: '2026-11-16' });
+  assert.deepStrictEqual(e('2026-11-14'), { code: 'actualiser_j14', date: '2026-11-16' }, 'import du 14 : J-14 pas couvert');
+  assert.deepStrictEqual(e('2026-11-15'), { code: 'actualiser_j7', date: '2026-11-23' }, 'import du 15 couvre J-14');
+  assert.deepStrictEqual(e('2026-11-22'), { code: 'actualiser_fin', date: '2026-12-01' });
+  assert.strictEqual(e('2026-11-30'), null, 'promotion entièrement couverte');
+  const x = V.prochaineEcheance({ campagneFin: '2026-11-30', dernierImportFin: '2026-11-15', autres: [{ code: 'achats', date: '2026-11-20' }] });
+  assert.strictEqual(x.code, 'achats', 'une autre échéance plus proche passe devant');
+  assert.strictEqual(V.prochaineEcheance({}), null);
+  const sm = V.suivre({ point: { batch_id: 'b', date_fin: '2026-11-20', lignes: [{ ...pt('b', '2026-11-20', 'x', 'COLA', 10, 20), ca_estime: true }] }, objectifs, campagneDebut: '2026-11-12', campagneFin: '2026-11-30' });
+  assert.strictEqual(sm.lignes[0].marge_estimee, true, 'D8 : CA estimé signalé');
+}
 console.log('OK test_campagne_c2_ventes_20261114');
 
 // Câblage : carte, lexique, redirection d'Import v1, page de suivi.
@@ -86,7 +100,10 @@ console.log('OK test_campagne_c2_ventes_20261114');
   const lire = f => fs.readFileSync(f, 'utf8');
   const carte = lire('NEXUS-Campagne-v2.html'), ventes = lire('NEXUS-Campagne-v2-Ventes.html'), imp = lire('NEXUS-Import-v1.html');
   const lex = lire('nexus-vocabulaire.js');
-  assert.ok(/data-actualiser=/.test(carte) && /NEXUS-Campagne-v2-Ventes\.html\?campagne=/.test(carte), 'la carte ouvre Actualiser mes ventes');
+  assert.ok(/id="btnActualiser"/.test(carte) && /NEXUS-Campagne-v2-Ventes\.html\?campagne=/.test(carte), 'le bouton du haut ouvre Actualiser mes ventes');
+  assert.ok(/prochaineEcheance\(/.test(carte) && /nexus-campagne-ventes\.js\?v=/.test(carte), 'la carte affiche la prochaine échéance du moteur');
+  assert.ok(/ca_estime/.test(ventes) && /margeEstimee/.test(ventes), 'D8 : marge estimée signalée sur la page de suivi');
+  assert.ok(/<details class="vt-prod"/.test(ventes) && !/<table class="vt-table"/.test(ventes), 'suivi compact, sans tableau à six colonnes');
   ['ventesPage', "actualiser: 'Actualiser mes ventes'", 'derniereActu', 'aucuneActu', 'prochaineActualiser'].forEach(k => assert.ok(lex.includes(k), 'lexique : ' + k));
   assert.ok(/<a [^>]*id="phasePendant"[^>]*href="NEXUS-Campagne-v2-Ventes\.html/.test(imp), 'Import v1 : Pendant la promo renvoie vers Actualiser mes ventes');
   assert.ok(!/publierBatch/.test(ventes), 'la page de suivi n\'utilise jamais publierBatch (products)');
