@@ -403,7 +403,7 @@ a{color:inherit;}
 <script src="nexus-icones.js?v=20260904-0104"></script>
 <script src="nexus-desktop.js?v=20260904-0104"></script>
 <script src="nexus-jours-feries.js?v=20261106-0100"></script>
-<script src="nexus-vocabulaire.js?v=20261114-1800"></script>
+<script src="nexus-vocabulaire.js?v=20261114-1900"></script>
 <script src="nexus-tempo.js?v=20261112-1500"></script>
 <script src="nexus-periodes.js?v=20260904-0104"></script>
 <script src="nexus-campagnes.js?v=20261113-2000"></script>
@@ -417,6 +417,7 @@ let EMPLOYEE = null, SITE_ID = null;
 let CATALOGUE_ARTICLES = [];
 let PRODUITS_ROWS = [];
 let IMPACTS = [];
+let DERNIERE_ACTU = new Map();
 let CAMP_ROWS = [], PAN_ROWS = [], JOURS = [];
 let MES_TOUS = {mesures: new Map(), couts: new Map()};
 let BILAN_COURANT = null, BILAN_OUVERT = false;
@@ -863,6 +864,7 @@ function periodeEnCours(i, total){
 }
 function mesureEntamee(i){ const l = MES_TOUS && MES_TOUS.mesures && MES_TOUS.mesures.get(i.campagneId); return !!(l && l.length); }
 const PENCIL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
+function jmaCourt(iso){ const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || '')); return m ? m[3] + '/' + m[2] : String(iso || ''); }
 function carteResume(i){
   const E = V.enCours, s = statutDe(i), jr = jourDe(i), pct = Math.round(jr.jour / jr.total * 100);
   const compens = mesureEntamee(i) ? MV.etats[rentaDe(i).etat] : E.aMesurer;
@@ -877,7 +879,10 @@ function carteResume(i){
     '<div class="ec-piste" role="progressbar" aria-valuemin="0" aria-valuemax="' + jr.total + '" aria-valuenow="' + jr.jour + '"><div style="width:' + pct + '%"></div></div>' +
     '<div class="ec-note">' + esc(E.calendrier) + '</div></div>' +
     '<div class="ec-tuiles">' + tuile('promotions', E.produits, String(i.produitsConcernes.length)) + tuile('compensation', E.compensation, compens) + tuile('bilan', E.bilan, E.enAttente) + '</div>' +
+    '<div class="ec-note">' + esc(DERNIERE_ACTU.has(i.campagneId) ? E.derniereActu(jmaCourt(DERNIERE_ACTU.get(i.campagneId))) : E.aucuneActu) + '</div>' +
+    '<div class="ec-note">' + esc(E.prochaine(E.prochaineActualiser)) + '</div>' +
     '<div class="ec-actions"><button type="button" class="btn ec-suivre" data-suivre="' + esc(i.campagneId) + '">' + esc(E.suivre) + '</button>' +
+    '<button type="button" class="btn ec-actualiser" data-actualiser="' + esc(i.campagneId) + '">' + esc(E.actualiser) + '</button>' +
     (peutModifier() ? '<button type="button" class="btn ec-modifier" data-modifier="' + esc(i.campagneId) + '">' + PENCIL + '<span>' + esc(E.modifier) + '</span></button>' : '') + '</div></div>';
 }
 
@@ -1088,7 +1093,9 @@ function brancherBilan(){
   const zone = $('derniere'), cartes = $('historique');
   $('enCours').addEventListener('click', ev => {
     const b = ev.target.closest('button[data-suivre]');
-    if (b) location.href = 'NEXUS-Campagne-v2-Objectifs.html?campagne=' + encodeURIComponent(b.dataset.suivre);
+    if (b) { location.href = 'NEXUS-Campagne-v2-Objectifs.html?campagne=' + encodeURIComponent(b.dataset.suivre); return; }
+    const a = ev.target.closest('button[data-actualiser]');
+    if (a) location.href = 'NEXUS-Campagne-v2-Ventes.html?campagne=' + encodeURIComponent(a.dataset.actualiser);
   });
   zone.addEventListener('click', ev => {
     const b = ev.target.closest('button');
@@ -1148,6 +1155,13 @@ async function chargerEtAfficher(){
   const jours = NexusTempo.filtrerJoursClos(NexusTempo.agregerParJour(aud.data || []));
   CAMP_ROWS = camp.data || []; PAN_ROWS = pan.data || []; JOURS = jours;
   await chargerMesures();
+  try {
+    const pts = await nexusClient.from('campagne_ventes_points').select('campagne_id, batch_id, date_fin').eq('site', SITE_ID);
+    const ann = await nexusClient.from('campagne_ventes_annulations').select('batch_id').eq('site', SITE_ID);
+    const annules = new Set((ann.data || []).map(x => x.batch_id));
+    DERNIERE_ACTU = new Map();
+    (pts.data || []).forEach(p => { if (annules.has(p.batch_id)) return; const c = DERNIERE_ACTU.get(p.campagne_id); if (!c || p.date_fin > c) DERNIERE_ACTU.set(p.campagne_id, p.date_fin); });
+  } catch (e) { console.error('campagne_ventes_points', e); }
   IMPACTS = NC.analyserCampagnes(camp.data || [], jours);
   IMPACTS.forEach(i => {
     const liees = (imp.data || []).filter(x => x.campagne_id === i.campagneId);
