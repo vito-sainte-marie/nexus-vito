@@ -136,4 +136,8 @@ t('aucun tiret cadratin dans le lexique du bilan',()=>{ assert(!JSON.stringify(B
 t('page : fréquentation sur la fenêtre panier, objectif masqué si vide',()=>{
   assert(code.includes('b.nbJoursAvantPanier')); assert(code.includes('objectifSpan(i) ?'));
 });
+t('retouches : tickets par jour en entier, dernière promotion alignée sur le bilan ouvert',()=>{
+  assert(!page.includes("B.ticketsParJour.replace"));
+  assert(page.includes("x.campagneId === BILAN_COURANT"));
+});
 console.log(echecs?'\n'+echecs+' échec(s)':'\ntout est vert'); process.exit(echecs?1:0);
