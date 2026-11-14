@@ -235,7 +235,7 @@ a{color:inherit;}
 .ec-rang{display:flex; justify-content:space-between; gap:12px; font-size:13px; padding:9px 0; border-top:1px solid var(--t-line);}
 .ec-rang .cle{color:var(--t-mid);}
 .ec-rang .val{font-weight:600; text-align:right;}
-.ec-rang.prochaine .val{color:var(--t-cyan);}
+.ec-rang.prochaine .val{color:rgb(var(--boutique-rgb));}
 .ec-note{font-size:12px; color:var(--t-mid); margin-top:6px;}
 .ec-tuiles{display:grid; grid-template-columns:1fr; gap:10px; margin-top:20px;}
 .ec-tuile{background:var(--t-raised); border:1px solid var(--t-line); border-radius:14px; padding:14px; min-width:0;}
@@ -1111,7 +1111,7 @@ function brancherBilan(){
   const zone = $('derniere'), cartes = $('historique');
   $('enCours').addEventListener('click', ev => {
     const b = ev.target.closest('button[data-suivre]');
-    if (b) { location.href = 'NEXUS-Campagne-v2-Objectifs.html?campagne=' + encodeURIComponent(b.dataset.suivre); return; }
+    if (b) { location.href = 'NEXUS-Campagne-v2-Ventes.html?campagne=' + encodeURIComponent(b.dataset.suivre); return; }
   });
   $('btnActualiser').addEventListener('click', () => {
     const c = $('btnActualiser').dataset.campagne;

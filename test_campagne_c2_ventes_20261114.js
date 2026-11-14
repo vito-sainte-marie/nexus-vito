@@ -134,3 +134,26 @@ console.log('OK test_campagne_c2_ventes_20261114');
   }
   console.log('OK garde revoke truncate');
 }
+
+// Recette Guardian 6880747094 : carte, libellés, historique, mapping, CSV.
+{
+  const camp = fs.readFileSync('./NEXUS-Campagne-v2.html', 'utf8');
+  const ven = fs.readFileSync('./NEXUS-Campagne-v2-Ventes.html', 'utf8');
+  const voc = fs.readFileSync('./nexus-vocabulaire.js', 'utf8');
+  assert.ok(/location\.href = 'NEXUS-Campagne-v2-Ventes\.html\?campagne=' \+ encodeURIComponent\(b\.dataset\.suivre\)/.test(camp), 'la carte mène au suivi des ventes');
+  assert.ok(!/Objectifs\.html\?campagne=' \+ encodeURIComponent\(b\.dataset\.suivre\)/.test(camp), 'la carte ne mène plus aux objectifs');
+  assert.ok(/NEXUS-Campagne-v2-Objectifs\.html/.test(camp), 'la tuile Mes objectifs de vente reste');
+  assert.ok(/Objectifs\.html\?campagne=' \+ encodeURIComponent\(CAMPAGNE\.id\)/.test(ven) && /voirObjectifs/.test(ven), 'lien Voir mes objectifs sur la page Ventes');
+  assert.ok(/Voir mes objectifs/.test(voc));
+  assert.ok(!/vos ventes/i.test(voc), 'libellé aligné : Actualiser mes ventes');
+  assert.ok(/\.ec-rang\.prochaine \.val\{color:rgb\(var\(--boutique-rgb\)\)/.test(camp), 'valeur en cuivre, pas en cyan');
+  assert.ok(/\.btn-lien\{[^}]*min-height:44px/.test(ven), 'boutons d\'historique stylés, 44 px');
+  assert.ok(/class="btn-lien" data-confirmer/.test(ven) && /class="btn-lien" data-renoncer/.test(ven));
+  assert.ok(/ligneHisto/.test(ven) && /Ventes au ' \+ vente/.test(voc), 'ligne « Ventes au … · importé le … »');
+  assert.ok(/chargerMappingMemoire\(nexusClient, SITE_ID, 'ventes_catalogue'\)/.test(ven) && /detectMapping\(HEADERS, .*, MEMOIRE\)/.test(ven), 'mémoire de mapping de l\'import v1 utilisée');
+  assert.ok(/select data-col/.test(ven) || /select\[data-col\]/.test(ven), 'choix de colonne si non reconnue');
+  assert.ok(/raw: true/.test(ven), 'CSV lu en texte');
+  const M = require('./nexus-import-moteur.js');
+  assert.strictEqual(M.toNumber('1,47'), 1.47, 'virgule décimale lue comme 1,47 et non 147');
+  console.log('OK recette Guardian');
+}

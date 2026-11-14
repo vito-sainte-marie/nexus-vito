@@ -311,6 +311,13 @@ details.obj-hab[open] summary::after{transform:rotate(180deg);}
 .obj-barre{height:8px; border-radius:6px; background:var(--t-raised); margin-top:8px; overflow:hidden;}
 .obj-barre span{display:block; height:100%; background:rgba(var(--boutique-rgb),.8);}
 .obj-statut{margin-top:10px; font-size:13px; color:var(--t-mid);}
+.btn-lien{font-family:var(--t-sans); font-size:13.5px; min-height:44px; padding:10px 6px; background:transparent; border:0; color:rgb(var(--boutique-rgb)); text-decoration:underline; cursor:pointer;}
+.btn-lien:focus-visible{outline:2px solid var(--t-cyan); outline-offset:2px;}
+.vt-lien{display:inline-flex; align-items:center; min-height:44px; font-size:13.5px; color:rgb(var(--boutique-rgb)); margin-top:6px;}
+.vt-annul{display:block; margin-top:6px;}
+.vt-annul input{min-height:44px; width:100%; box-sizing:border-box; margin-bottom:6px; background:var(--t-raised); color:var(--t-text); border:1px solid var(--t-line); border-radius:10px; padding:8px 12px; font-family:var(--t-sans);}
+.vt-cols label{display:block; margin-top:8px; font-size:13px; color:var(--t-mid);}
+.vt-cols select{display:block; min-height:44px; width:100%; margin-top:4px; background:var(--t-raised); color:var(--t-text); border:1px solid var(--t-line); border-radius:10px; padding:8px; font-family:var(--t-sans);}
 .obj-histo{margin-top:6px; font-size:12.5px; color:var(--t-mid);}
 
 .vt-bloc{margin-top:14px; padding:12px; border:1px solid var(--t-line); border-radius:10px; background:var(--t-raised);}
@@ -354,10 +361,11 @@ details.obj-hab[open] summary::after{transform:rotate(180deg);}
   <a class="retour" id="lienRetour" href="NEXUS-Campagne-v2.html"></a>
   <section id="vtCorps" hidden>
     <label class="sim-choix"><span id="vtChoisirLib"></span><select id="vtCampagne"></select></label>
-    <div class="vt-bloc" id="vtSuivi"></div>
+    <div class="vt-bloc"><div id="vtSuivi"></div><a class="vt-lien" id="vtLienObjectifs" href="NEXUS-Campagne-v2-Objectifs.html"></a></div>
     <div class="vt-bloc">
       <h3 id="vtE1"></h3><input type="file" id="vtFichier" accept=".xlsx,.xls,.csv,.html,.htm">
       <div class="vt-msg" id="vtFichierMsg"></div>
+      <div class="vt-cols" id="vtColonnes" hidden></div>
       <h3 id="vtE2" style="margin-top:12px"></h3><input type="date" id="vtDateFin">
       <div class="vt-aide" id="vtDateAide"></div>
       <div class="sim-actions"><button type="button" class="btn" id="vtAnalyser"></button></div>
@@ -394,6 +402,7 @@ let EMPLOYEE = null, SITE_ID = null, CAMPAGNES = [], CAMPAGNE = null, OBJECTIFS 
 let FICHIER = null, HEADERS = [], ROWS = [], MAPPING = null, MAPPING_AUTO = null, ANALYSE = null;
 const $ = id => document.getElementById(id);
 function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function jourMois(iso){ const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || '')); return m ? new Date(iso.slice(0, 10) + 'T00:00:00Z').toLocaleDateString('fr-FR', {day: 'numeric', month: 'long', timeZone: 'UTC'}) : String(iso || ''); }
 function jma(iso){ const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || '')); return m ? m[3] + '/' + m[2] + '/' + m[1] : String(iso || ''); }
 function aujourdhui(){ const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 function fmt(v, d){ return Number(v).toLocaleString('fr-FR', {minimumFractionDigits: d || 0, maximumFractionDigits: d || 0}); }
@@ -416,7 +425,8 @@ function lireFichier(file){
         const data = e.target.result;
         const debut = new TextDecoder('utf-8').decode(new Uint8Array(data).slice(0, 512)).toLowerCase();
         if (debut.includes('<html') || debut.includes('<table')) { resolve(parserTableHTML(new TextDecoder('utf-8').decode(new Uint8Array(data)))); return; }
-        const wb = XLSX.read(data, {type: 'array'});
+        const estCsv = /\.csv$/i.test(file.name || '');
+        const wb = XLSX.read(data, estCsv ? {type: 'array', raw: true} : {type: 'array'});
         resolve(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {defval: ''}));
       } catch (err) { reject(err); }
     };
@@ -441,6 +451,7 @@ async function chargerCampagne(){
   ]);
   if (o.error) console.error(o.error); if (p.error) console.error(p.error); if (a.error) console.error(a.error);
   OBJECTIFS = derniersObjectifs(o.data || []); POINTS = p.data || []; ANNULATIONS = a.data || [];
+  $('vtLienObjectifs').href = 'NEXUS-Campagne-v2-Objectifs.html?campagne=' + encodeURIComponent(CAMPAGNE.id); $('vtLienObjectifs').textContent = P.voirObjectifs;
   peindreSuivi(); peindreHisto();
   $('vtRapport').hidden = true; ANALYSE = null;
 }
@@ -462,11 +473,11 @@ function peindreSuivi(){
 function peindreHisto(){
   const h = CV.historique(POINTS, ANNULATIONS);
   $('vtHisto').hidden = !h.length;
-  $('vtHistoCorps').innerHTML = h.map(x => '<div class="obj-histo">' + esc(jma(x.date_fin)) + ' · ' + esc(String(x.importe_le || '').slice(0, 10).split('-').reverse().join('/'))
+  $('vtHistoCorps').innerHTML = h.map(x => '<div class="obj-histo">' + esc(P.ligneHisto(jourMois(x.date_fin), jourMois(String(x.importe_le || '').slice(0, 10))))
     + (x.annule ? ' · ' + esc(P.annule) + ' (' + esc(P.motif) + ' : ' + esc(x.motif) + ')'
       : ' · <button type="button" class="btn-lien" data-annuler="' + esc(x.batch_id) + '">' + esc(P.annulerImport) + '</button>'
         + '<span class="vt-annul" data-zone="' + esc(x.batch_id) + '" hidden> <input type="text" data-motif="' + esc(x.batch_id) + '" placeholder="' + esc(P.motifDemande) + '"> '
-        + '<button type="button" data-confirmer="' + esc(x.batch_id) + '">' + esc(P.confirmerAnnulation) + '</button> <button type="button" data-renoncer="' + esc(x.batch_id) + '">' + esc(P.annuler) + '</button></span>')
+        + '<button type="button" class="btn-lien" data-confirmer="' + esc(x.batch_id) + '">' + esc(P.confirmerAnnulation) + '</button> <button type="button" class="btn-lien" data-renoncer="' + esc(x.batch_id) + '">' + esc(P.annuler) + '</button></span>')
     + '</div>').join('');
   $('vtHistoCorps').querySelectorAll('[data-annuler]').forEach(b => b.addEventListener('click', () => {
     const z = $('vtHistoCorps').querySelector('[data-zone="' + b.getAttribute('data-annuler') + '"]'); if (z) z.hidden = false; }));
@@ -559,6 +570,18 @@ async function publier(){
   } finally { $('vtPublier').disabled = false; }
 }
 async function choisir(id){ CAMPAGNE = CAMPAGNES.find(c => c.id === id) || null; if (CAMPAGNE) await chargerCampagne(); }
+let MEMOIRE = [];
+const CHAMPS_REQUIS = [['article', 'Article'], ['quantite', 'Quantité'], ['prix_vente', 'Prix de vente HT']];
+function peindreColonnes(){
+  const z = $('vtColonnes'); if (!z) return;
+  const manque = CHAMPS_REQUIS.filter(([c]) => !MAPPING[c]);
+  if (!manque.length){ z.hidden = true; z.innerHTML = ''; return; }
+  z.hidden = false;
+  z.innerHTML = '<div>' + esc(P.colonnesAChoisir) + '</div>' + manque.map(([c, lib]) =>
+    '<label>' + esc(P.choisirColonne(lib)) + '<select data-col="' + c + '"><option value="">' + esc(P.colonneAChoisir) + '</option>'
+    + HEADERS.map(h => '<option value="' + esc(h) + '">' + esc(h) + '</option>').join('') + '</select></label>').join('');
+  z.querySelectorAll('select[data-col]').forEach(s => s.addEventListener('change', () => { MAPPING[s.getAttribute('data-col')] = s.value || null; }));
+}
 function brancher(){
   $('vtCampagne').addEventListener('change', ev => choisir(ev.target.value));
   $('vtFichier').addEventListener('change', async ev => {
@@ -568,8 +591,9 @@ function brancher(){
       ROWS = await lireFichier(FICHIER);
       if (!ROWS.length){ msg('vtFichierMsg', 'Le fichier ne contient aucune ligne.', true); return; }
       HEADERS = Object.keys(ROWS[0]);
-      const det = M.detectMapping(HEADERS, M.fieldDefsPourIntention('campagne'), []);
+      const det = M.detectMapping(HEADERS, M.fieldDefsPourIntention('campagne'), MEMOIRE);
       MAPPING = det.mapping; MAPPING_AUTO = det.auto;
+      peindreColonnes();
       msg('vtFichierMsg', P.fichierLu(ROWS.length));
     } catch (err) { console.error(err); msg('vtFichierMsg', 'Ce fichier n’a pas pu être lu.', true); }
   });
@@ -584,6 +608,7 @@ async function demarrer(){
   const c = await nexusClient.from('campagnes_nexus').select('id, nom, date_debut, date_fin, produits_concernes').eq('site', SITE_ID).order('date_debut', {ascending: false});
   if (c.error) console.error('campagnes_nexus', c.error);
   CAMPAGNES = c.data || [];
+  try { MEMOIRE = await D.chargerMappingMemoire(nexusClient, SITE_ID, 'ventes_catalogue'); } catch (e) { console.error(e); MEMOIRE = []; }
   if (!CAMPAGNES.length){ $('vtVide').textContent = P.aucuneCampagne; $('vtVide').hidden = false; return; }
   $('vtCampagne').innerHTML = CAMPAGNES.map(x => '<option value="' + esc(x.id) + '">' + esc(x.nom) + '</option>').join('');
   const demande = new URLSearchParams(location.search).get('campagne');
