@@ -1163,7 +1163,7 @@
         "par": "claude",
         "outil": "connecteur Supabase, migration appliquee et verifiee sur Test",
         "verdict": "NON APPLIQUEE en Production : mesure du catalogue Production a fournir par Guardian ; appliquee et verifiee sur Test seulement.",
-        "blob_migration": "9c7e146fa2be70edfacef9a2bb9450c67e63df9c"
+        "blob_migration": "815cb3f327abd3bb544a642dddb6c5b3c6ef18fa"
       },
       "objets_constates": [
         "campagne_livraisons",
