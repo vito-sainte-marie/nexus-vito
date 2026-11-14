@@ -529,12 +529,12 @@
     cartes: [
       { cle: 'promotions', titre: 'Mes promotions', texte: 'Préparer et suivre mes campagnes.' },
       { cle: 'compensation', dispo: true, titre: 'Le volume compense-t-il la remise ?', texte: 'Mesurer la marge préservée.' },
+      { cle: 'objectifs', dispo: true, picto: 'objectif-commercial', titre: 'Mes objectifs de vente', texte: 'Fixer le volume à vendre par produit.' },
+      { cle: 'opportunites-achat', picto: 'a-retenir', titre: 'Mes opportunités d’achat', texte: 'Repérer les achats à saisir.' },
       { cle: 'produits-moteurs', titre: 'Mes produits moteurs', texte: 'Identifier les gains de marge.' },
       { cle: 'produits-a-revoir', titre: 'Mes produits à revoir', texte: 'Repérer les pertes de marge.' },
       { cle: 'simulateur', dispo: true, titre: 'Simuler une promotion', texte: 'Tester mes prix et mes volumes.' },
       { cle: 'renouveler', titre: 'Quelles promotions renouveler ?', texte: 'Retrouver les campagnes rentables.' },
-      { cle: 'objectifs', dispo: true, picto: 'objectif-commercial', titre: 'Mes objectifs de vente', texte: 'Fixer le volume à vendre par produit.' },
-      { cle: 'opportunites-achat', picto: 'a-retenir', titre: 'Mes opportunités d’achat', texte: 'Repérer les achats à saisir.' },
     ],
     objectifsPage: {
       eyebrow: 'Campagne', titre: 'Mes objectifs de vente', sous: 'Un volume à tenir par produit, calculé sur vos prix.',
@@ -629,6 +629,13 @@
         valide: n => n === 1 ? 'Objectif validé (1 produit).' : 'Objectifs validés (' + n + ' produits).',
         erreur: 'Validation impossible. Réessayez dans un instant.',
         aucunProduit: 'Aucun produit dans cette promotion.',
+        habituels: 'Prix habituels proposés',
+        champPaPromo: 'Achat HT promo', champPvPromo: 'Vente TTC promo',
+        statutCourt: { 'ok': 'À valider', 'prix-manquant': 'Prix à compléter', 'tva-manquante': 'TVA à compléter', 'marge-habituelle-nulle': 'Marge habituelle nulle', 'marge-promo-nulle': 'Marge promo nulle', 'sans-reference': 'Sans référence', 'aucune-hausse': 'Aucune hausse requise' },
+        faisabiliteCourte: { 'depasse-observe': 'Au-dessus de l’observé', 'dans-observe': 'Dans l’observé', 'a-confirmer': 'À confirmer' },
+        objectifCourt: o => o + ' par jour',
+        versionCourte: (v, o) => 'Version ' + v + ' : ' + o + ' par jour',
+        sansVersion: 'Pas encore validé',
         versionLigne: (v, o) => 'Version ' + v + ' validée : ' + o + ' par jour.',
         objectifInitial: o => 'Objectif initial : ' + o + ' par jour.'
       },

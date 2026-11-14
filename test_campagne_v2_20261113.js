@@ -20,8 +20,8 @@ t('aucun tiret cadratin (page et bloc lexique)',()=>{
   assert(!page.includes('—')); assert(!bloc.includes('—'));
 });
 t('huit cartes, cinq En préparation, compensation, simulateur et objectifs disponibles, sans chiffre',()=>{
-  assert.deepStrictEqual(C.cartes.filter(c=>c.dispo).map(c=>c.cle),['compensation','simulateur','objectifs']);
-  assert.deepStrictEqual(C.cartes.map(c=>c.cle),['promotions','compensation','produits-moteurs','produits-a-revoir','simulateur','renouveler','objectifs','opportunites-achat']);
+  assert.deepStrictEqual(C.cartes.filter(c=>c.dispo).map(c=>c.cle),['compensation','objectifs','simulateur']);
+  assert.deepStrictEqual(C.cartes.map(c=>c.cle),['promotions','compensation','objectifs','opportunites-achat','produits-moteurs','produits-a-revoir','simulateur','renouveler']);
   assert.strictEqual(C.enPreparation,'En préparation');
   C.cartes.forEach(c=>assert(!/\d/.test(c.titre+c.texte),'chiffre dans '+c.cle));
   assert(/class="tuile disponible/.test(page)&&/c\.dispo/.test(page),'interaction réservée aux cartes disponibles');
