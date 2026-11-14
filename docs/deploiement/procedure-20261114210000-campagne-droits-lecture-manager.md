@@ -35,3 +35,17 @@ Geste de Frédéric sous la garde, après GO explicite. Claude n'écrit pas en P
 - Les pages qui lisent ces tables sont des pages de manager : la restriction ne les prive de rien.
 - Le code de #310 qui écrit `source = 'releve_theorique_decenium'` exige l'élargissement du `check` : cette migration passe **avant** lui.
 - Retour arrière : recréer `lecture_meme_site` (`site = current_employee_site_id()`) sur chaque table. Il rouvre la lecture au caissier, à ne faire qu'en connaissance de cause.
+
+## Requête APRÈS
+
+```sql
+select
+  (select count(*) from pg_policies where schemaname='public' and policyname='lecture_meme_site'
+     and (tablename like 'campagne\_%' or tablename='fournisseurs_conditions')) as lecture_meme_site,
+  (select count(*) from pg_policies where schemaname='public' and policyname='lecture_manager_meme_site'
+     and (tablename like 'campagne\_%' or tablename='fournisseurs_conditions')) as lecture_manager_meme_site,
+  (select pg_get_constraintdef(oid) from pg_constraint where conname='campagne_stock_depart_source_check') as source_check;
+```
+
+Attendu : 0, 11, et un `check` portant `inventaire`, `saisie_initiale`, `releve_theorique_decenium`, `comptage`.
+Mesuré le 14/11/2026 après application : 0, 11, `check` élargi. Estampille du registre : 20261114202829.

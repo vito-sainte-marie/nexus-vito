@@ -1121,11 +1121,37 @@
       "reserve": "Cette qualification n'autorise ni la fusion ni le deploiement. L'estampille du registre (20261114170909) differe du nom de fichier ; c'est l'estampille du fichier qui sert de repere a la garde."
     },
     "20261114210000": {
-      "etat": "atomique_ou_procedure_speciale",
-      "justification": "Migration de droits : elle supprime les politiques lecture_meme_site (DDL destructif, donc l'etat additive_compatible_avant_code est refuse) pour les remplacer par lecture_manager_meme_site, ajoute des controles d'appartenance aux ecritures et elargit campagne_stock_depart_source_check. Appliquee sur Test seulement le 14/11/2026, preuve par role (caissier et pompiste : 0 ligne lue, ecriture refusee 42501 ; manager : lecture et ecriture de son site, campagne d'un autre site refusee). Non appliquee en Production : aucun GO. Le code de #310 qui ecrit source = releve_theorique_decenium exige cette migration avant lui.",
-      "prochaine_action": "GO de Frederic pour l'application en Production selon la procedure, avant le deploiement de #310",
+      "etat": "migration_deja_appliquee",
+      "justification": "Appliquee en Production (uzhjpqpctpvxytxpxoqz) le 14/11/2026 apres GO de Frederic confirme en session (go production), via le connecteur Supabase apply_migration, fichier entier (blob 62e47d84). Estampille du registre : 20261114202829 (nom campagne_droits_lecture_manager). Etat AVANT mesure par Guardian sur le catalogue a 20:05:00Z (commentaire 6883439120 sur #160) : lecture_meme_site sur 11 tables, lecture_manager_meme_site absente, campagne_stock_depart vide. Etat APRES mesure a la suite de l'application : 0 lecture_meme_site, 11 lecture_manager_meme_site, campagne_stock_depart_source_check elargi a inventaire, saisie_initiale, releve_theorique_decenium, comptage. Aucune donnee ecrite. Preuve par role sur Test (caissier et pompiste : 0 ligne, ecriture refusee 42501 ; manager : son site seulement). Mesure APRES a recouper par Guardian.",
+      "prochaine_action": "aucune ; effet constate le 14/11/2026, mesure APRES de Guardian attendue",
       "procedure": "docs/deploiement/procedure-20261114210000-campagne-droits-lecture-manager.md",
-      "reserve": "Cette qualification n'autorise ni la fusion ni le deploiement ni l'application en Production."
+      "reserve": "Cette qualification n'autorise ni la fusion ni le deploiement de #310.",
+      "mesure": {
+        "source": "catalogue",
+        "le": "2026-11-14T20:05:00Z",
+        "cible": "uzhjpqpctpvxytxpxoqz",
+        "par": "guardian",
+        "outil": "connecteur Supabase execute_sql, pg_policies en lecture seule (commentaire Guardian 6883439120 sur #160)",
+        "verdict": "AVANT : lecture_meme_site presente sur les 11 tables, lecture_manager_meme_site absente. APRES (apply puis lecture catalogue par Claude) : 0 lecture_meme_site, 11 lecture_manager_meme_site, check elargi. Politiques d'insertion (8) et d'ecriture (3) egalement constatees.",
+        "blob_migration": "62e47d8461f24ad73f12ccf25d0aeb2afb6df210"
+      },
+      "objets_constates": [
+        "campagne_livraisons.lecture_manager_meme_site",
+        "campagne_livraisons_annulations.lecture_manager_meme_site",
+        "campagne_livraison_lignes.lecture_manager_meme_site",
+        "campagne_conditionnement_achat.lecture_manager_meme_site",
+        "campagne_stock_depart.lecture_manager_meme_site",
+        "campagne_objectifs_produits.lecture_manager_meme_site",
+        "campagne_mesures_produits.lecture_manager_meme_site",
+        "campagne_couts.lecture_manager_meme_site",
+        "fournisseurs_conditions.lecture_manager_meme_site",
+        "campagne_ventes_points.lecture_manager_meme_site",
+        "campagne_ventes_annulations.lecture_manager_meme_site",
+        "campagne_stock_depart_source_check",
+        "lecture_manager_meme_site (11 tables)",
+        "insertion_manager_meme_site (8 tables)",
+        "ecriture_manager_meme_site (3 tables)"
+      ]
     }
   },
   "prochaine_action": "Axe SS4 migration -> code : LEVE pour 20260919103000 (13/13 objets constates sur le catalogue le 01/10/2026) et pour 20261001160000 (ACL constatee fermee le 03/10/2026). Ces qualifications restent acquises tant que leur fichier de migration ne change pas : la garde compare mesure.blob_migration a l'empreinte du candidat, et une migration retouchee fait tomber sa qualification. Il n'y a plus d'echeance horaire (l'ancienne fraicheur de 72 h aurait fait retomber l'axe le 04/10/2026 sans que rien ne bouge). CE QUE LA GARDE NE VOIT PAS : une base modifiee sans que le depot bouge - c'est exactement ce que la relecture du 03/10 a trouve pour 20261001160000. Toute procedure d'application relit donc la base avant d'ecrire. CE QUE CELA N'AUTORISE PAS : aucune fusion ni aucun deploiement ; chacun reste un GO distinct de Frederic. RESTE A FAIRE, separement : (1) les 11 migrations du rail toujours non qualifiees ; (2) le cablage de garde-ordre-migration-code.js dans deploiement-production.yml. Lecture du verdict et table de decision : SS18.4 ; recit de la mesure : SS20. MISE A JOUR DU 04/10/2026 : les 13 migrations du candidat rebuild/fdj-62-20260922 sont qualifiees (12 atomiques en serie avant le code, 20261004120000 code d abord) ; ordre et gestes dans docs/deploiement/procedure-fdj-62-production.md."
