@@ -395,6 +395,15 @@
     sousTitre: 'Vos promotions, en clair',
     menu: '☰ Menu',
     conseillerTitre: 'Conseiller NEXUS',
+    conseillerSousTitre: 'Votre point commercial',
+    conseillerEnCours: function (nom, nbProduits, mesure) {
+      var p = nbProduits === 0 ? 'sans produit précisé' : (nbProduits === 1 ? 'avec 1 produit en promotion' : 'avec ' + nbProduits + ' produits en promotion');
+      return nom + ' est en cours ' + p + '. ' + (mesure
+        ? 'Sa compensation des remises est mesurée : vous la retrouvez dans le suivi.'
+        : 'Pour suivre sa rentabilité, il reste à compléter les données de compensation.');
+    },
+    conseillerDernierBilan: function (nom) { return 'Dernier bilan : ' + nom + '.'; },
+    conseillerSansEnCours: 'Aucune promotion n’est en cours aujourd’hui.',
     conseillerAucune: 'Aucune promotion n’est déclarée pour l’instant.',
     conseillerCompte: function (total, enCours, terminees, aVenir) {
       var s = total + (total > 1 ? ' promotions déclarées' : ' promotion déclarée');
@@ -411,12 +420,12 @@
     conseillerSansProduit: 'Sa rentabilité n’est pas mesurable : aucun produit précis n’est associé à cette promotion.',
     conseillerProduitsImportes: 'Les ventes par produit sont importées. Aucune qualification de rentabilité n’est encore définie.',
     bilan: {
-      blocTitre: 'Dernière campagne analysée',
+      blocTitre: 'Dernier bilan',
       objectif: 'Objectif',
       produits: function (n) { return n === 0 ? 'Aucun produit précisé' : (n === 1 ? '1 produit' : n + ' produits'); },
       jours: function (n) { return n + (n > 1 ? ' jours' : ' jour'); },
       parJour: ' par jour',
-      tuiles: { ca: 'CA Boutique', frequentation: 'Fréquentation', panier: 'Panier moyen TTC', marge: 'Marge des produits en promotion' },
+      tuiles: { ca: 'CA Boutique', frequentation: 'Fréquentation', panier: 'Panier moyen TTC', marge: 'Rentabilité' },
       ticketsParJour: 'tickets par jour',
       g5: {
         hausse_nette: 'en hausse nette',
@@ -429,6 +438,7 @@
       graphTitre: 'Évolution du CA Boutique',
       graphJours: function (n) { return n + (n > 1 ? ' jours' : ' jour'); },
       rentaTitre: 'Rentabilité de la campagne',
+      rentaManqueCourt: 'Données de marge à compléter',
       rentaManque: 'Pour la mesurer, il faut saisir produit par produit le stock, les prix et les livraisons.',
       rentaGain: 'Gain après coûts',
       retenirTitre: 'À retenir',
@@ -436,7 +446,9 @@
       retenirTickets: function (g5) { return 'La fréquentation est ' + g5 + '.'; },
       retenirPanier: function (g5) { return 'Le panier moyen est ' + g5 + '.'; },
       retenirPasAssez: 'Pas assez de jours pour comparer cet indicateur.',
-      bilanComplet: 'Voir le bilan complet',
+      bilanComplet: 'Voir le bilan complet →',
+      modifierCampagne: 'Modifier la campagne',
+      graphSousTitre: function (n) { return 'CA moyen par jour · comparaison avec les ' + n + ' jours de référence retenus'; },
       bilanReduire: 'Masquer le bilan complet',
       mesurerLien: 'Mesurer la compensation',
       terminees: 'Campagnes passées',
@@ -497,15 +509,30 @@
     enCoursAucune: 'Aucune promotion en cours aujourd’hui.',
     derniereTitre: 'Dernière promotion terminée',
     derniereAucune: 'Aucune promotion terminée pour l’instant.',
-    outilsTitre: 'Pour aller plus loin',
+    outilsTitre: 'Mes outils commerciaux',
+    enCoursSurtitre: 'Votre promotion en cours',
+    enCours: {
+      periode: function (debut, fin, jours) { return 'Du ' + debut + ' au ' + fin + ' · ' + jours; },
+      avancement: 'Avancement de la promotion',
+      jourSur: function (n, m) { return 'Jour ' + n + ' sur ' + m; },
+      calendrier: 'Avancement dans le calendrier, pas un résultat commercial.',
+      produits: 'Produits en promotion',
+      compensation: 'Compensation des remises',
+      aMesurer: 'À mesurer',
+      bilan: 'Bilan commercial',
+      enAttente: 'En attente',
+      suivre: 'Suivre ma promotion',
+      modifier: 'Modifier'
+    },
+    historiqueAucune: 'Aucune autre campagne terminée pour l’instant.',
     enPreparation: 'En préparation',
     cartes: [
-      { cle: 'promotions', titre: 'Mes promotions', texte: 'Retrouver toutes vos promotions au même endroit.' },
-      { cle: 'compensation', dispo: true, titre: 'Le volume compense-t-il la remise ?', texte: 'Voir si les ventes en plus couvrent la remise accordée.' },
-      { cle: 'produits-moteurs', titre: 'Mes produits moteurs', texte: 'Repérer les produits qui tirent vos promotions.' },
-      { cle: 'produits-a-revoir', titre: 'Mes produits à revoir', texte: 'Repérer les produits dont les ventes ne compensent pas la remise.' },
-      { cle: 'simulateur', dispo: true, titre: 'Simuler une promotion', texte: 'Tester une idée de promotion avant de la lancer.' },
-      { cle: 'renouveler', titre: 'Quelles promotions renouveler ?', texte: 'Savoir quelles promotions méritent d’être reconduites.' },
+      { cle: 'promotions', titre: 'Mes promotions', texte: 'Préparer et suivre mes campagnes.' },
+      { cle: 'compensation', dispo: true, titre: 'Le volume compense-t-il la remise ?', texte: 'Mesurer la marge préservée.' },
+      { cle: 'produits-moteurs', titre: 'Mes produits moteurs', texte: 'Identifier les gains de marge.' },
+      { cle: 'produits-a-revoir', titre: 'Mes produits à revoir', texte: 'Repérer les pertes de marge.' },
+      { cle: 'simulateur', dispo: true, titre: 'Simuler une promotion', texte: 'Tester mes prix et mes volumes.' },
+      { cle: 'renouveler', titre: 'Quelles promotions renouveler ?', texte: 'Retrouver les campagnes rentables.' },
     ],
     historiqueTitre: 'Historique des promotions',
     historiqueIntro: 'Comparaison brute, non testée',

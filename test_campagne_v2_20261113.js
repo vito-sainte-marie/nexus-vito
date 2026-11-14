@@ -24,7 +24,8 @@ t('six cartes, quatre En préparation, compensation et simulateur disponibles, s
   assert.deepStrictEqual(C.cartes.map(c=>c.cle),['promotions','compensation','produits-moteurs','produits-a-revoir','simulateur','renouveler']);
   assert.strictEqual(C.enPreparation,'En préparation');
   C.cartes.forEach(c=>assert(!/\d/.test(c.titre+c.texte),'chiffre dans '+c.cle));
-  assert(!/tuile disponible|class="tuile[^"]*\b(lien|dispo)/.test(page));
+  assert(/class="tuile disponible/.test(page)&&/c\.dispo/.test(page),'interaction réservée aux cartes disponibles');
+  assert(!/<div class="tuile disponible/.test(page));
   assert(/aria-disabled="true"/.test(page));
   assert(!/<a[^>]*class="tuile/.test(page));
 });
@@ -35,8 +36,8 @@ t('états : tableau de démonstration seulement',()=>{
   assert(/<div id="blocEtats" hidden>/.test(page),'bloc des états visible par défaut');
   assert(/if \(apercuEtats\) \$\('etats'\)\.innerHTML/.test(page),'rendu des états hors paramètre');
   const rendu=page.slice(page.indexOf('function carteResume'),page.indexOf('function ico('));
-  assert(rendu.length>50); assert(!/etat|rentabilite/.test(rendu),'état dans le rendu des campagnes');
-  assert(!/etat/.test(page.slice(page.indexOf('function afficher'),page.indexOf('async function chargerEtAfficher'))));
+  assert(rendu.length>50); assert(!/apercuEtats|C\.etats|V\.campagne\.etats|'etats'/.test(rendu),'tableau de démonstration dans le rendu des campagnes');
+  assert(!/apercuEtats|C\.etats|V\.campagne\.etats/.test(page.slice(page.indexOf('function afficher'),page.indexOf('async function chargerEtAfficher'))));
 });
 t('échappement du texte saisi',()=>{
   const m=page.match(/function esc\(s\)\{[\s\S]*?\n\}/); assert(m);
@@ -84,7 +85,7 @@ t('retouches 20261113 : une seule mention, deux décimales, texte',()=>{
   assert(page.includes('minimumFractionDigits:2'));
   assert(/const fmtNb = v => Math\.round\(v\)/.test(page));
   assert((8.5).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})==='8,50');
-  assert(C.cartes.find(c=>c.cle==='produits-a-revoir').texte==='Repérer les produits dont les ventes ne compensent pas la remise.');
+  assert(C.cartes.find(c=>c.cle==='produits-a-revoir').texte==='Repérer les pertes de marge.');
   assert(/@media \(max-width:599px\)[\s\S]*\.header::after/.test(page),'dégradé mobile');
 });
 t('mesure de la compensation : câblage de la page et lexique',()=>{

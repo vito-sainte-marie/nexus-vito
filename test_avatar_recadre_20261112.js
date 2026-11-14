@@ -29,7 +29,7 @@ t('chaque page qui affiche l’avatar recadré porte un srcset 64/96/128', () =>
   pages.forEach(f => {
     const c = fs.readFileSync(path.join(__dirname, f), 'utf8');
     (c.match(/<img[^>]*assets\/avatar\/nexus-avatar-[^>]*>/g) || []).forEach(img => {
-      assert.ok(/srcset="[^"]*64w[^"]*96w[^"]*128w/.test(img) && /sizes="\d+px"/.test(img), f + ' : srcset incomplet');
+      assert.ok(/srcset="[^"]*64w[^"]*96w[^"]*128w/.test(img) && /sizes="(?:\(max-width: \d+px\) \d+px, )?\d+px"/.test(img), f + ' : srcset incomplet');
     });
   });
 });
