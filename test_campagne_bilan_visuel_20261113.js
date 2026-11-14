@@ -140,4 +140,8 @@ t('retouches : tickets par jour en entier, dernière promotion alignée sur le b
   assert(!page.includes("B.ticketsParJour.replace"));
   assert(page.includes("x.campagneId === BILAN_COURANT"));
 });
+t('Conseiller : « Promotion analysée », jamais « Dernière promotion »',()=>{
+  const f=V.campagne.conseillerDerniere||V.conseillerDerniere; const r=f('X','01/07','10/07');
+  assert(r.startsWith('Promotion analysée : « X »')); assert(!r.includes('Dernière'));
+});
 console.log(echecs?'\n'+echecs+' échec(s)':'\ntout est vert'); process.exit(echecs?1:0);

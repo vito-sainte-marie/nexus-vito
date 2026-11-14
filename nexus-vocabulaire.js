@@ -405,7 +405,7 @@
       return s + (p.length ? ' : ' + p.join(', ') : '') + '.';
     },
     conseillerDerniere: function (nom, debut, fin) {
-      return 'Dernière promotion : « ' + nom + ' », du ' + debut + ' au ' + fin + '.';
+      return 'Promotion analysée : « ' + nom + ' », du ' + debut + ' au ' + fin + '.';
     },
     conseillerNonMesurable: 'Sa rentabilité n’est pas mesurable : les ventes par produit avant et pendant la promotion n’ont pas été importées.',
     conseillerSansProduit: 'Sa rentabilité n’est pas mesurable : aucun produit précis n’est associé à cette promotion.',
