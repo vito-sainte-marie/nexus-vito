@@ -1148,9 +1148,9 @@
         "campagne_ventes_points.lecture_manager_meme_site",
         "campagne_ventes_annulations.lecture_manager_meme_site",
         "campagne_stock_depart_source_check",
-        "lecture_manager_meme_site (11 tables)",
-        "insertion_manager_meme_site (8 tables)",
-        "ecriture_manager_meme_site (3 tables)"
+        "lecture_manager_meme_site",
+        "insertion_manager_meme_site",
+        "ecriture_manager_meme_site"
       ]
     }
   },
