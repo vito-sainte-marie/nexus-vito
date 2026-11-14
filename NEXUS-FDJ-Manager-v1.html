@@ -1607,6 +1607,42 @@
     return data || [];
   }
 
+  // Un quart « à revoir » pour cause de correction amont ne doit pas le
+  // rester quand la continuité est rétablie. Ici : pour chaque quart à revoir,
+  // on regarde s'il reste une alerte de continuité ou de chaîne ouverte
+  // (drapeau `continuiteOuverte`) ; si le motif est celui d'une correction
+  // amont déjà confirmée et qu'aucune alerte ne reste, on lève la marque par
+  // la commande serveur (journalisée). Retourne les quarts encore à revoir.
+  const MOTIF_A_REVOIR_CORRECTION_AMONT = 'correction_amont_stock_initial_deja_confirme';
+  const MOTIF_LEVEE_AUTO = 'Continuité de stock rétablie : stock initial aligné sur la fin du quart précédent';
+  async function leverARevoirDevenusSains(quarts) {
+    if (!quarts || !quarts.length) return [];
+    const { data, error } = await nexusClient.from('fdj_alertes').select('shift_id')
+      .eq('site', siteId).in('type', ['continuite_stock_a_verifier', 'chaine_interrompue']).is('resolue_le', null);
+    if (error) { console.error('Lecture alertes de continuité ouvertes FDJ:', error); return quarts.map(q => ({ ...q, continuiteOuverte: true })); }
+    const ouvertes = new Set((data || []).map(a => a.shift_id));
+    const restants = [];
+    for (const q of quarts) {
+      const continuiteOuverte = ouvertes.has(q.id);
+      if (!continuiteOuverte && q.a_revoir_motif === MOTIF_A_REVOIR_CORRECTION_AMONT) {
+        const { error: eLevee } = await nexusClient.rpc('fdj_manager_lever_a_revoir', { p_shift_id: q.id, p_motif: MOTIF_LEVEE_AUTO });
+        if (!eLevee) continue; // levée : le quart sort de la liste
+        console.error('Levée automatique à revoir FDJ:', eLevee);
+      }
+      restants.push({ ...q, continuiteOuverte });
+    }
+    return restants;
+  }
+
+  // Levée manuelle : le manager confirme qu'il n'y a rien à corriger.
+  async function leverARevoirManuellement(shiftId, motif) {
+    const texte = (motif || '').trim();
+    if (texte.length < 5) { alert('Indiquez une courte raison (5 caractères au moins).'); return false; }
+    const { error } = await nexusClient.rpc('fdj_manager_lever_a_revoir', { p_shift_id: shiftId, p_motif: texte });
+    if (error) { console.error('Levée manuelle à revoir FDJ:', error); alert("Impossible de confirmer ce quart. Réessayez, ou vérifiez qu'aucune alerte de continuité n'est ouverte."); return false; }
+    return true;
+  }
+
   // Carnets à rapprocher — même détection que le badge "⚠️ À rapprocher" de
   // l'écran État du stock (NexusFdjMoteur.approNonTraceParJeu), en agrégat
   // léger : pas de rotation/autonomie/tickets restants ici, inutiles pour
@@ -1720,6 +1756,11 @@
         <div class="jeu-row" style="padding:10px 14px 10px 22px;">
           <div class="histo-sub" style="margin-bottom:8px;">Quart ${item.date} · Q${item.quart} — stock initial à confirmer après une correction du quart précédent</div>
           <button type="button" class="btn-modifier" data-corriger="${item.id}" style="margin-top:0;">Vérifier / valider</button>
+          <div style="margin-top:10px;">
+            <input type="text" class="champ-input" data-motif-levee="${item.id}" placeholder="Pourquoi il n'y a rien à corriger" style="margin-bottom:8px;"${item.continuiteOuverte ? ' disabled' : ''}>
+            <button type="button" class="btn-modifier" data-lever-a-revoir="${item.id}" style="margin-top:0;"${item.continuiteOuverte ? ' disabled' : ''}>Confirmer, rien à corriger</button>
+            ${item.continuiteOuverte ? '<div class="champ-note" style="margin:6px 0 0;">Une alerte de continuité reste ouverte sur ce quart : à traiter d\'abord.</div>' : ''}
+          </div>
         </div>`;
     }
     if (categorieCle === 'quartsManquants') {
@@ -2747,6 +2788,7 @@
     const alertesStockOuvertes = await chargerAlertesContinuiteStockOuvertes();
     const mutationsStock = await reconcilierAlertesContinuiteStock(alertesStockOuvertes);
     const mutationsAlertes = mutationsChaine || mutationsStock;
+    const quartsARevoirRestants = await leverARevoirDevenusSains(quartsARevoir);
     const [alertes, journalChaine, journalContinuiteStock] = await Promise.all([
       mutationsAlertes ? chargerAlertesNonVues() : Promise.resolve(alertesInitiales),
       chargerJournalChaine(),
@@ -2783,7 +2825,7 @@
     // ci-dessus, jamais une nouvelle détection (Article 11 — voir
     // NexusFdjMoteur.syntheseExceptionsManager).
     const exceptions = NexusFdjMoteur.syntheseExceptionsManager({
-      correctionsRetroactives: [...alertes.filter(a => a.type === 'stock_initial_modifie'), ...quartsARevoir],
+      correctionsRetroactives: [...alertes.filter(a => a.type === 'stock_initial_modifie'), ...quartsARevoirRestants],
       quartsManquants: alertes.filter(a => a.type === 'chaine_interrompue'),
       carnetsARapprocher, ecartsRecalcules: ecartsRecalculesAValider, replaysRequis,
     });
@@ -3177,6 +3219,13 @@
           const shift = await chargerShiftAvecCaisseParId(btn.dataset.corriger);
           if (!shift) return;
           await ouvrirEditionExistant(shift);
+        });
+      });
+      boiteExceptionsDetail.querySelectorAll('[data-lever-a-revoir]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const id = btn.dataset.leverARevoir;
+          const champ = boiteExceptionsDetail.querySelector(`[data-motif-levee="${id}"]`);
+          if (await leverARevoirManuellement(id, champ ? champ.value : '')) renderAccueil();
         });
       });
       boiteExceptionsDetail.querySelectorAll('[data-voir-journal-exception]').forEach(btn => {

@@ -1047,6 +1047,24 @@
         "campagnes_nexus_modifie_par_fkey"
       ],
       "reserve": "Aucune donnee n'a ete ecrite. Cette qualification n'autorise ni la fusion ni le deploiement. L'estampille du registre (20261114103941) differe du nom de fichier ; c'est l'estampille du fichier qui sert de repere a la garde."
+    },
+    "20261114120000": {
+      "etat": "migration_deja_appliquee",
+      "justification": "Appliquee en Production (uzhjpqpctpvxytxpxoqz) le 14/11/2026 apres GO de Frederic (relaye par Guardian, commentaire 6876896936, confirme en session), puis mesuree par Guardian sur le catalogue a 11:58:48Z (commentaire Guardian 6876929078 sur #160). Fonction fdj_manager_lever_a_revoir(uuid, text), security definer, search_path vide, boolean ; execute reserve a authenticated et service_role (ni anon ni public) ; md5 du corps identique au fichier et a Test. Aucune table, colonne ni donnee modifiee ; la commande n'a pas ete appelee. Estampille du registre : 20261114115738 fdj_lever_a_revoir.",
+      "prochaine_action": "aucune ; effet constate le 14/11/2026",
+      "mesure": {
+        "source": "catalogue",
+        "le": "2026-11-14T11:58:48Z",
+        "cible": "uzhjpqpctpvxytxpxoqz",
+        "par": "guardian",
+        "outil": "connecteur Supabase execute_sql, catalogue en lecture seule (commentaire Guardian 6876929078 sur #160)",
+        "verdict": "APPLIQUEE — fonction fdj_manager_lever_a_revoir constatee, droits authenticated et service_role seulement, conforme au fichier de la tete c0e51b3.",
+        "blob_migration": "09b2ae73fd74235855020ffa49c365f23292c517"
+      },
+      "objets_constates": [
+        "fdj_manager_lever_a_revoir"
+      ],
+      "reserve": "Aucune donnee n'a ete ecrite. Cette qualification n'autorise ni la fusion ni le deploiement. L'estampille du registre (20261114115738) differe du nom de fichier ; c'est l'estampille du fichier qui sert de repere a la garde."
     }
   },
   "prochaine_action": "Axe SS4 migration -> code : LEVE pour 20260919103000 (13/13 objets constates sur le catalogue le 01/10/2026) et pour 20261001160000 (ACL constatee fermee le 03/10/2026). Ces qualifications restent acquises tant que leur fichier de migration ne change pas : la garde compare mesure.blob_migration a l'empreinte du candidat, et une migration retouchee fait tomber sa qualification. Il n'y a plus d'echeance horaire (l'ancienne fraicheur de 72 h aurait fait retomber l'axe le 04/10/2026 sans que rien ne bouge). CE QUE LA GARDE NE VOIT PAS : une base modifiee sans que le depot bouge - c'est exactement ce que la relecture du 03/10 a trouve pour 20261001160000. Toute procedure d'application relit donc la base avant d'ecrire. CE QUE CELA N'AUTORISE PAS : aucune fusion ni aucun deploiement ; chacun reste un GO distinct de Frederic. RESTE A FAIRE, separement : (1) les 11 migrations du rail toujours non qualifiees ; (2) le cablage de garde-ordre-migration-code.js dans deploiement-production.yml. Lecture du verdict et table de decision : SS18.4 ; recit de la mesure : SS20. MISE A JOUR DU 04/10/2026 : les 13 migrations du candidat rebuild/fdj-62-20260922 sont qualifiees (12 atomiques en serie avant le code, 20261004120000 code d abord) ; ordre et gestes dans docs/deploiement/procedure-fdj-62-production.md."
