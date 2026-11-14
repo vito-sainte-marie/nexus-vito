@@ -1177,6 +1177,33 @@
         "createur_lit_si_autorise"
       ],
       "reserve": "Cette qualification n autorise ni la fusion ni le deploiement. L estampille du registre (20261114190604) differe du nom de fichier ; c est l estampille du fichier qui sert de repere a la garde."
+    },
+    "20261115100000": {
+      "etat": "migration_deja_appliquee",
+      "justification": "Appliquee en Production (uzhjpqpctpvxytxpxoqz) le 14/11/2026 apres GO de Frederic confirme en session (go migration), via le connecteur Supabase apply_migration, fichier entier (blob 574aedd7), annoncee sur #160 (commentaire 6885388848). Six tables append-only (commandes fournisseur, lignes, annulations, clotures, liaison livraison-commande, reglages d achat), RLS active, politiques lecture_manager_meme_site, insertion_manager_meme_site et createur_lit_si_autorise, anon sans droit, authenticated en SELECT et INSERT seulement. Aucun envoi a un fournisseur, aucune donnee ecrite. Etat AVANT mesure par Guardian sur le catalogue a 22:15:00Z (commentaire 6884997471) puis 22:45:00Z : les 6 tables absentes, aucune entree au registre. Etat APRES mesure par Guardian a 22:50:00Z (commentaire 6885399775) : conforme, identique a Test. Estampille du registre : 20261114224514 (nom campagne_commandes_achats ; l outil ne permet pas d imposer la version).",
+      "mesure": {
+        "source": "catalogue",
+        "le": "2026-11-14T22:50:00Z",
+        "cible": "uzhjpqpctpvxytxpxoqz",
+        "par": "guardian",
+        "outil": "connecteur Supabase execute_sql, comparaison par empreintes Test/Production en lecture seule (commentaire Guardian 6885399775 sur #160)",
+        "verdict": "APPLIQUEE — 6 tables identiques à Test (colonnes, contraintes, politiques, droits), 0 ligne",
+        "blob_migration": "574aedd7954e960d7620a68e8d618e6f0190e4fb"
+      },
+      "reserve": "Cette qualification n autorise ni la fusion ni le deploiement de #312. L estampille du registre (20261114224514) differe du nom de fichier ; c est l estampille du fichier qui sert de repere a la garde.",
+      "prochaine_action": "aucune ; effet constate et mesure par Guardian le 14/11/2026",
+      "objets_constates": [
+        "campagne_commandes",
+        "campagne_commande_lignes",
+        "campagne_commandes_annulations",
+        "campagne_commandes_clotures",
+        "campagne_livraison_commandes",
+        "campagne_achats_reglages",
+        "campagne_commandes_campagne_idx",
+        "lecture_manager_meme_site",
+        "insertion_manager_meme_site",
+        "createur_lit_si_autorise"
+      ]
     }
   },
   "prochaine_action": "Axe SS4 migration -> code : LEVE pour 20260919103000 (13/13 objets constates sur le catalogue le 01/10/2026) et pour 20261001160000 (ACL constatee fermee le 03/10/2026). Ces qualifications restent acquises tant que leur fichier de migration ne change pas : la garde compare mesure.blob_migration a l'empreinte du candidat, et une migration retouchee fait tomber sa qualification. Il n'y a plus d'echeance horaire (l'ancienne fraicheur de 72 h aurait fait retomber l'axe le 04/10/2026 sans que rien ne bouge). CE QUE LA GARDE NE VOIT PAS : une base modifiee sans que le depot bouge - c'est exactement ce que la relecture du 03/10 a trouve pour 20261001160000. Toute procedure d'application relit donc la base avant d'ecrire. CE QUE CELA N'AUTORISE PAS : aucune fusion ni aucun deploiement ; chacun reste un GO distinct de Frederic. RESTE A FAIRE, separement : (1) les 11 migrations du rail toujours non qualifiees ; (2) le cablage de garde-ordre-migration-code.js dans deploiement-production.yml. Lecture du verdict et table de decision : SS18.4 ; recit de la mesure : SS20. MISE A JOUR DU 04/10/2026 : les 13 migrations du candidat rebuild/fdj-62-20260922 sont qualifiees (12 atomiques en serie avant le code, 20261004120000 code d abord) ; ordre et gestes dans docs/deploiement/procedure-fdj-62-production.md."

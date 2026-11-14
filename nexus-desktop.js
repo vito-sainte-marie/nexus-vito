@@ -555,6 +555,56 @@ async function nexusVerifierAlertesFdj() {
   } catch (e) { console.error('Vérification alertes FDJ (sidebar):', e); }
 }
 
+// Point « achats » du menu Campagnes (lot C4). Il appelle le MÊME moteur (nexus-campagne-achats.js) avec les MÊMES données que la page
+// Achats : il s'allume de D7 - 7 à D7 inclus tant qu'une recommandation fiable n'est pas couverte (NexusCampagneAchats.etatAchats).
+// Seule la fenêtre de dates (la précondition de l'alerte) est testée avant de charger les scripts, pour ne rien charger hors période.
+// Jamais bloquant ; rien n'est envoyé à un fournisseur.
+function nexusChargerScript(src) {
+  return new Promise((ok, ko) => {
+    if (document.querySelector('script[data-nexus-dyn="' + src + '"]')) return ok();
+    const s = document.createElement('script');
+    s.src = src; s.dataset.nexusDyn = src; s.onload = () => ok(); s.onerror = () => ko(new Error(src));
+    document.head.appendChild(s);
+  });
+}
+async function nexusVerifierAlerteAchats() {
+  try {
+    if (typeof nexusClient === 'undefined') return;
+    const { data: { session } } = await nexusClient.auth.getSession();
+    if (!session) return;
+    const { data: employee } = await nexusClient.from('employees').select('site_id, role').eq('id', session.user.id).maybeSingle();
+    if (!employee || !['manager', 'gerant'].includes(employee.role)) return;
+    const lien = document.querySelector('.nexus-sidebar-link[href="NEXUS-Campagne-v2.html"]');
+    if (!lien) return;
+    const d = new Date();
+    const jour = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    const { data: camps } = await nexusClient.from('campagnes_nexus').select('id, date_debut, date_fin').eq('site', employee.site_id).gte('date_fin', jour);
+    // Délai de commande du site (dernière version des réglages d'achat), comme le moteur ; 7 jours à défaut.
+    const { data: regs } = await nexusClient.from('campagne_achats_reglages').select('version, delai_commande_jours').eq('site', employee.site_id);
+    const dernier = (regs || []).reduce((m, r) => (!m || r.version > m.version ? r : m), null);
+    const delai = dernier && Number(dernier.delai_commande_jours) >= 0 ? Number(dernier.delai_commande_jours) : 7;
+    const proches = (camps || []).filter(c => {
+      const f = new Date(c.date_fin + 'T00:00:00Z');
+      const d7 = Date.UTC(f.getUTCFullYear(), f.getUTCMonth() + 1, 0) - delai * 86400000;
+      const j = Math.round((d7 - new Date(jour + 'T00:00:00Z').getTime()) / 86400000);
+      return j >= 0 && j <= 7;
+    });
+    if (!proches.length) return;
+    for (const src of ['nexus-import-moteur.js?v=20260904-0104', 'nexus-import-donnees.js?v=20260904-0104', 'nexus-campagne-ventes.js?v=20261114-1900', 'nexus-campagne-stock.js?v=20261114-1900', 'nexus-campagne-achats.js?v=20261115-1200']) await nexusChargerScript(src);
+    const A = window.NexusCampagneAchats, D = window.NexusImportDonnees;
+    let actif = false;
+    for (const c of proches) {
+      const donnees = await A.chargerDonnees(nexusClient, employee.site_id, c, D.chargerAliasProduits);
+      if (A.etatAchats({ campagne: c, donnees, aujourdhui: jour }).alerte.actif) { actif = true; break; }
+    }
+    if (!actif || lien.querySelector('.nexus-sidebar-dot')) return;
+    const dot = document.createElement('span');
+    dot.className = 'nexus-sidebar-dot';
+    dot.title = 'Achats de promotion à préparer';
+    lien.appendChild(dot);
+  } catch (e) { console.error('Vérification achats (sidebar):', e); }
+}
+
 // Curseur de défilement custom du menu (13/08/2026, v2 — voir commentaire
 // CSS .nexus-sidebar-curseur-track ci-dessus pour le pourquoi). Piste
 // positionnée en JS pour rester calée exactement sur .nexus-sidebar-scroll
@@ -908,6 +958,7 @@ function nexusInitVueBureau() {
     nexusInstallerLoupeSidebar();
     nexusInstallerPliMenuSidebar();
     nexusVerifierAlertesFdj();
+    nexusVerifierAlerteAchats();
   } else {
     const bouton = document.createElement('button');
     bouton.type = 'button';

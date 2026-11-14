@@ -19,8 +19,8 @@ t('expressions interdites absentes',()=>{
 t('aucun tiret cadratin (page et bloc lexique)',()=>{
   assert(!page.includes('—')); assert(!bloc.includes('—'));
 });
-t('huit cartes, cinq En préparation, compensation, simulateur et objectifs disponibles, sans chiffre',()=>{
-  assert.deepStrictEqual(C.cartes.filter(c=>c.dispo).map(c=>c.cle),['compensation','objectifs','simulateur']);
+t('huit cartes, quatre En préparation, compensation, achats, simulateur et objectifs disponibles, sans chiffre',()=>{
+  assert.deepStrictEqual(C.cartes.filter(c=>c.dispo).map(c=>c.cle),['compensation','objectifs','opportunites-achat','simulateur']);
   assert.deepStrictEqual(C.cartes.map(c=>c.cle),['promotions','compensation','objectifs','opportunites-achat','produits-moteurs','produits-a-revoir','simulateur','renouveler']);
   assert.strictEqual(C.enPreparation,'En préparation');
   C.cartes.forEach(c=>assert(!/\d/.test(c.titre+c.texte),'chiffre dans '+c.cle));
@@ -73,7 +73,7 @@ t('page déclarée (auth, forfait) et liée seulement depuis les points d\'entr�
   assert(lire('nexus-auth.js').includes("'NEXUS-Campagne-v2.html'"));
   assert(lire('nexus-forfait.js').includes("'NEXUS-Campagne-v2.html'"));
   const liens=fs.readdirSync(__dirname).filter(f=>/\.(html|js)$/.test(f)&&f!=='NEXUS-Campagne-v2.html'&&!/^test_/.test(f)&&f!=='nexus-auth.js'&&f!=='nexus-forfait.js').filter(f=>lire(f).includes('Campagne-v2'));
-  assert.deepStrictEqual(liens.sort(),['NEXUS-App-v1.html','NEXUS-Campagne-v1.html','NEXUS-Campagne-v2-Livraison.html','NEXUS-Campagne-v2-Objectifs.html','NEXUS-Campagne-v2-Ventes.html','NEXUS-Documentation-v1.html','NEXUS-Import-v1.html','nexus-desktop.js','nexus-recherche.js']);
+  assert.deepStrictEqual(liens.sort(),['NEXUS-App-v1.html','NEXUS-Campagne-v1.html','NEXUS-Campagne-v2-Achats.html','NEXUS-Campagne-v2-Livraison.html','NEXUS-Campagne-v2-Objectifs.html','NEXUS-Campagne-v2-Ventes.html','NEXUS-Documentation-v1.html','NEXUS-Import-v1.html','nexus-desktop.js','nexus-recherche.js']);
 });
 t('textes affichés issus du lexique',()=>{
   assert(page.includes('V.cartes')&&page.includes('V.enPreparation'));
