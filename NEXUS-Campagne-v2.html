@@ -421,6 +421,7 @@ a{color:inherit;}
 <script src="nexus-campagne-ventes.js?v=20261114-1900"></script>
 <script src="nexus-campagne-stock.js?v=20261114-1900"></script>
 <script src="nexus-campagne-achats.js?v=20261115-1200"></script>
+<script src="nexus-campagne-bilan.js?v=20261116-1"></script>
 <script>
 const V = window.NexusVocab.campagne;
 const CV = window.NexusCampagneVentes;
@@ -436,6 +437,7 @@ let CAMP_ROWS = [], PAN_ROWS = [], JOURS = [];
 let MES_TOUS = {mesures: new Map(), couts: new Map()};
 let BILAN_COURANT = null, BILAN_OUVERT = false;
 const BILANS = new Map();
+const BILANS_PROMO = new Map();
 
 function esc(s){
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1067,8 +1069,43 @@ function detailBilan(i, b, renta){
   }
   h += '<div class="sous-titre">' + esc(B.produitsListe) + '</div>';
   h += i.produitsConcernes.length ? '<div class="promo-produits">' + i.produitsConcernes.map(esc).join(', ') + '</div>' : '<div class="note">' + esc(B.aucunProduit) + '</div>';
+  h += bilanPromoHtml(i);
   h += '<button type="button" class="btn" data-mesurer="' + esc(i.campagneId) + '">' + esc(B.mesurerLien) + '</button>';
   return h;
+}
+
+function fmtEurN(x){ return x === null || x === undefined ? 'n/d' : fmtEur2(x); }
+function bilanPromoHtml(i){
+  const BP = window.NexusCampagneBilan, r = BILANS_PROMO.get(i.campagneId);
+  if (!r || !r.articles.length) return '';
+  const t = r.totaux;
+  let h = '<div class="sous-titre">Bilan de la promotion (valorisation)</div>';
+  h += '<div class="note">' + esc(BP.LIBELLE_METHODE) + '</div>';
+  if (r.arrete_au) h += '<div class="note">Établi sur les ventes au ' + esc(fmtDateCourt(r.arrete_au)) + '.</div>';
+  h += ligne('Pertes', esc(r.pertes));
+  h += ligne('Marge commerciale pendant la promotion', esc(fmtEurN(t.marge_promotion)));
+  h += ligne('Gain ou perte par rapport à l\'habituel', esc(fmtEurN(t.gain_perte_vs_habituel)));
+  h += ligne('Stock promotionnel restant (valeur au PA facturé)', esc(fmtEurN(t.stock_restant_valeur_ht)));
+  h += ligne('Économie d\'achat sur le stock restant', esc(fmtEurN(t.economie_achat_stock_restant)));
+  h += ligne('Marge supplémentaire potentielle après la promotion', esc(fmtEurN(t.marge_potentielle_apres)) + ' (dont économie d\'achat : ' + esc(fmtEurN(t.economie_achat_stock_restant)) + ')');
+  h += '<div class="note">Ces grandeurs sont distinctes et ne s\'additionnent pas.</div>';
+  r.articles.forEach(a => {
+    h += '<div class="sous-titre">' + esc(a.article) + (a.estimee ? ' · estimée' : '') + '</div>';
+    h += ligne(BP.LIBELLE_PMP + ' avant promotion', esc(fmtEurN(a.prix.pmp_avant_promotion)) + (a.reference && a.reference.statut !== 'fiable' ? ' · ' + esc(a.reference.statut === 'absent' ? 'PMP avant promotion absent' : 'référence à confirmer') : ''));
+    h += ligne(BP.LIBELLE_PMP + ' actualisé', esc(fmtEurN(a.prix.pmp_actualise)));
+    h += ligne('PA promo négocié', esc(fmtEurN(a.prix.pa_promo_negocie)));
+    h += ligne('Marge pendant la promotion', esc(fmtEurN(a.marge_promotion)));
+    h += ligne('Stock restant', esc(a.stock_restant.unites + ' u · ' + fmtEurN(a.stock_restant.valeur_ht)));
+    if (a.raisons.length) h += '<div class="note">Estimée : ' + esc(a.raisons.join(' ; ')) + '.</div>';
+  });
+  return h;
+}
+async function chargerBilansPromo(camps, auj){
+  BILANS_PROMO.clear();
+  for (const c of camps.filter(c => c.date_fin < auj)){
+    try { BILANS_PROMO.set(c.id, await NexusCampagneBilan.chargerBilan(nexusClient, SITE_ID, c, window.NexusCampagneStock, CV)); }
+    catch (e) { console.error('bilan promotion', e); }
+  }
 }
 function bilanVisuel(i){
   const B = V.bilan, bl = bilanPour(i), b = bl.b, renta = bl.renta;
@@ -1203,6 +1240,7 @@ async function chargerEtAfficher(){
       ECHEANCES_ACHATS.set(c.id, NexusCampagneAchats.etatAchats({campagne: c, donnees, aujourdhui: auj}).echeance);
     }
   } catch (e) { console.error('campagne_commandes', e); }
+  try { const d2 = new Date(); await chargerBilansPromo(camp.data || [], d2.getFullYear() + '-' + String(d2.getMonth() + 1).padStart(2, '0') + '-' + String(d2.getDate()).padStart(2, '0')); } catch (e) { console.error('bilans promotion', e); }
   IMPACTS = NC.analyserCampagnes(camp.data || [], jours);
   IMPACTS.forEach(i => {
     const liees = (imp.data || []).filter(x => x.campagne_id === i.campagneId);

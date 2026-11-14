@@ -406,6 +406,7 @@ details.lv-det[open] summary::after{transform:rotate(180deg);}
 <script src="nexus-import-donnees.js?v=20260904-0104"></script>
 <script src="nexus-campagne-ventes.js?v=20261114-1900"></script>
 <script src="nexus-campagne-stock.js?v=20261114-1900"></script>
+<script src="nexus-campagne-bilan.js?v=20261115-1400"></script>
 <script src="nexus-campagne-achats.js?v=20261115-1200"></script>
 <script>
 const V = window.NexusVocab.campagne, P = V.achatsPage;
@@ -475,6 +476,7 @@ function peindreReco(ctx){
     const resume = marque ? esc(court) + ' · ' + esc(marque) : esc(court);
     return '<details class="vt-prod" data-article="' + esc(r.ob.article) + '"><summary><span class="vt-nom">' + esc(r.ob.article) + '</span><span class="vt-n"' + (marque ? ' data-marque style="color:var(--t-mid);opacity:.75"' : '') + '>' + resume + '</span></summary>'
       + '<div class="vt-aide">' + esc(P.colReco) + '</div>' + textePrevision(r)
+      + (r.eco ? '<div class="vt-aide" data-economie>' + esc('Économie attendue : ' + fmt(r.eco.montant_ht, 2) + ' € HT par rapport au PMP Decenium avant promotion' + (r.eco.indicative ? ' (indicative : référence à confirmer)' : '') + '. Information seule, la quantité recommandée ne change pas.') + '</div>' : '')
       + (b.hors_delai ? '<div class="vt-aide vt-alerte">' + esc(P.limiteHorsDelai) + '</div>' : '')
       + (r.rs.exces > 0 ? '<div class="vt-aide vt-alerte" data-exces>' + esc(P.excesRecu(fmt(r.rs.exces))) + '</div>' : '')
       + '<div class="vt-r"><span>' + esc(P.colCommande) + '</span><b>' + fmt(r.rs.commande) + '</b></div>'

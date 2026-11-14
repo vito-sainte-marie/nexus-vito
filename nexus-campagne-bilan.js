@@ -166,8 +166,81 @@
     return { montant_ht: arrondi(q * (num(ref.pmp_ht) - pa)), indicative: fiab.statut !== 'fiable' };
   }
 
+
+  // Version courante par article (plus grande version).
+  function derniersParArticle(rows) {
+    const m = new Map();
+    (rows || []).forEach(r => { const a = m.get(r.article); if (!a || Number(r.version) > Number(a.version)) m.set(r.article, r); });
+    return m;
+  }
+  const joursEntre = (a, b) => Math.round((Date.UTC(+jour(b).slice(0, 4), +jour(b).slice(5, 7) - 1, +jour(b).slice(8, 10)) - Date.UTC(+jour(a).slice(0, 4), +jour(a).slice(5, 7) - 1, +jour(a).slice(8, 10))) / 86400000);
+
+  // Assemble les entrées du bilan, article par article, depuis les lignes lues en base. Fonction pure.
+  // d : { campagne, objectifs, depart, livraisons (déjà valides), lignesLivraison, point ({date_fin, lignes}), pmp (toutes versions), actualises (Map article -> prix_achat) }
+  function assemblerEntrees(d) {
+    const objs = derniersParArticle(d.objectifs), deps = derniersParArticle(d.depart), refs = derniersParArticle(d.pmp);
+    const liv = new Map((d.livraisons || []).map(l => [l.id, l]));
+    const lignesPoint = new Map(((d.point && d.point.lignes) || []).map(l => [l.article, l]));
+    const joursCouverts = d.point ? Math.max(0, joursEntre(d.campagne.date_debut, d.point.date_fin) + 1) : null;
+    return Array.from(objs.values()).map(o => {
+      const lv = (d.lignesLivraison || []).filter(l => l.article === o.article && liv.has(l.livraison_id)).map(l => ({
+        unites: l.unites, pa_ht_facture: l.pa_ht_facture, pa_promo_ht: o.pa_promo_ht,
+        date_livraison: liv.get(l.livraison_id).date_livraison, cree_le: liv.get(l.livraison_id).cree_le }));
+      const dep = deps.get(o.article), pt = lignesPoint.get(o.article);
+      const tva = num(o.tva_pct), ttc = num(o.pv_habituel_ttc);
+      const act = d.actualises && d.actualises.get ? d.actualises.get(o.article) : null;
+      return {
+        article: o.article, date_debut: d.campagne.date_debut,
+        pmp_avant: refs.get(o.article) || null, pmp_actualise: act === undefined ? null : act,
+        pa_promo_negocie: o.pa_promo_ht,
+        stockDepart: { unites: dep ? dep.quantite : 0, a_confirmer: !!(dep && dep.a_confirmer) },
+        livraisons: lv, unitesVendues: pt ? pt.quantite : 0, ca_ht_promo: pt ? pt.ca_ht : (d.point ? 0 : null),
+        ca_estime: !!(pt && pt.ca_estime),
+        pv_habituel_ht: ttc === null ? null : (tva === null ? null : ttc / (1 + tva / 100)),
+        ventes_ref_jour: o.ventes_ref_jour, jours_couverts: joursCouverts,
+        pa_habituel_objectif: o.pa_habituel_ht,
+      };
+    });
+  }
+
+  // Bilan d'une campagne : un bilan par article, plus les totaux par grandeur.
+  function bilanCampagne(d) {
+    const entrees = assemblerEntrees(d);
+    const articles = entrees.map(e => {
+      const b = bilanArticle(e);
+      const raisons = b.raisons.slice();
+      if (e.stockDepart.a_confirmer) raisons.push('stock de départ à confirmer');
+      if (e.ca_estime) raisons.push('chiffre d\'affaires estimé');
+      return Object.assign({ article: e.article }, b, { raisons: Array.from(new Set(raisons)), estimee: raisons.length > 0 });
+    });
+    return { articles, totaux: totaux(articles), arrete_au: d.point ? d.point.date_fin : null,
+      pertes: 'pertes non renseignées' };
+  }
+
+  // Lecture en base (aucune écriture). SC / CV : modules stock et ventes.
+  async function chargerBilan(client, site, campagne, SC, CV) {
+    const q = t => client.from(t);
+    const r = await Promise.all([
+      q('campagne_objectifs_produits').select('article, version, pa_habituel_ht, pa_promo_ht, pv_habituel_ttc, tva_pct, ventes_ref_jour').eq('campagne_id', campagne.id).eq('site', site),
+      q('campagne_stock_depart').select('article, version, quantite, a_confirmer').eq('campagne_id', campagne.id).eq('site', site),
+      q('campagne_livraisons').select('id, date_livraison, remplace_livraison_id, cree_le').eq('campagne_id', campagne.id).eq('site', site),
+      q('campagne_livraisons_annulations').select('livraison_id').eq('site', site),
+      q('campagne_livraison_lignes').select('livraison_id, article, unites, pa_ht_facture').eq('site', site),
+      q('campagne_ventes_points').select('batch_id, article, date_fin, importe_le, quantite, ca_ht, ca_estime').eq('campagne_id', campagne.id).eq('site', site),
+      q('campagne_ventes_annulations').select('batch_id').eq('site', site),
+      q('campagne_pmp_reference').select('article, version, pmp_ht, date_reference').eq('campagne_id', campagne.id).eq('site', site),
+      q('products').select('article, prix_achat, periode_fin').eq('site', site).not('prix_achat', 'is', null).order('periode_fin', { ascending: false }),
+    ]);
+    r.forEach(x => { if (x.error) console.error('bilan', x.error); });
+    const D = r.map(x => x.data || []);
+    const actualises = new Map();
+    D[8].forEach(p => { if (!actualises.has(p.article)) actualises.set(p.article, Number(p.prix_achat)); });
+    return bilanCampagne({ campagne, objectifs: D[0], depart: D[1], livraisons: SC.livraisonsValides(D[2], D[3]), lignesLivraison: D[4],
+      point: CV.pointCourant(D[5], D[6]), pmp: D[7], actualises });
+  }
+
   global.NexusCampagneBilan = {
-    LIBELLE_PMP, LIBELLE_METHODE, ordonnerLivraisons, fiabiliteReference, imputerFifo, bilanArticle, totaux, economieAttendue,
+    LIBELLE_PMP, LIBELLE_METHODE, ordonnerLivraisons, fiabiliteReference, imputerFifo, bilanArticle, totaux, economieAttendue, assemblerEntrees, bilanCampagne, chargerBilan,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = global.NexusCampagneBilan;
 })(typeof window !== 'undefined' ? window : globalThis);
