@@ -455,31 +455,44 @@ function peindreDepart(){
   $('lvDepart').innerHTML = '<table class="vt-table"><tbody>' + arts.map((a, i) => {
     const d = cour.get(cleA(a));
     const ecart = d ? CS.ecartDepart(d.date_stock, CAMPAGNE.date_debut) : 0;
-    const note = d ? 'v' + d.version + ' · ' + jma(d.date_stock) + (d.a_confirmer || ecart > 0 ? ' · ' + P.departAConfirmer : '') + (ecart > 0 ? ' · ' + P.departEcart(ecart) : '') : '';
-    return '<tr><td>' + esc(a) + '<div class="vt-aide">' + esc(note) + '</div></td><td><input type="number" min="0" step="1" data-depart="' + i + '" value="' + (RELEVE && RELEVE.has(a) ? RELEVE.get(a) : (d ? d.quantite : '')) + '" style="width:90px"></td></tr>';
+    const rl = RELEVE && RELEVE.get(a);
+    const note = rl ? P.departReleveArticle(jma(rl.date), rl.libelle_source) : d ? 'v' + d.version + ' · ' + jma(d.date_stock) + (d.a_confirmer || ecart > 0 ? ' · ' + P.departAConfirmer : '') + (ecart > 0 ? ' · ' + P.departEcart(ecart) : '') : '';
+    return '<tr><td>' + esc(a) + '<div class="vt-aide">' + esc(note) + '</div></td><td><input type="number" min="0" step="1" data-depart="' + i + '" value="' + (RELEVE && RELEVE.has(a) ? RELEVE.get(a).quantite : (d ? d.quantite : '')) + '" style="width:90px"></td></tr>';
   }).join('') + '</tbody></table>';
 }
-async function reprendreReleve(){
+async function reprendreReleve(posterieurs){
   msg('lvDepartMsg', '');
   const arts = articlesPromo();
-  const r = await nexusClient.from('stock_releves').select('article, quantite_reelle, quantite_theorique, releve_le').eq('site', SITE_ID).in('article', arts).order('releve_le', {ascending: false});
+  const r = await nexusClient.from('stock_releves').select('id, article, quantite_reelle, quantite_theorique, releve_le').eq('site', SITE_ID).in('article', arts).order('releve_le', {ascending: false});
   if (r.error || !(r.data || []).length){ msg('lvDepartMsg', P.departAucunReleve, true); return; }
-  RELEVE = new Map(); let date = null;
-  r.data.forEach(x => { if (!RELEVE.has(x.article)){ RELEVE.set(x.article, x.quantite_reelle != null ? x.quantite_reelle : x.quantite_theorique); if (!date) date = String(x.releve_le).slice(0, 10); } });
-  $('lvDateDepart').value = date; RELEVE.date = date;
-  peindreDepart(); msg('lvDepartMsg', P.departReleve(jma(date)));
+  const ch = CS.choisirReleves(r.data, {articles: arts, campagneDebut: CAMPAGNE.date_debut, resoudre});
+  RELEVE = new Map();
+  ch.retenus.forEach(x => RELEVE.set(x.article, x));
+  if (posterieurs === true) ch.posterieurs.forEach(x => RELEVE.set(x.article, x));
+  if (!RELEVE.size){ msg('lvDepartMsg', P.departReleveSeulementPosterieur(ch.posterieurs.length), true); }
+  else msg('lvDepartMsg', P.departReleveParArticle(RELEVE.size, ch.sans.length));
+  if (posterieurs !== true && ch.posterieurs.length){
+    $('lvDepartMsg').insertAdjacentHTML('beforeend', ' <button type="button" class="vt-btn" id="lvRelevePoster">' + esc(P.departReprendrePosterieurs(ch.posterieurs.length)) + '</button>');
+    $('lvRelevePoster').addEventListener('click', () => reprendreReleve(true));
+  }
+  peindreDepart();
 }
 async function enregistrerDepart(){
-  const arts = articlesPromo(); const date = $('lvDateDepart').value;
+  const arts = articlesPromo(); const dateSaisie = $('lvDateDepart').value;
   const rows = [];
   $('lvDepart').querySelectorAll('input[data-depart]').forEach(inp => { const q = num(inp.value); if (q != null && q >= 0) rows.push({article: arts[+inp.dataset.depart], quantite: q}); });
-  if (!rows.length || !date){ msg('lvDepartMsg', P.departVide, true); return; }
-  const aConfirmer = CS.ecartDepart(date, CAMPAGNE.date_debut) > 0;
-  const source = RELEVE ? 'inventaire' : 'saisie_initiale';
+  if (!rows.length || (!dateSaisie && !RELEVE)){ msg('lvDepartMsg', P.departVide, true); return; }
   const payload = rows.map(l => {
+    const rl = RELEVE && RELEVE.get(l.article);
+    const repris = rl && Number(rl.quantite) === l.quantite;
+    const date = repris ? rl.date : dateSaisie;
+    if (!date) return null;
     const prec = DEPART.filter(d => d.article === l.article).reduce((m, d) => Math.max(m, d.version), 0);
-    return {site: SITE_ID, campagne_id: CAMPAGNE.id, article: l.article, version: prec + 1, quantite: l.quantite, date_stock: date, source, a_confirmer: aConfirmer, saisi_par: EMPLOYEE.id};
+    return {site: SITE_ID, campagne_id: CAMPAGNE.id, article: l.article, version: prec + 1, quantite: l.quantite, date_stock: date,
+      source: repris ? rl.source : 'saisie_initiale', reference_releve: repris ? rl.reference : null,
+      a_confirmer: CS.ecartDepart(date, CAMPAGNE.date_debut) > 0, saisi_par: EMPLOYEE.id};
   });
+  if (payload.some(x => !x)){ msg('lvDepartMsg', P.departVide, true); return; }
   const r = await nexusClient.from('campagne_stock_depart').insert(payload);
   if (r.error){ console.error(r.error); msg('lvDepartMsg', P.departEchec, true); return; }
   msg('lvDepartMsg', P.departFait); await chargerCampagne();
@@ -601,7 +614,7 @@ async function demarrer(){
   await choisir($('lvCampagne').value);
 }
 $('lvCampagne').addEventListener('change', e => choisir(e.target.value));
-$('lvReprendre').addEventListener('click', reprendreReleve);
+$('lvReprendre').addEventListener('click', () => reprendreReleve());
 $('lvEnrDepart').addEventListener('click', enregistrerDepart);
 $('lvEnr').addEventListener('click', enregistrerLivraison);
 $('lvLignes').addEventListener('input', e => { const tr = e.target.closest('.lv-ligne[data-i]'); if (!tr) return; if (e.target.dataset.f === 'pa') majEcartPa(tr); majCalc(tr); });

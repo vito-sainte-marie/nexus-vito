@@ -124,6 +124,24 @@ t('C2 : départ antérieur à la campagne ou à confirmer, jamais fiable', () =>
   const conf = [{ article: 'A', version: 1, quantite: 100, date_stock: '2026-11-12', source: 'saisie_initiale', a_confirmer: true }];
   assert.strictEqual(S.stockTheorique({ ...base, stockDepart: conf })[0].fiable_pour_achat, false);
 });
+t('C3 : relevé par article, date et référence propres, source distinguée', () => {
+  const rel = [
+    { id: 'r1', article: 'A', releve_le: '2026-11-10T08:00:00Z', quantite_reelle: 40, quantite_theorique: 45 },
+    { id: 'r2', article: 'B', releve_le: '2026-11-11T08:00:00Z', quantite_reelle: null, quantite_theorique: 12 },
+    { id: 'r3', article: 'A', releve_le: '2026-11-05T08:00:00Z', quantite_reelle: 1, quantite_theorique: 1 },
+  ];
+  const r = S.choisirReleves(rel, { articles: ['A', 'B'], campagneDebut: '2026-11-12' });
+  const a = r.retenus.find(x => x.article === 'A'), b = r.retenus.find(x => x.article === 'B');
+  assert.deepStrictEqual([a.quantite, a.date, a.reference, a.source], [40, '2026-11-10', 'r1', 'comptage']);
+  assert.deepStrictEqual([b.quantite, b.date, b.reference, b.source, b.libelle_source], [12, '2026-11-11', 'r2', 'releve_theorique_decenium', 'quantité théorique Decenium']);
+});
+t('C3 : relevé postérieur au début de la campagne signalé, non repris', () => {
+  const rel = [{ id: 'r9', article: 'A', releve_le: '2026-11-14T08:00:00Z', quantite_reelle: 5 }, { id: 'r1', article: 'A', releve_le: '2026-11-10T08:00:00Z', quantite_reelle: 40 }];
+  const r = S.choisirReleves(rel, { articles: ['A'], campagneDebut: '2026-11-12' });
+  assert.strictEqual(r.retenus[0].reference, 'r1'); assert.strictEqual(r.posterieurs[0].reference, 'r9');
+  const seul = S.choisirReleves([rel[0]], { articles: ['A'], campagneDebut: '2026-11-12' });
+  assert.strictEqual(seul.retenus.length, 0); assert.deepStrictEqual(seul.sans, ['A']); assert.strictEqual(seul.posterieurs.length, 1);
+});
 t('article avec stock de départ non compté comme manquant (clé partagée)', () => {
   assert.deepStrictEqual(S.articlesSansDepart(['A', 'B'], [{ article: 'A', date_stock: '2026-11-12', quantite: 5 }]), ['B']);
   const alias = a => (a === 'A-alias' ? 'A' : null);

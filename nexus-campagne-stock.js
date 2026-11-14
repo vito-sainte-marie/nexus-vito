@@ -148,6 +148,40 @@
     });
   }
 
+  // C3 : choix du relevé par article. Chaque article garde la date et la référence de SON relevé le plus récent.
+  // Un relevé postérieur au début de la campagne n'est pas repris : il est signalé (`posterieurs`), à proposer explicitement.
+  // Source : `comptage` si une quantité réelle est saisie, sinon `releve_theorique_decenium` (jamais présentée comme un comptage).
+  function choisirReleves(releves, { articles, campagneDebut, resoudre } = {}) {
+    const cle = cleResolue(resoudre);
+    const deb = String(campagneDebut || '').slice(0, 10);
+    const parArticle = new Map();
+    (releves || []).forEach(r => {
+      const k = cle(r.article);
+      const date = String(r.releve_le || '').slice(0, 10);
+      if (!date) return;
+      if (!parArticle.has(k)) parArticle.set(k, []);
+      parArticle.get(k).push({ r, date });
+    });
+    const retenus = [];
+    const posterieurs = [];
+    const sans = [];
+    (articles || []).forEach(article => {
+      const liste = (parArticle.get(cle(article)) || []).sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+      if (!liste.length) { sans.push(article); return; }
+      const reprise = liste.find(x => !deb || x.date <= deb);
+      const poster = liste.find(x => deb && x.date > deb);
+      const fabrique = x => {
+        const reel = x.r.quantite_reelle != null;
+        return { article, quantite: Number(reel ? x.r.quantite_reelle : x.r.quantite_theorique), date: x.date, reference: x.r.id || null,
+          source: reel ? 'comptage' : 'releve_theorique_decenium',
+          libelle_source: reel ? 'comptage' : 'quantité théorique Decenium' };
+      };
+      if (poster) posterieurs.push(fabrique(poster));
+      if (reprise) retenus.push(fabrique(reprise)); else sans.push(article);
+    });
+    return { retenus, posterieurs, sans };
+  }
+
   // Articles de la promotion sans stock de départ, avec la même clé que le calcul du stock.
   function articlesSansDepart(articles, stockDepart, resoudre) {
     const k = cleResolue(resoudre);
@@ -166,7 +200,7 @@
 
   global.NexusCampagneStock = {
     conditionnement, convertirLigne, ecartPa, livraisonsValides, stockDepartCourant, ecartDepart,
-    livraisonsInventaireNonComptees, stockTheorique, arrondirAchat, cleResolue, dateLongue, articlesSansDepart,
+    livraisonsInventaireNonComptees, choisirReleves, stockTheorique, arrondirAchat, cleResolue, dateLongue, articlesSansDepart,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = global.NexusCampagneStock;
 })(typeof window !== 'undefined' ? window : globalThis);
