@@ -10,7 +10,11 @@ assert(Math.abs(r.margeHabituelle - 0.97) < 1e-9 && Math.abs(r.margePromo - 0.43
 assert.strictEqual(r.seuil, 68, 'seuil exact arrondi au supérieur (67,28 → 68)');
 assert.strictEqual(r.seuilPlus10, 75, '+10 % : 74,01 → 75');
 assert(Math.abs(r.rythmeMin - 68 / 30) < 1e-9, 'rythme minimal décimal');
-assert.strictEqual(r.objectifPropose, 3, 'objectif proposé = rythme +10 % arrondi au supérieur');
+assert.strictEqual(r.objectifPropose, 3, 'objectif proposé = rythme minimal (seuil / jours) arrondi au supérieur');
+{ const d = S.analyserObjectif(Object.assign({}, base, { ventesJour: 3, jours: 10 }));
+  assert.strictEqual(d.objectifPropose, Math.ceil(d.seuil / 10 - 1e-9), 'objectif = plafond(seuil / jours)');
+  assert.strictEqual(d.objectifPropose, 7, 'divergence : 6,8/jour → 7 (et non 8 avec le +10 %)');
+  assert(d.seuilPlus10 > d.seuil, '+10 % reste une information secondaire'); }
 assert.notStrictEqual(r.rythmeMin, r.objectifPropose, 'rythme et objectif jamais confondus');
 assert.strictEqual(r.faisabilite, 'a-confirmer');
 assert.strictEqual(S.plafond(67 + 1e-12), 67, 'tolérance flottant');
@@ -45,6 +49,7 @@ console.log('ok');
   const assert = require('assert');
   const sql = fs.readFileSync('supabase/migrations/20261114140000_campagne_objectifs_produits.sql', 'utf8');
   const page = fs.readFileSync('NEXUS-Campagne-v2.html', 'utf8');
+  const objPage = fs.readFileSync('NEXUS-Campagne-v2-Objectifs.html', 'utf8');
   const voc = fs.readFileSync('nexus-vocabulaire.js', 'utf8');
   const SIM = require('./nexus-simulateur-promo.js');
   const t2 = (n, f) => { try { f(); console.log('  ok  ' + n); } catch (e) { console.log('  ECHEC ' + n + '\n     ' + e.message); process.exitCode = 1; } };
@@ -62,14 +67,19 @@ console.log('ok');
     assert(/acces_createur_autorise/.test(sql));
   });
   t2('objectifs : la page insère une nouvelle version, ne modifie jamais', () => {
-    assert(/from\('campagne_objectifs_produits'\)\.insert\(/.test(page));
-    assert(!/from\('campagne_objectifs_produits'\)\s*\.(update|upsert|delete)/.test(page));
-    assert(/version\s*[:=][^;\n]*\+ 1|dernier[^;\n]*\+ 1|\+ 1/.test(page));
-    assert(/moteur_version/.test(page) && /valide_par/.test(page));
+    assert(/from\('campagne_objectifs_produits'\)\.insert\(/.test(objPage));
+    assert(!/from\('campagne_objectifs_produits'\)\s*\.(update|upsert|delete)/.test(objPage));
+    assert(/\+ 1/.test(objPage));
+    assert(/moteur_version/.test(objPage) && /valide_par/.test(objPage));
+    assert(!/campagne_objectifs_produits/.test(page), 'la page principale ne porte plus le bloc objectifs');
+    assert(/NEXUS-Campagne-v2-Objectifs\.html\?campagne=/.test(page), 'Suivre ma promotion ouvre la page dédiée');
   });
   t2('objectifs : page câblée (tva lue, tableau, bouton, vocabulaire)', () => {
-    assert(/select\([^)]*tva/.test(page));
-    assert(/objValider/.test(page) && /objTable/.test(page));
+    assert(/select\([^)]*tva/.test(objPage));
+    assert(/objValider/.test(objPage) && /objTable/.test(objPage));
+    assert(/<details class="compar"(?![^>]*\bopen\b)/.test(objPage), 'détails repliés par défaut');
+    assert(/SIM\.analyserObjectif/.test(objPage) && /nexusRequireProfessional\('NEXUS-Campagne-v2-Objectifs\.html'/.test(objPage));
+    assert(/employee\.role !== 'manager' && employee\.role !== 'gerant'/.test(objPage));
     assert(/valider: 'Valider les objectifs'/.test(voc));
   });
   t2('simulateur : prix TTC convertis en HT via le moteur, TVA manquante suspend', () => {

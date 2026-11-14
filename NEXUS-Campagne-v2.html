@@ -181,10 +181,10 @@ a{color:inherit;}
 .intro-historique{font-size:13px; color:var(--t-mid); margin-bottom:12px; line-height:1.5;}
 .intro-historique b{color:var(--t-text);}
 
-/* Six cartes : une colonne en mobile, deux ensuite, jamais de défilement horizontal */
+/* Huit cartes : une colonne en mobile, deux ensuite, quatre sur grand écran, jamais de défilement horizontal */
 .tuiles{display:grid; grid-template-columns:1fr; gap:12px;}
 @media (min-width:600px){.tuiles{grid-template-columns:1fr 1fr;}}
-@media (min-width:900px){.tuiles{grid-template-columns:repeat(3,1fr);}}
+@media (min-width:900px){.tuiles{grid-template-columns:repeat(4,1fr);}}
 .tuile{min-height:44px; background:var(--t-panel); border:1px solid var(--t-line); border-radius:14px; padding:16px; font-size:13.5px; cursor:default; min-width:0;}
 .picto-p{display:block; width:56px; height:56px; margin-bottom:8px;}
 .t-titre{display:block; font-weight:600; font-size:14.5px; overflow-wrap:anywhere;}
@@ -363,11 +363,6 @@ a{color:inherit;}
       <select id="mesCampagne"></select>
     </label>
     <div id="mesCorps" hidden>
-      <div class="titre-section" id="objTitre"></div>
-      <div class="sim-source" id="objNote"></div>
-      <div id="objTable"></div>
-      <div class="sim-actions"><button type="button" class="btn" id="objValider"></button></div>
-      <div class="sim-source" id="objStatut" role="status"></div>
       <div class="sim-source" id="mesPrefillNote"></div>
       <div id="mesProduits"></div>
       <div class="sim-actions"><button type="button" class="btn" id="mesAjouter"></button></div>
@@ -408,7 +403,7 @@ a{color:inherit;}
 <script src="nexus-icones.js?v=20260904-0104"></script>
 <script src="nexus-desktop.js?v=20260904-0104"></script>
 <script src="nexus-jours-feries.js?v=20261106-0100"></script>
-<script src="nexus-vocabulaire.js?v=20261114-1400"></script>
+<script src="nexus-vocabulaire.js?v=20261114-1500"></script>
 <script src="nexus-tempo.js?v=20261112-1500"></script>
 <script src="nexus-periodes.js?v=20260904-0104"></script>
 <script src="nexus-campagnes.js?v=20261113-2000"></script>
@@ -496,8 +491,8 @@ function peindreTextesFixes(){
   $('gObjectif').innerHTML = pills('objectif', NC.OBJECTIF_CAMPAGNE_LABELS);
   $('tuiles').innerHTML = V.cartes.map(c => {
     const corps =
-      '<img class="picto-p" src="' + IC + 'premium/campagne-' + esc(c.cle) + '.svg"' +
-      ' srcset="' + IC + 'premium/campagne-' + esc(c.cle) + '-48.webp 48w, ' + IC + 'premium/campagne-' + esc(c.cle) + '-96.webp 96w, ' + IC + 'premium/campagne-' + esc(c.cle) + '-144.webp 144w"' +
+      '<img class="picto-p" src="' + IC + 'premium/campagne-' + esc(c.picto || c.cle) + (c.picto ? '-96.webp' : '.svg') + '"' +
+      ' srcset="' + IC + 'premium/campagne-' + esc(c.picto || c.cle) + '-48.webp 48w, ' + IC + 'premium/campagne-' + esc(c.picto || c.cle) + '-96.webp 96w, ' + IC + 'premium/campagne-' + esc(c.picto || c.cle) + '-144.webp 144w"' +
       ' sizes="56px" width="56" height="56" alt="">' +
       '<span class="t-titre">' + esc(c.titre) + '</span>' +
       '<span class="t-sous">' + esc(c.texte) + '</span>';
@@ -1093,7 +1088,7 @@ function brancherBilan(){
   const zone = $('derniere'), cartes = $('historique');
   $('enCours').addEventListener('click', ev => {
     const b = ev.target.closest('button[data-suivre]');
-    if (b) ouvrirMesure(b.dataset.suivre);
+    if (b) location.href = 'NEXUS-Campagne-v2-Objectifs.html?campagne=' + encodeURIComponent(b.dataset.suivre);
   });
   zone.addEventListener('click', ev => {
     const b = ev.target.closest('button');
@@ -1516,85 +1511,6 @@ function mesCalculer(){
   $('mesResultat').innerHTML = h + '</div>';
 }
 
-// ---- Objectifs de vente par produit (lot C1) : analyse automatique, validation versionnée ----
-let OBJ_LIGNES = [];
-function objDepuisArticle(article){
-  const s = SIM.suggestions(PRODUITS_ROWS, article, new Date());
-  return { article, info: s, tva: s && s.tva != null ? saisie(s.tva) : '',
-    paHab: s && s.achatAvant != null ? saisie(s.achatAvant) : '', pvHab: s && s.pvHabituelTtc != null ? saisie(Math.round(s.pvHabituelTtc * 100) / 100) : '',
-    paPromo: '', pvPromo: '', versions: [] };
-}
-function objAnalyser(l){
-  const s = l.info;
-  return SIM.analyserObjectif({ paHabituelHt: nombre(l.paHab), paPromoHt: nombre(l.paPromo), pvHabituelTtc: nombre(l.pvHab), pvPromoTtc: nombre(l.pvPromo),
-    tva: nombre(l.tva), ventesJour: s ? s.ventesJour : null, jours: MES_CAMPAGNE ? mesJoursCampagne(MES_CAMPAGNE) : null,
-    meilleurRythmeObserve: s ? s.meilleurRythmeObserve : null });
-}
-function objTexteResultat(r){
-  const O = MV.obj;
-  if (r.statut !== 'ok') return O.statuts[r.statut] || '';
-  return O.seuil(r.seuil, r.seuilPlus10) + ' ' + O.rythme(fmtDec1(r.rythmeMin)) + ' ' + O.objectif(r.objectifPropose) + ' ' + (O.faisabilite[r.faisabilite] || '');
-}
-function objPeindre(){
-  const O = MV.obj;
-  $('objTable').innerHTML = OBJ_LIGNES.length ? OBJ_LIGNES.map((l, i) => {
-    const r = objAnalyser(l);
-    const champ = (cle, lib) => '<label>' + esc(lib) + '<input type="text" inputmode="decimal" autocomplete="off" data-oi="' + i + '" data-ochamp="' + cle + '" value="' + esc(l[cle]) + '"></label>';
-    const ref = l.info ? O.reference(fmtDec1(l.info.ventesJour), l.info.source.debut, l.info.source.fin) : O.sansReference;
-    const v = l.versions.length ? l.versions[l.versions.length - 1] : null, v1 = l.versions[0];
-    const histo = v ? '<div class="sim-source">' + esc(O.versionLigne(v.version, v.objectif_valide_jour)) + (l.versions.length > 1 ? ' ' + esc(O.objectifInitial(v1.objectif_valide_jour)) : '') + '</div>' : '';
-    return '<div class="sim-produit" data-oproduit="' + i + '"><b>' + esc(l.article) + '</b>' +
-      '<div class="sim-grille">' + champ('paHab', O.paHab) + champ('pvHab', O.pvHab) + champ('paPromo', O.paPromo) + champ('pvPromo', O.pvPromo) + champ('tva', O.tva) + '</div>' +
-      '<div class="sim-source">' + esc(ref) + '</div>' +
-      '<div class="sim-res" data-ores="' + i + '">' + esc(objTexteResultat(r)) + '</div>' + histo + '</div>';
-  }).join('') : '<div class="sim-source">' + esc(O.aucunProduit) + '</div>';
-  $('objValider').disabled = !OBJ_LIGNES.some(l => objAnalyser(l).statut === 'ok');
-}
-function objMajResultats(){
-  OBJ_LIGNES.forEach((l, i) => { const el = document.querySelector('[data-ores="' + i + '"]'); if (el) el.textContent = objTexteResultat(objAnalyser(l)); });
-  $('objValider').disabled = !OBJ_LIGNES.some(l => objAnalyser(l).statut === 'ok');
-}
-async function objCharger(){
-  const O = MV.obj;
-  $('objTitre').textContent = O.titre; $('objNote').textContent = O.note; $('objValider').textContent = O.valider; $('objStatut').textContent = '';
-  OBJ_LIGNES = (MES_CAMPAGNE.produitsConcernes || []).map(objDepuisArticle);
-  const r = await nexusClient.from('campagne_objectifs_produits').select('article, version, objectif_valide_jour, pa_promo_ht, pv_promo_ttc, valide_le')
-    .eq('site', SITE_ID).eq('campagne_id', MES_CAMPAGNE.campagneId).order('version', {ascending: true});
-  if (r.error) console.error('campagne_objectifs_produits', r.error);
-  (r.data || []).forEach(x => { const l = OBJ_LIGNES.find(y => y.article === x.article); if (l) l.versions.push(x); });
-  objPeindre();
-}
-async function objValider(){
-  const O = MV.obj, st = $('objStatut');
-  st.textContent = '';
-  const maintenant = new Date().toISOString();
-  const lignes = [];
-  OBJ_LIGNES.forEach(l => {
-    const r = objAnalyser(l);
-    if (r.statut !== 'ok') return;
-    lignes.push({ site: SITE_ID, campagne_id: MES_CAMPAGNE.campagneId, article: l.article, version: l.versions.length ? l.versions[l.versions.length - 1].version + 1 : 1,
-      pa_habituel_ht: nombre(l.paHab), pa_promo_ht: nombre(l.paPromo), pv_habituel_ttc: nombre(l.pvHab), pv_promo_ttc: nombre(l.pvPromo), tva_pct: r.tva,
-      ventes_ref_jour: r.ventesJour, periode_ref_debut: l.info ? l.info.source.debut : null, periode_ref_fin: l.info ? l.info.source.fin : null,
-      seuil_unites: r.seuil, rythme_min_jour: r.rythmeMin, objectif_propose_jour: r.objectifPropose, objectif_valide_jour: r.objectifPropose,
-      valide_par: EMPLOYEE.id || null, valide_le: maintenant, moteur_version: SIM.MOTEUR_VERSION,
-      provenance: { source: 'campagne-v2', jours: r.jours, faisabilite: r.faisabilite, meilleur_rythme_observe: r.meilleurRythmeObserve } });
-  });
-  if (!lignes.length) return;
-  const ins = await nexusClient.from('campagne_objectifs_produits').insert(lignes);
-  if (ins.error){ console.error(ins.error); st.textContent = O.erreur; return; }
-  st.textContent = O.valide(lignes.length);
-  await objCharger();
-  $('objStatut').textContent = O.valide(lignes.length);
-}
-function objBrancher(){
-  $('objTable').addEventListener('input', ev => {
-    const el = ev.target;
-    if (!el.dataset || el.dataset.ochamp === undefined) return;
-    OBJ_LIGNES[Number(el.dataset.oi)][el.dataset.ochamp] = el.value;
-    objMajResultats();
-  });
-  $('objValider').addEventListener('click', objValider);
-}
 async function mesCharger(campagneId){
   MES_CAMPAGNE = IMPACTS.find(i => i.campagneId === campagneId) || null;
   $('mesCorps').hidden = !MES_CAMPAGNE;
@@ -1611,7 +1527,6 @@ async function mesCharger(campagneId){
   MES_PRODUITS = (m.data || []).map(mesDepuisLigne);
   if (!MES_PRODUITS.length) MES_PRODUITS.push(mesNouveau());
   mesPeindre();
-  await objCharger();
 }
 async function mesEnregistrer(){
   const st = $('mesStatut');
@@ -1720,9 +1635,10 @@ function mesBrancher(){
     if (f) f.remise_habituelle_pct = rem; else MES_FICHES.push({fournisseur: nom, remise_habituelle_pct: rem});
     mesPeindre();
   });
+  const carteObj = document.querySelector('[data-carte="objectifs"]');
+  if (carteObj) carteObj.addEventListener('click', () => { location.href = 'NEXUS-Campagne-v2-Objectifs.html'; });
   const carte = document.querySelector('[data-carte="compensation"]');
   if (carte) carte.addEventListener('click', () => ouvrirMesure(null));
-  objBrancher();
 }
 function mesPeindreFixes(){
   $('mesTitre').textContent = MV.titre; $('mesIntro').textContent = MV.intro; $('mesChoisirLib').textContent = MV.choisir;

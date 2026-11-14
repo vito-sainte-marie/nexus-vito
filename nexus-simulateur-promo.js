@@ -105,10 +105,10 @@
     r.seuilPlus10 = plafond(r.margeCible / r.margePromo);
     r.rythmeMin = r.seuil / r.jours;
     r.rythmePlus10 = r.seuilPlus10 / r.jours;
-    r.objectifPropose = plafond(r.rythmePlus10);
+    r.objectifPropose = plafond(r.rythmeMin);
     var meilleur = p.meilleurRythmeObserve;
     if (manque(meilleur) || !(Number(meilleur) > 0)) r.faisabilite = 'a-confirmer';
-    else r.faisabilite = r.rythmePlus10 > Number(meilleur) + EPS ? 'depasse-observe' : 'dans-observe';
+    else r.faisabilite = r.rythmeMin > Number(meilleur) + EPS ? 'depasse-observe' : 'dans-observe';
     r.meilleurRythmeObserve = manque(meilleur) ? null : Number(meilleur);
     return r;
   }
