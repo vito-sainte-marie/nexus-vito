@@ -158,6 +158,12 @@ a{color:inherit;}
 .b-actions .btn{margin-top:10px;}
 .b-detail{margin-top:16px; border-top:1px solid var(--t-line); padding-top:4px;}
 .b-detail[hidden]{display:none;}
+.c-actions{display:flex; flex-wrap:wrap; gap:8px; margin-top:10px;}
+.c-actions .btn{flex:1 1 140px; margin-top:0;}
+.b-carte-wrap{display:flex; flex-direction:column; gap:8px;}
+.form-titre{font-size:15px; font-weight:600; margin-bottom:12px;}
+.form-titre[hidden], #formNote[hidden], .fiche[hidden]{display:none;}
+.fiche .promo-nom{font-size:16px;}
 .b-cartes{display:grid; grid-template-columns:1fr; gap:10px;}
 .b-carte{display:block; width:100%; text-align:left; font-family:var(--t-sans); color:var(--t-text); background:var(--t-panel); border:1px solid var(--t-line); border-radius:14px; padding:14px 16px; min-height:44px; cursor:pointer;}
 .b-carte:hover{border-color:rgba(var(--boutique-rgb),.7);}
@@ -259,6 +265,7 @@ button.tuile:hover, button.tuile:focus-visible{border-color:var(--t-cyan);}
   </section>
 
   <section class="carte promo-form" id="promoForm" aria-label="Nouvelle promotion">
+    <div class="form-titre" id="formTitre" hidden></div>
     <div class="champ"><label for="promoNom" id="lNom"></label><input type="text" id="promoNom" maxlength="120" autocomplete="off"></div>
     <div class="champ dates">
       <div><label for="promoDateDebut" id="lDebut"></label><input type="date" id="promoDateDebut"></div>
@@ -279,8 +286,10 @@ button.tuile:hover, button.tuile:focus-visible{border-color:var(--t-cyan);}
       <label id="lObjectif"></label><div class="groupe" id="gObjectif"></div>
       <div id="blocLibre" style="display:none;margin-top:10px"><input type="text" id="promoObjectifLibre" maxlength="120" aria-label="Objectif"></div>
     </div>
-    <div class="champ"><button type="button" class="btn" id="btnValider" style="margin-top:0"></button><div id="formMessage"></div></div>
+    <div class="champ"><button type="button" class="btn" id="btnValider" style="margin-top:0"></button><div id="formNote" class="note" hidden></div><div id="formMessage"></div></div>
   </section>
+
+  <section class="carte fiche" id="fiche" hidden aria-live="polite"></section>
 
   <div class="titre-section" id="tEnCours"></div>
   <div id="enCours"></div>
@@ -502,6 +511,7 @@ function etatBrouillon(){
     objectifLibre: $('promoObjectifLibre').value, produits: produitsSelectionnes.slice() };
 }
 function sauverBrouillon(){
+  if (MODIF_ID) return;   // la modification d'une campagne n'écrit jamais le brouillon de « Nouvelle promotion »
   const st = stockage(); if (!st) return;
   brouillonEcrire(st, cleBrouillonCourante(), etatBrouillon(), Date.now());
 }
@@ -555,6 +565,7 @@ function reinitialiserForm(){
   selectionSugg = {};
   document.querySelectorAll('#promoForm .pill.active').forEach(p => p.classList.remove('active'));
   masquerSuggestions(); renderChips(); $('formMessage').innerHTML = '';
+  sortirModification();
 }
 function choisirPill(groupe, valeur, el){
   etatForm[groupe] = valeur;
@@ -625,6 +636,19 @@ async function validerCampagne(){
   if (etatForm.objectif === 'autre' && !libre) return erreur(V.formAutre);
   const btn = $('btnValider');
   btn.disabled = true; btn.textContent = V.formEnregistrement;
+  if (MODIF_ID){
+    // Modification : un update filtré par id (et par site), jamais un insert. Une ligne refusée par la RLS ne renvoie pas d'erreur : on vérifie la ligne rendue.
+    const { data, error: errMaj } = await nexusClient.from('campagnes_nexus').update({
+      nom, date_debut: dateDebut, date_fin: dateFin, type: etatForm.type,
+      produits_concernes: produitsSelectionnes, nature: etatForm.nature, objectif: etatForm.objectif,
+      objectif_libre: etatForm.objectif === 'autre' ? libre : null, modifie_par: EMPLOYEE.id, modifie_le: new Date().toISOString(),
+    }).eq('id', MODIF_ID).eq('site', SITE_ID).select('id');
+    btn.disabled = false; btn.textContent = V.modifierValider;
+    if (errMaj || !data || !data.length){ console.error('campagnes_nexus update', errMaj); return erreur(V.modifierErreur); }
+    msg.innerHTML = '<div class="msg-ok">' + esc(V.modifierOk) + '</div>';
+    setTimeout(async () => { toggleForm(); await chargerEtAfficher(); }, 700);
+    return;
+  }
   const { error } = await nexusClient.from('campagnes_nexus').insert({
     site: SITE_ID, nom, date_debut: dateDebut, date_fin: dateFin, type: etatForm.type,
     produits_concernes: produitsSelectionnes, nature: etatForm.nature, objectif: etatForm.objectif,
@@ -644,7 +668,11 @@ function brancherFormulaire(){
     const p = e.target.closest('.pill[data-groupe]');
     if (p) choisirPill(p.dataset.groupe, p.dataset.valeur, p);
     const r = e.target.closest('[data-retirer]');
-    if (r){ produitsSelectionnes.splice(Number(r.dataset.retirer), 1); renderChips(); sauverBrouillon(); }
+    if (r){
+      const [retire] = produitsSelectionnes.splice(Number(r.dataset.retirer), 1);
+      renderChips(); sauverBrouillon();
+      if (MODIF_ID && mesureDuProduit(retire)){ $('formNote').textContent = V.modifierMesureGardee; $('formNote').hidden = false; }
+    }
   });
   $('suggestions').addEventListener('change', e => {
     const c = e.target.closest('input[data-nom]'); if (!c) return;
@@ -703,12 +731,81 @@ function badgesDe(i){
 }
 function libelleStatut(s){ return s === 'encours' ? V.badgeEnCours : (s === 'avenir' ? V.badgeAVenir : V.badgeTerminee); }
 
+/* ---------- Consulter et modifier une campagne existante ---------- */
+let MODIF_ID = null;   // non nul : le formulaire modifie cette campagne (jamais de brouillon dans ce mode)
+const peutModifier = () => typeof nexusEstManager === 'function' && nexusEstManager(EMPLOYEE);
+function actionsCampagne(id){
+  return '<div class="c-actions"><button type="button" class="btn" data-consulter="' + esc(id) + '">' + esc(V.consulter) + '</button>' +
+    (peutModifier() ? '<button type="button" class="btn" data-modifier="' + esc(id) + '">' + esc(V.modifier) + '</button>' : '') + '</div>';
+}
+function ligneModifiee(iso){
+  if (!iso) return '';
+  const d = new Date(iso), z = n => String(n).padStart(2, '0');
+  return V.ficheModifiee.replace('{date}', z(d.getDate()) + '/' + z(d.getMonth() + 1) + '/' + d.getFullYear())
+    .replace('{heure}', z(d.getHours()) + ' h ' + z(d.getMinutes()));
+}
+function ouvrirFiche(id){
+  const r = CAMP_ROWS.find(x => x.id === id); if (!r) return;
+  const i = IMPACTS.find(x => x.campagneId === id);
+  const a = NexusTempo.dateLocale(r.date_debut), b = NexusTempo.dateLocale(r.date_fin);
+  const nbJours = Math.round((b - a) / 86400000) + 1;
+  const obj = objectifDe({objectif: r.objectif, objectifLibre: r.objectif_libre});
+  const prods = Array.isArray(r.produits_concernes) ? r.produits_concernes : [];
+  let h = '<div class="promo-nom">' + esc(r.nom) + '</div>' +
+    ligne(V.ficheDates, esc(fmtDateCourt(r.date_debut)) + ' → ' + esc(fmtDateCourt(r.date_fin))) +
+    ligne(V.ficheDuree, esc(V.bilan.jours(nbJours))) +
+    ligne(V.ficheType, esc(NC.TYPE_CAMPAGNE_LABELS[r.type] || '')) +
+    ligne(V.ficheNature, esc(NC.NATURE_CAMPAGNE_LABELS[r.nature] || '')) +
+    ligne(V.ficheObjectif, esc(obj || '')) +
+    '<div class="sous-titre">' + esc(V.ficheProduits) + '</div>' +
+    (prods.length ? '<div class="promo-produits">' + prods.map(esc).join(', ') + '</div>' : '<div class="note">' + esc(V.bilan.aucunProduit) + '</div>');
+  if (r.modifie_le) h += '<div class="note">' + esc(ligneModifiee(r.modifie_le)) + '</div>';
+  h += '<div class="c-actions">' +
+    (i && statutDe(i) !== 'avenir' ? '<button type="button" class="btn" data-mesurer-fiche="' + esc(id) + '">' + esc(V.bilan.mesurerLien) + '</button>' : '') +
+    '<button type="button" class="btn" data-fermer-fiche>' + esc(V.ficheFermer) + '</button></div>';
+  const f = $('fiche'); f.innerHTML = h; f.hidden = false;
+  f.scrollIntoView({behavior: 'smooth', block: 'start'});
+}
+function fermerFiche(){ $('fiche').hidden = true; $('fiche').innerHTML = ''; }
+function ouvrirModification(id){
+  if (!peutModifier()) return;
+  const r = CAMP_ROWS.find(x => x.id === id); if (!r) return;
+  fermerFiche(); cacherReprise(); reinitialiserForm();
+  MODIF_ID = id;
+  remplirDepuis({nom: r.nom, dateDebut: r.date_debut, dateFin: r.date_fin, type: r.type, nature: r.nature, objectif: r.objectif,
+    objectifLibre: r.objectif_libre, produits: Array.isArray(r.produits_concernes) ? r.produits_concernes : []});
+  $('formTitre').textContent = V.modifierTitre; $('formTitre').hidden = false;
+  $('btnValider').textContent = V.modifierValider;
+  ouvrirForm();
+  $('promoForm').scrollIntoView({behavior: 'smooth', block: 'start'});
+}
+function sortirModification(){
+  MODIF_ID = null;
+  $('formTitre').hidden = true; $('formTitre').textContent = '';
+  $('btnValider').textContent = V.formValider;
+  $('formNote').hidden = true; $('formNote').textContent = '';
+}
+function mesureDuProduit(nom){
+  const lignes = (MES_TOUS && MES_TOUS.mesures && MES_TOUS.mesures.get(MODIF_ID)) || [];
+  return lignes.some(l => String(l.article).toLowerCase() === String(nom).toLowerCase());
+}
+function brancherFiche(){
+  document.addEventListener('click', ev => {
+    const c = ev.target.closest('[data-consulter],[data-modifier],[data-mesurer-fiche],[data-fermer-fiche]');
+    if (!c) return;
+    if (c.dataset.consulter) ouvrirFiche(c.dataset.consulter);
+    else if (c.dataset.modifier) ouvrirModification(c.dataset.modifier);
+    else if (c.dataset.mesurerFiche) ouvrirMesure(c.dataset.mesurerFiche);
+    else fermerFiche();
+  });
+}
+
 function carteResume(i){
   const s = statutDe(i);
   return '<div class="promo"><div class="promo-haut"><div><div class="promo-nom">' + esc(i.nom) + '</div>' +
     '<div class="promo-dates">' + esc(fmtDateCourt(i.dateDebut)) + ' → ' + esc(fmtDateCourt(i.dateFin)) + '</div></div>' +
     '<span class="statut ' + (s === 'encours' ? 'encours' : '') + '">' + esc(libelleStatut(s)) + '</span></div>' +
-    '<div class="badges">' + badgesDe(i) + '</div></div>';
+    '<div class="badges">' + badgesDe(i) + '</div>' + actionsCampagne(i.campagneId) + '</div>';
 }
 
 function bilanPanier(pm){
@@ -886,18 +983,18 @@ function bilanVisuel(i){
     tuileIndicateur('panier-moyen', B.tuiles.panier, b.panier, fmtEur2, '', b.nbJoursAvantPanier) +
     margeTuile + '</div>' + graphiqueBilan(b) + '</div>' +
     '<div class="b-lateral">' + blocRenta(i, renta) + blocRetenir(b) +
-    '<div class="b-actions"><button type="button" class="btn" data-bilan-detail aria-expanded="' + (BILAN_OUVERT ? 'true' : 'false') + '">' + esc(BILAN_OUVERT ? B.bilanReduire : B.bilanComplet) + '</button></div></div></div>' +
+    '<div class="b-actions"><button type="button" class="btn" data-bilan-detail aria-expanded="' + (BILAN_OUVERT ? 'true' : 'false') + '">' + esc(BILAN_OUVERT ? B.bilanReduire : B.bilanComplet) + '</button></div>' + actionsCampagne(i.campagneId) + '</div></div>' +
     '<div class="b-detail" id="bilanDetail"' + (BILAN_OUVERT ? '' : ' hidden') + '>' + detailBilan(i, b, renta) + '</div></div>';
   return h;
 }
 function carteBilan(i){
   const B = V.bilan, bl = bilanPour(i), g = bl.b ? bl.b.ca.pendant : null, renta = bl.renta;
-  let h = '<button type="button" class="b-carte" data-ouvrir="' + esc(i.campagneId) + '"><div class="promo-nom">' + esc(i.nom) + '</div>' +
+  let h = '<div class="b-carte-wrap"><button type="button" class="b-carte" data-ouvrir="' + esc(i.campagneId) + '"><div class="promo-nom">' + esc(i.nom) + '</div>' +
     '<div class="promo-dates">' + esc(fmtPeriodeLongue(i)) + '</div>' +
     '<div class="badges">' + (objectifSpan(i) ? '<span class="badge">' + esc(objectifSpan(i)) + '</span>' : '') + '<span class="badge">' + esc(B.produits(i.produitsConcernes.length)) + '</span></div>' +
     ligne(typeBilan(bl.b).tuile, g && g.mesurable ? '<span class="' + g5Classe(g) + '">' + esc(fmtPct(g.evolution)) + '</span>' : esc(g5Texte(g))) +
     ligne(B.rentaTitre, esc(MV.etats[renta.etat]) + (renta.mesurable ? ' · ' + esc(fmtGain(renta)) : ''));
-  return h + '<span class="b-carte-lien">' + esc(B.ouvrir) + '</span></button>';
+  return h + '<span class="b-carte-lien">' + esc(B.ouvrir) + '</span></button>' + actionsCampagne(i.campagneId) + '</div>';
 }
 function conclusionBilan(){
   const i = IMPACTS.find(x => x.campagneId === BILAN_COURANT);
@@ -957,7 +1054,7 @@ async function chargerMesures(){
 async function chargerEtAfficher(){
   const [aud, camp, prod, imp, pan] = await Promise.all([
     fetchAllRows(() => nexusClient.from('audits_caisse').select('date, quart, vente_piste, vente_boutique').eq('site', SITE_ID).order('date', {ascending: true})),
-    nexusClient.from('campagnes_nexus').select('id, nom, date_debut, date_fin, type, produits_concernes, nature, objectif, objectif_libre, cree_le').eq('site', SITE_ID).order('date_debut', {ascending: false}),
+    nexusClient.from('campagnes_nexus').select('id, nom, date_debut, date_fin, type, produits_concernes, nature, objectif, objectif_libre, cree_le, modifie_le').eq('site', SITE_ID).order('date_debut', {ascending: false}),
     fetchAllRows(() => nexusClient.from('products').select('article, categorie, periode_debut, periode_fin, quantite, ca, marge').eq('site', SITE_ID)),
     nexusClient.from('campagnes_nexus_imports').select('campagne_id, phase, periode_debut, periode_fin').eq('site', SITE_ID),
     fetchAllRows(() => nexusClient.from('panier_moyen_quotidien').select('date, nb_tickets, panier_moyen_ht, panier_moyen_ttc').eq('site', SITE_ID).order('date', {ascending: true})),
@@ -1474,6 +1571,7 @@ mesPeindreFixes();
 mesBrancher();
 brancherBilan();
 brancherFormulaire();
+brancherFiche();
 nexusRequireAuth().then(async employee => {
   if (!employee) return;
   if (employee.role !== 'manager' && employee.role !== 'gerant'){

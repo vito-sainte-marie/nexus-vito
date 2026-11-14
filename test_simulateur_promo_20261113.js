@@ -93,7 +93,7 @@ t('aucune écriture ni git dans le moteur et la page',()=>{
   const moteur=lire('nexus-simulateur-promo.js'), page=lire('NEXUS-Campagne-v2.html');
   const sansMesure=src=>src.replace(/nexusClient\s*\.from\('(campagne_mesures_produits|campagne_couts|fournisseurs_conditions)'\)\s*\.(insert|upsert|delete)\(/g,'');
   [moteur,page].forEach(src=>{
-    assert(!/\.(insert|upsert|update|delete)\s*\(/.test(sansMesure(src).replace(/nexusClient\s*\.from\('campagnes_nexus'\)\s*\.insert\(/,'')),'écriture');
+    assert(!/\.(insert|upsert|update|delete)\s*\(/.test(sansMesure(src).replace(/nexusClient\s*\.from\('campagnes_nexus'\)\s*\.insert\(/,'').replace(/nexusClient\s*\.from\('campagnes_nexus'\)\s*\.update\(/,'') /* modification d'une campagne existante (lot Consulter/Modifier) : seul update autorisé, sur campagnes_nexus */),'écriture');
     assert(!/from\('(products|campagnes_nexus_imports)'\)\s*\.(insert|upsert|update|delete)/.test(src));
     assert(!/child_process|execSync|spawn/.test(src));
   });
@@ -103,7 +103,7 @@ const page = fs.readFileSync(path.join(__dirname,'NEXUS-Campagne-v2.html'),'utf8
 t('page : bandeau permanent, moteur chargé, pas d’écriture sur products ni imports', ()=>{
   assert(/nexus-simulateur-promo\.js/.test(page));
   assert(/id="simBanniere"/.test(page) && /SV\.banniere/.test(page));
-  const sansV2 = page.replace(/from\('campagnes_nexus'\)\s*\.insert/g,'');
+  const sansV2 = page.replace(/from\('campagnes_nexus'\)\s*\.(insert|update)/g,'');
   assert(!/from\('(products|campagnes_nexus_imports)'\)\s*\.(insert|update|upsert|delete)/.test(sansV2));
   const zone = page.slice(page.indexOf('Simulateur de promotion (aucune'));
   assert(!/\.(insert|update|upsert|delete)\(/.test(zone.replace(/nexusClient\s*\.from\('(campagne_mesures_produits|campagne_couts|fournisseurs_conditions)'\)\s*\.(insert|upsert|delete)\(/g,'')));
