@@ -199,17 +199,24 @@
   //   confirmee : un responsable a confirmé le taux (table produits_tva_confirmations).
   //   importee  : taux Decenium cohérent, non confirmé.
   //   incoherente : taux vide, différent d'une période à l'autre, ou 0 % alors que le rayon est taxé, ou différent du taux confirmé.
-  function etatTva(tva, tvaPrecedente, rayonTaxe, confirmation) {
+  // Un export postérieur à la confirmation qui apporte un taux différent ramène la référence à « incohérente ».
+  // Un export antérieur ou égal à la confirmation n'invalide pas la confirmation : le responsable corrige un taux qu'il sait faux.
+  function etatTva(tva, tvaPrecedente, rayonTaxe, confirmation, exportLe) {
     if (confirmation) {
       const c = num(confirmation.taux_confirme);
+      const confLe = jourIso(confirmation.confirme_le);
+      const exp = jourIso(exportLe);
       if (tva !== null && tva !== c) {
+        if (confLe && exp && exp <= confLe) {
+          return { etat: 'confirmee', taux: c, raison: 'TVA confirmée à ' + virgule(c) + ' % le ' + dateFr(confirmation.confirme_le) + ' · Decenium exporte ' + virgule(tva) + ' %, différent du taux confirmé ' + virgule(c) + ' %', confirme: c, ecart_export: tva };
+        }
         return { etat: 'incoherente', taux: tva, raison: 'taux importé ' + virgule(tva) + ' % différent du taux confirmé ' + virgule(c) + ' % le ' + dateFr(confirmation.confirme_le), confirme: c };
       }
       return { etat: 'confirmee', taux: c, raison: 'TVA confirmée à ' + virgule(c) + ' % le ' + dateFr(confirmation.confirme_le), confirme: c };
     }
     if (tva === null) return { etat: 'incoherente', taux: null, raison: 'TVA absente de l\'import' };
     if (tvaPrecedente !== null && tvaPrecedente !== undefined && tvaPrecedente !== tva) {
-      return { etat: 'incoherente', taux: tva, raison: 'TVA différente sur la période précédente (' + virgule(tvaPrecedente) + ' %)' };
+      return { etat: 'incoherente', taux: tva, raison: 'TVA différente sur la période précédente (' + virgule(tvaPrecedente) + ' %), comparaison avec la seule période précédente' };
     }
     if (tva === 0 && rayonTaxe) return { etat: 'incoherente', taux: tva, raison: 'TVA importée à 0 % alors que d\'autres références du rayon sont taxées' };
     return { etat: 'importee', taux: tva, raison: 'TVA importée de Decenium, non confirmée' };
@@ -278,8 +285,8 @@
       const tvaP = prevRow ? (prevRow.tva === null || prevRow.tva === undefined || prevRow.tva === '' ? null : num(prevRow.tva)) : null;
       const autresTaxes = (rayonsTaxes.get(r.categorie || '') || 0) - (tva !== null && tva > 0 ? 1 : 0);
       const confRow = trouverDeclaration(tvaConf, r, idxCur.get(normaliserNom(r.article)) === i);
-      const et = etatTva(tva, tvaP, autresTaxes > 0, confRow);
-      m.tva = { etat: et.etat, taux_importe: tva, taux_retenu: et.etat === 'incoherente' ? null : et.taux, raison: et.raison,
+      const et = etatTva(tva, tvaP, autresTaxes > 0, confRow, exportLe);
+      m.tva = { etat: et.etat, taux_importe: tva, taux_retenu: et.etat === 'incoherente' ? null : et.taux, raison: et.raison, ecart_export: et.ecart_export === undefined ? null : et.ecart_export,
         confirmation: confRow ? { id: confRow.id, taux: num(confRow.taux_confirme), confirme_par: confRow.confirme_par, confirme_le: confRow.confirme_le, commentaire: confRow.commentaire || null } : null };
       if (pv === null) {
         m.pv_ttc = Object.assign(valeur(null, 'Calcul NEXUS', per, 'non_disponible', site), { mention: 'TTC non disponible' });

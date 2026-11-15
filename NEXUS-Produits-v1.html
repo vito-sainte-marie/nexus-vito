@@ -743,7 +743,6 @@ nexusRequireAuth().then(async employee => {
   } else {
     PRODUCTS = await attacherMesures(await construireProduitsLive());
     PRODUCT_PHOTOS = await chargerPhotosProduits();
-    afficherSyntheseAccueil();
   }
 
   // Pied de page : nom de la station (nexus-auth.js, lu en base) et période réelle des données.
@@ -841,6 +840,8 @@ nexusRequireAuth().then(async employee => {
   // Échappement : UNE seule fonction, celle du composant badge (nexus-badge-etat.js).
   // Valable pour un texte HTML et pour un attribut entre guillemets doubles.
   const esc = window.NexusBadgeEtat.esc;
+  // La synthèse d'accueil utilise esc : elle ne peut s'afficher qu'après sa déclaration (const, zone morte temporelle).
+  if (!APERCU) afficherSyntheseAccueil();
   // URL d'image : https uniquement. `hoteExige` restreint à un hôte (photos NEXUS
   // = stockage Supabase). Sinon rien : pas d'image plutôt qu'une URL douteuse.
   function urlImageSure(u, hoteExige) { return NexusProduitsSecurite.urlImageSure(u, hoteExige, [photoApercu()]); }

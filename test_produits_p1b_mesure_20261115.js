@@ -47,9 +47,27 @@ t('Ginger beer : 8,5 % puis 2,1 % incohérente ; confirmée à 2,1 % ; un nouvel
   m = mes([act].concat(fond()), { precedent, tvaConfirmations: conf }).mesures[0];
   assert.strictEqual(m.tva.etat, 'confirmee');
   assert.strictEqual(m.pv_ttc.valeur, 2.04 + 0.002 > 0 ? Math.round(2 * 1.021 * 100) / 100 : 0);
-  m = mes([Object.assign({}, act, { tva: 8.5 })].concat(fond()), { precedent, tvaConfirmations: conf }).mesures[0];
+  m = mes([Object.assign({}, act, { tva: 8.5, periode_debut: '2026-11-10', periode_fin: '2026-11-20' })].concat(fond()), { precedent, tvaConfirmations: conf }).mesures[0];
   assert.strictEqual(m.tva.etat, 'incoherente');
   assert.ok(/taux importé 8,5 % différent du taux confirmé 2,1 %/.test(m.tva.raison), m.tva.raison);
+});
+t('Pringles exporté à 0 % puis confirmé à 2,1 % le 15/11 : confirmée, TTC au taux confirmé, écart signalé', () => {
+  const conf = [{ id: 'c', article: 'Pringles', taux_confirme: 2.1, confirme_le: '2026-11-15T10:00:00Z', confirme_par: 'u' }];
+  const m = mes([L('Pringles', 'Snacking', 21.5, 25, 52.5, { tva: 0, prix_vente: 2.1 })].concat(fond()), { tvaConfirmations: conf }).mesures[0];
+  assert.strictEqual(m.tva.etat, 'confirmee');
+  assert.strictEqual(m.pv_ttc.valeur, 2.14);
+  assert.strictEqual(m.tva.ecart_export, 0);
+  assert.ok(/Decenium exporte 0 %, différent du taux confirmé 2,1 %/.test(m.tva.raison), m.tva.raison);
+});
+t('export du jour même de la confirmation : confirmée ; export postérieur au taux différent : incohérente, sans TTC', () => {
+  const conf = [{ id: 'c', article: 'Pringles', taux_confirme: 2.1, confirme_le: '2026-11-09T18:00:00Z', confirme_par: 'u' }];
+  const base = { tva: 0, prix_vente: 2.1 };
+  let m = mes([L('Pringles', 'Snacking', 21.5, 25, 52.5, base)].concat(fond()), { tvaConfirmations: conf }).mesures[0];
+  assert.strictEqual(m.tva.etat, 'confirmee');
+  m = mes([L('Pringles', 'Snacking', 21.5, 25, 52.5, Object.assign({ periode_fin: '2026-11-10' }, base))].concat(fond()), { tvaConfirmations: conf }).mesures[0];
+  assert.strictEqual(m.tva.etat, 'incoherente');
+  assert.strictEqual(m.pv_ttc.valeur, null);
+  assert.strictEqual(m.pv_ttc.mention, 'TTC à vérifier');
 });
 t('une confirmation annulée ou remplacée ne compte pas', () => {
   const lignes = [{ id: 'a', annule_le: 'x', confirme_le: '2026-11-01' }, { id: 'b', confirme_le: '2026-11-02' }, { id: 'c', remplace_id: 'b', confirme_le: '2026-11-03' }];

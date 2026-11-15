@@ -29,4 +29,23 @@ ok(!/declare_par\s*:|valide_par\s*:|confirme_par\s*:/.test(sansCommentaires), 'a
 ok(!/\bprompt\(/.test(sansCommentaires), 'pas de prompt()');
 ok(html.includes('Accueil Produits'), 'retour accueil');
 ok(!/\.from\('products'\)\.(update|insert|upsert|delete)/.test(sansCommentaires), 'products jamais modifie');
+
+// Ordre d'exécution : afficherSyntheseAccueil ne doit pas tourner avant la déclaration des const qu'elle utilise (zone morte temporelle).
+{
+  const src = html;
+  const decl = src.indexOf('  const esc = window.NexusBadgeEtat.esc;');
+  ok(decl > 0, 'déclaration de esc introuvable');
+  const appels = []; const re = /afficherSyntheseAccueil\(\)/g; let m;
+  while ((m = re.exec(src))) { if (src.slice(Math.max(0, m.index - 9), m.index) !== 'function ') appels.push(m.index); }
+  const premier = appels[0];
+  ok(premier > decl, 'premier appel (' + premier + ') avant const esc (' + decl + ')');
+  const corps = src.slice(src.indexOf('function afficherSyntheseAccueil()'));
+  const corpsFn = corps.slice(0, corps.indexOf('\n  }\n') + 4);
+  const consts = [];
+  const reC = /^  const ([A-Za-z_$][\w$]*)\s*=/gm; let c;
+  while ((c = reC.exec(src))) consts.push({ nom: c[1], pos: c.index });
+  consts.filter(x => x.pos > premier && new RegExp('\\b' + x.nom.replace('$', '\\$') + '\\b').test(corpsFn))
+    .forEach(x => assert.fail('const ' + x.nom + ' déclarée après le premier appel de la synthèse'));
+}
 console.log('test_produits_p1b_page : ' + n + ' assertions OK');
+
