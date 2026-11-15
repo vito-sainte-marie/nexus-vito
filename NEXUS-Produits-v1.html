@@ -12,47 +12,37 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="NEXUS">
-<meta name="theme-color" content="#0B0F14">
-<title>NEXUS — Produits</title>
+<meta name="theme-color" content="#07131E">
+<title>NEXUS : Produits</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
-    --text:#EDF1F5; --text-mid:#8A96A5; --text-dim:#57626F;
-    --green:#34D399; --green-dim:#153629;
-    --amber:#F5A623; --amber-dim:#3A2E14;
-    --red:#F0575A; --red-dim:#3A1D1F;
-    --cyan:#4FC3D9; --purple:#B794F6; --purple-dim:#2E2140;
-    --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+    --t-bg:#07131E; --t-panel:#0D202E; --t-raised:#0F2433; --t-line:#254354;
+    --t-text:#EDF1F5; --t-mid:#9AA8B6; --t-cyan:#24D8E3; --t-green:#29C98A; --t-amber:#F5A12A; --t-red:#F0707A;
+    --boutique:#C47A55; --boutique-rgb:196,122,85; --piste:#3F6E94; --piste-rgb:63,110,148;
+    --t-mono:'IBM Plex Mono',ui-monospace,monospace; --t-sans:'IBM Plex Sans',system-ui,sans-serif; --banniere-cadrage:70% 50%;
+    /* passerelle vers les anciens noms de variables, pour ne rien casser */
+    --bg:var(--t-bg); --panel:var(--t-panel); --panel-raised:var(--t-raised); --hairline:var(--t-line);
+    --text:var(--t-text); --text-mid:var(--t-mid); --text-dim:var(--t-mid);
+    --green:var(--t-green); --amber:var(--t-amber); --red:var(--t-red); --cyan:var(--t-cyan); --purple:#B794F6;
+    --green-dim:color-mix(in srgb,var(--t-green) 16%,transparent); --amber-dim:color-mix(in srgb,var(--t-amber) 16%,transparent);
+    --red-dim:color-mix(in srgb,var(--t-red) 16%,transparent); --purple-dim:rgba(183,148,246,.16);
+    --yellow:#F5C542; --yellow-dim:rgba(245,197,66,.16); --surf:var(--t-panel);
+    --mono:var(--t-sans); --sans:var(--t-sans);
+  }
+  :root[data-theme="jour"]{
+    --t-bg:#F4F6F8; --t-panel:#FFFFFF; --t-raised:#EEF2F5; --t-line:#D5DCE3; --t-text:#0F172A; --t-mid:#475569;
+    --t-cyan:#0B7285; --t-green:#047857; --t-amber:#B45309; --t-red:#B91C1C; --boutique:#7A4A3A; --boutique-rgb:122,74,58; --piste:#8DB4D4; --piste-rgb:141,180,212;
+    --purple:#6D28D9; --purple-dim:rgba(109,40,217,.10); --yellow:#8A6A00; --yellow-dim:#FEF3C7;
   }
   *{box-sizing:border-box; margin:0; padding:0;}
-  html,body{background:var(--bg); font-family:var(--sans); color:var(--text);}
-  body{display:flex; justify-content:center; min-height:100vh;}
-  .phone{width:100%; max-width:460px; min-height:100vh; display:flex; flex-direction:column; border-left:1px solid var(--hairline); border-right:1px solid var(--hairline); padding-top:env(safe-area-inset-top); padding-bottom:env(safe-area-inset-bottom);}
+  html,body{background:var(--t-bg); color:var(--t-text); font-family:var(--t-sans); min-height:100vh;}
+  body{display:flex; justify-content:center;}
+  a{color:inherit;}
+  body{font-variant-numeric:tabular-nums;}
+  .app{width:100%; max-width:1100px; min-height:100vh; display:flex; flex-direction:column; padding:env(safe-area-inset-top) 16px 40px; overflow-x:hidden;}
 
-  .header{padding:20px 20px 14px; position:relative;}
-  .menu-btn{
-    position:absolute; top:18px; right:18px; display:flex; align-items:center; gap:6px;
-    font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase;
-    color:var(--cyan); background:rgba(79,195,217,0.1); border:1px solid rgba(79,195,217,0.3);
-    border-radius:20px; padding:7px 12px; text-decoration:none; white-space:nowrap; z-index:5;
-  }
-  .menu-btn:active{background:rgba(79,195,217,0.2);}
-
-  .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--cyan);}
-  .title{font-size:20px; font-weight:600; margin-top:4px;}
-  .divider{height:1px; background:var(--hairline); margin:0 20px;}
-
-  .search-wrap{padding:16px 20px;}
-  .search-box{
-    display:flex; align-items:center; gap:10px; background:var(--panel); border:1px solid var(--hairline);
-    border-radius:10px; padding:12px 14px;
-  }
-  .search-box input{
-    flex:1; background:none; border:none; outline:none; color:var(--text); font-family:var(--sans); font-size:16px;
-  }
-  .search-box input::placeholder{color:var(--text-dim);}
   .suggestions{margin-top:8px; display:flex; flex-direction:column; gap:4px;}
   .suggestion-item{
     padding:11px 14px; background:var(--panel); border:1px solid var(--hairline); border-radius:8px;
@@ -61,7 +51,7 @@
   .suggestion-item:hover{border-color:var(--cyan);}
   .suggestion-item .cat{font-family:var(--mono); font-size:10px; color:var(--text-dim);}
 
-  .section{padding:0 20px 20px;}
+  .section{padding:0 0 20px;}
   .card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:18px; margin-top:14px;}
   .product-name{font-size:17px; font-weight:600; line-height:1.3;}
   .product-cat{font-family:var(--mono); font-size:11px; color:var(--text-dim); margin-top:4px;}
@@ -169,67 +159,67 @@
 
   .empty-state{padding:40px 20px; text-align:center; color:var(--text-dim); font-size:13px; line-height:1.6;}
 
-  .conseiller-mini{display:flex; align-items:flex-start; gap:12px; padding:4px 20px 16px;}
-  .conseiller-avatar{width:52px; height:52px; border-radius:50%; object-fit:cover; flex-shrink:0; filter:drop-shadow(0 0 8px rgba(79,195,217,0.45));}
   .conseiller-bubble{
-    position:relative; flex:1; background:var(--panel); border:1px solid rgba(79,195,217,0.25); border-radius:14px;
-    padding:13px 16px; box-shadow:0 4px 14px rgba(0,0,0,0.2);
+    position:relative; flex:1; background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:13px 16px;
   }
-  .conseiller-bubble::before{
-    content:''; position:absolute; left:-6px; top:16px; width:12px; height:12px; background:var(--panel);
-    border-left:1px solid rgba(79,195,217,0.25); border-bottom:1px solid rgba(79,195,217,0.25); transform:rotate(45deg);
-  }
-  .conseiller-label{font-family:var(--mono); font-size:9.5px; letter-spacing:0.06em; text-transform:uppercase; color:var(--cyan); margin-bottom:4px;}
-  .conseiller-text{font-size:12.5px; line-height:1.55; color:var(--text);}
+  .conseiller-label{font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color:var(--cyan); margin-bottom:4px;}
+  .conseiller-text{font-size:14px; line-height:1.55; color:var(--text);}
   /* Cycle Constat → Explication → Décision (vocabulaire NEXUS, demande de
      Frédéric le 23/07/2026) — même traitement que NEXUS-Rayon-v1.html. */
   .cycle-step{margin-bottom:5px;}
   .cycle-step:last-child{margin-bottom:0;}
-  .cycle-tag{font-family:var(--mono); font-size:9px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim); margin-right:6px;}
+  .cycle-tag{font-size:10px; font-weight:600; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim); margin-right:6px;}
   .cycle-tag.tag-decision{color:var(--amber);}
 
-  footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
+  footer{margin-top:auto; padding:16px 0 24px; font-family:var(--sans); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
 
 /* ===== Refonte visuelle phase 1 (presentation uniquement) ===== */
-:root[data-theme="jour"]{
-  --bg:#F4F6F8; --panel:#FFFFFF; --panel-raised:#EEF2F5; --hairline:#D5DCE3;
-  --text:#0F172A; --text-mid:#475569; --text-dim:#5F6B78;
-  --cyan:#0B7285; --green:#0B7A54; --amber:#B45309; --yellow:#8A6A00; --yellow-dim:#FEF3C7; --surf:#FFFFFF;
-  --red:#B91C1C; --purple:#6D28D9;
-  --green-dim:rgba(11,122,84,.12); --amber-dim:rgba(180,83,9,.12); --red-dim:rgba(185,28,28,.10); --purple-dim:rgba(109,40,217,.10);
-}
-:root:not([data-theme="jour"]){--text-dim:#808C9B;}
-body.nexus-desktop .phone{max-width:1180px;}
-.header{--banniere-cadrage:60% 50%;--banniere-cadrage-tel:100% 50%}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;}
 :focus-visible{outline:2px solid var(--cyan);outline-offset:2px;}
 .ico{width:1.15em;height:1.15em;flex:none;vertical-align:-0.2em;}
 
-/* Bandeau */
-.hero .fil{font-family:var(--mono);font-size:11px;letter-spacing:0.08em;color:var(--text-mid);}
-.hero h1.title{font-size:26px;font-weight:700;margin:6px 0 0;}
-.hero .sous{font-size:13px;color:var(--text-mid);margin-top:6px;line-height:1.5;max-width:46ch;}
-@media (max-width:599px){.hero .sous{display:none;}}
+/* Bandeau (charte Campagne) */
+.header{position:relative; margin:12px 0 0; border-radius:14px; overflow:hidden; border:1px solid var(--t-line); min-height:190px; display:flex; align-items:flex-end; background:#0D202E;}
+.header picture{position:absolute; inset:0; display:block;}
+.header img.entete{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:var(--banniere-cadrage);}
+.header::after{content:''; position:absolute; inset:0; background:linear-gradient(0deg, rgba(7,19,30,.86) 0%, rgba(7,19,30,.55) 45%, rgba(7,19,30,.15) 100%);}
+:root[data-theme="jour"] .header::after{background:linear-gradient(0deg, rgba(7,19,30,.78) 0%, rgba(7,19,30,.45) 45%, rgba(7,19,30,.08) 100%);}
+@media (max-width:599px){.header{min-height:210px;} .header::after, :root[data-theme="jour"] .header::after{background:linear-gradient(0deg, rgba(7,19,30,.94) 0%, rgba(7,19,30,.82) 50%, rgba(7,19,30,.5) 100%);}}
+.header-texte{position:relative; z-index:1; padding:18px; width:100%; color:#EDF1F5;}
+.eyebrow{font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:#7FE9F0;}
+.title{font-size:26px; font-weight:600; margin-top:4px;}
+.subtitle{font-size:14px; color:#C9D3DC; margin-top:4px;}
+.menu-btn{position:absolute; z-index:2; top:12px; left:12px; text-decoration:none; font-size:12px; padding:9px 13px; min-height:44px; display:inline-flex; align-items:center; gap:6px; border-radius:20px; background:rgba(7,19,30,.72); color:#EDF1F5; border:1px solid rgba(255,255,255,.25);}
 .selecteurs{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px;}
-.pastille{display:inline-block;padding:5px 11px;border:1px solid var(--hairline);border-radius:999px;background:var(--panel-raised);font-family:var(--mono);font-size:11px;color:var(--text-mid);}
+.pastille{display:inline-block;padding:4px 10px;border:1px solid rgba(255,255,255,.25);border-radius:999px;background:rgba(7,19,30,.6);font-size:11px;color:#EDF1F5;}
 .pastille[hidden]{display:none;}
-.header .menu-btn{display:inline-flex;align-items:center;gap:6px;min-height:44px;min-width:44px;}
-body.nexus-desktop .pastille{font-family:var(--sans);font-size:13px;padding:6px 12px;}
-:root[data-theme="jour"] .menu-btn{background:#fff;border-color:var(--hairline);color:var(--cyan);}
-@media (max-width:640px){.hero .entete-texte .fil{padding-right:96px;}}
+.pastille:empty{display:none;}
+
+/* Cartes, Conseiller et champ (charte Campagne) */
+.carte{background:var(--t-panel); border:1px solid var(--t-line); border-radius:14px; padding:18px;}
+.conseiller{border-color:var(--t-cyan); margin-top:18px; display:flex; gap:14px; align-items:flex-start;}
+.conseiller-avatar{width:80px;height:80px;border-radius:50%;flex:none;object-fit:cover;filter:none;}
+.conseiller-sous{font-size:18px;font-weight:600;line-height:1.3;color:var(--t-text);margin-bottom:6px;}
+@media (min-width:768px){.conseiller{gap:22px;align-items:center;} .conseiller-avatar{width:120px;height:120px;}}
+.conseiller-corps{min-width:0;flex:1;}
+.conseiller-titre{font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--t-cyan); margin-bottom:6px;}
+.conseiller p{font-size:14.5px; line-height:1.6; margin-top:4px; overflow-wrap:anywhere;}
+details.comprendre{margin-top:10px;}
+details.comprendre>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;min-height:44px;font-size:13px;font-weight:600;color:var(--t-cyan);}
+details.comprendre>summary::-webkit-details-marker{display:none;}
+details.comprendre>summary::after{content:"";width:8px;height:8px;border-right:2px solid var(--t-mid);border-bottom:2px solid var(--t-mid);transform:rotate(45deg);transition:transform .15s;}
+details.comprendre[open]>summary::after{transform:rotate(-135deg);}
+.champ{margin:18px 0 0;}
+.champ label{display:block; font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--t-mid); margin-bottom:8px;}
+.champ input[type=text]{width:100%; background:var(--t-raised); border:1px solid var(--t-line); border-radius:8px; padding:10px 11px; min-height:44px; color:var(--t-text); font-family:var(--t-sans); font-size:16px;}
+.champ input::placeholder{color:var(--t-mid);}
+.champ input:focus-visible{outline:2px solid var(--t-cyan); outline-offset:1px;}
 
 /* Recherche (combobox) */
-.search-box{align-items:center;gap:10px;}
-.search-box .ico{color:var(--text-mid);width:20px;height:20px;}
-.search-box:focus-within{border-color:var(--cyan);box-shadow:0 0 0 2px rgba(79,195,217,.25);}
-.search-box input{min-height:44px;}
-.search-box input:focus-visible{outline:none;}
 .suggestions[hidden]{display:none;}
 button.suggestion-item{width:100%;text-align:left;font:inherit;font-size:13px;color:inherit;min-height:44px;}
 .suggestion-item.is-active,.suggestion-item:focus-visible{border-color:var(--cyan);background:var(--panel-raised);outline:2px solid var(--cyan);outline-offset:-2px;}
 
-/* Conseiller d'accueil (etat vide) */
-.empty-conseiller{margin:0 0 14px;padding:0;}
 
 /* Disposition fiche */
 .top-grid{display:grid;grid-template-columns:1fr;gap:12px;}
@@ -245,14 +235,10 @@ button.suggestion-item{width:100%;text-align:left;font:inherit;font-size:13px;co
 .photo-btn{display:inline-flex;align-items:center;gap:6px;min-height:44px;}
 :root[data-theme="jour"] .photo-btn{background:#fff;border-color:var(--cyan);color:var(--cyan);}
 .statut-repli{display:inline-block;padding:4px 10px;border:1px solid var(--hairline);border-radius:999px;font-size:12px;color:var(--text);}
-.conseiller-card h2{font-size:14px;margin:0;display:flex;align-items:center;gap:10px;}
-.conseiller-card .conseiller-avatar{width:36px;height:36px;}
-.conseiller-card .conseiller-bubble{margin-top:10px;}
 .conseiller-pied{margin-top:10px;}
 .conseiller-pied .periode-tendance,.cycle-step .periode-tendance{display:block;margin-top:6px;font-family:var(--mono);font-size:11px;color:var(--text-mid);}
 .avert-tendance{display:block;margin-top:8px;font-size:12px;line-height:1.5;color:var(--amber);}
 :root[data-theme="jour"] .hero-action{background:var(--panel-raised);border-color:var(--hairline);}
-:root[data-theme="jour"] .conseiller-bubble{box-shadow:none;border-color:var(--hairline);}
 :root[data-theme="jour"] .conseiller-avatar{filter:none;}
 
 /* Indicateurs */
@@ -260,11 +246,11 @@ button.suggestion-item{width:100%;text-align:left;font:inherit;font-size:13px;co
 .ind-principal{grid-template-columns:1fr 1fr;margin-bottom:8px;}
 .ind-principal .ind-tile:first-child{grid-column:1 / -1;}
 .ind-secondaire{grid-template-columns:1fr 1fr;}
-.ind-tile{background:var(--panel-raised);border:1px solid var(--hairline);border-radius:10px;padding:8px 10px;min-width:0;}
+.ind-tile{background:var(--t-raised);border:1px solid var(--t-line);border-radius:12px;padding:14px;min-width:0;}
 .ind-principal .ind-tile{padding:16px 18px;border-radius:12px;container-type:inline-size;}
-.ind-label{display:flex;align-items:center;gap:6px;font-size:10.5px;color:var(--text-mid);}
+.ind-label{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--t-mid);}
 .ind-principal .ind-label{font-size:12px;}
-.ind-val{font-family:var(--mono);font-size:15px;font-weight:700;margin-top:3px;white-space:nowrap;}
+.ind-val{font-family:var(--t-sans);font-variant-numeric:tabular-nums;font-size:17px;font-weight:600;margin-top:6px;white-space:nowrap;}
 .ind-principal .ind-val{font-size:clamp(22px,8cqi,32px);margin-top:6px;white-space:nowrap;}
 .indic-card{container-type:inline-size;}
 .ind-sub{font-size:11px;color:var(--text-dim);margin-top:2px;line-height:1.4;}
@@ -294,7 +280,6 @@ body.nexus-desktop #resultSection > *{margin-bottom:12px;}
 @media (min-width:900px){
   body.nexus-desktop .top-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:start;}
 }
-.conseiller-tete{display:flex;align-items:center;gap:10px;}
 .statut-ligne{margin-top:8px;}
 .histo-dates{font-family:var(--mono);font-size:10px;color:var(--text-dim);margin-top:6px;}
 .photo-empty{font-size:11px;color:var(--text-mid);text-align:center;padding:6px;line-height:1.4;}
@@ -308,44 +293,46 @@ body.nexus-desktop #resultSection > *{margin-bottom:12px;}
 <script src="nexus-vocabulaire.js?v=20260904-0104"></script>
 <script src="nexus-periodes.js?v=20260904-0104"></script>
 <script src="nexus-conseiller.js?v=20260904-0104"></script>
-<script src="nexus-banniere-station.js"></script>
 <script src="nexus-badge-etat.js"></script>
 <script src="nexus-produits-securite.js"></script>
 </head>
 <body>
-<div class="phone">
+<div class="app">
   <header class="header hero" id="heroProduits">
+    <picture id="banniereProduits">
+      <source media="(max-width:599px)" srcset="assets/telephone/produits-telephone.webp">
+      <img class="entete" src="assets/produits/produits-banniere-1200.webp" srcset="assets/produits/produits-banniere-800.webp 800w, assets/produits/produits-banniere-1200.webp 1200w, assets/produits/produits-banniere-1600.webp 1600w" sizes="(min-width:1100px) 1100px, 100vw" width="1600" height="533" alt="">
+    </picture>
     <a href="NEXUS-App-v1.html" class="menu-btn" aria-label="Menu NEXUS"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M4 6h16M4 12h16M4 18h16"/></svg> Menu</a>
-    <div class="entete-texte">
-      <div class="fil">NEXUS · Produits</div>
-      <h1 class="title">Produits</h1>
-      <p class="sous">Recherchez une référence pour voir ses ventes, sa marge, son stock et le conseil NEXUS.</p>
+    <div class="header-texte">
+      <div class="eyebrow">NEXUS · Produits</div>
+      <h1 class="title">Produits NEXUS</h1>
+      <p class="subtitle">Vos produits, en clair</p>
       <div class="selecteurs">
         <span class="pastille nexus-nom-commerce" id="pastilleSite"></span>
         <span class="pastille" id="pastillePeriode" hidden></span>
-        <span class="pastille" id="pastilleApercu" hidden>Aperçu — données fictives</span>
+        <span class="pastille" id="pastilleApercu" hidden>Aperçu : données fictives</span>
       </div>
     </div>
   </header>
-  <div class="divider"></div>
 
   <div class="search-wrap">
-    <div class="search-box">
-      <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
-      <input type="text" id="searchInput" role="combobox" aria-expanded="false" aria-controls="suggestions" aria-autocomplete="list" aria-label="Rechercher un produit par nom" autocomplete="off" placeholder="Rechercher un produit (nom)">
+    <div class="champ">
+      <label for="searchInput">Rechercher un produit ou un code-barres</label>
+      <input type="text" id="searchInput" role="combobox" aria-expanded="false" aria-controls="suggestions" aria-autocomplete="list" aria-label="Rechercher un produit ou un code-barres" autocomplete="off" placeholder="Nom du produit ou code-barres">
     </div>
     <div class="suggestions" id="suggestions" role="listbox" aria-label="Produits trouvés" hidden></div>
     <div class="sr-only" id="rechercheStatut" role="status" aria-live="polite"></div>
   </div>
 
   <!-- desktop-grid (02/08/2026) : mise en colonnes en vue bureau (voir
-       nexus-desktop.js) — neutralisée ici, la fiche a sa propre disposition. -->
+       nexus-desktop.js), neutralisée ici, la fiche a sa propre disposition. -->
   <div class="section desktop-grid" id="resultSection">
-    <div class="conseiller-mini empty-conseiller">
-      <img class="conseiller-avatar" src="assets/avatar/nexus-avatar-128.png" srcset="assets/avatar/nexus-avatar-64.png 64w, assets/avatar/nexus-avatar-96.png 96w, assets/avatar/nexus-avatar-128.png 128w, assets/avatar/nexus-avatar-256.png 256w" sizes="52px" alt="Conseiller NEXUS">
-      <div class="conseiller-bubble">
-        <div class="conseiller-label">Conseiller NEXUS</div>
-        <div class="conseiller-text">Recherchez une référence et je vous dis ce que les chiffres racontent vraiment dessus — pas ce qu'on croit en général.</div>
+    <div class="carte conseiller">
+      <img class="conseiller-avatar" src="assets/avatar/nexus-avatar-128.png" srcset="assets/avatar/nexus-avatar-64.png 64w, assets/avatar/nexus-avatar-96.png 96w, assets/avatar/nexus-avatar-128.png 128w, assets/avatar/nexus-avatar-256.png 256w" sizes="80px" alt="Conseiller NEXUS">
+      <div class="conseiller-corps">
+        <div class="conseiller-titre">Conseiller NEXUS</div>
+        <p>Recherchez un produit par son nom ou son code-barres.</p>
       </div>
     </div>
     <div class="empty-state">Recherchez un produit ci-dessus pour afficher sa fiche : les articles vendus sur la période affichée, sur les périodes complètes récentes ou relevés en stock depuis moins de 30 jours.</div>
@@ -385,13 +372,6 @@ nexusRequireAuth().then(async employee => {
   const APERCU = new URLSearchParams(location.search).get('apercu_produit') === '1' && employee.site_id === 'nexus-station-test';
   const nexusClient = APERCU ? clientApercu() : NEXUS_CLIENT_REEL;
   if (APERCU) { const pa = document.getElementById('pastilleApercu'); if (pa) pa.hidden = false; }
-    // Banniere commune (nexus-banniere-station.js) : meme illustration en Jour et Nuit.
-    try{ if(typeof NexusBanniereStation!=='undefined' && NexusBanniereStation.siteAvecBanniere(SITE_ACTUEL, NexusBanniereStation.apercuDemande())){
-      const haut=document.querySelector('#heroProduits'); const b='assets/produits/produits-banniere';
-      haut.insertAdjacentHTML('afterbegin', `<div class="am-banniere" data-photo-jour="${b}-1200.webp" data-photo-nuit="${b}-1200.webp"><img src="${b}-800.webp" srcset="${b}-800.webp 800w, ${b}-1200.webp 1200w, ${b}-1600.webp 1600w" sizes="(max-width:820px) 100vw, 50vw" width="800" height="450" alt="" decoding="async" onerror="this.parentNode.remove()"></div>`);
-      NexusBanniereStation.sourceTelephone(document.querySelector('.header > .am-banniere, #heroProduits > .am-banniere'),'assets/telephone/produits-telephone.webp');
-      NexusBanniereStation.suivreTheme();
-    }}catch(_){}
 
   let PRODUCTS = [];
   let PRODUCT_PHOTOS = {};
@@ -746,7 +726,7 @@ nexusRequireAuth().then(async employee => {
     suggestionsBox.innerHTML = matches.map((p, i) => `
       <button type="button" role="option" id="sug-${i}" aria-selected="false" class="suggestion-item" data-article="${esc(p.article)}">
         <span>${esc(p.article)}</span>
-        <span class="cat">${esc(p.categorie)}${p.source ? ' · ' + esc('sans vente — ' + p.source) : ''}</span>
+        <span class="cat">${esc(p.categorie)}${p.source ? ' · ' + esc('sans vente : ' + p.source) : ''}</span>
       </button>`).join('');
     suggestionsBox.hidden = false;
     searchInput.setAttribute('aria-expanded', 'true');
@@ -794,7 +774,7 @@ nexusRequireAuth().then(async employee => {
     return u ? `<img${cls ? ` class="${esc(cls)}"` : ''} src="${esc(u)}" alt="${esc(alt)}">` : '';
   }
   function fmtDate(d) {
-    if (!d) return '—';
+    if (!d) return 'n.d.';
     const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(d));
     return m ? `${m[3]}/${m[2]}/${m[1]}` : String(d);
   }
@@ -828,7 +808,7 @@ nexusRequireAuth().then(async employee => {
   function produitsApercu(base) {
     const ref = base[0] || {};
     const demo = Object.assign({}, ref, {
-      article: 'APERÇU — Jus d\'orange 1 L', categorie: 'Boissons',
+      article: 'APERÇU : Jus d\'orange 1 L', categorie: 'Boissons',
       ca_t2: 12345.67, qte_t2: 4210, ca_t1: 9800, qte_t1: 3500, ca_t2_pair: 11200, qte_t2_pair: 3900, ca_s1: 21000,
       pu_ht: 2.93, pma: 1.78, marge_pct: 0.392, pct_contrib: 0.084,
       periode_debut: '2026-08-24', periode_fin: '2026-09-23',
@@ -864,7 +844,7 @@ nexusRequireAuth().then(async employee => {
       ? (() => {
           const t1 = tend.periodes.t1, t2 = tend.periodes.t2;
           const lib = (t, nom) => `${nom} ${esc(fmtDate(t.debut))} → ${esc(fmtDate(t.fin))} (${esc(t.duree)} j) : CA ${fmtEur(t.ca || 0)}`;
-          return `<div class="histo-dates">${lib(t1, 'T1')} · ${lib(t2, 'T2')}</div>`;
+          return `<div class="histo-dates">${lib(t1, 'Période précédente')} · ${lib(t2, 'Dernière période')}</div>`;
         })() : '';
     // Histogramme en unités moyennes par jour (jamais en totaux bruts de durées différentes).
     const tp = (tend && tend.periodes) ? tend.periodes : null;
@@ -891,7 +871,7 @@ nexusRequireAuth().then(async employee => {
     // Periode de la paire comparable (T1 contre T2) : lue dans pairDates,
     // jamais codee en dur. Toute tendance affichee la porte.
     const periodePaire = (p.pairDisponible && p.pairDates)
-      ? `T1 ${fmtDate(p.pairDates.debutT1)} → ${fmtDate(p.pairDates.finT1)} contre T2 ${fmtDate(p.pairDates.debutT2)} → ${fmtDate(p.pairDates.finT2)}`
+      ? `période précédente ${fmtDate(p.pairDates.debutT1)} → ${fmtDate(p.pairDates.finT1)} contre dernière période ${fmtDate(p.pairDates.debutT2)} → ${fmtDate(p.pairDates.finT2)}`
       : '';
     const mentionPaire = `<span class="periode-tendance">Comparaison : ${esc(periodePaire) || 'période de comparaison non précisée'}.</span>`;
     const avertPaire = (p.pairDisponible && !p.pairEstPeriodeAffichee)
@@ -929,22 +909,22 @@ nexusRequireAuth().then(async employee => {
 
     const histoHtml = p.pairDisponible ? `
       <div class="histo-row">
-        <span class="histo-label">T1</span>
+        <span class="histo-label">Précédente</span>
         <div class="histo-bar-track"><div class="histo-bar" style="width:${Number(bT1.v/maxQte*100) || 0}%; background:var(--text-dim);"></div></div>
         <span class="histo-val histo-val-large">${bT1.txt}</span>
       </div>
       <div class="histo-row">
-        <span class="histo-label">T2</span>
+        <span class="histo-label">Dernière</span>
         <div class="histo-bar-track"><div class="histo-bar" style="width:${Number(bT2.v/maxQte*100) || 0}%;"></div></div>
         <span class="histo-val histo-val-large">${bT2.txt}</span>
       </div>
       ${periodesTendance}
       <div class="kpi-grid">
-        <div class="kpi-box"><div class="kl">CA cumulé (T1+T2)</div><div class="kv">${fmtEur(p.ca_s1)}</div></div>
+        <div class="kpi-box"><div class="kl">CA cumulé des deux périodes</div><div class="kv">${fmtEur(p.ca_s1)}</div></div>
         <div class="kpi-box"><div class="kl">Évolution QTE</div><div class="kv ${tendQualifiee ? (evolQte>=0?'up':'down') : ''}">${tendQualifiee ? (evolQte>=0?'+':'')+fmtPct(evolQte) : (msgTendance || 'Tendance indisponible')}</div><div class="kl">${tendQualifiee ? 'ventes moyennes par jour (unités) · ' : ''}${mentionPaire}</div>${avertsTendance}</div>
       </div>
-      ${!p.pairEstPeriodeAffichee ? `<div class="histo-empty" style="margin-top:10px;">La période affichée en tête de fiche (${esc(p.periode_debut)} → ${esc(p.periode_fin)}) est encore trop récente pour être comparée équitablement — cette évolution porte donc sur les deux dernières périodes importées.</div>` : ''}` : `
-      <div class="histo-empty">Aucune période précédente de durée comparable n'a encore été importée pour cette référence (période affichée : ${esc(p.periode_debut)} → ${esc(p.periode_fin)}, ${esc(p.qte_t2)} u. vendues) — NEXUS n'affiche pas d'évolution T1 → T2 plutôt que d'en fabriquer une trompeuse.</div>`;
+      ${!p.pairEstPeriodeAffichee ? `<div class="histo-empty" style="margin-top:10px;">La période affichée en tête de fiche (${esc(p.periode_debut)} → ${esc(p.periode_fin)}) est encore trop récente pour être comparée équitablement : cette évolution porte donc sur les deux dernières périodes importées.</div>` : ''}` : `
+      <div class="histo-empty">Aucune période précédente de durée comparable n'a encore été importée pour cette référence (période affichée : ${esc(p.periode_debut)} → ${esc(p.periode_fin)}, ${esc(p.qte_t2)} u. vendues) : NEXUS n'affiche pas d'évolution entre les deux périodes plutôt que d'en fabriquer une trompeuse.</div>`;
 
     const tuile = (ico, label, val, sub, ids) => `
       <div class="ind-tile">
@@ -964,13 +944,17 @@ nexusRequireAuth().then(async employee => {
           </div>
         </section>
 
-        <section class="card conseiller-card" aria-label="Conseiller NEXUS">
-          <div class="conseiller-tete">
-            <img class="conseiller-avatar" src="assets/avatar/nexus-avatar-128.png" srcset="assets/avatar/nexus-avatar-64.png 64w, assets/avatar/nexus-avatar-96.png 96w, assets/avatar/nexus-avatar-128.png 128w, assets/avatar/nexus-avatar-256.png 256w" sizes="40px" alt="" width="40" height="40" onerror="this.style.display='none'">
-            <h2>Conseiller NEXUS</h2>
+        <section class="carte conseiller" aria-label="Conseiller NEXUS">
+          <img class="conseiller-avatar" src="assets/avatar/nexus-avatar-128.png" srcset="assets/avatar/nexus-avatar-64.png 64w, assets/avatar/nexus-avatar-96.png 96w, assets/avatar/nexus-avatar-128.png 128w, assets/avatar/nexus-avatar-256.png 256w" sizes="80px" alt="" width="80" height="80" onerror="this.style.display='none'">
+          <div class="conseiller-corps">
+            <div class="conseiller-titre">Conseiller NEXUS</div>
+            <div class="conseiller-sous">${esc(statutSimplifie.label)}</div>
+            <details class="comprendre">
+              <summary>Comprendre cette analyse</summary>
+              <div class="conseiller-bubble"><div class="conseiller-text" id="conseillerProduitMsg"></div></div>
+              <div class="conseiller-pied" id="conseillerPaire"></div>
+            </details>
           </div>
-          <div class="conseiller-bubble"><div class="conseiller-text" id="conseillerProduitMsg"></div></div>
-          <div class="conseiller-pied" id="conseillerPaire"></div>
         </section>
       </div>
 
@@ -981,9 +965,9 @@ nexusRequireAuth().then(async employee => {
           ${tuile(ICO.marge, 'Marge', fmtPct(p.marge_pct))}
         </div>
         <div class="ind-niveau ind-secondaire">
-          ${tuile(ICO.prix, 'Prix HT', p.pu_ht !== null ? fmtEur(p.pu_ht) : '—')}
-          ${tuile(ICO.pma, 'PMA', p.pma !== null ? fmtEur(p.pma) : '—')}
-          ${tuile(ICO.part, 'Part du rayon', p.pct_contrib != null ? fmtPct(p.pct_contrib) : '—')}
+          ${tuile(ICO.prix, 'Prix HT', p.pu_ht !== null ? fmtEur(p.pu_ht) : 'n.d.')}
+          ${tuile(ICO.pma, 'PMP Decenium HT', p.pma !== null ? fmtEur(p.pma) : 'n.d.')}
+          ${tuile(ICO.part, 'Part du rayon', p.pct_contrib != null ? fmtPct(p.pct_contrib) : 'n.d.')}
           ${tuile(ICO.rang, 'Classement', `#${rangRayon.rang} / ${rangRayon.total}`)}
           ${tuile(ICO.stock, 'Stock (valeur)', '…', 'vérification…', { val: 'heroStockVal', sub: 'heroStockSub' })}
           ${tuile(ICO.rotation, 'Rotation', '…', 'vérification…', { val: 'heroRotationVal', sub: 'heroRotationSub' })}
@@ -991,7 +975,7 @@ nexusRequireAuth().then(async employee => {
       </section>
 
       <details class="card sec" id="secHisto">
-        <summary>${ICO.histo}<span>Historique T1 → T2</span></summary>
+        <summary>${ICO.histo}<span>Historique des deux périodes</span></summary>
         <div class="sec-corps">${histoHtml}</div>
       </details>
 
@@ -1004,7 +988,7 @@ nexusRequireAuth().then(async employee => {
           <div class="gap-row"><span class="gap-label">Stock</span><span class="gap-status" id="gapStockStatus">Vérification du dernier relevé…</span></div>
           <div class="gap-row"><span class="gap-label">Rotation réelle</span><span class="gap-status" id="gapRotationStatus">Vérification…</span></div>
           <div class="gap-row"><span class="gap-label">Emplacement</span><span class="gap-status" id="gapEmplacementStatus">Vérification…</span></div>
-          <div class="gap-row"><span class="gap-label">Facing actuel</span><span class="gap-status">Non disponible — pas de saisie des facings actuellement</span></div>
+          <div class="gap-row"><span class="gap-label">Facing actuel</span><span class="gap-status">Non disponible : pas de saisie des facings actuellement</span></div>
           <div id="emplacementPickerZone"></div>
         </div>
       </details>
@@ -1013,7 +997,7 @@ nexusRequireAuth().then(async employee => {
     // Sections repliees sur mobile, ouvertes sur grand ecran ; les elements
     // restent dans le DOM dans tous les cas (les actions ne cassent pas).
     const grandEcran = (window.matchMedia && window.matchMedia('(min-width:768px)').matches) || document.body.classList.contains('nexus-desktop');
-    if (grandEcran) resultSection.querySelectorAll('details.sec').forEach(d => { d.open = true; });
+    if (grandEcran) resultSection.querySelectorAll('details.sec').forEach(d => { if (d.id !== 'secHisto') d.open = true; });
 
     // Conseiller : cycle Constat -> Explication -> Decision (logique inchangee),
     // ecrit apres la creation du DOM. La periode de comparaison accompagne la tendance.
@@ -1035,8 +1019,8 @@ nexusRequireAuth().then(async employee => {
             ? 'Aucune vente récente et un stock à zéro (ou négatif) au dernier relevé : une rupture est probable.'
             : 'Aucune vente sur la période affichée. NEXUS ne tire pas de conclusion sans relevé de stock récent.';
       } else {
-        const rentaTxt = NexusVocab.rentabilite(niveauRentaP, false, esc(p.article));
-        const tendanceTxt = tendQualifiee ? (NexusVocab.tendance(evolCa) + ' (ventes moyennes par jour)' + (tend.fiable ? '' : ' — ' + tend.avertissements.map(esc).join(' · ') + '.')) : msgTendance;
+        const rentaTxt = niveauRentaP === 'tres_rentable' ? '' : NexusVocab.rentabilite(niveauRentaP, false, esc(p.article));
+        const tendanceTxt = tendQualifiee ? (NexusVocab.tendance(evolCa) + ' (ventes moyennes par jour)' + (tend.fiable ? '' : ' : ' + tend.avertissements.map(esc).join(' · ') + '.')) : msgTendance;
         explicationP = [rentaTxt, tendanceTxt].filter(Boolean).join(' ')
           || 'Pas assez de recul pour conclure.';
         if (!tend || tend.statut === 'indisponible') explicationP += ' Je n\'ai pas encore de période précédente pour elle.';
@@ -1046,7 +1030,7 @@ nexusRequireAuth().then(async employee => {
       const decisionP = statutSimplifie.action;
 
       conseillerMsg.innerHTML = `
-        <div class="cycle-step"><span class="cycle-tag">Constat</span>${esc(employee.nom)}, ${constatP}</div>
+        <div class="cycle-step"><span class="cycle-tag">Constat</span>${constatP}</div>
         <div class="cycle-step"><span class="cycle-tag">Explication</span>${explicationP}</div>
         ${decisionP ? `<div class="cycle-step"><span class="cycle-tag tag-decision">Décision</span>${decisionP}</div>` : ''}
       `;
@@ -1165,7 +1149,7 @@ nexusRequireAuth().then(async employee => {
       chargerPhotoTerrain(p);
     } catch (e) {
       console.error('Envoi photo terrain (manager):', e);
-      if (msg) { msg.style.color = 'var(--red)'; msg.textContent = "Erreur lors de l'envoi — réessayez."; }
+      if (msg) { msg.style.color = 'var(--red)'; msg.textContent = "Erreur lors de l'envoi : réessayez."; }
       if (btn) { btn.disabled = false; btn.innerHTML = ICO.camera + ' Prendre une photo'; }
     }
   }
@@ -1281,7 +1265,7 @@ nexusRequireAuth().then(async employee => {
 
     if (error) {
       console.error('Enregistrement product_locations:', error);
-      if (el) el.textContent = "Erreur d'enregistrement — réessayez.";
+      if (el) el.textContent = "Erreur d'enregistrement : réessayez.";
       return;
     }
     chargerEmplacementProduit(p);
@@ -1337,8 +1321,8 @@ nexusRequireAuth().then(async employee => {
         const msg = `Aucun relevé trouvé pour « ${p.article} » (vérifier que le nom correspond exactement à celui utilisé lors de l'import stock).`;
         if (elStock && elStock.isConnected) elStock.textContent = msg;
         if (elRotation && elRotation.isConnected) elRotation.textContent = "Non calculable sans relevé de stock pour cet article.";
-        if (elHeroRotVal && elHeroRotVal.isConnected) { elHeroRotVal.textContent = '—'; elHeroRotSub.textContent = 'pas de relevé stock'; }
-        if (elHeroStockVal && elHeroStockVal.isConnected) { elHeroStockVal.textContent = '—'; elHeroStockSub.textContent = 'pas de relevé stock'; }
+        if (elHeroRotVal && elHeroRotVal.isConnected) { elHeroRotVal.textContent = 'n.d.'; elHeroRotSub.textContent = 'pas de relevé stock'; }
+        if (elHeroStockVal && elHeroStockVal.isConnected) { elHeroStockVal.textContent = 'n.d.'; elHeroStockSub.textContent = 'pas de relevé stock'; }
         return;
       }
       const relv = data[0];
@@ -1368,8 +1352,8 @@ nexusRequireAuth().then(async employee => {
 
       if (elStock && elStock.isConnected) {
         const base = relv.quantite_reelle != null
-          ? `Théorique ${relv.quantite_theorique} u., compté ${relv.quantite_reelle} u. — relevé du ${dateRelv}`
-          : `Théorique ${relv.quantite_theorique} u. — relevé du ${dateRelv} (pas encore contrôlé physiquement)`;
+          ? `Théorique ${relv.quantite_theorique} u., compté ${relv.quantite_reelle} u., relevé du ${dateRelv}`
+          : `Théorique ${relv.quantite_theorique} u., relevé du ${dateRelv} (pas encore contrôlé physiquement)`;
         elStock.textContent = motStock ? `${motStock} ${base}` : base;
       }
 
@@ -1379,16 +1363,16 @@ nexusRequireAuth().then(async employee => {
       if (elHeroStockVal && elHeroStockVal.isConnected) {
         if (p.pma != null) {
           elHeroStockVal.textContent = fmtEur(stockQte * p.pma);
-          elHeroStockSub.textContent = `${motStock ? motStock + ' · ' : ''}estimation au PMA, relevé du ${dateRelv}`;
+          elHeroStockSub.textContent = `${motStock ? motStock + ' · ' : ''}estimation au PMP Decenium, relevé du ${dateRelv}`;
         } else {
           elHeroStockVal.textContent = `${stockQte} u.`;
-          elHeroStockSub.textContent = motStock || `PMA inconnu · ${dateRelv}`;
+          elHeroStockSub.textContent = motStock || `PMP Decenium inconnu · ${dateRelv}`;
         }
       }
 
       if (elRotation && elRotation.isConnected) {
         if (venteJour <= 0) {
-          elRotation.textContent = `Aucune vente enregistrée sur la dernière période importée (${p.periode_debut} → ${p.periode_fin}) — rotation non calculable.`;
+          elRotation.textContent = `Aucune vente enregistrée sur la dernière période importée (${p.periode_debut} → ${p.periode_fin}) : rotation non calculable.`;
         } else {
           // Le relevé est-il réellement dans la période de ventes ? Comparaison
           // de dates ISO (YYYY-MM-DD), triable directement en chaîne.
@@ -1403,7 +1387,7 @@ nexusRequireAuth().then(async employee => {
       }
       if (elHeroRotVal && elHeroRotVal.isConnected) {
         if (venteJour <= 0) {
-          elHeroRotVal.textContent = '—';
+          elHeroRotVal.textContent = 'n.d.';
           elHeroRotSub.textContent = 'aucune vente période';
         } else {
           elHeroRotVal.textContent = `≈${venteJour.toFixed(1)}/j`;
@@ -1415,8 +1399,8 @@ nexusRequireAuth().then(async employee => {
       const msgErr = "Impossible de vérifier le stock pour l'instant (erreur réseau).";
       if (elStock && elStock.isConnected) elStock.textContent = msgErr;
       if (elRotation && elRotation.isConnected) elRotation.textContent = msgErr;
-      if (elHeroRotVal && elHeroRotVal.isConnected) { elHeroRotVal.textContent = '—'; elHeroRotSub.textContent = 'erreur réseau'; }
-      if (elHeroStockVal && elHeroStockVal.isConnected) { elHeroStockVal.textContent = '—'; elHeroStockSub.textContent = 'erreur réseau'; }
+      if (elHeroRotVal && elHeroRotVal.isConnected) { elHeroRotVal.textContent = 'n.d.'; elHeroRotSub.textContent = 'erreur réseau'; }
+      if (elHeroStockVal && elHeroStockVal.isConnected) { elHeroStockVal.textContent = 'n.d.'; elHeroStockSub.textContent = 'erreur réseau'; }
     }
   }
 
@@ -1484,7 +1468,7 @@ nexusRequireAuth().then(async employee => {
     // code existe mais n'a rien donné. On affiche maintenant explicitement
     // le motif avant de basculer.
     if (!p.code_barres) {
-      await chercherPhotoParNom(p, `Pas de code-barres enregistré pour « ${p.article} » — recherche par nom.`);
+      await chercherPhotoParNom(p, `Pas de code-barres enregistré pour « ${p.article} », recherche par nom.`);
       return;
     }
 
@@ -1512,7 +1496,7 @@ nexusRequireAuth().then(async employee => {
           });
           return;
         }
-        await chercherPhotoParNom(p, `Code-barres ${p.code_barres} trouvé sur Open Food Facts mais sans photo — recherche par nom.`, p.code_barres);
+        await chercherPhotoParNom(p, `Code-barres ${p.code_barres} trouvé sur Open Food Facts mais sans photo, recherche par nom.`, p.code_barres);
         return;
       }
       // Trouvé le 22/07/2026 (retour de Frédéric) : quand le code-barres exact
@@ -1522,10 +1506,10 @@ nexusRequireAuth().then(async employee => {
       // par nom comme "indice" : la fonction serveur peut alors repérer, parmi
       // les résultats textuels, celui dont le VRAI code-barres OFF contient ces
       // mêmes chiffres — bien plus fiable qu'un rapprochement par nom seul.
-      await chercherPhotoParNom(p, `Code-barres ${p.code_barres} introuvable sur Open Food Facts — recherche par nom.`, p.code_barres);
+      await chercherPhotoParNom(p, `Code-barres ${p.code_barres} introuvable sur Open Food Facts, recherche par nom.`, p.code_barres);
     } catch (e) {
       console.error('Recherche par code-barres:', e);
-      await chercherPhotoParNom(p, `Recherche par code-barres impossible (${e.message || 'erreur réseau'}) — recherche par nom.`, p.code_barres);
+      await chercherPhotoParNom(p, `Recherche par code-barres impossible (${e.message || 'erreur réseau'}), recherche par nom.`, p.code_barres);
     }
   }
 
@@ -1541,7 +1525,7 @@ nexusRequireAuth().then(async employee => {
           ${candidat.marque ? `<div class="pc-marque">${esc(candidat.marque)}${candidat.quantite ? ' · ' + esc(candidat.quantite) : ''}</div>` : ''}
         </div>
       </div>
-      <div class="photo-annuler" id="annulerRecherchePhoto">Ce n'est pas la bonne référence — chercher par nom à la place</div>
+      <div class="photo-annuler" id="annulerRecherchePhoto">Ce n'est pas la bonne référence : chercher par nom à la place</div>
     `;
     document.getElementById('candidatUnique').addEventListener('click', () => confirmerPhotoProduit(p, candidat));
     document.getElementById('annulerRecherchePhoto').addEventListener('click', () => chercherPhotoParNom(p, undefined, p.code_barres));
@@ -1672,7 +1656,7 @@ nexusRequireAuth().then(async employee => {
           </div>`;
         }).join('')}
       </div>
-      <div class="photo-annuler" id="annulerRecherchePhoto">Aucune ne correspond — annuler</div>
+      <div class="photo-annuler" id="annulerRecherchePhoto">Aucune ne correspond : annuler</div>
     `;
     zone.querySelectorAll('.photo-candidat').forEach(el => {
       el.addEventListener('click', () => confirmerPhotoProduit(p, candidats[Number(el.dataset.i)]));
@@ -1696,7 +1680,7 @@ nexusRequireAuth().then(async employee => {
     if (error) {
       console.error('Enregistrement product_photos:', error);
       if (zone) {
-        zone.innerHTML = `<div class="photo-empty">Erreur d'enregistrement — réessayez.</div>
+        zone.innerHTML = `<div class="photo-empty">Erreur d'enregistrement : réessayez.</div>
           <div class="photo-annuler" id="annulerRecherchePhoto">← Retour</div>`;
         const a = document.getElementById('annulerRecherchePhoto');
         if (a) a.addEventListener('click', () => renderPhotoCard(p));

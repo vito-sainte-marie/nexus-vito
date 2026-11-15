@@ -177,7 +177,7 @@ t('explication « Aucune vente récente » neutre ; estimations datées ; limite
   assert.ok(/Aucune vente sur la période affichée\. NEXUS ne tire pas de conclusion sans relevé de stock récent\./.test(page));
   assert.ok(!/n'indique pas forcément un problème de demande/.test(page));
   assert.ok(/suggestion\$\{data\.assigne_le/.test(page), 'emplacement suggéré : mot et date');
-  assert.ok(/estimation au PMA, relevé du \$\{dateRelv\}/.test(page), 'valeur du stock : mot et date');
+  assert.ok(/estimation au PMP Decenium, relevé du \$\{dateRelv\}/.test(page), 'valeur du stock : mot et date');
   assert.ok(/même début mais de fin différente ne sont pas\s+\/\/ distingués/.test(page), 'limite des imports de même début documentée');
 });
 t('commentaires périmés corrigés', () => {
