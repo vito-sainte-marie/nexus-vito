@@ -396,6 +396,9 @@ details.obj-hab[open] summary::after{transform:rotate(180deg);}
 <script src="nexus-import-moteur.js?v=20260904-0104"></script>
 <script src="nexus-import-donnees.js?v=20260904-0104"></script>
 <script src="nexus-campagne-ventes.js?v=20261114-1900"></script>
+<script src="nexus-campagne-stock.js?v=20261114-1900"></script>
+<script src="nexus-campagne-bilan.js?v=20261116-3"></script>
+<script src="nexus-campagne-fiche.js?v=20261115-1"></script>
 <script>
 const V = window.NexusVocab.campagne, P = V.ventesPage;
 const M = NexusImportMoteur, D = NexusImportDonnees, CV = NexusCampagneVentes;
@@ -444,6 +447,8 @@ function derniersObjectifs(rows){
   rows.forEach(r => { const a = m.get(r.article); if (!a || r.version > a.version) m.set(r.article, r); });
   return Array.from(m.values());
 }
+let BILAN_FICHES = new Map();
+window.NexusCampagneFiche.injecterStyle();
 async function chargerCampagne(){
   const [o, p, a] = await Promise.all([
     nexusClient.from('campagne_objectifs_produits').select('article, version, seuil_unites, objectif_valide_jour, pa_promo_ht').eq('campagne_id', CAMPAGNE.id).eq('site', SITE_ID).order('version', {ascending: true}),
@@ -453,6 +458,11 @@ async function chargerCampagne(){
   if (o.error) console.error(o.error); if (p.error) console.error(p.error); if (a.error) console.error(a.error);
   OBJECTIFS = derniersObjectifs(o.data || []); POINTS = p.data || []; ANNULATIONS = a.data || [];
   $('vtLienObjectifs').href = 'NEXUS-Campagne-v2-Objectifs.html?campagne=' + encodeURIComponent(CAMPAGNE.id); $('vtLienObjectifs').textContent = P.voirObjectifs;
+  BILAN_FICHES = new Map();
+  try {
+    const bl = await window.NexusCampagneBilan.chargerBilan(nexusClient, SITE_ID, CAMPAGNE, window.NexusCampagneStock, CV);
+    (bl.articles || []).forEach(x => BILAN_FICHES.set(x.article, x));
+  } catch (e) { console.error('fiche valorisation', e); }
   peindreSuivi(); peindreHisto();
   $('vtRapport').hidden = true; ANALYSE = null;
 }
@@ -467,7 +477,8 @@ function peindreSuivi(){
     return '<details class="vt-prod"><summary><span class="vt-nom">' + esc(l.article) + '</span><span class="vt-n">' + fmt(l.vendu) + (l.seuil == null ? '' : ' / ' + fmt(l.seuil)) + '</span><span class="vt-st">' + esc(libStatut(l.statut)) + '</span></summary>'
       + '<div class="vt-det"><div class="vt-r"><span>' + esc(P.labelEffort) + '</span><b>' + esc(libEffort(l.effort)) + '</b></div>'
       + '<div class="vt-r"><span>' + esc(P.labelMarge) + '</span><b>' + marge + '</b></div>'
-      + (l.absent_du_fichier ? '<div class="vt-r"><span>' + esc(P.absentMarque) + '</span></div>' : '') + '</div></details>';
+      + (l.absent_du_fichier ? '<div class="vt-r"><span>' + esc(P.absentMarque) + '</span></div>' : '')
+      + window.NexusCampagneFiche.rendre(BILAN_FICHES.get(l.article), {aucunPoint: false}, esc) + '</div></details>';
   }).join('');
   $('vtSuivi').innerHTML = '<div>' + esc(P.pointDu(jma(s.date_fin))) + '</div><div class="vt-liste">' + lignes + '</div>';
 }
