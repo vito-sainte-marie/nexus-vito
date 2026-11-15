@@ -148,7 +148,7 @@ t('la tuile Mes opportunités d\u2019achat est disponible et mène à la page Ac
   const V = require('./nexus-vocabulaire.js');
   const carte = (global.window.NexusVocab || V).campagne.cartes.find(c => c.cle === 'opportunites-achat');
   assert.strictEqual(carte.dispo, true);
-  assert.strictEqual(carte.picto, 'a-retenir');
+  assert.strictEqual(carte.picto, 'opportunites-achat');
   assert.ok(/NEXUS-Campagne-v2-Achats\.html/.test(fs.readFileSync('./NEXUS-Campagne-v2.html', 'utf8')));
 });
 
