@@ -71,4 +71,18 @@ t('aucun tiret cadratin affiché', () => {
 t('plus de prénom en tête du constat', () => {
   assert.ok(!/\$\{esc\(employee\.nom\)\}, /.test(PAGE));
 });
+t('bandeau : copie exacte du bandeau Campagne, sans le module de bannière de station', () => {
+  assert.ok(!/NexusBanniereStation|nexus-banniere-station/.test(PAGE));
+  assert.ok(/<img class="entete"[^>]*srcset="[^"]*produits-banniere-800\.webp 800w[^"]*1600w"/.test(PAGE));
+  assert.ok(/sizes="\(min-width:1100px\) 1100px, 100vw" width="1600" height="533" alt="">/.test(PAGE));
+  assert.ok(/<source media="\(max-width:599px\)" srcset="assets\/telephone\/produits-telephone\.webp">/.test(PAGE));
+  assert.ok(!/<picture id="banniereProduits" hidden>/.test(PAGE));
+});
+t('Conseiller : « Très rentable » n\'apparaît plus dans l\'explication', () => {
+  assert.ok(/niveauRentaP === 'tres_rentable' \? '' : NexusVocab\.rentabilite\(/.test(PAGE));
+});
+t('pastille du commerce masquée tant qu\'elle est vide', () => {
+  assert.ok(/\.pastille:empty\{display:none;\}/.test(PAGE));
+  assert.ok(/<span class="pastille nexus-nom-commerce" id="pastilleSite"><\/span>/.test(PAGE));
+});
 console.log(n + ' vérifications');

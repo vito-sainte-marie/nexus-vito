@@ -71,8 +71,8 @@ t('aucune tuile « Évolution T1 → T2 » parmi les indicateurs', () => {
 });
 
 // Charte : gabarit commun, thème Jour, badges communs, icônes du kit.
-t('bannière commune et thème Jour chargés', () => {
-  assert.ok(/nexus-banniere-station\.js/.test(PAGE));
+t('bandeau Campagne et thème Jour chargés', () => {
+  assert.ok(/<img class="entete"/.test(PAGE));
   assert.ok(/nexus-theme\.js/.test(PAGE));
   assert.ok(/nexus-badge-etat\.js/.test(PAGE));
   assert.ok(/id="heroProduits"/.test(PAGE));

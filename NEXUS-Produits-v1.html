@@ -181,7 +181,6 @@
 /* Bandeau (charte Campagne) */
 .header{position:relative; margin:12px 0 0; border-radius:14px; overflow:hidden; border:1px solid var(--t-line); min-height:190px; display:flex; align-items:flex-end; background:#0D202E;}
 .header picture{position:absolute; inset:0; display:block;}
-.header picture[hidden]{display:none;}
 .header img.entete{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:var(--banniere-cadrage);}
 .header::after{content:''; position:absolute; inset:0; background:linear-gradient(0deg, rgba(7,19,30,.86) 0%, rgba(7,19,30,.55) 45%, rgba(7,19,30,.15) 100%);}
 :root[data-theme="jour"] .header::after{background:linear-gradient(0deg, rgba(7,19,30,.78) 0%, rgba(7,19,30,.45) 45%, rgba(7,19,30,.08) 100%);}
@@ -194,6 +193,7 @@
 .selecteurs{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px;}
 .pastille{display:inline-block;padding:4px 10px;border:1px solid rgba(255,255,255,.25);border-radius:999px;background:rgba(7,19,30,.6);font-size:11px;color:#EDF1F5;}
 .pastille[hidden]{display:none;}
+.pastille:empty{display:none;}
 
 /* Cartes, Conseiller et champ (charte Campagne) */
 .carte{background:var(--t-panel); border:1px solid var(--t-line); border-radius:14px; padding:18px;}
@@ -293,16 +293,15 @@ body.nexus-desktop #resultSection > *{margin-bottom:12px;}
 <script src="nexus-vocabulaire.js?v=20260904-0104"></script>
 <script src="nexus-periodes.js?v=20260904-0104"></script>
 <script src="nexus-conseiller.js?v=20260904-0104"></script>
-<script src="nexus-banniere-station.js"></script>
 <script src="nexus-badge-etat.js"></script>
 <script src="nexus-produits-securite.js"></script>
 </head>
 <body>
 <div class="app">
   <header class="header hero" id="heroProduits">
-    <picture id="banniereProduits" hidden>
+    <picture id="banniereProduits">
       <source media="(max-width:599px)" srcset="assets/telephone/produits-telephone.webp">
-      <img class="entete" src="assets/produits/produits-banniere-1200.webp" srcset="assets/produits/produits-banniere-800.webp 800w, assets/produits/produits-banniere-1200.webp 1200w, assets/produits/produits-banniere-1600.webp 1600w" sizes="(min-width:1100px) 1100px, 100vw" width="1600" height="533" alt="" decoding="async">
+      <img class="entete" src="assets/produits/produits-banniere-1200.webp" srcset="assets/produits/produits-banniere-800.webp 800w, assets/produits/produits-banniere-1200.webp 1200w, assets/produits/produits-banniere-1600.webp 1600w" sizes="(min-width:1100px) 1100px, 100vw" width="1600" height="533" alt="">
     </picture>
     <a href="NEXUS-App-v1.html" class="menu-btn" aria-label="Menu NEXUS"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M4 6h16M4 12h16M4 18h16"/></svg> Menu</a>
     <div class="header-texte">
@@ -373,11 +372,6 @@ nexusRequireAuth().then(async employee => {
   const APERCU = new URLSearchParams(location.search).get('apercu_produit') === '1' && employee.site_id === 'nexus-station-test';
   const nexusClient = APERCU ? clientApercu() : NEXUS_CLIENT_REEL;
   if (APERCU) { const pa = document.getElementById('pastilleApercu'); if (pa) pa.hidden = false; }
-    // Banniere commune (nexus-banniere-station.js) : meme illustration en Jour et Nuit.
-    try{ if(typeof NexusBanniereStation!=='undefined' && NexusBanniereStation.siteAvecBanniere(SITE_ACTUEL, NexusBanniereStation.apercuDemande())){
-      const ban=document.getElementById('banniereProduits'); if(ban) ban.hidden=false;
-      NexusBanniereStation.suivreTheme();
-    }}catch(_){}
 
   let PRODUCTS = [];
   let PRODUCT_PHOTOS = {};
@@ -1025,7 +1019,7 @@ nexusRequireAuth().then(async employee => {
             ? 'Aucune vente récente et un stock à zéro (ou négatif) au dernier relevé : une rupture est probable.'
             : 'Aucune vente sur la période affichée. NEXUS ne tire pas de conclusion sans relevé de stock récent.';
       } else {
-        const rentaTxt = NexusVocab.rentabilite(niveauRentaP, false, esc(p.article));
+        const rentaTxt = niveauRentaP === 'tres_rentable' ? '' : NexusVocab.rentabilite(niveauRentaP, false, esc(p.article));
         const tendanceTxt = tendQualifiee ? (NexusVocab.tendance(evolCa) + ' (ventes moyennes par jour)' + (tend.fiable ? '' : ' : ' + tend.avertissements.map(esc).join(' · ') + '.')) : msgTendance;
         explicationP = [rentaTxt, tendanceTxt].filter(Boolean).join(' ')
           || 'Pas assez de recul pour conclure.';
