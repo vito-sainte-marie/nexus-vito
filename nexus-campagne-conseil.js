@@ -16,7 +16,8 @@
       if (suivi.lignes.some(l => l.marge_estimee)) out.push(V.conseillerSuivi.estime);
     }
     if (achats && achats.ctx && Array.isArray(achats.ctx.reco)) {
-      const n = achats.ctx.reco.filter(x => x.b && x.b.hors_delai).length;
+      // Même critère que l'alerte : seuls les achats chiffrés, fiables et restant à commander comptent (hors_delai vaut pour tous les articles après D7).
+      const n = achats.ctx.reco.filter(x => x.b && x.b.hors_delai && !x.b.indicatif && x.b.a_commander > 0).length;
       if (n) out.push(V.conseillerAchats.horsDelai(n, achats.ctx.lim && f.date ? f.date(achats.ctx.lim.date) : null));
     }
     if (bilan && Array.isArray(bilan.articles) && bilan.articles.length && bilan.totaux) {

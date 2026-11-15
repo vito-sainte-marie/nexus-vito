@@ -71,7 +71,7 @@ console.log('ok');
     assert(!/from\('campagne_objectifs_produits'\)\s*\.(update|upsert|delete)/.test(objPage));
     assert(/\+ 1/.test(objPage));
     assert(/moteur_version/.test(objPage) && /valide_par/.test(objPage));
-    assert(!/campagne_objectifs_produits/.test(page), 'la page principale ne porte plus le bloc objectifs');
+    assert(!/from\('campagne_objectifs_produits'\)\s*\.(insert|update|upsert|delete)\(/.test(page) && !/id="objSaisie|valide_par/.test(page), 'la page principale ne saisit pas d\'objectifs (elle les lit pour le Conseiller)');
     assert(/NEXUS-Campagne-v2-Ventes\.html\?campagne=/.test(page), 'Suivre ma promotion ouvre le suivi des ventes (décision du 14/11)');
     assert(/NEXUS-Campagne-v2-Objectifs\.html/.test(page), 'les objectifs restent joignables par la tuile');
   });
