@@ -420,18 +420,18 @@
     conseillerSansProduit: 'Sa rentabilité n’est pas mesurable : aucun produit précis n’est associé à cette promotion.',
     conseillerProduitsImportes: 'Les ventes par produit sont importées. Aucune qualification de rentabilité n’est encore définie.',
     conseillerSuivi: {
-      moteurs: function (n) { return n === 1 ? '1 produit tire votre promotion : il compense la remise.' : n + ' produits tirent votre promotion : ils compensent la remise.'; },
-      aRevoir: function (n) { return n === 1 ? '1 produit est à revoir : il ne compense pas la remise.' : n + ' produits sont à revoir : ils ne compensent pas la remise.'; },
+      moteurs: function (n) { return n === 1 ? '1 produit tient le rythme de l’objectif : il atteint au moins 80 % de ce qui était attendu.' : n + ' produits tiennent le rythme de l’objectif : ils atteignent au moins 80 % de ce qui était attendu.'; },
+      aRevoir: function (n) { return n === 1 ? '1 produit est à revoir : il reste sous 80 % de ce qui était attendu à ce stade.' : n + ' produits sont à revoir : ils restent sous 80 % de ce qui était attendu à ce stade.'; },
       aucun: 'Le suivi ne désigne encore aucun produit moteur ni à revoir. Actualisez les ventes de la promotion pour l’affiner.',
       estime: 'Ce point reste estimé tant que le stock de départ ou le chiffre d’affaires n’est pas confirmé.'
     },
     conseillerAchats: {
       preparer: 'Préparer les achats',
-      horsDelai: function (n) { return n === 1 ? '1 achat est hors délai : la promotion est déjà commencée.' : n + ' achats sont hors délai : la promotion est déjà commencée.'; },
+      horsDelai: function (n, date) { return (n === 1 ? '1 achat est hors délai' : n + ' achats sont hors délai') + ' : la date limite fournisseur' + (date ? ' du ' + date : '') + ' est dépassée.'; },
       aucun: 'Aucun achat à préparer pour l’instant.'
     },
     conseillerBilan: {
-      economie: function (montant) { return 'Vos achats au tarif promotionnel vous ont fait économiser ' + montant + '.'; },
+      economie: function (montant) { return 'Le stock promotionnel restant, acheté au tarif négocié, représente une économie de ' + montant + ' par rapport au prix moyen d’avant la promotion.'; },
       estime: 'Ce bilan est estimé : un élément reste à confirmer.',
       reel: 'Ce bilan est confirmé : tous les éléments sont connus.'
     },

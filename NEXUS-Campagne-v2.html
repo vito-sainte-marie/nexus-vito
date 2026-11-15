@@ -422,6 +422,7 @@ a{color:inherit;}
 <script src="nexus-campagne-stock.js?v=20261114-1900"></script>
 <script src="nexus-campagne-achats.js?v=20261115-1200"></script>
 <script src="nexus-campagne-bilan.js?v=20261116-1"></script>
+<script src="nexus-campagne-conseil.js?v=20261116-2"></script>
 <script>
 const V = window.NexusVocab.campagne;
 const CV = window.NexusCampagneVentes;
@@ -433,6 +434,7 @@ let PRODUITS_ROWS = [];
 let IMPACTS = [];
 let DERNIERE_ACTU = new Map();
 let ECHEANCES_ACHATS = new Map();
+let ETATS_ACHATS = new Map(), SUIVIS_VENTES = new Map();
 let CAMP_ROWS = [], PAN_ROWS = [], JOURS = [];
 let MES_TOUS = {mesures: new Map(), couts: new Map()};
 let BILAN_COURANT = null, BILAN_OUVERT = false;
@@ -953,7 +955,18 @@ function carteHistorique(i){
 function texteConseiller(impacts){
   if (!impacts.length) return '<p>' + esc(V.conseillerAucune) + '</p>';
   const enc = impacts.find(x => statutDe(x) === 'encours');
-  return '<p>' + esc(enc ? V.conseillerEnCours(enc.nom, enc.produitsConcernes.length, mesureEntamee(enc)) : V.conseillerSansEnCours) + '</p>';
+  return '<p>' + esc(enc ? V.conseillerEnCours(enc.nom, enc.produitsConcernes.length, mesureEntamee(enc)) : V.conseillerSansEnCours) + '</p>' + phrasesPoint(enc);
+}
+// Phrases tirées des résultats des moteurs (suivre, etatAchats, bilanCampagne), sans recalcul : une phrase n'existe que si sa donnée existe.
+function phrasesPoint(enc){
+  if (!window.NexusCampagneConseil) return '';
+  const fmt = {eur: fmtEur2, date: fmtDateCourt};
+  const ph = [];
+  if (enc) ph.push(...NexusCampagneConseil.phrasesConseiller({suivi: SUIVIS_VENTES.get(enc.campagneId), achats: ETATS_ACHATS.get(enc.campagneId), V, fmt}));
+  const fin = IMPACTS.find(x => x.campagneId === BILAN_COURANT);
+  const b = fin ? BILANS_PROMO.get(fin.campagneId) : null;
+  if (b) ph.push(...NexusCampagneConseil.phrasesConseiller({bilan: b, V, fmt}));
+  return ph.map(t => '<p>' + esc(t) + '</p>').join('');
 }
 
 /* ---------- Bilan visuel ---------- */
@@ -1235,13 +1248,34 @@ async function chargerEtAfficher(){
   } catch (e) { console.error('campagne_ventes_points', e); }
   try {
     // Même moteur et mêmes données que la page Achats et le point du menu (NexusCampagneAchats.etatAchats).
-    ECHEANCES_ACHATS = new Map();
+    ECHEANCES_ACHATS = new Map(); ETATS_ACHATS = new Map();
     const dj = new Date(), auj = dj.getFullYear() + '-' + String(dj.getMonth() + 1).padStart(2, '0') + '-' + String(dj.getDate()).padStart(2, '0');
     for (const c of (camp.data || []).filter(c => c.date_fin >= auj)) {
       const donnees = await NexusCampagneAchats.chargerDonnees(nexusClient, SITE_ID, c, NexusImportDonnees.chargerAliasProduits);
-      ECHEANCES_ACHATS.set(c.id, NexusCampagneAchats.etatAchats({campagne: c, donnees, aujourdhui: auj}).echeance);
+      const etat = NexusCampagneAchats.etatAchats({campagne: c, donnees, aujourdhui: auj});
+      ECHEANCES_ACHATS.set(c.id, etat.echeance);
+      ETATS_ACHATS.set(c.id, etat);
     }
   } catch (e) { console.error('campagne_commandes', e); }
+  try {
+    // Même moteur que la page Suivi des ventes (pointCourant puis suivre), objectifs en dernière version.
+    SUIVIS_VENTES = new Map();
+    const dj3 = new Date(), auj3 = dj3.getFullYear() + '-' + String(dj3.getMonth() + 1).padStart(2, '0') + '-' + String(dj3.getDate()).padStart(2, '0');
+    const [o3, p3, a3] = await Promise.all([
+      nexusClient.from('campagne_objectifs_produits').select('campagne_id, article, version, seuil_unites, objectif_valide_jour, pa_promo_ht').eq('site', SITE_ID).order('version', {ascending: true}),
+      nexusClient.from('campagne_ventes_points').select('campagne_id, batch_id, article, date_fin, importe_le, quantite, ca_ht, ca_estime, absent_du_fichier').eq('site', SITE_ID).order('importe_le', {ascending: false}),
+      nexusClient.from('campagne_ventes_annulations').select('batch_id, motif').eq('site', SITE_ID),
+    ]);
+    if (!o3.error && !p3.error && !a3.error) {
+      for (const c of (camp.data || []).filter(c => c.date_fin >= auj3)) {
+        const m = new Map();
+        (o3.data || []).filter(r => r.campagne_id === c.id).forEach(r => { const x = m.get(r.article); if (!x || r.version > x.version) m.set(r.article, r); });
+        const pts = (p3.data || []).filter(r => r.campagne_id === c.id);
+        const pt = CV.pointCourant(pts, a3.data || []);
+        if (pt && m.size) SUIVIS_VENTES.set(c.id, CV.suivre({point: pt, objectifs: Array.from(m.values()), campagneDebut: c.date_debut, campagneFin: c.date_fin}));
+      }
+    }
+  } catch (e) { console.error('suivi des ventes', e); }
   try { const d2 = new Date(); await chargerBilansPromo(camp.data || [], d2.getFullYear() + '-' + String(d2.getMonth() + 1).padStart(2, '0') + '-' + String(d2.getDate()).padStart(2, '0')); } catch (e) { console.error('bilans promotion', e); }
   IMPACTS = NC.analyserCampagnes(camp.data || [], jours);
   IMPACTS.forEach(i => {
