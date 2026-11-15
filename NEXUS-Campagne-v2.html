@@ -1529,7 +1529,6 @@ function mesNoteObjectifs(e){
   const nom = c => MV.champsObjectif[c];
   let h = '';
   if (e.objChamps && e.objChamps.length) h += '<div class="sim-source">' + esc(MV.reprisObjectifs + e.objChamps.map(nom).join(', ') + '.') + '</div>';
-  PF.ecarts(e, r).forEach(x => { h += '<div class="sim-source">' + esc(MV.ecartObjectif + nom(x.champ) + ' ' + fmtEur2(x.objectif) + ', saisi ' + fmtEur2(x.saisi) + '.') + '</div>'; });
   return h;
 }
 
@@ -1543,7 +1542,7 @@ function mesMention(src){
     case 'ventes': return M.ventes(d(src.debut), d(src.fin));
     case 'pmp': return src.date ? (src.aConfirmer ? M.pmpAConfirmer(d(src.date)) : M.pmp(d(src.date))) : M.pmpSansDate;
     case 'stock_depart': return src.aConfirmer ? M.stockAConfirmer(d(src.date), String(src.source || '').replace(/_/g, ' ')) : M.stock(d(src.date), String(src.source || '').replace(/_/g, ' '));
-    case 'releve': return M.releve(src.source);
+    case 'releve': return M.releve(MV.sourcesCourtes[src.source] || src.source);
     case 'livraisons': return src.n > 0 ? M.livraisons(src.n) + (src.memeJour ? ' ; ' + M.livraisonMemeJour : '') : M.livraisonMemeJour;
     case 'mouvements': return M.pertesMouvements;
     default: return '';
@@ -1562,7 +1561,8 @@ function mesBandeau(){
 }
 
 function mesNoteEcartsSource(e){
-  return (e.ecartsSrc || []).map(x => '<div class="sim-source">' + esc(MV.ecartObjectif + (MV.champsObjectif[x.champ] || MV.champs[x.champ] || x.champ) + ' ' + String(x.source).replace('.', ',') + ', saisi ' + String(x.saisi).replace('.', ',') + '.') + '</div>').join('');
+  const f = n => String(n).replace('.', ',');
+  return (e.ecartsSrc || []).map(x => '<div class="sim-source">' + esc(MV.ecartSource(mesMention(x.src) || (MV.champsObjectif[x.champ] || MV.champs[x.champ] || x.champ), f(x.source), f(x.saisi))) + '</div>').join('');
 }
 function mesNouveau(){
   return { article: '', nouveau: false, fournisseur: '', catalogue: '', info: null, ventes: '', joursRef: '30', achatAvant: '', achatPendant: '', venteAvant: '', ventePendant: '',
@@ -1646,8 +1646,8 @@ function mesPeindreProduit(e, i){
     '<div class="sim-grille">' + champ('ventes', MV.ventesMois) + champ('joursRef', MV.joursRef, true) +
       champ('venteAvant', MV.venteAvant) + champ('ventePendant', MV.ventePendant) +
       champ('achatAvant', MV.achatAvant) + champ('achatPendant', MV.achatPendant) +
-      '<label>' + esc(MV.stockDebut) + '<input type="text" inputmode="decimal" autocomplete="off" data-mi="' + i + '" data-mchamp="stockDebut" value="' + esc(e.stockDebut) + '"><span class="sim-source">' + esc(mesSource(e.srcDebut)) + '</span>' + mesMentionChamp(e, 'stockDebut') + '</label>' +
-      '<label>' + esc(MV.stockFin) + '<input type="text" inputmode="decimal" autocomplete="off" data-mi="' + i + '" data-mchamp="stockFin" value="' + esc(e.stockFin) + '"><span class="sim-source">' + esc(mesSource(e.srcFin)) + '</span>' + (mesMentionChamp(e, 'stockFin') || (String(e.stockFin).trim() === '' ? '<span class="sim-source">' + esc(MV.mentions.stockFinASaisir) + '</span>' : '')) + '</label>' +
+      '<label>' + esc(MV.stockDebut) + '<input type="text" inputmode="decimal" autocomplete="off" data-mi="' + i + '" data-mchamp="stockDebut" value="' + esc(e.stockDebut) + '">' + (e.src_stockDebut ? mesMentionChamp(e, 'stockDebut') : '<span class="sim-source">' + esc(mesSource(e.srcDebut)) + '</span>') + '</label>' +
+      '<label>' + esc(MV.stockFin) + '<input type="text" inputmode="decimal" autocomplete="off" data-mi="' + i + '" data-mchamp="stockFin" value="' + esc(e.stockFin) + '">' + (e.src_stockFin ? mesMentionChamp(e, 'stockFin') : '<span class="sim-source">' + esc(mesSource(e.srcFin)) + '</span>' + ((String(e.stockFin).trim() === '' ? '<span class="sim-source">' + esc(MV.mentions.stockFinASaisir) + '</span>' : ''))) + '</label>' +
       champ('livraisons', MV.livraisons) + champ('pertes', MV.pertes) + '</div>' +
     '<div class="sim-source">' + esc(MV.pertesNote) + '</div>' +
     '<details class="sim-aide"><summary>' + esc(V.sim.aideAchat) + '</summary><div class="sim-grille">' +

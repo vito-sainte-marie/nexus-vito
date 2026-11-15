@@ -189,7 +189,7 @@
       if (o === null || o === undefined) return;
       const s = num(saisie[k]);
       if (s === null) { saisie[k] = String(o).replace('.', ','); saisie['src_' + k] = prop.sources[k]; }
-      else if (Math.abs(s - o) > 0.005) ecartsSource.push({ champ: k, saisi: s, source: o });
+      else if (Math.abs(s - o) > 0.005) ecartsSource.push({ champ: k, saisi: s, source: o, src: prop.sources[k] || null });
       else saisie['src_' + k] = prop.sources[k];
     });
     return ecartsSource;

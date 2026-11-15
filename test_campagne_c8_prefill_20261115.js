@@ -64,7 +64,7 @@ assert.ok(!/\.(insert|upsert|update|delete)\(/.test(pre), 'mesPreremplir n écri
 assert.ok(/mesPreremplir/.test(html));
 assert.ok(!/\.(insert|upsert|update|delete)\(/.test(html.slice(html.indexOf('async function mesCharger'), html.indexOf('async function mesEnregistrer'))), 'mesCharger n écrit pas');
 const voc = lire('nexus-vocabulaire.js');
-assert.ok(/Repris de vos objectifs/.test(voc) && /Différent de vos objectifs/.test(voc));
+assert.ok(/Repris de vos objectifs/.test(voc) && /Différent de la source/.test(voc) && !/Différent de vos objectifs/.test(voc));
 const vocTxt = voc.slice(voc.indexOf('reprisObjectifs'), voc.indexOf('reprisObjectifs') + 400);
 assert.ok(!/—/.test(vocTxt));
 
@@ -135,3 +135,18 @@ assert.ok(/bandeauAvantFin/.test(voc) && /Actualiser mes ventes/.test(voc) && /�
 ['produits de la promotion', 'repris de vos objectifs', 'à saisir à la fin de la promotion', 'non renseignées'].forEach((t) => assert.ok(voc.toLowerCase().includes(t.toLowerCase()), t));
 assert.ok(!/—/.test(voc.slice(voc.indexOf('mentions:'), voc.indexOf('mentions:') + 1800)));
 console.log('OK c8');
+
+// Revue Guardian 6896765381 : un seul écart, vraie source nommée, une seule mention de stock.
+{
+  const html2 = lire('NEXUS-Campagne-v2.html');
+  const note = html2.slice(html2.indexOf('function mesNoteObjectifs'), html2.indexOf('// Mention de source'));
+  assert.ok(!/PF\.ecarts/.test(note), 'un seul producteur d écarts');
+  assert.ok(/ecartSource: \(mention, source, saisi\)/.test(voc), 'l écart nomme la source via la mention');
+  const ligneStock = html2.slice(html2.indexOf("data-mchamp=\"stockDebut\""), html2.indexOf("data-mchamp=\"stockFin\""));
+  assert.ok(/e\.src_stockDebut \? mesMentionChamp/.test(ligneStock), 'une seule mention sous le stock de début');
+  const e = { achatPendant: '0,90' };
+  const ec = PF.appliquerProposition(e, { valeurs: { achatPendant: 0.94 }, sources: { achatPendant: { type: 'objectifs' } } });
+  assert.strictEqual(ec.length, 1);
+  assert.deepStrictEqual(ec[0].src, { type: 'objectifs' });
+}
+console.log('OK c8 revue');
