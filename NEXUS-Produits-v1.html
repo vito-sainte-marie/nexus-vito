@@ -835,6 +835,7 @@ nexusRequireAuth().then(async employee => {
     showProduct(articleDepuisLien);
   }
 
+  function fmtN(v, d) { return v === null || v === undefined ? 'n.d.' : Number(v).toFixed(d).replace('.', ','); }
   function fmtEur(v) { return v.toLocaleString('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' €'; }
   function fmtPct(v) { return (v*100).toFixed(1).replace('.', ',') + '\u00a0%'; }
   // Échappement : UNE seule fonction, celle du composant badge (nexus-badge-etat.js).
@@ -1018,7 +1019,6 @@ nexusRequireAuth().then(async employee => {
     // ancienne periode ou par le stock : rien n'est invente.
     const mes = p.mesure || null;
     const phraseMesure = mes ? NexusProduitsMesure.phrase(mes) : '';
-    const fmtN = (v, d) => v === null || v === undefined ? 'n.d.' : Number(v).toFixed(d).replace('.', ',');
     const ligneMes = (lib, val) => `<div class="gap-row"><span class="gap-label">${esc(lib)}</span><span class="gap-status">${val}</span></div>`;
     const joursPeriode = mes && mes.eligibilite && mes.eligibilite.jours ? mes.eligibilite.jours : null;
     const ventesJour = joursPeriode ? p.qte_t2 / joursPeriode : null;

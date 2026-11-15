@@ -47,5 +47,13 @@ ok(!/\.from\('products'\)\.(update|insert|upsert|delete)/.test(sansCommentaires)
   consts.filter(x => x.pos > premier && new RegExp('\\b' + x.nom.replace('$', '\\$') + '\\b').test(corpsFn))
     .forEach(x => assert.fail('const ' + x.nom + ' déclarée après le premier appel de la synthèse'));
 }
+// fmtN est utilisé par showProduct ET par rendreZonesDeclaratives : il doit être déclaré au niveau de la page.
+{
+  const src = sansCommentaires;
+  const m = /^  function fmtN\(/m.exec(src);
+  assert.ok(m, 'fmtN doit être une déclaration de fonction au niveau de la page');
+  assert.ok(!/^\s{4,}const fmtN\s*=/m.test(src), 'fmtN ne doit pas être redéclarée localement');
+  n++;
+}
 console.log('test_produits_p1b_page : ' + n + ' assertions OK');
 
