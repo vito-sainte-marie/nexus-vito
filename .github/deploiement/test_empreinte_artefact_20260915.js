@@ -610,8 +610,8 @@ cas('Réel · l\'arbre de cette branche reçoit une empreinte', () => {
 // .github/deploiement/empreinte-artefact.js --arbre-source=.`) : une mise à
 // jour de ces constantes sans ajout correspondant dans `supabase/migrations/`
 // serait un aveu.
-const MIGRATIONS_REELLES_NOMBRE = 334; // 331 + 3 (20261116100000, PMP avant promotion, campagne V2 lot C5, appliquée sur Test seulement, mesurée en worktree le 14/11/2026 ; 20261115100000, commandes fournisseur et réglages d'achat, campagne V2 lot C4, appliquée sur Test seulement, mesurée en worktree propre le 14/11/2026 ; 20261114190000, livraisons et stock de départ, campagne V2 lot C3, appliquée en Production, mesurée par Guardian le 14/11/2026 à 19:20Z), mesuré le 14/11/2026 après #311
-const MIGRATIONS_REELLES_EMPREINTE = '6f361090e1d101174684d5254148e0d6232747c5ed4d514e666e68dc404644ac';
+const MIGRATIONS_REELLES_NOMBRE = 335; // 331 + 4 (20261117100000, nature des références, justifications de marge et confirmations de TVA, lot P1-B, appliquée sur Test seulement, mesurée en worktree le 15/11/2026 ; 20261116100000, PMP avant promotion, campagne V2 lot C5, appliquée sur Test seulement, mesurée en worktree le 14/11/2026 ; 20261115100000, commandes fournisseur et réglages d'achat, campagne V2 lot C4, appliquée sur Test seulement, mesurée en worktree propre le 14/11/2026 ; 20261114190000, livraisons et stock de départ, campagne V2 lot C3, appliquée en Production, mesurée par Guardian le 14/11/2026 à 19:20Z), mesuré le 14/11/2026 après #311
+const MIGRATIONS_REELLES_EMPREINTE = '44ae7e9be16f6637fda406dee5bf78bf35cb2b8df8f8d85b9771026a33e83d00';
 
 cas(`Réel · la provenance des migrations annonce ${MIGRATIONS_REELLES_NOMBRE} et garde son empreinte`, () => {
   const { code, sortie } = lancer([`--racine=${arbre({ ...BASE })}`, `--arbre-source=${RACINE_DEPOT}`]);

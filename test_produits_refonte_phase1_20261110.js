@@ -101,9 +101,9 @@ t('aucun bouton code-barres dans la zone de recherche', () => {
 });
 
 // Structure à 375 px : identité, Conseiller, indicateurs, sections.
-t('structure : identité, Conseiller, indicateurs puis sections', () => {
+t('structure : identité, Conseiller, indicateurs puis sections (P1-B : Fiabilité et sources remplace Informations complémentaires)', () => {
   const corps = PAGE.split('<body')[1];
-  const ordre = ['id="resultSection"', 'conseillerProduitMsg', 'heroStockVal', 'Informations complémentaires'].map(s => corps.indexOf(s));
+  const ordre = ['id="resultSection"', 'conseillerProduitMsg', 'heroStockVal', 'Fiabilité et sources'].map(s => corps.indexOf(s));
   ordre.forEach(i => assert.ok(i > 0));
   assert.deepStrictEqual(ordre.slice().sort((a, b) => a - b), ordre);
 });
