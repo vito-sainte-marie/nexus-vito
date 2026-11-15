@@ -19,8 +19,8 @@ t('expressions interdites absentes',()=>{
 t('aucun tiret cadratin (page et bloc lexique)',()=>{
   assert(!page.includes('—')); assert(!bloc.includes('—'));
 });
-t('huit cartes, quatre En préparation, compensation, achats, simulateur et objectifs disponibles, sans chiffre',()=>{
-  assert.deepStrictEqual(C.cartes.filter(c=>c.dispo).map(c=>c.cle),['compensation','objectifs','opportunites-achat','simulateur']);
+t('huit cartes toutes disponibles depuis C7, sans chiffre',()=>{
+  assert.deepStrictEqual(C.cartes.filter(c=>c.dispo).map(c=>c.cle),['promotions','compensation','objectifs','opportunites-achat','produits-moteurs','produits-a-revoir','simulateur','renouveler']);
   assert.deepStrictEqual(C.cartes.map(c=>c.cle),['promotions','compensation','objectifs','opportunites-achat','produits-moteurs','produits-a-revoir','simulateur','renouveler']);
   assert.strictEqual(C.enPreparation,'En préparation');
   C.cartes.forEach(c=>assert(!/\d/.test(c.titre+c.texte),'chiffre dans '+c.cle));
@@ -85,7 +85,7 @@ t('retouches 20261113 : une seule mention, deux décimales, texte',()=>{
   assert(page.includes('minimumFractionDigits:2'));
   assert(/const fmtNb = v => Math\.round\(v\)/.test(page));
   assert((8.5).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})==='8,50');
-  assert(C.cartes.find(c=>c.cle==='produits-a-revoir').texte==='Repérer les pertes de marge.');
+  assert(C.cartes.find(c=>c.cle==='produits-a-revoir').texte==='Les produits sous leur objectif ou qui perdent de la marge.');
   assert(/@media \(max-width:599px\)[\s\S]*\.header::after/.test(page),'dégradé mobile');
 });
 t('mesure de la compensation : câblage de la page et lexique',()=>{

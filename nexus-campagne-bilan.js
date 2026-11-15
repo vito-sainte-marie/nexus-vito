@@ -132,6 +132,7 @@
     return {
       libelle_prix: LIBELLE_PMP,
       methode: LIBELLE_METHODE,
+      unites_vendues: num(a.unitesVendues),
       prix: {
         pmp_avant_promotion: ref ? num(ref.pmp_ht) : null,
         pmp_actualise: num(a.pmp_actualise),

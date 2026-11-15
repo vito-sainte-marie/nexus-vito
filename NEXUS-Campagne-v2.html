@@ -362,6 +362,14 @@ a{color:inherit;}
     <div class="sim-res" id="simResultat" aria-live="polite"></div>
   </section>
 
+  <section class="sim" id="outils" hidden aria-labelledby="outTitre">
+    <button type="button" class="b-lien" id="outRetour"></button>
+    <div class="eyebrow" id="outEyebrow"></div>
+    <div class="titre-section" id="outTitre"></div>
+    <p class="intro-historique" id="outSous"></p>
+    <div id="outCorps"></div>
+  </section>
+
   <section class="sim" id="mesure" hidden aria-labelledby="mesTitre">
     <div class="titre-section" id="mesTitre"></div>
     <p class="intro-historique" id="mesIntro"></p>
@@ -421,8 +429,9 @@ a{color:inherit;}
 <script src="nexus-campagne-ventes.js?v=20261114-1900"></script>
 <script src="nexus-campagne-stock.js?v=20261114-1900"></script>
 <script src="nexus-campagne-achats.js?v=20261115-1200"></script>
-<script src="nexus-campagne-bilan.js?v=20261116-1"></script>
+<script src="nexus-campagne-bilan.js?v=20261116-3"></script>
 <script src="nexus-campagne-conseil.js?v=20261116-2"></script>
+<script src="nexus-campagne-outils.js?v=20261116-1"></script>
 <script>
 const V = window.NexusVocab.campagne;
 const CV = window.NexusCampagneVentes;
@@ -805,6 +814,9 @@ const peutModifier = () => typeof nexusEstManager === 'function' && nexusEstMana
 function actionsCampagne(id){
   return '<div class="c-actions"><button type="button" class="btn" data-consulter="' + esc(id) + '">' + esc(V.consulter) + '</button>' +
     (peutModifier() ? '<button type="button" class="btn" data-modifier="' + esc(id) + '">' + esc(V.modifier) + '</button>' : '') + '</div>';
+}
+function consulterSeul(id){
+  return '<div class="c-actions"><button type="button" class="btn" data-consulter="' + esc(id) + '">' + esc(V.consulter) + '</button></div>';
 }
 function ligneModifiee(iso){
   if (!iso) return '';
@@ -1780,6 +1792,81 @@ function mesPeindreFixes(){
   $('mesFournNomLib').textContent = MV.fournisseurNom; $('mesFournRemLib').textContent = MV.fournisseurRemise; $('mesFournEnr').textContent = MV.fournisseurEnregistrer;
 }
 
+/* ---------- Mes outils commerciaux (lot C7) : quatre vues hébergées dans le hub ---------- */
+const OU = window.NexusCampagneOutils;
+const OV = V.outilsPage;
+function ouAujourdhui(){ return aujourdhui(); }
+function ouPeriode(p){
+  const an = String(new Date().getFullYear());
+  const f = iso => fmtJourMois(iso) + (iso.slice(0, 4) !== an ? ' ' + iso.slice(0, 4) : '');
+  const a = new Date(p.date_debut + 'T00:00:00Z'), b = new Date(p.date_fin + 'T00:00:00Z');
+  const memeMois = a.getUTCMonth() === b.getUTCMonth() && a.getUTCFullYear() === b.getUTCFullYear();
+  const deb = memeMois ? String(a.getUTCDate()) : f(p.date_debut);
+  return 'Du ' + deb + ' au ' + f(p.date_fin);
+}
+function ouCartePromo(p){
+  const st = OV.promotions.statuts[p.statut];
+  return '<div class="carte"><div class="promo-nom">' + esc(p.nom) + '</div>' +
+    '<div class="b-meta">' + esc(ouPeriode(p) + ' · ' + OV.promotions.produits(p.nb_produits)) + '</div>' +
+    '<span class="statut">' + esc(st) + '</span>' + (p.statut === 'terminee' ? consulterSeul(p.id) : actionsCampagne(p.id)) +
+    (p.bilan ? '<button type="button" class="b-lien" data-outil-bilan="' + esc(p.id) + '">' + esc(OV.promotions.bilan) + '</button>' : '') + '</div>';
+}
+function ouLigneProduit(e){
+  const detail = e.source === 'suivi'
+    ? OV.enCours + ' · ' + OV.vendu(e.quantite) + ' · ' + OV.objectif(e.seuil)
+    : OV.termine + ' · ' + (e.quantite === null || e.quantite === undefined ? '' : OV.vendu(e.quantite) + ' · ') + OV.gain + ' ' + fmtSigne(e.gain);
+  return '<div class="carte"><div class="promo-nom">' + esc(e.article) + '</div>' +
+    '<div class="b-meta">' + esc(e.campagne) + '</div>' +
+    '<div class="sim-source">' + esc(detail + (e.estimee ? ' · ' + OV.estimee : '')) + '</div></div>';
+}
+function ouVueProduits(cle){
+  const T = OV[cle];
+  const camps = CAMP_ROWS, auj = ouAujourdhui();
+  const r = OU.classerProduits({campagnes: camps, suivis: SUIVIS_VENTES, bilans: BILANS_PROMO, auj: auj});
+  const l = cle === 'moteurs' ? r.moteurs : r.aRevoir;
+  if (l.length) return l.map(ouLigneProduit).join('');
+  const aucuneTerminee = !camps.some(c => OU.statutPromotion(c, auj) === 'terminee') && !SUIVIS_VENTES.size;
+  return '<div class="vide">' + esc(aucuneTerminee ? T.videBilan : T.vide) + '</div>';
+}
+function ouVueRenouveler(){
+  const mesures = IMPACTS.filter(i => mesureEntamee(i)).map(i => ({impact: i, resultat: rentaDe(i)}));
+  const l = OU.classerRenouvellements(mesures);
+  if (!l.length) return '<div class="vide">' + esc(OV.renouveler.vide) + '</div>';
+  return l.map(m => '<div class="carte"><div class="promo-nom">' + esc(m.impact.nom) + '</div>' +
+    '<div class="b-meta">' + esc(fmtPeriodeCourte(m.impact)) + '</div>' +
+    '<strong>' + esc(MV.etats[m.resultat.etat]) + '</strong>' +
+    (m.resultat.mesurable ? '<div class="sim-source">' + esc(B_RENTA_GAIN() + ' : ' + fmtGain(m.resultat)) + '</div>' : '') + '</div>').join('');
+}
+function B_RENTA_GAIN(){ return V.bilan.rentaGain; }
+function ouvrirOutil(cle){
+  const T = OV[cle];
+  $('outEyebrow').textContent = T.eyebrow; $('outTitre').textContent = T.titre; $('outSous').textContent = T.sous;
+  $('outRetour').textContent = OV.retour;
+  let h;
+  if (cle === 'promotions'){
+    const l = OU.listerPromotions(CAMP_ROWS, ouAujourdhui(), new Set(Array.from(BILANS_PROMO.keys())));
+    h = l.length ? l.map(ouCartePromo).join('') : '<div class="vide">' + esc(T.vide) + '</div>';
+  } else if (cle === 'renouveler') h = ouVueRenouveler();
+  else h = ouVueProduits(cle);
+  $('outCorps').innerHTML = h;
+  $('outils').hidden = false;
+  $('outils').scrollIntoView({behavior: 'smooth', block: 'start'});
+}
+function brancherOutils(){
+  const cartes = {promotions: 'promotions', 'produits-moteurs': 'moteurs', 'produits-a-revoir': 'aRevoir', renouveler: 'renouveler'};
+  Object.keys(cartes).forEach(k => {
+    const c = document.querySelector('[data-carte="' + k + '"]');
+    if (c) c.addEventListener('click', () => ouvrirOutil(cartes[k]));
+  });
+  $('outRetour').addEventListener('click', () => { $('outils').hidden = true; window.scrollTo({top: 0, behavior: 'smooth'}); });
+  $('outCorps').addEventListener('click', ev => {
+    const b = ev.target.closest('button[data-outil-bilan]');
+    if (!b) return;
+    BILAN_COURANT = b.dataset.outilBilan; BILAN_OUVERT = true; $('outils').hidden = true; afficher();
+    $('derniere').scrollIntoView({behavior: 'smooth', block: 'start'});
+  });
+}
+
 peindreTextesFixes();
 simPeindreFixes();
 simBrancher();
@@ -1788,6 +1875,7 @@ mesBrancher();
 brancherBilan();
 brancherFormulaire();
 brancherFiche();
+brancherOutils();
 nexusRequireAuth().then(async employee => {
   if (!employee) return;
   if (employee.role !== 'manager' && employee.role !== 'gerant'){
