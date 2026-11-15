@@ -1227,7 +1227,7 @@
     },
     "20261117100000": {
       "etat": "additive_compatible_avant_code",
-      "justification": "Creation de trois tables declaratives (produits_nature_reference, produits_justifications_marge, produits_tva_confirmations), RLS active, lecture et insertion manager et gerant du meme site, UPDATE limite aux trois colonnes d annulation, anon sans droit, aucun DELETE. Aucune donnee, aucune fonction ni table existante modifiee, aucun DDL destructif. Le code servi actuellement (production cb7a27a5) ne les lit ni ne les ecrit : la migration s applique AVANT la fusion, sans dependance. Le code de P1-B, lui, les lit et doit donc suivre la migration, jamais la preceder. Application sur Test sur GO de Frederic du 15/11/2026 (commentaire 6900970604) ; application en Production = GO distinct apres recette.",
+      "justification": "Creation de trois tables declaratives (produits_nature_reference, produits_justifications_marge, produits_tva_confirmations), RLS active, lecture et insertion manager et gerant du meme site, UPDATE limite aux trois colonnes d annulation, anon sans droit, aucun DELETE, auteur force a auth.uid() a l insertion et a l annulation, remplace_id limite au meme site. Aucune donnee, aucune fonction ni table existante modifiee, aucun DDL destructif. Le code servi actuellement (production cb7a27a5) ne les lit ni ne les ecrit : la migration s applique AVANT la fusion, sans dependance. Le code de P1-B, lui, les lit et doit donc suivre la migration, jamais la preceder. Application sur Test sur GO de Frederic du 15/11/2026 (commentaire 6900970604) ; application en Production = GO distinct apres recette.",
       "mesure": {
         "source": "catalogue",
         "le": "2026-11-15T00:00:00Z",
@@ -1235,7 +1235,7 @@
         "par": "claude",
         "outil": "connecteur Supabase execute_sql, lecture seule Test",
         "verdict": "NON APPLIQUEE sur Test — 0 des 3 tables presentes, registre 346, derniere estampille 20261114231001. Production non mesuree (aucune lecture Production sans GO).",
-        "blob_migration": "3830c9a52899fcfd2b4a22184adee1c1c136ae00"
+        "blob_migration": "dc6fcfc3c634ac73b600de3f68121cbe03c627fc"
       },
       "objets_constates": [],
       "reserve": "Cette qualification n autorise ni la fusion ni le deploiement ; elle constate seulement l ordre migration/code."

@@ -14,7 +14,7 @@ create table if not exists produits_nature_reference (
   code_barres text,
   nature text not null check (nature in ('produit_commercial','service_commercial','operation_caisse','a_identifier')),
   commentaire text,
-  declare_par uuid references employees(id),
+  declare_par uuid not null default auth.uid() references employees(id),
   declare_le timestamptz not null default now(),
   remplace_id uuid references produits_nature_reference(id),
   annule_le timestamptz,
@@ -25,7 +25,7 @@ create table if not exists produits_nature_reference (
   ),
   constraint produits_nature_annulation check (
     (annule_le is null and annule_par is null and motif_annulation is null)
-    or (annule_le is not null and motif_annulation is not null and length(trim(motif_annulation)) > 0)
+    or (annule_le is not null and annule_par is not null and motif_annulation is not null and length(trim(motif_annulation)) > 0)
   )
 );
 create index if not exists produits_nature_site_idx on produits_nature_reference (site, article);
@@ -40,7 +40,7 @@ create table if not exists produits_justifications_marge (
   periode_fin date not null,
   motif text not null check (motif in ('dlc','fin_gamme','emballage_deteriore','surstock','autre')),
   commentaire text,
-  valide_par uuid references employees(id),
+  valide_par uuid not null default auth.uid() references employees(id),
   valide_le timestamptz not null default now(),
   remplace_id uuid references produits_justifications_marge(id),
   annule_le timestamptz,
@@ -50,7 +50,7 @@ create table if not exists produits_justifications_marge (
   constraint produits_justif_autre check (motif <> 'autre' or (commentaire is not null and length(trim(commentaire)) > 0)),
   constraint produits_justif_annulation check (
     (annule_le is null and annule_par is null and motif_annulation is null)
-    or (annule_le is not null and motif_annulation is not null and length(trim(motif_annulation)) > 0)
+    or (annule_le is not null and annule_par is not null and motif_annulation is not null and length(trim(motif_annulation)) > 0)
   )
 );
 create index if not exists produits_justif_site_idx on produits_justifications_marge (site, article, periode_debut, periode_fin);
@@ -62,7 +62,7 @@ create table if not exists produits_tva_confirmations (
   code_barres text,
   taux_confirme numeric not null check (taux_confirme >= 0 and taux_confirme <= 100),
   commentaire text,
-  confirme_par uuid references employees(id),
+  confirme_par uuid not null default auth.uid() references employees(id),
   confirme_le timestamptz not null default now(),
   remplace_id uuid references produits_tva_confirmations(id),
   annule_le timestamptz,
@@ -73,7 +73,7 @@ create table if not exists produits_tva_confirmations (
   ),
   constraint produits_tva_annulation check (
     (annule_le is null and annule_par is null and motif_annulation is null)
-    or (annule_le is not null and motif_annulation is not null and length(trim(motif_annulation)) > 0)
+    or (annule_le is not null and annule_par is not null and motif_annulation is not null and length(trim(motif_annulation)) > 0)
   )
 );
 create index if not exists produits_tva_site_idx on produits_tva_confirmations (site, article);
@@ -83,17 +83,22 @@ create index if not exists produits_tva_site_cb_idx on produits_tva_confirmation
 do $$
 declare
   t text;
-  annul text;
+  auteur text;
   manager text := 'site = current_employee_site_id() and current_employee_role() in (''manager'',''gerant'')';
+  remplace text;
 begin
   foreach t in array array['produits_nature_reference','produits_justifications_marge','produits_tva_confirmations'] loop
+    auteur := case t when 'produits_nature_reference' then 'declare_par' when 'produits_justifications_marge' then 'valide_par' else 'confirme_par' end;
+    -- remplace_id ne peut viser qu'une ligne du même site.
+    remplace := format('(remplace_id is null or exists (select 1 from %I r where r.id = %I.remplace_id and r.site = %I.site))', t, t, t);
     execute format('alter table %I enable row level security', t);
     execute format('drop policy if exists lecture_manager_meme_site on %I', t);
     execute format('create policy lecture_manager_meme_site on %I for select using (%s)', t, manager);
     execute format('drop policy if exists insertion_manager_meme_site on %I', t);
-    execute format('create policy insertion_manager_meme_site on %I for insert with check (%s)', t, manager);
+    -- L''auteur est toujours l''utilisateur connecté : on ne peut ni écrire au nom d''un autre, ni sans auteur.
+    execute format('create policy insertion_manager_meme_site on %I for insert with check (%s and %I = (select auth.uid()) and annule_le is null and %s)', t, manager, auteur, remplace);
     execute format('drop policy if exists annulation_manager_meme_site on %I', t);
-    execute format('create policy annulation_manager_meme_site on %I for update using (%s and annule_le is null) with check (%s and annule_le is not null and annule_par is not null)', t, manager, manager);
+    execute format('create policy annulation_manager_meme_site on %I for update using (%s and annule_le is null) with check (%s and annule_le is not null and annule_par = (select auth.uid()))', t, manager, manager);
     execute format('revoke all on %I from anon', t);
     execute format('revoke all on %I from public', t);
     execute format('revoke update, delete, truncate, references, trigger on %I from authenticated', t);
