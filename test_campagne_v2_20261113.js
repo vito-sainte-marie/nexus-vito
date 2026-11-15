@@ -64,9 +64,9 @@ t('empreintes et tailles de l\'image d\'en-tête',()=>{
   assert(/campagne-entete-800\.webp 800w/.test(page)&&/campagne-entete-1200\.webp 1200w/.test(page)&&/campagne-entete-1600\.webp 1600w/.test(page));
   assert(/class="entete"[^>]*alt=""/.test(page)); assert(page.includes('--banniere-cadrage'));
 });
-t('kit d\'icônes : 84 fichiers, sans README ni aperçu',()=>{
+t('kit d\'icônes : 87 fichiers, sans README ni aperçu',()=>{
   const n=d=>fs.readdirSync(path.join(__dirname,d)).length;
-  assert.strictEqual(n('assets/icones/campagne/premium')+n('assets/icones/campagne/simple'),108);
+  assert.strictEqual(n('assets/icones/campagne/premium')+n('assets/icones/campagne/simple'),111);
   assert(!fs.existsSync(path.join(__dirname,'assets/icones/campagne/README.txt'))&&!fs.existsSync(path.join(__dirname,'assets/icones/campagne/apercu.png')));
 });
 t('page déclarée (auth, forfait) et liée seulement depuis les points d\'entrée et le bandeau de la V1',()=>{

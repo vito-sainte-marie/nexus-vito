@@ -419,6 +419,22 @@
     conseillerNonMesurable: 'Sa rentabilité n’est pas mesurable : les ventes par produit avant et pendant la promotion n’ont pas été importées.',
     conseillerSansProduit: 'Sa rentabilité n’est pas mesurable : aucun produit précis n’est associé à cette promotion.',
     conseillerProduitsImportes: 'Les ventes par produit sont importées. Aucune qualification de rentabilité n’est encore définie.',
+    conseillerSuivi: {
+      moteurs: function (n) { return n === 1 ? '1 produit tire votre promotion : il compense la remise.' : n + ' produits tirent votre promotion : ils compensent la remise.'; },
+      aRevoir: function (n) { return n === 1 ? '1 produit est à revoir : il ne compense pas la remise.' : n + ' produits sont à revoir : ils ne compensent pas la remise.'; },
+      aucun: 'Le suivi ne désigne encore aucun produit moteur ni à revoir. Actualisez les ventes de la promotion pour l’affiner.',
+      estime: 'Ce point reste estimé tant que le stock de départ ou le chiffre d’affaires n’est pas confirmé.'
+    },
+    conseillerAchats: {
+      preparer: 'Préparer les achats',
+      horsDelai: function (n) { return n === 1 ? '1 achat est hors délai : la promotion est déjà commencée.' : n + ' achats sont hors délai : la promotion est déjà commencée.'; },
+      aucun: 'Aucun achat à préparer pour l’instant.'
+    },
+    conseillerBilan: {
+      economie: function (montant) { return 'Vos achats au tarif promotionnel vous ont fait économiser ' + montant + '.'; },
+      estime: 'Ce bilan est estimé : un élément reste à confirmer.',
+      reel: 'Ce bilan est confirmé : tous les éléments sont connus.'
+    },
     bilan: {
       blocTitre: 'Dernier bilan',
       objectif: 'Objectif',
@@ -540,7 +556,7 @@
       { cle: 'promotions', titre: 'Mes promotions', texte: 'Préparer et suivre mes campagnes.' },
       { cle: 'compensation', dispo: true, titre: 'Le volume compense-t-il la remise ?', texte: 'Mesurer la marge préservée.' },
       { cle: 'objectifs', dispo: true, picto: 'objectif-commercial', titre: 'Mes objectifs de vente', texte: 'Fixer le volume à vendre par produit.' },
-      { cle: 'opportunites-achat', dispo: true, picto: 'a-retenir', titre: 'Mes opportunités d’achat', texte: 'Repérer les achats à saisir.' },
+      { cle: 'opportunites-achat', dispo: true, picto: 'opportunites-achat', titre: 'Mes opportunités d’achat', texte: 'Repérer les achats à saisir.' },
       { cle: 'produits-moteurs', titre: 'Mes produits moteurs', texte: 'Identifier les gains de marge.' },
       { cle: 'produits-a-revoir', titre: 'Mes produits à revoir', texte: 'Repérer les pertes de marge.' },
       { cle: 'simulateur', dispo: true, titre: 'Simuler une promotion', texte: 'Tester mes prix et mes volumes.' },
