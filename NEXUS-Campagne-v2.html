@@ -432,6 +432,7 @@ a{color:inherit;}
 <script src="nexus-campagne-bilan.js?v=20261116-3"></script>
 <script src="nexus-campagne-conseil.js?v=20261116-2"></script>
 <script src="nexus-campagne-outils.js?v=20261116-1"></script>
+<script src="nexus-campagne-prefill.js?v=20261116-1"></script>
 <script>
 const V = window.NexusVocab.campagne;
 const CV = window.NexusCampagneVentes;
@@ -1511,7 +1512,23 @@ function simPeindreFixes(){
 const MC = window.NexusMesureCompensation;
 const MV = V.mesure;
 const MES_CHAMPS = ['ventes', 'joursRef', 'achatAvant', 'achatPendant', 'venteAvant', 'ventePendant', 'stockDebut', 'stockFin', 'livraisons', 'pertes'];
-let MES_CAMPAGNE = null, MES_PRODUITS = [], MES_COUTS = [], MES_FICHES = [];
+const PF = window.NexusCampagnePrefill;
+let MES_CAMPAGNE = null, MES_PRODUITS = [], MES_COUTS = [], MES_FICHES = [], MES_OBJ = [];
+// Prix repris des objectifs validés (lecture seule, aucune écriture dans campagne_objectifs_produits).
+function mesReprisObjectif(article){
+  if (!MES_CAMPAGNE || !article) return null;
+  const o = PF.derniereValidee(MES_OBJ, MES_CAMPAGNE.campagneId, article);
+  return o ? PF.reprendre(o, SIM.ttcVersHt) : null;
+}
+function mesNoteObjectifs(e){
+  const r = e.objRepris;
+  if (!r) return '';
+  const nom = c => MV.champsObjectif[c];
+  let h = '';
+  if (e.objChamps && e.objChamps.length) h += '<div class="sim-source">' + esc(MV.reprisObjectifs + e.objChamps.map(nom).join(', ') + '.') + '</div>';
+  PF.ecarts(e, r).forEach(x => { h += '<div class="sim-source">' + esc(MV.ecartObjectif + nom(x.champ) + ' ' + fmtEur2(x.objectif) + ', saisi ' + fmtEur2(x.saisi) + '.') + '</div>'; });
+  return h;
+}
 
 function mesNouveau(){
   return { article: '', nouveau: false, fournisseur: '', catalogue: '', info: null, ventes: '', joursRef: '30', achatAvant: '', achatPendant: '', venteAvant: '', ventePendant: '',
@@ -1560,11 +1577,13 @@ async function mesPreremplir(i, article){
   e.article = article;
   const s = SIM.suggestions(PRODUITS_ROWS, article, new Date());
   e.info = s; e.notes = [];
+  // Les objectifs validés passent avant Decenium ; une valeur déjà saisie n'est jamais remplacée.
+  e.objRepris = mesReprisObjectif(article); e.objChamps = [];
+  if (e.objRepris) e.objChamps = PF.appliquer(e, e.objRepris).repris;
   if (s){
     e.ventes = saisie(Math.round(s.ventesMoisPrecedent));
-    e.venteAvant = saisie(s.venteAvant);
-    e.achatAvant = saisie(s.achatAvant);
-    e.notes = [MV.achatDecenium];
+    if (!e.objChamps.includes('venteAvant')) e.venteAvant = saisie(s.venteAvant);
+    if (!e.objChamps.includes('achatAvant')){ e.achatAvant = saisie(s.achatAvant); e.notes = [MV.achatDecenium]; }
   }
   const [debut, fin] = await Promise.all([mesStockADate(article, MES_CAMPAGNE.dateDebut), mesStockADate(article, MES_CAMPAGNE.dateFin)]);
   const d = MC.choisirStock({comptage: debut.comptage, decenium: debut.decenium});
@@ -1591,7 +1610,7 @@ function mesPeindreProduit(e, i){
     '<details class="sim-aide"><summary>' + esc(V.sim.aideAchat) + '</summary><div class="sim-grille">' +
       '<label>' + esc(MV.fournisseurNom) + '<select data-mi="' + i + '" data-mchamp="fournisseur">' + opts + '</select></label>' +
       champ('catalogue', V.sim.prixCatalogue) + '</div></details>' +
-    e.notes.map(n => '<div class="sim-source">' + esc(n) + '</div>').join('') +
+    e.notes.map(n => '<div class="sim-source">' + esc(n) + '</div>').join('') + mesNoteObjectifs(e) +
     '<div data-mres="' + i + '"></div>' +
     '<div class="sim-actions"><button type="button" class="btn" data-mretirer="' + i + '">' + esc(MV.retirer) + '</button></div></div>';
 }
@@ -1657,15 +1676,18 @@ async function mesCharger(campagneId){
   $('mesCorps').hidden = !MES_CAMPAGNE;
   $('mesStatut').textContent = '';
   if (!MES_CAMPAGNE) return;
-  const [m, c, f] = await Promise.all([
+  const [m, c, f, ob] = await Promise.all([
     nexusClient.from('campagne_mesures_produits').select('*').eq('site', SITE_ID).eq('campagne_id', campagneId),
     nexusClient.from('campagne_couts').select('libelle, montant_ht').eq('site', SITE_ID).eq('campagne_id', campagneId),
     nexusClient.from('fournisseurs_conditions').select('fournisseur, remise_habituelle_pct').eq('site', SITE_ID).order('fournisseur'),
+    nexusClient.from('campagne_objectifs_produits').select('campagne_id, article, version, pa_habituel_ht, pa_promo_ht, pv_habituel_ttc, pv_promo_ttc, tva_pct, objectif_valide_jour').eq('site', SITE_ID).eq('campagne_id', campagneId),
   ]);
+  MES_OBJ = ob.error ? [] : (ob.data || []);
   [['campagne_mesures_produits', m], ['campagne_couts', c], ['fournisseurs_conditions', f]].forEach(([n, r]) => { if (r.error) console.error(n, r.error); });
   MES_FICHES = f.data || [];
   MES_COUTS = (c.data || []).map(x => ({libelle: x.libelle, montant: saisie(Number(x.montant_ht))}));
   MES_PRODUITS = (m.data || []).map(mesDepuisLigne);
+  MES_PRODUITS.forEach(e => { e.objRepris = mesReprisObjectif(e.article); });
   if (!MES_PRODUITS.length) MES_PRODUITS.push(mesNouveau());
   mesPeindre();
 }
