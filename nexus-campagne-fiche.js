@@ -13,7 +13,10 @@
     promo: 'Stock acheté au tarif promotionnel',
     coutTotal: 'Coût total des ventes',
     coutMoyen: 'Coût moyen des unités vendues',
-    restant: 'Stock promotionnel restant',
+    restant: 'Stock restant',
+    restantPromo: 'Stock promotionnel restant',
+    dontAvant: 'dont avant la promotion',
+    dontPromo: 'dont au tarif promotionnel',
     valeurAchat: 'Valeur d\'achat',
     economie: 'Économie d\'achat',
     economieSuite: 'par rapport au PMP Decenium d\'avant promotion',
@@ -54,6 +57,11 @@
     // Seules les raisons qui touchent le coût comptent ici : la marge de référence et le CA relèvent d'autres écrans.
     const raisons = (ba.raisons || []).filter(r => !/^marge de référence incalculable|^chiffre d'affaires de la promotion absent/.test(r));
     const apres = restantLots.filter(l => l.apres).reduce((s, l) => s + l.unites, 0);
+    const somme = (fn) => restantLots.filter(fn).reduce((a, l) => a + l.unites, 0);
+    const origines = [];
+    const avantU = somme(l => l.origine === 'stock_depart');
+    const promoU = somme(l => l.origine !== 'stock_depart');
+    restantLots.forEach(l => origines.push({ type: l.origine === 'stock_depart' ? 'avant' : 'promo', unites: l.unites, pa: l.pa }));
     return {
       etat: 'fiche',
       article: ba.article || '',
@@ -66,8 +74,11 @@
       restant: {
         unites: ba.stock_restant ? ba.stock_restant.unites : 0,
         valeur_ht: ba.stock_restant ? ba.stock_restant.valeur_ht : null,
-        economie: ba.economie_achat_stock_restant,
+        economie: promoU > 0 ? ba.economie_achat_stock_restant : null,
         apres,
+        origines,
+        unites_avant: avantU,
+        unites_promo: promoU,
       },
       estimee: raisons.length > 0,
       raisons,
@@ -92,7 +103,13 @@
     if (f.sans_prix > 0) h += '<div class="fv-l fv-alerte"><span>' + nombre(f.sans_prix) + ' ' + e(L.sansPrix) + '</span></div>';
     h += '<div class="fv-l fv-tot"><span>' + e(L.coutTotal) + (f.estimee ? ' <em>(' + e(L.estime) + ')</em>' : '') + '</span><b>' + eur(f.cout_total) + '</b></div>';
     h += '<div class="fv-l"><span>' + e(L.coutMoyen) + '</span><b>' + (f.cout_moyen === null ? 'n.d.' : dec(f.cout_moyen, 3) + ' €') + '</b></div>';
-    h += '<div class="fv-reste"><div class="fv-l"><span>' + e(L.restant) + '</span><b>' + nombre(f.restant.unites) + ' unités</b></div>';
+    const toutPromo = f.restant.unites_promo > 0 && f.restant.unites_avant === 0;
+    h += '<div class="fv-reste"><div class="fv-l"><span>' + e(toutPromo ? L.restantPromo : L.restant) + '</span><b>' + nombre(f.restant.unites) + ' unités</b></div>';
+    if (!toutPromo) {
+      f.restant.origines.forEach(o => {
+        h += '<div class="fv-l fv-dont"><span>' + e(o.type === 'avant' ? L.dontAvant : L.dontPromo) + '</span><b>' + (o.pa === null || o.pa === undefined ? nombre(o.unites) + ' × prix inconnu' : nombre(o.unites) + ' × ' + dec(o.pa, 2)) + '</b></div>';
+      });
+    }
     h += '<div class="fv-l"><span>' + e(L.valeurAchat) + '</span><b>' + eur(f.restant.valeur_ht) + ' HT</b></div>';
     if (f.restant.economie !== null && f.restant.economie !== undefined) {
       h += '<div class="fv-l"><span>' + e(L.economie + ' : ' + dec(f.restant.economie, 2) + ' € ' + L.economieSuite) + '</span></div>';
@@ -111,7 +128,7 @@
   // CSS unique, injecté une fois (thème Tempo, variables --t-*).
   const CSS = '.fv-fiche{margin:6px 0 10px; padding:10px 12px; background:var(--t-raised); border:1px solid var(--t-line); border-radius:10px; font-size:12.5px; color:var(--t-mid);}'
     + '.fv-tete{display:flex; justify-content:space-between; gap:10px; margin-bottom:6px; color:var(--t-text);}.fv-tete span{color:var(--t-mid);}'
-    + '.fv-l{display:flex; justify-content:space-between; gap:12px; padding:4px 0;}.fv-l b{color:var(--t-text); font-weight:600; text-align:right;}'
+    + '.fv-l{display:flex; justify-content:space-between; gap:12px; padding:4px 0;}.fv-l b{color:var(--t-text); font-weight:600; text-align:right; white-space:nowrap;}.fv-dont{padding-left:10px;}'
     + '.fv-l em,.fv-note em{font-style:normal; color:var(--t-amber);}'
     + '.fv-tot{border-top:1px solid var(--t-line); margin-top:4px; padding-top:6px;}'
     + '.fv-alerte{color:var(--t-amber);}'

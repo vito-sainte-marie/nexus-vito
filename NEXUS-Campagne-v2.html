@@ -1124,7 +1124,7 @@ function bilanPromoHtml(i){
     h += ligne(BP.LIBELLE_PMP + ' actualisé', esc(fmtEurN(a.prix.pmp_actualise)));
     h += ligne('PA promo négocié', esc(fmtEurN(a.prix.pa_promo_negocie)));
     h += ligne('Marge pendant la promotion', esc(fmtEurN(a.marge_promotion)));
-    h += ligne('Stock restant', esc(a.stock_restant.unites + ' u · ' + fmtEurN(a.stock_restant.valeur_ht)));
+    if (!r.arrete_au) h += ligne('Stock restant', esc(a.stock_restant.unites + ' u · ' + fmtEurN(a.stock_restant.valeur_ht)));
     (a.mentions || []).forEach(m => { h += '<div class="note">' + esc(m.charAt(0).toUpperCase() + m.slice(1)) + '.</div>'; });
     if (a.raisons.length) h += '<div class="note">Estimée : ' + esc(a.raisons.join(' ; ')) + '.</div>';
     h += window.NexusCampagneFiche.rendre(a, {aucunPoint: !r.arrete_au}, esc);

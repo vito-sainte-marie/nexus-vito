@@ -65,6 +65,24 @@ assert.strictEqual(ex.cout_total, 5.9);
 assert.strictEqual(Math.round(ex.cout_moyen * 1000) / 1000, 1.18);
 assert.ok(sansTags(F.html(ex, esc)).includes('15 unités vendues au-delà du stock connu, coût non valorisé'));
 
+// Restant mixte (14, 48, 10 ventes) : titre « Stock restant » et une ligne par origine.
+const mx = F.construire(ba({ article: 'Heineken', unitesVendues: 10, ca_ht_promo: 15, pmp_avant: REF, pa_promo_negocie: 0.94, pv_habituel_ht: 1.6,
+  stockDepart: { unites: 14 }, livraisons: [{ unites: 48, pa_ht_facture: 0.94, date_livraison: '2026-11-12' }] }));
+const tm = sansTags(F.html(mx, esc));
+assert.strictEqual(mx.restant.unites, 52);
+assert.ok(tm.includes('Stock restant 52 unités'), 'titre Stock restant');
+assert.ok(!tm.includes('Stock promotionnel restant'), 'pas de titre promotionnel');
+assert.ok(tm.includes('dont avant la promotion 4 × 1,18'), 'ligne avant promotion');
+assert.ok(tm.includes('dont au tarif promotionnel 48 × 0,94'), 'ligne tarif promotionnel');
+// Restant entièrement d'avant promotion : pas d'économie.
+const pr = F.construire(ba({ article: 'Pringles', unitesVendues: 3, ca_ht_promo: 5, pmp_avant: REF, stockDepart: { unites: 9 }, livraisons: [] }));
+const tp = sansTags(F.html(pr, esc));
+assert.strictEqual(pr.restant.economie, null);
+assert.ok(!/Économie d'achat/.test(tp), 'aucune économie sans unité promotionnelle');
+assert.ok(tp.includes('Stock restant 6 unités') && !tp.includes('Stock promotionnel restant'));
+// Montants insécables.
+assert.ok(/\.fv-l b\{[^}]*white-space:nowrap/.test(F.CSS), 'montants insécables');
+
 // Échappement.
 assert.ok(!F.html(F.construire(Object.assign({}, hk, { article: '<b>x' })), esc).includes('<b>x'));
 
