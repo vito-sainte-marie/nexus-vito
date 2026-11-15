@@ -274,6 +274,28 @@ details.sec>.sec-corps{padding:0 14px 14px;}
 button.emplacement-modifier{background:none;border:0;padding:0 4px;font:inherit;font-family:var(--mono);color:var(--cyan);text-decoration:underline;cursor:pointer;min-height:44px;}
 :root[data-theme="jour"] .emplacement-autre button{background:#fff;color:var(--cyan);border-color:var(--cyan);}
 
+.obs-bloc{margin-top:10px;}
+.obs-titre{font-size:13px;font-weight:600;color:var(--text);}
+.obs-boites{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;}
+.obs-boite{background:var(--panel-raised);border-radius:8px;padding:10px;font-family:var(--mono);font-weight:700;font-size:15px;}
+.obs-mention{margin-top:8px;font-size:12px;color:var(--text-mid);line-height:1.45;}
+.form-decl{background:var(--panel-raised);border-radius:8px;padding:12px;margin-top:10px;}
+.form-decl label{display:block;font-size:12px;font-weight:600;color:var(--text-mid);margin:8px 0 4px;}
+.form-decl select,.form-decl input,.form-decl textarea{width:100%;box-sizing:border-box;min-height:44px;font:inherit;font-size:14px;padding:8px;border-radius:6px;border:1px solid var(--border,#888);background:var(--panel);color:var(--text);}
+.form-decl .form-err{color:var(--red,#d33);font-size:12px;margin-top:6px;min-height:1em;}
+.form-decl .form-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;}
+button.btn-decl{min-height:44px;padding:8px 14px;border-radius:8px;border:1px solid var(--cyan);background:none;color:var(--cyan);font:inherit;font-size:13px;font-weight:600;cursor:pointer;}
+button.btn-decl.plein{background:var(--cyan);color:#fff;}
+.synthese-accueil{margin:12px 0;}
+.synthese-accueil .sa-ligne{font-size:13px;color:var(--text-mid);line-height:1.5;margin:4px 0;}
+.synthese-accueil .sa-compteurs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0;}
+.lien-accueil{background:none;border:0;color:var(--text-mid);font:inherit;min-height:44px;padding:0 4px;cursor:pointer;text-align:left;}
+.synthese-accueil button.sa-compteur{background:var(--panel-raised);border:1px solid transparent;border-radius:8px;padding:10px;min-height:44px;text-align:left;font:inherit;color:var(--text);cursor:pointer;}
+.synthese-accueil button.sa-compteur[aria-pressed="true"]{border-color:var(--cyan);}
+.synthese-accueil .sa-n{font-family:var(--mono);font-size:20px;font-weight:700;display:block;}
+.synthese-accueil .sa-l{font-size:11px;color:var(--text-dim);}
+.sa-liste button{display:block;width:100%;text-align:left;min-height:44px;background:none;border:0;border-bottom:1px solid var(--border,#444);font:inherit;font-size:13px;color:var(--text);cursor:pointer;padding:8px 4px;}
+
 /* Bureau */
 body.nexus-desktop #resultSection.desktop-grid{column-count:auto !important;display:block !important;}
 body.nexus-desktop #resultSection > *{margin-bottom:12px;}
@@ -337,6 +359,7 @@ body.nexus-desktop #resultSection > *{margin-bottom:12px;}
         <p>Recherchez un produit par son nom ou son code-barres.</p>
       </div>
     </div>
+    <div class="synthese-accueil" id="syntheseAccueil"></div>
     <div class="empty-state">Recherchez un produit ci-dessus pour afficher sa fiche : les articles vendus sur la période affichée, sur les périodes complètes récentes ou relevés en stock depuis moins de 30 jours.</div>
   </div>
 
@@ -687,15 +710,31 @@ nexusRequireAuth().then(async employee => {
       const prec = i >= 0 && periodes[i + 1] ? { debut: periodes[i + 1].periode_debut, fin: periodes[i + 1].periode_fin } : null;
       const rowsPrec = prec ? await lirePeriode(prec) : null;
       const stock = await lireStockRecent(AUJOURDHUI_STATION);
+      // P1-B : déclarations d'un responsable (nature, TVA confirmée, justification). Lecture seule ici ;
+      // une table absente ou refusée ne bloque jamais la fiche, les mesures restent celles de l'import.
+      const decl = {};
+      for (const t of ['produits_nature_reference', 'produits_justifications_marge', 'produits_tva_confirmations']) {
+        try {
+          const r = await nexusClient.from(t).select('*').eq('site', SITE_ACTUEL);
+          decl[t] = r.error ? [] : (r.data || []);
+        } catch (e) { decl[t] = []; }
+      }
+      DECLARATIONS_PRODUITS = decl;
       const res = NexusProduitsMesure.mesurer({
         products: rows, site: SITE_ACTUEL, periodeDebut: per.debut, periodeFin: per.fin,
         precedent: rowsPrec && rowsPrec.length ? { rows: rowsPrec, debut: prec.debut, fin: prec.fin } : null,
         stockReleves: Object.keys(stock || {}).map(k => stock[k]), dateReference: AUJOURDHUI_STATION,
+        natures: decl.produits_nature_reference, tvaConfirmations: decl.produits_tva_confirmations, justifications: decl.produits_justifications_marge,
       });
+      SYNTHESE_PRODUITS = res.resume.synthese;
+      SYNTHESE_STOCK_DATE = Object.keys(stock || {}).map(k => stock[k] && stock[k].releve_le).filter(Boolean).sort().pop() || null;
+      MESURES_PRODUITS = res.mesures.map((m, k) => ({ m, row: rows[k] }));
       produits.forEach(p => { p.mesure = res.index.get(NexusProduitsMesure.normaliserNom(p.article)) || null; });
-    } catch (e) { console.error('Mesures produits (P1-A):', e); }
+    } catch (e) { console.error('Mesures produits (P1-A/P1-B):', e); }
     return produits;
   }
+  let SYNTHESE_PRODUITS = null, MESURES_PRODUITS = [], DECLARATIONS_PRODUITS = null, SYNTHESE_STOCK_DATE = null;
+  const ACCUEIL_HTML = document.getElementById('resultSection').innerHTML;
 
   if (APERCU) {
     PRODUCTS = produitsApercu(await construireProduitsLive());
@@ -704,6 +743,7 @@ nexusRequireAuth().then(async employee => {
   } else {
     PRODUCTS = await attacherMesures(await construireProduitsLive());
     PRODUCT_PHOTOS = await chargerPhotosProduits();
+    afficherSyntheseAccueil();
   }
 
   // Pied de page : nom de la station (nexus-auth.js, lu en base) et période réelle des données.
@@ -973,26 +1013,62 @@ nexusRequireAuth().then(async employee => {
         ${sub !== null && sub !== undefined ? `<div class="ind-sub"${ids && ids.sub ? ` id="${ids.sub}"` : ''}>${sub}</div>` : ''}
       </div>`;
 
-    // P1-A : mesures de la boutique (rang, qualification, PMP date, marges). Absentes pour une
-    // reference connue seulement par une ancienne periode ou par le stock : rien n'est invente.
+    // P1-A / P1-B : mesures de la boutique. Absentes pour une reference connue seulement par une
+    // ancienne periode ou par le stock : rien n'est invente.
     const mes = p.mesure || null;
     const phraseMesure = mes ? NexusProduitsMesure.phrase(mes) : '';
     const fmtN = (v, d) => v === null || v === undefined ? 'n.d.' : Number(v).toFixed(d).replace('.', ',');
     const ligneMes = (lib, val) => `<div class="gap-row"><span class="gap-label">${esc(lib)}</span><span class="gap-status">${val}</span></div>`;
+    const joursPeriode = mes && mes.eligibilite && mes.eligibilite.jours ? mes.eligibilite.jours : null;
+    const ventesJour = joursPeriode ? p.qte_t2 / joursPeriode : null;
+    const datePmp = mes && mes.pmp.date_export ? fmtDate(mes.pmp.date_export) : null;
+
+    // TVA et TTC : trois etats de fiabilite (confirmee, importee non confirmee, incoherente).
+    let ligneTtc;
+    if (!mes) ligneTtc = '';
+    else if (mes.tva.etat === 'incoherente') {
+      ligneTtc = ligneMes('Prix de vente TTC', `PV HT ${mes.pv_ht.valeur !== null ? fmtN(mes.pv_ht.valeur, 2) + ' €' : 'n.d.'} · TVA importée : ${fmtN(mes.tva.taux_importe, 1)} % · ${esc(mes.pv_ttc.mention || 'TTC à vérifier')}`)
+        + (mes.tva.raison ? `<div class="sec-sous" style="margin-top:4px;font-weight:400;">${esc(mes.tva.raison)}</div>` : '');
+    } else if (mes.pv_ttc.valeur !== null) {
+      ligneTtc = ligneMes('Prix de vente TTC', `${fmtN(mes.pv_ttc.valeur, 2)} € (TVA ${fmtN(mes.pv_ttc.tva, 1)} %${mes.tva.etat === 'confirmee' ? ' confirmée' : ''})${mes.pv_ttc.mention ? ' · ' + esc(mes.pv_ttc.mention) : ''}`);
+    } else ligneTtc = ligneMes('Prix de vente TTC', esc(mes.pv_ttc.mention || 'TTC non disponible'));
+
     const mesuresHtml = mes ? `
           <div class="sec-sous">Mesures de la période (${esc(fmtDate(mes.pmp.periode_debut))} → ${esc(fmtDate(mes.pmp.periode_fin))})</div>
           ${ligneMes('Qualification', esc(mes.qualification || 'Sans qualification'))}
-          ${mes.rang.valeur !== null ? ligneMes('Classement en marge', `rang ${mes.rang.valeur} sur ${mes.rang.sur}`) : ''}
+          ${mes.rang.valeur !== null ? ligneMes('Classement en marge', `Rang ${mes.rang.valeur} sur ${mes.rang.sur} en marge de la boutique`) : ''}
           ${ligneMes('PMP Decenium HT', mes.pmp.valeur !== null ? `${fmtN(mes.pmp.valeur, 2)} € (export du ${esc(fmtDate(mes.pmp.date_export))})` : 'n.d.')}
           ${ligneMes('Prix de vente HT', mes.pv_ht.valeur !== null ? `${fmtN(mes.pv_ht.valeur, 2)} €` : 'n.d.')}
-          ${ligneMes('Prix de vente TTC', mes.pv_ttc.valeur !== null ? `${fmtN(mes.pv_ttc.valeur, 2)} € (TVA ${fmtN(mes.pv_ttc.tva, 1)} %)${mes.pv_ttc.mention ? ' · ' + esc(mes.pv_ttc.mention) : ''}` : esc(mes.pv_ttc.mention || 'n.d.'))}
+          ${ligneTtc}
           ${ligneMes('Marge unitaire', mes.marge_unitaire.valeur !== null ? `${fmtN(mes.marge_unitaire.valeur, 2)} €` : 'n.d.')}
           ${ligneMes('Marge totale', mes.marge_totale.valeur !== null ? `${fmtN(mes.marge_totale.valeur, 2)} € (estimée au PMP Decenium du ${esc(fmtDate(mes.pmp.date_export))})` : 'n.d.')}
           ${ligneMes('Taux de marque', mes.taux_marque.valeur !== null ? `${fmtN(mes.taux_marque.valeur, 2)} %` : 'n.d.')}
           ${ligneMes('Part de la marge du rayon', mes.part_marge_rayon.valeur !== null ? `${fmtN(mes.part_marge_rayon.valeur, 2)} %` : 'n.d.')}
           ${ligneMes('Part du CA du rayon', mes.part_ca_rayon.valeur !== null ? `${fmtN(mes.part_ca_rayon.valeur, 2)} %` : 'n.d.')}` : '';
 
+    // Observation factuelle sous le statut du Conseiller : jamais une tendance confirmee.
+    const obs = mes && mes.observation ? mes.observation : null;
+    const sousSeuil = obs && obs.ca_precedent !== null && obs.ca_precedent !== undefined && obs.ca_precedent < NexusConseiller.SEUIL_VOLUME_CA_EUR;
+    const observationHtml = obs ? `
+            <div class="obs-bloc">
+              <div class="obs-titre">${esc(obs.libelle)}</div>
+              <div class="obs-boites">
+                <div class="obs-boite">${fmtN(obs.ventes_jour_precedent, 2)} → ${fmtN(obs.ventes_jour_actuel, 2)} u./jour</div>
+                <div class="obs-boite">${obs.variation_pct >= 0 ? '+' : ''}${Math.round(obs.variation_pct)} % observé</div>
+              </div>
+              ${sousSeuil ? `<div class="obs-mention">observation, pas une tendance confirmée (CA de la période précédente sous le seuil de ${NexusConseiller.SEUIL_VOLUME_CA_EUR} €)</div>` : ''}
+            </div>` : '';
+
+    const rangTxt = mes && mes.rang.valeur !== null ? `Rang ${mes.rang.valeur} sur ${mes.rang.sur} en marge de la boutique${mes.qualification ? ' · ' + esc(mes.qualification) : ''}` : '';
+    const signaux = [];
+    if (mes && mes.a_identifier) signaux.push('Référence à identifier : prix de vente proche de 1 € HT pour une quantité élevée (opération de caisse ou service possible). Non exclue des indicateurs tant qu\'elle n\'est pas déclarée.');
+    if (mes && mes.quantite_possiblement_en_euros) signaux.push('Quantité possiblement exprimée en euros (service commercial dont le prix de vente est proche de 1 €).');
+    const sourcesHtml = mes ? `
+          ${ligneMes('Période affichée', `${esc(fmtDate(mes.pmp.periode_debut))} → ${esc(fmtDate(mes.pmp.periode_fin))}`)}
+          ${ligneMes('PMP Decenium', datePmp ? `export du ${esc(datePmp)}` : 'n.d.')}` : '';
+
     resultSection.innerHTML = `
+      <button type="button" class="lien-accueil" id="lienAccueil">← Accueil Produits</button>
       <div class="top-grid">
         <section class="card identite-card" aria-label="Identité du produit">
           <div id="photoCardZone"></div>
@@ -1008,6 +1084,7 @@ nexusRequireAuth().then(async employee => {
           <div class="conseiller-corps">
             <div class="conseiller-titre">Conseiller NEXUS</div>
             <div class="conseiller-sous">${esc(phraseMesure || statutSimplifie.label)}</div>
+            ${observationHtml}
             <details class="comprendre">
               <summary>Comprendre cette analyse</summary>
               <div class="conseiller-bubble"><div class="conseiller-text" id="conseillerProduitMsg"></div></div>
@@ -1019,9 +1096,16 @@ nexusRequireAuth().then(async employee => {
 
       <section class="card indic-card" aria-label="Indicateurs">
         <div class="ind-niveau ind-principal">
-          ${tuile(ICO.ca, 'CA généré (période)', fmtEur(p.ca_t2))}
+          ${tuile(ICO.ca, 'CA HT (période)', fmtEur(p.ca_t2))}
+          ${mes
+            ? tuile(ICO.marge, 'Marge générée HT', mes.marge_totale.valeur !== null ? fmtEur(mes.marge_totale.valeur) : 'n.d.', datePmp ? 'estimée au PMP du ' + esc(datePmp) : null)
+            : tuile(ICO.marge, 'Marge', fmtPct(p.marge_pct))}
+          ${tuile(ICO.part, 'Taux de marque', mes ? (mes.taux_marque.valeur !== null ? fmtN(mes.taux_marque.valeur, 2) + ' %' : 'n.d.') : fmtPct(p.marge_pct))}
+        </div>
+        <div class="ind-niveau ind-secondaire">
           ${tuile(ICO.unites, 'Unités vendues', p.qte_t2 + ' u.')}
-          ${tuile(ICO.marge, 'Marge', fmtPct(p.marge_pct))}
+          ${tuile(ICO.prix, 'Marge unitaire', mes && mes.marge_unitaire.valeur !== null ? fmtN(mes.marge_unitaire.valeur, 2) + ' €' : 'n.d.')}
+          ${tuile(ICO.rotation, 'Ventes par jour', ventesJour !== null ? fmtN(ventesJour, 2) + ' u./jour' : 'n.d.')}
         </div>
         <div class="ind-niveau ind-secondaire">
           ${tuile(ICO.prix, 'Prix HT', p.pu_ht !== null ? fmtEur(p.pu_ht) : 'n.d.')}
@@ -1033,23 +1117,47 @@ nexusRequireAuth().then(async employee => {
         </div>
       </section>
 
+      <details class="card sec" id="secPerf">
+        <summary>${ICO.ca}<span>Performance commerciale</span></summary>
+        <div class="sec-corps">
+          ${rangTxt ? `<div class="sec-sous" style="margin-top:0;">${rangTxt}</div>` : ''}
+          ${mesuresHtml}
+          <div id="justifZone"></div>
+        </div>
+      </details>
+
       <details class="card sec" id="secHisto">
         <summary>${ICO.histo}<span>Historique des deux périodes</span></summary>
         <div class="sec-corps">${histoHtml}</div>
       </details>
 
-      <details class="card sec" id="secInfos">
-        <summary>${ICO.info}<span>Informations complémentaires</span></summary>
+      <details class="card sec" id="secStock">
+        <summary>${ICO.stock}<span>Stock et implantation</span></summary>
         <div class="sec-corps">
-          ${mesuresHtml}
-          <div class="sec-sous">Photo rayon (terrain)</div>
-          <div id="photoTerrainZone">Vérification…</div>
-          <div class="sec-sous">Fiabilité de ces données</div>
           <div class="gap-row"><span class="gap-label">Stock</span><span class="gap-status" id="gapStockStatus">Vérification du dernier relevé…</span></div>
           <div class="gap-row"><span class="gap-label">Couverture estimée</span><span class="gap-status" id="gapRotationStatus">Vérification…</span></div>
           <div class="gap-row"><span class="gap-label">Emplacement</span><span class="gap-status" id="gapEmplacementStatus">Vérification…</span></div>
           <div class="gap-row"><span class="gap-label">Facing actuel</span><span class="gap-status">Non disponible : pas de saisie des facings actuellement</span></div>
+          <button type="button" class="btn-decl" id="btnConfirmerEmplacement">Confirmer ou corriger</button>
           <div id="emplacementPickerZone"></div>
+        </div>
+      </details>
+
+      <details class="card sec" id="secPhoto">
+        <summary>${ICO.info}<span>Photo du rayon</span></summary>
+        <div class="sec-corps"><div id="photoTerrainZone">Vérification…</div></div>
+      </details>
+
+      <details class="card sec" id="secFiab">
+        <summary>${ICO.info}<span>Fiabilité et sources</span></summary>
+        <div class="sec-corps">
+          ${signaux.map(t => `<div class="histo-empty" style="margin-top:6px;">${esc(t)}</div>`).join('')}
+          <div class="sec-sous">Nature de la référence</div>
+          <div id="natureZone"></div>
+          <div class="sec-sous">TVA</div>
+          <div id="tvaZone"></div>
+          <div class="sec-sous">Sources</div>
+          ${sourcesHtml}
         </div>
       </details>
     `;
@@ -1057,7 +1165,7 @@ nexusRequireAuth().then(async employee => {
     // Sections repliees sur mobile, ouvertes sur grand ecran ; les elements
     // restent dans le DOM dans tous les cas (les actions ne cassent pas).
     const grandEcran = (window.matchMedia && window.matchMedia('(min-width:768px)').matches) || document.body.classList.contains('nexus-desktop');
-    if (grandEcran) resultSection.querySelectorAll('details.sec').forEach(d => { if (d.id !== 'secHisto') d.open = true; });
+    if (grandEcran) resultSection.querySelectorAll('details.sec').forEach(d => { if (d.id !== 'secHisto' && d.id !== 'secFiab') d.open = true; });
 
     // Conseiller : cycle Constat -> Explication -> Decision (logique inchangee),
     // ecrit apres la creation du DOM. La periode de comparaison accompagne la tendance.
@@ -1104,6 +1212,204 @@ nexusRequireAuth().then(async employee => {
     chargerStockGap(p);
     chargerEmplacementProduit(p);
     chargerPhotoTerrain(p);
+    const btnConf = document.getElementById('btnConfirmerEmplacement');
+    if (btnConf) btnConf.addEventListener('click', () => afficherPickerEmplacement(p));
+    rendreZonesDeclaratives(p);
+  }
+
+  // ---- P1-B : declarations (nature, TVA, justification de destockage) ----
+  // Lignes ajoutees seulement ; l'auteur et la date viennent de la base (auth.uid()), jamais de la page.
+  // Une correction ajoute une ligne qui remplace l'ancienne ; une annulation exige un motif.
+  const PERIODE_AFFICHEE = p => ({ debut: p.periode_debut, fin: p.periode_fin });
+
+  function formulaireDecl(zone, cfg) {
+    const champs = cfg.champs.map(c => {
+      const id = 'fd_' + c.id;
+      const ctl = c.type === 'select'
+        ? `<select id="${id}">${c.options.map(o => `<option value="${esc(o[0])}"${o[0] === c.valeur ? ' selected' : ''}>${esc(o[1])}</option>`).join('')}</select>`
+        : c.type === 'number'
+          ? `<input id="${id}" type="number" inputmode="decimal" step="0.1" min="0" max="100" value="${esc(c.valeur === undefined || c.valeur === null ? '' : c.valeur)}">`
+          : `<textarea id="${id}" rows="2">${esc(c.valeur || '')}</textarea>`;
+      return `<label for="${id}">${esc(c.label)}${c.requis ? ' (obligatoire)' : ''}</label>${ctl}`;
+    }).join('');
+    zone.innerHTML = `<div class="form-decl"><strong>${esc(cfg.titre)}</strong>${champs}<div class="form-err" role="alert" id="fd_err"></div>
+      <div class="form-actions"><button type="button" class="btn-decl plein" id="fd_ok">${esc(cfg.bouton)}</button><button type="button" class="btn-decl" id="fd_ko">Annuler</button></div></div>`;
+    const err = zone.querySelector('#fd_err');
+    zone.querySelector('#fd_ko').addEventListener('click', () => { zone.innerHTML = ''; if (cfg.fermer) cfg.fermer(); });
+    zone.querySelector('#fd_ok').addEventListener('click', async () => {
+      const v = {};
+      for (const c of cfg.champs) {
+        const el = zone.querySelector('#fd_' + c.id);
+        v[c.id] = el ? String(el.value).trim() : '';
+        if (c.requis && !v[c.id]) { err.textContent = c.label + ' : champ obligatoire.'; return; }
+      }
+      const e = cfg.valider ? cfg.valider(v) : null;
+      if (e) { err.textContent = e; return; }
+      err.textContent = 'Enregistrement…';
+      const msg = await cfg.enregistrer(v);
+      if (msg) { err.textContent = msg; return; }
+      zone.innerHTML = '';
+      await apresEcriture(cfg.produit);
+    });
+  }
+
+  async function insererDecl(table, ligne) {
+    try {
+      const { error } = await nexusClient.from(table).insert(ligne);
+      return error ? 'Écriture refusée : ' + error.message : null;
+    } catch (e) { return 'Écriture impossible : ' + (e && e.message ? e.message : e); }
+  }
+  async function annulerDecl(table, id, motif) {
+    try {
+      const { data, error } = await nexusClient.from(table).update({ annule_le: new Date().toISOString(), annule_par: employee.id, motif_annulation: motif }).eq('id', id).is('annule_le', null).select('id');
+      if (error) return 'Annulation refusée : ' + error.message;
+      if (!data || !data.length) return 'Annulation refusée : aucune ligne modifiée.';
+      return null;
+    } catch (e) { return 'Annulation impossible : ' + (e && e.message ? e.message : e); }
+  }
+  // Recharge les declarations, recalcule les mesures, redessine la fiche (Fiabilite rouverte) et l'accueil.
+  async function apresEcriture(p) {
+    const fiabOuverte = !!(document.getElementById('secFiab') && document.getElementById('secFiab').open);
+    const perfOuverte = !!(document.getElementById('secPerf') && document.getElementById('secPerf').open);
+    await attacherMesures(PRODUCTS);
+    showProduct(p.article);
+    const f = document.getElementById('secFiab'); if (f) f.open = fiabOuverte;
+    const q = document.getElementById('secPerf'); if (q) q.open = perfOuverte;
+  }
+  function cible(p) { return { site: SITE_ACTUEL, article: p.article, code_barres: p.code_barres || null }; }
+
+  function rendreZonesDeclaratives(p) {
+    const mes = p.mesure;
+    const zN = document.getElementById('natureZone'), zT = document.getElementById('tvaZone'), zJ = document.getElementById('justifZone');
+    if (!mes) { if (zN) zN.textContent = 'Non disponible pour cette référence (aucune vente sur la période affichée).'; if (zT) zT.textContent = 'Non disponible.'; return; }
+    const bouton = (id, txt) => `<button type="button" class="btn-decl" id="${id}" style="margin-right:8px;margin-top:6px;">${esc(txt)}</button>`;
+    const quand = d => d ? fmtDate(String(d).slice(0, 10)) : '';
+
+    // Nature
+    const n = mes.nature;
+    zN.innerHTML = `<div class="gap-row"><span class="gap-label">Nature</span><span class="gap-status">${esc(n.libelle)}${n.declaree ? ` · déclarée le ${esc(quand(n.declare_le))}` : ' · par défaut (non déclarée)'}${n.commentaire ? ' · ' + esc(n.commentaire) : ''}</span></div>
+      <div id="natureForm"></div>${bouton('btnNature', n.declaree ? 'Corriger la nature' : 'Déclarer la nature')}${n.declaree ? bouton('btnNatureAnnuler', 'Annuler la déclaration') : ''}`;
+    zN.querySelector('#btnNature').addEventListener('click', () => formulaireDecl(zN.querySelector('#natureForm'), {
+      produit: p, titre: 'Nature de la référence', bouton: 'Enregistrer',
+      champs: [
+        { id: 'nature', label: 'Nature', type: 'select', options: Object.entries(NexusProduitsMesure.NATURES), valeur: n.cle },
+        { id: 'commentaire', label: 'Commentaire', type: 'text', valeur: '' },
+      ],
+      enregistrer: v => insererDecl('produits_nature_reference', Object.assign(cible(p), { nature: v.nature, commentaire: v.commentaire || null }, n.declaree ? { remplace_id: n.id } : {})),
+    }));
+    const bNA = zN.querySelector('#btnNatureAnnuler');
+    if (bNA) bNA.addEventListener('click', () => formulaireDecl(zN.querySelector('#natureForm'), {
+      produit: p, titre: 'Annuler la déclaration de nature', bouton: 'Annuler la déclaration',
+      champs: [{ id: 'motif', label: 'Motif', type: 'text', requis: true }],
+      enregistrer: v => annulerDecl('produits_nature_reference', n.id, v.motif),
+    }));
+
+    // TVA : confirmer, corriger, annuler
+    const t = mes.tva;
+    const etatTxt = t.etat === 'confirmee'
+      ? `TVA confirmée : ${fmtN(t.taux_retenu, 1)} % (le ${esc(quand(t.confirmation && t.confirmation.confirme_le))})${t.confirmation && t.confirmation.commentaire ? ' · ' + esc(t.confirmation.commentaire) : ''}`
+      : t.etat === 'importee'
+        ? `TVA importée de Decenium : ${fmtN(t.taux_importe, 1)} %, non confirmée`
+        : `TVA incohérente : importée ${fmtN(t.taux_importe, 1)} %${t.raison ? ' · ' + esc(t.raison) : ''}`;
+    const conf = t.confirmation || null;
+    zT.innerHTML = `<div class="gap-row"><span class="gap-label">État</span><span class="gap-status">${etatTxt}</span></div>
+      <div id="tvaForm"></div>${bouton('btnTva', conf ? 'Corriger la TVA' : 'Confirmer la TVA')}${conf ? bouton('btnTvaAnnuler', 'Annuler la confirmation') : ''}`;
+    zT.querySelector('#btnTva').addEventListener('click', () => {
+      const propose = t.taux_importe;
+      formulaireDecl(zT.querySelector('#tvaForm'), {
+        produit: p, titre: 'Confirmer la TVA', bouton: 'Confirmer',
+        champs: [
+          { id: 'taux', label: 'Taux de TVA en % (proposé : taux importé de la période affichée)', type: 'number', valeur: conf ? conf.taux : (propose === null || propose === undefined ? '' : propose), requis: true },
+          { id: 'commentaire', label: 'Commentaire (obligatoire si le taux diffère du taux importé)', type: 'text', valeur: '' },
+        ],
+        valider: v => {
+          const x = Number(String(v.taux).replace(',', '.'));
+          if (!isFinite(x) || x < 0 || x > 100) return 'Taux de TVA : un nombre entre 0 et 100.';
+          if (propose !== null && propose !== undefined && Math.abs(x - propose) > 1e-9 && !v.commentaire) return 'Un taux différent du taux importé exige un commentaire.';
+          return null;
+        },
+        enregistrer: v => insererDecl('produits_tva_confirmations', Object.assign(cible(p), { taux_confirme: Number(String(v.taux).replace(',', '.')), commentaire: v.commentaire || null }, conf ? { remplace_id: conf.id } : {})),
+      });
+    });
+    const bTA = zT.querySelector('#btnTvaAnnuler');
+    if (bTA) bTA.addEventListener('click', () => formulaireDecl(zT.querySelector('#tvaForm'), {
+      produit: p, titre: 'Annuler la confirmation de TVA', bouton: 'Annuler la confirmation',
+      champs: [{ id: 'motif', label: 'Motif', type: 'text', requis: true }],
+      enregistrer: v => annulerDecl('produits_tva_confirmations', conf.id, v.motif),
+    }));
+
+    // Justification de destockage : seulement pour une marge negative de la periode affichee
+    if (zJ && mes.marge_negative) {
+      const j = mes.justification;
+      const per = PERIODE_AFFICHEE(p);
+      zJ.innerHTML = `<div class="sec-sous">Marge négative sur la période</div>
+        ${j ? `<div class="gap-row"><span class="gap-label">Justification</span><span class="gap-status">${esc(j.libelle)}${j.commentaire ? ' · ' + esc(j.commentaire) : ''} · le ${esc(quand(j.valide_le))}</span></div>` : '<div class="histo-empty">Déstockage non justifié. La marge et le CA affichés ne changent pas.</div>'}
+        <div id="justifForm"></div>${bouton('btnJustif', j ? 'Corriger la justification' : 'Justifier ce déstockage')}${j ? bouton('btnJustifAnnuler', 'Annuler la justification') : ''}`;
+      zJ.querySelector('#btnJustif').addEventListener('click', () => formulaireDecl(zJ.querySelector('#justifForm'), {
+        produit: p, titre: 'Justifier ce déstockage (valable pour la période affichée)', bouton: 'Enregistrer',
+        champs: [
+          { id: 'motif', label: 'Motif', type: 'select', options: Object.entries(NexusProduitsMesure.MOTIFS_JUSTIFICATION), valeur: j ? j.motif : 'dlc' },
+          { id: 'commentaire', label: 'Commentaire (obligatoire pour « Autre motif »)', type: 'text', valeur: '' },
+        ],
+        valider: v => v.motif === 'autre' && !v.commentaire ? 'Un commentaire est obligatoire pour « Autre motif ».' : null,
+        enregistrer: v => insererDecl('produits_justifications_marge', Object.assign(cible(p), { periode_debut: per.debut, periode_fin: per.fin, motif: v.motif, commentaire: v.commentaire || null }, j ? { remplace_id: j.id } : {})),
+      }));
+      const bJA = zJ.querySelector('#btnJustifAnnuler');
+      if (bJA) bJA.addEventListener('click', () => formulaireDecl(zJ.querySelector('#justifForm'), {
+        produit: p, titre: 'Annuler la justification', bouton: 'Annuler la justification',
+        champs: [{ id: 'motif', label: 'Motif', type: 'text', requis: true }],
+        enregistrer: v => annulerDecl('produits_justifications_marge', j.id, v.motif),
+      }));
+    }
+  }
+
+  // ---- P1-B : synthese datee de l'accueil (aucune carte de navigation) ----
+  document.addEventListener('click', e => { if (e.target && e.target.id === 'lienAccueil') afficherAccueil(); });
+  function afficherAccueil() {
+    const r = document.getElementById('resultSection');
+    if (!r) return;
+    r.innerHTML = ACCUEIL_HTML;
+    afficherSyntheseAccueil();
+    window.scrollTo(0, 0);
+  }
+  function afficherSyntheseAccueil() {
+    const z = document.getElementById('syntheseAccueil');
+    if (!z) return;
+    const sy = SYNTHESE_PRODUITS;
+    if (!sy) { z.innerHTML = ''; return; }
+    const fmtE = v => fmtEur(Number(v) || 0);
+    const nbVendus = MESURES_PRODUITS.length;
+    const dormants = PRODUCTS.filter(x => calculerStatutSimplifie(x).cle === 'dormant').length;
+    const per = PERIODE_DONNEES ? `${fmtDate(PERIODE_DONNEES.debut)} → ${fmtDate(PERIODE_DONNEES.fin)}` : null;
+    z.innerHTML = `<section class="card" aria-label="Synthèse des produits">
+      <div class="sa-ligne"><strong>Dernière période importée</strong>${per ? ' : ' + esc(per) : ''} · ${nbVendus} références vendues${SYNTHESE_STOCK_DATE ? ' · dernier relevé de stock théorique le ' + esc(fmtDate(SYNTHESE_STOCK_DATE)) : ''}</div>
+      <div class="sa-ligne">CA analytique ${esc(fmtE(sy.ca_analytique))} + opérations de caisse ${esc(fmtE(sy.operations_caisse))} = CA importé ${esc(fmtE(sy.ca_importe))}</div>
+      <div class="sa-compteurs">
+        <button type="button" class="sa-compteur" data-liste="negatives" aria-pressed="false"><span class="sa-n">${sy.marge_negative}</span><span class="sa-l">références à marge négative</span></button>
+        <button type="button" class="sa-compteur" data-liste="justifiees" aria-pressed="false"><span class="sa-n">${sy.destockages_justifies}</span><span class="sa-l">déstockages justifiés</span></button>
+        <button type="button" class="sa-compteur" data-liste="averifier" aria-pressed="false"><span class="sa-n">${sy.marges_a_verifier}</span><span class="sa-l">anomalies de marge à vérifier</span></button>
+      </div>
+      <div class="sa-ligne">${dormants} produit${dormants > 1 ? 's' : ''} dormant${dormants > 1 ? 's' : ''}${sy.references_a_identifier ? ' · ' + sy.references_a_identifier + ' référence' + (sy.references_a_identifier > 1 ? 's' : '') + ' à identifier' : ''}</div>
+      <div class="sa-liste" id="saListe" hidden></div>
+    </section>`;
+    const filtres = {
+      negatives: x => x.m.marge_negative,
+      justifiees: x => x.m.marge_negative && x.m.justification,
+      averifier: x => x.m.marge_negative && !x.m.justification,
+    };
+    z.querySelectorAll('button.sa-compteur').forEach(b => b.addEventListener('click', () => {
+      const liste = z.querySelector('#saListe');
+      const deja = b.getAttribute('aria-pressed') === 'true';
+      z.querySelectorAll('button.sa-compteur').forEach(o => o.setAttribute('aria-pressed', 'false'));
+      if (deja) { liste.hidden = true; liste.innerHTML = ''; return; }
+      b.setAttribute('aria-pressed', 'true');
+      const items = MESURES_PRODUITS.filter(filtres[b.dataset.liste]);
+      liste.hidden = false;
+      liste.innerHTML = items.length
+        ? items.map((x, k) => `<button type="button" data-k="${k}">${esc(x.row.article)} · marge ${esc(fmtE(x.m.marge_totale.valeur))}</button>`).join('')
+        : '<div class="sa-ligne">Aucune référence.</div>';
+      liste.querySelectorAll('button').forEach(bt => bt.addEventListener('click', () => choisirSuggestion(items[Number(bt.dataset.k)].row.article)));
+    }));
   }
 
   // Photo rayon (terrain) — prise par un employé via la mission "Photo de
