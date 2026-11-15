@@ -1234,10 +1234,10 @@
         "cible": "udljdqxerrbbbajxubfn",
         "par": "claude",
         "outil": "connecteur Supabase execute_sql, lecture seule Test",
-        "verdict": "NON APPLIQUEE sur Test — 0 des 3 tables presentes, registre 346, derniere estampille 20261114231001. Production non mesuree (aucune lecture Production sans GO).",
+        "verdict": "APPLIQUEE sur Test le 15/11 (GO Frederic 16:35, accord Guardian 6901096382) — 3 tables presentes avec 3 politiques chacune, registre 347, estampille 20261115213306. Production non mesuree (aucune lecture Production sans GO).",
         "blob_migration": "dc6fcfc3c634ac73b600de3f68121cbe03c627fc"
       },
-      "objets_constates": [],
+      "objets_constates": ["produits_nature_reference","produits_justifications_marge","produits_tva_confirmations"],
       "reserve": "Cette qualification n autorise ni la fusion ni le deploiement ; elle constate seulement l ordre migration/code."
     }
   },
