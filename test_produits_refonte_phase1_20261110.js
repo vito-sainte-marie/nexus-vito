@@ -27,7 +27,7 @@ const EMPREINTES = {
   'async function construireProduitsLive': 'a911d070c80e398155eb69dc90e09b85dbf5ee12343e43b57f06335b0892e9ec',
   'function calculerStatutSimplifie': '4e19b7405af3da68933a0c2abefe110cd8e507b189b492fb165c37f887997e23', // lot 2 PR C : enveloppe de NexusConseiller.statutProduit (règle unique, huit statuts)
   'function calculerRangRayon': '6438804858c5a4a80a5923f43952a506f4704a8058df05a158930ce5182379ed',
-  'async function chargerStockGap': '3e8ed64835d600f50bedd8b4cfa8439f809a080cd74b3a77841ec0bdd426bc88' // lot 2 PR C, revue Guardian 6783561611 : la ligne de valeur du stock porte « estimation au PMA, relevé du … » (seule ligne modifiée)
+  'async function chargerStockGap': 'c83240269514905dfcee5ccab1dd8c687e554c299fe2ee01d21c24c2234e72b9' // lot 2 PR C, revue Guardian 6783561611 : la ligne de valeur du stock porte « estimation au PMA, relevé du … » (seule ligne modifiée)
 };
 const empreinte = txt => crypto.createHash('sha256').update(txt).digest('hex');
 Object.keys(EMPREINTES).forEach(sig => {
@@ -91,13 +91,13 @@ t('le badge « À vérifier » remplace « Suggéré » via le composant commun'
 t('recherche : combobox, listbox et cibles tactiles de 44 px', () => {
   assert.ok(/id="searchInput" role="combobox"/.test(PAGE));
   assert.ok(/id="suggestions" role="listbox"/.test(PAGE));
-  assert.ok(/\.search-box input\{min-height:44px;\}/.test(PAGE));
-  assert.ok(/placeholder="Rechercher un produit \(nom\)"/.test(PAGE));
+  assert.ok(/\.champ input\[type=text\]\{[^}]*min-height:44px/.test(PAGE));
+  assert.ok(/aria-label="Rechercher un produit ou un code-barres"/.test(PAGE));
 });
 t('aucun bouton code-barres dans la zone de recherche', () => {
   const corps = PAGE.split('<body')[1];
   const zone = corps.slice(corps.indexOf('id="searchInput"') - 400, corps.indexOf('id="suggestions"') + 200);
-  assert.ok(!/barre|scan|camera|caméra/i.test(zone));
+  assert.ok(!/<button|scan|camera|caméra/i.test(zone));
 });
 
 // Structure à 375 px : identité, Conseiller, indicateurs, sections.

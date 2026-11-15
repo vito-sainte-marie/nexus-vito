@@ -34,10 +34,13 @@ t('chaque page qui affiche l’avatar recadré porte un srcset 64/96/128', () =>
   });
 });
 t('les pages passées sur le recadrage sont rondes et en cover', () => {
-  ['Scanner-Stock-v1', 'Rayon-v1', 'Produits-v1', 'Import-v1'].forEach(n => {
+  ['Scanner-Stock-v1', 'Rayon-v1', 'Import-v1'].forEach(n => {
     const c = fs.readFileSync(path.join(__dirname, 'NEXUS-' + n + '.html'), 'utf8');
     assert.ok(/\.conseiller-avatar\{width:52px; height:52px; border-radius:50%; object-fit:cover;/.test(c), n);
   });
+  // Produits est passé à la charte Campagne (P0) : même avatar rond en cover, à la taille de la charte.
+  const prod = fs.readFileSync(path.join(__dirname, 'NEXUS-Produits-v1.html'), 'utf8');
+  assert.ok(/\.conseiller-avatar\{width:80px;height:80px;border-radius:50%;flex:none;object-fit:cover;/.test(prod), 'Produits-v1');
 });
 console.log(echecs ? echecs + ' échec(s)' : 'tous ok');
 process.exit(echecs ? 1 : 0);
