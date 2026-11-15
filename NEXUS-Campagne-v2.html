@@ -379,6 +379,7 @@ a{color:inherit;}
     </label>
     <div id="mesCorps" hidden>
       <div class="sim-source" id="mesPrefillNote"></div>
+      <div id="mesBandeau"></div>
       <div id="mesProduits"></div>
       <div class="sim-actions"><button type="button" class="btn" id="mesAjouter"></button></div>
       <div class="titre-section" id="mesCoutsTitre"></div>
@@ -432,7 +433,7 @@ a{color:inherit;}
 <script src="nexus-campagne-bilan.js?v=20261116-3"></script>
 <script src="nexus-campagne-conseil.js?v=20261116-2"></script>
 <script src="nexus-campagne-outils.js?v=20261116-1"></script>
-<script src="nexus-campagne-prefill.js?v=20261116-1"></script>
+<script src="nexus-campagne-prefill.js?v=20261116-2"></script>
 <script>
 const V = window.NexusVocab.campagne;
 const CV = window.NexusCampagneVentes;
@@ -1513,7 +1514,9 @@ const MC = window.NexusMesureCompensation;
 const MV = V.mesure;
 const MES_CHAMPS = ['ventes', 'joursRef', 'achatAvant', 'achatPendant', 'venteAvant', 'ventePendant', 'stockDebut', 'stockFin', 'livraisons', 'pertes'];
 const PF = window.NexusCampagnePrefill;
+const SC = window.NexusCampagneStock;
 let MES_CAMPAGNE = null, MES_PRODUITS = [], MES_COUTS = [], MES_FICHES = [], MES_OBJ = [];
+let MES_SRC = { pmp: [], depart: [], livraisons: [], lignes: [], pertes: new Map() };
 // Prix repris des objectifs validés (lecture seule, aucune écriture dans campagne_objectifs_produits).
 function mesReprisObjectif(article){
   if (!MES_CAMPAGNE || !article) return null;
@@ -1530,6 +1533,37 @@ function mesNoteObjectifs(e){
   return h;
 }
 
+// Mention de source sous un champ préremplissable. Vide si le champ n'a pas été prérempli.
+function mesMention(src){
+  if (!src) return '';
+  const M = MV.mentions, d = (iso) => SC.dateLongue(iso);
+  switch (src.type) {
+    case 'produits': return M.produits;
+    case 'objectifs': return M.objectifs;
+    case 'ventes': return M.ventes(d(src.debut), d(src.fin));
+    case 'pmp': return src.date ? (src.aConfirmer ? M.pmpAConfirmer(d(src.date)) : M.pmp(d(src.date))) : M.pmpSansDate;
+    case 'stock_depart': return src.aConfirmer ? M.stockAConfirmer(d(src.date), String(src.source || '').replace(/_/g, ' ')) : M.stock(d(src.date), String(src.source || '').replace(/_/g, ' '));
+    case 'releve': return M.releve(src.source);
+    case 'livraisons': return src.n > 0 ? M.livraisons(src.n) + (src.memeJour ? ' ; ' + M.livraisonMemeJour : '') : M.livraisonMemeJour;
+    case 'mouvements': return M.pertesMouvements;
+    default: return '';
+  }
+}
+function mesMentionChamp(e, cle){
+  const t = mesMention(e['src_' + cle]);
+  return t ? '<span class="sim-source">' + esc(t) + '</span>' : '';
+}
+// Bandeau : la mesure se fait à la fin de la promotion.
+function mesBandeau(){
+  const z = $('mesBandeau');
+  if (!z) return;
+  z.innerHTML = MES_CAMPAGNE && PF.avantFin(MES_CAMPAGNE.dateFin, new Date())
+    ? '<div class="sim-alerte">' + esc(MV.bandeauAvantFin(SC.dateLongue(MES_CAMPAGNE.dateFin))) + '</div>' : '';
+}
+
+function mesNoteEcartsSource(e){
+  return (e.ecartsSrc || []).map(x => '<div class="sim-source">' + esc(MV.ecartObjectif + (MV.champsObjectif[x.champ] || MV.champs[x.champ] || x.champ) + ' ' + String(x.source).replace('.', ',') + ', saisi ' + String(x.saisi).replace('.', ',') + '.') + '</div>').join('');
+}
 function mesNouveau(){
   return { article: '', nouveau: false, fournisseur: '', catalogue: '', info: null, ventes: '', joursRef: '30', achatAvant: '', achatPendant: '', venteAvant: '', ventePendant: '',
            stockDebut: '', stockFin: '', livraisons: '', pertes: '', srcDebut: null, srcFin: null, notes: [] };
@@ -1576,41 +1610,50 @@ async function mesPreremplir(i, article){
   const e = MES_PRODUITS[i];
   e.article = article;
   const s = SIM.suggestions(PRODUITS_ROWS, article, new Date());
-  e.info = s; e.notes = [];
-  // Les objectifs validés passent avant Decenium ; une valeur déjà saisie n'est jamais remplacée.
-  e.objRepris = mesReprisObjectif(article); e.objChamps = [];
-  if (e.objRepris) e.objChamps = PF.appliquer(e, e.objRepris).repris;
-  if (s){
-    e.ventes = saisie(Math.round(s.ventesMoisPrecedent));
-    if (!e.objChamps.includes('venteAvant')) e.venteAvant = saisie(s.venteAvant);
-    if (!e.objChamps.includes('achatAvant')){ e.achatAvant = saisie(s.achatAvant); e.notes = [MV.achatDecenium]; }
-  }
+  e.info = s; e.notes = []; e.ecartsSrc = [];
   const [debut, fin] = await Promise.all([mesStockADate(article, MES_CAMPAGNE.dateDebut), mesStockADate(article, MES_CAMPAGNE.dateFin)]);
   const d = MC.choisirStock({comptage: debut.comptage, decenium: debut.decenium});
   const f = MC.choisirStock({comptage: fin.comptage, decenium: fin.decenium});
-  if (d.valeur !== null){ e.stockDebut = saisie(d.valeur); e.srcDebut = d.source; } else { e.srcDebut = null; }
-  if (f.valeur !== null){ e.stockFin = saisie(f.valeur); e.srcFin = f.source; } else { e.srcFin = null; }
+  const ck = String(article || '').trim().toLowerCase();
+  const prop = PF.proposer({
+    campagne: MES_CAMPAGNE, article, objectifs: MES_OBJ, pmp: MES_SRC.pmp, depart: MES_SRC.depart,
+    livraisons: MES_SRC.livraisons, lignesLivraison: MES_SRC.lignes, produitsRows: PRODUITS_ROWS,
+    stockReleve: d.valeur !== null ? {valeur: d.valeur, source: d.source} : null,
+    stockFinReleve: f.valeur !== null ? {valeur: f.valeur, source: f.source} : null,
+    pertes: MES_SRC.pertes.get(ck) || 0,
+  }, {ttcVersHt: SIM.ttcVersHt, fiabiliteReference: window.NexusCampagneBilan.fiabiliteReference});
+  // Une saisie déjà présente (ligne enregistrée) passe avant la source : l'écart est signalé, rien n'est écrasé.
+  e.ecartsSrc = PF.appliquerProposition(e, prop);
+  if (prop.srcDebut && !e.srcDebut) e.srcDebut = prop.srcDebut;
+  if (prop.srcFin && !e.srcFin) e.srcFin = prop.srcFin;
+  // Decenium reste le repli pour ce qu'aucune source plus fiable n'a fourni.
+  if (s){
+    if (String(e.ventes).trim() === '') e.ventes = saisie(Math.round(s.ventesMoisPrecedent));
+    if (String(e.venteAvant).trim() === '') e.venteAvant = saisie(s.venteAvant);
+    if (String(e.achatAvant).trim() === ''){ e.achatAvant = saisie(s.achatAvant); e.notes = [MV.achatDecenium]; }
+  }
+  e.objRepris = mesReprisObjectif(article); e.objChamps = [];
   mesPeindre();
 }
 function mesSource(src){ return MV.sources[src] || MV.sourceAucune; }
 function mesPeindreProduit(e, i){
-  const champ = (cle, lib, defaut) => '<label>' + esc(lib) + '<input type="text" inputmode="decimal" autocomplete="off" data-mi="' + i + '" data-mchamp="' + cle + '" value="' + esc(e[cle]) + '">' + (defaut ? '<span class="sim-source" data-mjdef="' + i + '">' + (String(e[cle]).trim() === '' && !e.nouveau ? esc(MV.joursDefaut) : '') + '</span>' : '') + '</label>';
+  const champ = (cle, lib, defaut) => '<label>' + esc(lib) + '<input type="text" inputmode="decimal" autocomplete="off" data-mi="' + i + '" data-mchamp="' + cle + '" value="' + esc(e[cle]) + '">' + (defaut ? '<span class="sim-source" data-mjdef="' + i + '">' + (String(e[cle]).trim() === '' && !e.nouveau ? esc(MV.joursDefaut) : '') + '</span>' : '') + mesMentionChamp(e, cle) + '</label>';
   const opts = '<option value=""></option>' + MES_FICHES.map(f => '<option value="' + esc(f.fournisseur) + '"' + (f.fournisseur === e.fournisseur ? ' selected' : '') + '>' + esc(f.fournisseur) + '</option>').join('');
   return '<div class="sim-produit" data-mproduit="' + i + '">' +
-    '<label>' + esc(MV.produit) + '<input type="text" autocomplete="off" data-mi="' + i + '" data-mchamp="article" value="' + esc(e.article) + '"></label>' +
+    '<label>' + esc(MV.produit) + '<input type="text" autocomplete="off" data-mi="' + i + '" data-mchamp="article" value="' + esc(e.article) + '">' + mesMentionChamp(e, 'article') + '</label>' +
     '<div class="sugg" data-msugg="' + i + '"></div>' +
     '<label class="sim-case"><input type="checkbox" data-mi="' + i + '" data-mchamp="nouveau"' + (e.nouveau ? ' checked' : '') + '> ' + esc(MV.nouveauProduit) + '</label>' +
     '<div class="sim-grille">' + champ('ventes', MV.ventesMois) + champ('joursRef', MV.joursRef, true) +
       champ('venteAvant', MV.venteAvant) + champ('ventePendant', MV.ventePendant) +
       champ('achatAvant', MV.achatAvant) + champ('achatPendant', MV.achatPendant) +
-      '<label>' + esc(MV.stockDebut) + '<input type="text" inputmode="decimal" autocomplete="off" data-mi="' + i + '" data-mchamp="stockDebut" value="' + esc(e.stockDebut) + '"><span class="sim-source">' + esc(mesSource(e.srcDebut)) + '</span></label>' +
-      '<label>' + esc(MV.stockFin) + '<input type="text" inputmode="decimal" autocomplete="off" data-mi="' + i + '" data-mchamp="stockFin" value="' + esc(e.stockFin) + '"><span class="sim-source">' + esc(mesSource(e.srcFin)) + '</span></label>' +
+      '<label>' + esc(MV.stockDebut) + '<input type="text" inputmode="decimal" autocomplete="off" data-mi="' + i + '" data-mchamp="stockDebut" value="' + esc(e.stockDebut) + '"><span class="sim-source">' + esc(mesSource(e.srcDebut)) + '</span>' + mesMentionChamp(e, 'stockDebut') + '</label>' +
+      '<label>' + esc(MV.stockFin) + '<input type="text" inputmode="decimal" autocomplete="off" data-mi="' + i + '" data-mchamp="stockFin" value="' + esc(e.stockFin) + '"><span class="sim-source">' + esc(mesSource(e.srcFin)) + '</span>' + (mesMentionChamp(e, 'stockFin') || (String(e.stockFin).trim() === '' ? '<span class="sim-source">' + esc(MV.mentions.stockFinASaisir) + '</span>' : '')) + '</label>' +
       champ('livraisons', MV.livraisons) + champ('pertes', MV.pertes) + '</div>' +
     '<div class="sim-source">' + esc(MV.pertesNote) + '</div>' +
     '<details class="sim-aide"><summary>' + esc(V.sim.aideAchat) + '</summary><div class="sim-grille">' +
       '<label>' + esc(MV.fournisseurNom) + '<select data-mi="' + i + '" data-mchamp="fournisseur">' + opts + '</select></label>' +
       champ('catalogue', V.sim.prixCatalogue) + '</div></details>' +
-    e.notes.map(n => '<div class="sim-source">' + esc(n) + '</div>').join('') + mesNoteObjectifs(e) +
+    e.notes.map(n => '<div class="sim-source">' + esc(n) + '</div>').join('') + mesNoteObjectifs(e) + mesNoteEcartsSource(e) +
     '<div data-mres="' + i + '"></div>' +
     '<div class="sim-actions"><button type="button" class="btn" data-mretirer="' + i + '">' + esc(MV.retirer) + '</button></div></div>';
 }
@@ -1621,6 +1664,7 @@ function mesPeindreCouts(){
     '<button type="button" class="btn" data-cretirer="' + i + '">' + esc(MV.retirer) + '</button></div>').join('');
 }
 function mesPeindre(){
+  mesBandeau();
   $('mesProduits').innerHTML = MES_PRODUITS.map(mesPeindreProduit).join('');
   mesPeindreCouts();
   mesCalculer();
@@ -1676,20 +1720,57 @@ async function mesCharger(campagneId){
   $('mesCorps').hidden = !MES_CAMPAGNE;
   $('mesStatut').textContent = '';
   if (!MES_CAMPAGNE) return;
-  const [m, c, f, ob] = await Promise.all([
+  const lire = (t, cols) => nexusClient.from(t).select(cols).eq('site', SITE_ID).eq('campagne_id', campagneId);
+  const [m, c, f, ob, pm, sd, lv, an, ln] = await Promise.all([
     nexusClient.from('campagne_mesures_produits').select('*').eq('site', SITE_ID).eq('campagne_id', campagneId),
     nexusClient.from('campagne_couts').select('libelle, montant_ht').eq('site', SITE_ID).eq('campagne_id', campagneId),
     nexusClient.from('fournisseurs_conditions').select('fournisseur, remise_habituelle_pct').eq('site', SITE_ID).order('fournisseur'),
-    nexusClient.from('campagne_objectifs_produits').select('campagne_id, article, version, pa_habituel_ht, pa_promo_ht, pv_habituel_ttc, pv_promo_ttc, tva_pct, objectif_valide_jour').eq('site', SITE_ID).eq('campagne_id', campagneId),
+    nexusClient.from('campagne_objectifs_produits').select('campagne_id, article, version, pa_habituel_ht, pa_promo_ht, pv_habituel_ttc, pv_promo_ttc, tva_pct, objectif_valide_jour, periode_ref_debut, periode_ref_fin').eq('site', SITE_ID).eq('campagne_id', campagneId),
+    lire('campagne_pmp_reference', 'article, version, pmp_ht, date_reference'),
+    lire('campagne_stock_depart', 'article, version, quantite, date_stock, source, a_confirmer'),
+    lire('campagne_livraisons', 'id, date_livraison, remplace_livraison_id, cree_le'),
+    lire('campagne_livraisons_annulations', 'livraison_id'),
+    lire('campagne_livraison_lignes', 'livraison_id, article, unites'),
   ]);
   MES_OBJ = ob.error ? [] : (ob.data || []);
-  [['campagne_mesures_produits', m], ['campagne_couts', c], ['fournisseurs_conditions', f]].forEach(([n, r]) => { if (r.error) console.error(n, r.error); });
+  [['campagne_mesures_produits', m], ['campagne_couts', c], ['fournisseurs_conditions', f], ['campagne_pmp_reference', pm], ['campagne_stock_depart', sd], ['campagne_livraisons', lv], ['campagne_livraisons_annulations', an], ['campagne_livraison_lignes', ln]].forEach(([n, r]) => { if (r.error) console.error(n, r.error); });
+  MES_SRC = {
+    pmp: pm.error ? [] : (pm.data || []), depart: sd.error ? [] : (sd.data || []),
+    livraisons: SC.livraisonsValides(lv.error ? [] : (lv.data || []), an.error ? [] : (an.data || [])),
+    lignes: ln.error ? [] : (ln.data || []), pertes: new Map(),
+  };
+  await mesChargerPertes();
   MES_FICHES = f.data || [];
   MES_COUTS = (c.data || []).map(x => ({libelle: x.libelle, montant: saisie(Number(x.montant_ht))}));
   MES_PRODUITS = (m.data || []).map(mesDepuisLigne);
-  MES_PRODUITS.forEach(e => { e.objRepris = mesReprisObjectif(e.article); });
+  // Une ligne par article de la promotion, sans écraser une ligne déjà enregistrée.
+  const deja = new Set(MES_PRODUITS.map(e => e.article.trim().toLowerCase()));
+  (MES_CAMPAGNE.produits || []).forEach(nom => {
+    const k = String(nom || '').trim().toLowerCase();
+    if (!k || deja.has(k)) return;
+    deja.add(k);
+    const e = mesNouveau(); e.article = String(nom).trim(); e.joursRef = ''; e.src_article = {type: 'produits'};
+    MES_PRODUITS.push(e);
+  });
   if (!MES_PRODUITS.length) MES_PRODUITS.push(mesNouveau());
+  MES_PRODUITS.forEach(e => { e.objRepris = mesReprisObjectif(e.article); });
+  mesBandeau();
   mesPeindre();
+  await Promise.all(MES_PRODUITS.map((e, i) => e.article.trim() ? mesPreremplir(i, e.article) : null));
+}
+// Pertes déclarées : casse et retrait de la période, par article. Vide si aucun mouvement.
+async function mesChargerPertes(){
+  try {
+    const debut = MES_CAMPAGNE.dateDebut, fin = MES_CAMPAGNE.dateFin;
+    const [d0] = mesBornes(debut), [, f1] = mesBornes(fin);
+    const mv = await nexusClient.from('inventaire_mouvements').select('produit_id, type_mouvement, quantite, cree_le')
+      .eq('site', SITE_ID).in('type_mouvement', ['casse', 'retrait']).gte('cree_le', d0).lt('cree_le', f1);
+    if (mv.error || !mv.data || !mv.data.length) return;
+    const ids = Array.from(new Set(mv.data.map(x => x.produit_id)));
+    const pr = await nexusClient.from('products').select('id, article').in('id', ids);
+    const nom = new Map((pr.data || []).map(x => [x.id, String(x.article || '').trim().toLowerCase()]));
+    mv.data.forEach(x => { const k = nom.get(x.produit_id); if (k) MES_SRC.pertes.set(k, (MES_SRC.pertes.get(k) || 0) + Math.abs(Number(x.quantite) || 0)); });
+  } catch (err) { console.error('pertes', err); }
 }
 async function mesEnregistrer(){
   const st = $('mesStatut');
