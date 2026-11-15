@@ -195,7 +195,18 @@
     return ecartsSource;
   }
 
-  const api = { CHAMPS, derniereValidee, reprendre, appliquer, ecarts, joursPeriode, avantFin, ventesReference, proposer, appliquerProposition };
+  // Articles de la promotion qui n'ont pas encore de ligne (insensible à la casse, sans doublon).
+  function lignesManquantes(produits, deja) {
+    const vus = new Set((deja || []).map(a => String(a || '').trim().toLowerCase()));
+    const out = [];
+    (produits || []).forEach((nom) => {
+      const k = String(nom || '').trim().toLowerCase();
+      if (!k || vus.has(k)) return;
+      vus.add(k); out.push(String(nom).trim());
+    });
+    return out;
+  }
+  const api = { lignesManquantes, CHAMPS, derniereValidee, reprendre, appliquer, ecarts, joursPeriode, avantFin, ventesReference, proposer, appliquerProposition };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else global.NexusCampagnePrefill = api;
 })(typeof window !== 'undefined' ? window : globalThis);

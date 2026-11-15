@@ -1541,7 +1541,7 @@ function mesMention(src){
     case 'objectifs': return M.objectifs;
     case 'ventes': return M.ventes(d(src.debut), d(src.fin));
     case 'pmp': return src.date ? (src.aConfirmer ? M.pmpAConfirmer(d(src.date)) : M.pmp(d(src.date))) : M.pmpSansDate;
-    case 'stock_depart': return src.aConfirmer ? M.stockAConfirmer(d(src.date), String(src.source || '').replace(/_/g, ' ')) : M.stock(d(src.date), String(src.source || '').replace(/_/g, ' '));
+    case 'stock_depart': return src.aConfirmer ? M.stockAConfirmer(d(src.date), mesLibSource(src.source)) : M.stock(d(src.date), mesLibSource(src.source));
     case 'releve': return M.releve(MV.sourcesCourtes[src.source] || src.source);
     case 'livraisons': return src.n > 0 ? M.livraisons(src.n) + (src.memeJour ? ' ; ' + M.livraisonMemeJour : '') : M.livraisonMemeJour;
     case 'mouvements': return M.pertesMouvements;
@@ -1560,9 +1560,18 @@ function mesBandeau(){
     ? '<div class="sim-alerte">' + esc(MV.bandeauAvantFin(SC.dateLongue(MES_CAMPAGNE.dateFin))) + '</div>' : '';
 }
 
+// Libellé lisible d'une source de stock (clé brute type releve_decenium -> « relevé Decenium »).
+function mesLibSource(s){
+  const k = String(s || '').trim();
+  if (MV.sourcesCourtes[k]) return MV.sourcesCourtes[k];
+  const m = k.toLowerCase().match(/(comptage|decenium|saisie)/);
+  const base = m ? MV.sourcesCourtes[m[1]] : k.replace(/_/g, ' ');
+  return /^releve/i.test(k) ? 'relevé ' + base : base;
+}
 function mesNoteEcartsSource(e){
-  const f = n => String(n).replace('.', ',');
-  return (e.ecartsSrc || []).map(x => '<div class="sim-source">' + esc(MV.ecartSource(mesMention(x.src) || (MV.champsObjectif[x.champ] || MV.champs[x.champ] || x.champ), f(x.source), f(x.saisi))) + '</div>').join('');
+  const PRIX = ['achatAvant', 'achatPendant', 'venteAvant', 'ventePendant'];
+  const f = (n, champ) => PRIX.indexOf(champ) >= 0 ? fmtEur2(Number(n)) : String(Math.round(Number(n) * 1000) / 1000).replace('.', ',');
+  return (e.ecartsSrc || []).map(x => '<div class="sim-source">' + esc(MV.ecartSource(mesMention(x.src) || (MV.champsObjectif[x.champ] || MV.champs[x.champ] || x.champ), f(x.source, x.champ), f(x.saisi, x.champ))) + '</div>').join('');
 }
 function mesNouveau(){
   return { article: '', nouveau: false, fournisseur: '', catalogue: '', info: null, ventes: '', joursRef: '30', achatAvant: '', achatPendant: '', venteAvant: '', ventePendant: '',
@@ -1647,7 +1656,7 @@ function mesPeindreProduit(e, i){
       champ('venteAvant', MV.venteAvant) + champ('ventePendant', MV.ventePendant) +
       champ('achatAvant', MV.achatAvant) + champ('achatPendant', MV.achatPendant) +
       '<label>' + esc(MV.stockDebut) + '<input type="text" inputmode="decimal" autocomplete="off" data-mi="' + i + '" data-mchamp="stockDebut" value="' + esc(e.stockDebut) + '">' + (e.src_stockDebut ? mesMentionChamp(e, 'stockDebut') : '<span class="sim-source">' + esc(mesSource(e.srcDebut)) + '</span>') + '</label>' +
-      '<label>' + esc(MV.stockFin) + '<input type="text" inputmode="decimal" autocomplete="off" data-mi="' + i + '" data-mchamp="stockFin" value="' + esc(e.stockFin) + '">' + (e.src_stockFin ? mesMentionChamp(e, 'stockFin') : '<span class="sim-source">' + esc(mesSource(e.srcFin)) + '</span>' + ((String(e.stockFin).trim() === '' ? '<span class="sim-source">' + esc(MV.mentions.stockFinASaisir) + '</span>' : ''))) + '</label>' +
+      '<label>' + esc(MV.stockFin) + '<input type="text" inputmode="decimal" autocomplete="off" data-mi="' + i + '" data-mchamp="stockFin" value="' + esc(e.stockFin) + '">' + (e.src_stockFin ? mesMentionChamp(e, 'stockFin') : (String(e.stockFin).trim() === '' ? '<span class="sim-source">' + esc(MV.mentions.stockFinASaisir) + '</span>' : '<span class="sim-source">' + esc(mesSource(e.srcFin)) + '</span>')) + '</label>' +
       champ('livraisons', MV.livraisons) + champ('pertes', MV.pertes) + '</div>' +
     '<div class="sim-source">' + esc(MV.pertesNote) + '</div>' +
     '<details class="sim-aide"><summary>' + esc(V.sim.aideAchat) + '</summary><div class="sim-grille">' +
@@ -1744,12 +1753,8 @@ async function mesCharger(campagneId){
   MES_COUTS = (c.data || []).map(x => ({libelle: x.libelle, montant: saisie(Number(x.montant_ht))}));
   MES_PRODUITS = (m.data || []).map(mesDepuisLigne);
   // Une ligne par article de la promotion, sans écraser une ligne déjà enregistrée.
-  const deja = new Set(MES_PRODUITS.map(e => e.article.trim().toLowerCase()));
-  (MES_CAMPAGNE.produits || []).forEach(nom => {
-    const k = String(nom || '').trim().toLowerCase();
-    if (!k || deja.has(k)) return;
-    deja.add(k);
-    const e = mesNouveau(); e.article = String(nom).trim(); e.joursRef = ''; e.src_article = {type: 'produits'};
+  PF.lignesManquantes(MES_CAMPAGNE.produitsConcernes, MES_PRODUITS.map(e => e.article)).forEach(nom => {
+    const e = mesNouveau(); e.article = nom; e.joursRef = ''; e.src_article = {type: 'produits'};
     MES_PRODUITS.push(e);
   });
   if (!MES_PRODUITS.length) MES_PRODUITS.push(mesNouveau());

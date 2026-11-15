@@ -150,3 +150,17 @@ console.log('OK c8');
   assert.deepStrictEqual(ec[0].src, { type: 'objectifs' });
 }
 console.log('OK c8 revue');
+
+// Recette #316 : câblage de la page
+{
+  const fs = require('fs'), assert = require('assert');
+  const PF = require('./nexus-campagne-prefill.js');
+  const html = fs.readFileSync(__dirname + '/NEXUS-Campagne-v2.html', 'utf8');
+  assert.deepStrictEqual(PF.lignesManquantes(['Heineken 33', 'Corona', ' heineken 33 ', ''], ['corona']), ['Heineken 33']);
+  assert.deepStrictEqual(PF.lignesManquantes(['A', 'B'], ['x']), ['A', 'B']);
+  assert(/MES_CAMPAGNE\.produitsConcernes/.test(html) && !/MES_CAMPAGNE\.produits\b/.test(html), 'mesCharger doit lire produitsConcernes');
+  const i = html.indexOf('function mesNoteEcartsSource'); const bloc = html.slice(i, i + 900);
+  assert(/fmtEur2/.test(bloc), 'écarts de prix en euros à 2 décimales');
+  assert(/function mesLibSource/.test(html) && !/src\.source \|\| ''\)\.replace\(\/_\/g/.test(html), 'plus de clé brute');
+  console.log('OK c8 recette');
+}
