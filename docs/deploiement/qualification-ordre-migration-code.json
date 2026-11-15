@@ -1226,18 +1226,25 @@
       "reserve": "Cette qualification n autorise ni la fusion ni le deploiement ; elle constate seulement l ordre migration/code."
     },
     "20261117100000": {
-      "etat": "additive_compatible_avant_code",
-      "justification": "Creation de trois tables declaratives (produits_nature_reference, produits_justifications_marge, produits_tva_confirmations), RLS active, lecture et insertion manager et gerant du meme site, UPDATE limite aux trois colonnes d annulation, anon sans droit, aucun DELETE, auteur force a auth.uid() a l insertion et a l annulation, remplace_id limite au meme site. Aucune donnee, aucune fonction ni table existante modifiee, aucun DDL destructif. Le code servi actuellement (production cb7a27a5) ne les lit ni ne les ecrit : la migration s applique AVANT la fusion, sans dependance. Le code de P1-B, lui, les lit et doit donc suivre la migration, jamais la preceder. Application sur Test sur GO de Frederic du 15/11/2026 (commentaire 6900970604) ; application en Production = GO distinct apres recette.",
+      "etat": "migration_deja_appliquee",
+      "justification": "Appliquee en Production le 15/11/2026 sur GO de Frederic (« Oui, appliquer en Production », confirme dans la session, relaye par Guardian 6903160717), fichier applique tel quel (blob dc6fcfc3). Registre 339 -> 340, estampille 20261115233331. Mesure APRES par Guardian (6903253751) : trois tables presentes, RLS active, 0 ligne, 3 politiques par table, UPDATE limite aux colonnes d annulation, rien pour anon ni public, empreintes de politiques et de colonnes identiques a Test. Ordre sans objet : la base porte deja ce que le code de P1-B lit ; le code servi actuel ne les lit ni ne les ecrit. Etat precedent : additive_compatible_avant_code.",
       "mesure": {
         "source": "catalogue",
-        "le": "2026-11-15T00:00:00Z",
-        "cible": "udljdqxerrbbbajxubfn",
-        "par": "claude",
-        "outil": "connecteur Supabase execute_sql, lecture seule Test",
-        "verdict": "APPLIQUEE sur Test le 15/11 (GO Frederic 16:35, accord Guardian 6901096382) — 3 tables presentes avec 3 politiques chacune, registre 347, estampille 20261115213306. Production non mesuree (aucune lecture Production sans GO).",
+        "le": "2026-11-15T23:34:33Z",
+        "cible": "uzhjpqpctpvxytxpxoqz",
+        "par": "guardian",
+        "outil": "lecture seule Production par Guardian (commentaire 6903253751)",
+        "verdict": "APPLIQUEE en Production, identique a Test — registre 340, estampille 20261115233331 ; 3 tables, 9 politiques (3 par table), RLS active, 0 ligne ; md5 politiques 6bc77763ae677ba9e771218813b9886b, md5 colonnes 6e8d935b3aed2e70aa9ba44332bae947",
         "blob_migration": "dc6fcfc3c634ac73b600de3f68121cbe03c627fc"
       },
-      "objets_constates": ["produits_nature_reference","produits_justifications_marge","produits_tva_confirmations"],
+      "objets_constates": [
+        "produits_nature_reference",
+        "produits_justifications_marge",
+        "produits_tva_confirmations",
+        "lecture_manager_meme_site",
+        "insertion_manager_meme_site",
+        "annulation_manager_meme_site"
+      ],
       "reserve": "Cette qualification n autorise ni la fusion ni le deploiement ; elle constate seulement l ordre migration/code."
     }
   },
