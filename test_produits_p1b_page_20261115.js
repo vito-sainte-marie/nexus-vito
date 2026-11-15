@@ -55,5 +55,13 @@ ok(!/\.from\('products'\)\.(update|insert|upsert|delete)/.test(sansCommentaires)
   assert.ok(!/^\s{4,}const fmtN\s*=/m.test(src), 'fmtN ne doit pas être redéclarée localement');
   n++;
 }
+// Défauts de la recette 6902324746 : références vendues hors opérations de caisse, observation sous l'avatar.
+{
+  assert.ok(/nbVendus = MESURES_PRODUITS\.filter\(x => !\(x\.m && x\.m\.exclue_indicateurs\)\)\.length/.test(sansCommentaires), 'nbVendus doit exclure les opérations de caisse');
+  const corps = sansCommentaires.slice(sansCommentaires.indexOf('conseiller-corps'));
+  assert.ok(corps.indexOf('${observationHtml}') > corps.indexOf('</details>'), "l'observation doit être hors de la colonne étroite du Conseiller");
+  assert.ok(/\.conseiller>\.obs-bloc\{flex:1 1 100%/.test(sansCommentaires), 'obs-bloc pleine largeur');
+  n++;
+}
 console.log('test_produits_p1b_page : ' + n + ' assertions OK');
 

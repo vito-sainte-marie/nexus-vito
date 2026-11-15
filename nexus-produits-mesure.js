@@ -317,7 +317,7 @@
       if (prev && idxCur.get(k) === i && prev.idx.has(k) && prev.cl.resultats[prev.idx.get(k)] && cur.resultats[i]) {
         const p = prev.cl.resultats[prev.idx.get(k)];
         m.confirmation = { disponible: true, forte_contribution_confirmee: !!(c.fort && p.fort),
-          qualification_confirmee: !!(c.qualification && c.qualification === p.qualification),
+          qualification_confirmee: !!(c.qualification && c.qualification !== 'sans_qualification' && c.qualification === p.qualification),
           precedente: QUALIFICATIONS[p.qualification], precedente_cle: p.qualification,
           duree_actuelle_jours: cur.jours, duree_precedente_jours: prev.cl.jours, periode_precedente: { debut: prev.debut, fin: prev.fin } };
       }
@@ -412,7 +412,7 @@
       const dur = ' (' + c.duree_actuelle_jours + ' jours contre ' + c.duree_precedente_jours + ' jours)';
       if (c.qualification_confirmee) l.push('Qualification confirmée sur la période précédente' + dur + '.');
       else if (c.forte_contribution_confirmee) l.push('Forte contribution confirmée sur la période précédente' + dur + '.');
-      else l.push('Période précédente : ' + c.precedente + dur + '.');
+      else if (c.precedente_cle !== 'sans_qualification') l.push('Période précédente : ' + c.precedente + dur + '.');
     }
     l.push('Marge calculée avec le PMP exporté par Decenium, arrondi à deux décimales.');
     return l;

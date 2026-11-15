@@ -197,7 +197,8 @@
 
 /* Cartes, Conseiller et champ (charte Campagne) */
 .carte{background:var(--t-panel); border:1px solid var(--t-line); border-radius:14px; padding:18px;}
-.conseiller{border-color:var(--t-cyan); margin-top:18px; display:flex; gap:14px; align-items:flex-start;}
+.conseiller{border-color:var(--t-cyan); margin-top:18px; display:flex; flex-wrap:wrap; gap:14px; align-items:flex-start;}
+.conseiller>.obs-bloc{flex:1 1 100%;min-width:0;}
 .conseiller-avatar{width:80px;height:80px;border-radius:50%;flex:none;object-fit:cover;filter:none;}
 .conseiller-sous{font-size:18px;font-weight:600;line-height:1.3;color:var(--t-text);margin-bottom:6px;}
 @media (min-width:768px){.conseiller{gap:22px;align-items:center;} .conseiller-avatar{width:120px;height:120px;}}
@@ -1085,13 +1086,13 @@ nexusRequireAuth().then(async employee => {
           <div class="conseiller-corps">
             <div class="conseiller-titre">Conseiller NEXUS</div>
             <div class="conseiller-sous">${esc(phraseMesure || statutSimplifie.label)}</div>
-            ${observationHtml}
             <details class="comprendre">
               <summary>Comprendre cette analyse</summary>
               <div class="conseiller-bubble"><div class="conseiller-text" id="conseillerProduitMsg"></div></div>
               <div class="conseiller-pied" id="conseillerPaire"></div>
             </details>
           </div>
+          ${observationHtml}
         </section>
       </div>
 
@@ -1379,7 +1380,7 @@ nexusRequireAuth().then(async employee => {
     const sy = SYNTHESE_PRODUITS;
     if (!sy) { z.innerHTML = ''; return; }
     const fmtE = v => fmtEur(Number(v) || 0);
-    const nbVendus = MESURES_PRODUITS.length;
+    const nbVendus = MESURES_PRODUITS.filter(x => !(x.m && x.m.exclue_indicateurs)).length;
     const dormants = PRODUCTS.filter(x => calculerStatutSimplifie(x).cle === 'dormant').length;
     const per = PERIODE_DONNEES ? `${fmtDate(PERIODE_DONNEES.debut)} → ${fmtDate(PERIODE_DONNEES.fin)}` : null;
     z.innerHTML = `<section class="card" aria-label="Synthèse des produits">
