@@ -456,8 +456,42 @@ async function valider(){
   if (!lignes.length) return;
   const ins = await nexusClient.from('campagne_objectifs_produits').insert(lignes);
   if (ins.error){ console.error(ins.error); st.textContent = O.erreur; return; }
+  const pmpOk = await capturerPmpReference(lignes);
   await charger();
-  $('objStatut').textContent = O.valide(lignes.length);
+  $('objStatut').textContent = O.valide(lignes.length) + (pmpOk ? '' : ' PMP avant promotion non mémorisé : réessayez.');
+}
+// C5 : à la validation des objectifs, le PMP Decenium avant promotion est mémorisé une fois par article (append-only).
+// Source : products.prix_achat de la dernière période close avant date_debut. Aucune ligne si l'article n'y figure pas : le moteur affiche « PMP avant promotion absent ».
+async function capturerPmpReference(lignes){
+  try {
+    const deja = await nexusClient.from('campagne_pmp_reference').select('article').eq('site', SITE_ID).eq('campagne_id', CAMPAGNE.id);
+    if (deja.error) throw deja.error;
+    const connus = new Set((deja.data || []).map(x => x.article));
+    const aCapturer = lignes.filter(l => !connus.has(l.article));
+    if (!aCapturer.length) return true;
+    const p = await nexusClient.from('products').select('article, prix_achat, periode_debut, periode_fin, imported_at')
+      .eq('site', SITE_ID).in('article', aCapturer.map(l => l.article)).lt('periode_fin', CAMPAGNE.date_debut).not('prix_achat', 'is', null)
+      .order('periode_fin', {ascending: false});
+    if (p.error) throw p.error;
+    const dernier = {};
+    (p.data || []).forEach(x => { if (!dernier[x.article]) dernier[x.article] = x; });
+    // Lot d'import publié de la même période et du même site : sinon null.
+    const lots = {};
+    const periodes = Array.from(new Set(Object.values(dernier).map(x => x.periode_debut + '|' + x.periode_fin)));
+    for (const pf of periodes){
+      const [pd, pfin] = pf.split('|');
+      const b = await nexusClient.from('import_batches').select('id').eq('site', SITE_ID).eq('statut', 'published')
+        .eq('periode_debut', pd).eq('periode_fin', pfin).order('publie_le', {ascending: false}).limit(1);
+      lots[pf] = !b.error && b.data && b.data[0] ? b.data[0].id : null;
+    }
+    const rows = aCapturer.filter(l => dernier[l.article]).map(l => { const x = dernier[l.article]; return {
+      site: SITE_ID, campagne_id: CAMPAGNE.id, article: l.article, version: 1, pmp_ht: Number(x.prix_achat), date_reference: x.periode_fin,
+      source: 'products', periode_debut: x.periode_debut, periode_fin: x.periode_fin, import_batch_id: lots[x.periode_debut + '|' + x.periode_fin] || null, saisi_par: EMPLOYEE.id || null }; });
+    if (!rows.length) return true;
+    const ins = await nexusClient.from('campagne_pmp_reference').insert(rows);
+    if (ins.error) throw ins.error;
+    return true;
+  } catch (e) { console.error('campagne_pmp_reference', e); return false; }
 }
 function choisir(id){
   CAMPAGNE = CAMPAGNES.find(c => c.id === id) || null;

@@ -10,6 +10,7 @@
   const S = NODE ? require('./nexus-campagne-stock.js') : global.NexusCampagneStock;
   const CV = NODE ? require('./nexus-campagne-ventes.js') : global.NexusCampagneVentes;
   const M = NODE ? require('./nexus-import-moteur.js') : global.NexusImportMoteur;
+  const B = NODE ? require('./nexus-campagne-bilan.js') : global.NexusCampagneBilan;
   const JOUR_MS = 86400000;
   const COUVERTURE_DEFAUT = 15;
   const DELAI_DEFAUT = 7;
@@ -131,7 +132,7 @@
   async function chargerDonnees(client, site, campagne, chargerAlias) {
     const q = t => client.from(t);
     const r = await Promise.all([
-      q('campagne_objectifs_produits').select('article, version, objectif_valide_jour, ventes_ref_jour').eq('campagne_id', campagne.id).eq('site', site).order('version', { ascending: true }),
+      q('campagne_objectifs_produits').select('article, version, objectif_valide_jour, ventes_ref_jour, pa_promo_ht').eq('campagne_id', campagne.id).eq('site', site).order('version', { ascending: true }),
       q('campagne_conditionnement_achat').select('article, version, mode, unites_par_carton').eq('site', site),
       q('campagne_achats_reglages').select('version, jours_couverture_apres, delai_commande_jours').eq('site', site),
       q('campagne_stock_depart').select('article, version, quantite, date_stock, source, a_confirmer').eq('campagne_id', campagne.id).eq('site', site),
@@ -145,12 +146,13 @@
       q('campagne_commandes_annulations').select('commande_id, motif').eq('site', site),
       q('campagne_commandes_clotures').select('commande_id, motif').eq('site', site),
       q('campagne_livraison_commandes').select('livraison_id, commande_id').eq('site', site),
+      q('campagne_pmp_reference').select('article, version, pmp_ht, date_reference').eq('campagne_id', campagne.id).eq('site', site),
     ]);
     r.forEach(x => { if (x.error) console.error(x.error); });
     const d = r.map(x => x.data || []);
     const alias = chargerAlias ? await chargerAlias(client, site, 'campagne') : [];
     return { objectifs: derniers(d[0], 'article'), conds: d[1], reglages: d[2], depart: d[3], livraisons: d[4], livraisonsAnnulations: d[5], lignesLivraison: d[6],
-      points: d[7], ventesAnnulations: d[8], commandes: d[9], lignesCommande: d[10], commandesAnnulations: d[11], clotures: d[12], liens: d[13], alias };
+      points: d[7], ventesAnnulations: d[8], commandes: d[9], lignesCommande: d[10], commandesAnnulations: d[11], clotures: d[12], liens: d[13], pmp: d[14], alias };
   }
 
   // Recommandations d'une campagne à une date : le calcul unique de la page Achats.
@@ -168,7 +170,14 @@
       const cd = derniers(d.conds, 'article').find(x => x.article === ob.article) || null;
       const cond = S.conditionnement(ob.article, cd);
       const b = besoinAchat({ article: ob.article, objectifJour: ob.objectif_valide_jour, joursRestants: jr, ventesRefJour: ob.ventes_ref_jour, joursCouverture: reg.joursCouverture, stock: st.stock, fiable: !!st.fiable_pour_achat, resteARecevoir: rs.reste, cond, aujourdhui, limite: lim ? lim.date : null });
-      return { ob, cond, rs, b };
+      // Économie attendue : information seule, la quantité recommandée ne change pas. Valorisée au PMP Decenium avant promotion.
+      const refs = derniers(d.pmp || [], 'article');
+      const ref = refs.find(x => x.article === ob.article) || null;
+      const valides = S.livraisonsValides(d.livraisons, d.livraisonsAnnulations);
+      const ids = new Set(valides.map(l => l.id));
+      const dates = (d.lignesLivraison || []).filter(l => l.article === ob.article && ids.has(l.livraison_id)).map(l => (valides.find(v => v.id === l.livraison_id) || {}).date_livraison).filter(Boolean).sort();
+      const eco = b.a_commander > 0 ? B.economieAttendue(b.a_commander, ref, ob.pa_promo_ht, campagne.date_debut, dates[0] || null) : null;
+      return { ob, cond, rs, b, eco };
     });
     return { reg, lim, pc, auj: aujourdhui, reco };
   }
