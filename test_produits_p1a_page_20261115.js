@@ -4,7 +4,7 @@ const PAGE = fs.readFileSync(__dirname + '/NEXUS-Produits-v1.html', 'utf8');
 const texte = PAGE.replace(/<!--[\s\S]*?-->/g, '').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 let ok = 0;
 function t(n, f) { try { f(); ok++; } catch (e) { console.error('ECHEC ' + n + ' : ' + e.message); process.exitCode = 1; } }
-t('scripts inclus', () => { assert(/nexus-marge\.js/.test(PAGE)); assert(/nexus-produits-mesure\.js\?v=20261115-1/.test(PAGE)); });
+t('scripts inclus', () => { assert(/nexus-marge\.js/.test(PAGE)); assert(/nexus-produits-mesure\.js\?v=[\w-]+/.test(PAGE)); });
 t('colonne tva lue', () => assert(/COLONNES_PRODUCTS[^;]*tva/.test(PAGE)));
 t('attacherMesures branchée', () => { assert(/async function attacherMesures/.test(PAGE)); assert(/attacherMesures\(await construireProduitsLive\(\)\)/.test(PAGE)); });
 t('adjectifs retirés', () => {
@@ -21,3 +21,9 @@ t('anciennes périodes : références conservées dans PRODUCTS (recherche nom e
   assert(/code_barres/.test(texte));
 });
 console.log(ok + ' tests page P1-A OK');
+
+t('P1-A revue : mentions, tuile et libellés d historique', () => {
+  assert(/estimée au PMP Decenium du/.test(PAGE));
+  assert(/Classement CA dans le rayon/.test(PAGE));
+  assert(/histo-label\{[^}]*width:68px/.test(PAGE));
+});

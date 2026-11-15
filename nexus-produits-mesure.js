@@ -94,7 +94,8 @@
       if (l.marge !== null && l.marge > 0) p.marge += l.marge;
       if (l.ca !== null && l.ca > 0) p.ca += l.ca;
     });
-    positives.forEach(l => { margeTotale += l.marge; });
+    // Dénominateur : marge totale de la boutique, marges négatives comprises (aligné sur le contre-audit).
+    lignes.forEach(l => { if (l.marge !== null) margeTotale += l.marge; });
     let margeForts = 0, forts = 0;
     const resultats = lignes.map(l => {
       const res = { rang: null, total: N, fort: false, faible: false, eligible: l.eligible, taux: l.taux,
@@ -130,7 +131,7 @@
     const seuilFort = nbForts > 0 ? positives[nbForts - 1].marge : null;
     return { resultats, jours: nbJours, resume: {
       references: lignes.length, referencesMargePositive: N, nbForts, seuilMargeFort: seuilFort,
-      margeForts: arrondi(margeForts, 2), partMargeForts: margeTotale > 0 ? margeForts / margeTotale * 100 : null,
+      margeForts: arrondi(margeForts, 2), margeBoutique: arrondi(margeTotale, 2), partMargeForts: margeTotale > 0 ? margeForts / margeTotale * 100 : null,
       seuilUnites, jours: nbJours,
     } };
   }

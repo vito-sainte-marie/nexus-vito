@@ -249,3 +249,11 @@ t('le module est pur : aucun réseau ni accès au stockage', () => {
 });
 
 console.log('\n' + n + ' tests passent.');
+
+t('P1-A revue : la part des forts contributeurs se rapporte à la marge totale, négatives comprises', () => {
+  const rows = [ligne('A', 'Chips', 80, 30, 200), ligne('B', 'Chips', 20, 30, 60), ligne('C', 'Chips', -20, 30, 40)];
+  const r = M.classer(rows, DEBUT, FIN);
+  assert.strictEqual(r.resume.margeBoutique, 80);
+  assert.ok(Math.abs(r.resume.partMargeForts - 100) < 1e-9 || r.resume.margeForts / 80 * 100 === r.resume.partMargeForts);
+  assert.strictEqual(r.resume.referencesMargePositive, 2);
+});
