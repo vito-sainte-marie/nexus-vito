@@ -159,13 +159,15 @@ rowsPrec.find(r => r.article === 'Gaz bleu 12,5 kg').article = 'Gaz bleu  12,5 k
 const out = M.mesurer({ products: rows, site: 'vito', periodeDebut: DEBUT, periodeFin: FIN, precedent: { rows: rowsPrec, debut: '2026-08-31', fin: '2026-10-04' }, stockReleves: releves, dateReference: '2026-11-10' });
 const mes = nom => out.index.get(M.normaliserNom(nom));
 
-t('Pringles : marge unitaire 0,86 €, TTC 2,10 €, rang 373 sur 844, stock 9 u. au 10/11 valorisé 11,16 €', () => {
+t('Pringles : marge unitaire 0,86 €, TTC à vérifier (P1-B), rang 373 sur 844, stock 9 u. au 10/11 valorisé 11,16 €', () => {
   const p = ligne('Pringles Origl 40g', 'Snacking', 21.5, 25, 52.5, { prix_achat: 1.24, prix_vente: 2.1, tva: 0 });
   const rr = rows.map(x => x.article === p.article ? p : x);
   const o = M.mesurer({ products: rr, site: 'vito', periodeDebut: DEBUT, periodeFin: FIN, stockReleves: releves, dateReference: '2026-11-10' });
   const m = o.index.get('Pringles Origl 40g');
   assert.ok(Math.abs(m.marge_unitaire.valeur - 0.86) < 1e-9);
-  assert.strictEqual(m.pv_ttc.valeur, 2.1);
+  // P1-B : TVA 0 % alors que le rayon est taxé = incohérente, aucun TTC calculé.
+  assert.strictEqual(m.pv_ttc.valeur, null);
+  assert.strictEqual(m.pv_ttc.mention, 'TTC à vérifier');
   assert.strictEqual(m.rang.valeur, 373);
   assert.strictEqual(m.rang.sur, 844);
   assert.strictEqual(m.stock.quantite, 9);
@@ -174,12 +176,12 @@ t('Pringles : marge unitaire 0,86 €, TTC 2,10 €, rang 373 sur 844, stock 9 u
   assert.ok(Math.abs(m.stock.couverture_jours - 12.96) < 0.05, 'couverture ' + m.stock.couverture_jours);
   assert.strictEqual(m.stock.fiabilite, 'theorique');
 });
-t('TVA vide : TTC non disponible ; TVA 20 % : HT x 1,2', () => {
+t('TVA vide : TTC à vérifier ; TVA 20 % : HT x 1,2', () => {
   const a = ligne('A', 'X', 10, 10, 20, { prix_vente: 2, tva: null });
   const b = ligne('B', 'X', 10, 10, 20, { prix_vente: 2, tva: 20 });
   const o = M.mesurer({ products: [a, b], site: 'vito', periodeDebut: DEBUT, periodeFin: FIN });
   assert.strictEqual(o.mesures[0].pv_ttc.valeur, null);
-  assert.strictEqual(o.mesures[0].pv_ttc.mention, 'TTC non disponible');
+  assert.strictEqual(o.mesures[0].pv_ttc.mention, 'TTC à vérifier');
   assert.strictEqual(o.mesures[1].pv_ttc.valeur, 2.4);
 });
 t('chaque valeur porte valeur, source, période, fiabilité et site', () => {
