@@ -79,7 +79,8 @@ t('bandeau : copie exacte du bandeau Campagne, sans le module de bannière de st
   assert.ok(!/<picture id="banniereProduits" hidden>/.test(PAGE));
 });
 t('Conseiller : « Très rentable » n\'apparaît plus dans l\'explication', () => {
-  assert.ok(/niveauRentaP === 'tres_rentable' \? '' : NexusVocab\.rentabilite\(/.test(PAGE));
+  // P1-A (consigne 6900007486) : la garde P0 (contournement) devient une suppression : la page n'appelle plus NexusVocab.rentabilite.
+  assert.ok(!/NexusVocab\.rentabilite\(/.test(PAGE));
 });
 t('pastille du commerce masquée tant qu\'elle est vide', () => {
   assert.ok(/\.pastille:empty\{display:none;\}/.test(PAGE));

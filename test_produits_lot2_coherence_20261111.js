@@ -119,9 +119,10 @@ t('stock 3/7/45 j inchangé', () => {
 });
 t('la page ne recopie plus aucun seuil de rentabilité, rotation ni stock', () => {
   const f = extraire(page, 'async function chargerStockGap');
-  assert.ok(/NexusConseiller\.niveauRotation/.test(f) && /NexusConseiller\.niveauStock/.test(f));
+  // P1-A (consigne 6900007486) : la page n'appelle plus niveauRotation ni niveauStock (plus de qualificatif), seuils restent dans le moteur.
+  assert.ok(!/NexusConseiller\.niveauRotation|NexusConseiller\.niveauStock/.test(f));
   assert.ok(!/<\s*(7|15|30|60)\s*\?/.test(f) && !/<\s*(3|7|45)\s*\?/.test(f), 'paliers en dur dans chargerStockGap');
-  assert.ok(/NexusConseiller\.niveauRentabilite/.test(page), 'rentabilité lue du moteur');
+  assert.ok(!/NexusConseiller\.niveauRentabilite/.test(page), 'P1-A : plus de qualificatif de rentabilité dans la page');
   assert.ok(!/>=\s*0\.40|>=\s*0\.25|>=\s*0\.10/.test(page), 'paliers de rentabilité en dur');
 });
 t('la source unique n’est pas dupliquée dans le moteur (un seul bloc de seuils)', () => {
@@ -177,7 +178,8 @@ t('explication « Aucune vente récente » neutre ; estimations datées ; limite
   assert.ok(/Aucune vente sur la période affichée\. NEXUS ne tire pas de conclusion sans relevé de stock récent\./.test(page));
   assert.ok(!/n'indique pas forcément un problème de demande/.test(page));
   assert.ok(/suggestion\$\{data\.assigne_le/.test(page), 'emplacement suggéré : mot et date');
-  assert.ok(/estimation au PMP Decenium, relevé du \$\{dateRelv\}/.test(page), 'valeur du stock : mot et date');
+  // P1-A : le libellé devient « Stock théorique Decenium … relevé du <date> » (théorique et daté).
+  assert.ok(/Stock théorique Decenium[^`]*relevé du \$\{dateRelv\}/.test(page), 'valeur du stock : mot et date');
   assert.ok(/même début mais de fin différente ne sont pas\s+\/\/ distingués/.test(page), 'limite des imports de même début documentée');
 });
 t('commentaires périmés corrigés', () => {
@@ -247,8 +249,12 @@ function clientSimule(jeu, compteur) {
     'const NB_PERIODES_MAX = 6;',
     'let AUJOURDHUI_STATION = null; let PERIODE_DONNEES = null;',
     extraire(page, 'function jourDeLaStation'), extraire(page, 'function fmtJourFr'), extraire(page, 'function libellePeriode'),
-    extraire(page, 'async function listerPeriodes'), extraire(page, 'async function lirePeriode'),
-    extraire(page, 'async function lireStockRecent'), extraire(page, 'async function construireProduitsLive'),
+    // P1-A : lectures mémoïsées (un seul jeu de lectures partagé entre construireProduitsLive et attacherMesures).
+    'let CACHE_LISTE = null; const CACHE_PERIODES = new Map(); let CACHE_STOCK = null;',
+    extraire(page, 'function listerPeriodes('), extraire(page, 'async function listerPeriodesBrutes'),
+    extraire(page, 'function lirePeriode('), extraire(page, 'async function lirePeriodeBrute'),
+    extraire(page, 'function lireStockRecent('), extraire(page, 'async function lireStockRecentBrut'),
+    extraire(page, 'async function construireProduitsLive'),
     'return { run: async () => ({ produits: await construireProduitsLive(), lectures: LECTURES, periode: PERIODE_DONNEES }) };',
   ].join('\n');
   // jourDeLaStation lit l'horloge réelle : on la fige au 10/11/2026 pour que l'épreuve ne périme pas.

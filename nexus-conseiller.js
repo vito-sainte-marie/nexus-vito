@@ -213,6 +213,18 @@
   const SEUILS_ROTATION_JOURS = { tresRapide: 7, rapide: 15, normale: 30, lente: 60 };
   const SEUILS_STOCK_JOURS = { risqueRupture: 3, tendu: 7, maitrise: 45 };
 
+  // Lot P1-A Produits (GO Frédéric du 15/11/2026) : règles de qualification d'une référence par sa contribution
+  // financière et son taux de marque. Constantes nommées, exportées, jamais recopiées ailleurs.
+  const SEUILS_PRODUITS_MESURE = {
+    partContributionForte: 0.20,      // rang dans les 20 % supérieurs de la marge HT totale
+    partContributionFaible: 0.20,     // rang dans les 20 % inférieurs
+    joursParUniteMinimale: 7,         // éligibilité statistique : au moins ⌊jours / 7⌋ unités vendues
+    minReferencesRayon: 8,            // un rayon est comparable à partir de 8 références éligibles
+    ecartMinQuartilesPoints: 3,       // et si l'écart P25 à P75 atteint 3 points de taux
+    margeAutourQuartilePoints: 1,     // bas : <= P25 - 1 point ; haut : >= P75 + 1 point
+    joursStockAncien: 30,             // au-delà, le stock théorique est signalé « données anciennes »
+  };
+
   function niveauRentabilite(margePct) {
     const s = SEUILS_RENTABILITE;
     return margePct >= s.tresRentable ? 'tres_rentable' : margePct >= s.correcte ? 'correcte'
@@ -1155,7 +1167,7 @@
   global.NexusConseiller = {
     typeActionPourCategorie, LANGAGE_ACTION, calculerCandidatsProduits,
     SEUIL_CONTRIBUTION_FORTE, SEUIL_HAUSSE, SEUIL_BAISSE, SEUIL_VOLUME_CA_EUR,
-    DUREE_DORMANT_PERIODES, DUREE_RELEVE_STOCK_JOURS, SEUILS_RENTABILITE, SEUILS_ROTATION_JOURS, SEUILS_STOCK_JOURS,
+    DUREE_DORMANT_PERIODES, DUREE_RELEVE_STOCK_JOURS, SEUILS_PRODUITS_MESURE, SEUILS_RENTABILITE, SEUILS_ROTATION_JOURS, SEUILS_STOCK_JOURS,
     niveauRentabilite, niveauRotation, niveauStock, statutProduit,
     analyserProduitsStrategiques, analyserEvolutionsPaire,
     normaliserProduit, normaliserMarge, normaliserTempo, normaliserAdvisor,

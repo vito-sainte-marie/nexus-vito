@@ -27,7 +27,7 @@ const EMPREINTES = {
   'async function construireProduitsLive': 'a911d070c80e398155eb69dc90e09b85dbf5ee12343e43b57f06335b0892e9ec',
   'function calculerStatutSimplifie': '4e19b7405af3da68933a0c2abefe110cd8e507b189b492fb165c37f887997e23', // lot 2 PR C : enveloppe de NexusConseiller.statutProduit (règle unique, huit statuts)
   'function calculerRangRayon': '6438804858c5a4a80a5923f43952a506f4704a8058df05a158930ce5182379ed',
-  'async function chargerStockGap': 'c83240269514905dfcee5ccab1dd8c687e554c299fe2ee01d21c24c2234e72b9' // lot 2 PR C, revue Guardian 6783561611 : la ligne de valeur du stock porte « estimation au PMA, relevé du … » (seule ligne modifiée)
+  'async function chargerStockGap': '5f5c2f2c0c93ebb07048431b5197d361c3db1050c52ba8492473ccac8e5d5e0a' // P1-A (consigne 6900007486), modification deliberee : plus de qualificatifs de rotation ni de stock, « Couverture estimée » et « Stock théorique Decenium » datés, âge du relevé ; ancienne empreinte c8324026… (lot 2 PR C)
 };
 const empreinte = txt => crypto.createHash('sha256').update(txt).digest('hex');
 Object.keys(EMPREINTES).forEach(sig => {

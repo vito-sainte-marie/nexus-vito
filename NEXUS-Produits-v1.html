@@ -293,6 +293,8 @@ body.nexus-desktop #resultSection > *{margin-bottom:12px;}
 <script src="nexus-vocabulaire.js?v=20260904-0104"></script>
 <script src="nexus-periodes.js?v=20260904-0104"></script>
 <script src="nexus-conseiller.js?v=20260904-0104"></script>
+<script src="nexus-marge.js"></script>
+<script src="nexus-produits-mesure.js?v=20261115-1"></script>
 <script src="nexus-badge-etat.js"></script>
 <script src="nexus-produits-securite.js"></script>
 </head>
@@ -406,7 +408,7 @@ nexusRequireAuth().then(async employee => {
   // ------------------------------------------------------------
   const LECTURES = { products: 0, stock_releves: 0, periodes: 0 };
   window.NEXUS_LECTURES_PRODUITS = LECTURES;
-  const COLONNES_PRODUCTS = 'categorie, article, ca, marge, prix_achat, prix_vente, quantite, periode_debut, periode_fin, code_barres';
+  const COLONNES_PRODUCTS = 'categorie, article, ca, marge, prix_achat, prix_vente, tva, quantite, periode_debut, periode_fin, code_barres';
   const NB_PERIODES_MAX = 6;
   let AUJOURDHUI_STATION = null;
   let PERIODE_DONNEES = null;
@@ -426,7 +428,12 @@ nexusRequireAuth().then(async employee => {
     return String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
   }
 
-  async function listerPeriodes() {
+  let CACHE_LISTE = null;
+  function listerPeriodes() {
+    if (!CACHE_LISTE) CACHE_LISTE = listerPeriodesBrutes();
+    return CACHE_LISTE;
+  }
+  async function listerPeriodesBrutes() {
     const periodes = [];
     let borne = null;
     for (let i = 0; i < NB_PERIODES_MAX; i++) {
@@ -443,7 +450,13 @@ nexusRequireAuth().then(async employee => {
     return periodes;
   }
 
-  async function lirePeriode(per) {
+  const CACHE_PERIODES = new Map();
+  function lirePeriode(per) {
+    const cle = per.debut + '|' + per.fin;
+    if (!CACHE_PERIODES.has(cle)) CACHE_PERIODES.set(cle, lirePeriodeBrute(per));
+    return CACHE_PERIODES.get(cle);
+  }
+  async function lirePeriodeBrute(per) {
     const { data, error } = await fetchAllRows(() => nexusClient.from('products').select(COLONNES_PRODUCTS)
       .eq('site', SITE_ACTUEL).eq('periode_debut', per.debut).eq('periode_fin', per.fin)
       .order('article', { ascending: true }));
@@ -453,7 +466,12 @@ nexusRequireAuth().then(async employee => {
   }
 
   // Dernier relevé de stock par article (nom exact), limité aux relevés récents.
-  async function lireStockRecent(aujourdhui) {
+  let CACHE_STOCK = null;
+  function lireStockRecent(aujourdhui) {
+    if (!CACHE_STOCK) CACHE_STOCK = lireStockRecentBrut(aujourdhui);
+    return CACHE_STOCK;
+  }
+  async function lireStockRecentBrut(aujourdhui) {
     const dMs = Date.parse(aujourdhui + 'T00:00:00Z') - NexusConseiller.DUREE_RELEVE_STOCK_JOURS * 86400000;
     const depuis = new Date(dMs).toISOString().slice(0, 10);
     const { data, error } = await fetchAllRows(() => nexusClient.from('stock_releves')
@@ -656,12 +674,35 @@ nexusRequireAuth().then(async employee => {
     return map;
   }
 
+  // P1-A : mesures factuelles (NexusProduitsMesure) attachées à chaque produit de la période affichée.
+  // Lecture seule ; les périodes et le stock sont ceux déjà lus par construireProduitsLive (cache).
+  async function attacherMesures(produits) {
+    try {
+      if (!PERIODE_DONNEES) return produits;
+      const per = PERIODE_DONNEES;
+      const rows = await lirePeriode(per);
+      if (!rows || !rows.length) return produits;
+      const periodes = await listerPeriodes();
+      const i = (periodes || []).findIndex(x => x.periode_debut === per.debut && x.periode_fin === per.fin);
+      const prec = i >= 0 && periodes[i + 1] ? { debut: periodes[i + 1].periode_debut, fin: periodes[i + 1].periode_fin } : null;
+      const rowsPrec = prec ? await lirePeriode(prec) : null;
+      const stock = await lireStockRecent(AUJOURDHUI_STATION);
+      const res = NexusProduitsMesure.mesurer({
+        products: rows, site: SITE_ACTUEL, periodeDebut: per.debut, periodeFin: per.fin,
+        precedent: rowsPrec && rowsPrec.length ? { rows: rowsPrec, debut: prec.debut, fin: prec.fin } : null,
+        stockReleves: Object.keys(stock || {}).map(k => stock[k]), dateReference: AUJOURDHUI_STATION,
+      });
+      produits.forEach(p => { p.mesure = res.index.get(NexusProduitsMesure.normaliserNom(p.article)) || null; });
+    } catch (e) { console.error('Mesures produits (P1-A):', e); }
+    return produits;
+  }
+
   if (APERCU) {
     PRODUCTS = produitsApercu(await construireProduitsLive());
     PRODUCT_PHOTOS = {};
     PRODUCT_PHOTOS[PRODUCTS[0].categorie + '|' + PRODUCTS[0].article] = { photo_url: photoApercu(), verifie_le: '2026-08-20' };
   } else {
-    PRODUCTS = await construireProduitsLive();
+    PRODUCTS = await attacherMesures(await construireProduitsLive());
     PRODUCT_PHOTOS = await chargerPhotosProduits();
   }
 
@@ -866,7 +907,6 @@ nexusRequireAuth().then(async employee => {
     // metier modifie. Les valeurs viennent de p, calculerStatutSimplifie() et
     // calculerRangRayon() exactement comme avant ; seule la mise en page change.
     // ------------------------------------------------------------
-    const niveauRentaP = NexusConseiller.niveauRentabilite(p.marge_pct);
 
     // Periode de la paire comparable (T1 contre T2) : lue dans pairDates,
     // jamais codee en dur. Toute tendance affichee la porte.
@@ -933,6 +973,25 @@ nexusRequireAuth().then(async employee => {
         ${sub !== null && sub !== undefined ? `<div class="ind-sub"${ids && ids.sub ? ` id="${ids.sub}"` : ''}>${sub}</div>` : ''}
       </div>`;
 
+    // P1-A : mesures de la boutique (rang, qualification, PMP date, marges). Absentes pour une
+    // reference connue seulement par une ancienne periode ou par le stock : rien n'est invente.
+    const mes = p.mesure || null;
+    const phraseMesure = mes ? NexusProduitsMesure.phrase(mes) : '';
+    const fmtN = (v, d) => v === null || v === undefined ? 'n.d.' : Number(v).toFixed(d).replace('.', ',');
+    const ligneMes = (lib, val) => `<div class="gap-row"><span class="gap-label">${esc(lib)}</span><span class="gap-status">${val}</span></div>`;
+    const mesuresHtml = mes ? `
+          <div class="sec-sous">Mesures de la période (${esc(fmtDate(mes.pmp.periode_debut))} → ${esc(fmtDate(mes.pmp.periode_fin))})</div>
+          ${ligneMes('Qualification', esc(mes.qualification || 'Sans qualification'))}
+          ${mes.rang.valeur !== null ? ligneMes('Classement en marge', `rang ${mes.rang.valeur} sur ${mes.rang.sur}`) : ''}
+          ${ligneMes('PMP Decenium HT', mes.pmp.valeur !== null ? `${fmtN(mes.pmp.valeur, 2)} € (export du ${esc(fmtDate(mes.pmp.date_export))})` : 'n.d.')}
+          ${ligneMes('Prix de vente HT', mes.pv_ht.valeur !== null ? `${fmtN(mes.pv_ht.valeur, 2)} €` : 'n.d.')}
+          ${ligneMes('Prix de vente TTC', mes.pv_ttc.valeur !== null ? `${fmtN(mes.pv_ttc.valeur, 2)} € (TVA ${fmtN(mes.pv_ttc.tva, 1)} %)${mes.pv_ttc.mention ? ' · ' + esc(mes.pv_ttc.mention) : ''}` : esc(mes.pv_ttc.mention || 'n.d.'))}
+          ${ligneMes('Marge unitaire', mes.marge_unitaire.valeur !== null ? `${fmtN(mes.marge_unitaire.valeur, 2)} €` : 'n.d.')}
+          ${ligneMes('Marge totale', mes.marge_totale.valeur !== null ? `${fmtN(mes.marge_totale.valeur, 2)} €` : 'n.d.')}
+          ${ligneMes('Taux de marque', mes.taux_marque.valeur !== null ? `${fmtN(mes.taux_marque.valeur, 2)} %` : 'n.d.')}
+          ${ligneMes('Part de la marge du rayon', mes.part_marge_rayon.valeur !== null ? `${fmtN(mes.part_marge_rayon.valeur, 2)} %` : 'n.d.')}
+          ${ligneMes('Part du CA du rayon', mes.part_ca_rayon.valeur !== null ? `${fmtN(mes.part_ca_rayon.valeur, 2)} %` : 'n.d.')}` : '';
+
     resultSection.innerHTML = `
       <div class="top-grid">
         <section class="card identite-card" aria-label="Identité du produit">
@@ -948,7 +1007,7 @@ nexusRequireAuth().then(async employee => {
           <img class="conseiller-avatar" src="assets/avatar/nexus-avatar-128.png" srcset="assets/avatar/nexus-avatar-64.png 64w, assets/avatar/nexus-avatar-96.png 96w, assets/avatar/nexus-avatar-128.png 128w, assets/avatar/nexus-avatar-256.png 256w" sizes="80px" alt="" width="80" height="80" onerror="this.style.display='none'">
           <div class="conseiller-corps">
             <div class="conseiller-titre">Conseiller NEXUS</div>
-            <div class="conseiller-sous">${esc(statutSimplifie.label)}</div>
+            <div class="conseiller-sous">${esc(phraseMesure || statutSimplifie.label)}</div>
             <details class="comprendre">
               <summary>Comprendre cette analyse</summary>
               <div class="conseiller-bubble"><div class="conseiller-text" id="conseillerProduitMsg"></div></div>
@@ -969,8 +1028,8 @@ nexusRequireAuth().then(async employee => {
           ${tuile(ICO.pma, 'PMP Decenium HT', p.pma !== null ? fmtEur(p.pma) : 'n.d.')}
           ${tuile(ICO.part, 'Part du rayon', p.pct_contrib != null ? fmtPct(p.pct_contrib) : 'n.d.')}
           ${tuile(ICO.rang, 'Classement', `#${rangRayon.rang} / ${rangRayon.total}`)}
-          ${tuile(ICO.stock, 'Stock (valeur)', '…', 'vérification…', { val: 'heroStockVal', sub: 'heroStockSub' })}
-          ${tuile(ICO.rotation, 'Rotation', '…', 'vérification…', { val: 'heroRotationVal', sub: 'heroRotationSub' })}
+          ${tuile(ICO.stock, 'Stock théorique (valeur)', '…', 'vérification…', { val: 'heroStockVal', sub: 'heroStockSub' })}
+          ${tuile(ICO.rotation, 'Couverture estimée', '…', 'vérification…', { val: 'heroRotationVal', sub: 'heroRotationSub' })}
         </div>
       </section>
 
@@ -982,11 +1041,12 @@ nexusRequireAuth().then(async employee => {
       <details class="card sec" id="secInfos">
         <summary>${ICO.info}<span>Informations complémentaires</span></summary>
         <div class="sec-corps">
+          ${mesuresHtml}
           <div class="sec-sous">Photo rayon (terrain)</div>
           <div id="photoTerrainZone">Vérification…</div>
           <div class="sec-sous">Fiabilité de ces données</div>
           <div class="gap-row"><span class="gap-label">Stock</span><span class="gap-status" id="gapStockStatus">Vérification du dernier relevé…</span></div>
-          <div class="gap-row"><span class="gap-label">Rotation réelle</span><span class="gap-status" id="gapRotationStatus">Vérification…</span></div>
+          <div class="gap-row"><span class="gap-label">Couverture estimée</span><span class="gap-status" id="gapRotationStatus">Vérification…</span></div>
           <div class="gap-row"><span class="gap-label">Emplacement</span><span class="gap-status" id="gapEmplacementStatus">Vérification…</span></div>
           <div class="gap-row"><span class="gap-label">Facing actuel</span><span class="gap-status">Non disponible : pas de saisie des facings actuellement</span></div>
           <div id="emplacementPickerZone"></div>
@@ -1019,9 +1079,8 @@ nexusRequireAuth().then(async employee => {
             ? 'Aucune vente récente et un stock à zéro (ou négatif) au dernier relevé : une rupture est probable.'
             : 'Aucune vente sur la période affichée. NEXUS ne tire pas de conclusion sans relevé de stock récent.';
       } else {
-        const rentaTxt = niveauRentaP === 'tres_rentable' ? '' : NexusVocab.rentabilite(niveauRentaP, false, esc(p.article));
         const tendanceTxt = tendQualifiee ? (NexusVocab.tendance(evolCa) + ' (ventes moyennes par jour)' + (tend.fiable ? '' : ' : ' + tend.avertissements.map(esc).join(' · ') + '.')) : msgTendance;
-        explicationP = [rentaTxt, tendanceTxt].filter(Boolean).join(' ')
+        explicationP = [tendanceTxt].filter(Boolean).join(' ')
           || 'Pas assez de recul pour conclure.';
         if (!tend || tend.statut === 'indisponible') explicationP += ' Je n\'ai pas encore de période précédente pour elle.';
       }
@@ -1032,6 +1091,7 @@ nexusRequireAuth().then(async employee => {
       conseillerMsg.innerHTML = `
         <div class="cycle-step"><span class="cycle-tag">Constat</span>${constatP}</div>
         <div class="cycle-step"><span class="cycle-tag">Explication</span>${explicationP}</div>
+        ${mes ? `<div class="cycle-step"><span class="cycle-tag">Mesure</span>${mes.explication.map(esc).join(' ')}</div>` : ''}
         ${decisionP ? `<div class="cycle-step"><span class="cycle-tag tag-decision">Décision</span>${decisionP}</div>` : ''}
       `;
       // Une seule ligne de comparaison et un seul avertissement, au pied de la carte, quand un message s'appuie sur la paire T1/T2.
@@ -1335,63 +1395,46 @@ nexusRequireAuth().then(async employee => {
       const venteJour = nbJours > 0 ? (p.qte_t2 || 0) / nbJours : 0;
       const joursDeStock = venteJour > 0 ? stockQte / venteJour : null;
 
-      // Niveaux du vocabulaire NEXUS (nexus-vocabulaire.js) — Rotation et
-      // Stock étaient les deux seules catégories du lexique laissées vides
-      // faute de donnée au niveau rayon (voir NEXUS-Rayon-v1.html) : au
-      // niveau produit, ce même relevé stock_releves donne enfin de quoi
-      // les remplir. Seuils choisis pour une supérette/station-service :
-      // sous 3j de stock, risque de rupture immédiat ; au-delà de 45j,
-      // capital immobilisé pour rien. joursDeStock reste l'estimation déjà
-      // documentée ci-dessus (photo à un instant T, pas une moyenne) — ces
-      // niveaux n'ajoutent aucune précision, juste un mot du lexique commun.
-      // Seuils : source unique nexus-conseiller.js (SEUILS_ROTATION_JOURS, SEUILS_STOCK_JOURS).
-      const niveauRotation = NexusConseiller.niveauRotation(joursDeStock);
-      const niveauStock = NexusConseiller.niveauStock(joursDeStock);
-      const motRotation = NexusVocab.rotation(niveauRotation, p.article);
-      const motStock = NexusVocab.stock(niveauStock, p.article);
+      // P1-A : libelles factuels, aucun adjectif de rotation ni de stock.
+      // Le stock est le stock theorique exporte par Decenium, date ; la
+      // couverture est une estimation (stock / ventes par jour de la periode).
+      const releveIso = relv.releve_le ? String(relv.releve_le).slice(0, 10) : null;
+      const ageJours = (releveIso && AUJOURDHUI_STATION)
+        ? Math.round((new Date(AUJOURDHUI_STATION) - new Date(releveIso)) / 86400000) : null;
+      const anciennes = ageJours !== null && ageJours > 30;
+      const mentionAnciennes = anciennes ? ` (données anciennes : ${ageJours} j)` : '';
 
       if (elStock && elStock.isConnected) {
         const base = relv.quantite_reelle != null
-          ? `Théorique ${relv.quantite_theorique} u., compté ${relv.quantite_reelle} u., relevé du ${dateRelv}`
-          : `Théorique ${relv.quantite_theorique} u., relevé du ${dateRelv} (pas encore contrôlé physiquement)`;
-        elStock.textContent = motStock ? `${motStock} ${base}` : base;
+          ? `Stock théorique Decenium ${relv.quantite_theorique} u., compté ${relv.quantite_reelle} u., relevé du ${dateRelv}`
+          : `Stock théorique Decenium ${relv.quantite_theorique} u., relevé du ${dateRelv} (pas encore contrôlé physiquement)`;
+        elStock.textContent = base + mentionAnciennes;
       }
 
-      // Valeur du stock immobilisé = quantité × PMA — seulement si on a un
-      // prix d'achat connu pour ce produit, sinon on affiche "non
-      // calculable" plutôt qu'une fausse valeur à 0€ ou €/u. manquant.
       if (elHeroStockVal && elHeroStockVal.isConnected) {
         if (p.pma != null) {
           elHeroStockVal.textContent = fmtEur(stockQte * p.pma);
-          elHeroStockSub.textContent = `${motStock ? motStock + ' · ' : ''}estimation au PMP Decenium, relevé du ${dateRelv}`;
+          elHeroStockSub.textContent = `${stockQte} u. théoriques au PMP Decenium, au ${dateRelv}${mentionAnciennes}`;
         } else {
           elHeroStockVal.textContent = `${stockQte} u.`;
-          elHeroStockSub.textContent = motStock || `PMP Decenium inconnu · ${dateRelv}`;
+          elHeroStockSub.textContent = `stock théorique, PMP Decenium inconnu, au ${dateRelv}`;
         }
       }
 
       if (elRotation && elRotation.isConnected) {
         if (venteJour <= 0) {
-          elRotation.textContent = `Aucune vente enregistrée sur la dernière période importée (${p.periode_debut} → ${p.periode_fin}) : rotation non calculable.`;
+          elRotation.textContent = `Aucune vente enregistrée sur la dernière période importée (${fmtDate(p.periode_debut)} → ${fmtDate(p.periode_fin)}) : couverture non calculable.`;
         } else {
-          // Le relevé est-il réellement dans la période de ventes ? Comparaison
-          // de dates ISO (YYYY-MM-DD), triable directement en chaîne.
-          const releveIso = relv.releve_le ? String(relv.releve_le).slice(0, 10) : null;
-          const dansLaPeriode = releveIso && p.periode_debut && p.periode_fin
-            && releveIso >= p.periode_debut && releveIso <= p.periode_fin;
-          const caveat = dansLaPeriode
-            ? `Le relevé stock du ${dateRelv} tombe bien dans la période de ventes ${p.periode_debut} → ${p.periode_fin}, mais reste une photo à un instant T, pas une moyenne sur toute la période.`
-            : `Pas une vraie moyenne : le relevé stock du ${dateRelv} ne recouvre pas la période de ventes ${p.periode_debut} → ${p.periode_fin}.`;
-          elRotation.textContent = `${motRotation ? motRotation + ' ' : ''}Estimation : ${joursDeStock.toFixed(1)} j de stock au rythme de vente de la période du ${fmtDate(p.periode_debut)} au ${fmtDate(p.periode_fin)} (${venteJour.toFixed(2)} u./jour), relevé stock du ${dateRelv}. ${caveat}`;
+          elRotation.textContent = `Estimation : ${joursDeStock.toFixed(1).replace('.', ',')} j de couverture au rythme de vente de la période du ${fmtDate(p.periode_debut)} au ${fmtDate(p.periode_fin)} (${venteJour.toFixed(2).replace('.', ',')} u./jour), stock théorique Decenium du ${dateRelv}${mentionAnciennes}. Photo à un instant donné, pas une moyenne sur la période.`;
         }
       }
       if (elHeroRotVal && elHeroRotVal.isConnected) {
         if (venteJour <= 0) {
           elHeroRotVal.textContent = 'n.d.';
-          elHeroRotSub.textContent = 'aucune vente période';
+          elHeroRotSub.textContent = 'aucune vente sur la période';
         } else {
-          elHeroRotVal.textContent = `≈${venteJour.toFixed(1)}/j`;
-          elHeroRotSub.textContent = motRotation || 'estimation, voir détail';
+          elHeroRotVal.textContent = `≈${Math.round(joursDeStock)} j`;
+          elHeroRotSub.textContent = `à ${venteJour.toFixed(1).replace('.', ',')} u./jour${stockQte === 0 ? ', stock théorique à 0' : ''}`;
         }
       }
     } catch (e) {
@@ -1415,7 +1458,7 @@ nexusRequireAuth().then(async employee => {
   function photoCleClef(p) { return p.categorie + '|' + p.article; }
 
   // Affichage seul : virgule décimale française dans les textes de rotation produits par chargerStockGap
-  // (fonction gardée par empreinte, donc non modifiée). Aucun calcul n'est touché.
+  // (P1-A : chargerStockGap a ete reecrite, son empreinte est remise a jour dans la garde). Aucun calcul n'est touche.
   function francisationAffichage(ids) {
     ids.forEach(function (id) {
       const el = document.getElementById(id);
