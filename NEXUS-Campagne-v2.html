@@ -815,6 +815,9 @@ function actionsCampagne(id){
   return '<div class="c-actions"><button type="button" class="btn" data-consulter="' + esc(id) + '">' + esc(V.consulter) + '</button>' +
     (peutModifier() ? '<button type="button" class="btn" data-modifier="' + esc(id) + '">' + esc(V.modifier) + '</button>' : '') + '</div>';
 }
+function consulterSeul(id){
+  return '<div class="c-actions"><button type="button" class="btn" data-consulter="' + esc(id) + '">' + esc(V.consulter) + '</button></div>';
+}
 function ligneModifiee(iso){
   if (!iso) return '';
   const d = new Date(iso), z = n => String(n).padStart(2, '0');
@@ -1793,11 +1796,19 @@ function mesPeindreFixes(){
 const OU = window.NexusCampagneOutils;
 const OV = V.outilsPage;
 function ouAujourdhui(){ return aujourdhui(); }
+function ouPeriode(p){
+  const an = String(new Date().getFullYear());
+  const f = iso => fmtJourMois(iso) + (iso.slice(0, 4) !== an ? ' ' + iso.slice(0, 4) : '');
+  const a = new Date(p.date_debut + 'T00:00:00Z'), b = new Date(p.date_fin + 'T00:00:00Z');
+  const memeMois = a.getUTCMonth() === b.getUTCMonth() && a.getUTCFullYear() === b.getUTCFullYear();
+  const deb = memeMois ? String(a.getUTCDate()) : f(p.date_debut);
+  return 'Du ' + deb + ' au ' + f(p.date_fin);
+}
 function ouCartePromo(p){
   const st = OV.promotions.statuts[p.statut];
   return '<div class="carte"><div class="promo-nom">' + esc(p.nom) + '</div>' +
-    '<div class="b-meta">' + esc(fmtDateCourt(p.date_debut) + ' au ' + fmtDateCourt(p.date_fin) + ' · ' + OV.promotions.produits(p.nb_produits)) + '</div>' +
-    '<span class="statut">' + esc(st) + '</span>' + actionsCampagne(p.id) +
+    '<div class="b-meta">' + esc(ouPeriode(p) + ' · ' + OV.promotions.produits(p.nb_produits)) + '</div>' +
+    '<span class="statut">' + esc(st) + '</span>' + (p.statut === 'terminee' ? consulterSeul(p.id) : actionsCampagne(p.id)) +
     (p.bilan ? '<button type="button" class="b-lien" data-outil-bilan="' + esc(p.id) + '">' + esc(OV.promotions.bilan) + '</button>' : '') + '</div>';
 }
 function ouLigneProduit(e){

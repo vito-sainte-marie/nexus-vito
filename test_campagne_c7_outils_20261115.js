@@ -101,3 +101,9 @@ assert.ok(!/vos ventes/i.test(T));
 assert.strictEqual(C.outilsPage.moteurs.sous, 'Les produits qui tiennent leur objectif ou gagnent de la marge.');
 assert.strictEqual(C.outilsPage.aRevoir.sous, 'Les produits sous leur objectif ou qui perdent de la marge.');
 console.log('test_campagne_c7_outils OK');
+// Revue Guardian : pas de Modifier sur une terminée, dates au format de la carte en cours.
+const h2 = lire('NEXUS-Campagne-v2.html');
+assert.ok(/p\.statut === 'terminee' \? consulterSeul\(p\.id\) : actionsCampagne\(p\.id\)/.test(h2), 'Modifier retiré sur terminée');
+assert.ok(/return 'Du ' \+ deb \+ ' au ' \+ f\(p\.date_fin\)/.test(h2), 'format Du .. au ..');
+assert.ok(!/fmtDateCourt\(p\.date_debut\)/.test(h2));
+console.log('c7 revue Guardian OK');
