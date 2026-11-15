@@ -51,8 +51,9 @@
       if (!(u > 0)) return;
       const facture = num(l.pa_ht_facture);
       const pa = facture !== null ? facture : num(l.pa_promo_ht);
-      lots.push({ origine: 'livraison', unites: u, pa, estime: facture === null });
+      lots.push({ origine: 'livraison', unites: u, pa, estime: facture === null, date_livraison: l.date_livraison || null });
     });
+    const consommes = [];
     let aImputer = Math.max(0, num(e.unitesVendues) || 0);
     let cout = 0, sansPrix = 0;
     const raisons = [];
@@ -61,6 +62,7 @@
       const prises = Math.min(lot.unites, aImputer);
       lot.unites -= prises;
       aImputer -= prises;
+      consommes.push({ origine: lot.origine, unites: prises, pa: lot.pa, estime: lot.estime, date_livraison: lot.date_livraison || null });
       if (lot.pa === null) sansPrix += prises; else cout += prises * lot.pa;
       if (lot.estime) raisons.push('livraison sans PA facturé : valorisée au PA promo négocié');
       if (lot.pa === null) raisons.push(lot.origine === 'stock_depart' ? 'PMP avant promotion absent' : 'PA de livraison inconnu');
@@ -80,6 +82,7 @@
       cout_ventes: arrondi(cout),
       unites_sans_prix: sansPrix,
       excedent_unites: excedent,
+      consommes,
       restant,
       estimee: raisons.length > 0,
       raisons: Array.from(new Set(raisons)),
@@ -148,6 +151,8 @@
       dont_economie_achat: economie,
       cout_ventes: fifo.cout_ventes,
       excedent_unites: fifo.excedent_unites,
+      unites_sans_prix: fifo.unites_sans_prix,
+      consommes: fifo.consommes,
       estimee: raisons.length > 0,
       raisons: Array.from(new Set(raisons)),
       mentions: Array.from(new Set(mentions)),
