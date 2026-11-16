@@ -93,6 +93,11 @@ function jeu(site) {
   assert.ok(/id="scTout"/.test(c) && /id="scFiltre"/.test(c), 'liste complète et puce de filtre');
   assert.ok(/data-voir="\$\{cle\}"/.test(html) && /Voir les \$\{n\} autre/.test(html), 'lien Voir les N autres vers la liste filtrée');
   assert.ok(/PAS_SC = 10/.test(html) && /data-plus/.test(html), 'liste complète paginée par 10');
+  // Le bouton du rendu initial doit avoir son écouteur : maj() est appelée au premier rendu (défaut recetté 16/11).
+  const blocSc = html.slice(html.indexOf('const maj = () =>'), html.indexOf("rech.addEventListener('input'"));
+  assert.ok(/\[data-plus\][\s\S]*limiteSc \+= PAS_SC/.test(blocSc), 'écouteur de [data-plus] posé dans maj()');
+  assert.ok(/\n\s*maj\(\);[^\n]*\n\s*rech\.addEventListener\('input'/.test(html), 'maj() appelée au premier rendu');
+  assert.ok(/Afficher \$\{Math\.min\(PAS_SC, L\.length - limiteSc\)\} de plus \(\$\{L\.length - limiteSc\} restantes\)/.test(html) && !/Voir les \$\{L\.length - limiteSc\} autres/.test(html), 'libellé du bouton : 10 de plus (N restantes)');
   console.log('OK  structure : indicateurs, cinq cartes, chevrons, fiches, recherche, sans total');
 
   const P = r.ctx.NexusScannerPresentation;

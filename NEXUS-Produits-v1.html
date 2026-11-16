@@ -1727,7 +1727,7 @@ nexusRequireAuth().then(async employee => {
     const rowListe = e => `<li><button type="button" class="vp-ligne-prod" data-s="${e.k}"><span class="vp-nom">${esc(e.article)}</span><span class="vp-meta">${esc(e.controle)}${e.categorie ? ' · ' + esc(e.categorie) : ''}${e.variation !== null ? ' · ' + esc(pctVar(e.variation)) : ''}</span><span class="vp-chiffres">${e.impact !== null && e.impact !== undefined ? esc(eurN(e.impact)) : ''}</span></button></li>`;
     const PAS_SC = 10;
     let limiteSc = PAS_SC, ctrlSc = '';
-    const listeHtml = (L) => L.length ? `<ul class="vp-liste">${L.slice(0, limiteSc).map(rowListe).join('')}</ul>${L.length > limiteSc ? `<button type="button" class="btn-decl vp-plus" data-plus="1">Voir les ${L.length - limiteSc} autres</button>` : ''}` : '<div class="vp-ligne">Aucune référence ne correspond.</div>';
+    const listeHtml = (L) => L.length ? `<ul class="vp-liste">${L.slice(0, limiteSc).map(rowListe).join('')}</ul>${L.length > limiteSc ? `<button type="button" class="btn-decl vp-plus" data-plus="1">Afficher ${Math.min(PAS_SC, L.length - limiteSc)} de plus (${L.length - limiteSc} restantes)</button>` : ''}` : '<div class="vp-ligne">Aucune référence ne correspond.</div>';
     const per = PERIODE_DONNEES ? `du ${fmtDate(PERIODE_DONNEES.debut)} au ${fmtDate(PERIODE_DONNEES.fin)}${res.jours ? ', ' + res.jours + ' jours' : ''}` : '';
     const stationEl = document.querySelector && document.querySelector('.nexus-nom-commerce');
     const station = stationEl && stationEl.textContent ? stationEl.textContent + ' · ' : '';
@@ -1754,6 +1754,7 @@ nexusRequireAuth().then(async employee => {
           const r = puce.querySelector('#scRetirer'); if (r) r.addEventListener('click', () => { ctrlSc = ''; limiteSc = PAS_SC; maj(); });
         }
       };
+      maj(); // premier rendu : pose l'écouteur du bouton « Afficher plus »
       rech.addEventListener('input', () => { limiteSc = PAS_SC; maj(); }); tri.addEventListener('change', () => { limiteSc = PAS_SC; maj(); });
       corps.querySelectorAll('[data-voir]').forEach(b => b.addEventListener('click', () => {
         ctrlSc = b.dataset.voir; limiteSc = PAS_SC; maj();
