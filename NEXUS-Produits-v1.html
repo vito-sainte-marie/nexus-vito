@@ -872,8 +872,6 @@ nexusRequireAuth().then(async employee => {
   // Échappement : UNE seule fonction, celle du composant badge (nexus-badge-etat.js).
   // Valable pour un texte HTML et pour un attribut entre guillemets doubles.
   const esc = window.NexusBadgeEtat.esc;
-  // La synthèse d'accueil utilise esc : elle ne peut s'afficher qu'après sa déclaration (const, zone morte temporelle).
-  if (!APERCU) afficherSyntheseAccueil();
   // URL d'image : https uniquement. `hoteExige` restreint à un hôte (photos NEXUS
   // = stockage Supabase). Sinon rien : pas d'image plutôt qu'une URL douteuse.
   function urlImageSure(u, hoteExige) { return NexusProduitsSecurite.urlImageSure(u, hoteExige, [photoApercu()]); }
@@ -1534,6 +1532,8 @@ nexusRequireAuth().then(async employee => {
       liste.querySelectorAll('button').forEach(bt => bt.addEventListener('click', () => choisirSuggestion(items[Number(bt.dataset.k)].row.article)));
     }));
   }
+  // Appel après toutes les déclarations (const) dont dépendent la synthèse et les vues : sinon zone morte temporelle.
+  if (!APERCU) afficherSyntheseAccueil();
 
   // Photo rayon (terrain) — prise par un employé via la mission "Photo de
   // vérification rayon" (NEXUS-Missions-v1.html), pas une photo générique
