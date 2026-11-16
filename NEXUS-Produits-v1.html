@@ -304,6 +304,47 @@ button.btn-decl.plein{background:var(--cyan);color:#fff;}
 .vue-p1c h2{font-size:18px;margin:4px 0 8px;}
 .vue-p1c .vp-ligne{font-size:13px;color:var(--text-mid);line-height:1.5;margin:4px 0;}
 .vue-p1c .vp-filtres{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0;}
+/* Espace Scanner (reprend les cartes Tempo : bordure fine, t-titre/t-sous, pied-carte, detail-btn, chevrons) */
+.vue-p1c .t-titre{display:block;font-weight:600;font-size:14.5px;}
+.vue-p1c .t-sous{display:block;font-size:12px;color:var(--text-mid);margin-top:4px;line-height:1.5;}
+.vue-p1c .pied-carte{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-top:8px;}
+.vue-p1c .detail-btn{min-height:44px;min-width:44px;padding:0 10px;border:0;background:none;color:var(--cyan);font:inherit;font-size:13px;font-weight:600;cursor:pointer;border-radius:8px;}
+.vue-p1c .sc-entete{display:flex;align-items:center;gap:14px;margin:4px 0 12px;}
+.vue-p1c .sc-entete-ico{width:64px;height:64px;flex:none;}
+.vue-p1c .sc-h{font-size:20px;margin:0;}
+.vue-p1c .sc-voir{margin:8px 0 2px;}
+.vue-p1c .sc-methode{font-size:12px;color:var(--text-mid);}
+.vue-p1c .sc-inds{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:8px 0;}
+@media (min-width:900px){.vue-p1c .sc-inds{grid-template-columns:repeat(3,1fr);}}
+.vue-p1c .sc-ind{background:var(--panel);border:1px solid var(--hairline);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:2px;min-width:0;}
+.vue-p1c .sc-ind-val{font-size:22px;font-weight:700;}
+.vue-p1c .sc-ind-lib,.vue-p1c .sc-ind-sous{font-size:12px;color:var(--text-mid);line-height:1.4;}
+.vue-p1c .sc-rouge .sc-ind-val{color:var(--red);}.vue-p1c .sc-ambre .sc-ind-val{color:var(--amber);}.vue-p1c .sc-info .sc-ind-val{color:var(--cyan);}.vue-p1c .sc-gris .sc-ind-val{color:var(--text-mid);}
+.vue-p1c .sc-note{font-size:12px;color:var(--text-mid);margin:6px 0 12px;}
+.vue-p1c .sc-conseiller{margin:0 0 14px;}
+.vue-p1c .sc-cartes{display:flex;flex-direction:column;gap:12px;margin:12px 0;}
+.vue-p1c details.sc-carte{background:var(--panel);border:1px solid var(--hairline);border-radius:14px;padding:6px 16px 12px;}
+.vue-p1c details.sc-carte>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:12px;min-height:56px;}
+.vue-p1c details.sc-carte>summary::-webkit-details-marker{display:none;}
+.vue-p1c .sc-ico{width:48px;height:48px;flex:none;}
+.vue-p1c .sc-carte-txt{flex:1;min-width:0;}
+.vue-p1c .sc-chev{width:9px;height:9px;border-right:2px solid var(--text-mid);border-bottom:2px solid var(--text-mid);transform:rotate(-45deg);transition:transform .15s;flex:none;}
+.vue-p1c details.sc-carte[open]>summary .sc-chev{transform:rotate(45deg);}
+.vue-p1c .sc-sous h4{font-size:14px;margin:12px 0 4px;}
+.vue-p1c .sc-liste{list-style:none;padding:0;margin:8px 0;display:flex;flex-direction:column;gap:10px;}
+.vue-p1c .sc-fiche{background:var(--panel-raised,var(--panel));border:1px solid var(--hairline);border-radius:12px;padding:12px;list-style:none;}
+.vue-p1c .sc-fiche-tete{display:flex;align-items:center;gap:10px;}
+.vue-p1c .sc-photo{width:48px;height:48px;object-fit:cover;border-radius:8px;flex:none;}
+.vue-p1c .sc-fiche-nom{display:flex;flex-direction:column;min-width:0;}
+.vue-p1c .sc-nom{font-weight:600;font-size:14px;overflow-wrap:anywhere;}.vue-p1c .sc-fam{font-size:12px;color:var(--text-mid);}
+.vue-p1c .sc-champs{display:grid;grid-template-columns:repeat(2,1fr);gap:6px 12px;margin:10px 0;}
+@media (min-width:600px){.vue-p1c .sc-champs{grid-template-columns:repeat(3,1fr);}}
+.vue-p1c .sc-champ{display:flex;flex-direction:column;font-size:13px;min-width:0;}
+.vue-p1c .sc-lib{font-size:11px;color:var(--text-mid);}
+.vue-p1c .sc-conseil{font-size:13px;line-height:1.5;margin:4px 0;}
+.vue-p1c .sc-rouge{border-color:var(--red);}.vue-p1c .sc-ambre{border-color:var(--amber);}
+.vue-p1c .sc-tout h3{font-size:15px;margin:16px 0 4px;}
+.vue-p1c .sc-tout input[type=search]{flex:1;min-width:180px;min-height:44px;border-radius:8px;border:1px solid var(--hairline);background:var(--panel);color:var(--text);padding:0 12px;font:inherit;}
 .vue-p1c select,.vue-p1c .vp-bascule{min-height:44px;background:var(--panel-raised);color:var(--text);border:1px solid var(--hairline);border-radius:8px;padding:6px 10px;font:inherit;font-size:13px;max-width:100%;}
 .vue-p1c .vp-bascule{display:inline-flex;align-items:center;gap:8px;cursor:pointer;}
 .vue-p1c .vp-liste{list-style:none;margin:8px 0;padding:0;}
@@ -1578,53 +1619,153 @@ nexusRequireAuth().then(async employee => {
     const e = m && m.ecarts && m.ecarts.find(x => x.article === article);
     return e ? NexusScannerTarifaire.texteFicheMarge(e) : null;
   }
+  // ===== Espace Scanner (présentation seule : mêmes calculs S1 et S2, aucune règle nouvelle) =====
+  const MOTS_N = ['zéro', 'un', 'deux', 'trois', 'quatre', 'cinq', 'six', 'sept', 'huit', 'neuf', 'dix'];
+  const motN = n => MOTS_N[n] !== undefined ? MOTS_N[n] : String(n);
+  const majN = s => s.charAt(0).toUpperCase() + s.slice(1);
+  // Synthèse du Conseiller : suit les résultats S1 (pertes non justifiées, coûts suspects, hausses à examiner).
+  function texteConseillerScanner(R, A) {
+    const ph = [];
+    const nj = R.perte.non_justifiees, nbp = R.perte.nb;
+    if (nj > 0) ph.push(`${majN(motN(nj))} produit${nj > 1 ? 's présentent' : ' présente'} une marge négative.`);
+    else if (nbp > 0) ph.push(`${majN(motN(nbp))} vente${nbp > 1 ? 's' : ''} à perte, justifiée${nbp > 1 ? 's' : ''} par ${nbp > 1 ? 'vos' : 'votre'} motif${nbp > 1 ? 's' : ''}.`);
+    const k = R.hausse.a_examiner + R.hausse.prioritaire;
+    if (k > 0) ph.push(`${majN(motN(k))} hausse${k > 1 ? 's' : ''} de coût${k > 1 ? 's méritent' : ' mérite'} votre attention.`);
+    const s = A.suspects[0], p = A.pertes.find(x => !x.perte.justifiee), h = A.hausses.premieres[0];
+    if (s) {
+      const v = s.variation, mv = v === null || v === undefined ? 'est à vérifier' : s.pa >= 2 * s.pa_precedent ? 'a plus que doublé' : v >= 0 ? `a augmenté de ${fmtN(Math.abs(v) * 100, 0)} %` : `a baissé de ${fmtN(Math.abs(v) * 100, 0)} %`;
+      ph.push(`Commencez par vérifier ${s.article} : son coût ${mv}.`);
+    } else if (p) ph.push(`Commencez par vérifier ${p.article} : sa marge est négative.`);
+    else if (h) ph.push(`Commencez par vérifier ${h.article} : son coût a augmenté.`);
+    if (!ph.length) ph.push('Aucune anomalie à signaler sur cette période.');
+    return ph.join(' ');
+  }
+  // Recherche et tri de la liste complète (pur, testable).
+  function filtrerListeScanner(entries, q, tri, ctrl) {
+    const nz = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    const n = nz(q).trim();
+    const L = entries.filter(e => (!ctrl || e.cle === ctrl) && (!n || nz(e.article).includes(n) || nz(e.categorie).includes(n)));
+    const num = v => v === null || v === undefined || isNaN(v) ? -Infinity : v;
+    const cmp = {
+      impact: (a, b) => num(b.impact) - num(a.impact),
+      variation: (a, b) => num(b.variation === null ? null : Math.abs(b.variation)) - num(a.variation === null ? null : Math.abs(a.variation)),
+      nom: (a, b) => a.article.localeCompare(b.article, 'fr'),
+      controle: (a, b) => a.ordre - b.ordre || a.article.localeCompare(b.article, 'fr'),
+    }[tri] || null;
+    return cmp ? L.slice().sort(cmp) : L;
+  }
+  window.NexusScannerPresentation = { texteConseillerScanner, filtrerListeScanner };
   function ouvrirScanner(corps) {
     const res = scannerResultat();
     if (!res) { corps.innerHTML = '<div class="vp-ligne">Scanner indisponible : période précédente ou mesures absentes.</div>'; return; }
-    const T = NexusScannerTarifaire.TEXTES, A = NexusScannerTarifaire.affichage(res), R = res.resume;
+    const T = NexusScannerTarifaire.TEXTES, A = NexusScannerTarifaire.affichage(res), R = res.resume, h = R.hausse;
+    const MG = scannerMarge(), M = MG && MG.affichage, MGERR = !!(MG && MG.erreur), TM = T.marge;
     const reg = [];
-    const bt = (l, meta, chiffres) => { const k = reg.length; reg.push(l.article); return `<li><button type="button" class="vp-ligne-prod" data-s="${k}"><span class="vp-nom">${esc(l.article)}</span><span class="vp-meta">${meta}</span><span class="vp-chiffres">${chiffres}</span></button></li>`; };
-    const lignePerte = l => bt(l, `${esc(l.categorie || '')} · PA ${esc(eurN(l.pa))} > PV ${esc(eurN(l.pv))} · ${esc(fmtN(l.quantite, 0))} ${l.quantite > 1 ? 'unités' : 'unité'} · ${l.perte.justifiee ? 'justifiée : ' + esc(l.perte.motif || '') : 'non justifiée'}`, `perte ${esc(eurN(l.perte.montant))}`);
-    const ligneSuspect = l => bt(l, `PA ${esc(eurN(l.pa_precedent))} → ${esc(eurN(l.pa))}${l.variation !== null ? ' (' + (l.variation >= 0 ? '+' : '−') + esc(fmtN(Math.abs(l.variation) * 100, 1)) + ' %)' : ''} · ${esc(T.suspectMessage)}`, l.niveau_variation === 'suspecte' ? 'vérification prioritaire' : 'coût à vérifier');
-    const ligneHausse = l => bt(l, `${esc(l.categorie || '')} · ${esc(fmtN(l.quantite, 0))} ${l.quantite > 1 ? 'unités' : 'unité'} · PA ${esc(eurN(l.pa_precedent))} → ${esc(eurN(l.pa))} · PV inchangé ${esc(eurN(l.pv))}${l.cout_a_verifier ? ' · ' + esc(T.coutAVerifier) : ''}`, `${T.niveaux[l.hausse.niveau] ? '<strong>' + esc(T.niveaux[l.hausse.niveau]) + '</strong> · ' : ''}${esc(eurN(l.hausse.impact))} (${esc(eurN(l.hausse.impact30))} / 30 j)`);
-    const ligneVerif = l => { const v = l.a_verifier, m = [];
+    const ICO = { perte: 'campagne-alerte-produit', cout: 'campagne-produits-a-revoir', marge: 'campagne-marge-commerciale', regl: 'campagne-a-retenir', verif: 'campagne-rentabilite-non-mesurable' };
+    const icone = (i, cls) => `<img class="${cls}" src="assets/icones/campagne/premium/${i}-96.webp" srcset="assets/icones/campagne/premium/${i}-48.webp 48w, assets/icones/campagne/premium/${i}-96.webp 96w, assets/icones/campagne/premium/${i}-144.webp 144w" sizes="48px" width="48" height="48" alt="" onerror="this.onerror=null;this.src='assets/icones/campagne/premium/campagne-alerte-produit-96.webp'">`;
+    const pluriel = (n, s, p) => `${n} ${n > 1 ? p : s}`;
+    const unites = q => `${esc(fmtN(q, 0))} ${q > 1 ? 'unités' : 'unité'}`;
+    const photoOuIcone = (l, ico) => {
+      const ph = PRODUCT_PHOTOS && PRODUCT_PHOTOS[l.categorie + '|' + l.article];
+      const img = ph && ph.photo_url ? imgSure(ph.photo_url, l.article, null, 'sc-photo') : '';
+      return img || icone(ico, 'sc-photo sc-photo-ico');
+    };
+    const champ = (lib, val) => `<div class="sc-champ"><span class="sc-lib">${esc(lib)}</span><span class="sc-val">${val}</span></div>`;
+    const pctVar = v => v === null || v === undefined ? 'n.d.' : (v >= 0 ? '+' : '−') + fmtN(Math.abs(v) * 100, 1) + ' %';
+    const OUVRIR = k => `<button type="button" class="detail-btn" data-s="${k}">Ouvrir la fiche produit ›</button>`;
+    // Fiche d'une ligne S1 ; `impact` = texte de la case « impact sur la période ».
+    const fiche = (l, ico, ton, impact, conseil) => {
+      const k = reg.length; reg.push(l.article);
+      const mu = l.pv !== null && l.pv !== undefined && l.pa !== null && l.pa !== undefined ? l.pv - l.pa : null;
+      return `<li class="sc-fiche sc-${ton}"><div class="sc-fiche-tete">${photoOuIcone(l, ico)}<div class="sc-fiche-nom"><span class="sc-nom">${esc(l.article)}</span><span class="sc-fam">${esc(l.categorie || '')}</span></div></div>
+        <div class="sc-champs">${champ('PMP Decenium HT', l.pa_precedent !== null && l.pa_precedent !== undefined ? `${esc(eurN(l.pa_precedent))} → ${esc(eurN(l.pa))}` : esc(eurN(l.pa)))}${champ('Variation', esc(pctVar(l.variation)))}${champ('PV', esc(eurN(l.pv)))}${champ('Marge unitaire', esc(eurN(mu)))}${champ('Volume vendu', unites(l.quantite))}${champ('Impact sur la période', impact)}</div>
+        ${conseil ? `<p class="sc-conseil">${conseil}</p>` : ''}<div class="pied-carte">${OUVRIR(k)}</div></li>`;
+    };
+    const fPerte = l => fiche(l, ICO.perte, l.perte.justifiee ? 'info' : 'rouge', `perte ${esc(eurN(l.perte.montant))}`, l.perte.justifiee ? `Perte justifiée : ${esc(l.perte.motif || 'motif non précisé')}. La perte reste comptée.` : '');
+    const fSuspect = l => fiche(l, ICO.cout, 'ambre', l.hausse ? esc(eurN(l.hausse.impact)) : 'n.d.', esc(T.suspectMessage));
+    const fHausse = l => fiche(l, ICO.marge, 'ambre', `${T.niveaux[l.hausse.niveau] ? '<strong>' + esc(T.niveaux[l.hausse.niveau]) + '</strong> · ' : ''}${esc(eurN(l.hausse.impact))} (${esc(eurN(l.hausse.impact30))} / 30 j)`, l.cout_a_verifier ? esc(T.coutAVerifier) : 'Hausse de coût non répercutée sur le prix de vente.');
+    const fRegl = l => fiche(l, ICO.regl, 'info', `${esc(eurN(l.hausse.impact))}`, esc(T.reglemente.action));
+    const fVerif = l => { const v = l.a_verifier, m = [];
       if (v.raisons.some(x => x.indexOf('identite_') === 0)) m.push(`${esc(T.identiteMessage)} Avant : ${esc(v.ancien_libelle || 'n.d.')}${v.ancien_code_barres ? ' (code-barres ' + esc(v.ancien_code_barres) + ')' : ''}.`);
       if (v.raisons.includes('pv_egal_pa')) m.push(esc(T.pvEgalPaMessage));
-      return bt(l, m.join(' '), 'à vérifier'); };
-    const groupe = (g, vide) => {
-      const rest = (titre, o) => o.nb ? `<details class="comprendre"><summary>${esc(titre)}</summary><ul class="vp-liste">${o.lignes.map(ligneHausse).join('')}</ul></details>` : '';
-      return `<ul class="vp-liste">${g.premieres.map(ligneHausse).join('') || `<li class="vp-ligne">${vide}</li>`}</ul>`
-        + rest(`${g.reste.nb} autre${g.reste.nb > 1 ? 's' : ''} référence${g.reste.nb > 1 ? 's' : ''} de 1 € et plus`, g.reste)
-        + rest(`${g.petites.nb} référence${g.petites.nb > 1 ? 's' : ''} à moins de 1 €`, g.petites);
-    };
-    const h = R.hausse;
-    const MG = scannerMarge(), M = MG && MG.affichage, MGERR = !!(MG && MG.erreur), TM = NexusScannerTarifaire.TEXTES.marge;
-    const ligneMarge = e => { const k = reg.length; reg.push(e.article);
-      return `<li><button type="button" class="vp-ligne-prod" data-s="${k}"><span class="vp-nom">${esc(e.article)}</span><span class="vp-meta">${esc(e.categorie || '')} · taux ${esc(fmtN(e.margePct, 1))} %, médiane du groupe ${esc(fmtN(e.medianeGroupe, 1))} % sur ${esc(String(e.tailleGroupe))} références${e.aussi_hausse_pa ? ' · ' + esc(TM.aussiHausse) : ''}</span><span class="vp-chiffres">${esc(eurN(e.gainPotentiel))}</span></button><a class="lien-scanner-nexus" href="NEXUS-Scanner-v1.html">${esc(TM.lien)}</a></li>`; };
-    const blocMarge = MGERR ? `<div class="vp-bloc"><h3>Écarts Marge+ indisponibles</h3><div class="vp-ligne">Le calcul des écarts de marge a échoué. Les autres blocs ne sont pas touchés.</div></div>` : !M ? '' : `<div class="vp-bloc"><h3>${esc(TM.titre)} (${M.total})</h3><div class="vp-ligne">${esc(TM.ecart)} : ${esc(eurN(M.ecart))}</div>
-        <ul class="vp-liste">${M.premiers.map(ligneMarge).join('') || '<li class="vp-ligne">Aucun écart de marge.</li>'}</ul>
-        ${M.reste.nb ? `<details class="comprendre"><summary>${M.reste.nb} autre${M.reste.nb > 1 ? 's' : ''} écart${M.reste.nb > 1 ? 's' : ''}</summary><ul class="vp-liste">${M.reste.lignes.map(ligneMarge).join('')}</ul></details>` : ''}
-        ${M.valides.nb ? `<details class="comprendre"><summary>${M.valides.nb} ${esc(TM.valides)}</summary><ul class="vp-liste">${M.valides.lignes.map(ligneMarge).join('')}</ul></details>` : ''}
-        <div class="vp-ligne">${esc(TM.pied)}</div></div>`;
-    corps.innerHTML = `<div id="vpEntete">${entetePeriodeVue(`${R.analysees} références analysées · ${R.absentes_precedente} absentes de la période précédente`)}</div>
-      <div class="vp-bloc"><h3>Synthèse</h3>
-        <div class="vp-ligne">Ventes à perte : ${R.perte.nb} (${esc(eurN(R.perte.montant))}), dont ${R.perte.non_justifiees} non justifiée${R.perte.non_justifiees > 1 ? 's' : ''}</div>
-        <div class="vp-ligne">Coûts suspects : ${R.suspect.nb} référence${R.suspect.nb > 1 ? 's' : ''}</div>
-        <div class="vp-ligne">${esc(T.hausses)} : ${h.nb} références, dont ${h.a_examiner + h.prioritaire} à examiner ou prioritaires · ${esc(T.impact)} : ${esc(eurN(h.impact))} sur la période, ${esc(eurN(h.impact30))} ramenés à 30 jours</div>
-        <div class="vp-ligne">Total global, chaque référence comptée une fois : ${R.global.nb} références, ${esc(eurN(R.global.montant))}</div>
-        ${M ? `<div class="vp-ligne">${esc(TM.titre)} : ${M.total} écart${M.total > 1 ? 's' : ''}, ${esc(eurN(M.ecart))} d'écart à la médiane du groupe (hypothèse à vérifier, non additionné au total ci-dessus)</div>` : ''}</div>
-      <div class="vp-bloc"><h3>Ventes à perte (${A.pertes.length})</h3><ul class="vp-liste">${A.pertes.map(lignePerte).join('') || '<li class="vp-ligne">Aucune vente à perte.</li>'}</ul></div>
-      <div class="vp-bloc"><h3>Coûts suspects à vérifier (${A.suspects.length})</h3><ul class="vp-liste">${A.suspects.map(ligneSuspect).join('') || '<li class="vp-ligne">Aucun coût suspect.</li>'}</ul></div>
-      <div class="vp-bloc"><h3>Identité à vérifier (${A.averifier.length})</h3><ul class="vp-liste">${A.averifier.map(ligneVerif).join('') || '<li class="vp-ligne">Aucune référence.</li>'}</ul></div>
-      <div class="vp-bloc"><h3>${esc(T.hausses)} · prix libres (${A.hausses.total})</h3><div class="vp-ligne">${esc(T.impact)} : ${esc(eurN(A.hausses.impact))} sur la période</div>${groupe(A.hausses, 'Aucune hausse non répercutée.')}</div>
-      ${blocMarge}
-      <div class="vp-bloc"><h3>${esc(T.reglemente.titre)} (${A.reglementes.total})</h3><div class="vp-ligne">${esc(T.reglemente.sousTitre)}</div><div class="vp-ligne">${esc(T.reglemente.constat)}. ${esc(T.impact)} : ${esc(eurN(A.reglementes.impact))} sur la période.</div><div class="vp-ligne">${esc(T.reglemente.action)}</div>${groupe(A.reglementes, 'Aucune hausse enregistrée.')}<div class="vp-ligne">${esc(T.reglemente.pied)}</div></div>`;
-    corps.querySelectorAll('button[data-s]').forEach(b => b.addEventListener('click', () => choisirSuggestion(reg[Number(b.dataset.s)])));
+      return fiche(l, ICO.verif, 'ambre', 'n.d.', m.join(' ')); };
+    const fMarge = e => { const k = reg.length; reg.push(e.article);
+      return `<li class="sc-fiche sc-info"><div class="sc-fiche-tete">${photoOuIcone(e, ICO.marge)}<div class="sc-fiche-nom"><span class="sc-nom">${esc(e.article)}</span><span class="sc-fam">${esc(e.categorie || '')}</span></div></div>
+        <div class="sc-champs">${champ('Taux de marge', esc(fmtN(e.margePct, 1)) + ' %')}${champ('Médiane du groupe', esc(fmtN(e.medianeGroupe, 1)) + ' % sur ' + esc(String(e.tailleGroupe)) + ' références')}${champ('Écart à la médiane', esc(eurN(e.gainPotentiel)))}</div>
+        <p class="sc-conseil">${e.aussi_hausse_pa ? esc(TM.aussiHausse) + '. ' : ''}${esc(TM.ecart)} : hypothèse à vérifier.</p><div class="pied-carte"><a class="lien-scanner-nexus" href="NEXUS-Scanner-v1.html">${esc(TM.lien)}</a>${OUVRIR(k)}</div></li>`; };
+    const liste = (lignes, fn, vide) => `<ul class="vp-liste sc-liste">${lignes.map(fn).join('') || `<li class="vp-ligne">${vide}</li>`}</ul>`;
+    const voirTout = (cle, n) => n > 0 ? `<button type="button" class="btn-decl sc-voir" data-voir="${cle}">Voir les ${n} autre${n > 1 ? 's' : ''} dans la liste complète</button>` : '';
+    const groupe = (cle, g, fn, vide) => liste(g.premieres, fn, vide) + voirTout(cle, g.reste.nb + g.petites.nb);
+    const methode = txt => `<p class="vp-ligne sc-methode">${txt}</p>`;
+    const src = `Source : export Decenium de la période et de la période précédente, PMP Decenium HT. `;
+    // Les cinq cartes. `poids` ordonne la carte prioritaire (ouverte par défaut) : première non vide.
+    const nbMarge = A.hausses.total + (M ? M.total : 0);
+    const blocMarge = MGERR ? `<div class="sc-sous"><h4>Écarts Marge+ indisponibles</h4><div class="vp-ligne">Le calcul des écarts de marge a échoué. Les autres blocs ne sont pas touchés.</div></div>` : !M ? '' : `<div class="sc-sous"><h4>${esc(TM.titre)} (${M.total})</h4><div class="vp-ligne">${esc(TM.ecart)} : ${esc(eurN(M.ecart))}</div>${liste(M.premiers, fMarge, 'Aucun écart de marge.')}${voirTout('marges', M.reste.nb + M.valides.nb)}<div class="vp-ligne">${esc(TM.pied)}</div></div>`;
+    const CARTES = [
+      { id: 'pertes', ico: ICO.perte, titre: 'Mes ventes à perte', nb: A.pertes.length, montant: `marge négative ${esc(eurN(R.perte.montant))}`, prio: R.perte.non_justifiees > 0,
+        corps: (R.perte.non_justifiees > 0 ? '<p class="vp-ligne">Vente à perte non justifiée : vérifier le prix de vente ou justifier la perte dans la fiche produit.</p>' : '') + liste(A.pertes, fPerte, 'Aucune vente à perte.') + methode(src + 'Vente à perte : prix d\'achat supérieur ou égal au prix de vente. Une perte justifiée reste comptée et affiche son motif.') },
+      { id: 'couts', ico: ICO.cout, titre: 'Mes coûts à vérifier', nb: A.suspects.length, montant: 'coûts à vérifier', prio: A.suspects.length > 0,
+        corps: liste(A.suspects, fSuspect, 'Aucun coût suspect.') + methode(src + 'Variation importante ou suspecte du PMP, coût nul ou manquant : à vérifier, jamais une erreur avérée.') },
+      { id: 'marges', ico: ICO.marge, titre: 'Mes marges à surveiller', nb: nbMarge, montant: `${esc(T.impact.toLowerCase())} ${esc(eurN(A.hausses.impact))}${M ? ` · écart à la médiane ${esc(eurN(M.ecart))}` : ''}`, prio: A.hausses.total > 0,
+        corps: `<div class="sc-sous"><h4>${esc(T.hausses)} · prix libres (${A.hausses.total})</h4><div class="vp-ligne">${esc(T.impact)} : ${esc(eurN(A.hausses.impact))} sur la période</div>${groupe('marges', A.hausses, fHausse, 'Aucune hausse non répercutée.')}</div>${blocMarge}` + methode(src + 'Impact estimé à volume observé sur la période. L\'écart à la médiane du groupe est une hypothèse, ses montants ne s\'ajoutent pas aux hausses de coût.') },
+      { id: 'regl', ico: ICO.regl, titre: 'Mes prix réglementés', nb: A.reglementes.total, montant: `${esc(T.impact.toLowerCase())} ${esc(eurN(A.reglementes.impact))}`, prio: false,
+        corps: `<div class="vp-ligne">${esc(T.reglemente.sousTitre)}</div><div class="vp-ligne">${esc(T.reglemente.constat)}. ${esc(T.impact)} : ${esc(eurN(A.reglementes.impact))} sur la période.</div><div class="vp-ligne">${esc(T.reglemente.action)}</div>${groupe('regl', A.reglementes, fRegl, 'Aucune hausse enregistrée.')}<div class="vp-ligne">${esc(T.reglemente.pied)}</div>` + methode(src + 'Prix fixés par la réglementation : aucune suggestion de prix.') },
+      { id: 'verif', ico: ICO.verif, titre: 'Mes références à vérifier', nb: A.averifier.length, montant: 'identités et prix à vérifier', prio: false,
+        corps: liste(A.averifier, fVerif, 'Aucune référence.') + methode(src + 'Identité changée entre les deux périodes, ou prix de vente égal au prix d\'achat.') },
+    ];
+    const ouverte = CARTES.findIndex(c => c.prio && c.nb > 0) >= 0 ? CARTES.findIndex(c => c.prio && c.nb > 0) : CARTES.findIndex(c => c.nb > 0);
+    const carte = (c, i) => `<details class="sc-carte"${i === ouverte ? ' open' : ''} data-carte="${c.id}"><summary>${icone(c.ico, 'sc-ico')}<span class="sc-carte-txt"><span class="t-titre">${c.titre}</span><span class="t-sous">${pluriel(c.nb, 'référence', 'références')} · ${c.montant}</span></span><span class="sc-chev" aria-hidden="true"></span></summary><div class="sc-carte-corps">${c.corps}</div></details>`;
+    // Liste complète : une entrée par (contrôle, référence), avec recherche et tri.
+    const entries = [];
+    const ajoute = (ordre, ctrl, l, impact, variation) => { const k = reg.length; reg.push(l.article); entries.push({ cle: ['pertes', 'couts', 'marges', 'regl', 'verif'][ordre], article: l.article, categorie: l.categorie || '', controle: ctrl, ordre, impact, variation: variation === undefined ? null : variation, k }); };
+    A.pertes.forEach(l => ajoute(0, 'Vente à perte', l, l.perte.montant, l.variation));
+    A.suspects.forEach(l => ajoute(1, 'Coût à vérifier', l, l.hausse ? l.hausse.impact : null, l.variation));
+    [A.hausses.premieres, A.hausses.reste.lignes, A.hausses.petites.lignes].forEach(g => g.forEach(l => ajoute(2, 'Marge à surveiller', l, l.hausse.impact, l.variation)));
+    if (M) [M.premiers, M.reste.lignes, M.valides.lignes].forEach(g => g.forEach(e => ajoute(2, 'Marge à surveiller (écart à la médiane)', e, e.gainPotentiel, null)));
+    [A.reglementes.premieres, A.reglementes.reste.lignes, A.reglementes.petites.lignes].forEach(g => g.forEach(l => ajoute(3, 'Mes prix réglementés', l, l.hausse.impact, l.variation)));
+    A.averifier.forEach(l => ajoute(4, 'Référence à vérifier', l, null, l.variation));
+    const rowListe = e => `<li><button type="button" class="vp-ligne-prod" data-s="${e.k}"><span class="vp-nom">${esc(e.article)}</span><span class="vp-meta">${esc(e.controle)}${e.categorie ? ' · ' + esc(e.categorie) : ''}${e.variation !== null ? ' · ' + esc(pctVar(e.variation)) : ''}</span><span class="vp-chiffres">${e.impact !== null && e.impact !== undefined ? esc(eurN(e.impact)) : ''}</span></button></li>`;
+    const PAS_SC = 10;
+    let limiteSc = PAS_SC, ctrlSc = '';
+    const listeHtml = (L) => L.length ? `<ul class="vp-liste">${L.slice(0, limiteSc).map(rowListe).join('')}</ul>${L.length > limiteSc ? `<button type="button" class="btn-decl vp-plus" data-plus="1">Afficher ${Math.min(PAS_SC, L.length - limiteSc)} de plus (${L.length - limiteSc} restantes)</button>` : ''}` : '<div class="vp-ligne">Aucune référence ne correspond.</div>';
+    const per = PERIODE_DONNEES ? `du ${fmtDate(PERIODE_DONNEES.debut)} au ${fmtDate(PERIODE_DONNEES.fin)}${res.jours ? ', ' + res.jours + ' jours' : ''}` : '';
+    const stationEl = document.querySelector && document.querySelector('.nexus-nom-commerce');
+    const station = stationEl && stationEl.textContent ? stationEl.textContent + ' · ' : '';
+    const ind = (lib, val, ton, sous) => `<div class="sc-ind sc-${ton}"><span class="sc-ind-val">${val}</span><span class="sc-ind-lib">${esc(lib)}</span>${sous ? `<span class="sc-ind-sous">${sous}</span>` : ''}</div>`;
+    corps.innerHTML = `<div class="sc-entete">${icone('produits-scanner-tarifaire', 'sc-entete-ico')}<div><h2 class="sc-h">Scanner tarifaire</h2><div class="t-sous">Vos prix sous contrôle</div><div class="vp-ligne">${esc(station + per)}</div></div></div>
+      <div class="sc-inds">${ind('références analysées', esc(String(R.analysees)), 'info')}${ind('ventes à perte', esc(String(R.perte.nb)), R.perte.non_justifiees > 0 ? 'rouge' : 'info', `dont ${R.perte.non_justifiees} non justifiée${R.perte.non_justifiees > 1 ? 's' : ''}`)}${ind('marge négative', esc(eurN(R.perte.montant)), R.perte.non_justifiees > 0 ? 'rouge' : 'info')}${ind(T.impact.toLowerCase() + ' (hausses de PA)', esc(eurN(h.impact)), 'ambre')}${ind('hausses à examiner ou prioritaires', esc(String(h.a_examiner + h.prioritaire)), 'ambre')}${ind('sans période précédente', esc(String(R.absentes_precedente)), 'gris', 'limite de l\'analyse, pas une anomalie')}</div>
+      <p class="sc-note">Une référence peut figurer dans plusieurs contrôles ; les montants ne s'additionnent pas.</p>
+      <div class="carte conseiller sc-conseiller"><img class="conseiller-avatar" src="assets/avatar/nexus-avatar-128.png" srcset="assets/avatar/nexus-avatar-64.png 64w, assets/avatar/nexus-avatar-96.png 96w, assets/avatar/nexus-avatar-128.png 128w, assets/avatar/nexus-avatar-256.png 256w" sizes="80px" alt="Conseiller NEXUS"><div class="conseiller-corps"><div class="conseiller-titre">Conseiller NEXUS</div><p>${esc(texteConseillerScanner(R, A))}</p></div></div>
+      <div class="sc-cartes">${CARTES.map(carte).join('')}</div>
+      <section class="sc-tout" id="scTout" aria-label="Toutes les références"><h3>Toutes les références (${entries.length})</h3>
+        <div class="vp-filtres"><input type="search" id="scRech" placeholder="Rechercher un produit ou une famille" aria-label="Rechercher"><select id="scTri" aria-label="Trier"><option value="controle">Tri : contrôle</option><option value="impact">Tri : impact</option><option value="variation">Tri : variation</option><option value="nom">Tri : nom</option></select></div>
+        <div id="scFiltre"></div><div id="scListe">${listeHtml(filtrerListeScanner(entries, '', 'controle'))}</div></section>`;
+    const lier = zone => zone.querySelectorAll('button[data-s]').forEach(b => b.addEventListener('click', () => choisirSuggestion(reg[Number(b.dataset.s)])));
+    lier(corps);
+    const rech = corps.querySelector && corps.querySelector('#scRech'), tri = corps.querySelector && corps.querySelector('#scTri'), zone = corps.querySelector && corps.querySelector('#scListe'), puce = corps.querySelector && corps.querySelector('#scFiltre');
+    if (rech && tri && zone) {
+      const maj = () => {
+        const L = filtrerListeScanner(entries, rech.value, tri.value, ctrlSc);
+        zone.innerHTML = listeHtml(L); lier(zone);
+        const plus = zone.querySelector('[data-plus]'); if (plus) plus.addEventListener('click', () => { limiteSc += PAS_SC; maj(); });
+        if (puce) {
+          const nom = ctrlSc ? (entries.find(e => e.cle === ctrlSc) || {}).controle : '';
+          puce.innerHTML = ctrlSc ? `<div class="vp-ligne">Contrôle : ${esc(String(nom).replace(/ \(écart.*\)$/, ''))} <button type="button" class="btn-decl" id="scRetirer">Retirer le filtre</button></div>` : '';
+          const r = puce.querySelector('#scRetirer'); if (r) r.addEventListener('click', () => { ctrlSc = ''; limiteSc = PAS_SC; maj(); });
+        }
+      };
+      maj(); // premier rendu : pose l'écouteur du bouton « Afficher plus »
+      rech.addEventListener('input', () => { limiteSc = PAS_SC; maj(); }); tri.addEventListener('change', () => { limiteSc = PAS_SC; maj(); });
+      corps.querySelectorAll('[data-voir]').forEach(b => b.addEventListener('click', () => {
+        ctrlSc = b.dataset.voir; limiteSc = PAS_SC; maj();
+        const t = corps.querySelector('#scTout'); if (t && t.scrollIntoView) t.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }));
+    }
   }
   function ouvrirVue(cle) {
     const r = document.getElementById('resultSection');
     if (!r || !vuesDisponibles()) return;
-    r.innerHTML = `<section class="card vue-p1c" aria-label="${esc(VUES[cle].titre)}"><button type="button" class="lien-accueil" id="lienProduits">‹ Produits</button><h2>${esc(VUES[cle].titre)}</h2><div id="vueCorps"></div></section>`;
+    r.innerHTML = `<section class="card vue-p1c" aria-label="${esc(VUES[cle].titre)}"><button type="button" class="lien-accueil" id="lienProduits">‹ Produits</button>${cle === 'scanner' ? '' : `<h2>${esc(VUES[cle].titre)}</h2>`}<div id="vueCorps"></div></section>`;
     document.getElementById('lienProduits').addEventListener('click', afficherAccueil);
     const corps = document.getElementById('vueCorps');
     const entries = entreesVues();
