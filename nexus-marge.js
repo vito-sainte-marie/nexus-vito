@@ -38,7 +38,8 @@
   const RAYONS_TABAC_REGLEMENTE = [
     /^cigarettes?$/, /^cigares?\b/, /^pot tabac\b/, /^tabacs?$/, /^tabacs? à rouler\b/, /^tabacs? a rouler\b/,
   ];
-  const ACCESSOIRE_TABAC = /papier|feuille|filtre|tube|brique|rizla|gizeh|\bocb\b|e-liquide|électronique|electronique/;
+  // Mots ENTIERS désignant un accessoire (jamais une sous-chaîne : « tuber » n'est pas « tube »).
+  const ACCESSOIRE_TABAC = /(?<![\p{L}])(papiers?|feuilles?|filtres?|tubes?|briquets?|rizla|gizeh|ocb|smoking|clipper|e-liquides?|électroniques?|electroniques?)(?![\p{L}])/u;
   // Vocabulaire qui évoque un rayon de tabac, pour signaler « à classer ».
   const EVOQUE_TABAC = /tabac|cigar|chicha|narguil|\bpipe\b|snus|chiquer/;
   const VAPOTAGE_CBD = /vap|puff|e-?liquide|e-?cig|cbd/;
@@ -58,6 +59,8 @@
         const cat = normaliser(categorie);
         const art = (article || '').toLowerCase();
         if (!RAYONS_TABAC_REGLEMENTE.some(re => re.test(cat))) return false;
+        // Rayon Cigares : tout est réglementé (un cigarillo « filtre » reste un cigare).
+        if (/^cigares?\b/.test(cat)) return true;
         return !ACCESSOIRE_TABAC.test(art);
       },
     },

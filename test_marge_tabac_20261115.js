@@ -14,6 +14,13 @@ t('accessoires du rayon tabac : marge libre', () => {
   [['Tabac à rouler 30 g', 'Papier Rizla'], ['Tabac Ã  rouler 30 g', 'Gizeh slim'], ['Tabac à rouler', 'Feuille OCB'], ['Tabac à rouler', 'Filtres 6mm'], ['Tabac à rouler', 'Tubes']]
     .forEach(([c, a]) => assert.strictEqual(exclue(c, a), false, c + ' / ' + a));
 });
+t('défauts de recette 6904184510 : mots entiers, cigares sans test d’accessoire', () => {
+  assert.strictEqual(exclue('Cigares', 'Signature Piccolini Beige Filtre - P 10'), true);
+  assert.strictEqual(exclue('Cigares', 'Signature Piccolini Green filter'), true);
+  assert.strictEqual(exclue('Tabac à rouler 30 g', 'Tabac Kingston à tuber 30g -10P'), true);
+  assert.strictEqual(exclue('Tabac à rouler 30 g', 'Tubes OCB'), false);
+  assert.strictEqual(exclue('Pot Tabac', 'Clipper'), false);
+});
 t('vapotage et CBD restent à marge libre', () => {
   [['E-liquides', 'Fruits rouges'], ['PUFFS', 'Puff 600'], ['Kits WPUFF', 'kit'], ['CBD', 'Fleur CBD']].forEach(([c, a]) => assert.strictEqual(exclue(c, a), false, c));
 });
