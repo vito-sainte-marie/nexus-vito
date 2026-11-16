@@ -74,8 +74,8 @@
     const lignes = [];
     cur.forEach((r, i) => {
       const nomUnique = ixCur.get(PM.normaliserNom(r.article)) === i;
-      const nat = PM.trouverDeclaration(natures, r, nomUnique);
-      // Opération de caisse : exclusion par déclaration de nature uniquement, jamais par mot du libellé.
+      // Nature lue via le module de mesure (déclaration d'un responsable, sinon règle NEXUS des articles de caisse).
+      const nat = PM.natureDe(natures, r, nomUnique);
       const operation = !!(nat && nat.nature === 'operation_caisse');
       if (operation) return;
 

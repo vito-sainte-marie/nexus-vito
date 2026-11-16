@@ -18,18 +18,19 @@ assert.strictEqual(S.niveauImpact(5, T), 'a_examiner');
 assert.strictEqual(S.niveauImpact(20, T), 'prioritaire');
 console.log('OK  seuils et bornes');
 
-const prec = [L('MENTHE', 1.39, 2.35, 10), L('HARIBO', 0.5, 1, 5), L('COCA', 1, 2, 10), L('MARLBORO', 10, 11, 10), L('SANS PA', 1, 2, 3), L('ACOMPTE', 1, 1, 470)];
-const cur = [L('MENTHE', 2.94, 2.35, 6), L('HARIBO', 0.6, 1, 100), L('COCA', 1.5, 2, 20), L('MARLBORO', 11, 11, 10, { categorie: 'Tabac' }), L('NOUVEAU', 1, 2, 4), L('SANS PA', null, 2, 3), L('ACOMPTE', 1, 1, 470)];
+const prec = [L('MENTHE', 1.39, 2.35, 10), L('HARIBO', 0.5, 1, 5), L('COCA', 1, 2, 10), L('MARLBORO', 10, 11, 10), L('SANS PA', 1, 2, 3), L('ACOMPTE', 1, 1, 470), L('FORFAIT', 1, 1, 5)];
+const cur = [L('MENTHE', 2.94, 2.35, 6), L('HARIBO', 0.6, 1, 100), L('COCA', 1.5, 2, 20), L('MARLBORO', 11, 11, 10, { categorie: 'Tabac' }), L('NOUVEAU', 1, 2, 4), L('SANS PA', null, 2, 3), L('ACOMPTE', 1, 1, 470), L('FORFAIT', 1, 1, 5)];
 const r = S.controler(cur, prec, ctx);
 const get = a => r.lignes.find(l => l.article === a);
-assert.ok(get('ACOMPTE'), 'ACOMPTE n\'est pas exclu par son libellé');
-assert.ok(!get('ACOMPTE').perte, 'PA égal au PV : pas une vente à perte');
-assert.ok(get('ACOMPTE').a_verifier && get('ACOMPTE').a_verifier.raisons.includes('pv_egal_pa'), 'PA = PV : donnée à vérifier');
-assert.ok(!get('ACOMPTE').suspect, 'PA = PV : pas de message de coût suspect');
+assert.ok(!get('ACOMPTE'), 'ACOMPTE : exclu par la règle NEXUS (article de caisse hors catalogue), via le module de mesure');
+assert.ok(get('FORFAIT'), 'FORFAIT n\'est pas exclu');
+assert.ok(!get('FORFAIT').perte, 'PA égal au PV : pas une vente à perte');
+assert.ok(get('FORFAIT').a_verifier && get('FORFAIT').a_verifier.raisons.includes('pv_egal_pa'), 'PA = PV : donnée à vérifier');
+assert.ok(!get('FORFAIT').suspect, 'PA = PV : pas de message de coût suspect');
 assert.ok(r.resume.a_verifier.pv_egal_pa >= 1);
-// Nature déclarée operation_caisse : seule voie d'exclusion
-const rn = S.controler(cur, prec, Object.assign({}, ctx, { natures: [{ article: 'ACOMPTE', nature: 'operation_caisse', actif: true, date_debut: '2000-01-01' }] }));
-assert.ok(!rn.lignes.some(l => l.article === 'ACOMPTE'), 'nature operation_caisse déclarée : exclue');
+// Une déclaration produit sur ACOMPTE l'emporte sur la règle
+const rp = S.controler(cur, prec, Object.assign({}, ctx, { natures: [{ article: 'ACOMPTE', nature: 'produit_commercial', actif: true, date_debut: '2000-01-01' }] }));
+assert.ok(rp.lignes.some(l => l.article === 'ACOMPTE'), 'déclaration produit : prioritaire sur la règle');
 // Identité modifiée : à vérifier, sans message de coût suspect
 const rid = S.controler([L('20261001 HARIBO', 0.51, 1, 10, { code_barres: 'cb-H' })], [L('HARIBO', 0.5, 1, 10, { code_barres: 'cb-H' })], ctx);
 const hid = rid.lignes[0];
@@ -42,7 +43,7 @@ assert.strictEqual(r.jours, 36);
 assert.strictEqual(get('NOUVEAU').variation, null, 'absente de la période précédente : aucun pourcentage');
 assert.strictEqual(get('SANS PA').variation, null);
 assert.ok(get('SANS PA').donnees_manquantes, 'PA nul = donnée manquante');
-console.log('OK  ACOMPTE non exclu par libellé, PA = PV à vérifier, absente, PA nul');
+console.log('OK  ACOMPTE exclu par règle NEXUS, PA = PV à vérifier, absente, PA nul');
 
 // A : vente à perte
 const m = get('MENTHE');

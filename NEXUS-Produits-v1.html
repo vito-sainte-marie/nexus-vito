@@ -1387,7 +1387,7 @@ nexusRequireAuth().then(async employee => {
 
     // Nature
     const n = mes.nature;
-    zN.innerHTML = `<div class="gap-row"><span class="gap-label">Nature</span><span class="gap-status">${esc(n.libelle)}${n.declaree ? ` · déclarée le ${esc(quand(n.declare_le))}` : ' · par défaut (non déclarée)'}${n.commentaire ? ' · ' + esc(n.commentaire) : ''}</span></div>
+    zN.innerHTML = `<div class="gap-row"><span class="gap-label">Nature</span><span class="gap-status">${esc(n.libelle)}${n.declaree ? ` · déclarée le ${esc(quand(n.declare_le))}` : (n.source === 'règle NEXUS' ? ' · source : règle NEXUS' : ' · par défaut (non déclarée)')}${n.commentaire ? ' · ' + esc(n.commentaire) : ''}</span></div>
       <div id="natureForm"></div>${bouton('btnNature', n.declaree ? 'Corriger la nature' : 'Déclarer la nature')}${n.declaree ? bouton('btnNatureAnnuler', 'Annuler la déclaration') : ''}`;
     zN.querySelector('#btnNature').addEventListener('click', () => formulaireDecl(zN.querySelector('#natureForm'), {
       produit: p, titre: 'Nature de la référence', bouton: 'Enregistrer',
