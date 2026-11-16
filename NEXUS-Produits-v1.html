@@ -701,7 +701,14 @@ nexusRequireAuth().then(async employee => {
   // À surveiller, Tendance à confirmer, Aucune vente récente, Dormant, Rupture
   // probable, Sans signal particulier. La règle vit dans NexusConseiller.statutProduit
   // (seuils et durées exportés, jamais copiés ici). l'ancien statut « performant » n'existe plus.
+  // Une référence exclue des indicateurs commerciaux (opération de caisse, par règle ou par
+  // déclaration) n'a ni statut stratégique, ni part de rayon, ni classement.
+  const TEXTE_HORS_INDICATEURS = 'Hors indicateurs commerciaux : aucune recommandation.';
+  function horsIndicateurs(p) {
+    return !!(p && p.mesure && p.mesure.exclue_indicateurs);
+  }
   function calculerStatutSimplifie(p) {
+    if (p && p.mesure && p.mesure.exclue_indicateurs) return { cle: 'operation-caisse', label: 'Opération de caisse', niveau: null, action: null };
     // Règle unique : NexusConseiller.statutProduit (lot 2, 11/11/2026). La page ne
     // décide plus rien ; elle échappe seulement le texte d'action avant affichage.
     const st = NexusConseiller.statutProduit(p, AUJOURDHUI_STATION);
@@ -1038,6 +1045,7 @@ nexusRequireAuth().then(async employee => {
     // (fusionné dans l'action recommandée de la carte d'identité ci-dessous).
     const statutSimplifie = calculerStatutSimplifie(p);
     const rangRayon = calculerRangRayon(p);
+    const horsInd = horsIndicateurs(p);
 
     // ------------------------------------------------------------
     // Refonte visuelle phase 1 : aucune formule, aucun seuil, aucun statut
@@ -1182,7 +1190,7 @@ nexusRequireAuth().then(async employee => {
           <img class="conseiller-avatar" src="assets/avatar/nexus-avatar-128.png" srcset="assets/avatar/nexus-avatar-64.png 64w, assets/avatar/nexus-avatar-96.png 96w, assets/avatar/nexus-avatar-128.png 128w, assets/avatar/nexus-avatar-256.png 256w" sizes="80px" alt="" width="80" height="80" onerror="this.style.display='none'">
           <div class="conseiller-corps">
             <div class="conseiller-titre">Conseiller NEXUS</div>
-            <div class="conseiller-sous">${esc(phraseMesure || statutSimplifie.label)}</div>
+            <div class="conseiller-sous">${esc(horsInd ? TEXTE_HORS_INDICATEURS : (phraseMesure || statutSimplifie.label))}</div>
             <details class="comprendre">
               <summary>Comprendre cette analyse</summary>
               <div class="conseiller-bubble"><div class="conseiller-text" id="conseillerProduitMsg"></div></div>
@@ -1210,8 +1218,8 @@ nexusRequireAuth().then(async employee => {
         <div class="ind-niveau ind-secondaire">
           ${tuile(ICO.prix, 'Prix HT', p.pu_ht !== null ? fmtEur(p.pu_ht) : 'n.d.')}
           ${tuile(ICO.pma, 'PMP Decenium HT', p.pma !== null ? fmtEur(p.pma) : 'n.d.')}
-          ${tuile(ICO.part, 'Part du rayon', p.pct_contrib != null ? fmtPct(p.pct_contrib) : 'n.d.')}
-          ${tuile(ICO.rang, 'Classement CA dans le rayon', `#${rangRayon.rang} / ${rangRayon.total}`)}
+          ${tuile(ICO.part, 'Part du rayon', horsInd ? 'sans objet' : (p.pct_contrib != null ? fmtPct(p.pct_contrib) : 'n.d.'))}
+          ${tuile(ICO.rang, 'Classement CA dans le rayon', horsInd ? 'sans objet' : `#${rangRayon.rang} / ${rangRayon.total}`)}
           ${tuile(ICO.stock, 'Stock théorique (valeur)', '…', 'vérification…', { val: 'heroStockVal', sub: 'heroStockSub' })}
           ${tuile(ICO.rotation, 'Couverture estimée', '…', 'vérification…', { val: 'heroRotationVal', sub: 'heroRotationSub' })}
         </div>
@@ -1270,7 +1278,11 @@ nexusRequireAuth().then(async employee => {
     // Conseiller : cycle Constat -> Explication -> Decision (logique inchangee),
     // ecrit apres la creation du DOM. La periode de comparaison accompagne la tendance.
     const conseillerMsg = document.getElementById('conseillerProduitMsg');
-    if (conseillerMsg) {
+    if (conseillerMsg && horsInd) {
+      conseillerMsg.textContent = TEXTE_HORS_INDICATEURS;
+      const piedHors = document.getElementById('conseillerPaire');
+      if (piedHors) piedHors.innerHTML = '';
+    } else if (conseillerMsg) {
       const periodeAff = `${fmtDate(p.periode_debut)} → ${fmtDate(p.periode_fin)}`;
       const stockFait = p.stock ? `quantité en stock ${p.stock.quantite} au relevé du ${fmtDate(p.stock.releve_le)}` : null;
       const constatP = p.ca_t2 === 0
@@ -1607,7 +1619,7 @@ nexusRequireAuth().then(async employee => {
       };
       corps.querySelector('#fLibre').addEventListener('change', maj); maj();
     } else if (cle === 'revoir') {
-      const statutDe = e => { const p = PRODUCTS.find(x => x.article === e.article); return p ? NexusConseiller.statutProduit(p, AUJOURDHUI_STATION) : null; };
+      const statutDe = e => { const p = PRODUCTS.find(x => x.article === e.article); if (!p) return null; if (horsIndicateurs(p)) return { cle: 'operation-caisse', label: 'Opération de caisse', niveau: null, action: null }; return NexusConseiller.statutProduit(p, AUJOURDHUI_STATION); };
       const v = window.NexusProduitsVues.aRevoir(entries, statutDe);
       const ligne = (e, motif, source, bouton) => `<li><button type="button" class="vp-ligne-prod" data-r="${e._i}"><span class="vp-nom">${esc(e.article)}${badgesLigne(e)}</span><span class="vp-meta">${esc(motif)} · source : ${esc(source)}</span><span class="vp-chiffres">${esc(e._chiffres)}</span></button>${bouton ? `<button type="button" class="btn-decl" data-just="${e._i}">Justifier</button>` : ''}</li>`;
       const reg = [];
