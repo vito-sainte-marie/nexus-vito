@@ -74,11 +74,14 @@ t('une confirmation annulée ou remplacée ne compte pas', () => {
   assert.deepStrictEqual(M.actives(lignes, 'confirme_le').map(x => x.id), ['c']);
 });
 const acompte = () => L('ACOMPTE', 'Divers', 500, 5, 500, { prix_vente: 100, marge: 500 });
-t('ACOMPTE : sans déclaration il reste commercial ; avec operation_caisse il est exclu et le CA se réconcilie', () => {
+t('ACOMPTE : exclu par la règle NEXUS sans déclaration, une déclaration produit l’emporte ; avec operation_caisse il est exclu et le CA se réconcilie', () => {
   const rows = [acompte()].concat(fond());
   const sans = mes(rows);
-  assert.strictEqual(sans.mesures[0].exclue_indicateurs, false);
-  assert.strictEqual(sans.resume.synthese.operations_caisse, 0);
+  assert.strictEqual(sans.mesures[0].exclue_indicateurs, true);
+  assert.strictEqual(sans.mesures[0].nature.source, 'règle NEXUS');
+  assert.strictEqual(sans.resume.synthese.operations_caisse, 500);
+  const decl = mes(rows, { natures: [{ id: 'p', article: 'ACOMPTE', nature: 'produit_commercial', declare_le: '2026-11-15T10:00:00Z' }] });
+  assert.strictEqual(decl.mesures[0].exclue_indicateurs, false, 'déclaration prioritaire sur la règle');
   const natures = [{ id: 'n', article: 'ACOMPTE', nature: 'operation_caisse', declare_le: '2026-11-15T10:00:00Z' }];
   const avec = mes(rows, { natures });
   const s = avec.resume.synthese;

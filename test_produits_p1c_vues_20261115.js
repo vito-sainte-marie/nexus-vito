@@ -35,9 +35,9 @@ t('Mes produits : tri par CA, somme des CA = CA analytique, caisse exclue et sig
   assert.strictEqual(v.caisses[0].ca, 470);
   assert.ok(Math.abs(v.ca - res.resume.synthese.ca_analytique) < 0.005 || res.resume.synthese === undefined, 'CA vue = CA analytique');
 });
-t('Sans déclaration, ACOMPTE reste commercial', () => {
+t('Sans déclaration, ACOMPTE est exclu par la règle NEXUS', () => {
   const { entries } = prep();
-  assert.ok(V.produits(entries, {}).lignes.some(e => e.article === 'ACOMPTE'));
+  assert.ok(!V.produits(entries, {}).lignes.some(e => e.article === 'ACOMPTE'));
 });
 t('Mes produits : recherche sans accents et filtres rayon, nature', () => {
   const { entries } = prep({ natures });

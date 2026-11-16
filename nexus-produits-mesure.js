@@ -223,9 +223,20 @@
   }
 
   // Exclusion d'une opération de caisse des indicateurs commerciaux : on garde les lignes, on retire du classement.
+  // Articles de caisse hors catalogue : codés par règle NEXUS. Le libellé change à chaque vente (préfixe de date
+  // JJ-MM-AAAA, complément libre) et l'article n'a jamais de code-barres : une déclaration par libellé ne suivrait pas.
+  const ARTICLES_CAISSE_HORS_CATALOGUE = ['ACOMPTE'];
+  // On retire un préfixe de date en tête, puis le libellé doit commencer par le mot entier. Jamais de recherche ailleurs.
+  function articleCaisseHorsCatalogue(article) {
+    const k = normaliserNom(article).replace(/^\d{2}-\d{2}-\d{4}\s+/, '').toUpperCase();
+    return ARTICLES_CAISSE_HORS_CATALOGUE.some(mot => k === mot || (k.startsWith(mot) && !/^[\p{L}\p{N}_]/u.test(k.slice(mot.length))));
+  }
+  // Déclaration d'un responsable en priorité ; à défaut, la règle NEXUS (objet marqué regle: true, sans id).
   function natureDe(natures, row, nomUnique) {
     const d = trouverDeclaration(natures, row, nomUnique);
-    return d && NATURES[d.nature] ? d : null;
+    if (d && NATURES[d.nature]) return d;
+    if (articleCaisseHorsCatalogue(row.article)) return { nature: 'operation_caisse', regle: true, declare_par: 'règle NEXUS', declare_le: null, commentaire: 'Article de caisse hors catalogue', id: null };
+    return null;
   }
 
   // products : lignes de la période affichée (un site). precedent : { rows, debut, fin } de la période importée précédente.
@@ -276,7 +287,7 @@
       const tva = r.tva === null || r.tva === undefined || r.tva === '' ? null : num(r.tva);
       const exportLe = jourIso(r.periode_fin) || jourIso(per.fin);
       const m = { article: r.article, categorie: r.categorie || null, qualificationCle: c.qualification, qualification: QUALIFICATIONS[c.qualification] };
-      m.nature = { cle: nat ? nat.nature : 'produit_commercial', libelle: NATURES[nat ? nat.nature : 'produit_commercial'], declaree: !!nat,
+      m.nature = { cle: nat ? nat.nature : 'produit_commercial', libelle: NATURES[nat ? nat.nature : 'produit_commercial'], declaree: !!nat && !nat.regle, source: nat ? (nat.regle ? 'règle NEXUS' : 'déclaration') : null,
         declare_par: nat ? nat.declare_par : null, declare_le: nat ? nat.declare_le : null, commentaire: nat ? nat.commentaire || null : null, id: nat ? nat.id : null };
       m.exclue_indicateurs = m.nature.cle === 'operation_caisse';
       m.pmp = valeur(pmp, 'Export Decenium', per, 'exporte', site); m.pmp.date_export = exportLe;
@@ -418,6 +429,6 @@
     return l;
   }
 
-  global.NexusProduitsMesure = { NATURES, MOTIFS_JUSTIFICATION, etatTva, actives, trouverDeclaration, QUALIFICATIONS, RAISONS_NON_COMPARABLE, mesurer, classer, normaliserNom, indexerParNom, jours, phrase, explication };
+  global.NexusProduitsMesure = { NATURES, MOTIFS_JUSTIFICATION, etatTva, actives, trouverDeclaration, QUALIFICATIONS, RAISONS_NON_COMPARABLE, mesurer, classer, normaliserNom, indexerParNom, natureDe, articleCaisseHorsCatalogue, ARTICLES_CAISSE_HORS_CATALOGUE, jours, phrase, explication };
   if (typeof module !== 'undefined' && module.exports) module.exports = global.NexusProduitsMesure;
 })(typeof window !== 'undefined' ? window : globalThis);

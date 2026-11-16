@@ -21,13 +21,13 @@ function executer(html, extra, cible) {
   const corpsRec = { innerHTML: '', querySelector: () => mk(), querySelectorAll: () => [], addEventListener() {} };
   ctx.document = { getElementById: id => id === 'vueCorps' ? corpsRec : mk(), querySelector: () => mk(), querySelectorAll: () => [], addEventListener() {}, createElement: () => mk(), body: mk(), documentElement: mk() };
   ctx.location = { search: '', href: 'http://x/', pathname: '/x' };
-  for (const f of ['nexus-conseiller.js', 'nexus-marge.js', 'nexus-produits-mesure.js', 'nexus-campagne-outils.js', 'nexus-campagne-ventes.js', 'nexus-produits-vues.js', 'nexus-badge-etat.js', 'nexus-produits-securite.js']) vm.runInContext(fs.readFileSync(path.join(R, f), 'utf8'), ctx, { filename: f });
+  for (const f of ['nexus-conseiller.js', 'nexus-marge.js', 'nexus-produits-mesure.js', 'nexus-campagne-outils.js', 'nexus-campagne-ventes.js', 'nexus-produits-vues.js', 'nexus-scanner-tarifaire.js', 'nexus-badge-etat.js', 'nexus-produits-securite.js']) vm.runInContext(fs.readFileSync(path.join(R, f), 'utf8'), ctx, { filename: f });
   ctx.setTimeout = f => { try { f(); } catch (e) { errs.push(e); } };
   process.on('unhandledRejection', e => errs.push(e));
   const marque = []; ctx.__marque = s => marque.push(s);
   // Après l'appel d'accueil, expose les vues pour les ouvrir comme le ferait un clic, puis reviens à l'accueil.
   const code2 = code.replace(APPEL, APPEL + `__marque('accueil');
-    try { for (const v of ['produits','ventes','marges','revoir','stocks','promo']) { ouvrirVue(v); __marque('vue:' + v); if (v === 'promo') __corpsPromo(); afficherAccueil(); __marque('retour:' + v); } __marque('badge:' + typeof badgePromotion({ article: 'GAZ BLEU 12,5 KG' })); } catch (e) { __errVues(e); }`);
+    try { for (const v of ['produits','ventes','marges','revoir','stocks','promo','scanner']) { ouvrirVue(v); __marque('vue:' + v); if (v === 'promo') __corpsPromo(); afficherAccueil(); __marque('retour:' + v); } __marque('badge:' + typeof badgePromotion({ article: 'GAZ BLEU 12,5 KG' })); } catch (e) { __errVues(e); }`);
   ctx.__errVues = e => errs.push(e);
   ctx.__corpsPromo = () => { if (cible) cible.html = corpsRec.innerHTML; };
   try { vm.runInContext(code2, ctx, { filename: 'page.js' }); } catch (e) { errs.push(e); }
@@ -38,11 +38,11 @@ function executer(html, extra, cible) {
   const html = fs.readFileSync(path.join(R, 'NEXUS-Produits-v1.html'), 'utf8');
   assert.ok(html.includes(APPEL), 'l\'appel de la synthèse d\'accueil est introuvable');
 
-  // 1. La page réelle : aucune erreur, accueil affiché, six vues ouvertes puis retour.
+  // 1. La page réelle : aucune erreur, accueil affiché, sept vues ouvertes puis retour.
   const ok = await executer(html);
   assert.deepStrictEqual(ok.errs.map(e => String(e && e.message)), [], 'erreur à l\'exécution de la page');
-  assert.deepStrictEqual(ok.marque, ['accueil', ...['produits','ventes','marges','revoir','stocks','promo'].flatMap(v => ['vue:' + v, 'retour:' + v]), 'badge:string']);
-  console.log('OK  exécution réelle : accueil, six vues, retour, zéro erreur');
+  assert.deepStrictEqual(ok.marque, ['accueil', ...['produits','ventes','marges','revoir','stocks','promo','scanner'].flatMap(v => ['vue:' + v, 'retour:' + v]), 'badge:string']);
+  console.log('OK  exécution réelle : accueil, sept vues, retour, zéro erreur');
 
   // 1b. Régression Guardian : le rapprochement se fait avec les produits du site chargés (PRODUCTS), pas avant.
   //     Un produit de la promotion présent une seule fois chez le site doit donner un lien vers sa fiche, jamais « à rapprocher ».
