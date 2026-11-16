@@ -30,20 +30,38 @@
   // appartient à la famille `id`. `exclue: true` signifie que cette famille
   // est retirée de toute recommandation de marge (marge non ajustable par
   // le commerçant, la comparer serait trompeur).
+  // Le rayon « Tabac à rouler » est importé avec un défaut d'encodage (« Ã  »
+  // au lieu de « à ») : on le recompose avant de comparer.
+  function normaliser(categorie) {
+    return (categorie || '').replace(/Ã\s/g, 'à ').replace(/\s+/g, ' ').trim().toLowerCase();
+  }
+  const RAYONS_TABAC_REGLEMENTE = [
+    /^cigarettes?$/, /^cigares?\b/, /^pot tabac\b/, /^tabacs?$/, /^tabacs? à rouler\b/, /^tabacs? a rouler\b/,
+  ];
+  // Mots ENTIERS désignant un accessoire (jamais une sous-chaîne : « tuber » n'est pas « tube »).
+  const ACCESSOIRE_TABAC = /(?<![\p{L}])(papiers?|feuilles?|filtres?|tubes?|briquets?|rizla|gizeh|ocb|smoking|clipper|e-liquides?|électroniques?|electroniques?)(?![\p{L}])/u;
+  // Vocabulaire qui évoque un rayon de tabac, pour signaler « à classer ».
+  const EVOQUE_TABAC = /tabac|cigar|chicha|narguil|\bpipe\b|snus|chiquer/;
+  const VAPOTAGE_CBD = /vap|puff|e-?liquide|e-?cig|cbd/;
+
   const EXCEPTIONS = [
-    // Tabac réglementé (paquets de cigarettes, cigarillos, tabac à rouler
-    // vendu en paquet standard) — prix et marge fixés par le fabricant sous
-    // le monopole des tabacs. Les accessoires (papier, filtres, tubes,
-    // briquets, e-liquides) restent comparables normalement.
+    // Tabac manufacturé — prix réglementé, jamais comparé pour une optimisation
+    // tarifaire (décision de Frédéric du 15/11/2026 ; en outre-mer le prix des
+    // tabacs est encadré par le droit de consommation, à confirmer auprès du
+    // distributeur ou des douanes). La règle repose sur des RAYONS NOMMÉS
+    // (cigarettes, cigares, pot tabac, tabac à rouler), plus sur un mot du
+    // libellé. Les accessoires (papier, feuille, filtre, tube, Rizla, Gizeh,
+    // OCB, briquet) et le vapotage/CBD restent à marge libre. Un rayon de
+    // tabac inconnu n'est jamais classé d'office : voir tabacAClasser.
     {
       id: 'tabac-reglemente', exclue: true,
       test: (categorie, article) => {
-        const cat = (categorie || '').toLowerCase();
+        const cat = normaliser(categorie);
         const art = (article || '').toLowerCase();
-        if (!/tabac|cigare/.test(cat)) return false;
-        const estAccessoire = /papier|feuille|filtre|tube|brique|e-liquide|électronique|electronique/.test(art);
-        if (estAccessoire) return false;
-        return /paquet|cigarette|cigarillo|tabac à rouler|tabac a rouler/.test(art);
+        if (!RAYONS_TABAC_REGLEMENTE.some(re => re.test(cat))) return false;
+        // Rayon Cigares : tout est réglementé (un cigarillo « filtre » reste un cigare).
+        if (/^cigares?\b/.test(cat)) return true;
+        return !ACCESSOIRE_TABAC.test(art);
       },
     },
     // MISE À JOUR 26/07/2026 (demande de Frédéric) : « produits d'appel »
@@ -100,7 +118,20 @@
     for (const regle of EXCEPTIONS) {
       if (regle.test(categorie, article)) return { id: regle.id, exclue: true };
     }
-    return { id: categorie || 'sans-categorie', exclue: false };
+    const libre = { id: categorie || 'sans-categorie', exclue: false };
+    if (tabacAClasser(categorie)) libre.aClasser = true;
+    return libre;
+  }
+
+  // Un rayon qui évoque le tabac sans être l'un des rayons nommés ci-dessus
+  // (ni vapotage/CBD) est « à classer » : il reste à marge libre tant qu'un
+  // responsable ne l'a pas classé, mais l'écran peut le signaler.
+  function tabacAClasser(categorie) {
+    const cat = normaliser(categorie);
+    if (!cat || !EVOQUE_TABAC.test(cat) || VAPOTAGE_CBD.test(cat)) return false;
+    if (RAYONS_TABAC_REGLEMENTE.some(re => re.test(cat))) return false;
+    if (/^paquet de \d+$/.test(cat)) return false;
+    return !/accessoire|papier|feuille|filtre|tube|briquet/.test(cat);
   }
 
   function median(valeurs) {
@@ -151,5 +182,5 @@
     return ecarts.sort((a, b) => b.gainPotentiel - a.gainPotentiel);
   }
 
-  global.NexusMarge = { familleMarge, detecterEcartsMarge, median, SEUIL_ECART_POINTS, TAILLE_MIN_GROUPE };
+  global.NexusMarge = { familleMarge, tabacAClasser, detecterEcartsMarge, median, SEUIL_ECART_POINTS, TAILLE_MIN_GROUPE };
 })(window);
