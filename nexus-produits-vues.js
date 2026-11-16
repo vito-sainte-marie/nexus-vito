@@ -146,7 +146,48 @@
     return 'couverture ≈ ' + (fmt ? fmt(j) : String(Math.round(j))) + ' j';
   }
 
-  const API = { couvertureLibelle, pourcent, preparer, produits, meilleuresVentes, marges, aRevoir, stocks, rayons, qualifications };
+  // ===== P1-E : Mes produits en promotion. Aucun calcul de Campagne n'est refait ici : les statuts viennent des moteurs injectés
+  // (NexusCampagneOutils.listerPromotions, NexusCampagneVentes.pointCourant / suivre). Aucune marge de promotion.
+  const FENETRE_TERMINEE_JOURS = 60;
+  const nnDefaut = x => String(x == null ? '' : x).trim().replace(/\s+/g, ' ');
+  const jourPlus = (iso, n) => { const d = new Date(String(iso).slice(0, 10) + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+  const derniersObjectifs = rows => { const m = new Map(); (rows || []).forEach(r => { const a = m.get(r.article); if (!a || r.version > a.version) m.set(r.article, r); }); return Array.from(m.values()); };
+
+  // o : { campagnes, objectifs: Map(id -> lignes), points: Map(id -> lignes), annulations, auj, articlesSite: [noms], outils, ventes, normaliserNom }
+  function promotions(o) {
+    const outils = o.outils, ventes = o.ventes, nn = o.normaliserNom || nnDefaut;
+    const parNom = new Map();
+    (o.articlesSite || []).forEach(a => { const k = nn(a); parNom.set(k, (parNom.get(k) || []).concat([a])); });
+    const limite = jourPlus(o.auj, -FENETRE_TERMINEE_JOURS);
+    const liste = outils.listerPromotions(o.campagnes || [], o.auj, new Set()).filter(p => p.statut !== 'terminee' || String(p.date_fin).slice(0, 10) >= limite);
+    const camp = new Map((o.campagnes || []).map(c => [c.id, c]));
+    return liste.map(p => {
+      const c = camp.get(p.id) || {};
+      const objs = derniersObjectifs((o.objectifs && o.objectifs.get(p.id)) || []);
+      const point = ventes.pointCourant((o.points && o.points.get(p.id)) || [], o.annulations || []);
+      const suivi = point ? ventes.suivre({ point, objectifs: objs, campagneDebut: c.date_debut, campagneFin: c.date_fin }) : null;
+      const statutDe = new Map(suivi && !suivi.vide ? suivi.lignes.map(l => [l.article, l.statut]) : []);
+      const noms = objs.length ? objs.map(x => x.article) : (Array.isArray(c.produits_concernes) ? c.produits_concernes.filter(x => typeof x === 'string') : []);
+      return {
+        id: p.id, nom: p.nom, date_debut: p.date_debut, date_fin: p.date_fin, statut: p.statut, nb_produits: noms.length || p.nb_produits, point: !!point,
+        produits: noms.map(a => {
+          const cand = parNom.get(nn(a)) || [];
+          return { article: a, fiche: cand.length === 1 ? cand[0] : null, aRapprocher: cand.length !== 1, statutSuivi: point && statutDe.has(a) ? statutDe.get(a) : null };
+        }),
+      };
+    });
+  }
+
+  // Badge de la fiche : rapprochement par nom normalisé unique ; en cours, puis à venir, puis terminée depuis moins de 60 jours.
+  function promotionDuProduit(promos, article, articlesSite, normaliserNom) {
+    const nn = normaliserNom || nnDefaut;
+    const k = nn(article);
+    if (!k || (articlesSite || []).filter(a => nn(a) === k).length !== 1) return null;
+    const trouve = (promos || []).filter(p => p.produits.some(x => nn(x.article) === k));
+    return trouve.find(p => p.statut === 'encours') || trouve.find(p => p.statut === 'avenir') || trouve.find(p => p.statut === 'terminee') || null;
+  }
+
+  const API = { promotions, promotionDuProduit, couvertureLibelle, pourcent, preparer, produits, meilleuresVentes, marges, aRevoir, stocks, rayons, qualifications };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   global.NexusProduitsVues = API;
 })(typeof window !== 'undefined' ? window : globalThis);

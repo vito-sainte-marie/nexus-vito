@@ -347,7 +347,9 @@ body.nexus-desktop #resultSection > *{margin-bottom:12px;}
 <script src="nexus-conseiller.js?v=20260904-0104"></script>
 <script src="nexus-marge.js"></script>
 <script src="nexus-produits-mesure.js?v=20261115-1"></script>
-<script src="nexus-produits-vues.js?v=20261115-1"></script>
+<script src="nexus-campagne-outils.js?v=20261116-1"></script>
+<script src="nexus-campagne-ventes.js?v=20261114-1900"></script>
+<script src="nexus-produits-vues.js?v=20261116-1"></script>
 <script src="nexus-badge-etat.js"></script>
 <script src="nexus-produits-securite.js"></script>
 </head>
@@ -753,6 +755,8 @@ nexusRequireAuth().then(async employee => {
       DECLARATIONS_PRODUITS = decl;
       // P1-D : dernier comptage physique d'Inventaire (lecture seule, tolérante : table absente ou refusée = aucun comptage).
       COMPTAGES_PRODUITS = await lireComptagesInventaire();
+      // P1-E : promotions de Campagne (lecture seule, tolérante : table absente ou refusée = aucune promotion).
+      PROMOTIONS_BRUTES = await lirePromotionsCampagne();
       const res = NexusProduitsMesure.mesurer({
         products: rows, site: SITE_ACTUEL, periodeDebut: per.debut, periodeFin: per.fin,
         precedent: rowsPrec && rowsPrec.length ? { rows: rowsPrec, debut: prec.debut, fin: prec.fin } : null,
@@ -782,6 +786,36 @@ nexusRequireAuth().then(async employee => {
     } catch (e) { return new Map(); }
     return out;
   }
+  // P1-E : lecture seule des promotions de Campagne, filtrée par site. Aucun calcul de Campagne n'est refait :
+  // les statuts viennent de NexusCampagneOutils / NexusCampagneVentes, chargés tels quels.
+  async function lirePromotionsCampagne() {
+    try {
+      if (!window.NexusCampagneOutils || !window.NexusCampagneVentes || !window.NexusProduitsVues) return null;
+      const c = await nexusClient.from('campagnes_nexus').select('id, nom, date_debut, date_fin, produits_concernes').eq('site', SITE_ACTUEL).order('date_debut', { ascending: false });
+      if (c.error || !c.data || !c.data.length) return null;
+      const objectifs = new Map(), points = new Map();
+      for (const camp of c.data) {
+        const o = await nexusClient.from('campagne_objectifs_produits').select('article, version, seuil_unites, objectif_valide_jour, pa_promo_ht').eq('campagne_id', camp.id).eq('site', SITE_ACTUEL).order('version', { ascending: true });
+        objectifs.set(camp.id, o.error ? [] : (o.data || []));
+        const v = await nexusClient.from('campagne_ventes_points').select('batch_id, article, date_fin, importe_le, quantite, ca_ht, ca_estime, absent_du_fichier').eq('campagne_id', camp.id).eq('site', SITE_ACTUEL).order('importe_le', { ascending: false });
+        points.set(camp.id, v.error ? [] : (v.data || []));
+      }
+      const an = await nexusClient.from('campagne_ventes_annulations').select('batch_id, motif').eq('site', SITE_ACTUEL);
+      // Lectures brutes seulement : le rapprochement avec les produits du site se fait à l'usage (promotionsCourantes),
+      // car PRODUCTS n'est pas encore chargé à ce stade.
+      return { campagnes: c.data, objectifs, points, annulations: an.error ? [] : (an.data || []) };
+    } catch (e) { return null; }
+  }
+  function promotionsCourantes() {
+    const b = PROMOTIONS_BRUTES;
+    if (!b || !window.NexusProduitsVues || !window.NexusCampagneOutils || !window.NexusCampagneVentes) return [];
+    try {
+      return NexusProduitsVues.promotions({ ...b, auj: AUJOURDHUI_STATION, articlesSite: PRODUCTS_NOMS_SITE(),
+        outils: NexusCampagneOutils, ventes: NexusCampagneVentes, normaliserNom: NexusProduitsMesure.normaliserNom });
+    } catch (e) { return []; }
+  }
+  const PRODUCTS_NOMS_SITE = () => (typeof PRODUCTS !== 'undefined' && PRODUCTS ? PRODUCTS : []).map(p => p.article);
+  let PROMOTIONS_BRUTES = null;
   let COMPTAGES_PRODUITS = new Map();
   let SYNTHESE_PRODUITS = null, RESUME_PRODUITS = null, MESURES_PRODUITS = [], DECLARATIONS_PRODUITS = null, SYNTHESE_STOCK_DATE = null;
   const ACCUEIL_HTML = document.getElementById('resultSection').innerHTML;
@@ -822,6 +856,16 @@ nexusRequireAuth().then(async employee => {
     searchInput.setAttribute('aria-expanded', 'false');
     searchInput.removeAttribute('aria-activedescendant');
     sugActif = -1;
+  }
+  // P1-E : badge de promotion sur la fiche. Aucun chiffre de promotion : seulement le nom, les dates et le lien vers Campagne.
+  function badgePromotion(p) {
+    const promosBadge = promotionsCourantes();
+    if (!window.NexusProduitsVues || !promosBadge.length) return '';
+    const pr = NexusProduitsVues.promotionDuProduit(promosBadge, p.article, PRODUCTS.map(x => x.article), NexusProduitsMesure.normaliserNom);
+    if (!pr) return '';
+    const lien = `<a class="btn-decl" href="NEXUS-Campagne-v2-Ventes.html?campagne=${encodeURIComponent(pr.id)}">Voir dans Campagne</a>`;
+    const txt = pr.statut === 'terminee' ? `Promotion terminée : ${esc(pr.nom)}` : `En promotion : ${esc(pr.nom)} (du ${esc(fmtDate(pr.date_debut))} au ${esc(fmtDate(pr.date_fin))})`;
+    return `<div class="statut-ligne badge-promotion"><span class="vp-badge">${txt}</span> ${lien}</div>`;
   }
   function choisirSuggestion(article) {
     showProduct(article);
@@ -1125,6 +1169,7 @@ nexusRequireAuth().then(async employee => {
             <h2 class="hero-nom">${esc(p.article)}</h2>
             <div class="hero-cat">${esc(p.categorie)}</div>
             <div class="statut-ligne">${badgeStatut}</div>
+            ${badgePromotion(p)}
           </div>
         </section>
 
@@ -1423,13 +1468,14 @@ nexusRequireAuth().then(async employee => {
   }
 
   // ===== P1-C : trois vues dans la page, alimentées par les mesures déjà calculées (aucun calcul nouveau) =====
-  const ICONE_VUE = { produits: 'campagne-produits-moteurs', ventes: 'campagne-ca-boutique', marges: 'campagne-marge-commerciale', revoir: 'campagne-produits-a-revoir', stocks: 'campagne-alerte-produit' };
+  const ICONE_VUE = { produits: 'campagne-produits-moteurs', ventes: 'campagne-ca-boutique', marges: 'campagne-marge-commerciale', revoir: 'campagne-produits-a-revoir', stocks: 'campagne-alerte-produit', promo: 'campagne-promotions' };
   const VUES = {
     produits: { titre: 'Mes produits', sous: 'Toutes les références de la période, avec filtres' },
     ventes: { titre: 'Mes meilleures ventes', sous: 'Classées par chiffre d\'affaires HT' },
     marges: { titre: 'Mes marges', sous: 'Classées par marge HT, marges négatives à part' },
     revoir: { titre: 'Mes produits à revoir', sous: 'Marges à justifier, statuts à vérifier, produits à étudier' },
     stocks: { titre: 'Mes stocks et couverture', sous: 'Stock théorique Decenium, relevé daté' },
+    promo: { titre: 'Mes produits en promotion', sous: 'Promotions de Campagne, avec lien vers le suivi' },
   };
   const PAGE_VUE = 50, PAGE_VENTES = 20;
   function entreesVues() { return NexusProduitsVues.preparer(MESURES_PRODUITS, window.NexusMarge && NexusMarge.familleMarge); }
@@ -1437,7 +1483,7 @@ nexusRequireAuth().then(async employee => {
   function cartesVues() {
     if (!vuesDisponibles()) return '';
     const b = k => { const i = ICONE_VUE[k]; return `<button type="button" class="tuile disponible" data-vue="${k}"><img class="picto-p" src="assets/icones/campagne/premium/${i}-96.webp" srcset="assets/icones/campagne/premium/${i}-48.webp 48w, assets/icones/campagne/premium/${i}-96.webp 96w, assets/icones/campagne/premium/${i}-144.webp 144w" sizes="56px" width="56" height="56" alt=""><span class="t-titre">${VUES[k].titre}</span><span class="t-sous">${VUES[k].sous}</span></button>`; };
-    return `<div class="tuiles" aria-label="Vues Produits">${b('produits')}${b('ventes')}${b('marges')}${b('revoir')}${b('stocks')}</div>`;
+    return `<div class="tuiles" aria-label="Vues Produits">${b('produits')}${b('ventes')}${b('marges')}${b('revoir')}${b('stocks')}${b('promo')}</div>`;
   }
   function entetePeriodeVue(denominateur) {
     const per = PERIODE_DONNEES ? `du ${fmtDate(PERIODE_DONNEES.debut)} au ${fmtDate(PERIODE_DONNEES.fin)}` : '';
@@ -1520,6 +1566,23 @@ nexusRequireAuth().then(async employee => {
       const versProduits = (id, val) => { ouvrirVue('produits'); const f = document.getElementById(id); if (f) { f.value = val; f.dispatchEvent(new Event('change')); } };
       corps.querySelector('#lienAIdentifier').addEventListener('click', () => versProduits('fNature', 'a_identifier'));
       corps.querySelector('#lienTva').addEventListener('click', () => versProduits('fTva', 'incoherente'));
+    } else if (cle === 'promo') {
+      const ST = { moteur: 'Moteur', a_revoir: 'À revoir', non_mesurable: 'Sans objectif' };
+      const lib = k => (window.NexusVocab && NexusVocab.campagne && NexusVocab.campagne.ventesPage && ({ moteur: NexusVocab.campagne.ventesPage.moteur, a_revoir: NexusVocab.campagne.ventesPage.aRevoir, non_mesurable: NexusVocab.campagne.ventesPage.nonMesurable }[k])) || ST[k] || k;
+      const GRP = { encours: 'En cours', avenir: 'À venir', terminee: 'Terminées depuis moins de 60 jours' };
+      const promos = promotionsCourantes();
+      const lienCamp = id => `<a class="btn-decl" href="NEXUS-Campagne-v2-Ventes.html?campagne=${encodeURIComponent(id)}">Voir dans Campagne</a>`;
+      const ligne = (pr, x) => {
+        const suivi = x.statutSuivi ? esc(lib(x.statutSuivi)) : (pr.point ? 'Suivi : produit absent du dernier point' : 'Suivi disponible après le premier import de ventes');
+        const nom = x.fiche ? `<button type="button" class="vp-ligne-prod" data-fiche="${esc(x.fiche)}"><span class="vp-nom">${esc(x.article)}</span></button>` : `<span class="vp-nom">${esc(x.article)}</span><span class="vp-badge">à rapprocher</span>`;
+        return `<li>${nom}<span class="vp-meta">${suivi}</span> ${lienCamp(pr.id)}</li>`;
+      };
+      corps.innerHTML = `<div id="vpEntete"><div class="vp-ligne">${promos.length} promotion${promos.length > 1 ? 's' : ''} · statuts et chiffres de promotion : voir Campagne. Marge analytique FIFO (Campagne) : consultez la fiche de valorisation dans Campagne.</div></div>` +
+        (promos.length ? ['encours', 'avenir', 'terminee'].map(g => {
+          const l = promos.filter(p => p.statut === g); if (!l.length) return '';
+          return `<div class="vp-bloc"><h3>${GRP[g]} (${l.length})</h3>` + l.map(pr => `<div class="vp-bloc"><h4>${esc(pr.nom)}</h4><div class="vp-ligne">du ${esc(fmtDate(pr.date_debut))} au ${esc(fmtDate(pr.date_fin))} · ${pr.nb_produits} produit${pr.nb_produits > 1 ? 's' : ''} · ${lienCamp(pr.id)}</div><ul class="vp-liste">${pr.produits.map(x => ligne(pr, x)).join('')}</ul></div>`).join('') + '</div>';
+        }).join('') : '<div class="vp-ligne">Aucune promotion en cours, à venir ou terminée depuis moins de 60 jours.</div>');
+      corps.querySelectorAll('button[data-fiche]').forEach(bt => bt.addEventListener('click', () => choisirSuggestion(bt.dataset.fiche)));
     } else if (cle === 'stocks') {
       const comptageDe = e => COMPTAGES_PRODUITS.get(NexusProduitsMesure.normaliserNom(e.article)) || null;
       const v = window.NexusProduitsVues.stocks(entries, comptageDe);
