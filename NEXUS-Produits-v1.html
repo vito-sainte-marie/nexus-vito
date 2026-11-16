@@ -756,7 +756,7 @@ nexusRequireAuth().then(async employee => {
       // P1-D : dernier comptage physique d'Inventaire (lecture seule, tolérante : table absente ou refusée = aucun comptage).
       COMPTAGES_PRODUITS = await lireComptagesInventaire();
       // P1-E : promotions de Campagne (lecture seule, tolérante : table absente ou refusée = aucune promotion).
-      PROMOTIONS_PRODUITS = await lirePromotionsCampagne();
+      PROMOTIONS_BRUTES = await lirePromotionsCampagne();
       const res = NexusProduitsMesure.mesurer({
         products: rows, site: SITE_ACTUEL, periodeDebut: per.debut, periodeFin: per.fin,
         precedent: rowsPrec && rowsPrec.length ? { rows: rowsPrec, debut: prec.debut, fin: prec.fin } : null,
@@ -790,9 +790,9 @@ nexusRequireAuth().then(async employee => {
   // les statuts viennent de NexusCampagneOutils / NexusCampagneVentes, chargés tels quels.
   async function lirePromotionsCampagne() {
     try {
-      if (!window.NexusCampagneOutils || !window.NexusCampagneVentes || !window.NexusProduitsVues) return [];
+      if (!window.NexusCampagneOutils || !window.NexusCampagneVentes || !window.NexusProduitsVues) return null;
       const c = await nexusClient.from('campagnes_nexus').select('id, nom, date_debut, date_fin, produits_concernes').eq('site', SITE_ACTUEL).order('date_debut', { ascending: false });
-      if (c.error || !c.data || !c.data.length) return [];
+      if (c.error || !c.data || !c.data.length) return null;
       const objectifs = new Map(), points = new Map();
       for (const camp of c.data) {
         const o = await nexusClient.from('campagne_objectifs_produits').select('article, version, seuil_unites, objectif_valide_jour, pa_promo_ht').eq('campagne_id', camp.id).eq('site', SITE_ACTUEL).order('version', { ascending: true });
@@ -801,14 +801,21 @@ nexusRequireAuth().then(async employee => {
         points.set(camp.id, v.error ? [] : (v.data || []));
       }
       const an = await nexusClient.from('campagne_ventes_annulations').select('batch_id, motif').eq('site', SITE_ACTUEL);
-      return NexusProduitsVues.promotions({
-        campagnes: c.data, objectifs, points, annulations: an.error ? [] : (an.data || []), auj: AUJOURDHUI_STATION,
-        articlesSite: PRODUCTS_NOMS_SITE(), outils: NexusCampagneOutils, ventes: NexusCampagneVentes, normaliserNom: NexusProduitsMesure.normaliserNom,
-      });
+      // Lectures brutes seulement : le rapprochement avec les produits du site se fait à l'usage (promotionsCourantes),
+      // car PRODUCTS n'est pas encore chargé à ce stade.
+      return { campagnes: c.data, objectifs, points, annulations: an.error ? [] : (an.data || []) };
+    } catch (e) { return null; }
+  }
+  function promotionsCourantes() {
+    const b = PROMOTIONS_BRUTES;
+    if (!b || !window.NexusProduitsVues || !window.NexusCampagneOutils || !window.NexusCampagneVentes) return [];
+    try {
+      return NexusProduitsVues.promotions({ ...b, auj: AUJOURDHUI_STATION, articlesSite: PRODUCTS_NOMS_SITE(),
+        outils: NexusCampagneOutils, ventes: NexusCampagneVentes, normaliserNom: NexusProduitsMesure.normaliserNom });
     } catch (e) { return []; }
   }
   const PRODUCTS_NOMS_SITE = () => (typeof PRODUCTS !== 'undefined' && PRODUCTS ? PRODUCTS : []).map(p => p.article);
-  let PROMOTIONS_PRODUITS = [];
+  let PROMOTIONS_BRUTES = null;
   let COMPTAGES_PRODUITS = new Map();
   let SYNTHESE_PRODUITS = null, RESUME_PRODUITS = null, MESURES_PRODUITS = [], DECLARATIONS_PRODUITS = null, SYNTHESE_STOCK_DATE = null;
   const ACCUEIL_HTML = document.getElementById('resultSection').innerHTML;
@@ -852,8 +859,9 @@ nexusRequireAuth().then(async employee => {
   }
   // P1-E : badge de promotion sur la fiche. Aucun chiffre de promotion : seulement le nom, les dates et le lien vers Campagne.
   function badgePromotion(p) {
-    if (!window.NexusProduitsVues || !PROMOTIONS_PRODUITS || !PROMOTIONS_PRODUITS.length) return '';
-    const pr = NexusProduitsVues.promotionDuProduit(PROMOTIONS_PRODUITS, p.article, PRODUCTS.map(x => x.article), NexusProduitsMesure.normaliserNom);
+    const promosBadge = promotionsCourantes();
+    if (!window.NexusProduitsVues || !promosBadge.length) return '';
+    const pr = NexusProduitsVues.promotionDuProduit(promosBadge, p.article, PRODUCTS.map(x => x.article), NexusProduitsMesure.normaliserNom);
     if (!pr) return '';
     const lien = `<a class="btn-decl" href="NEXUS-Campagne-v2-Ventes.html?campagne=${encodeURIComponent(pr.id)}">Voir dans Campagne</a>`;
     const txt = pr.statut === 'terminee' ? `Promotion terminée : ${esc(pr.nom)}` : `En promotion : ${esc(pr.nom)} (du ${esc(fmtDate(pr.date_debut))} au ${esc(fmtDate(pr.date_fin))})`;
@@ -1562,7 +1570,7 @@ nexusRequireAuth().then(async employee => {
       const ST = { moteur: 'Moteur', a_revoir: 'À revoir', non_mesurable: 'Sans objectif' };
       const lib = k => (window.NexusVocab && NexusVocab.campagne && NexusVocab.campagne.ventesPage && ({ moteur: NexusVocab.campagne.ventesPage.moteur, a_revoir: NexusVocab.campagne.ventesPage.aRevoir, non_mesurable: NexusVocab.campagne.ventesPage.nonMesurable }[k])) || ST[k] || k;
       const GRP = { encours: 'En cours', avenir: 'À venir', terminee: 'Terminées depuis moins de 60 jours' };
-      const promos = PROMOTIONS_PRODUITS || [];
+      const promos = promotionsCourantes();
       const lienCamp = id => `<a class="btn-decl" href="NEXUS-Campagne-v2-Ventes.html?campagne=${encodeURIComponent(id)}">Voir dans Campagne</a>`;
       const ligne = (pr, x) => {
         const suivi = x.statutSuivi ? esc(lib(x.statutSuivi)) : (pr.point ? 'Suivi : produit absent du dernier point' : 'Suivi disponible après le premier import de ventes');
