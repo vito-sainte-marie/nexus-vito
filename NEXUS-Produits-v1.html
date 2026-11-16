@@ -359,6 +359,18 @@ button.btn-decl.plein{background:var(--cyan);color:#fff;}
 .vue-p1c .vp-bloc{margin-top:16px;}
 .vue-p1c .vp-bloc h3{font-size:15px;margin:0 0 6px;}
 .synthese-accueil{margin:12px 0;}
+.sa-titre{font-size:15px;font-weight:600;margin:0 0 6px;}
+.synthese-accueil .sa-inds{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:8px 0;}
+@media (min-width:900px){.synthese-accueil .sa-inds{grid-template-columns:repeat(4,1fr);}}
+.synthese-accueil .sc-ind{background:var(--panel);border:1px solid var(--hairline);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:2px;min-width:0;}
+.synthese-accueil .sc-ind-val{font-size:20px;font-weight:700;color:var(--cyan);overflow-wrap:anywhere;}
+.synthese-accueil .sc-ind-lib,.synthese-accueil .sc-ind-sous{font-size:12px;color:var(--text-mid);line-height:1.4;}
+.synthese-accueil .sa-vigs{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:8px 0;}
+@media (min-width:900px){.synthese-accueil .sa-vigs{grid-template-columns:repeat(4,1fr);}}
+.synthese-accueil .sa-vig{padding:12px 14px;}
+.synthese-accueil .sa-vig-n{display:block;font-family:var(--mono);font-size:22px;font-weight:700;}
+.synthese-accueil .sa-vig.sc-rouge .sa-vig-n{color:var(--red);}.synthese-accueil .sa-vig.sc-ambre .sa-vig-n{color:var(--amber);}.synthese-accueil .sa-vig.sc-info .sa-vig-n{color:var(--cyan);}
+.synthese-accueil .sa-details summary{cursor:pointer;min-height:44px;display:flex;align-items:center;font-weight:600;font-size:13px;}
 .synthese-accueil .sa-ligne{font-size:13px;color:var(--text-mid);line-height:1.5;margin:4px 0;}
 .synthese-accueil .sa-compteurs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0;}
 .lien-accueil{background:none;border:0;color:var(--text-mid);font:inherit;min-height:44px;padding:0 4px;cursor:pointer;text-align:left;}
@@ -432,7 +444,7 @@ body.nexus-desktop #resultSection > *{margin-bottom:12px;}
       <img class="conseiller-avatar" src="assets/avatar/nexus-avatar-128.png" srcset="assets/avatar/nexus-avatar-64.png 64w, assets/avatar/nexus-avatar-96.png 96w, assets/avatar/nexus-avatar-128.png 128w, assets/avatar/nexus-avatar-256.png 256w" sizes="80px" alt="Conseiller NEXUS">
       <div class="conseiller-corps">
         <div class="conseiller-titre">Conseiller NEXUS</div>
-        <p>Recherchez un produit par son nom ou son code-barres.</p>
+        <p id="conseillerAccueil">Recherchez un produit par son nom ou son code-barres.</p>
       </div>
     </div>
     <div class="synthese-accueil" id="syntheseAccueil"></div>
@@ -877,7 +889,7 @@ nexusRequireAuth().then(async employee => {
   const PRODUCTS_NOMS_SITE = () => (typeof PRODUCTS !== 'undefined' && PRODUCTS ? PRODUCTS : []).map(p => p.article);
   let PROMOTIONS_BRUTES = null;
   let COMPTAGES_PRODUITS = new Map();
-  let LIGNES_PRECEDENTES = [], SCANNER_CACHE = null, LECTURES_MARGE = null;
+  let LIGNES_PRECEDENTES = [], SCANNER_CACHE = null, LECTURES_MARGE = null, SCANNER_CARTE_FORCEE = null;
   let SYNTHESE_PRODUITS = null, RESUME_PRODUITS = null, MESURES_PRODUITS = [], DECLARATIONS_PRODUITS = null, SYNTHESE_STOCK_DATE = null;
   const ACCUEIL_HTML = document.getElementById('resultSection').innerHTML;
 
@@ -1547,6 +1559,7 @@ nexusRequireAuth().then(async employee => {
     revoir: { titre: 'Mes produits à revoir', sous: 'Marges à justifier, statuts à vérifier, produits à étudier' },
     stocks: { titre: 'Mes stocks et couverture', sous: 'Stock théorique Decenium, relevé daté' },
     promo: { titre: 'Mes produits en promotion', sous: 'Promotions de Campagne, avec lien vers le suivi' },
+    dormants: { titre: 'Produits dormants', sous: 'Références sans vente récente, statut du Conseiller' },
     scanner: { titre: 'Scanner tarifaire', sous: 'Ventes à perte, coûts suspects, hausses de PA non répercutées' },
   };
   const PAGE_VUE = 50, PAGE_VENTES = 20;
@@ -1713,7 +1726,8 @@ nexusRequireAuth().then(async employee => {
       { id: 'verif', ico: ICO.verif, titre: 'Mes références à vérifier', nb: A.averifier.length, montant: 'identités et prix à vérifier', prio: false,
         corps: liste(A.averifier, fVerif, 'Aucune référence.') + methode(src + 'Identité changée entre les deux périodes, ou prix de vente égal au prix d\'achat.') },
     ];
-    const ouverte = CARTES.findIndex(c => c.prio && c.nb > 0) >= 0 ? CARTES.findIndex(c => c.prio && c.nb > 0) : CARTES.findIndex(c => c.nb > 0);
+    const forcee = SCANNER_CARTE_FORCEE ? CARTES.findIndex(c => c.id === SCANNER_CARTE_FORCEE) : -1; SCANNER_CARTE_FORCEE = null;
+    const ouverte = forcee >= 0 ? forcee : CARTES.findIndex(c => c.prio && c.nb > 0) >= 0 ? CARTES.findIndex(c => c.prio && c.nb > 0) : CARTES.findIndex(c => c.nb > 0);
     const carte = (c, i) => `<details class="sc-carte"${i === ouverte ? ' open' : ''} data-carte="${c.id}"><summary>${icone(c.ico, 'sc-ico')}<span class="sc-carte-txt"><span class="t-titre">${c.titre}</span><span class="t-sous">${pluriel(c.nb, 'référence', 'références')} · ${c.montant}</span></span><span class="sc-chev" aria-hidden="true"></span></summary><div class="sc-carte-corps">${c.corps}</div></details>`;
     // Liste complète : une entrée par (contrôle, référence), avec recherche et tri.
     const entries = [];
@@ -1830,6 +1844,10 @@ nexusRequireAuth().then(async employee => {
       const versProduits = (id, val) => { ouvrirVue('produits'); const f = document.getElementById(id); if (f) { f.value = val; f.dispatchEvent(new Event('change')); } };
       corps.querySelector('#lienAIdentifier').addEventListener('click', () => versProduits('fNature', 'a_identifier'));
       corps.querySelector('#lienTva').addEventListener('click', () => versProduits('fTva', 'incoherente'));
+    } else if (cle === 'dormants') {
+      const D = PRODUCTS.filter(x => calculerStatutSimplifie(x).cle === 'dormant');
+      corps.innerHTML = `<div id="vpEntete">${entetePeriodeVue(`${D.length} produit${D.length > 1 ? 's' : ''} dormant${D.length > 1 ? 's' : ''}`)}</div><div id="vpListe"></div>`;
+      paginer(D.map(x => ({ article: x.article, rayon: x.categorie })), PAGE_VUE, e => `<span class="vp-nom">${esc(e.article)}</span><span class="vp-meta">${esc(e.rayon || '')} · Dormant</span>`);
     } else if (cle === 'scanner') {
       ouvrirScanner(corps);
     } else if (cle === 'promo') {
@@ -1881,46 +1899,96 @@ nexusRequireAuth().then(async employee => {
   }
   let VUE_RECHERCHE = null;
   document.getElementById('searchInput').addEventListener('input', () => { if (VUE_RECHERCHE && document.getElementById('vueCorps') && document.getElementById('fRayon')) VUE_RECHERCHE(); });
+  // Accueil Produits : tableau de bord commercial (présentation seule, valeurs des modules existants).
+  function jourDuMois(d) { return String(d || '').slice(0, 10); }
+  function nbJoursPeriode() {
+    if (RESUME_PRODUITS && RESUME_PRODUITS.jours) return RESUME_PRODUITS.jours;
+    if (!PERIODE_DONNEES) return 0;
+    const t = x => Date.UTC(+jourDuMois(x).slice(0, 4), +jourDuMois(x).slice(5, 7) - 1, +jourDuMois(x).slice(8, 10));
+    return Math.round((t(PERIODE_DONNEES.fin) - t(PERIODE_DONNEES.debut)) / 86400000) + 1;
+  }
+  function indicateursAccueil() {
+    const sy = SYNTHESE_PRODUITS;
+    if (!sy) return null;
+    const nbVendus = MESURES_PRODUITS.filter(x => !(x.m && x.m.exclue_indicateurs)).length;
+    let ca = Number(sy.ca_analytique) || 0, marge = 0;
+    const refs = nbVendus;
+    if (vuesDisponibles()) {
+      const v = window.NexusProduitsVues.produits(entreesVues(), {});
+      ca = v.ca; marge = v.marge;
+    }
+    const jours = nbJoursPeriode();
+    const dormants = PRODUCTS.filter(x => calculerStatutSimplifie(x).cle === 'dormant');
+    let R = null, A = null, nbTva = 0;
+    if (vuesDisponibles()) {
+      nbTva = window.NexusProduitsVues.aRevoir(entreesVues()).nbTvaAVerifier || 0;
+      try {
+        const res = scannerResultat();
+        if (res) { R = res.resume; A = NexusScannerTarifaire.affichage(res); }
+      } catch (e) { R = null; A = null; }
+    }
+    return { sy, ca, marge, refs, jours, parJour: jours > 0 ? ca / jours : null, dormants, R, A, nbTva, nbIdent: sy.references_a_identifier || 0 };
+  }
+  function pointsVigilance(I) {
+    const pl = (n, u, ps) => `${n} ${n > 1 ? (ps || u + 's') : u}`;
+    const L = [];
+    if (I.dormants.length > 0) L.push({ id: 'dormants', n: I.dormants.length, titre: 'Produits dormants', sous: pl(I.dormants.length, 'référence'), ton: 'info' });
+    if (I.nbIdent > 0) L.push({ id: 'identifier', n: I.nbIdent, titre: 'Références à identifier', sous: pl(I.nbIdent, 'référence'), ton: 'ambre' });
+    if (I.R && I.R.perte.non_justifiees > 0) L.push({ id: 'pertes', n: I.R.perte.non_justifiees, titre: 'Ventes à perte non justifiées', sous: pl(I.R.perte.non_justifiees, 'référence'), ton: 'rouge' });
+    if (I.nbTva > 0) L.push({ id: 'tva', n: I.nbTva, titre: 'TVA à vérifier', sous: pl(I.nbTva, 'référence'), ton: 'ambre' });
+    return L;
+  }
+  // Synthèse du Conseiller de l'accueil : uniquement des résultats déjà calculés, sans tendance ni urgence.
+  function texteConseillerAccueil(I, L) {
+    if (!L.length) return 'Aucun point de vigilance sur cette période.';
+    const ph = [`${majN(motN(L.length))} point${L.length > 1 ? 's' : ''} de vigilance sur cette période.`];
+    const fe = v => fmtEur(Number(v) || 0);
+    const pertes = I.A ? I.A.pertes.filter(x => !x.perte.justifiee).slice().sort((a, b) => b.perte.montant - a.perte.montant) : [];
+    const s = I.A && I.A.suspects[0];
+    if (pertes.length) ph.push(`La vente à perte non justifiée la plus importante est ${pertes[0].article}, avec une marge négative de ${fe(pertes[0].perte.montant)}.`);
+    else if (s) ph.push(`Le coût à vérifier en priorité est celui de ${s.article}.`);
+    const prem = L[0];
+    ph.push(pertes.length ? 'Commencez par la carte Ventes à perte non justifiées.' : s ? 'Commencez par le Scanner tarifaire.' : `Commencez par la carte ${prem.titre}.`);
+    return ph.join(' ');
+  }
   function afficherSyntheseAccueil() {
     const z = document.getElementById('syntheseAccueil');
     if (!z) return;
-    const sy = SYNTHESE_PRODUITS;
-    if (!sy) { z.innerHTML = ''; return; }
-    const fmtE = v => fmtEur(Number(v) || 0);
-    const nbVendus = MESURES_PRODUITS.filter(x => !(x.m && x.m.exclue_indicateurs)).length;
-    const dormants = PRODUCTS.filter(x => calculerStatutSimplifie(x).cle === 'dormant').length;
-    const per = PERIODE_DONNEES ? `${fmtDate(PERIODE_DONNEES.debut)} → ${fmtDate(PERIODE_DONNEES.fin)}` : null;
-    z.innerHTML = `<section class="card" aria-label="Synthèse des produits">
-      <div class="sa-ligne"><strong>Dernière période importée</strong>${per ? ' : ' + esc(per) : ''} · ${nbVendus} références vendues${SYNTHESE_STOCK_DATE ? ' · dernier relevé de stock théorique le ' + esc(fmtDate(SYNTHESE_STOCK_DATE)) : ''}</div>
-      <div class="sa-ligne">CA analytique ${esc(fmtE(sy.ca_analytique))} + opérations de caisse ${esc(fmtE(sy.operations_caisse))} = CA importé ${esc(fmtE(sy.ca_importe))}</div>
-      <div class="sa-compteurs">
-        <button type="button" class="sa-compteur" data-liste="negatives" aria-pressed="false"><span class="sa-n">${sy.marge_negative}</span><span class="sa-l">références à marge négative</span></button>
-        <button type="button" class="sa-compteur" data-liste="justifiees" aria-pressed="false"><span class="sa-n">${sy.destockages_justifies}</span><span class="sa-l">déstockages justifiés</span></button>
-        <button type="button" class="sa-compteur" data-liste="averifier" aria-pressed="false"><span class="sa-n">${sy.marges_a_verifier}</span><span class="sa-l">anomalies de marge à vérifier</span></button>
-      </div>
-      <div class="sa-ligne">${dormants} produit${dormants > 1 ? 's' : ''} dormant${dormants > 1 ? 's' : ''}${sy.references_a_identifier ? ' · ' + sy.references_a_identifier + ' référence' + (sy.references_a_identifier > 1 ? 's' : '') + ' à identifier' : ''}</div>
-      <div class="sa-liste" id="saListe" hidden></div>
+    const I = indicateursAccueil();
+    if (!I) { z.innerHTML = ''; return; }
+    const sy = I.sy, fmtE = v => fmtEur(Number(v) || 0);
+    const per = PERIODE_DONNEES ? `du ${fmtDate(PERIODE_DONNEES.debut)} au ${fmtDate(PERIODE_DONNEES.fin)}, ${I.jours} jour${I.jours > 1 ? 's' : ''}` : null;
+    const ind = (lib, val, sous) => `<div class="sc-ind sc-info"><span class="sc-ind-val">${esc(val)}</span><span class="sc-ind-lib">${esc(lib)}</span>${sous ? `<span class="sc-ind-sous">${esc(sous)}</span>` : ''}</div>`;
+    const L = pointsVigilance(I);
+    const carteV = c => `<button type="button" class="tuile disponible sa-vig sc-${c.ton}" data-vig="${c.id}"><span class="sa-vig-n">${c.n}</span><span class="t-titre">${esc(c.titre)}</span><span class="t-sous">${esc(c.sous)}</span></button>`;
+    z.innerHTML = `<section class="card sa-perf" aria-label="Performance commerciale">
+      <h2 class="sa-titre">Performance commerciale</h2>
+      ${per ? `<div class="sa-ligne">Période : ${esc(per)}</div>` : ''}
+      <div class="sa-inds">${ind('CA commercial HT', fmtE(I.ca), 'opérations de caisse exclues')}${ind('Marge générée HT', fmtE(I.marge), 'estimée au PMP Decenium HT')}${ind('Références vendues', String(I.refs))}${ind('CA moyen par jour', I.parJour === null ? 'n.d.' : fmtE(I.parJour), `sur ${I.jours} jour${I.jours > 1 ? 's' : ''}`)}</div>
+    </section>
+    ${L.length ? `<section class="card sa-vigilance" aria-label="Points de vigilance"><h2 class="sa-titre">Points de vigilance</h2><div class="sa-vigs">${L.map(carteV).join('')}</div></section>` : ''}
+    <section class="card sa-actu" aria-label="Dernière actualisation des données">
+      <div class="sa-ligne">Dernières ventes : ${esc(PERIODE_DONNEES ? fmtDate(PERIODE_DONNEES.fin) : 'n.d.')}</div>
+      <div class="sa-ligne">Dernier relevé de stock théorique : ${esc(SYNTHESE_STOCK_DATE ? fmtDate(SYNTHESE_STOCK_DATE) : 'n.d.')}</div>
+      <details class="sa-details"><summary>Dernière actualisation des données</summary>
+        <div class="sa-ligne">CA analytique ${esc(fmtE(sy.ca_analytique))} + opérations de caisse ${esc(fmtE(sy.operations_caisse))} = CA importé ${esc(fmtE(sy.ca_importe))}</div>
+        <div class="sa-ligne">Sources : import des ventes Decenium sur la période, mesures P1-A, stock théorique Decenium daté. La marge est estimée au prix moyen pondéré Decenium HT.</div>
+        <div class="sa-ligne">Limites : les opérations de caisse sont hors des indicateurs commerciaux ; une marge négative justifiée reste comptée dans le CA et la marge, avec son motif dans la fiche produit.</div>
+      </details>
     </section>${cartesVues()}`;
     z.querySelectorAll('button.tuile[data-vue]').forEach(b => b.addEventListener('click', () => ouvrirVue(b.dataset.vue)));
-    const filtres = {
-      negatives: x => x.m.marge_negative,
-      justifiees: x => x.m.marge_negative && x.m.justification,
-      averifier: x => x.m.marge_negative && !x.m.justification,
+    const versProduitsF = (id, val) => { ouvrirVue('produits'); const f = document.getElementById(id); if (f) { f.value = val; f.dispatchEvent(new Event('change')); } };
+    const actions = {
+      dormants: () => ouvrirVue('dormants'),
+      identifier: () => versProduitsF('fNature', 'a_identifier'),
+      tva: () => versProduitsF('fTva', 'incoherente'),
+      pertes: () => { SCANNER_CARTE_FORCEE = 'pertes'; ouvrirVue('scanner'); },
     };
-    z.querySelectorAll('button.sa-compteur').forEach(b => b.addEventListener('click', () => {
-      const liste = z.querySelector('#saListe');
-      const deja = b.getAttribute('aria-pressed') === 'true';
-      z.querySelectorAll('button.sa-compteur').forEach(o => o.setAttribute('aria-pressed', 'false'));
-      if (deja) { liste.hidden = true; liste.innerHTML = ''; return; }
-      b.setAttribute('aria-pressed', 'true');
-      const items = MESURES_PRODUITS.filter(filtres[b.dataset.liste]);
-      liste.hidden = false;
-      liste.innerHTML = items.length
-        ? items.map((x, k) => `<button type="button" data-k="${k}">${esc(x.row.article)} · marge ${esc(fmtE(x.m.marge_totale.valeur))}</button>`).join('')
-        : '<div class="sa-ligne">Aucune référence.</div>';
-      liste.querySelectorAll('button').forEach(bt => bt.addEventListener('click', () => choisirSuggestion(items[Number(bt.dataset.k)].row.article)));
-    }));
+    z.querySelectorAll('button[data-vig]').forEach(b => b.addEventListener('click', () => actions[b.dataset.vig]()));
+    const cc = document.getElementById('conseillerAccueil');
+    if (cc) cc.textContent = texteConseillerAccueil(I, L);
   }
+  window.NexusAccueilTableau = { afficher: afficherSyntheseAccueil, indicateursAccueil, pointsVigilance, texteConseillerAccueil };
   // Appel après toutes les déclarations (const) dont dépendent la synthèse et les vues : sinon zone morte temporelle.
   if (!APERCU) afficherSyntheseAccueil();
 
