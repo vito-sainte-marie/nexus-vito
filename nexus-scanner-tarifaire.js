@@ -75,7 +75,8 @@
     cur.forEach((r, i) => {
       const nomUnique = ixCur.get(PM.normaliserNom(r.article)) === i;
       const nat = PM.trouverDeclaration(natures, r, nomUnique);
-      const operation = !!(nat && nat.nature === 'operation_caisse') || /^acompte\b/.test(PM.normaliserNom(r.article).toLowerCase());
+      // Opération de caisse : exclusion par déclaration de nature uniquement, jamais par mot du libellé.
+      const operation = !!(nat && nat.nature === 'operation_caisse');
       if (operation) return;
 
       const pa = num(r.prix_achat), pv = num(r.prix_vente), qte = num(r.quantite) || 0;
@@ -111,9 +112,9 @@
         sens = r4(pa) > r4(paPrec) ? 'hausse' : r4(pa) < r4(paPrec) ? 'baisse' : 'stable';
       }
 
-      // A. Vente à perte : PA >= PV, avec des ventes. Justification de la période : jamais d'effacement de la perte.
+      // A. Vente à perte : PA strictement supérieur au PV, avec des ventes. PA égal au PV : donnée à vérifier (voir plus bas). Justification de la période : jamais d'effacement de la perte.
       let perte = null;
-      if (!manquantes.length && qte > 0 && r4(pa) >= r4(pv)) {
+      if (!manquantes.length && qte > 0 && r4(pa) > r4(pv)) {
         const j = PM.trouverDeclaration(justifsPeriode, r, nomUnique);
         perte = {
           montant: r2((pa - pv) * qte),
@@ -134,7 +135,10 @@
       const raisons = [];
       if (niveau === 'importante' || niveau === 'suspecte') raisons.push('variation_' + niveau);
       manquantes.forEach(m => raisons.push(m === 'pa' ? 'pa_manquant' : 'pv_manquant'));
-      identite.filter(x => x !== 'sans_code_barres').forEach(x => raisons.push('identite_' + x));
+      // Identité modifiée et PV égal au PA : « à vérifier », sans message de coût suspect.
+      const averifier = [];
+      identite.filter(x => x !== 'sans_code_barres').forEach(x => averifier.push('identite_' + x));
+      if (!manquantes.length && qte > 0 && r4(pa) === r4(pv)) averifier.push('pv_egal_pa');
 
       lignes.push({
         article: r.article, categorie: r.categorie || null, code_barres: c || null,
@@ -142,6 +146,7 @@
         quantite: qte, pa, pv, pa_precedent: paPrec, pv_precedent: pvPrec,
         rapprochement: par || 'absente', variation, niveau_variation: niveau, sens,
         identite, donnees_manquantes: manquantes,
+        a_verifier: averifier.length ? { raisons: averifier, ancien_libelle: p ? p.article : null, ancien_code_barres: p ? (cb(p) || null) : null } : null,
         perte, hausse, suspect: raisons.length ? { raisons, niveau: niveau === 'suspecte' || niveau === 'importante' ? niveau : null } : null,
         cout_a_verifier: niveau === 'importante' || niveau === 'suspecte' || manquantes.length > 0,
         // Prix réglementé ou contractuel : jamais de hausse ni de baisse proposée.
@@ -188,6 +193,7 @@
     R.hausse.reglemente = bloc(l => l.prix_type !== PRIX_TYPES.libre);
     [R.hausse.libre, R.hausse.reglemente].forEach(b => { b.impact30 = b.impact30 === null ? null : r2(b.impact30); });
     R.suspect = { nb: cnt(l => l.suspect) };
+    R.a_verifier = { nb: cnt(l => l.a_verifier), identite: cnt(l => l.a_verifier && l.a_verifier.raisons.some(x => x.indexOf('identite_') === 0)), pv_egal_pa: cnt(l => l.a_verifier && l.a_verifier.raisons.includes('pv_egal_pa')) };
     // Total global : chaque référence une seule fois, au plus grand de ses impacts (la perte d'une vente à perte
     // est déjà incluse dans la hausse de PA qui l'a causée).
     const touchees = lignes.filter(l => l.perte || l.hausse || l.suspect);
@@ -205,6 +211,7 @@
     const parImpact = (a, b) => b.hausse.impact - a.hausse.impact || String(a.article).localeCompare(String(b.article));
     const pertes = L.filter(l => l.perte).sort((a, b) => (a.perte.justifiee - b.perte.justifiee) || (b.perte.montant - a.perte.montant));
     const ordreNiveau = { suspecte: 0, importante: 1 };
+    const averifier = L.filter(l => l.a_verifier).sort((a, b) => String(a.article).localeCompare(String(b.article)));
     const suspects = L.filter(l => l.suspect).sort((a, b) => ((ordreNiveau[a.niveau_variation] ?? 2) - (ordreNiveau[b.niveau_variation] ?? 2)) || Math.abs(b.variation || 0) - Math.abs(a.variation || 0));
     const groupe = (filtre) => {
       const tous = L.filter(l => l.hausse && filtre(l)).sort(parImpact);
@@ -216,7 +223,7 @@
       return { total: tous.length, impact: somme(tous), premieres, impact_premieres: somme(premieres), reste: { nb: reste.length, impact: somme(reste), lignes: reste }, petites: { nb: petites.length, impact: somme(petites), lignes: petites } };
     };
     return {
-      pertes, suspects,
+      pertes, suspects, averifier,
       hausses: groupe(l => l.prix_type === PRIX_TYPES.libre),
       reglementes: groupe(l => l.prix_type !== PRIX_TYPES.libre),
     };
@@ -227,9 +234,13 @@
     titre: 'Scanner tarifaire',
     sousTitre: 'Ventes à perte, coûts suspects, hausses de PA non répercutées',
     hausse: 'Hausse de PA non répercutée',
+    hausses: 'Hausses de PA non répercutées',
+    niveaux: { a_examiner: 'À examiner', prioritaire: 'Prioritaire' },
     impact: 'Impact estimé à volume observé',
     coutAVerifier: 'coût à vérifier avant toute décision de prix',
     suspectMessage: 'Vérifier le conditionnement, l\'unité d\'achat, le PMP Decenium HT, les dates et l\'identité du produit. Aucune modification de prix n\'est conseillée tant que le coût n\'est pas vérifié.',
+    identiteMessage: 'Libellé (ou code-barres) modifié depuis la période précédente : vérifier qu\'il s\'agit du même produit.',
+    pvEgalPaMessage: 'PV égal au PA : opération de caisse ou service possible, nature à déclarer dans la fiche.',
     reglemente: {
       titre: 'Prix réglementés',
       sousTitre: 'Surveillance financière · Prix non librement modifiables',

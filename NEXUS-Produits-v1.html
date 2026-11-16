@@ -1532,9 +1532,13 @@ nexusRequireAuth().then(async employee => {
     const T = NexusScannerTarifaire.TEXTES, A = NexusScannerTarifaire.affichage(res), R = res.resume;
     const reg = [];
     const bt = (l, meta, chiffres) => { const k = reg.length; reg.push(l.article); return `<li><button type="button" class="vp-ligne-prod" data-s="${k}"><span class="vp-nom">${esc(l.article)}</span><span class="vp-meta">${meta}</span><span class="vp-chiffres">${chiffres}</span></button></li>`; };
-    const lignePerte = l => bt(l, `${esc(l.categorie || '')} · PA ${esc(eurN(l.pa))} ≥ PV ${esc(eurN(l.pv))} · ${esc(fmtN(l.quantite, 0))} unités · ${l.perte.justifiee ? 'justifiée : ' + esc(l.perte.motif || '') : 'non justifiée'}`, `perte ${esc(eurN(l.perte.montant))}`);
+    const lignePerte = l => bt(l, `${esc(l.categorie || '')} · PA ${esc(eurN(l.pa))} > PV ${esc(eurN(l.pv))} · ${esc(fmtN(l.quantite, 0))} ${l.quantite > 1 ? 'unités' : 'unité'} · ${l.perte.justifiee ? 'justifiée : ' + esc(l.perte.motif || '') : 'non justifiée'}`, `perte ${esc(eurN(l.perte.montant))}`);
     const ligneSuspect = l => bt(l, `PA ${esc(eurN(l.pa_precedent))} → ${esc(eurN(l.pa))}${l.variation !== null ? ' (' + (l.variation >= 0 ? '+' : '−') + esc(fmtN(Math.abs(l.variation) * 100, 1)) + ' %)' : ''} · ${esc(T.suspectMessage)}`, l.niveau_variation === 'suspecte' ? 'vérification prioritaire' : 'coût à vérifier');
-    const ligneHausse = l => bt(l, `${esc(l.categorie || '')} · ${esc(fmtN(l.quantite, 0))} unités · PA ${esc(eurN(l.pa_precedent))} → ${esc(eurN(l.pa))} · PV inchangé ${esc(eurN(l.pv))}${l.cout_a_verifier ? ' · ' + esc(T.coutAVerifier) : ''}`, `${esc(eurN(l.hausse.impact))} (${esc(eurN(l.hausse.impact30))} / 30 j)`);
+    const ligneHausse = l => bt(l, `${esc(l.categorie || '')} · ${esc(fmtN(l.quantite, 0))} ${l.quantite > 1 ? 'unités' : 'unité'} · PA ${esc(eurN(l.pa_precedent))} → ${esc(eurN(l.pa))} · PV inchangé ${esc(eurN(l.pv))}${l.cout_a_verifier ? ' · ' + esc(T.coutAVerifier) : ''}`, `${T.niveaux[l.hausse.niveau] ? '<strong>' + esc(T.niveaux[l.hausse.niveau]) + '</strong> · ' : ''}${esc(eurN(l.hausse.impact))} (${esc(eurN(l.hausse.impact30))} / 30 j)`);
+    const ligneVerif = l => { const v = l.a_verifier, m = [];
+      if (v.raisons.some(x => x.indexOf('identite_') === 0)) m.push(`${esc(T.identiteMessage)} Avant : ${esc(v.ancien_libelle || 'n.d.')}${v.ancien_code_barres ? ' (code-barres ' + esc(v.ancien_code_barres) + ')' : ''}.`);
+      if (v.raisons.includes('pv_egal_pa')) m.push(esc(T.pvEgalPaMessage));
+      return bt(l, m.join(' '), 'à vérifier'); };
     const groupe = (g, vide) => {
       const rest = (titre, o) => o.nb ? `<details class="comprendre"><summary>${esc(titre)}</summary><ul class="vp-liste">${o.lignes.map(ligneHausse).join('')}</ul></details>` : '';
       return `<ul class="vp-liste">${g.premieres.map(ligneHausse).join('') || `<li class="vp-ligne">${vide}</li>`}</ul>`
@@ -1546,11 +1550,12 @@ nexusRequireAuth().then(async employee => {
       <div class="vp-bloc"><h3>Synthèse</h3>
         <div class="vp-ligne">Ventes à perte : ${R.perte.nb} (${esc(eurN(R.perte.montant))}), dont ${R.perte.non_justifiees} non justifiée${R.perte.non_justifiees > 1 ? 's' : ''}</div>
         <div class="vp-ligne">Coûts suspects : ${R.suspect.nb} référence${R.suspect.nb > 1 ? 's' : ''}</div>
-        <div class="vp-ligne">${esc(T.hausse)}s : ${h.nb} références · ${esc(T.impact)} : ${esc(eurN(h.impact))} sur la période, ${esc(eurN(h.impact30))} ramenés à 30 jours</div>
+        <div class="vp-ligne">${esc(T.hausses)} : ${h.nb} références, dont ${h.a_examiner + h.prioritaire} à examiner ou prioritaires · ${esc(T.impact)} : ${esc(eurN(h.impact))} sur la période, ${esc(eurN(h.impact30))} ramenés à 30 jours</div>
         <div class="vp-ligne">Total global, chaque référence comptée une fois : ${R.global.nb} références, ${esc(eurN(R.global.montant))}</div></div>
       <div class="vp-bloc"><h3>Ventes à perte (${A.pertes.length})</h3><ul class="vp-liste">${A.pertes.map(lignePerte).join('') || '<li class="vp-ligne">Aucune vente à perte.</li>'}</ul></div>
       <div class="vp-bloc"><h3>Coûts suspects à vérifier (${A.suspects.length})</h3><ul class="vp-liste">${A.suspects.map(ligneSuspect).join('') || '<li class="vp-ligne">Aucun coût suspect.</li>'}</ul></div>
-      <div class="vp-bloc"><h3>${esc(T.hausse)}s · prix libres (${A.hausses.total})</h3><div class="vp-ligne">${esc(T.impact)} : ${esc(eurN(A.hausses.impact))} sur la période</div>${groupe(A.hausses, 'Aucune hausse non répercutée.')}</div>
+      <div class="vp-bloc"><h3>Identité à vérifier (${A.averifier.length})</h3><ul class="vp-liste">${A.averifier.map(ligneVerif).join('') || '<li class="vp-ligne">Aucune référence.</li>'}</ul></div>
+      <div class="vp-bloc"><h3>${esc(T.hausses)} · prix libres (${A.hausses.total})</h3><div class="vp-ligne">${esc(T.impact)} : ${esc(eurN(A.hausses.impact))} sur la période</div>${groupe(A.hausses, 'Aucune hausse non répercutée.')}</div>
       <div class="vp-bloc"><h3>${esc(T.reglemente.titre)} (${A.reglementes.total})</h3><div class="vp-ligne">${esc(T.reglemente.sousTitre)}</div><div class="vp-ligne">${esc(T.reglemente.constat)}. ${esc(T.impact)} : ${esc(eurN(A.reglementes.impact))} sur la période.</div><div class="vp-ligne">${esc(T.reglemente.action)}</div>${groupe(A.reglementes, 'Aucune hausse enregistrée.')}<div class="vp-ligne">${esc(T.reglemente.pied)}</div></div>`;
     corps.querySelectorAll('button[data-s]').forEach(b => b.addEventListener('click', () => choisirSuggestion(reg[Number(b.dataset.s)])));
   }
