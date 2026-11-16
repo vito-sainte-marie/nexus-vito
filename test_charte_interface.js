@@ -4,7 +4,7 @@
 // Il ne deviendra bloquant qu'après examen des faux positifs, et seulement
 // pour les pages de PAGES_CONTROLEES (recettées conformes).
 //
-// Ignoré : contenu des <svg>, et toute ligne marquée
+// Ignoré : contenu des <svg>, balises <meta>, replis de var(), et toute ligne marquée
 //   /* charte-exception: <raison> */   (ou <!-- charte-exception: <raison> -->)
 const fs = require('fs');
 const path = require('path');
@@ -35,6 +35,8 @@ function analyser(fichier) {
       texte = texte.slice(fin + 6); dansSvg = false;
     }
     texte = texte.replace(/<svg[\s\S]*?<\/svg>/gi, ' ');
+    // Ignoré aussi : balises <meta> (theme-color) et replis de var(--x, #...).
+    texte = texte.replace(/<meta[^>]*>/gi, ' ').replace(/var\([^)]*\)/g, ' ');
     const ouv = texte.search(/<svg/i);
     if (ouv !== -1) { texte = texte.slice(0, ouv); dansSvg = true; }
     if (/<style/i.test(texte)) dansStyle = true;
