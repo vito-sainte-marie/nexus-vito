@@ -225,6 +225,17 @@
     joursStockAncien: 30,             // au-delà, le stock théorique est signalé « données anciennes »
   };
 
+  // Scanner tarifaire S1 (GO gérant du 15/11/2026, lecture seule) : deux jeux de seuils DISTINCTS.
+  // Variation de PA, en valeur absolue (hausses et baisses) : < ordinaire ; puis borne basse (>=) de chaque palier.
+  // Impact d'une hausse de PA non répercutée, en euros sur la période : même logique de bornes basses.
+  const SEUILS_SCANNER_TARIFAIRE = {
+    variationPa: { notable: 0.10, importante: 0.20, suspecte: 0.50 },
+    impactEuros: { aExaminer: 5, prioritaire: 20 },
+    impactNegligeableEuros: 1,        // en deçà, la ligne est regroupée dans « N références à moins de 1 € »
+    nombreAffiche: 10,                // hausses non répercutées affichées, par type de prix
+    joursReference: 30,               // impact ramené à 30 jours
+  };
+
   function niveauRentabilite(margePct) {
     const s = SEUILS_RENTABILITE;
     return margePct >= s.tresRentable ? 'tres_rentable' : margePct >= s.correcte ? 'correcte'
@@ -1167,7 +1178,7 @@
   global.NexusConseiller = {
     typeActionPourCategorie, LANGAGE_ACTION, calculerCandidatsProduits,
     SEUIL_CONTRIBUTION_FORTE, SEUIL_HAUSSE, SEUIL_BAISSE, SEUIL_VOLUME_CA_EUR,
-    DUREE_DORMANT_PERIODES, DUREE_RELEVE_STOCK_JOURS, SEUILS_PRODUITS_MESURE, SEUILS_RENTABILITE, SEUILS_ROTATION_JOURS, SEUILS_STOCK_JOURS,
+    DUREE_DORMANT_PERIODES, DUREE_RELEVE_STOCK_JOURS, SEUILS_PRODUITS_MESURE, SEUILS_SCANNER_TARIFAIRE, SEUILS_RENTABILITE, SEUILS_ROTATION_JOURS, SEUILS_STOCK_JOURS,
     niveauRentabilite, niveauRotation, niveauStock, statutProduit,
     analyserProduitsStrategiques, analyserEvolutionsPaire,
     normaliserProduit, normaliserMarge, normaliserTempo, normaliserAdvisor,

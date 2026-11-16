@@ -350,6 +350,7 @@ body.nexus-desktop #resultSection > *{margin-bottom:12px;}
 <script src="nexus-campagne-outils.js?v=20261116-1"></script>
 <script src="nexus-campagne-ventes.js?v=20261114-1900"></script>
 <script src="nexus-produits-vues.js?v=20261116-1"></script>
+<script src="nexus-scanner-tarifaire.js?v=20261116-2"></script>
 <script src="nexus-badge-etat.js"></script>
 <script src="nexus-produits-securite.js"></script>
 </head>
@@ -742,6 +743,7 @@ nexusRequireAuth().then(async employee => {
       const i = (periodes || []).findIndex(x => x.periode_debut === per.debut && x.periode_fin === per.fin);
       const prec = i >= 0 && periodes[i + 1] ? { debut: periodes[i + 1].periode_debut, fin: periodes[i + 1].periode_fin } : null;
       const rowsPrec = prec ? await lirePeriode(prec) : null;
+      LIGNES_PRECEDENTES = rowsPrec || [];
       const stock = await lireStockRecent(AUJOURDHUI_STATION);
       // P1-B : déclarations d'un responsable (nature, TVA confirmée, justification). Lecture seule ici ;
       // une table absente ou refusée ne bloque jamais la fiche, les mesures restent celles de l'import.
@@ -817,6 +819,7 @@ nexusRequireAuth().then(async employee => {
   const PRODUCTS_NOMS_SITE = () => (typeof PRODUCTS !== 'undefined' && PRODUCTS ? PRODUCTS : []).map(p => p.article);
   let PROMOTIONS_BRUTES = null;
   let COMPTAGES_PRODUITS = new Map();
+  let LIGNES_PRECEDENTES = [], SCANNER_CACHE = null;
   let SYNTHESE_PRODUITS = null, RESUME_PRODUITS = null, MESURES_PRODUITS = [], DECLARATIONS_PRODUITS = null, SYNTHESE_STOCK_DATE = null;
   const ACCUEIL_HTML = document.getElementById('resultSection').innerHTML;
 
@@ -1152,6 +1155,8 @@ nexusRequireAuth().then(async employee => {
               ${sousSeuil ? `<div class="obs-mention">observation, pas une tendance confirmée (CA de la période précédente sous le seuil de ${NexusConseiller.SEUIL_VOLUME_CA_EUR} €)</div>` : ''}
             </div>` : '';
 
+    const scTxt = scannerTexteFiche(p.article);
+    const scannerHtml = scTxt ? `<div class="obs-bloc"><div class="obs-titre">Scanner tarifaire</div><div class="obs-mention">${esc(scTxt)}</div></div>` : '';
     const rangTxt = mes && mes.rang.valeur !== null ? `Rang ${mes.rang.valeur} sur ${mes.rang.sur} en marge de la boutique${mes.qualification ? ' · ' + esc(mes.qualification) : ''}` : '';
     const signaux = [];
     if (mes && mes.a_identifier) signaux.push('Référence à identifier : prix de vente proche de 1 € HT pour une quantité élevée (opération de caisse ou service possible). Non exclue des indicateurs tant qu\'elle n\'est pas déclarée.');
@@ -1185,6 +1190,7 @@ nexusRequireAuth().then(async employee => {
             </details>
           </div>
           ${observationHtml}
+          ${scannerHtml}
         </section>
       </div>
 
@@ -1468,7 +1474,7 @@ nexusRequireAuth().then(async employee => {
   }
 
   // ===== P1-C : trois vues dans la page, alimentées par les mesures déjà calculées (aucun calcul nouveau) =====
-  const ICONE_VUE = { produits: 'campagne-produits-moteurs', ventes: 'campagne-ca-boutique', marges: 'campagne-marge-commerciale', revoir: 'campagne-produits-a-revoir', stocks: 'campagne-alerte-produit', promo: 'campagne-promotions' };
+  const ICONE_VUE = { produits: 'campagne-produits-moteurs', ventes: 'campagne-ca-boutique', marges: 'campagne-marge-commerciale', revoir: 'campagne-produits-a-revoir', stocks: 'campagne-alerte-produit', promo: 'campagne-promotions', scanner: 'produits-scanner-tarifaire' };
   const VUES = {
     produits: { titre: 'Mes produits', sous: 'Toutes les références de la période, avec filtres' },
     ventes: { titre: 'Mes meilleures ventes', sous: 'Classées par chiffre d\'affaires HT' },
@@ -1476,14 +1482,15 @@ nexusRequireAuth().then(async employee => {
     revoir: { titre: 'Mes produits à revoir', sous: 'Marges à justifier, statuts à vérifier, produits à étudier' },
     stocks: { titre: 'Mes stocks et couverture', sous: 'Stock théorique Decenium, relevé daté' },
     promo: { titre: 'Mes produits en promotion', sous: 'Promotions de Campagne, avec lien vers le suivi' },
+    scanner: { titre: 'Scanner tarifaire', sous: 'Ventes à perte, coûts suspects, hausses de PA non répercutées' },
   };
   const PAGE_VUE = 50, PAGE_VENTES = 20;
   function entreesVues() { return NexusProduitsVues.preparer(MESURES_PRODUITS, window.NexusMarge && NexusMarge.familleMarge); }
   function vuesDisponibles() { return !!(window.NexusProduitsVues && RESUME_PRODUITS && MESURES_PRODUITS.length); }
   function cartesVues() {
     if (!vuesDisponibles()) return '';
-    const b = k => { const i = ICONE_VUE[k]; return `<button type="button" class="tuile disponible" data-vue="${k}"><img class="picto-p" src="assets/icones/campagne/premium/${i}-96.webp" srcset="assets/icones/campagne/premium/${i}-48.webp 48w, assets/icones/campagne/premium/${i}-96.webp 96w, assets/icones/campagne/premium/${i}-144.webp 144w" sizes="56px" width="56" height="56" alt=""><span class="t-titre">${VUES[k].titre}</span><span class="t-sous">${VUES[k].sous}</span></button>`; };
-    return `<div class="tuiles" aria-label="Vues Produits">${b('produits')}${b('ventes')}${b('marges')}${b('revoir')}${b('stocks')}${b('promo')}</div>`;
+    const b = k => { const i = ICONE_VUE[k]; return `<button type="button" class="tuile disponible" data-vue="${k}"><img class="picto-p" src="assets/icones/campagne/premium/${i}-96.webp" srcset="assets/icones/campagne/premium/${i}-48.webp 48w, assets/icones/campagne/premium/${i}-96.webp 96w, assets/icones/campagne/premium/${i}-144.webp 144w" sizes="56px" width="56" height="56" alt="" onerror="this.onerror=null;this.removeAttribute('srcset');this.src='assets/icones/campagne/premium/campagne-alerte-produit-96.webp'"><span class="t-titre">${VUES[k].titre}</span><span class="t-sous">${VUES[k].sous}</span></button>`; };
+    return `<div class="tuiles" aria-label="Vues Produits">${b('produits')}${b('ventes')}${b('marges')}${b('revoir')}${b('stocks')}${b('promo')}${b('scanner')}</div>`;
   }
   function entetePeriodeVue(denominateur) {
     const per = PERIODE_DONNEES ? `du ${fmtDate(PERIODE_DONNEES.debut)} au ${fmtDate(PERIODE_DONNEES.fin)}` : '';
@@ -1497,6 +1504,55 @@ nexusRequireAuth().then(async employee => {
   }
   function badgesLigne(e) {
     return (e.aIdentifier ? '<span class="vp-badge">À identifier</span>' : '') + (e.euros ? '<span class="vp-badge">Quantité possiblement exprimée en euros</span>' : '');
+  }
+  // ===== Scanner tarifaire S1 : lecture seule, calcul par le module à partir des lignes déjà chargées =====
+  const eurN = v => v == null ? 'n.d.' : fmtEur(v);
+  function scannerResultat() {
+    if (!window.NexusScannerTarifaire || !RESUME_PRODUITS || !PERIODE_DONNEES) return null;
+    if (SCANNER_CACHE && SCANNER_CACHE.cle === MESURES_PRODUITS) return SCANNER_CACHE.res;
+    const d = DECLARATIONS_PRODUITS || {};
+    let res = null;
+    try {
+      res = NexusScannerTarifaire.controler(MESURES_PRODUITS.map(x => x.row), LIGNES_PRECEDENTES, {
+        periode: PERIODE_DONNEES, natures: d.produits_nature_reference || [], justifications: d.produits_justifications_marge || [],
+      });
+    } catch (e) { console.error('Scanner tarifaire:', e); }
+    SCANNER_CACHE = { cle: MESURES_PRODUITS, res };
+    return res;
+  }
+  function scannerTexteFiche(article) {
+    const res = scannerResultat();
+    if (!res) return null;
+    const l = res.lignes.find(x => x.article === article);
+    return l ? NexusScannerTarifaire.texteFiche(l) : null;
+  }
+  function ouvrirScanner(corps) {
+    const res = scannerResultat();
+    if (!res) { corps.innerHTML = '<div class="vp-ligne">Scanner indisponible : période précédente ou mesures absentes.</div>'; return; }
+    const T = NexusScannerTarifaire.TEXTES, A = NexusScannerTarifaire.affichage(res), R = res.resume;
+    const reg = [];
+    const bt = (l, meta, chiffres) => { const k = reg.length; reg.push(l.article); return `<li><button type="button" class="vp-ligne-prod" data-s="${k}"><span class="vp-nom">${esc(l.article)}</span><span class="vp-meta">${meta}</span><span class="vp-chiffres">${chiffres}</span></button></li>`; };
+    const lignePerte = l => bt(l, `${esc(l.categorie || '')} · PA ${esc(eurN(l.pa))} ≥ PV ${esc(eurN(l.pv))} · ${esc(fmtN(l.quantite, 0))} unités · ${l.perte.justifiee ? 'justifiée : ' + esc(l.perte.motif || '') : 'non justifiée'}`, `perte ${esc(eurN(l.perte.montant))}`);
+    const ligneSuspect = l => bt(l, `PA ${esc(eurN(l.pa_precedent))} → ${esc(eurN(l.pa))}${l.variation !== null ? ' (' + (l.variation >= 0 ? '+' : '−') + esc(fmtN(Math.abs(l.variation) * 100, 1)) + ' %)' : ''} · ${esc(T.suspectMessage)}`, l.niveau_variation === 'suspecte' ? 'vérification prioritaire' : 'coût à vérifier');
+    const ligneHausse = l => bt(l, `${esc(l.categorie || '')} · ${esc(fmtN(l.quantite, 0))} unités · PA ${esc(eurN(l.pa_precedent))} → ${esc(eurN(l.pa))} · PV inchangé ${esc(eurN(l.pv))}${l.cout_a_verifier ? ' · ' + esc(T.coutAVerifier) : ''}`, `${esc(eurN(l.hausse.impact))} (${esc(eurN(l.hausse.impact30))} / 30 j)`);
+    const groupe = (g, vide) => {
+      const rest = (titre, o) => o.nb ? `<details class="comprendre"><summary>${esc(titre)}</summary><ul class="vp-liste">${o.lignes.map(ligneHausse).join('')}</ul></details>` : '';
+      return `<ul class="vp-liste">${g.premieres.map(ligneHausse).join('') || `<li class="vp-ligne">${vide}</li>`}</ul>`
+        + rest(`${g.reste.nb} autre${g.reste.nb > 1 ? 's' : ''} référence${g.reste.nb > 1 ? 's' : ''} de 1 € et plus`, g.reste)
+        + rest(`${g.petites.nb} référence${g.petites.nb > 1 ? 's' : ''} à moins de 1 €`, g.petites);
+    };
+    const h = R.hausse;
+    corps.innerHTML = `<div id="vpEntete">${entetePeriodeVue(`${R.analysees} références analysées · ${R.absentes_precedente} absentes de la période précédente`)}</div>
+      <div class="vp-bloc"><h3>Synthèse</h3>
+        <div class="vp-ligne">Ventes à perte : ${R.perte.nb} (${esc(eurN(R.perte.montant))}), dont ${R.perte.non_justifiees} non justifiée${R.perte.non_justifiees > 1 ? 's' : ''}</div>
+        <div class="vp-ligne">Coûts suspects : ${R.suspect.nb} référence${R.suspect.nb > 1 ? 's' : ''}</div>
+        <div class="vp-ligne">${esc(T.hausse)}s : ${h.nb} références · ${esc(T.impact)} : ${esc(eurN(h.impact))} sur la période, ${esc(eurN(h.impact30))} ramenés à 30 jours</div>
+        <div class="vp-ligne">Total global, chaque référence comptée une fois : ${R.global.nb} références, ${esc(eurN(R.global.montant))}</div></div>
+      <div class="vp-bloc"><h3>Ventes à perte (${A.pertes.length})</h3><ul class="vp-liste">${A.pertes.map(lignePerte).join('') || '<li class="vp-ligne">Aucune vente à perte.</li>'}</ul></div>
+      <div class="vp-bloc"><h3>Coûts suspects à vérifier (${A.suspects.length})</h3><ul class="vp-liste">${A.suspects.map(ligneSuspect).join('') || '<li class="vp-ligne">Aucun coût suspect.</li>'}</ul></div>
+      <div class="vp-bloc"><h3>${esc(T.hausse)}s · prix libres (${A.hausses.total})</h3><div class="vp-ligne">${esc(T.impact)} : ${esc(eurN(A.hausses.impact))} sur la période</div>${groupe(A.hausses, 'Aucune hausse non répercutée.')}</div>
+      <div class="vp-bloc"><h3>${esc(T.reglemente.titre)} (${A.reglementes.total})</h3><div class="vp-ligne">${esc(T.reglemente.sousTitre)}</div><div class="vp-ligne">${esc(T.reglemente.constat)}. ${esc(T.impact)} : ${esc(eurN(A.reglementes.impact))} sur la période.</div><div class="vp-ligne">${esc(T.reglemente.action)}</div>${groupe(A.reglementes, 'Aucune hausse enregistrée.')}<div class="vp-ligne">${esc(T.reglemente.pied)}</div></div>`;
+    corps.querySelectorAll('button[data-s]').forEach(b => b.addEventListener('click', () => choisirSuggestion(reg[Number(b.dataset.s)])));
   }
   function ouvrirVue(cle) {
     const r = document.getElementById('resultSection');
@@ -1566,6 +1622,8 @@ nexusRequireAuth().then(async employee => {
       const versProduits = (id, val) => { ouvrirVue('produits'); const f = document.getElementById(id); if (f) { f.value = val; f.dispatchEvent(new Event('change')); } };
       corps.querySelector('#lienAIdentifier').addEventListener('click', () => versProduits('fNature', 'a_identifier'));
       corps.querySelector('#lienTva').addEventListener('click', () => versProduits('fTva', 'incoherente'));
+    } else if (cle === 'scanner') {
+      ouvrirScanner(corps);
     } else if (cle === 'promo') {
       const ST = { moteur: 'Moteur', a_revoir: 'À revoir', non_mesurable: 'Sans objectif' };
       const lib = k => (window.NexusVocab && NexusVocab.campagne && NexusVocab.campagne.ventesPage && ({ moteur: NexusVocab.campagne.ventesPage.moteur, a_revoir: NexusVocab.campagne.ventesPage.aRevoir, non_mesurable: NexusVocab.campagne.ventesPage.nonMesurable }[k])) || ST[k] || k;
