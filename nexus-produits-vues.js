@@ -114,7 +114,7 @@
     const avec = tous.filter(e => e.stock && e.stock.disponible);
     const sansReleve = tous.length - avec.length;
     const enrichi = e => ({ ...e, comptage: comptageDe ? (comptageDe(e) || null) : null,
-      sansObjet: e.caisse || e.service || e.euros });
+      sansObjet: e.caisse || e.service || e.euros || e.aIdentifier });
     const nuls = avec.filter(e => e.stock.quantite <= 0).map(enrichi)
       .sort((a, b) => String(a.article).localeCompare(String(b.article), 'fr'));
     const positifs = avec.filter(e => e.stock.quantite > 0).map(enrichi);
@@ -139,7 +139,14 @@
   // Les taux du module de mesure sont déjà en pourcentage (40,95 = 40,95 %) : jamais multipliés par 100.
   function pourcent(v) { return v === null || v === undefined || isNaN(Number(v)) ? 'n.d.' : Number(v).toFixed(2).replace('.', ',') + '\u00a0%'; }
 
-  const API = { pourcent, preparer, produits, meilleuresVentes, marges, aRevoir, stocks, rayons, qualifications };
+  // Libellé de couverture : en dessous d'un jour, « moins d'1 j » (jamais « ≈ 0 j »).
+  function couvertureLibelle(j, fmt) {
+    if (j === null || j === undefined || isNaN(Number(j))) return 'couverture n.d.';
+    if (Number(j) < 1) return "couverture : moins d'1 j";
+    return 'couverture ≈ ' + (fmt ? fmt(j) : String(Math.round(j))) + ' j';
+  }
+
+  const API = { couvertureLibelle, pourcent, preparer, produits, meilleuresVentes, marges, aRevoir, stocks, rayons, qualifications };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   global.NexusProduitsVues = API;
 })(typeof window !== 'undefined' ? window : globalThis);

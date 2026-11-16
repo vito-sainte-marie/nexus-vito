@@ -31,4 +31,24 @@ const html = fs.readFileSync(path.join(__dirname, 'NEXUS-Produits-v1.html'), 'ut
 const bloc = html.slice(html.indexOf("cle === 'stocks'"), html.indexOf("} else {\n      const v = window.NexusProduitsVues.marges"));
 assert.ok(bloc.length > 500 && !/rupture|rapide|maîtris/i.test(bloc), 'mot interdit dans la vue stocks');
 assert.ok(/stock théorique Decenium/.test(bloc) && /pas de comptage physique/.test(bloc) && /non interprété/i.test(bloc));
+// Recette Guardian : Glaçons à 0, PCS négatif, Monster 1 u. à 3,08 u./jour, quantité en euros, à identifier.
+const g = V.preparer([
+  mk('Glaçons Vito', { stock: st(0, null) }),
+  mk('PCS Creacard 20 à 199', { stock: st(-2340, -12), euros: true }),
+  mk('Monster Viking Berry', { stock: st(1, 0.3) }),
+  mk('Jeton Lavazza', { stock: st(40, 10), euros: true }),
+  mk('Inconnu', { nature: 'a_identifier', stock: st(30, 6) }),
+]);
+const gs = V.stocks(g, null);
+assert.deepStrictEqual(gs.nuls.map(e => e.article).sort(), ['Glaçons Vito', 'PCS Creacard 20 à 199']);
+assert.ok(gs.lignes.find(e => e.article === 'Jeton Lavazza').sansObjet, 'quantité en euros : sans objet même à stock positif');
+assert.ok(gs.lignes.find(e => e.article === 'Inconnu').sansObjet, 'à identifier : sans objet');
+assert.ok(!gs.lignes.find(e => e.article === 'Monster Viking Berry').sansObjet);
+assert.strictEqual(V.couvertureLibelle(0.3), "couverture : moins d'1 j");
+assert.strictEqual(V.couvertureLibelle(0), "couverture : moins d'1 j");
+assert.strictEqual(V.couvertureLibelle(13), 'couverture ≈ 13 j');
+assert.ok(!/≈ 0 j/.test(V.couvertureLibelle(0.3)));
+// Le bloc nul/négatif n'affiche ni valeur PMP ni couverture.
+const ln = html.slice(html.indexOf('const ligneNul'), html.indexOf('corps.innerHTML', html.indexOf('const ligneNul')));
+assert.ok(ln.length > 100 && !/PMP|couverture|valeur_pmp|couverture_jours/.test(ln), 'ligneNul : ni PMP ni couverture');
 console.log('OK  P1-D vues pures et libellés');

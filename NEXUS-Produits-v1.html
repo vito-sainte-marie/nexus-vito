@@ -1526,15 +1526,16 @@ nexusRequireAuth().then(async employee => {
       const dateRel = v.date ? fmtDate(v.date) : 'date inconnue';
       const cptHtml = e => e.comptage ? `compté le ${esc(fmtDate(e.comptage.compte_le))} : ${esc(fmtN(e.comptage.quantite, 0))}` : 'pas de comptage physique';
       const ligneStock = e => {
-        const s = e.stock, cov = e.sansObjet ? 'couverture sans objet' : (s.couverture_jours === null || s.couverture_jours === undefined ? 'couverture n.d.' : `couverture ≈ ${fmtN(s.couverture_jours, 0)} j`);
+        const s = e.stock, cov = e.sansObjet ? 'couverture sans objet' : window.NexusProduitsVues.couvertureLibelle(s.couverture_jours, j => fmtN(j, 0));
         const vj = e.sansObjet || s.ventes_par_jour === null || s.ventes_par_jour === undefined ? '' : ` · ${fmtN(s.ventes_par_jour, 2)} u./jour`;
         const val = s.valeur_pmp === null || s.valeur_pmp === undefined ? '' : ` · ${fmtEur(s.valeur_pmp)} au PMP`;
         return `<span class="vp-nom">${esc(e.article)}${s.donnees_anciennes ? '<span class="vp-badge">Données anciennes</span>' : ''}</span><span class="vp-meta">stock théorique Decenium : ${esc(fmtN(s.quantite, 0))} u. au ${esc(fmtDate(s.date))}${esc(val)}</span><span class="vp-chiffres">${esc(cov)}${esc(vj)} · ${cptHtml(e)}</span>`;
       };
+      const ligneNul = e => `<span class="vp-nom">${esc(e.article)}${e.stock.donnees_anciennes ? '<span class="vp-badge">Données anciennes</span>' : ''}</span><span class="vp-meta">stock théorique Decenium : ${esc(fmtN(e.stock.quantite, 0))} u. au ${esc(fmtDate(e.stock.date))}</span><span class="vp-chiffres">non interprété : à vérifier physiquement · ${cptHtml(e)}</span>`;
       corps.innerHTML = `<div id="vpEntete">${entetePeriodeVue(`${v.nbAvecReleve} référence${v.nbAvecReleve > 1 ? 's' : ''} avec un relevé de stock théorique Decenium`)}</div>
         <div class="vp-ligne">Relevé du ${esc(dateRel)} · valeur du stock théorique positif au PMP : <strong>${esc(fmtEur(v.valeurPositive))}</strong> · ${v.sansReleve} référence${v.sansReleve > 1 ? 's' : ''} vendue${v.sansReleve > 1 ? 's' : ''} sans relevé</div>
         <div id="vpListe"></div>
-        <div class="vp-bloc" id="vpNul"><h3>Stock théorique nul ou négatif au ${esc(dateRel)} (${v.nuls.length})</h3><div class="vp-ligne">Non interprété : à vérifier physiquement.</div><ul class="vp-liste">${v.nuls.map((e, k) => `<li><button type="button" class="vp-ligne-prod" data-n="${k}">${ligneStock(e)}</button></li>`).join('')}</ul></div>`;
+        <div class="vp-bloc" id="vpNul"><h3>Stock théorique nul ou négatif au ${esc(dateRel)} (${v.nuls.length})</h3><div class="vp-ligne">Non interprété : à vérifier physiquement.</div><ul class="vp-liste">${v.nuls.map((e, k) => `<li><button type="button" class="vp-ligne-prod" data-n="${k}">${ligneNul(e)}</button></li>`).join('')}</ul></div>`;
       paginer(v.lignes, PAGE_VUE, ligneStock);
       corps.querySelectorAll('#vpNul [data-n]').forEach(bt => bt.addEventListener('click', () => choisirSuggestion(v.nuls[Number(bt.dataset.n)].article)));
     } else {
