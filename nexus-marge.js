@@ -192,17 +192,24 @@
   // Le candidate_id garde le format historique (aucune rupture des
   // décisions déjà enregistrées).
   function idCandidatMarge(categorie, article) { return `LIVE-R5-${categorie}|${article}`; }
+  // Tolérant : Set d'articles, tableau d'articles ou tableau de lignes { article }.
+  function ensembleArticles(x) {
+    if (!x) return new Set();
+    return new Set(Array.from(x, v => (v && typeof v === 'object') ? v.article : v));
+  }
   function ecartsMargeDeLaPeriode(lignes, opts) {
     const o = opts || {};
     const periode = o.periode || {};
-    const appel = o.produitsAppel || new Set();
+    const appel = ensembleArticles(o.produitsAppel);
+    const exclusions = ensembleArticles(o.exclusionsManuelles);
+    const jour = x => String(x == null ? '' : x).slice(0, 10);
     const propres = (lignes || []).filter(r => !appel.has(r.article)
       && (r.ca || 0) > 0 && (r.marge || 0) >= 0 && (r.marge || 0) <= (r.ca || 0));
     const valideesPeriode = new Set((o.decisions || [])
       .filter(d => d && (d.rule_id === undefined || d.rule_id === 'R5-MARGE-ECART')
-        && d.periode_reference_debut === periode.debut && d.periode_reference_fin === periode.fin)
+        && jour(d.periode_reference_debut) === jour(periode.debut) && jour(d.periode_reference_fin) === jour(periode.fin))
       .map(d => d.candidate_id));
-    return detecterEcartsMarge(propres, o.exclusionsManuelles).map(e => {
+    return detecterEcartsMarge(propres, exclusions).map(e => {
       const candidate_id = idCandidatMarge(e.categorie, e.article);
       return { ...e, candidate_id, validee: valideesPeriode.has(candidate_id) };
     });

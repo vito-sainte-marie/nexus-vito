@@ -767,9 +767,7 @@ nexusRequireAuth().then(async employee => {
       const margeLect = {};
       for (const t of ['produits_appel', 'marge_exceptions', 'journal_decisions']) {
         try {
-          let q = nexusClient.from(t).select('*');
-          if (t !== 'marge_exceptions') q = q.eq('site', SITE_ACTUEL);
-          const r = await q;
+          const r = await nexusClient.from(t).select('*').eq('site', SITE_ACTUEL);
           margeLect[t] = r.error ? [] : (r.data || []);
         } catch (e) { margeLect[t] = []; }
       }
@@ -1551,11 +1549,12 @@ nexusRequireAuth().then(async employee => {
     const res = scannerResultat();
     if (!res || !window.NexusMarge || !LECTURES_MARGE || !PERIODE_DONNEES) return null;
     if (SCANNER_CACHE && SCANNER_CACHE.marge !== undefined && SCANNER_CACHE.cleMarge === MESURES_PRODUITS) return SCANNER_CACHE.marge;
-    let marge = null;
+    let marge = { erreur: true };
     try {
       const ecarts = NexusMarge.ecartsMargeDeLaPeriode(MESURES_PRODUITS.map(x => x.row), {
-        periode: PERIODE_DONNEES, produitsAppel: LECTURES_MARGE.produits_appel,
-        exclusionsManuelles: LECTURES_MARGE.marge_exceptions, decisions: LECTURES_MARGE.journal_decisions,
+        periode: PERIODE_DONNEES,
+        produitsAppel: new Set((LECTURES_MARGE.produits_appel || []).map(r => r.article)),
+        exclusionsManuelles: new Set((LECTURES_MARGE.marge_exceptions || []).map(r => r.article)), decisions: LECTURES_MARGE.journal_decisions,
       });
       marge = { ecarts, affichage: NexusScannerTarifaire.affichageMarge(ecarts, res.lignes) };
     } catch (e) { console.error('Scanner tarifaire R5:', e); }
@@ -1576,7 +1575,7 @@ nexusRequireAuth().then(async employee => {
   }
   function scannerTexteMarge(article) {
     const m = scannerMarge();
-    const e = m && m.ecarts.find(x => x.article === article);
+    const e = m && m.ecarts && m.ecarts.find(x => x.article === article);
     return e ? NexusScannerTarifaire.texteFicheMarge(e) : null;
   }
   function ouvrirScanner(corps) {
@@ -1599,10 +1598,10 @@ nexusRequireAuth().then(async employee => {
         + rest(`${g.petites.nb} référence${g.petites.nb > 1 ? 's' : ''} à moins de 1 €`, g.petites);
     };
     const h = R.hausse;
-    const MG = scannerMarge(), M = MG && MG.affichage, TM = NexusScannerTarifaire.TEXTES.marge;
+    const MG = scannerMarge(), M = MG && MG.affichage, MGERR = !!(MG && MG.erreur), TM = NexusScannerTarifaire.TEXTES.marge;
     const ligneMarge = e => { const k = reg.length; reg.push(e.article);
       return `<li><button type="button" class="vp-ligne-prod" data-s="${k}"><span class="vp-nom">${esc(e.article)}</span><span class="vp-meta">${esc(e.categorie || '')} · taux ${esc(fmtN(e.margePct, 1))} %, médiane du groupe ${esc(fmtN(e.medianeGroupe, 1))} % sur ${esc(String(e.tailleGroupe))} références${e.aussi_hausse_pa ? ' · ' + esc(TM.aussiHausse) : ''}</span><span class="vp-chiffres">${esc(eurN(e.gainPotentiel))}</span></button><a class="lien-scanner-nexus" href="NEXUS-Scanner-v1.html">${esc(TM.lien)}</a></li>`; };
-    const blocMarge = !M ? '' : `<div class="vp-bloc"><h3>${esc(TM.titre)} (${M.total})</h3><div class="vp-ligne">${esc(TM.ecart)} : ${esc(eurN(M.ecart))}</div>
+    const blocMarge = MGERR ? `<div class="vp-bloc"><h3>Écarts Marge+ indisponibles</h3><div class="vp-ligne">Le calcul des écarts de marge a échoué. Les autres blocs ne sont pas touchés.</div></div>` : !M ? '' : `<div class="vp-bloc"><h3>${esc(TM.titre)} (${M.total})</h3><div class="vp-ligne">${esc(TM.ecart)} : ${esc(eurN(M.ecart))}</div>
         <ul class="vp-liste">${M.premiers.map(ligneMarge).join('') || '<li class="vp-ligne">Aucun écart de marge.</li>'}</ul>
         ${M.reste.nb ? `<details class="comprendre"><summary>${M.reste.nb} autre${M.reste.nb > 1 ? 's' : ''} écart${M.reste.nb > 1 ? 's' : ''}</summary><ul class="vp-liste">${M.reste.lignes.map(ligneMarge).join('')}</ul></details>` : ''}
         ${M.valides.nb ? `<details class="comprendre"><summary>${M.valides.nb} ${esc(TM.valides)}</summary><ul class="vp-liste">${M.valides.lignes.map(ligneMarge).join('')}</ul></details>` : ''}

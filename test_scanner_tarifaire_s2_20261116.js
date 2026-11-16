@@ -31,6 +31,15 @@ assert.strictEqual(M.ecartsMargeDeLaPeriode(base, { periode, decisions: [dec({ p
 assert.strictEqual(M.ecartsMargeDeLaPeriode(base, { periode, decisions: [dec({ rule_id: 'S1-HAUSSE-PA' })] })[0].validee, false, 'autre règle');
 assert.strictEqual(M.ecartsMargeDeLaPeriode(base, { periode, decisions: [dec({ candidate_id: 'LIVE-R5-Épicerie|A' })] })[0].validee, false, 'autre article');
 assert.doesNotThrow(() => M.ecartsMargeDeLaPeriode([], {})); assert.doesNotThrow(() => M.ecartsMargeDeLaPeriode(null));
+// Tolérance : Set, tableau d'articles, tableau de lignes { article }
+for (const [nom, v] of [['Set', new Set(['BAS'])], ['tableau d\'articles', ['BAS']], ['tableau de lignes', [{ article: 'BAS' }]]]) {
+  assert.strictEqual(M.ecartsMargeDeLaPeriode(base, { periode, produitsAppel: v }).length, 0, 'produitsAppel ' + nom);
+  assert.strictEqual(M.ecartsMargeDeLaPeriode(base, { periode, exclusionsManuelles: v }).length, 0, 'exclusionsManuelles ' + nom);
+}
+assert.strictEqual(M.ecartsMargeDeLaPeriode(base, { periode, produitsAppel: [{ article: 'AUTRE' }] }).length, 1, 'autre article : écart conservé');
+// Format de période : AAAA-MM-JJ comparé des deux côtés
+assert.strictEqual(M.ecartsMargeDeLaPeriode(base, { periode: { debut: '2026-10-05T00:00:00Z', fin: '2026-11-09T00:00:00Z' }, decisions: [dec()] })[0].validee, true, 'période ISO complète contre date simple');
+assert.strictEqual(M.ecartsMargeDeLaPeriode(base, { periode, decisions: [dec({ periode_reference_debut: '2026-10-05T00:00:00+00:00', periode_reference_fin: '2026-11-09T00:00:00+00:00' })] })[0].validee, true, 'décision en horodatage');
 console.log('OK  fonction partagée');
 
 // Rendu du bloc R5
