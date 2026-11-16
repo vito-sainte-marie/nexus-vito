@@ -81,4 +81,15 @@ t('Page : script inclus, cartes, retour, filtres, pagination', () => {
 t('Icônes officielles présentes', () => {
   ['campagne-produits-moteurs', 'campagne-ca-boutique', 'campagne-marge-commerciale'].forEach(i => [48, 96, 144].forEach(s => assert.ok(fs.existsSync(path.join(__dirname, 'assets/icones/campagne/premium/' + i + '-' + s + '.webp')), i + s)));
 });
+t('Taux déjà en pourcentage : jamais multipliés par 100', () => {
+  const V = require('./nexus-produits-vues.js');
+  const nb = x => x.replace('\u00a0', ' ');
+  assert.strictEqual(nb(V.pourcent(40.95)), '40,95 %', 'Pringles');
+  assert.strictEqual(nb(V.pourcent(9.84)), '9,84 %', 'Gaz bleu');
+  assert.strictEqual(nb(V.pourcent(71.17)), '71,17 %', 'résumé des forts contributeurs');
+  assert.strictEqual(V.pourcent(null), 'n.d.');
+  const vues = html.slice(html.indexOf('function ouvrirVue'), html.indexOf('function afficherSyntheseAccueil'));
+  assert.ok(vues.includes('pourcent(e.taux)') && vues.includes('pourcent(v.partForts)'), 'les vues utilisent pourcent pour les taux');
+  assert.ok(!/fmtPct\((e\.taux|v\.partForts)\)/.test(vues), 'fmtPct (ratio) interdit sur un taux déjà en pourcentage');
+});
 console.log(n + ' tests P1-C OK');

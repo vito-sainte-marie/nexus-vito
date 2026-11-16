@@ -1449,7 +1449,7 @@ nexusRequireAuth().then(async employee => {
       };
       dessiner();
     };
-    const taux = e => e.taux === null || e.taux === undefined ? 'n.d.' : fmtPct(e.taux);
+    const taux = e => e.taux === null || e.taux === undefined ? 'n.d.' : NexusProduitsVues.pourcent(e.taux);
     if (cle === 'produits') {
       const q = window.NexusProduitsVues.qualifications(entries), rayons = window.NexusProduitsVues.rayons(entries);
       const sel = (id, label, opts) => `<select id="${id}" aria-label="${label}"><option value="">${label}</option>${opts.map(o => `<option value="${esc(o[0])}">${esc(o[1])}</option>`).join('')}</select>`;
@@ -1482,7 +1482,7 @@ nexusRequireAuth().then(async employee => {
       const v = window.NexusProduitsVues.marges(entries, RESUME_PRODUITS);
       const sur = v.lignes.length;
       corps.innerHTML = `<div id="vpEntete">${entetePeriodeVue(`${sur} références à marge positive`)}</div>
-        <div class="vp-ligne">Marge totale de la boutique : <strong>${esc(fmtEur(v.margeBoutique))}</strong>${v.margeForts !== null && v.nbForts ? ` · ${v.nbForts} fort${v.nbForts > 1 ? 's' : ''} contributeur${v.nbForts > 1 ? 's' : ''} : ${esc(fmtEur(v.margeForts))}${v.partForts !== null && v.partForts !== undefined ? ' (' + esc(fmtPct(v.partForts)) + ')' : ''}` : ''}</div>
+        <div class="vp-ligne">Marge totale de la boutique : <strong>${esc(fmtEur(v.margeBoutique))}</strong>${v.margeForts !== null && v.nbForts ? ` · ${v.nbForts} fort${v.nbForts > 1 ? 's' : ''} contributeur${v.nbForts > 1 ? 's' : ''} : ${esc(fmtEur(v.margeForts))}${v.partForts !== null && v.partForts !== undefined ? ' (' + esc(NexusProduitsVues.pourcent(v.partForts)) + ')' : ''}` : ''}</div>
         <div id="vpListe"></div>
         <div class="vp-bloc" id="vpNeg"><h3>Marges négatives (${v.negatives.length})</h3><ul class="vp-liste">${v.negatives.map((e, k) => `<li><button type="button" class="vp-ligne-prod" data-neg="${k}"><span class="vp-nom">${esc(e.article)}</span><span class="vp-meta">${esc(e.rayon)} · ${e.justification ? 'déstockage justifié' : 'justification à saisir'}</span><span class="vp-chiffres">marge ${esc(fmtEur(e.marge))}</span></button><button type="button" class="btn-decl" data-just="${k}">${e.justification ? 'Voir la justification' : 'Justifier'}</button></li>`).join('') || '<li class="vp-ligne">Aucune marge négative.</li>'}</ul></div>
         <div id="vpCaisse">${noteCaisse(v.caisses)}</div>`;

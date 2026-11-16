@@ -94,7 +94,10 @@
     return Array.from(mp, ([cle, libelle]) => ({ cle, libelle })).sort((a, b) => a.libelle.localeCompare(b.libelle, 'fr'));
   }
 
-  const API = { preparer, produits, meilleuresVentes, marges, rayons, qualifications };
+  // Les taux du module de mesure sont déjà en pourcentage (40,95 = 40,95 %) : jamais multipliés par 100.
+  function pourcent(v) { return v === null || v === undefined || isNaN(Number(v)) ? 'n.d.' : Number(v).toFixed(2).replace('.', ',') + '\u00a0%'; }
+
+  const API = { pourcent, preparer, produits, meilleuresVentes, marges, rayons, qualifications };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   global.NexusProduitsVues = API;
 })(typeof window !== 'undefined' ? window : globalThis);
