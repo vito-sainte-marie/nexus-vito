@@ -262,7 +262,45 @@
     return `Le coût d'achat ${mouvement} (${eur(a)} → ${eur(b)}, ${pct(l.variation)})${perte}. Vérifier le prix fournisseur, le conditionnement et le PMP Decenium HT avant de modifier le prix de vente.`;
   }
 
-  const API = { PRIX_TYPES, TEXTES, controler, affichage, texteFiche, synthese, niveauVariation, niveauImpact };
+  // ---- S2 : écarts de marge dans le groupe (Marge+ R5), LECTURE SEULE ----
+  // Un écart à la médiane est une HYPOTHÈSE ; une hausse de PA est un impact observé : jamais de total commun.
+  // `ecarts` vient de NexusMarge.ecartsMargeDeLaPeriode (une seule préparation pour tous les consommateurs).
+  // Validation et mission restent dans Scanner NEXUS (lien « Traiter dans Scanner NEXUS »), aucune écriture ici.
+  function affichageMarge(ecarts, lignes, opts) {
+    const s = (opts && opts.seuils) || (global.NexusConseiller && global.NexusConseiller.SEUILS_SCANNER_TARIFAIRE);
+    const enHausse = new Set((lignes || []).filter(l => l.hausse).map(l => l.article));
+    const tri = (a, b) => b.gainPotentiel - a.gainPotentiel || String(a.article).localeCompare(String(b.article));
+    const marque = e => ({ ...e, aussi_hausse_pa: enHausse.has(e.article) });
+    const tous = (ecarts || []).map(marque);
+    const ouverts = tous.filter(e => !e.validee).sort(tri);
+    const valides = tous.filter(e => e.validee).sort(tri);
+    const somme = a => r2(a.reduce((t, e) => t + e.gainPotentiel, 0));
+    const n = s ? s.nombreAffiche : 10;
+    const premiers = ouverts.slice(0, n), reste = ouverts.slice(n);
+    return {
+      total: ouverts.length, ecart: somme(ouverts),
+      premiers, reste: { nb: reste.length, ecart: somme(reste), lignes: reste },
+      valides: { nb: valides.length, ecart: somme(valides), lignes: valides },
+      aussi_hausse_pa: ouverts.filter(e => e.aussi_hausse_pa).length,
+    };
+  }
+  const pctSimple = v => (Math.round(v * 10) / 10).toFixed(1).replace('.', ',') + ' %';
+  TEXTES.marge = {
+    titre: 'Écarts de marge dans le groupe (Marge+)',
+    sousTitre: 'Écart à la médiane du groupe, hypothèse à vérifier',
+    ecart: 'Écart à la médiane du groupe, hypothèse à vérifier',
+    aussiHausse: 'aussi en hausse de PA non répercutée',
+    lien: 'Traiter dans Scanner NEXUS',
+    valides: 'validés pour cette période',
+    pied: 'Lecture seule : validation et mission se font dans Scanner NEXUS. Cet écart n\'est pas additionné aux hausses de PA.',
+  };
+  // Phrase de la fiche produit (en plus du texte S1) ; null si pas d'écart.
+  function texteFicheMarge(e) {
+    if (!e) return null;
+    return `Taux ${pctSimple(e.margePct)}, médiane du groupe ${pctSimple(e.medianeGroupe)} sur ${e.tailleGroupe} références comparables : écart à vérifier.`;
+  }
+
+  const API = { PRIX_TYPES, TEXTES, controler, affichage, texteFiche, texteFicheMarge, affichageMarge, synthese, niveauVariation, niveauImpact };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   global.NexusScannerTarifaire = API;
 })(typeof window !== 'undefined' ? window : globalThis);

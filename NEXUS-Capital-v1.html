@@ -354,7 +354,7 @@ a{color:inherit; text-decoration:none;}
         .order('article', { ascending: true })),
       nexusClient.from('produits_appel').select('article').eq('site', siteId),
       nexusClient.from('marge_exceptions').select('article').eq('site', siteId),
-      nexusClient.from('journal_decisions').select('candidate_id').eq('site', siteId),
+      nexusClient.from('journal_decisions').select('candidate_id, rule_id, periode_reference_debut, periode_reference_fin').eq('site', siteId),
     ]);
     if (error || !data || !data.length) return { nb: 0, potentiel: 0, topCategorie: null };
 
@@ -369,12 +369,16 @@ a{color:inherit; text-decoration:none;}
       .map(c => ({ candidate_id: c.candidate_id, categorie: c.categorie, impact_eur: c.impact_eur }));
 
     const exclusionsManuelles = new Set(((exclusionsRes && exclusionsRes.data) || []).map(r => r.article));
-    const rowsPropresMarge = rowsAffichage.filter(r => (r.ca || 0) > 0 && (r.marge || 0) >= 0 && (r.marge || 0) <= (r.ca || 0));
-    NexusMarge.detecterEcartsMarge(rowsPropresMarge, exclusionsManuelles).forEach(e => {
-      candidats.push({ candidate_id: `LIVE-R5-${e.categorie}|${e.article}`, categorie: e.categorie, impact_eur: e.gainPotentiel });
+    NexusMarge.ecartsMargeDeLaPeriode(rowsAffichage, {
+      periode: periodeAffichage, produitsAppel, exclusionsManuelles,
+      decisions: (valideesRes && valideesRes.data) || [],
+    }).forEach(e => {
+      // R5 : une validation vaut pour sa période (drapeau `validee`) ; elle
+      // n'est donc plus comptée via l'ensemble `validees` sans période.
+      if (!e.validee) candidats.push({ candidate_id: e.candidate_id, categorie: e.categorie, impact_eur: e.gainPotentiel, r5: true });
     });
 
-    const enAttente = candidats.filter(c => !validees.has(c.candidate_id));
+    const enAttente = candidats.filter(c => c.r5 || !validees.has(c.candidate_id));
     const parCategorie = {};
     enAttente.forEach(c => { parCategorie[c.categorie] = (parCategorie[c.categorie] || 0) + c.impact_eur; });
     const topCategorie = Object.entries(parCategorie).sort((a, b) => b[1] - a[1])[0];

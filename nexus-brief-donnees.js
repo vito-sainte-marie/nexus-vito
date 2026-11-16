@@ -72,16 +72,17 @@
     if (!periodeAffichage) return null;
     const [exclusionsRes, valideesRes] = await Promise.all([
       client.from('marge_exceptions').select('article').eq('site', siteId),
-      client.from('journal_decisions').select('candidate_id').eq('site', siteId).eq('rule_id', 'R5-MARGE-ECART'),
+      client.from('journal_decisions').select('candidate_id, rule_id, periode_reference_debut, periode_reference_fin').eq('site', siteId).eq('rule_id', 'R5-MARGE-ECART'),
     ]);
-    const rowsPropres = rowsAffichage.filter(r => (r.ca || 0) > 0 && (r.marge || 0) >= 0 && (r.marge || 0) <= (r.ca || 0));
     const exclusionsManuelles = new Set(((exclusionsRes && exclusionsRes.data) || []).map(r => r.article));
-    const valideesMarge = new Set(((valideesRes && valideesRes.data) || []).map(d => d.candidate_id));
-    const ecarts = global.NexusMarge.detecterEcartsMarge(rowsPropres, exclusionsManuelles)
-      .filter(e => !valideesMarge.has(`LIVE-R5-${e.categorie}|${e.article}`));
+    // rowsBrut est déjà débarrassé des produits d'appel (chargerProduitsBrut).
+    const ecarts = global.NexusMarge.ecartsMargeDeLaPeriode(rowsAffichage, {
+      periode: periodeAffichage, exclusionsManuelles,
+      decisions: (valideesRes && valideesRes.data) || [],
+    }).filter(e => !e.validee);
     const meilleur = ecarts[0];
     const candidatTop = meilleur ? {
-      candidate_id: `LIVE-R5-${meilleur.categorie}|${meilleur.article}`, etat: '💡 RECOMMANDATION',
+      candidate_id: meilleur.candidate_id, etat: '💡 RECOMMANDATION',
       article: meilleur.article, categorie: meilleur.categorie, impact_eur: meilleur.gainPotentiel,
       situation: `${meilleur.article} a une marge de ${meilleur.margePct.toFixed(1)} %, contre ${meilleur.medianeGroupe.toFixed(1)} % pour les ${meilleur.tailleGroupe} produits comparables du même type.`,
       analyse: `Cet écart peut venir d'un prix d'achat renégocié, d'une remise non répercutée, ou d'un choix délibéré — à vérifier avant d'ajuster quoi que ce soit.`,

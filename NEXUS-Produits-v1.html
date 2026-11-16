@@ -308,6 +308,7 @@ button.btn-decl.plein{background:var(--cyan);color:#fff;}
 .vue-p1c .vp-bascule{display:inline-flex;align-items:center;gap:8px;cursor:pointer;}
 .vue-p1c .vp-liste{list-style:none;margin:8px 0;padding:0;}
 .vue-p1c .vp-liste li{margin:0;}
+.vue-p1c .lien-scanner-nexus{display:inline-block;font-size:12px;color:var(--accent,inherit);padding:4px 4px 8px;}
 .vue-p1c .vp-liste button.vp-ligne-prod{display:block;width:100%;text-align:left;min-height:44px;background:none;border:0;border-bottom:1px solid var(--hairline);font:inherit;font-size:13px;color:var(--text);cursor:pointer;padding:10px 4px;}
 .vue-p1c .vp-nom{display:block;font-weight:600;overflow-wrap:anywhere;}
 .vue-p1c .vp-meta{display:block;font-size:12px;color:var(--text-mid);margin-top:2px;}
@@ -350,7 +351,7 @@ body.nexus-desktop #resultSection > *{margin-bottom:12px;}
 <script src="nexus-campagne-outils.js?v=20261116-1"></script>
 <script src="nexus-campagne-ventes.js?v=20261114-1900"></script>
 <script src="nexus-produits-vues.js?v=20261116-1"></script>
-<script src="nexus-scanner-tarifaire.js?v=20261116-2"></script>
+<script src="nexus-scanner-tarifaire.js?v=20261116-3"></script>
 <script src="nexus-badge-etat.js"></script>
 <script src="nexus-produits-securite.js"></script>
 </head>
@@ -762,6 +763,15 @@ nexusRequireAuth().then(async employee => {
         } catch (e) { decl[t] = []; }
       }
       DECLARATIONS_PRODUITS = decl;
+      // S2 : Marge+ R5 en lecture seule (produits d'appel, exceptions, décisions). Table absente ou refusée = liste vide.
+      const margeLect = {};
+      for (const t of ['produits_appel', 'marge_exceptions', 'journal_decisions']) {
+        try {
+          const r = await nexusClient.from(t).select('*').eq('site', SITE_ACTUEL);
+          margeLect[t] = r.error ? [] : (r.data || []);
+        } catch (e) { margeLect[t] = []; }
+      }
+      LECTURES_MARGE = margeLect;
       // P1-D : dernier comptage physique d'Inventaire (lecture seule, tolérante : table absente ou refusée = aucun comptage).
       COMPTAGES_PRODUITS = await lireComptagesInventaire();
       // P1-E : promotions de Campagne (lecture seule, tolérante : table absente ou refusée = aucune promotion).
@@ -826,7 +836,7 @@ nexusRequireAuth().then(async employee => {
   const PRODUCTS_NOMS_SITE = () => (typeof PRODUCTS !== 'undefined' && PRODUCTS ? PRODUCTS : []).map(p => p.article);
   let PROMOTIONS_BRUTES = null;
   let COMPTAGES_PRODUITS = new Map();
-  let LIGNES_PRECEDENTES = [], SCANNER_CACHE = null;
+  let LIGNES_PRECEDENTES = [], SCANNER_CACHE = null, LECTURES_MARGE = null;
   let SYNTHESE_PRODUITS = null, RESUME_PRODUITS = null, MESURES_PRODUITS = [], DECLARATIONS_PRODUITS = null, SYNTHESE_STOCK_DATE = null;
   const ACCUEIL_HTML = document.getElementById('resultSection').innerHTML;
 
@@ -1164,7 +1174,9 @@ nexusRequireAuth().then(async employee => {
             </div>` : '';
 
     const scTxt = scannerTexteFiche(p.article);
-    const scannerHtml = scTxt ? `<div class="obs-bloc"><div class="obs-titre">Scanner tarifaire</div><div class="obs-mention">${esc(scTxt)}</div></div>` : '';
+    const scMarge = scannerTexteMarge(p.article);
+    const scNorm = scannerNormalise(p.article);
+    const scannerHtml = (scTxt || scMarge) ? `<div class="obs-bloc"${scNorm ? ` data-regle="${esc(scNorm.ruleId)}"` : ''}><div class="obs-titre">Scanner tarifaire</div>${scTxt ? `<div class="obs-mention">${esc(scTxt)}</div>` : ''}${scMarge ? `<div class="obs-mention">${esc(scMarge)}</div>` : ''}</div>` : '';
     const rangTxt = mes && mes.rang.valeur !== null ? `Rang ${mes.rang.valeur} sur ${mes.rang.sur} en marge de la boutique${mes.qualification ? ' · ' + esc(mes.qualification) : ''}` : '';
     const signaux = [];
     if (mes && mes.a_identifier) signaux.push('Référence à identifier : prix de vente proche de 1 € HT pour une quantité élevée (opération de caisse ou service possible). Non exclue des indicateurs tant qu\'elle n\'est pas déclarée.');
@@ -1532,11 +1544,39 @@ nexusRequireAuth().then(async employee => {
     SCANNER_CACHE = { cle: MESURES_PRODUITS, res };
     return res;
   }
+  // S2 : écarts R5 de la période, via la préparation partagée (nexus-marge.js). Lecture seule.
+  function scannerMarge() {
+    const res = scannerResultat();
+    if (!res || !window.NexusMarge || !LECTURES_MARGE || !PERIODE_DONNEES) return null;
+    if (SCANNER_CACHE && SCANNER_CACHE.marge !== undefined && SCANNER_CACHE.cleMarge === MESURES_PRODUITS) return SCANNER_CACHE.marge;
+    let marge = { erreur: true };
+    try {
+      const ecarts = NexusMarge.ecartsMargeDeLaPeriode(MESURES_PRODUITS.map(x => x.row), {
+        periode: PERIODE_DONNEES,
+        produitsAppel: new Set((LECTURES_MARGE.produits_appel || []).map(r => r.article)),
+        exclusionsManuelles: new Set((LECTURES_MARGE.marge_exceptions || []).map(r => r.article)), decisions: LECTURES_MARGE.journal_decisions,
+      });
+      marge = { ecarts, affichage: NexusScannerTarifaire.affichageMarge(ecarts, res.lignes) };
+    } catch (e) { console.error('Scanner tarifaire R5:', e); }
+    SCANNER_CACHE.marge = marge; SCANNER_CACHE.cleMarge = MESURES_PRODUITS;
+    return marge;
+  }
   function scannerTexteFiche(article) {
     const res = scannerResultat();
     if (!res) return null;
     const l = res.lignes.find(x => x.article === article);
     return l ? NexusScannerTarifaire.texteFiche(l) : null;
+  }
+  // Format commun du Conseiller (nexus-conseiller.js), Produits seulement : la fiche porte la règle S1 en data-regle.
+  function scannerNormalise(article) {
+    const res = scannerResultat();
+    const l = res && res.lignes.find(x => x.article === article);
+    return l ? NexusConseiller.normaliserScannerTarifaire(l) : null;
+  }
+  function scannerTexteMarge(article) {
+    const m = scannerMarge();
+    const e = m && m.ecarts && m.ecarts.find(x => x.article === article);
+    return e ? NexusScannerTarifaire.texteFicheMarge(e) : null;
   }
   function ouvrirScanner(corps) {
     const res = scannerResultat();
@@ -1558,16 +1598,26 @@ nexusRequireAuth().then(async employee => {
         + rest(`${g.petites.nb} référence${g.petites.nb > 1 ? 's' : ''} à moins de 1 €`, g.petites);
     };
     const h = R.hausse;
+    const MG = scannerMarge(), M = MG && MG.affichage, MGERR = !!(MG && MG.erreur), TM = NexusScannerTarifaire.TEXTES.marge;
+    const ligneMarge = e => { const k = reg.length; reg.push(e.article);
+      return `<li><button type="button" class="vp-ligne-prod" data-s="${k}"><span class="vp-nom">${esc(e.article)}</span><span class="vp-meta">${esc(e.categorie || '')} · taux ${esc(fmtN(e.margePct, 1))} %, médiane du groupe ${esc(fmtN(e.medianeGroupe, 1))} % sur ${esc(String(e.tailleGroupe))} références${e.aussi_hausse_pa ? ' · ' + esc(TM.aussiHausse) : ''}</span><span class="vp-chiffres">${esc(eurN(e.gainPotentiel))}</span></button><a class="lien-scanner-nexus" href="NEXUS-Scanner-v1.html">${esc(TM.lien)}</a></li>`; };
+    const blocMarge = MGERR ? `<div class="vp-bloc"><h3>Écarts Marge+ indisponibles</h3><div class="vp-ligne">Le calcul des écarts de marge a échoué. Les autres blocs ne sont pas touchés.</div></div>` : !M ? '' : `<div class="vp-bloc"><h3>${esc(TM.titre)} (${M.total})</h3><div class="vp-ligne">${esc(TM.ecart)} : ${esc(eurN(M.ecart))}</div>
+        <ul class="vp-liste">${M.premiers.map(ligneMarge).join('') || '<li class="vp-ligne">Aucun écart de marge.</li>'}</ul>
+        ${M.reste.nb ? `<details class="comprendre"><summary>${M.reste.nb} autre${M.reste.nb > 1 ? 's' : ''} écart${M.reste.nb > 1 ? 's' : ''}</summary><ul class="vp-liste">${M.reste.lignes.map(ligneMarge).join('')}</ul></details>` : ''}
+        ${M.valides.nb ? `<details class="comprendre"><summary>${M.valides.nb} ${esc(TM.valides)}</summary><ul class="vp-liste">${M.valides.lignes.map(ligneMarge).join('')}</ul></details>` : ''}
+        <div class="vp-ligne">${esc(TM.pied)}</div></div>`;
     corps.innerHTML = `<div id="vpEntete">${entetePeriodeVue(`${R.analysees} références analysées · ${R.absentes_precedente} absentes de la période précédente`)}</div>
       <div class="vp-bloc"><h3>Synthèse</h3>
         <div class="vp-ligne">Ventes à perte : ${R.perte.nb} (${esc(eurN(R.perte.montant))}), dont ${R.perte.non_justifiees} non justifiée${R.perte.non_justifiees > 1 ? 's' : ''}</div>
         <div class="vp-ligne">Coûts suspects : ${R.suspect.nb} référence${R.suspect.nb > 1 ? 's' : ''}</div>
         <div class="vp-ligne">${esc(T.hausses)} : ${h.nb} références, dont ${h.a_examiner + h.prioritaire} à examiner ou prioritaires · ${esc(T.impact)} : ${esc(eurN(h.impact))} sur la période, ${esc(eurN(h.impact30))} ramenés à 30 jours</div>
-        <div class="vp-ligne">Total global, chaque référence comptée une fois : ${R.global.nb} références, ${esc(eurN(R.global.montant))}</div></div>
+        <div class="vp-ligne">Total global, chaque référence comptée une fois : ${R.global.nb} références, ${esc(eurN(R.global.montant))}</div>
+        ${M ? `<div class="vp-ligne">${esc(TM.titre)} : ${M.total} écart${M.total > 1 ? 's' : ''}, ${esc(eurN(M.ecart))} d'écart à la médiane du groupe (hypothèse à vérifier, non additionné au total ci-dessus)</div>` : ''}</div>
       <div class="vp-bloc"><h3>Ventes à perte (${A.pertes.length})</h3><ul class="vp-liste">${A.pertes.map(lignePerte).join('') || '<li class="vp-ligne">Aucune vente à perte.</li>'}</ul></div>
       <div class="vp-bloc"><h3>Coûts suspects à vérifier (${A.suspects.length})</h3><ul class="vp-liste">${A.suspects.map(ligneSuspect).join('') || '<li class="vp-ligne">Aucun coût suspect.</li>'}</ul></div>
       <div class="vp-bloc"><h3>Identité à vérifier (${A.averifier.length})</h3><ul class="vp-liste">${A.averifier.map(ligneVerif).join('') || '<li class="vp-ligne">Aucune référence.</li>'}</ul></div>
       <div class="vp-bloc"><h3>${esc(T.hausses)} · prix libres (${A.hausses.total})</h3><div class="vp-ligne">${esc(T.impact)} : ${esc(eurN(A.hausses.impact))} sur la période</div>${groupe(A.hausses, 'Aucune hausse non répercutée.')}</div>
+      ${blocMarge}
       <div class="vp-bloc"><h3>${esc(T.reglemente.titre)} (${A.reglementes.total})</h3><div class="vp-ligne">${esc(T.reglemente.sousTitre)}</div><div class="vp-ligne">${esc(T.reglemente.constat)}. ${esc(T.impact)} : ${esc(eurN(A.reglementes.impact))} sur la période.</div><div class="vp-ligne">${esc(T.reglemente.action)}</div>${groupe(A.reglementes, 'Aucune hausse enregistrée.')}<div class="vp-ligne">${esc(T.reglemente.pied)}</div></div>`;
     corps.querySelectorAll('button[data-s]').forEach(b => b.addEventListener('click', () => choisirSuggestion(reg[Number(b.dataset.s)])));
   }

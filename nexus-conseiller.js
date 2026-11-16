@@ -805,6 +805,33 @@
     };
   }
 
+  // Scanner tarifaire S1 (lecture seule) : une ligne du résultat de NexusScannerTarifaire.controler
+  // au format commun. Produits seulement dans S2 (carte et fiche) ; App et Brief ne l'appellent pas.
+  // Priorité : vente à perte, puis coût suspect, puis hausse de PA non répercutée.
+  function normaliserScannerTarifaire(l) {
+    if (!l) return null;
+    let ruleId, decision, pourquoi, impact;
+    if (l.perte) {
+      ruleId = 'S1-VENTE-PERTE'; impact = l.perte.montant;
+      decision = `Vérifier le prix de vente de ${l.article} : il est vendu sous son prix d'achat.`;
+      pourquoi = 'Le prix d\'achat dépasse le prix de vente HT.';
+    } else if (l.cout_a_verifier) {
+      ruleId = 'S1-COUT-SUSPECT'; impact = null;
+      decision = `Vérifier le coût d'achat de ${l.article} (prix fournisseur, conditionnement, PMP Decenium HT).`;
+      pourquoi = 'Le coût d\'achat a varié de façon anormale.';
+    } else if (l.hausse) {
+      ruleId = 'S1-HAUSSE-PA'; impact = l.hausse.impact;
+      decision = `Vérifier si le prix de vente de ${l.article} doit suivre la hausse du prix d'achat.`;
+      pourquoi = 'Le prix d\'achat a augmenté sans que le prix de vente bouge.';
+    } else return null;
+    return {
+      candidate_id: `S1-${ruleId}|${l.article}`, ruleId, rang: 2, moteur: 'scanner_tarifaire',
+      etat: null, impact_eur: impact, article: l.article, categorie: l.categorie || null,
+      decision, pourquoi, impactAttendu: null, preuve: null, limites: null,
+      cible: 'NEXUS-Produits-v1.html', validable: false,
+    };
+  }
+
   // Convertit le candidat Tempo enrichi (27/07/2026, demande de Frédéric —
   // "jeudi crée le plus de valeur, vendredi fait plus de CA brut mais
   // avec des produits d'appel") — construit en amont dans App-v1 par
@@ -1181,7 +1208,7 @@
     DUREE_DORMANT_PERIODES, DUREE_RELEVE_STOCK_JOURS, SEUILS_PRODUITS_MESURE, SEUILS_SCANNER_TARIFAIRE, SEUILS_RENTABILITE, SEUILS_ROTATION_JOURS, SEUILS_STOCK_JOURS,
     niveauRentabilite, niveauRotation, niveauStock, statutProduit,
     analyserProduitsStrategiques, analyserEvolutionsPaire,
-    normaliserProduit, normaliserMarge, normaliserTempo, normaliserAdvisor,
+    normaliserProduit, normaliserMarge, normaliserScannerTarifaire, normaliserTempo, normaliserAdvisor,
     normaliserCaissePersonne, normaliserStockRayon, normaliserRappel,
     normaliserFdj, normaliserCoach, normaliserCommandeCarburant,
     filtrerBaisseDejaEnAction, repartirBaisseParSeverite, resumerGroupesStrategiques,
