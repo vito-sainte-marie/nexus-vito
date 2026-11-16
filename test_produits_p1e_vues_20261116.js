@@ -50,8 +50,12 @@ assert.ok(!/marge_ht|marge_estimee/.test(bloc), 'le module ne lit aucune marge d
 const html = fs.readFileSync(path.join(__dirname, 'NEXUS-Produits-v1.html'), 'utf8');
 const vue = html.slice(html.indexOf("cle === 'promo'"), html.indexOf("cle === 'stocks'"));
 assert.ok(vue.length > 100 && !/marge_ht|marge_estimee/.test(vue), 'la vue n\'affiche aucune marge de promotion');
+// Le contrôle n'a de sens que sur le diff d'une PR (base de fusion) ; sur un push
+// vers production la comparaison ne porte pas sur ce diff : on ne la fait pas.
+const baseRef = process.env.GITHUB_BASE_REF || (process.env.GITHUB_ACTIONS ? '' : 'production');
 try {
-  const d = cp.execSync('git diff --name-only origin/production -- "nexus-campagne*" "NEXUS-Campagne*" nexus-vocabulaire.js', { cwd: __dirname, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  if (!baseRef) throw new Error('pas de PR : diff non applicable');
+  const d = cp.execSync('git diff --name-only origin/' + baseRef + '...HEAD -- "nexus-campagne*" "NEXUS-Campagne*" nexus-vocabulaire.js', { cwd: __dirname, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
   assert.strictEqual(d, '', 'fichier Campagne modifié : ' + d);
   console.log('OK  aucune marge de promotion, aucun fichier Campagne modifié');
 } catch (e) { if (e.name === 'AssertionError') throw e; console.log('OK  aucune marge de promotion (diff git indisponible ici)'); }
