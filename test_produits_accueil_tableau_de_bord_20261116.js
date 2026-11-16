@@ -91,7 +91,13 @@ function banc(ctx) {
   // Corrections de recette 16/11 (Guardian 6917134124).
   const htmlC = fs.readFileSync(path.join(__dirname, 'NEXUS-Produits-v1.html'), 'utf8');
   assert.ok(/e\.aIdentifier\)/.test(html) && /f\.nature === 'a_identifier'/.test(html), 'À identifier : même critère que le compteur');
-  assert.ok(htmlC.indexOf('id="syntheseAccueil"') < htmlC.indexOf('id="conseillerAccueil"'), 'canevas B puis C : Conseiller après la synthèse');
+  assert.ok(!/<p id="conseillerAccueil">/.test(htmlC.slice(0, htmlC.indexOf('function afficherSyntheseAccueil'))), 'plus de Conseiller statique sous la synthèse');
+  assert.ok(!/Recherchez un produit ci-dessus/.test(htmlC), 'ancienne phrase générique retirée');
+  const zh = b.z.innerHTML;
+  const ip = zh.indexOf('Performance commerciale'), ic = zh.indexOf('id="conseillerAccueil"'), iv = zh.indexOf('Points de vigilance'), ia = zh.indexOf('Dernière actualisation des données');
+  assert.ok(ip > -1 && ip < ic && ic < ia, 'canevas B puis C : Conseiller après Performance commerciale, avant la dernière actualisation');
+  assert.ok(iv === -1 || ic < iv, 'Conseiller avant les points de vigilance');
+  assert.ok(zh.indexOf('id="conseillerAccueil"') < zh.indexOf('data-vue='), 'Conseiller avant les cartes de navigation');
   assert.ok(/\.synthese-accueil \.sc-ind-val\{[^}]*white-space:nowrap/.test(html), 'montants insécables');
   assert.ok(!/<span class="t-sous">\$\{esc\(c\.sous\)\}/.test(html), 'nombre non répété dans les points de vigilance');
   console.log('OK  corrections de recette 16/11');

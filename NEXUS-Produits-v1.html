@@ -441,14 +441,6 @@ body.nexus-desktop #resultSection > *{margin-bottom:12px;}
        nexus-desktop.js), neutralisée ici, la fiche a sa propre disposition. -->
   <div class="section desktop-grid" id="resultSection">
     <div class="synthese-accueil" id="syntheseAccueil"></div>
-    <div class="carte conseiller">
-      <img class="conseiller-avatar" src="assets/avatar/nexus-avatar-128.png" srcset="assets/avatar/nexus-avatar-64.png 64w, assets/avatar/nexus-avatar-96.png 96w, assets/avatar/nexus-avatar-128.png 128w, assets/avatar/nexus-avatar-256.png 256w" sizes="80px" alt="Conseiller NEXUS">
-      <div class="conseiller-corps">
-        <div class="conseiller-titre">Conseiller NEXUS</div>
-        <p id="conseillerAccueil">Recherchez un produit par son nom ou son code-barres.</p>
-      </div>
-    </div>
-    <div class="empty-state">Recherchez un produit ci-dessus pour afficher sa fiche : les articles vendus sur la période affichée, sur les périodes complètes récentes ou relevés en stock depuis moins de 30 jours.</div>
   </div>
 
   <footer>NEXUS Produits v1 · <span class="nexus-nom-commerce"></span><span id="piedPeriode"></span></footer>
@@ -1958,7 +1950,7 @@ nexusRequireAuth().then(async employee => {
     const z = document.getElementById('syntheseAccueil');
     if (!z) return;
     const I = indicateursAccueil();
-    if (!I) { z.innerHTML = ''; return; }
+    if (!I) { z.innerHTML = '<div class="empty-state">Aucune vente exploitable à afficher pour le moment.</div>'; return; }
     const sy = I.sy, fmtE = v => fmtEur(Number(v) || 0);
     const per = PERIODE_DONNEES ? `du ${fmtDate(PERIODE_DONNEES.debut)} au ${fmtDate(PERIODE_DONNEES.fin)}, ${I.jours} jour${I.jours > 1 ? 's' : ''}` : null;
     const ind = (lib, val, sous) => `<div class="sc-ind sc-info"><span class="sc-ind-val">${esc(val)}</span><span class="sc-ind-lib">${esc(lib)}</span>${sous ? `<span class="sc-ind-sous">${esc(sous)}</span>` : ''}</div>`;
@@ -1969,6 +1961,7 @@ nexusRequireAuth().then(async employee => {
       ${per ? `<div class="sa-ligne">Période : ${esc(per)}</div>` : ''}
       <div class="sa-inds">${ind('CA commercial HT', fmtE(I.ca), 'opérations de caisse exclues')}${ind('Marge générée HT', fmtE(I.marge), 'estimée au PMP Decenium HT')}${ind('Références vendues', String(I.refs))}${ind('CA moyen par jour', I.parJour === null ? 'n.d.' : fmtE(I.parJour), `sur ${I.jours} jour${I.jours > 1 ? 's' : ''}`)}</div>
     </section>
+    <div class="carte conseiller"> <img class="conseiller-avatar" src="assets/avatar/nexus-avatar-128.png" srcset="assets/avatar/nexus-avatar-64.png 64w, assets/avatar/nexus-avatar-96.png 96w, assets/avatar/nexus-avatar-128.png 128w, assets/avatar/nexus-avatar-256.png 256w" sizes="80px" alt="Conseiller NEXUS"> <div class="conseiller-corps"> <div class="conseiller-titre">Conseiller NEXUS</div> <p id="conseillerAccueil">Recherchez un produit par son nom ou son code-barres.</p> </div> </div>
     ${L.length ? `<section class="card sa-vigilance" aria-label="Points de vigilance"><h2 class="sa-titre">Points de vigilance</h2><div class="sa-vigs">${L.map(carteV).join('')}</div></section>` : ''}
     <section class="card sa-actu" aria-label="Dernière actualisation des données">
       <div class="sa-ligne">Dernières ventes : ${esc(PERIODE_DONNEES ? fmtDate(PERIODE_DONNEES.fin) : 'n.d.')}</div>
