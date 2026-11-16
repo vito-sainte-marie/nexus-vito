@@ -1,0 +1,10 @@
+# NEXUS : instructions du dépôt
+
+## Interface
+Tout travail qui crée ou modifie une page, un écran, une carte ou un composant d'interface charge d'abord le skill `nexus-design-experience` (`.claude/skills/nexus-design-experience/SKILL.md`) et applique `docs/conception/NEXUS-REFERENTIEL-CONCEPTION.md`.
+
+## Canal et rôles
+- Les consignes, comptes rendus et recettes passent par l'issue #160. Préfixe des comptes rendus : `[Claude]`.
+- Dépôt public : pseudonymes uniquement, aucun secret ni identifiant.
+- Branches `claude/...`, PR en brouillon vers `production`. Jamais de commit direct sur `main` ni `production`.
+- Les fusions, migrations, écritures en Production et mises en ligne se font uniquement sur GO écrit du gérant, selon les règles déjà établies sur #160.
