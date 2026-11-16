@@ -751,6 +751,8 @@ nexusRequireAuth().then(async employee => {
         } catch (e) { decl[t] = []; }
       }
       DECLARATIONS_PRODUITS = decl;
+      // P1-D : dernier comptage physique d'Inventaire (lecture seule, tolérante : table absente ou refusée = aucun comptage).
+      COMPTAGES_PRODUITS = await lireComptagesInventaire();
       const res = NexusProduitsMesure.mesurer({
         products: rows, site: SITE_ACTUEL, periodeDebut: per.debut, periodeFin: per.fin,
         precedent: rowsPrec && rowsPrec.length ? { rows: rowsPrec, debut: prec.debut, fin: prec.fin } : null,
@@ -764,6 +766,23 @@ nexusRequireAuth().then(async employee => {
     } catch (e) { console.error('Mesures produits (P1-A/P1-B):', e); }
     return produits;
   }
+  async function lireComptagesInventaire() {
+    const out = new Map();
+    try {
+      const z = await fetchAllRows(() => nexusClient.from('inventaire_zone_produit').select('id,designation').eq('site', SITE_ACTUEL).order('id'));
+      if (z.error || !z.data || !z.data.length) return out;
+      const nomDe = new Map(z.data.map(x => [x.id, x.designation]));
+      const c = await fetchAllRows(() => nexusClient.from('inventaire_comptages').select('id,produit_id,quantite,compte_le').eq('site', SITE_ACTUEL).eq('statut', 'valide').order('id'));
+      if (c.error || !c.data) return out;
+      c.data.forEach(r => {
+        const nom = nomDe.get(r.produit_id); if (!nom || r.quantite === null || r.quantite === undefined) return;
+        const k = NexusProduitsMesure.normaliserNom(nom), cur = out.get(k);
+        if (!cur || String(r.compte_le) > String(cur.compte_le)) out.set(k, { quantite: Number(r.quantite), compte_le: r.compte_le });
+      });
+    } catch (e) { return new Map(); }
+    return out;
+  }
+  let COMPTAGES_PRODUITS = new Map();
   let SYNTHESE_PRODUITS = null, RESUME_PRODUITS = null, MESURES_PRODUITS = [], DECLARATIONS_PRODUITS = null, SYNTHESE_STOCK_DATE = null;
   const ACCUEIL_HTML = document.getElementById('resultSection').innerHTML;
 
@@ -1404,11 +1423,13 @@ nexusRequireAuth().then(async employee => {
   }
 
   // ===== P1-C : trois vues dans la page, alimentées par les mesures déjà calculées (aucun calcul nouveau) =====
-  const ICONE_VUE = { produits: 'campagne-produits-moteurs', ventes: 'campagne-ca-boutique', marges: 'campagne-marge-commerciale' };
+  const ICONE_VUE = { produits: 'campagne-produits-moteurs', ventes: 'campagne-ca-boutique', marges: 'campagne-marge-commerciale', revoir: 'campagne-produits-a-revoir', stocks: 'campagne-alerte-produit' };
   const VUES = {
     produits: { titre: 'Mes produits', sous: 'Toutes les références de la période, avec filtres' },
     ventes: { titre: 'Mes meilleures ventes', sous: 'Classées par chiffre d\'affaires HT' },
     marges: { titre: 'Mes marges', sous: 'Classées par marge HT, marges négatives à part' },
+    revoir: { titre: 'Mes produits à revoir', sous: 'Marges à justifier, statuts à vérifier, produits à étudier' },
+    stocks: { titre: 'Mes stocks et couverture', sous: 'Stock théorique Decenium, relevé daté' },
   };
   const PAGE_VUE = 50, PAGE_VENTES = 20;
   function entreesVues() { return NexusProduitsVues.preparer(MESURES_PRODUITS, window.NexusMarge && NexusMarge.familleMarge); }
@@ -1416,7 +1437,7 @@ nexusRequireAuth().then(async employee => {
   function cartesVues() {
     if (!vuesDisponibles()) return '';
     const b = k => { const i = ICONE_VUE[k]; return `<button type="button" class="tuile disponible" data-vue="${k}"><img class="picto-p" src="assets/icones/campagne/premium/${i}-96.webp" srcset="assets/icones/campagne/premium/${i}-48.webp 48w, assets/icones/campagne/premium/${i}-96.webp 96w, assets/icones/campagne/premium/${i}-144.webp 144w" sizes="56px" width="56" height="56" alt=""><span class="t-titre">${VUES[k].titre}</span><span class="t-sous">${VUES[k].sous}</span></button>`; };
-    return `<div class="tuiles" aria-label="Vues Produits">${b('produits')}${b('ventes')}${b('marges')}</div>`;
+    return `<div class="tuiles" aria-label="Vues Produits">${b('produits')}${b('ventes')}${b('marges')}${b('revoir')}${b('stocks')}</div>`;
   }
   function entetePeriodeVue(denominateur) {
     const per = PERIODE_DONNEES ? `du ${fmtDate(PERIODE_DONNEES.debut)} au ${fmtDate(PERIODE_DONNEES.fin)}` : '';
@@ -1478,6 +1499,45 @@ nexusRequireAuth().then(async employee => {
         paginer(v.lignes, PAGE_VENTES, e => `<span class="vp-nom">${esc(e.article)}${badgesLigne(e)}</span><span class="vp-meta">${esc(e.rayon)} · ${esc(fmtN(e.quantite, 0))} unités · ${esc(e.part === null ? 'n.d.' : fmtPct(e.part))} du CA</span><span class="vp-chiffres">CA ${esc(fmtEur(e.ca))}</span>`);
       };
       corps.querySelector('#fLibre').addEventListener('change', maj); maj();
+    } else if (cle === 'revoir') {
+      const statutDe = e => { const p = PRODUCTS.find(x => x.article === e.article); return p ? NexusConseiller.statutProduit(p, AUJOURDHUI_STATION) : null; };
+      const v = window.NexusProduitsVues.aRevoir(entries, statutDe);
+      const ligne = (e, motif, source, bouton) => `<li><button type="button" class="vp-ligne-prod" data-r="${e._i}"><span class="vp-nom">${esc(e.article)}${badgesLigne(e)}</span><span class="vp-meta">${esc(motif)} · source : ${esc(source)}</span><span class="vp-chiffres">${esc(e._chiffres)}</span></button>${bouton ? `<button type="button" class="btn-decl" data-just="${e._i}">Justifier</button>` : ''}</li>`;
+      const reg = [];
+      const ajoute = (liste, fn) => liste.map(e => { const x = { ...e, _i: reg.length, _chiffres: fn(e) }; reg.push(x); return x; });
+      const neg = ajoute(v.negatives, e => `marge ${fmtEur(e.marge)} · CA ${fmtEur(e.ca)}`);
+      const sts = ajoute(v.statuts, e => `CA ${fmtEur(e.ca)}`);
+      const aet = ajoute(v.aEtudier, e => `CA ${fmtEur(e.ca)} · marge ${fmtEur(e.marge)}`);
+      const bloc = (titre, items, fn) => `<div class="vp-bloc"><h3>${titre} (${items.length})</h3><ul class="vp-liste">${items.map(fn).join('') || '<li class="vp-ligne">Aucune référence.</li>'}</ul></div>`;
+      corps.innerHTML = `<div id="vpEntete">${entetePeriodeVue(`${v.total} référence${v.total > 1 ? 's' : ''} à revoir`)}</div>
+        ${bloc('Marges négatives à contrôler', neg, e => ligne(e, 'marge négative non justifiée sur la période', 'import des ventes', true))}
+        ${bloc('Statuts à vérifier', sts, e => ligne(e, e.statut.label + (e.statut.action ? ' : ' + e.statut.action : ''), 'statut produit du Conseiller', false))}
+        ${bloc('Produits à étudier', aet, e => ligne(e, 'qualification « À étudier »', 'mesures P1-A', false))}
+        <div class="vp-bloc"><h3>À compléter</h3>
+          <div class="vp-ligne">${v.nbAIdentifier} référence${v.nbAIdentifier > 1 ? 's' : ''} à identifier · <button type="button" class="btn-decl" id="lienAIdentifier">Voir dans Mes produits</button></div>
+          <div class="vp-ligne">${v.nbTvaAVerifier} référence${v.nbTvaAVerifier > 1 ? 's' : ''} avec une TVA à vérifier · <button type="button" class="btn-decl" id="lienTva">Voir dans Mes produits</button></div></div>`;
+      corps.querySelectorAll('button[data-r],button[data-just]').forEach(bt => bt.addEventListener('click', () => choisirSuggestion(reg[Number(bt.dataset.r !== undefined ? bt.dataset.r : bt.dataset.just)].article)));
+      const versProduits = (id, val) => { ouvrirVue('produits'); const f = document.getElementById(id); if (f) { f.value = val; f.dispatchEvent(new Event('change')); } };
+      corps.querySelector('#lienAIdentifier').addEventListener('click', () => versProduits('fNature', 'a_identifier'));
+      corps.querySelector('#lienTva').addEventListener('click', () => versProduits('fTva', 'incoherente'));
+    } else if (cle === 'stocks') {
+      const comptageDe = e => COMPTAGES_PRODUITS.get(NexusProduitsMesure.normaliserNom(e.article)) || null;
+      const v = window.NexusProduitsVues.stocks(entries, comptageDe);
+      const dateRel = v.date ? fmtDate(v.date) : 'date inconnue';
+      const cptHtml = e => e.comptage ? `compté le ${esc(fmtDate(e.comptage.compte_le))} : ${esc(fmtN(e.comptage.quantite, 0))}` : 'pas de comptage physique';
+      const ligneStock = e => {
+        const s = e.stock, cov = e.sansObjet ? 'couverture sans objet' : window.NexusProduitsVues.couvertureLibelle(s.couverture_jours, j => fmtN(j, 0));
+        const vj = e.sansObjet || s.ventes_par_jour === null || s.ventes_par_jour === undefined ? '' : ` · ${fmtN(s.ventes_par_jour, 2)} u./jour`;
+        const val = s.valeur_pmp === null || s.valeur_pmp === undefined ? '' : ` · ${fmtEur(s.valeur_pmp)} au PMP`;
+        return `<span class="vp-nom">${esc(e.article)}${s.donnees_anciennes ? '<span class="vp-badge">Données anciennes</span>' : ''}</span><span class="vp-meta">stock théorique Decenium : ${esc(fmtN(s.quantite, 0))} u. au ${esc(fmtDate(s.date))}${esc(val)}</span><span class="vp-chiffres">${esc(cov)}${esc(vj)} · ${cptHtml(e)}</span>`;
+      };
+      const ligneNul = e => `<span class="vp-nom">${esc(e.article)}${e.stock.donnees_anciennes ? '<span class="vp-badge">Données anciennes</span>' : ''}</span><span class="vp-meta">stock théorique Decenium : ${esc(fmtN(e.stock.quantite, 0))} u. au ${esc(fmtDate(e.stock.date))}</span><span class="vp-chiffres">non interprété : à vérifier physiquement · ${cptHtml(e)}</span>`;
+      corps.innerHTML = `<div id="vpEntete">${entetePeriodeVue(`${v.nbAvecReleve} référence${v.nbAvecReleve > 1 ? 's' : ''} avec un relevé de stock théorique Decenium`)}</div>
+        <div class="vp-ligne">Relevé du ${esc(dateRel)} · valeur du stock théorique positif au PMP : <strong>${esc(fmtEur(v.valeurPositive))}</strong> · ${v.sansReleve} référence${v.sansReleve > 1 ? 's' : ''} vendue${v.sansReleve > 1 ? 's' : ''} sans relevé</div>
+        <div id="vpListe"></div>
+        <div class="vp-bloc" id="vpNul"><h3>Stock théorique nul ou négatif au ${esc(dateRel)} (${v.nuls.length})</h3><div class="vp-ligne">Non interprété : à vérifier physiquement.</div><ul class="vp-liste">${v.nuls.map((e, k) => `<li><button type="button" class="vp-ligne-prod" data-n="${k}">${ligneNul(e)}</button></li>`).join('')}</ul></div>`;
+      paginer(v.lignes, PAGE_VUE, ligneStock);
+      corps.querySelectorAll('#vpNul [data-n]').forEach(bt => bt.addEventListener('click', () => choisirSuggestion(v.nuls[Number(bt.dataset.n)].article)));
     } else {
       const v = window.NexusProduitsVues.marges(entries, RESUME_PRODUITS);
       const sur = v.lignes.length;
