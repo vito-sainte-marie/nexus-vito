@@ -287,6 +287,35 @@ button.emplacement-modifier{background:none;border:0;padding:0 4px;font:inherit;
 .form-decl .form-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;}
 button.btn-decl{min-height:44px;padding:8px 14px;border-radius:8px;border:1px solid var(--cyan);background:none;color:var(--cyan);font:inherit;font-size:13px;font-weight:600;cursor:pointer;}
 button.btn-decl.plein{background:var(--cyan);color:#fff;}
+/* P1-C : cartes d'entrée et vues */
+.tuiles{display:grid;grid-template-columns:1fr;gap:12px;margin:12px 0;}
+@media (min-width:600px){.tuiles{grid-template-columns:repeat(2,1fr);}}
+@media (min-width:900px){.tuiles{grid-template-columns:repeat(3,1fr);}}
+.tuile{min-height:44px;min-width:0;background:var(--panel);border:1px solid var(--hairline);border-radius:14px;padding:16px;font-size:13.5px;color:var(--text);}
+.tuile .picto-p{display:block;width:56px;height:56px;margin-bottom:8px;}
+.tuile .t-titre{display:block;font-weight:600;font-size:14.5px;}
+.tuile .t-sous{display:block;font-size:12px;color:var(--text-mid);margin-top:4px;line-height:1.5;}
+.tuile.disponible{position:relative;width:100%;text-align:left;cursor:pointer;font:inherit;transition:transform .15s,box-shadow .15s,border-color .15s;}
+.tuile.disponible::after{content:"\203A";position:absolute;right:14px;bottom:10px;font-size:22px;opacity:.8;}
+.tuile.disponible:focus-visible{outline:2px solid var(--cyan);outline-offset:2px;}
+.tuile.disponible:active{transform:scale(.99);filter:brightness(.95);}
+@media (hover:hover) and (pointer:fine){.tuile.disponible:hover{transform:translateY(-3px) scale(1.015);box-shadow:0 8px 20px rgba(0,0,0,.18);border-color:var(--cyan);}}
+@media (prefers-reduced-motion:reduce){.tuile.disponible{transition:none;}.tuile.disponible:hover,.tuile.disponible:active{transform:none;}}
+.vue-p1c h2{font-size:18px;margin:4px 0 8px;}
+.vue-p1c .vp-ligne{font-size:13px;color:var(--text-mid);line-height:1.5;margin:4px 0;}
+.vue-p1c .vp-filtres{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0;}
+.vue-p1c select,.vue-p1c .vp-bascule{min-height:44px;background:var(--panel-raised);color:var(--text);border:1px solid var(--hairline);border-radius:8px;padding:6px 10px;font:inherit;font-size:13px;max-width:100%;}
+.vue-p1c .vp-bascule{display:inline-flex;align-items:center;gap:8px;cursor:pointer;}
+.vue-p1c .vp-liste{list-style:none;margin:8px 0;padding:0;}
+.vue-p1c .vp-liste li{margin:0;}
+.vue-p1c .vp-liste button.vp-ligne-prod{display:block;width:100%;text-align:left;min-height:44px;background:none;border:0;border-bottom:1px solid var(--hairline);font:inherit;font-size:13px;color:var(--text);cursor:pointer;padding:10px 4px;}
+.vue-p1c .vp-nom{display:block;font-weight:600;overflow-wrap:anywhere;}
+.vue-p1c .vp-meta{display:block;font-size:12px;color:var(--text-mid);margin-top:2px;}
+.vue-p1c .vp-chiffres{display:block;font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;margin-top:4px;}
+.vue-p1c .vp-badge{display:inline-block;font-size:11px;border:1px solid var(--amber);color:var(--amber);border-radius:6px;padding:0 6px;margin-left:6px;font-weight:600;}
+.vue-p1c .vp-plus{margin:10px 0;}
+.vue-p1c .vp-bloc{margin-top:16px;}
+.vue-p1c .vp-bloc h3{font-size:15px;margin:0 0 6px;}
 .synthese-accueil{margin:12px 0;}
 .synthese-accueil .sa-ligne{font-size:13px;color:var(--text-mid);line-height:1.5;margin:4px 0;}
 .synthese-accueil .sa-compteurs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0;}
@@ -318,6 +347,7 @@ body.nexus-desktop #resultSection > *{margin-bottom:12px;}
 <script src="nexus-conseiller.js?v=20260904-0104"></script>
 <script src="nexus-marge.js"></script>
 <script src="nexus-produits-mesure.js?v=20261115-1"></script>
+<script src="nexus-produits-vues.js?v=20261115-1"></script>
 <script src="nexus-badge-etat.js"></script>
 <script src="nexus-produits-securite.js"></script>
 </head>
@@ -727,14 +757,14 @@ nexusRequireAuth().then(async employee => {
         stockReleves: Object.keys(stock || {}).map(k => stock[k]), dateReference: AUJOURDHUI_STATION,
         natures: decl.produits_nature_reference, tvaConfirmations: decl.produits_tva_confirmations, justifications: decl.produits_justifications_marge,
       });
-      SYNTHESE_PRODUITS = res.resume.synthese;
+      SYNTHESE_PRODUITS = res.resume.synthese; RESUME_PRODUITS = res.resume;
       SYNTHESE_STOCK_DATE = Object.keys(stock || {}).map(k => stock[k] && stock[k].releve_le).filter(Boolean).sort().pop() || null;
       MESURES_PRODUITS = res.mesures.map((m, k) => ({ m, row: rows[k] }));
       produits.forEach(p => { p.mesure = res.index.get(NexusProduitsMesure.normaliserNom(p.article)) || null; });
     } catch (e) { console.error('Mesures produits (P1-A/P1-B):', e); }
     return produits;
   }
-  let SYNTHESE_PRODUITS = null, MESURES_PRODUITS = [], DECLARATIONS_PRODUITS = null, SYNTHESE_STOCK_DATE = null;
+  let SYNTHESE_PRODUITS = null, RESUME_PRODUITS = null, MESURES_PRODUITS = [], DECLARATIONS_PRODUITS = null, SYNTHESE_STOCK_DATE = null;
   const ACCUEIL_HTML = document.getElementById('resultSection').innerHTML;
 
   if (APERCU) {
@@ -842,8 +872,6 @@ nexusRequireAuth().then(async employee => {
   // Échappement : UNE seule fonction, celle du composant badge (nexus-badge-etat.js).
   // Valable pour un texte HTML et pour un attribut entre guillemets doubles.
   const esc = window.NexusBadgeEtat.esc;
-  // La synthèse d'accueil utilise esc : elle ne peut s'afficher qu'après sa déclaration (const, zone morte temporelle).
-  if (!APERCU) afficherSyntheseAccueil();
   // URL d'image : https uniquement. `hoteExige` restreint à un hôte (photos NEXUS
   // = stockage Supabase). Sinon rien : pas d'image plutôt qu'une URL douteuse.
   function urlImageSure(u, hoteExige) { return NexusProduitsSecurite.urlImageSure(u, hoteExige, [photoApercu()]); }
@@ -1374,6 +1402,96 @@ nexusRequireAuth().then(async employee => {
     afficherSyntheseAccueil();
     window.scrollTo(0, 0);
   }
+
+  // ===== P1-C : trois vues dans la page, alimentées par les mesures déjà calculées (aucun calcul nouveau) =====
+  const ICONE_VUE = { produits: 'campagne-produits-moteurs', ventes: 'campagne-ca-boutique', marges: 'campagne-marge-commerciale' };
+  const VUES = {
+    produits: { titre: 'Mes produits', sous: 'Toutes les références de la période, avec filtres' },
+    ventes: { titre: 'Mes meilleures ventes', sous: 'Classées par chiffre d\'affaires HT' },
+    marges: { titre: 'Mes marges', sous: 'Classées par marge HT, marges négatives à part' },
+  };
+  const PAGE_VUE = 50, PAGE_VENTES = 20;
+  function entreesVues() { return NexusProduitsVues.preparer(MESURES_PRODUITS, window.NexusMarge && NexusMarge.familleMarge); }
+  function vuesDisponibles() { return !!(window.NexusProduitsVues && RESUME_PRODUITS && MESURES_PRODUITS.length); }
+  function cartesVues() {
+    if (!vuesDisponibles()) return '';
+    const b = k => { const i = ICONE_VUE[k]; return `<button type="button" class="tuile disponible" data-vue="${k}"><img class="picto-p" src="assets/icones/campagne/premium/${i}-96.webp" srcset="assets/icones/campagne/premium/${i}-48.webp 48w, assets/icones/campagne/premium/${i}-96.webp 96w, assets/icones/campagne/premium/${i}-144.webp 144w" sizes="56px" width="56" height="56" alt=""><span class="t-titre">${VUES[k].titre}</span><span class="t-sous">${VUES[k].sous}</span></button>`; };
+    return `<div class="tuiles" aria-label="Vues Produits">${b('produits')}${b('ventes')}${b('marges')}</div>`;
+  }
+  function entetePeriodeVue(denominateur) {
+    const per = PERIODE_DONNEES ? `du ${fmtDate(PERIODE_DONNEES.debut)} au ${fmtDate(PERIODE_DONNEES.fin)}` : '';
+    const j = RESUME_PRODUITS && RESUME_PRODUITS.jours;
+    return `<div class="vp-ligne">${esc(per)}${j ? ', ' + j + ' jours' : ''} · ${esc(denominateur)}</div>`;
+  }
+  function noteCaisse(caisses) {
+    if (!caisses.length) return '';
+    const t = caisses.reduce((s, e) => s + e.ca, 0);
+    return `<div class="vp-ligne vp-bloc">${caisses.length} opération${caisses.length > 1 ? 's' : ''} de caisse exclue${caisses.length > 1 ? 's' : ''} : ${esc(fmtEur(t))}</div>`;
+  }
+  function badgesLigne(e) {
+    return (e.aIdentifier ? '<span class="vp-badge">À identifier</span>' : '') + (e.euros ? '<span class="vp-badge">Quantité possiblement exprimée en euros</span>' : '');
+  }
+  function ouvrirVue(cle) {
+    const r = document.getElementById('resultSection');
+    if (!r || !vuesDisponibles()) return;
+    r.innerHTML = `<section class="card vue-p1c" aria-label="${esc(VUES[cle].titre)}"><button type="button" class="lien-accueil" id="lienProduits">‹ Produits</button><h2>${esc(VUES[cle].titre)}</h2><div id="vueCorps"></div></section>`;
+    document.getElementById('lienProduits').addEventListener('click', afficherAccueil);
+    const corps = document.getElementById('vueCorps');
+    const entries = entreesVues();
+    const lierLignes = (items) => corps.querySelectorAll('button[data-k]').forEach(bt => bt.addEventListener('click', () => choisirSuggestion(items[Number(bt.dataset.k)].article)));
+    const listeHtml = (items, limite, fn) => '<ul class="vp-liste">' + items.slice(0, limite).map((e, k) => `<li><button type="button" class="vp-ligne-prod" data-k="${k}">${fn(e)}</button></li>`).join('') + '</ul>' + (items.length > limite ? `<button type="button" class="btn-decl vp-plus" data-plus="1">Afficher plus (${items.length - limite} restantes)</button>` : '');
+    const paginer = (items, pas, fn, fin) => {
+      let limite = pas;
+      const dessiner = () => {
+        const zone = corps.querySelector('#vpListe'); zone.innerHTML = items.length ? listeHtml(items, limite, fn) : '<div class="vp-ligne">Aucune référence.</div>';
+        lierLignes(items);
+        const plus = zone.querySelector('[data-plus]'); if (plus) plus.addEventListener('click', () => { limite += pas; dessiner(); });
+      };
+      dessiner();
+    };
+    const taux = e => e.taux === null || e.taux === undefined ? 'n.d.' : NexusProduitsVues.pourcent(e.taux);
+    if (cle === 'produits') {
+      const q = window.NexusProduitsVues.qualifications(entries), rayons = window.NexusProduitsVues.rayons(entries);
+      const sel = (id, label, opts) => `<select id="${id}" aria-label="${label}"><option value="">${label}</option>${opts.map(o => `<option value="${esc(o[0])}">${esc(o[1])}</option>`).join('')}</select>`;
+      corps.innerHTML = `<div id="vpEntete"></div>
+        <div class="vp-filtres">
+          ${sel('fRayon', 'Tous les rayons', rayons.map(x => [x, x]))}
+          ${sel('fQual', 'Toutes les qualifications', q.map(x => [x.cle, x.libelle]))}
+          ${sel('fNature', 'Toute nature', [['produit_commercial', 'Produit'], ['service_commercial', 'Service'], ['a_identifier', 'À identifier']])}
+          ${sel('fTva', 'Tout état de TVA', [['importee', 'Importée'], ['confirmee', 'Confirmée'], ['incoherente', 'À vérifier']])}
+        </div><div id="vpListe"></div><div id="vpCaisse"></div>`;
+      const maj = () => {
+        const f = { recherche: document.getElementById('searchInput').value, rayon: corps.querySelector('#fRayon').value, qualification: corps.querySelector('#fQual').value, nature: corps.querySelector('#fNature').value, tva: corps.querySelector('#fTva').value };
+        const v = window.NexusProduitsVues.produits(entries, f);
+        corps.querySelector('#vpEntete').innerHTML = entetePeriodeVue(`${v.lignes.length} référence${v.lignes.length > 1 ? 's' : ''}, CA HT ${fmtEur(v.ca)}, marge HT ${fmtEur(v.marge)}`);
+        corps.querySelector('#vpCaisse').innerHTML = noteCaisse(v.caisses);
+        paginer(v.lignes, PAGE_VUE, e => `<span class="vp-nom">${esc(e.article)}${badgesLigne(e)}</span><span class="vp-meta">${esc(e.rayon)} · ${esc(e.qualification || '')}</span><span class="vp-chiffres">CA ${esc(fmtEur(e.ca))} · marge ${esc(fmtEur(e.marge))} · taux ${esc(taux(e))}</span>`);
+      };
+      corps.querySelectorAll('select').forEach(s => s.addEventListener('change', maj));
+      VUE_RECHERCHE = maj; maj();
+    } else if (cle === 'ventes') {
+      corps.innerHTML = `<div id="vpEntete"></div><div class="vp-filtres"><label class="vp-bascule"><input type="checkbox" id="fLibre"> Produits à marge libre seulement</label></div><div id="vpListe"></div><div id="vpCaisse"></div>`;
+      const maj = () => {
+        const v = window.NexusProduitsVues.meilleuresVentes(entries, { libreSeulement: corps.querySelector('#fLibre').checked });
+        corps.querySelector('#vpEntete').innerHTML = entetePeriodeVue(`part calculée sur un CA analytique de ${fmtEur(v.total)}`);
+        corps.querySelector('#vpCaisse').innerHTML = noteCaisse(v.caisses);
+        paginer(v.lignes, PAGE_VENTES, e => `<span class="vp-nom">${esc(e.article)}${badgesLigne(e)}</span><span class="vp-meta">${esc(e.rayon)} · ${esc(fmtN(e.quantite, 0))} unités · ${esc(e.part === null ? 'n.d.' : fmtPct(e.part))} du CA</span><span class="vp-chiffres">CA ${esc(fmtEur(e.ca))}</span>`);
+      };
+      corps.querySelector('#fLibre').addEventListener('change', maj); maj();
+    } else {
+      const v = window.NexusProduitsVues.marges(entries, RESUME_PRODUITS);
+      const sur = v.lignes.length;
+      corps.innerHTML = `<div id="vpEntete">${entetePeriodeVue(`${sur} références à marge positive`)}</div>
+        <div class="vp-ligne">Marge totale de la boutique : <strong>${esc(fmtEur(v.margeBoutique))}</strong>${v.margeForts !== null && v.nbForts ? ` · ${v.nbForts} fort${v.nbForts > 1 ? 's' : ''} contributeur${v.nbForts > 1 ? 's' : ''} : ${esc(fmtEur(v.margeForts))}${v.partForts !== null && v.partForts !== undefined ? ' (' + esc(NexusProduitsVues.pourcent(v.partForts)) + ')' : ''}` : ''}</div>
+        <div id="vpListe"></div>
+        <div class="vp-bloc" id="vpNeg"><h3>Marges négatives (${v.negatives.length})</h3><ul class="vp-liste">${v.negatives.map((e, k) => `<li><button type="button" class="vp-ligne-prod" data-neg="${k}"><span class="vp-nom">${esc(e.article)}</span><span class="vp-meta">${esc(e.rayon)} · ${e.justification ? 'déstockage justifié' : 'justification à saisir'}</span><span class="vp-chiffres">marge ${esc(fmtEur(e.marge))}</span></button><button type="button" class="btn-decl" data-just="${k}">${e.justification ? 'Voir la justification' : 'Justifier'}</button></li>`).join('') || '<li class="vp-ligne">Aucune marge négative.</li>'}</ul></div>
+        <div id="vpCaisse">${noteCaisse(v.caisses)}</div>`;
+      paginer(v.lignes, PAGE_VUE, e => `<span class="vp-nom">${esc(e.article)}${badgesLigne(e)}</span><span class="vp-meta">rang ${e.rang} sur ${e.sur} · ${esc(e.rayon)} · ${esc(e.qualification || '')}</span><span class="vp-chiffres">marge ${esc(fmtEur(e.marge))} · taux ${esc(taux(e))} · unitaire ${esc(e.marge_unitaire === null || e.marge_unitaire === undefined ? 'n.d.' : fmtEur(e.marge_unitaire))}</span>`);
+      corps.querySelectorAll('#vpNeg [data-neg],#vpNeg [data-just]').forEach(bt => bt.addEventListener('click', () => choisirSuggestion(v.negatives[Number(bt.dataset.neg !== undefined ? bt.dataset.neg : bt.dataset.just)].article)));
+    }
+  }
+  let VUE_RECHERCHE = null;
+  document.getElementById('searchInput').addEventListener('input', () => { if (VUE_RECHERCHE && document.getElementById('vueCorps') && document.getElementById('fRayon')) VUE_RECHERCHE(); });
   function afficherSyntheseAccueil() {
     const z = document.getElementById('syntheseAccueil');
     if (!z) return;
@@ -1393,7 +1511,8 @@ nexusRequireAuth().then(async employee => {
       </div>
       <div class="sa-ligne">${dormants} produit${dormants > 1 ? 's' : ''} dormant${dormants > 1 ? 's' : ''}${sy.references_a_identifier ? ' · ' + sy.references_a_identifier + ' référence' + (sy.references_a_identifier > 1 ? 's' : '') + ' à identifier' : ''}</div>
       <div class="sa-liste" id="saListe" hidden></div>
-    </section>`;
+    </section>${cartesVues()}`;
+    z.querySelectorAll('button.tuile[data-vue]').forEach(b => b.addEventListener('click', () => ouvrirVue(b.dataset.vue)));
     const filtres = {
       negatives: x => x.m.marge_negative,
       justifiees: x => x.m.marge_negative && x.m.justification,
@@ -1413,6 +1532,8 @@ nexusRequireAuth().then(async employee => {
       liste.querySelectorAll('button').forEach(bt => bt.addEventListener('click', () => choisirSuggestion(items[Number(bt.dataset.k)].row.article)));
     }));
   }
+  // Appel après toutes les déclarations (const) dont dépendent la synthèse et les vues : sinon zone morte temporelle.
+  if (!APERCU) afficherSyntheseAccueil();
 
   // Photo rayon (terrain) — prise par un employé via la mission "Photo de
   // vérification rayon" (NEXUS-Missions-v1.html), pas une photo générique
