@@ -247,16 +247,16 @@ a{color:inherit; text-decoration:none;}
   // pas un chiffre isolé dans Scanner qui ne se relie à rien.
   // ------------------------------------------------------------
   let EMPLOYEE_COURANT_ID = null;
-  let VALIDEES_MARGE = new Set();
+  let DECISIONS_MARGE = []; // décisions R5 avec leur période (S2 : une validation vaut pour sa période)
   let EXCLUSIONS_MARGE = new Set();
   async function chargerValideesMarge() {
     const { data, error } = await nexusClient
       .from('journal_decisions')
-      .select('candidate_id')
+      .select('candidate_id, rule_id, periode_reference_debut, periode_reference_fin')
       .eq('site', SITE_ACTUEL)
       .eq('rule_id', 'R5-MARGE-ECART');
     if (error) { console.error('Chargement décisions marge:', error); return; }
-    VALIDEES_MARGE = new Set((data || []).map(d => d.candidate_id));
+    DECISIONS_MARGE = data || [];
   }
   // Articles exclus manuellement par un manager depuis Paramétrage Station
   // (table marge_exceptions, migration-marge-exceptions-v1.sql) — vient
@@ -282,7 +282,8 @@ a{color:inherit; text-decoration:none;}
       periode_reference_fin: candidat.periode_reference_fin,
     });
     if (error) { console.error('Écriture décision marge:', error); return false; }
-    VALIDEES_MARGE.add(candidat.candidate_id);
+    DECISIONS_MARGE.push({ candidate_id: candidat.candidate_id, rule_id: 'R5-MARGE-ECART',
+      periode_reference_debut: candidat.periode_reference_debut, periode_reference_fin: candidat.periode_reference_fin });
     return true;
   }
   // Tercile relatif (pas un seuil en euros absolu, qui n'aurait aucun sens
@@ -318,12 +319,16 @@ a{color:inherit; text-decoration:none;}
   //   encore savoir combien de temps prendra une vérification terrain
   //   donnée). Jamais de chiffre inventé (Article 5 de la Constitution).
   function construireCandidatsMarge(rowsPropres, periodeDebut, periodeFin) {
-    const ecarts = NexusMarge.detecterEcartsMarge(rowsPropres, EXCLUSIONS_MARGE);
+    // Préparation partagée (nexus-marge.js) : même résultat que l'Accueil, le
+    // Brief, Capital et Scanner tarifaire.
+    const ecarts = NexusMarge.ecartsMargeDeLaPeriode(rowsPropres, {
+      periode: { debut: periodeDebut, fin: periodeFin },
+      exclusionsManuelles: EXCLUSIONS_MARGE, decisions: DECISIONS_MARGE,
+    }).filter(e => !e.validee);
     return ecarts
       .map((e, i) => {
-        const cle = `${e.categorie}|${e.article}`;
         return {
-          candidate_id: `LIVE-R5-${cle}`, rule_id: 'R5-MARGE-ECART', etat: '💡 RECOMMANDATION',
+          candidate_id: e.candidate_id, rule_id: 'R5-MARGE-ECART', etat: '💡 RECOMMANDATION',
           article: e.article, categorie: e.categorie, impact_eur: e.gainPotentiel,
           situation: `${e.article} a une marge de ${fmtPct(e.margePct)}, contre ${fmtPct(e.medianeGroupe)} pour les ${e.tailleGroupe} produits comparables du même type.`,
           contexte: `Comparaison faite uniquement entre produits économiquement comparables — jamais entre catégories entières (voir nexus-marge.js pour les exceptions déjà exclues, comme le tabac réglementé).`,
@@ -337,7 +342,7 @@ a{color:inherit; text-decoration:none;}
           retourTemps: retourSurTemps(e.gainPotentiel),
         };
       })
-      .filter(c => !VALIDEES_MARGE.has(c.candidate_id));
+      ;
   }
   // "Créer une mission" (retour de Frédéric le 24/07/2026) : le clic ne se
   // contente plus de marquer une recommandation comme lue, il crée une

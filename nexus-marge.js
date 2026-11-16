@@ -182,5 +182,31 @@
     return ecarts.sort((a, b) => b.gainPotentiel - a.gainPotentiel);
   }
 
-  global.NexusMarge = { familleMarge, tabacAClasser, detecterEcartsMarge, median, SEUIL_ECART_POINTS, TAILLE_MIN_GROUPE };
+  // S2 (Scanner tarifaire) — UNE SEULE préparation des écarts R5 pour tous
+  // les consommateurs (Scanner NEXUS, Accueil, Brief, Capital, Scanner
+  // tarifaire). Fonction pure : exclut les produits d'appel, ne garde que
+  // les lignes propres (CA > 0, 0 <= marge <= CA), détecte les écarts, puis
+  // pose `validee` si une décision R5 du même candidate_id porte
+  // exactement la période affichée. Une validation vaut pour sa période :
+  // à la période suivante, l'écart réapparaît s'il existe toujours.
+  // Le candidate_id garde le format historique (aucune rupture des
+  // décisions déjà enregistrées).
+  function idCandidatMarge(categorie, article) { return `LIVE-R5-${categorie}|${article}`; }
+  function ecartsMargeDeLaPeriode(lignes, opts) {
+    const o = opts || {};
+    const periode = o.periode || {};
+    const appel = o.produitsAppel || new Set();
+    const propres = (lignes || []).filter(r => !appel.has(r.article)
+      && (r.ca || 0) > 0 && (r.marge || 0) >= 0 && (r.marge || 0) <= (r.ca || 0));
+    const valideesPeriode = new Set((o.decisions || [])
+      .filter(d => d && (d.rule_id === undefined || d.rule_id === 'R5-MARGE-ECART')
+        && d.periode_reference_debut === periode.debut && d.periode_reference_fin === periode.fin)
+      .map(d => d.candidate_id));
+    return detecterEcartsMarge(propres, o.exclusionsManuelles).map(e => {
+      const candidate_id = idCandidatMarge(e.categorie, e.article);
+      return { ...e, candidate_id, validee: valideesPeriode.has(candidate_id) };
+    });
+  }
+
+  global.NexusMarge = { ecartsMargeDeLaPeriode, idCandidatMarge, familleMarge, tabacAClasser, detecterEcartsMarge, median, SEUIL_ECART_POINTS, TAILLE_MIN_GROUPE };
 })(window);
