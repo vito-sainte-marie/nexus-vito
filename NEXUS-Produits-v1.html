@@ -363,7 +363,7 @@ button.btn-decl.plein{background:var(--cyan);color:#fff;}
 .synthese-accueil .sa-inds{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:8px 0;}
 @media (min-width:900px){.synthese-accueil .sa-inds{grid-template-columns:repeat(4,1fr);}}
 .synthese-accueil .sc-ind{background:var(--panel);border:1px solid var(--hairline);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:2px;min-width:0;}
-.synthese-accueil .sc-ind-val{font-size:20px;font-weight:700;color:var(--cyan);overflow-wrap:anywhere;}
+.synthese-accueil .sc-ind-val{font-size:18px;font-weight:700;color:var(--cyan);white-space:nowrap;}
 .synthese-accueil .sc-ind-lib,.synthese-accueil .sc-ind-sous{font-size:12px;color:var(--text-mid);line-height:1.4;}
 .synthese-accueil .sa-vigs{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:8px 0;}
 @media (min-width:900px){.synthese-accueil .sa-vigs{grid-template-columns:repeat(4,1fr);}}
@@ -440,6 +440,7 @@ body.nexus-desktop #resultSection > *{margin-bottom:12px;}
   <!-- desktop-grid (02/08/2026) : mise en colonnes en vue bureau (voir
        nexus-desktop.js), neutralisée ici, la fiche a sa propre disposition. -->
   <div class="section desktop-grid" id="resultSection">
+    <div class="synthese-accueil" id="syntheseAccueil"></div>
     <div class="carte conseiller">
       <img class="conseiller-avatar" src="assets/avatar/nexus-avatar-128.png" srcset="assets/avatar/nexus-avatar-64.png 64w, assets/avatar/nexus-avatar-96.png 96w, assets/avatar/nexus-avatar-128.png 128w, assets/avatar/nexus-avatar-256.png 256w" sizes="80px" alt="Conseiller NEXUS">
       <div class="conseiller-corps">
@@ -447,7 +448,6 @@ body.nexus-desktop #resultSection > *{margin-bottom:12px;}
         <p id="conseillerAccueil">Recherchez un produit par son nom ou son code-barres.</p>
       </div>
     </div>
-    <div class="synthese-accueil" id="syntheseAccueil"></div>
     <div class="empty-state">Recherchez un produit ci-dessus pour afficher sa fiche : les articles vendus sur la période affichée, sur les périodes complètes récentes ou relevés en stock depuis moins de 30 jours.</div>
   </div>
 
@@ -1807,7 +1807,10 @@ nexusRequireAuth().then(async employee => {
         </div><div id="vpListe"></div><div id="vpCaisse"></div>`;
       const maj = () => {
         const f = { recherche: document.getElementById('searchInput').value, rayon: corps.querySelector('#fRayon').value, qualification: corps.querySelector('#fQual').value, nature: corps.querySelector('#fNature').value, tva: corps.querySelector('#fTva').value };
-        const v = window.NexusProduitsVues.produits(entries, f);
+        // « À identifier » : même critère que le compteur (nature déclarée ou heuristique aIdentifier).
+        const base = f.nature === 'a_identifier' ? entries.filter(e => e.aIdentifier) : entries;
+        if (f.nature === 'a_identifier') f.nature = '';
+        const v = window.NexusProduitsVues.produits(base, f);
         corps.querySelector('#vpEntete').innerHTML = entetePeriodeVue(`${v.lignes.length} référence${v.lignes.length > 1 ? 's' : ''}, CA HT ${fmtEur(v.ca)}, marge HT ${fmtEur(v.marge)}`);
         corps.querySelector('#vpCaisse').innerHTML = noteCaisse(v.caisses);
         paginer(v.lignes, PAGE_VUE, e => `<span class="vp-nom">${esc(e.article)}${badgesLigne(e)}</span><span class="vp-meta">${esc(e.rayon)} · ${esc(e.qualification || '')}</span><span class="vp-chiffres">CA ${esc(fmtEur(e.ca))} · marge ${esc(fmtEur(e.marge))} · taux ${esc(taux(e))}</span>`);
@@ -1960,7 +1963,7 @@ nexusRequireAuth().then(async employee => {
     const per = PERIODE_DONNEES ? `du ${fmtDate(PERIODE_DONNEES.debut)} au ${fmtDate(PERIODE_DONNEES.fin)}, ${I.jours} jour${I.jours > 1 ? 's' : ''}` : null;
     const ind = (lib, val, sous) => `<div class="sc-ind sc-info"><span class="sc-ind-val">${esc(val)}</span><span class="sc-ind-lib">${esc(lib)}</span>${sous ? `<span class="sc-ind-sous">${esc(sous)}</span>` : ''}</div>`;
     const L = pointsVigilance(I);
-    const carteV = c => `<button type="button" class="tuile disponible sa-vig sc-${c.ton}" data-vig="${c.id}"><span class="sa-vig-n">${c.n}</span><span class="t-titre">${esc(c.titre)}</span><span class="t-sous">${esc(c.sous)}</span></button>`;
+    const carteV = c => `<button type="button" class="tuile disponible sa-vig sc-${c.ton}" data-vig="${c.id}"><span class="sa-vig-n">${c.n}</span><span class="t-titre">${esc(c.titre)}</span></button>`;
     z.innerHTML = `<section class="card sa-perf" aria-label="Performance commerciale">
       <h2 class="sa-titre">Performance commerciale</h2>
       ${per ? `<div class="sa-ligne">Période : ${esc(per)}</div>` : ''}

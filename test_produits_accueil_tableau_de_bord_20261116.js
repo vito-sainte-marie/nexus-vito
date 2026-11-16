@@ -88,5 +88,12 @@ function banc(ctx) {
   const ts = T({ A: { pertes: [], suspects: [{ article: 'Menthe' }] } }, [{ id: 'dormants', titre: 'Produits dormants' }]);
   assert.ok(/Menthe/.test(ts) && /Scanner tarifaire/.test(ts), ts);
   console.log('OK  Conseiller de l\'accueil');
+  // Corrections de recette 16/11 (Guardian 6917134124).
+  const htmlC = fs.readFileSync(path.join(__dirname, 'NEXUS-Produits-v1.html'), 'utf8');
+  assert.ok(/e\.aIdentifier\)/.test(html) && /f\.nature === 'a_identifier'/.test(html), 'À identifier : même critère que le compteur');
+  assert.ok(htmlC.indexOf('id="syntheseAccueil"') < htmlC.indexOf('id="conseillerAccueil"'), 'canevas B puis C : Conseiller après la synthèse');
+  assert.ok(/\.synthese-accueil \.sc-ind-val\{[^}]*white-space:nowrap/.test(html), 'montants insécables');
+  assert.ok(!/<span class="t-sous">\$\{esc\(c\.sous\)\}/.test(html), 'nombre non répété dans les points de vigilance');
+  console.log('OK  corrections de recette 16/11');
   process.exit(0);
 })().catch(e => { console.error(e); process.exit(1); });
