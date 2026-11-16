@@ -2,7 +2,7 @@
 // Produits, lot P1-C : trois vues (Mes produits, Mes meilleures ventes, Mes marges).
 // Module pur : aucune mesure nouvelle. Il ne fait que préparer, filtrer et trier les mesures
 // déjà produites par NexusProduitsMesure.mesurer (une seule source des chiffres).
-//   <script src="nexus-produits-vues.js?v=20261115-1"></script>
+//   <script src="nexus-produits-vues.js?v=20261116-1"></script>
 // ============================================================
 (function (global) {
   'use strict';
@@ -37,6 +37,8 @@
         euros: !!m.quantite_possiblement_en_euros,
         negative: !!m.marge_negative,
         justification: m.justification || null,
+        stock: m.stock && m.stock.disponible ? m.stock : { disponible: false },
+        service: !!(m.stock && m.stock.service) || nature === 'service_commercial',
       };
     });
   }
@@ -87,6 +89,46 @@
     };
   }
 
+  // D. Mes produits à revoir (P1-D) : aucune règle nouvelle, seulement un regroupement des signaux existants.
+  // statutDe(entry) -> {cle, label, niveau, action} fourni par la page (NexusConseiller.statutProduit).
+  const ORDRE_STATUTS = ['surveiller', 'rupture-probable', 'dormant'];
+  function aRevoir(entries, statutDe) {
+    const base = commerciales(entries);
+    const negatives = base.filter(e => e.negative && !e.justification).sort((a, b) => a.marge - b.marge || String(a.article).localeCompare(String(b.article), 'fr'));
+    const statuts = [];
+    if (statutDe) base.forEach(e => { const st = statutDe(e); if (st && st.niveau === 'a-verifier' && ORDRE_STATUTS.includes(st.cle)) statuts.push({ ...e, statut: st }); });
+    statuts.sort((a, b) => (ORDRE_STATUTS.indexOf(a.statut.cle) - ORDRE_STATUTS.indexOf(b.statut.cle)) || cmp(a, b, 'ca'));
+    const aEtudier = base.filter(e => e.qualificationCle === 'a_etudier').sort((a, b) => cmp(a, b, 'ca'));
+    return {
+      negatives, statuts, aEtudier,
+      nbAIdentifier: base.filter(e => e.aIdentifier).length,
+      nbTvaAVerifier: base.filter(e => e.tvaEtat === 'incoherente').length,
+      total: negatives.length + statuts.length + aEtudier.length,
+    };
+  }
+
+  // E. Mes stocks et couverture (P1-D) : stock théorique Decenium uniquement, jamais « rupture », jamais de qualificatif.
+  // comptageDe(entry) -> {quantite, compte_le} | null : dernier comptage physique d'Inventaire, affiché à part.
+  function stocks(entries, comptageDe) {
+    const tous = entries || [];
+    const avec = tous.filter(e => e.stock && e.stock.disponible);
+    const sansReleve = tous.length - avec.length;
+    const enrichi = e => ({ ...e, comptage: comptageDe ? (comptageDe(e) || null) : null,
+      sansObjet: e.caisse || e.service || e.euros });
+    const nuls = avec.filter(e => e.stock.quantite <= 0).map(enrichi)
+      .sort((a, b) => String(a.article).localeCompare(String(b.article), 'fr'));
+    const positifs = avec.filter(e => e.stock.quantite > 0).map(enrichi);
+    const couv = e => (e.sansObjet || e.stock.couverture_jours === null || e.stock.couverture_jours === undefined) ? Infinity : e.stock.couverture_jours;
+    positifs.sort((a, b) => { const ca = couv(a), cb = couv(b); return (ca === cb ? 0 : ca < cb ? -1 : 1) || String(a.article).localeCompare(String(b.article), 'fr'); });
+    const dates = avec.map(e => e.stock.date).filter(Boolean).sort();
+    return {
+      lignes: positifs, nuls, sansReleve,
+      nbAvecReleve: avec.length,
+      date: dates.length ? dates[dates.length - 1] : null,
+      valeurPositive: positifs.reduce((s, e) => s + (e.stock.valeur_pmp || 0), 0),
+    };
+  }
+
   function rayons(entries) { return Array.from(new Set(commerciales(entries).map(e => e.rayon).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'fr')); }
   function qualifications(entries) {
     const mp = new Map();
@@ -97,7 +139,7 @@
   // Les taux du module de mesure sont déjà en pourcentage (40,95 = 40,95 %) : jamais multipliés par 100.
   function pourcent(v) { return v === null || v === undefined || isNaN(Number(v)) ? 'n.d.' : Number(v).toFixed(2).replace('.', ',') + '\u00a0%'; }
 
-  const API = { pourcent, preparer, produits, meilleuresVentes, marges, rayons, qualifications };
+  const API = { pourcent, preparer, produits, meilleuresVentes, marges, aRevoir, stocks, rayons, qualifications };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   global.NexusProduitsVues = API;
 })(typeof window !== 'undefined' ? window : globalThis);
