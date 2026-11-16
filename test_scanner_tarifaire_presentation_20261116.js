@@ -86,6 +86,13 @@ function jeu(site) {
   // Indicateurs issus du moteur : pas de valeurs en dur dans la page.
   const dur = html.slice(html.indexOf('function ouvrirScanner'), html.indexOf('function ouvrirVue'));
   assert.ok(!/\b847\b|26,41|146,18/.test(dur), 'aucune valeur en dur');
+  assert.strictEqual((c.match(/<details/g) || []).length, 5, 'aucun accordéon imbriqué dans les cartes');
+  assert.strictEqual((c.match(/<h2/g) || []).length, 1, 'un seul titre de vue');
+  assert.strictEqual((c.match(/Vente à perte non justifiée : vérifier/g) || []).length, 1, 'phrase des pertes écrite une fois');
+  assert.ok(c.includes('Mes prix réglementés') && !/>Prix réglementés</.test(c), 'Mes prix réglementés');
+  assert.ok(/id="scTout"/.test(c) && /id="scFiltre"/.test(c), 'liste complète et puce de filtre');
+  assert.ok(/data-voir="\$\{cle\}"/.test(html) && /Voir les \$\{n\} autre/.test(html), 'lien Voir les N autres vers la liste filtrée');
+  assert.ok(/PAS_SC = 10/.test(html) && /data-plus/.test(html), 'liste complète paginée par 10');
   console.log('OK  structure : indicateurs, cinq cartes, chevrons, fiches, recherche, sans total');
 
   const P = r.ctx.NexusScannerPresentation;
@@ -114,6 +121,9 @@ function jeu(site) {
   assert.deepStrictEqual(noms('zebre', 'nom'), ['Zèbre'], 'recherche sans accents');
   assert.deepStrictEqual(noms('conf', 'nom'), ['Menthe'], 'recherche par famille');
   assert.deepStrictEqual(noms('xyz', 'nom'), []);
+  const E2 = E.map((e, i) => Object.assign({ cle: ['marges', 'pertes', 'regl'][i] }, e));
+  assert.deepStrictEqual(Array.from(P.filtrerListeScanner(E2, '', 'nom', 'pertes'), e => e.article), ['Abricot'], 'filtre par contrôle');
+  assert.strictEqual(P.filtrerListeScanner(E2, '', 'nom', '').length, 3);
   console.log('OK  recherche et tri de la liste complète');
   process.exit(0);
 })().catch(e => { console.error(e); process.exit(1); });
