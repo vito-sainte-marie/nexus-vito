@@ -5,13 +5,15 @@
 // Deux étiquettes : « réel » = export + registres seuls ; « conditionnel » = + compléments (TVA, motifs divergents, natures) fournis par --complements.
 // Usage : node 50_comparer_a_b_c.mjs --moteur <dossier du dépôt> --export <fichier export.json> --registres <export registres.json>
 //           --t1 <resultats_sainte_marie_t1.json> [--complements <fichier.json>] [--rayons <fichier.json>] [--sortie rapport.json]
-import fs from 'node:fs'; import path from 'node:path'; import { createRequire } from 'node:module';
+import fs from 'node:fs'; import path from 'node:path'; import crypto from 'node:crypto'; import { execFileSync } from 'node:child_process'; import { createRequire } from 'node:module';
 const a = process.argv.slice(2), opt = k => { const i = a.indexOf('--' + k); return i >= 0 ? a[i + 1] : null; };
 const need = k => opt(k) || (console.error('--' + k + ' requis'), process.exit(2));
 const require = createRequire(path.resolve(need('moteur')) + '/');
 const E = require('./nexus-politique-tarifaire-ecran.js'), PM = require('./nexus-produits-mesure.js'), T = require('./nexus-politique-tarifaire.js');
 const lire = f => JSON.parse(fs.readFileSync(f, 'utf8'));
-const exp = lire(need('export')), reg = lire(need('registres')), r1 = lire(need('t1'));
+if (opt('registres') && opt('registres-test')) (console.error('--registres et --registres-test sont exclusifs'), process.exit(2));
+const fichierRegistres = opt('registres-test') || need('registres'); // --registres-test : export de Test en lecture seule (61_export_registres_sainte_marie.sql), à la place de l'export de 14 h 17
+const exp = lire(need('export')), reg = lire(fichierRegistres), r1 = lire(need('t1'));
 const avecCompl = !!opt('complements');
 const compl = avecCompl ? lire(opt('complements')) : {};
 const rayons = new Set(opt('rayons') ? lire(opt('rayons')) : r1.lignes.map(l => l.rayon)); // par défaut : rayons des résultats T1 (décision 1 du pilote : périmètre à arbitrer)
@@ -42,18 +44,29 @@ const i1 = new Map(r1.lignes.map(l => [l.article, l]));
 const eg = (x, y) => JSON.stringify(x) === JSON.stringify(y);
 const st = E.stockParLibelle(stockBrut), AMBIGUS = new Set(st.ambigus.map(x => x.article.toLowerCase()));
 const NATURES = new Set(compl.natures || []);
+const NATURES_REELLES = new Set(rows('produits_nature_reference').map(x => x.article)); // natures réellement déclarées dans l'export
 const ARB = {
   sortie: 'nature des sorties Périmés/Casse : « sortie_perimes_casse » absent du vocabulaire Produits',
   doublon: 'règle du coût ambigu : libellé de stock aux PA différents retenu sans PA, référence à confirmer (T1 prenait la première ligne)',
   a5: 'alerte A5 « identité changée » propre au moteur T2, absente de T1',
 };
+const raisonsDe = l => ((l && l.fiabilite && l.fiabilite.raisons) || []).map(String);
+const TVA_T1 = r => /^TVA à (confirmer|vérifier)/.test(r);
+// Classement d'un écart : une seule catégorie, une justification. Seul le passage « réel » peut conclure « régression » ; le conditionnel n'entre jamais dans le verdict.
 function classer(e, passe, etiquette) {
-  if (NATURES.has(e.article) || /périm|casse/i.test(e.categorie || '')) return { classe: 'attendu', arbitrage: ARB.sortie };
+  const reel = etiquette === 'réel';
+  const natureEtablie = NATURES_REELLES.has(e.article);
+  const sortie = NATURES.has(e.article) || /périm|casse/i.test(e.categorie || '') || raisonsDe(e.t1).some(r => /sortie_perimes_casse/.test(r));
+  if (sortie) {
+    if (!reel || natureEtablie) return { classe: 'attendu', arbitrage: ARB.sortie };
+    return { classe: 'donnée absente', donnee: 'nature non établie (produits_nature_reference sans ligne pour cette référence)' };
+  }
   if (AMBIGUS.has(PM.normaliserNom(e.article).toLowerCase())) return { classe: 'attendu', arbitrage: ARB.doublon };
   if (e.champs.length === 1 && e.champs[0] === 'alertes') return { classe: 'attendu', arbitrage: ARB.a5 };
-  if (passe === 'B') return { classe: 'donnée absente', arbitrage: 'passe sans relevé de stock : coûts absents' };
-  if (etiquette === 'réel') return { classe: 'donnée absente', arbitrage: 'explications TVA / motifs divergents non fournis (décisions 3 et 4 du pilote)' };
-  return { classe: 'régression', arbitrage: null };
+  if (passe === 'B') return { classe: 'donnée absente', donnee: 'absence du relevé de stock (passe sans stock : coûts absents)' };
+  if (reel && (raisonsDe(e.t1).some(TVA_T1) || raisonsDe(e.r2).some(TVA_T1))) return { classe: 'donnée absente', donnee: 'explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)' };
+  if (reel && /motif/i.test(JSON.stringify(e.t1 && e.t1.alertes || []))) return { classe: 'donnée absente', donnee: 'motif divergent non enregistré (absence acceptée par le pilote)' };
+  return reel ? { classe: 'régression', justification: 'aucun arbitrage ni donnée absente ne l\'explique' } : { classe: 'écart non expliqué (conditionnel, hors verdict)', justification: 'le passage conditionnel ne porte jamais de verdict' };
 }
 function passe(id, etiquette, { lignes: L, precedent, stock }) {
   const avec = etiquette === 'conditionnel';
@@ -70,7 +83,7 @@ function passe(id, etiquette, { lignes: L, precedent, stock }) {
     if (!eg({ etat: l.conformite.etat, motif: l.conformite.motif }, { etat: o.conformite.etat, motif: o.conformite.motif })) e.push('conformite');
     if (!eg(l.alertes.map(x => [x.code, x.consequence]), o.alertes.map(x => [x.code, x.consequence]))) e.push('alertes');
     for (const k of ['prixDecide', 'minimum', 'cible', 'repereMinimum', 'repereCible']) if (!eg(l.simulation[k], o[k] === undefined ? o.simulation[k] : o.simulation[k])) e.push(k);
-    if (e.length) { const b = parArticle.get(l.article) || {}; ecarts.push({ article: l.article, categorie: b.categorie, champs: e }); } else identiques++;
+    if (e.length) { const b = parArticle.get(l.article) || {}; ecarts.push({ article: l.article, categorie: b.categorie, champs: e, t1: o, r2: l }); } else identiques++;
   }
   const classement = ecarts.map(e => Object.assign({ article: e.article, champs: e.champs }, classer(e, id, etiquette)));
   const parClasse = {}; classement.forEach(c => parClasse[c.classe] = (parClasse[c.classe] || 0) + 1);
@@ -87,10 +100,23 @@ for (const etiquette of avecCompl ? ['conditionnel', 'réel'] : ['réel']) {
   rapport.passes.push(passe('B', etiquette, { lignes: P2, precedent: P1, stock: null }));
   rapport.passes.push(passe('C', etiquette, { lignes: brutes2, precedent: brutes1, stock: stockBrut }));
 }
-rapport.passage_conditionnel = avecCompl ? 'calculé' : 'non calculé : aucun complément fourni (--complements)';
-rapport.regressions = !avecCompl ? null : rapport.passes.filter(p => p.etiquette === 'conditionnel' && p.passe !== 'B').reduce((n, p) => n + (p.classes['régression'] || 0), 0);
-if (opt('sortie')) fs.writeFileSync(opt('sortie'), JSON.stringify(rapport, null, 1));
+rapport.passage_conditionnel = avecCompl ? 'calculé (étiqueté, hors verdict)' : 'non calculé : aucun complément fourni (--complements)';
+rapport.regressions = rapport.passes.filter(p => p.etiquette === 'réel' && p.passe !== 'B').reduce((n, p) => n + (p.classes['régression'] || 0), 0); // passage réel seul, passes A et C
+rapport.verdict = rapport.regressions === 0 ? 'conforme' : 'non conforme';
+const sha = f => crypto.createHash('sha256').update(fs.readFileSync(f)).digest('hex');
+const mod = f => { const p = path.resolve(need('moteur'), f); let commit = null;
+  try { commit = execFileSync('git', ['-C', path.dirname(p), 'log', '-1', '--format=%H', '--', path.basename(p)], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim() || null; } catch (e) { commit = null; }
+  return { fichier: f, sha256: sha(p), dernier_commit: commit }; };
+rapport.entrees = { export: { fichier: path.basename(need('export')), sha256: sha(need('export')) },
+  registres: { fichier: path.basename(fichierRegistres), origine: opt('registres-test') ? 'export de Test en lecture seule (--registres-test)' : 'export fourni (--registres)', sha256: sha(fichierRegistres) },
+  t1: { fichier: path.basename(need('t1')), sha256: sha(need('t1')) },
+  complements: avecCompl ? { fichier: path.basename(opt('complements')), sha256: sha(opt('complements')) } : null,
+  moteur: ['nexus-politique-tarifaire-ecran.js', 'nexus-produits-mesure.js', 'nexus-politique-tarifaire.js'].map(mod) };
+const sortie = JSON.stringify(rapport, null, 1) + '\n';
+const shaSortie = crypto.createHash('sha256').update(sortie).digest('hex');
+if (opt('sortie')) { fs.writeFileSync(opt('sortie'), sortie); fs.writeFileSync(opt('sortie') + '.sha256', shaSortie + '  ' + path.basename(opt('sortie')) + '\n'); }
 for (const p of rapport.passes) console.log(`${p.passe} ${p.etiquette.padEnd(12)} ${p.references} réf., ${p.comparees_a_t1} comparées à T1 : ${p.identiques} identiques, ${p.ecarts} écarts ${JSON.stringify(p.classes)}`);
-if (!avecCompl) { console.log('passage conditionnel non calculé : aucun complément fourni (--complements) ; régressions non évaluées.'); process.exit(0); }
-console.log('régressions (passes A et C, conditionnel) :', rapport.regressions);
+if (!avecCompl) console.log('passage conditionnel non calculé : aucun complément fourni (--complements).');
+console.log('régressions (passage réel, passes A et C) :', rapport.regressions, '; verdict :', rapport.verdict);
+console.log('sha256 de la sortie :', shaSortie);
 process.exit(rapport.regressions ? 1 : 0);
