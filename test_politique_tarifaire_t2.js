@@ -427,4 +427,17 @@ ok('régime du registre : même exclusion, et il reste prioritaire sur la règle
   assert.strictEqual(un(r, 'Produit R').regime, 'reglemente');
 });
 
+ok('A5 régime déclaré contre règle NEXUS : constat, sans effet sur gains ni statut', () => {
+  const regimes = [{ article: 'Produit R', regime: 'libre', raison: 'raison fictive' }];
+  const avec = T.analyser([L('Produit R', { prix_vente: 1.5 })], [], ctxBase({ regimeDe: () => 'reglemente', regimes }));
+  const a = alerte(un(avec, 'Produit R'), 'A5');
+  assert.ok(a && a.donnees.constats.some(c => c === 'régime déclaré « libre » contre règle NEXUS « reglemente »'));
+  const sans = T.analyser([L('Produit R', { prix_vente: 1.5 })], [], ctxBase({ regimes }));
+  assert.ok(!(alerte(un(sans, 'Produit R'), 'A5') || { donnees: { constats: [] } }).donnees.constats.some(c => /régime déclaré/.test(c)));
+  assert.strictEqual(un(avec, 'Produit R').statut, un(sans, 'Produit R').statut);
+  assert.deepStrictEqual(avec.gains.decisionnels, sans.gains.decisionnels);
+  const accord = T.analyser([L('Produit R', { prix_vente: 1.5 })], [], ctxBase({ regimeDe: () => 'reglemente', regimes: [{ article: 'Produit R', regime: 'reglemente', raison: 'x' }] }));
+  assert.ok(!(alerte(un(accord, 'Produit R'), 'A5') || { donnees: { constats: [] } }).donnees.constats.some(c => /régime déclaré/.test(c)));
+});
+
 console.log('test_politique_tarifaire_t2 : ' + n + ' épreuves OK');

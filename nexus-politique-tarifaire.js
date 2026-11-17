@@ -313,6 +313,8 @@
         if (cb(row) && cb(p) && cb(row) !== cb(p)) a5.push('identité changée : code-barres ' + cb(p) + ' devenu ' + cb(row));
         else if (nom(row.article) !== nom(p.article)) a5.push('identité changée : libellé « ' + p.article + ' » devenu « ' + row.article + ' »');
       }
+      { const regleNexus = (ctx.regimeDe && ctx.regimeDe(row)) || 'libre';
+        if (regDecl && regDecl.regime && regDecl.regime !== regleNexus) a5.push('régime déclaré « ' + regDecl.regime + ' » contre règle NEXUS « ' + regleNexus + ' »'); }
       if (a5.length) ajoute('A5', { montant: null, nature: 'à qualifier' }, { constats: a5 });
       if (excValidee && tauxP !== null && taux !== null) {
         const m6 = { ...REGLAGES_DEFAUT.a6, ...(R.a6 || {}) };
