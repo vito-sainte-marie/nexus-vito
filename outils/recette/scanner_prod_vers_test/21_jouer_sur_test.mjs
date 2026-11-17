@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 // Joue l'import du lot Scanner sur Supabase TEST depuis le poste du pilote. NE S'EXÉCUTE PAS SANS LE GO ÉCRIT DE GUARDIAN ET DU PILOTE.
-// Usage : node 21_jouer_sur_test.mjs <dossier-export-09> [--schema] [--pooler]
+// Usage : node 21_jouer_sur_test.mjs <dossier-export-09> --ca <fichier.crt> [--schema] [--pooler]
+//   --ca     : OBLIGATOIRE. Certificat racine Supabase (Database > Settings > SSL Configuration > Download certificate). Vérification TLS
+//              complète (verify-full, rejectUnauthorized: true) en direct comme avec --pooler ; elle n'est jamais désactivée.
 //   --pooler : passe par le pooler Supabase en mode session (si l'hôte direct, IPv6 seul, est injoignable). Hôte lu dans le trousseau
 //              (service nexus-test-pooler, compte nexus), accepté seulement s'il finit par .pooler.supabase.com ; port 5432 ;
 //              utilisateur imposé postgres.<ref Test>. La garde décisive reste l'identifiant système vérifié après connexion.
@@ -16,12 +18,24 @@ import { fileURLToPath } from 'node:url';
 const REF_TEST = 'udljdqxerrbbbajxubfn';
 const ID_TEST = '7678069749886157684';
 const ICI = dirname(fileURLToPath(import.meta.url));
+const USAGE = 'Usage : node 21_jouer_sur_test.mjs <dossier-export-09> --ca <fichier.crt> [--schema] [--pooler]';
 const [dir, ...opts] = process.argv.slice(2);
-if (!dir) { console.error('Usage : node 21_jouer_sur_test.mjs <dossier-export-09> [--schema] [--pooler]'); process.exit(2); }
-const avecSchema = opts.includes('--schema');
-const avecPooler = opts.includes('--pooler');
-const inconnues = opts.filter(o => o !== '--schema' && o !== '--pooler');
+if (!dir) { console.error(USAGE); process.exit(2); }
+let avecSchema = false, avecPooler = false, fichierCa = null;
+const inconnues = [];
+for (let i = 0; i < opts.length; i++) {
+  const o = opts[i];
+  if (o === '--schema') avecSchema = true;
+  else if (o === '--pooler') avecPooler = true;
+  else if (o === '--ca') { fichierCa = opts[++i] || ''; }
+  else if (o.startsWith('--ca=')) fichierCa = o.slice(5);
+  else inconnues.push(o);
+}
 if (inconnues.length) { console.error('Option inconnue : ' + inconnues.join(' ')); process.exit(2); }
+if (!fichierCa) { console.error('--ca <fichier.crt> est obligatoire : la vérification TLS n\'est jamais désactivée.\n' + USAGE); process.exit(2); }
+let ca;
+try { ca = readFileSync(fichierCa, 'utf8'); } catch { console.error('Certificat illisible : ' + fichierCa); process.exit(2); }
+if (!/-----BEGIN CERTIFICATE-----[\s\S]+-----END CERTIFICATE-----/.test(ca)) { console.error('Ce fichier ne contient pas de certificat PEM : ' + fichierCa); process.exit(2); }
 
 let pg;
 try { pg = (await import('pg')).default; } catch { console.error('Paquet « pg » absent : npm i pg'); process.exit(2); }
@@ -43,7 +57,7 @@ if (avecPooler) {
   hote = `db.${REF_TEST}.supabase.co`;
   utilisateur = 'postgres';
 }
-const url = `postgresql://${utilisateur}:${encodeURIComponent(mdp)}@${hote}:5432/postgres?sslmode=require`;
+const url = `postgresql://${utilisateur}:${encodeURIComponent(mdp)}@${hote}:5432/postgres`;
 if (!avecPooler && !url.includes(REF_TEST)) { console.error('URL refusée : ce n\'est pas le projet Test.'); process.exit(2); }
 
 // Génération et vérification (SHA-256, md5 des jeux) par 20_import_lot.mjs ; arrêt sans SQL au moindre écart.
@@ -56,13 +70,19 @@ try {
 } catch (e) { console.error('Vérification de l\'export en échec : rien n\'est envoyé.'); rmSync(tmp, { recursive: true, force: true }); process.exit(1); }
 rmSync(tmp, { recursive: true, force: true });
 
-const c = new pg.Client({ connectionString: url });
+const c = new pg.Client({ connectionString: url, ssl: { ca, rejectUnauthorized: true } }); // verify-full : hôte et chaîne vérifiés
 let connecte = false;
 try {
   try { await c.connect(); connecte = true; }
   catch (e) {
     const m = String(e.message || e).replace(/postgres(ql)?:\/\/[^@\s]*@/g, 'postgres://***@');
-    throw new Error(`connexion impossible (${m})` + (avecPooler ? '' : ' : l\'hôte direct n\'est joignable qu\'en IPv6 ; réessayez avec --pooler'));
+    const code = e.code || '';
+    const tls = /certificate|self[- ]signed|issuer|CERT_|ERR_TLS|altnames|hostname\/IP/i.test(code + ' ' + m);
+    const reseau = ['ENETUNREACH', 'EHOSTUNREACH', 'ENOTFOUND', 'ETIMEDOUT', 'ECONNREFUSED', 'EAI_AGAIN'].includes(code) || /timeout|timed out/i.test(m);
+    const conseil = tls ? ' : certificat non reconnu ; vérifiez le fichier passé à --ca (certificat racine Supabase, Settings > SSL Configuration). La vérification n\'est jamais désactivée'
+      : reseau ? (avecPooler ? ' : réseau injoignable' : ' : hôte direct injoignable (IPv6 seul ?) ; réessayez avec --pooler')
+      : '';
+    throw new Error(`connexion impossible (${m})` + conseil);
   }
   const id = (await c.query('select system_identifier::text as v from pg_control_system()')).rows[0].v;
   if (id !== ID_TEST) throw new Error(`identifiant système ${id} : ce n'est pas le projet Test. Rien n'est écrit.`);
