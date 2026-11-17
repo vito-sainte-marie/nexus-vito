@@ -377,7 +377,8 @@
   // Ramène un montant d'une période à 30 jours (affichage Scanner) ; null si la durée est inconnue.
   const ramener = (montant, jours, ref) => (montant === null || !jours) ? null : r2(montant * (ref || REGLAGES_DEFAUT.joursReference) / jours);
 
-  const API = { FIABILITE, CONFORMITE, STATUTS, APPLICATION, STATUT_SEUIL, ALERTES, REGLAGES_DEFAUT, COUT_DEFAUT,
+  const VERSION_MOTEUR = 'politique-tarifaire-t2-v2';
+  const API = { VERSION_MOTEUR, FIABILITE, CONFORMITE, STATUTS, APPLICATION, STATUT_SEUIL, ALERTES, REGLAGES_DEFAUT, COUT_DEFAUT,
     arrondiPalier, prixEnvisageable, familleDe, seuilDe, suiviPrixDecide, analyser, ramener };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   global.NexusPolitiqueTarifaire = API;

@@ -346,4 +346,9 @@ ok('ramener à 30 jours', () => {
   assert.strictEqual(T.ramener(null, 15), null);
 });
 
+ok('version du moteur exposée, conforme à la forme exigée par la base (T3)', () => {
+  assert.strictEqual(T.VERSION_MOTEUR, 'politique-tarifaire-t2-v2');
+  assert.ok(/^politique-tarifaire-t2(-[a-z0-9.]+)?$/.test(T.VERSION_MOTEUR));
+});
+
 console.log('test_politique_tarifaire_t2 : ' + n + ' épreuves OK');
