@@ -1,0 +1,160 @@
+// Épreuves de l'écran 1 « Politique tarifaire » (T3). Données ENTIÈREMENT fictives.
+const assert = require('assert');
+const fs = require('fs');
+const E = require('./nexus-politique-tarifaire-ecran.js');
+const A = require('./nexus-politique-tarifaire-registres.js');
+const T = require('./nexus-politique-tarifaire.js');
+
+let n = 0;
+const ok = (nom, f) => { f(); n++; };
+const S = 'site-fictif-1';
+const periode = { debut: '2030-03-01', fin: '2030-03-30' };
+
+const reg = {
+  familles: [{ site: S, famille_code: 'Alpha', libelle: 'Famille Alpha' }],
+  rattachements: [{ site: S, portee: 'rayon', rayon: 'Rayon Alpha', famille_code: 'Alpha' }],
+  seuils: [{ site: S, id: 1, niveau: 'famille', cible_niveau: 'Alpha', minimum: 0.4, cible: 0.5, statut_minimum: 'valide', statut_cible: 'valide' }],
+};
+const prod = (article, cat, q, pv, pa) => ({ article, categorie: cat, quantite: q, prix_vente: pv, prix_achat: pa, tva: 20, code_barres: '' });
+const courantes = [
+  prod('Produit A', 'Rayon Alpha', 100, 1.5, 1),
+  prod('Produit B', 'Rayon Alpha', 50, 1.2, 1.5),
+  prod('Produit C', 'Rayon Beta', 30, 3, 2),
+];
+const analyse = () => T.analyser(courantes, [], A.contexteDepuisRegistres(reg, { periode }));
+
+ok('quatre cartes : unité, période, source, limite écrites', () => {
+  const cs = E.cartes(analyse());
+  assert.strictEqual(cs.length, 4);
+  assert.deepStrictEqual(cs.map(c => c.id), ['propositions', 'a_verifier', 'non_constates', 'reglementaire']);
+  cs.forEach(c => { assert.ok(c.unite && c.periode && c.source && c.limite, c.id); assert.ok(/01\/03\/2030/.test(c.periode)); });
+});
+
+ok('carte propositions : gain fiable au centre, à confirmer à côté', () => {
+  const a = analyse(), c = E.cartes(a)[0], m = a.gains.decisionnels.minimum;
+  assert.strictEqual(c.references, m.fiable.references);
+  assert.ok(c.secondaire.indexOf('à confirmer') > 0);
+});
+
+ok('minimum et cible jamais additionnés', () => {
+  const a = analyse(), sc = E.scenarios(a);
+  assert.deepStrictEqual(sc.map(s => s.id), ['prixDecides', 'minimum', 'cible']);
+  assert.strictEqual(a.gains.additionnables, false);
+  const somme = sc.reduce((t, s) => t + (s.fiable || 0), 0);
+  const cartePropo = E.cartes(a)[0].valeur;
+  assert.strictEqual(cartePropo, Math.round(a.gains.decisionnels.minimum.fiable.montant).toLocaleString('fr-FR') + ' €');
+  if (a.gains.decisionnels.cible.fiable.montant) assert.notStrictEqual(cartePropo, Math.round(somme).toLocaleString('fr-FR') + ' €');
+});
+
+ok('huit cartes d\'alerte : gravité et action du moteur, jamais « Appliquer »', () => {
+  const as = E.alertesCartes(analyse());
+  assert.deepStrictEqual(as.map(a => a.code), ['A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7', 'A8']);
+  ['A3', 'A8'].forEach(c => assert.strictEqual(as.find(a => a.code === c).gravite, 'critique'));
+  ['A4', 'A5', 'A7'].forEach(c => assert.strictEqual(as.find(a => a.code === c).gravite, 'a_verifier'));
+  ['A1', 'A2', 'A6'].forEach(c => assert.strictEqual(as.find(a => a.code === c).gravite, 'information'));
+  as.forEach(a => assert.ok(['verifier', 'decider', 'surveiller'].indexOf(a.action) >= 0));
+});
+
+ok('les cinq statuts du moteur, tels quels', () => {
+  assert.deepStrictEqual(Object.keys(E.htmlPage ? { a_verifier: 1, proposition_a_valider: 1, a_surveiller: 1, conforme: 1, sans_seuil_valide: 1 } : {}).sort(),
+    ['a_surveiller', 'a_verifier', 'conforme', 'proposition_a_valider', 'sans_seuil_valide']);
+  const st = analyse().lignes.map(l => l.statut);
+  st.forEach(s => assert.ok(['a_verifier', 'proposition_a_valider', 'a_surveiller', 'conforme', 'sans_seuil_valide'].indexOf(s) >= 0, s));
+  assert.ok(st.indexOf('proposition_a_valider') >= 0);
+  assert.ok(st.indexOf('sans_seuil_valide') >= 0);
+});
+
+ok('« conforme » jamais sans seuil valide', () => {
+  analyse().lignes.filter(l => l.statut === 'conforme').forEach(l => assert.ok(l.regle && l.regle.valide));
+  const vide = T.analyser(courantes, [], A.contexteDepuisRegistres({}, { periode }));
+  assert.ok(vide.lignes.every(l => l.statut !== 'conforme'));
+});
+
+ok('tri : gravité puis montant', () => {
+  const L = [
+    { article: 'x1', alertes: [{ gravite: 'information', consequence: { montant: 900 } }] },
+    { article: 'x2', alertes: [{ gravite: 'critique', consequence: { montant: 10 } }] },
+    { article: 'x3', alertes: [{ gravite: 'critique', consequence: { montant: 50 } }] },
+    { article: 'x4', alertes: [] },
+    { article: 'x5', alertes: [{ gravite: 'a_verifier', consequence: { montant: 5 } }] },
+  ];
+  assert.deepStrictEqual(E.trier(L).map(l => l.article), ['x3', 'x2', 'x5', 'x1', 'x4']);
+  assert.deepStrictEqual(L.map(l => l.article), ['x1', 'x2', 'x3', 'x4', 'x5']);
+});
+
+ok('filtres cumulables', () => {
+  const a = analyse(), L = a.lignes;
+  assert.strictEqual(E.filtrer(L, {}).length, L.length);
+  assert.ok(E.filtrer(L, { recherche: 'produit a' }).every(l => /produit a/i.test(l.article)));
+  const rayon = E.filtrer(L, { rayon: 'Rayon Alpha' });
+  assert.ok(rayon.length > 0 && rayon.every(l => l.rayon === 'Rayon Alpha'));
+  const cumul = E.filtrer(L, { rayon: 'Rayon Alpha', statut: 'proposition_a_valider' });
+  assert.ok(cumul.length <= rayon.length && cumul.every(l => l.rayon === 'Rayon Alpha' && l.statut === 'proposition_a_valider'));
+  assert.strictEqual(E.filtrer(L, { rayon: 'Rayon Alpha', statut: 'conforme', fiabilite: 'insuffisante', alerte: 'A8' }).length, 0);
+  assert.ok(E.filtrer(L, { alerte: 'A3' }).every(l => l.alertes.some(x => x.code === 'A3')));
+});
+
+ok('première page : dix lignes au plus, les autres derrière un bouton', () => {
+  const a = analyse();
+  const beaucoup = Array.from({ length: 25 }, (_, i) => Object.assign({}, a.lignes[0], { article: 'Produit ' + i }));
+  const html = E.htmlPage({ analyse: Object.assign({}, a, { lignes: beaucoup }), role: 'gerant', filtres: {}, incoherences: [] });
+  assert.strictEqual((html.match(/class="pt-ligne"/g) || []).length, 10);
+  assert.ok(/Voir les 15 autres/.test(html));
+});
+
+ok('fiche en lecture seule : aucun bouton de décision ni d\'exception', () => {
+  const a = analyse(), l = a.lignes[0];
+  const f = E.fiche(l);
+  assert.strictEqual(f.article, l.article);
+  const html = E.htmlPage({ analyse: a, role: 'gerant', filtres: {}, incoherences: [], ouverte: l.article });
+  assert.ok(html.indexOf('pt-fiche') > 0);
+  assert.ok(!/Proposer une exception|Décider du prix|Appliquer/.test(html));
+});
+
+ok('bandeau d\'intégrité : gérant seulement, et seulement s\'il y a une ligne', () => {
+  const a = analyse(), inc = [{ site: S, incoherence: 'x' }];
+  assert.ok(/pt-integrite/.test(E.htmlPage({ analyse: a, role: 'gerant', filtres: {}, incoherences: inc })));
+  assert.ok(!/pt-integrite/.test(E.htmlPage({ analyse: a, role: 'gerant', filtres: {}, incoherences: [] })));
+  assert.ok(!/pt-integrite/.test(E.htmlPage({ analyse: a, role: 'manager', filtres: {}, incoherences: inc })));
+});
+
+ok('compte inactif, lecture vide et lecture impossible : trois messages distincts', () => {
+  const inactif = E.etatAcces({ actif: false }, 0), vide = E.etatAcces({ actif: true }, 0), illisible = E.etatAcces({ erreur: true }, 0);
+  assert.strictEqual(inactif.message, 'Compte inactif, contactez votre gérant');
+  assert.strictEqual(vide.message, 'Aucune donnée tarifaire pour ce site');
+  assert.strictEqual(illisible.message, 'Impossible de vérifier votre compte');
+  assert.strictEqual(E.etatAcces({ actif: true }, 12).code, 'ok');
+  assert.strictEqual(E.etatAcces(null, 12).code, 'illisible');
+  assert.strictEqual(E.etatAcces({ actif: false }, 12).code, 'inactif');
+});
+
+ok('droits de l\'onglet', () => {
+  assert.ok(E.peutVoirOnglet('gerant', false));
+  assert.ok(E.peutVoirOnglet('manager', false));
+  assert.ok(E.peutVoirOnglet('employe', true));
+  assert.ok(!E.peutVoirOnglet('employe', false));
+});
+
+ok('Conseiller : deux tons, filtre associé', () => {
+  const a = analyse();
+  const g = E.conseiller(a, 'gerant'), m = E.conseiller(a, 'manager');
+  assert.ok(g.texte && m.texte && g.texte !== m.texte);
+  const rien = E.conseiller({ synthese: { alertes: {}, statuts: {} } }, 'gerant');
+  assert.strictEqual(rien.code, 'RAS');
+});
+
+ok('aucune écriture dans le module ni dans le montage', () => {
+  const src = fs.readFileSync(require.resolve('./nexus-politique-tarifaire-ecran.js'), 'utf8');
+  assert.ok(!/\.(insert|update|delete|upsert|rpc)\s*\(/.test(src));
+  assert.ok(!/tarif_enregistrer_decisions|Appliquer|\.post\(|method\s*:\s*['"](POST|PUT|PATCH|DELETE)/i.test(src));
+  assert.ok(!/\.rpc\b/.test(src));
+  assert.ok(!/[?&]site=/.test(src), 'aucun paramètre de site côté client');
+});
+
+ok('lecture par vues du registre uniquement', () => {
+  const src = fs.readFileSync(require.resolve('./nexus-politique-tarifaire-ecran.js'), 'utf8');
+  const vues = src.match(/'v_tarif_[a-z_]+'/g) || [];
+  assert.ok(vues.length >= 9);
+});
+
+console.log('test_ecran_politique_tarifaire : ' + n + ' épreuves OK');

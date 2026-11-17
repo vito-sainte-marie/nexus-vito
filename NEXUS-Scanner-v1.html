@@ -192,6 +192,10 @@ a{color:inherit; text-decoration:none;}
 <script src="nexus-forfait.js?v=20260904-0104"></script>
 <script src="nexus-periodes.js?v=20260904-0104"></script>
 <script src="nexus-marge.js?v=20260904-0104"></script>
+<script src="nexus-badge-etat.js"></script>
+<script src="nexus-politique-tarifaire.js"></script>
+<script src="nexus-politique-tarifaire-registres.js"></script>
+<script src="nexus-politique-tarifaire-ecran.js"></script>
 </head>
 <body>
 <div class="app">
@@ -202,9 +206,11 @@ a{color:inherit; text-decoration:none;}
     <div class="role-jour" id="scanSubtitle">Chargement…</div>
   </div>
   <div class="divider"></div>
+  <div id="ptTabs" class="pt-tabs" role="tablist" hidden></div>
   <div id="root">
     <div class="loading">Analyse des données en cours…</div>
   </div>
+  <div id="ptPanel" hidden></div>
 </div>
 <script>
   // Meme moteur que Cockpit et le CIN : donnees reelles de la table products,
@@ -784,7 +790,7 @@ a{color:inherit; text-decoration:none;}
   let SITE_ACTUEL = null; // jamais 'vito-sainte-marie' par defaut (de-Vito-isation, 11/08/2026) - toujours ecrase par employee.site_id apres nexusRequireAuth()
   nexusRequireAuth().then(async employee => {
     if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
-    if (employee.role !== 'manager' && employee.role !== 'gerant') {
+    if (employee.role !== 'manager' && employee.role !== 'gerant' && !employee.est_createur) {
       document.body.innerHTML = '<div style="padding:60px 20px; text-align:center; color:#8A96A5; font-family:sans-serif; background:#0B0F14; min-height:100vh;">Cet écran est réservé aux managers.</div>';
       return;
     }
@@ -793,6 +799,25 @@ a{color:inherit; text-decoration:none;}
     EMPLOYEE_COURANT_ID = employee.id;
     const [donnees] = await Promise.all([chargerDonneesScanner(), chargerValideesMarge(), chargerExclusionsMarge()]);
     renderRoot(donnees);
+    // Onglet « Politique tarifaire » : lecture seule, jamais visible de l'employé.
+    if (NexusPolitiqueTarifaireEcran.peutVoirOnglet(employee.role, employee.est_createur)) {
+      const tabs = document.getElementById('ptTabs'), root = document.getElementById('root'), panel = document.getElementById('ptPanel');
+      tabs.innerHTML = '<button type="button" class="pt-tab" role="tab" data-pt-tab="scanner" aria-selected="true">Scanner</button>' +
+        '<button type="button" class="pt-tab" role="tab" data-pt-tab="tarif" aria-selected="false">Politique tarifaire</button>';
+      tabs.hidden = false;
+      let monte = false;
+      tabs.addEventListener('click', ev => {
+        const b = ev.target.closest('[data-pt-tab]'); if (!b) return;
+        const tarif = b.dataset.ptTab === 'tarif';
+        tabs.querySelectorAll('.pt-tab').forEach(x => x.setAttribute('aria-selected', String(x === b)));
+        root.hidden = tarif; panel.hidden = !tarif;
+        if (tarif && !monte) {
+          monte = true;
+          NexusPolitiqueTarifaireEcran.monter(panel, { client: nexusClient, employeId: employee.id, siteId: SITE_ACTUEL, role: employee.role, estCreateur: !!employee.est_createur });
+        }
+      });
+      const st = document.createElement('style'); st.textContent = NexusPolitiqueTarifaireEcran.CSS; document.head.appendChild(st);
+    }
   });
 </script>
 </body>
