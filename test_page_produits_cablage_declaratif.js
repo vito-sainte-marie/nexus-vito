@@ -51,7 +51,9 @@ ok('sans stock : aucun constat par référence, une seule limite écrite', () =>
     const a5 = alerte(l, 'A5');
     assert.ok(!a5 || !JSON.stringify(a5).includes('absent du relevé'), l.article);
   });
-  assert.ok(/Relevé de stock<\/b> : non fourni/.test(E.htmlPage({ analyse: a, role: 'gerant', filtres: {}, incoherences: [] })));
+  const hp = E.htmlPage({ analyse: a, role: 'gerant', filtres: {}, incoherences: [] });
+  assert.strictEqual((hp.match(/Relevé de stock<\/b> : non fourni/g) || []).length, 1, 'dit une seule fois');
+  assert.ok(hp.indexOf('Relevé de stock</b> : non fourni') < hp.indexOf('<details'), 'visible avant les blocs repliés');
 });
 
 ok('la page appelle l\'assistant déclaratif', () => {
