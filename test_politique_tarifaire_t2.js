@@ -472,4 +472,12 @@ ok('stock non fourni : aucune référence fiable sur le coût, aucun A5 « absen
   assert.strictEqual(sans.synthese.stockFourni, false);
 });
 
+ok('stock : un libellé au coût ambigu est retenu sans PA, la référence passe à confirmer avec la raison', () => {
+  const l = [L('Produit AMB', { prix_vente: 1.2, prix_achat: 1 })];
+  const r = T.analyser(l, [], ctxBase({ stockFourni: true, stock: [{ article: 'Produit AMB', pa_net_ht: null, ambigu: 'coût ambigu dans le relevé : 2 lignes, PA de 0.76 à 0.85' }] }));
+  assert.strictEqual(r.lignes[0].fiabilite.niveau, 'a_confirmer');
+  assert.ok(JSON.stringify(r.lignes[0].fiabilite).includes('coût ambigu dans le relevé : 2 lignes, PA de 0.76 à 0.85'));
+  assert.ok(!(r.lignes[0].alertes || []).some(a => a.code === 'A4'));
+});
+
 console.log('test_politique_tarifaire_t2 : ' + n + ' épreuves OK');
