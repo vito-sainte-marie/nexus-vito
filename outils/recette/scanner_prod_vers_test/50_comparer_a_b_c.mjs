@@ -12,7 +12,8 @@ const require = createRequire(path.resolve(need('moteur')) + '/');
 const E = require('./nexus-politique-tarifaire-ecran.js'), PM = require('./nexus-produits-mesure.js'), T = require('./nexus-politique-tarifaire.js');
 const lire = f => JSON.parse(fs.readFileSync(f, 'utf8'));
 const exp = lire(need('export')), reg = lire(need('registres')), r1 = lire(need('t1'));
-const compl = opt('complements') ? lire(opt('complements')) : {};
+const avecCompl = !!opt('complements');
+const compl = avecCompl ? lire(opt('complements')) : {};
 const rayons = new Set(opt('rayons') ? lire(opt('rayons')) : r1.lignes.map(l => l.rayon)); // par défaut : rayons des résultats T1 (décision 1 du pilote : périmètre à arbitrer)
 const num = v => v === '' || v == null ? null : Number(String(v).replace(',', '.'));
 const lignes = j => j.lignes.map(s => { const c = s.split('\t'), o = {}; j.colonnes.forEach((k, i) => o[k] = c[i]);
@@ -80,13 +81,16 @@ const P2 = brutes2.filter(r => rayons.has(r.categorie)), P1 = brutes1.filter(r =
 const prec = L => brutes1.filter(r => L.some(x => x.article === r.article));
 const rapport = { export: path.basename(need('export')), periode, jours, stock_source: stockSource, rayons: [...rayons].length, perimetre_rayons: opt('rayons') ? 'fichier fourni' : 'rayons des résultats T1 (décision 1 du pilote non tranchée)',
   stock: { lignes_brutes: stockBrut.length, libelles_ambigus: st.ambigus.length }, passes: [] };
-for (const etiquette of ['conditionnel', 'réel']) {
+// Sans --complements, le passage « conditionnel » n'a pas de données propres : il serait identique au réel et ferait compter chaque écart deux fois en « régression ». On ne le calcule donc pas.
+for (const etiquette of avecCompl ? ['conditionnel', 'réel'] : ['réel']) {
   rapport.passes.push(passe('A', etiquette, { lignes: P2, precedent: P1, stock: stockBrut }));
   rapport.passes.push(passe('B', etiquette, { lignes: P2, precedent: P1, stock: null }));
   rapport.passes.push(passe('C', etiquette, { lignes: brutes2, precedent: brutes1, stock: stockBrut }));
 }
-rapport.regressions = rapport.passes.filter(p => p.etiquette === 'conditionnel' && p.passe !== 'B').reduce((n, p) => n + (p.classes['régression'] || 0), 0);
+rapport.passage_conditionnel = avecCompl ? 'calculé' : 'non calculé : aucun complément fourni (--complements)';
+rapport.regressions = !avecCompl ? null : rapport.passes.filter(p => p.etiquette === 'conditionnel' && p.passe !== 'B').reduce((n, p) => n + (p.classes['régression'] || 0), 0);
 if (opt('sortie')) fs.writeFileSync(opt('sortie'), JSON.stringify(rapport, null, 1));
 for (const p of rapport.passes) console.log(`${p.passe} ${p.etiquette.padEnd(12)} ${p.references} réf., ${p.comparees_a_t1} comparées à T1 : ${p.identiques} identiques, ${p.ecarts} écarts ${JSON.stringify(p.classes)}`);
+if (!avecCompl) { console.log('passage conditionnel non calculé : aucun complément fourni (--complements) ; régressions non évaluées.'); process.exit(0); }
 console.log('régressions (passes A et C, conditionnel) :', rapport.regressions);
 process.exit(rapport.regressions ? 1 : 0);
