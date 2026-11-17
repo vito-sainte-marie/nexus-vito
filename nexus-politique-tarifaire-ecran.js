@@ -5,6 +5,7 @@
   'use strict';
 
   var T = global.NexusPolitiqueTarifaire || (typeof require === 'function' ? require('./nexus-politique-tarifaire.js') : null);
+  var PM = global.NexusProduitsMesure || (typeof require === 'function' ? require('./nexus-produits-mesure.js') : null);
   var B = global.NexusBadgeEtat || (typeof require === 'function' ? require('./nexus-badge-etat.js') : null);
 
   var RANG_GRAVITE = { critique: 0, a_verifier: 1, information: 2 };
@@ -39,6 +40,30 @@
       if (contr.has(cle)) return 'contractuel';
       var fam = o.famille ? o.famille(row.categorie, row.article, o.exclusions) : null;
       return fam && fam.exclue ? 'reglemente' : null;
+    };
+  }
+
+
+  // ---------- Contexte déclaratif du moteur : même lecture que le Scanner T1 (natures, justifications de la période, TVA confirmée) ----------
+  // Sans lui, une perte justifiée redevient injustifiée et une opération de caisse est analysée comme une vente.
+  // stockFourni vaut false : la page ne charge pas de relevé de stock avec PA net HT, le moteur n'écrit alors qu'une limite.
+  function contexteDeclaratif(declarations, rows, periode) {
+    var d = declarations || {}, R = rows || [];
+    var jourIso = function (x) { return x ? String(x).slice(0, 10) : ''; };
+    var natures = PM.actives(d.produits_nature_reference || [], 'declare_le');
+    var justifs = PM.actives(d.produits_justifications_marge || [], 'valide_le');
+    if (periode) justifs = justifs.filter(function (x) { return jourIso(x.periode_debut) === jourIso(periode.debut) && jourIso(x.periode_fin) === jourIso(periode.fin); });
+    var ix = PM.indexerParNom(R);
+    var position = new Map(); R.forEach(function (r, i) { position.set(r, i); });
+    return {
+      natureDe: function (row) {
+        var nomUnique = ix.get(PM.normaliserNom(row.article)) === position.get(row);
+        var n = PM.natureDe(natures, row, nomUnique);
+        return n ? n.nature : null;
+      },
+      justifications: justifs,
+      tva: { confirmations: PM.actives(d.produits_tva_confirmations || [], 'confirme_le') },
+      stockFourni: false
     };
   }
 
@@ -358,7 +383,7 @@
     if (pr.length) h += '<details class="sc-carte pt-preuves"><summary><span class="sc-nom">Preuves techniques (' + pr.length + ')</span><span class="sc-chev"></span></summary>' + pr.map(function (p) { return '<div class="sc-methode">' + esc(p.article) + ' : ' + esc(p.mention) + (p.raisons.length ? ' (' + esc(p.raisons.join(', ')) + ')' : '') + '</div>'; }).join('') + '</details>';
     h += '<details class="sc-carte pt-sources"><summary><span class="sc-nom">Sources et limites</span><span class="sc-chev"></span></summary>' + cs.map(function (x) {
       return '<p class="sc-methode"><b>' + esc(x.titre) + '</b> : ' + esc(x.unite) + '. ' + esc(x.periode) + '. ' + esc(x.source) + ' ' + esc(x.limite) + '</p>';
-    }).join('') + '</details>';
+    }).join('') + (s.stockFourni === false ? '<p class="sc-methode"><b>Relevé de stock</b> : non fourni. Le coût des références n\'est pas comparé au PA net HT du stock.</p>' : '') + '</details>';
     if (etat.ouverte) { var l = a.lignes.filter(function (x) { return x.article === etat.ouverte; })[0]; if (l) h += htmlFiche(l); }
     return h;
   }
@@ -409,7 +434,7 @@
   }
   var API = { cartes: cartes, scenarios: scenarios, alertesCartes: alertesCartes, trier: trier, filtrer: filtrer, valeursFiltres: valeursFiltres,
     preuves: preuves, conseiller: conseiller, fiche: fiche, etatAcces: etatAcces, peutVoirOnglet: peutVoirOnglet, filtrerSite: filtrerSite,
-    regimeDe: regimeDe, controle: controle, familles: familles, avertissementRegime: avertissementRegime, infoRegime: infoRegime, badgeRegime: badgeRegime, badgeLigne: badgeLigne, blocFiche: blocFiche,
+    regimeDe: regimeDe, contexteDeclaratif: contexteDeclaratif, controle: controle, familles: familles, avertissementRegime: avertissementRegime, infoRegime: infoRegime, badgeRegime: badgeRegime, badgeLigne: badgeLigne, blocFiche: blocFiche,
     chargerRegistres: chargerRegistres, chargerVentes: chargerVentes, lireCompte: lireCompte, libellePeriode: libellePeriode,
     htmlPage: htmlPage, htmlLigne: htmlLigne, htmlControle: htmlControle, htmlFiche: htmlFiche, graviteLigne: graviteLigne, CSS: CSS };
   global.NexusPolitiqueTarifaireEcran = API;

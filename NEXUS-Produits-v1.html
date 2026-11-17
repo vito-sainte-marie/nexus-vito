@@ -1678,6 +1678,7 @@ nexusRequireAuth().then(async employee => {
     const base = { periode: PERIODE_DONNEES, regimeDe: E.regimeDe({
       contractuels: new Set(), exclusions, normaliser: NexusProduitsMesure.normaliserNom,
       famille: (cat, art, ex) => (window.NexusMarge && NexusMarge.familleMarge ? NexusMarge.familleMarge(cat, art, ex) : { exclue: false }) }) };
+    Object.assign(base, E.contexteDeclaratif(DECLARATIONS_PRODUITS, MESURES_PRODUITS.map(x => x.row), PERIODE_DONNEES));
     const ctx = AR.contexteDepuisRegistres(reg, base);
     ANALYSE_TARIF = { analyse: TP.analyser(MESURES_PRODUITS.map(x => x.row), LIGNES_PRECEDENTES, ctx), incoherences: (ctx && ctx.incoherences) || [] };
     return ANALYSE_TARIF;
