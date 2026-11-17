@@ -75,17 +75,27 @@
   //  - stock : relevé brut [{libelle, pa_net_ht}] ou null (alors stockFourni vaut false) ; rapproché par libellé normalisé, jamais par code-barres.
   // Règle du Scanner T1 : libellé exact (espaces normalisés, casse respectée), première ligne rencontrée retenue.
   // Un même libellé exact avec deux coûts différents est compté (conflits) : le choix de la ligne reste à arbitrer.
+  // Un libellé dont les lignes portent des PA différents est retenu SANS PA (coût ambigu) : aucun coût tiré au hasard.
   function stockParLibelle(brut) {
-    var par = new Map(), conflits = 0;
+    var par = new Map(), conflits = 0, ambigus = [];
     (brut || []).forEach(function (r) {
-      var pa = num(r.pa_net_ht), k = PM.normaliserNom(r.libelle);
+      var pa = num(r.pa_net_ht), lib = PM.normaliserNom(r.libelle), k = lib.toLowerCase(); // le moteur rapproche sans tenir compte de la casse
       if (!k || pa === null) return;
       var e = par.get(k);
-      if (!e) par.set(k, { article: k, pa_net_ht: pa });
-      else if (Math.abs(e.pa_net_ht - pa) > 0.005) conflits++;
+      if (!e) par.set(k, { article: lib, pa_net_ht: pa, n: 1, min: pa, max: pa });
+      else { e.n++; if (pa < e.min) e.min = pa; if (pa > e.max) e.max = pa; }
     });
-    var lignes = []; par.forEach(function (e) { lignes.push(e); });
-    return { lignes: lignes, conflits: conflits, libelles: par.size };
+    var lignes = [];
+    par.forEach(function (e) {
+      if (e.max - e.min > 0.005) {
+        conflits++;
+        var f = function (x) { return String(Math.round(x * 100) / 100).replace('.', ','); };
+        var motif = 'coût ambigu dans le relevé : ' + e.n + ' lignes, PA de ' + f(e.min) + ' à ' + f(e.max);
+        ambigus.push({ article: e.article, motif: motif });
+        lignes.push({ article: e.article, pa_net_ht: null, ambigu: motif });
+      } else lignes.push({ article: e.article, pa_net_ht: e.pa_net_ht });
+    });
+    return { lignes: lignes, conflits: conflits, ambigus: ambigus, libelles: par.size };
   }
   function construireContexteTarif(sources) {
     var S = sources || {};

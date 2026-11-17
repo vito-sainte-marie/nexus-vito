@@ -6,6 +6,7 @@ const fs = require('fs'), path = require('path');
 const REF = process.env.NEXUS_REF_SCANNER;
 if (!REF || !fs.existsSync(REF)) { console.log('IGNORÉ : NEXUS_REF_SCANNER absent, parité non mesurée'); process.exit(0); }
 const E = require('./nexus-politique-tarifaire-ecran.js');
+const PM = require('./nexus-produits-mesure.js');
 const T = require('./nexus-politique-tarifaire.js');
 const T1 = path.join(REF, '01-T1-moteur', 't1');
 const cfg = require(path.join(T1, 'config_sainte_marie_t1.js')), C = cfg.contexte;
@@ -51,19 +52,20 @@ function passe(nom, { lignes, stock, tvaExplications, motifsDivergents }) {
   return { nom, references: r2.lignes.length, identiques, ecarts: ecarts.length, champs, gains_identiques: eg(r2.gains, r1.gains), statuts_identiques: eg(r2.synthese.statuts, r1.synthese.statuts), _ecarts: ecarts };
 }
 const st = E.stockParLibelle(stockBrut);
-const rapport = { stock: { lignes_brutes: stockBrut.length, libelles_distincts: st.libelles, libelles_en_conflit_de_cout: st.conflits, libelles_retenus: st.lignes.length } };
+const rapport = { stock: { lignes_brutes: stockBrut.length, libelles_distincts: st.libelles, libelles_en_conflit_de_cout: st.conflits, libelles_ambigus_sans_pa: st.ambigus.length, libelles_retenus: st.lignes.length } };
 rapport.parite_complete = passe('contexte page, stock brut, base T1 (TVA + motifs divergents fournis)', { lignes: P2, stock: stockBrut, tvaExplications: C.tva.explications, motifsDivergents: C.motifsDivergents });
 rapport.contexte_page_reel = passe('contexte page tel que câblé aujourd\'hui (stock brut, sans explications TVA ni motifs divergents)', { lignes: P2, stock: stockBrut });
 rapport.sans_stock = passe('sans stock', { lignes: P2, stock: null });
 // Classement : tout écart de la parité complète est une régression ; l'écart du contexte réel est « attendu » s'il s'explique par une donnée absente (décisions 3 et 4).
 const reel = rapport.contexte_page_reel;
 const ARB_SORTIE = 'nature des 3 sorties Périmés/Casse (sortie_perimes_casse absent du vocabulaire Produits)';
-const ARB_DOUBLON = 'doublons de libellé du stock (T1 : libellé exact sensible à la casse ; moteur : libellé normalisé, première ligne)';
+const ARB_DOUBLON = 'règle du coût ambigu : libellé de stock aux PA différents retenu sans PA, référence à confirmer (T1 prenait la première ligne)';
+const AMBIGUS = new Set(st.ambigus.map(a => a.article.toLowerCase()));
 const ARB_A5 = "alerte A5 « identité changée » propre au moteur T2, absente de T1";
 function classer(e) {
   const a = e.article;
   if (/Barre Mars Coeur Fondant|HARIBO CARENSAC|DURMINT/.test(a)) return { classe: 'attendu', arbitrage: ARB_SORTIE };
-  if (/^Royal soda 50cl Orange/.test(a)) return { classe: 'attendu', arbitrage: ARB_DOUBLON };
+  if (AMBIGUS.has(PM.normaliserNom(a).toLowerCase())) return { classe: 'attendu', arbitrage: ARB_DOUBLON };
   if (e.champs.length === 1 && e.champs[0] === 'alertes') return { classe: 'attendu', arbitrage: ARB_A5 };
   return { classe: 'régression', arbitrage: null };
 }
