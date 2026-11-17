@@ -173,7 +173,7 @@
     const cout = { ...COUT_DEFAUT, ...(ctx.cout || {}) };
     const methodeEtablie = !!cout.methode;
     const prec = indexer(precedentes);
-    const stock = indexer((ctx.stock || []).map(s => ({ article: s.article, code_barres: s.code_barres || '', pa: num(s.pa_net_ht) })));
+    const stock = indexer((ctx.stock || []).map(s => ({ article: s.article, code_barres: s.code_barres || '', pa: num(s.pa_net_ht), ambigu: s.ambigu || null })));
     const taxe = new Map();
     for (const r of courantes || []) if (num(r.tva) > 0) taxe.set(r.categorie, (taxe.get(r.categorie) || 0) + 1);
     const debut = jour(ctx.periode && ctx.periode.debut), fin = jour(ctx.periode && ctx.periode.fin);
@@ -216,6 +216,7 @@
       else if (varCout !== null && Math.abs(varCout) >= R.variationNotable) conf.push('coût en variation de ' + Math.round(varCout * 100) + ' % sur la période précédente');
       // Sans relevé de stock fourni (ctx.stockFourni === false) : aucun constat par référence ; la limite est écrite une fois (synthese.stockFourni).
       if (!st) conf.push(ctx.stockFourni !== false ? 'absent du relevé de stock : coût non contrôlé' : 'coût non contrôlé : relevé de stock non fourni');
+      else if (st.ambigu) conf.push(st.ambigu);
       else if (!(paStock > 0)) conf.push('PA net HT nul au relevé de stock');
       else if (ecartStock !== null && Math.abs(ecartStock) > R.ecartStockInsuffisant) ins.push('coût écarté de ' + Math.round(ecartStock * 100) + ' % du PA net HT du stock');
       else if (ecartStock !== null && Math.abs(ecartStock) > R.ecartStockConfirmer) conf.push('coût écarté de ' + Math.round(ecartStock * 100) + ' % du PA net HT du stock');
