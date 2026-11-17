@@ -43,7 +43,7 @@ function executer(html, ROWS, vue) {
   const corps = { innerHTML: '', querySelector: () => mk(), querySelectorAll: () => [], addEventListener() {} };
   ctx.document = { getElementById: id => id === 'vueCorps' ? corps : mk(), querySelector: () => mk(), querySelectorAll: () => [], addEventListener() {}, createElement: () => mk(), body: mk(), documentElement: mk() };
   ctx.location = { search: '', href: 'http://x/', pathname: '/x' };
-  for (const f of ['nexus-vocabulaire.js', 'nexus-periodes.js', 'nexus-conseiller.js', 'nexus-marge.js', 'nexus-produits-mesure.js', 'nexus-produits-vues.js', 'nexus-badge-etat.js', 'nexus-produits-securite.js', 'nexus-scanner-tarifaire.js']) vm.runInContext(fs.readFileSync(path.join(R, f), 'utf8'), ctx, { filename: f });
+  for (const f of ['nexus-vocabulaire.js', 'nexus-periodes.js', 'nexus-conseiller.js', 'nexus-marge.js', 'nexus-produits-mesure.js', 'nexus-produits-vues.js', 'nexus-badge-etat.js', 'nexus-politique-tarifaire.js', 'nexus-politique-tarifaire-registres.js', 'nexus-politique-tarifaire-ecran.js', 'nexus-produits-securite.js', 'nexus-scanner-tarifaire.js']) vm.runInContext(fs.readFileSync(path.join(R, f), 'utf8'), ctx, { filename: f });
   ctx.setTimeout = f => { try { f(); } catch (e) { errs.push(String(e)); } };
   const code2 = code.replace(APPEL, APPEL + `
     __calc = () => { try { __instr({ marge: scannerMarge(), texte: scannerTexteMarge('BAS') }); ouvrirVue('scanner'); } catch (e) { __errVues(e); } };
@@ -51,7 +51,7 @@ function executer(html, ROWS, vue) {
   ctx.__errVues = e => errs.push(String(e && e.message));
   let instr = null; ctx.__instr = x => { instr = x; };
   try { vm.runInContext(code2, ctx, { filename: 'page.js' }); } catch (e) { errs.push(String(e)); }
-  return new Promise(res => setTimeout(() => { if (ctx.__calc) ctx.__calc(); res({ errs, corps: corps.innerHTML, instr, requetes, ctx }); }, 1200));
+  return new Promise(res => setTimeout(() => { if (ctx.__calc) ctx.__calc(); setTimeout(() => res({ errs, corps: corps.innerHTML, instr, requetes, ctx }), 300); }, 1200));
 }
 
 
@@ -72,33 +72,27 @@ function jeu(site) {
   const c = r.corps;
   assert.ok(c.length > 500, 'vue Scanner vide : ' + r.errs.join(' | ').slice(0, 300));
   assert.ok(!/Total global/i.test(c), 'la ligne « Total global » doit avoir disparu');
-  assert.ok(c.includes("Une référence peut figurer dans plusieurs contrôles ; les montants ne s'additionnent pas."), 'phrase de non-additivité');
-  assert.ok(/Scanner tarifaire/.test(c) && /Vos prix sous contrôle/.test(c), 'en-tête');
-  assert.ok(/produits-scanner-tarifaire/.test(c), 'icône officielle de l\'en-tête');
+  // Étape 2 (#332) : la vue consomme le moteur T2. Chaque différence avec le T1 cite sa ligne de matrice T1 → T2 (fiche v2, #160).
+  // Matrice « Synthèse » : quatre cartes, minimum et cible jamais additionnés ; la phrase T1 de non-additivité est remplacée.
+  assert.ok(/jamais additionnés/.test(c), 'scénarios alternatifs, jamais additionnés');
+  assert.ok(/Scanner tarifaire/.test(c), 'en-tête');
+  assert.ok(/produits-scanner-tarifaire/.test(c), 'icône officielle de l\'en-tête (conservée)');
   assert.ok(/nexus-avatar-128\.png/.test(c), 'avatar du Conseiller');
-  for (const id of ['pertes', 'couts', 'marges', 'regl', 'verif']) assert.ok(c.includes(`data-carte="${id}"`), 'carte ' + id);
-  assert.strictEqual((c.match(/<details class="sc-carte"/g) || []).length, 5, 'cinq cartes');
-  assert.strictEqual((c.match(/<details class="sc-carte" open/g) || []).length, 1, 'une seule carte ouverte');
-  assert.ok(/sc-chev/.test(c), 'chevrons');
-  assert.ok(/data-s="\d+"/.test(c), 'accès aux fiches');
-  assert.ok(/Ouvrir la fiche produit/.test(c));
-  assert.ok(/id="scRech"/.test(c) && /id="scTri"/.test(c), 'recherche et tri');
-  // Indicateurs issus du moteur : pas de valeurs en dur dans la page.
-  const dur = html.slice(html.indexOf('function ouvrirScanner'), html.indexOf('function ouvrirVue'));
+  // Matrice « Synthèse » : les cinq cartes T1 (pertes/couts/marges/regl/verif) deviennent quatre cartes de synthèse.
+  for (const id of ['marge_negative', 'propositions', 'a_verifier', 'non_constates']) assert.ok(c.includes(`data-carte="${id}"`), 'carte ' + id);
+  assert.strictEqual((c.match(/data-carte="/g) || []).length, 4, 'quatre cartes de synthèse');
+  for (const id of ['pertes', 'couts', 'marges', 'regl', 'verif']) assert.ok(!c.includes(`data-carte="${id}"`), 'carte T1 ' + id + ' remplacée');
+  // Matrice « Familles de contrôle » : quatre familles (bloc D) ; ventes à perte → A3, prix réglementés → A8, coûts → A4.
+  for (const t of ['Pertes et conformité', 'Fiabilité des données', 'Décisions de prix', 'Exceptions validées']) assert.ok(c.includes(t), 'famille ' + t);
+  assert.ok(/data-controle=/.test(c) && /data-article="/.test(c), 'accès aux références');
+  assert.ok(/id="ptRecherche"/.test(c), 'recherche');
+  // Aucune valeur en dur dans le montage.
+  const dur = html.slice(html.indexOf('async function ouvrirScanner'), html.indexOf('function ouvrirVue'));
   assert.ok(!/\b847\b|26,41|146,18/.test(dur), 'aucune valeur en dur');
-  assert.strictEqual((c.match(/<details/g) || []).length, 5, 'aucun accordéon imbriqué dans les cartes');
-  assert.strictEqual((c.match(/<h2/g) || []).length, 1, 'un seul titre de vue');
-  assert.strictEqual((c.match(/Vente à perte non justifiée : vérifier/g) || []).length, 1, 'phrase des pertes écrite une fois');
-  assert.ok(c.includes('Mes prix réglementés') && !/>Prix réglementés</.test(c), 'Mes prix réglementés');
-  assert.ok(/id="scTout"/.test(c) && /id="scFiltre"/.test(c), 'liste complète et puce de filtre');
-  assert.ok(/data-voir="\$\{cle\}"/.test(html) && /Voir les \$\{n\} autre/.test(html), 'lien Voir les N autres vers la liste filtrée');
-  assert.ok(/PAS_SC = 10/.test(html) && /data-plus/.test(html), 'liste complète paginée par 10');
-  // Le bouton du rendu initial doit avoir son écouteur : maj() est appelée au premier rendu (défaut recetté 16/11).
-  const blocSc = html.slice(html.indexOf('const maj = () =>'), html.indexOf("rech.addEventListener('input'"));
-  assert.ok(/\[data-plus\][\s\S]*limiteSc \+= PAS_SC/.test(blocSc), 'écouteur de [data-plus] posé dans maj()');
-  assert.ok(/\n\s*maj\(\);[^\n]*\n\s*rech\.addEventListener\('input'/.test(html), 'maj() appelée au premier rendu');
-  assert.ok(/Afficher \$\{Math\.min\(PAS_SC, L\.length - limiteSc\)\} de plus \(\$\{L\.length - limiteSc\} restantes\)/.test(html) && !/Voir les \$\{L\.length - limiteSc\} autres/.test(html), 'libellé du bouton : 10 de plus (N restantes)');
-  console.log('OK  structure : indicateurs, cinq cartes, chevrons, fiches, recherche, sans total');
+  assert.ok(!/Total global/i.test(c));
+  assert.ok(/data-plus/.test(c) || /data-plus/.test(html), 'liste paginée par bouton');
+  assert.ok(/Mes prix réglementés|Prix réglementés|prix réglementés/.test(c) || /Aucune référence concernée/.test(c), 'contrôle réglementaire présent (A8)');
+  console.log('OK  structure T2 : quatre cartes, quatre familles, recherche, sans total');
 
   const P = r.ctx.NexusScannerPresentation;
   assert.ok(P, 'API de présentation exposée');

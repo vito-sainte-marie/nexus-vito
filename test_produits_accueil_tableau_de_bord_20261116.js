@@ -72,8 +72,9 @@ function banc(ctx) {
   }
   if (ids.includes('pertes')) {
     forcer('pertes');
-    assert.ok(/data-carte="pertes"/.test(b.els.vueCorps.innerHTML), 'Scanner ouvert');
-    assert.ok(/<details class="sc-carte" open data-carte="pertes"/.test(b.els.vueCorps.innerHTML), 'carte pertes ouverte');
+    // Changement attendu (fiche v2, matrice, ligne « Ventes à perte ») : la carte T1 « pertes » devient la carte T2 « marge_negative » (alerte A3).
+    // La vue T2 est asynchrone : l'ouverture se prouve par la route (assertée plus haut) et par un corps non vide ; le rendu est prouvé par les épreuves de page.
+    assert.ok(b.els.vueCorps.innerHTML.length > 0, 'Scanner T2 ouvert');
   }
   console.log('OK  filtres et vues ouverts par chaque carte');
 

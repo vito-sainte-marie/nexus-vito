@@ -81,7 +81,8 @@ for (const f of ['NEXUS-Scanner-v1.html', 'nexus-app-donnees.js', 'nexus-brief-d
 // Aucune écriture dans Produits côté prix / R5 (lecture seule)
 const prod = lire('NEXUS-Produits-v1.html');
 assert.ok(/scannerNormalise\(/.test(prod) && /normaliserScannerTarifaire/.test(prod), 'Produits utilise le normaliseur');
-assert.ok(/NEXUS-Scanner-v1\.html/.test(prod), 'lien vers Scanner NEXUS');
+// Changement attendu (fiche v2, actions autorisées) : le lien vers NEXUS-Scanner-v1.html est retiré de la vue ; la page Scanner reste identique à Production (épreuve dédiée).
+assert.ok(!/href="NEXUS-Scanner-v1\.html"/.test(prod), 'plus de lien d\'écran vers l\'ancien Scanner');
 assert.ok(!/journal_decisions[^;\n]*\.(insert|upsert|update|delete)\(/.test(prod), 'Produits n\'écrit pas dans journal_decisions');
 assert.ok(!/\.from\(['"](produits_appel|marge_exceptions|journal_decisions)['"]\)\s*\.(insert|upsert|update|delete)/.test(prod));
 console.log('OK  consommateurs et lecture seule');

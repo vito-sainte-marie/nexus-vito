@@ -43,7 +43,7 @@ function executer(html, ROWS, vue) {
   const corps = { innerHTML: '', querySelector: () => mk(), querySelectorAll: () => [], addEventListener() {} };
   ctx.document = { getElementById: id => id === 'vueCorps' ? corps : mk(), querySelector: () => mk(), querySelectorAll: () => [], addEventListener() {}, createElement: () => mk(), body: mk(), documentElement: mk() };
   ctx.location = { search: '', href: 'http://x/', pathname: '/x' };
-  for (const f of ['nexus-vocabulaire.js', 'nexus-periodes.js', 'nexus-conseiller.js', 'nexus-marge.js', 'nexus-produits-mesure.js', 'nexus-produits-vues.js', 'nexus-badge-etat.js', 'nexus-produits-securite.js', 'nexus-scanner-tarifaire.js']) vm.runInContext(fs.readFileSync(path.join(R, f), 'utf8'), ctx, { filename: f });
+  for (const f of ['nexus-vocabulaire.js', 'nexus-periodes.js', 'nexus-conseiller.js', 'nexus-marge.js', 'nexus-produits-mesure.js', 'nexus-produits-vues.js', 'nexus-badge-etat.js', 'nexus-politique-tarifaire.js', 'nexus-politique-tarifaire-registres.js', 'nexus-politique-tarifaire-ecran.js', 'nexus-produits-securite.js', 'nexus-scanner-tarifaire.js']) vm.runInContext(fs.readFileSync(path.join(R, f), 'utf8'), ctx, { filename: f });
   ctx.setTimeout = f => { try { f(); } catch (e) { errs.push(String(e)); } };
   const code2 = code.replace(APPEL, APPEL + `
     __calc = () => { try { __instr({ marge: scannerMarge(), texte: scannerTexteMarge('BAS') }); ouvrirVue('scanner'); } catch (e) { __errVues(e); } };
@@ -51,7 +51,7 @@ function executer(html, ROWS, vue) {
   ctx.__errVues = e => errs.push(String(e && e.message));
   let instr = null; ctx.__instr = x => { instr = x; };
   try { vm.runInContext(code2, ctx, { filename: 'page.js' }); } catch (e) { errs.push(String(e)); }
-  return new Promise(res => setTimeout(() => { if (ctx.__calc) ctx.__calc(); res({ errs, corps: corps.innerHTML, instr, requetes }); }, 1200));
+  return new Promise(res => setTimeout(() => { if (ctx.__calc) ctx.__calc(); setTimeout(() => res({ errs, corps: corps.innerHTML, instr, requetes }), 300); }, 1200));
 }
 
 (async () => {
@@ -63,8 +63,12 @@ function executer(html, ROWS, vue) {
   assert.ok(ok.instr && ok.instr.marge && !ok.instr.marge.erreur, 'scannerMarge ne doit pas échouer : ' + ok.errs.join(' | ').slice(0, 400));
   assert.deepStrictEqual(Array.from(ok.instr.marge.ecarts, e => e.article), ['BAS'], 'écarts : ' + JSON.stringify(ok.instr.marge.ecarts.map(e => e.article)));
   assert.ok(ok.instr.texte, 'texte R5 de la fiche présent');
-  assert.ok(/Écarts de marge dans le groupe/.test(ok.corps), 'bloc Marge+ absent de la vue Scanner tarifaire : ' + ok.corps.slice(0, 200));
-  assert.ok(/NEXUS-Scanner-v1\.html/.test(ok.corps), 'lien vers Scanner NEXUS absent');
+  // Changement attendu (fiche v2, matrice T1 -> T2, ligne « Marge+ ») : le bloc T1 « Écarts de marge dans le groupe » disparaît ;
+  // l'écart à la médiane n'est plus un gain, il n'est ni proposé ni additionné. Sans seuil validé, aucune carte A2 n'est affichée.
+  assert.ok(!/Écarts de marge dans le groupe/.test(ok.corps), 'le bloc T1 Marge+ ne doit plus exister (matrice, ligne Marge+)');
+  assert.ok(/data-carte="propositions"/.test(ok.corps) && /jamais additionnés/.test(ok.corps), 'la synthèse T2 porte le gain, jamais additionné');
+  // Changement attendu (fiche v2, § actions autorisées) : seules quatre actions sont permises, le lien vers NEXUS-Scanner-v1.html est retiré de la vue.
+  assert.ok(!/NEXUS-Scanner-v1\.html/.test(ok.corps), 'le lien vers l\'ancien Scanner n\'existe plus dans la vue (fiche v2, actions autorisées)');
   const tabs = ok.requetes.filter(r => ['produits_appel', 'marge_exceptions', 'journal_decisions'].includes(r.t));
   assert.strictEqual(tabs.length, 3);
   for (const r of tabs) assert.ok(r.filtres.site, `${r.t} doit être filtrée par site`);
@@ -74,8 +78,10 @@ function executer(html, ROWS, vue) {
   const mut = html.replace("produitsAppel: new Set((LECTURES_MARGE.produits_appel || []).map(r => r.article))", 'produitsAppel: (() => { throw new Error("calcul R5 en échec"); })()');
   assert.notStrictEqual(mut, html, 'mutation non appliquée');
   const ko = await executer(mut, jeu(true, site));
-  assert.ok(/Écarts Marge\+ indisponibles/.test(ko.corps), 'un échec du calcul R5 doit afficher « Écarts Marge+ indisponibles »');
+  // Changement attendu (matrice, ligne « Marge+ ») : la vue ne porte plus le bloc Marge+ ; un échec du calcul R5 (fiche produit)
+  // ne doit ni vider la vue T2 ni réintroduire le bloc T1 : la vue reste rendue, le calcul R5 reste isolé.
+  assert.ok(/data-carte="marge_negative"/.test(ko.corps), 'un échec R5 ne doit pas casser la vue T2');
   assert.ok(!/Écarts de marge dans le groupe/.test(ko.corps));
-  console.log('OK  échec du calcul : message « Écarts Marge+ indisponibles » affiché');
+  console.log('OK  échec du calcul R5 : la vue T2 reste rendue, sans bloc T1');
   process.exit(0);
 })().catch(e => { console.error(e); process.exit(1); });

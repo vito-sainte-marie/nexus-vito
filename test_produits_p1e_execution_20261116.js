@@ -21,7 +21,7 @@ function executer(html, extra, cible) {
   const corpsRec = { innerHTML: '', querySelector: () => mk(), querySelectorAll: () => [], addEventListener() {} };
   ctx.document = { getElementById: id => id === 'vueCorps' ? corpsRec : mk(), querySelector: () => mk(), querySelectorAll: () => [], addEventListener() {}, createElement: () => mk(), body: mk(), documentElement: mk() };
   ctx.location = { search: '', href: 'http://x/', pathname: '/x' };
-  for (const f of ['nexus-conseiller.js', 'nexus-marge.js', 'nexus-produits-mesure.js', 'nexus-campagne-outils.js', 'nexus-campagne-ventes.js', 'nexus-produits-vues.js', 'nexus-scanner-tarifaire.js', 'nexus-badge-etat.js', 'nexus-produits-securite.js']) vm.runInContext(fs.readFileSync(path.join(R, f), 'utf8'), ctx, { filename: f });
+  for (const f of ['nexus-conseiller.js', 'nexus-marge.js', 'nexus-produits-mesure.js', 'nexus-campagne-outils.js', 'nexus-campagne-ventes.js', 'nexus-produits-vues.js', 'nexus-scanner-tarifaire.js', 'nexus-badge-etat.js', 'nexus-politique-tarifaire.js', 'nexus-politique-tarifaire-registres.js', 'nexus-politique-tarifaire-ecran.js', 'nexus-produits-securite.js']) vm.runInContext(fs.readFileSync(path.join(R, f), 'utf8'), ctx, { filename: f });
   ctx.setTimeout = f => { try { f(); } catch (e) { errs.push(e); } };
   process.on('unhandledRejection', e => errs.push(e));
   const marque = []; ctx.__marque = s => marque.push(s);

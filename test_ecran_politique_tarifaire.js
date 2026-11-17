@@ -26,12 +26,12 @@ const analyse = () => T.analyser(courantes, [], A.contexteDepuisRegistres(reg, {
 ok('quatre cartes : unité, période, source, limite écrites', () => {
   const cs = E.cartes(analyse());
   assert.strictEqual(cs.length, 4);
-  assert.deepStrictEqual(cs.map(c => c.id), ['propositions', 'a_verifier', 'non_constates', 'reglementaire']);
+  assert.deepStrictEqual(cs.map(c => c.id), ['marge_negative', 'propositions', 'a_verifier', 'non_constates']);
   cs.forEach(c => { assert.ok(c.unite && c.periode && c.source && c.limite, c.id); assert.ok(/01\/03\/2030/.test(c.periode)); });
 });
 
 ok('carte propositions : gain fiable au centre, à confirmer à côté', () => {
-  const a = analyse(), c = E.cartes(a)[0], m = a.gains.decisionnels.minimum;
+  const a = analyse(), c = E.cartes(a)[1], m = a.gains.decisionnels.minimum;
   assert.strictEqual(c.references, m.fiable.references);
   assert.ok(c.secondaire.indexOf('à confirmer') > 0);
 });
@@ -41,7 +41,7 @@ ok('minimum et cible jamais additionnés', () => {
   assert.deepStrictEqual(sc.map(s => s.id), ['prixDecides', 'minimum', 'cible']);
   assert.strictEqual(a.gains.additionnables, false);
   const somme = sc.reduce((t, s) => t + (s.fiable || 0), 0);
-  const cartePropo = E.cartes(a)[0].valeur;
+  const cartePropo = E.cartes(a)[1].valeur;
   assert.strictEqual(cartePropo, Math.round(a.gains.decisionnels.minimum.fiable.montant).toLocaleString('fr-FR') + ' €');
   if (a.gains.decisionnels.cible.fiable.montant) assert.notStrictEqual(cartePropo, Math.round(somme).toLocaleString('fr-FR') + ' €');
 });
@@ -98,7 +98,7 @@ ok('première page : dix lignes au plus, les autres derrière un bouton', () => 
   const a = analyse();
   const beaucoup = Array.from({ length: 25 }, (_, i) => Object.assign({}, a.lignes[0], { article: 'Produit ' + i }));
   const html = E.htmlPage({ analyse: Object.assign({}, a, { lignes: beaucoup }), role: 'gerant', filtres: {}, incoherences: [] });
-  assert.strictEqual((html.match(/class="pt-ligne"/g) || []).length, 10);
+  assert.strictEqual((html.split('id="ptRecherche"')[1].match(/class="vp-ligne-prod"/g) || []).length, 10);
   assert.ok(/Voir les 15 autres/.test(html));
 });
 
@@ -155,6 +155,49 @@ ok('lecture par vues du registre uniquement', () => {
   const src = fs.readFileSync(require.resolve('./nexus-politique-tarifaire-ecran.js'), 'utf8');
   const vues = src.match(/'v_tarif_[a-z_]+'/g) || [];
   assert.ok(vues.length >= 9);
+});
+
+
+ok('bloc fiche « Politique tarifaire » : replié, en lecture seule, sans bouton de décision', () => {
+  const l = analyse().lignes[0], h = E.blocFiche(l);
+  assert.ok(/<details class="pt-pol"/.test(h) && !/<details[^>]* open/.test(h));
+  assert.ok(/Politique tarifaire/.test(h));
+  assert.ok(!/<button|<input|<form|Appliquer|Proposer une exception|Décider/.test(h));
+});
+
+ok('avertissement de régime (A5) visible dans la liste et dans la fiche', () => {
+  const l = Object.assign({}, analyse().lignes[0], { regime: 'reglemente', regimeDeclare: null });
+  assert.ok(/Aucune action de prix/.test(E.avertissementRegime(l)));
+  assert.ok(/Régime à vérifier/.test(E.htmlLigne(l)));
+  assert.ok(/Aucune action de prix/.test(E.blocFiche(l)));
+  assert.strictEqual(E.avertissementRegime(Object.assign({}, l, { regime: 'libre' })), null);
+});
+
+ok('aucune référence de famille exclue ne reçoit de proposition de prix', () => {
+  const a = T.analyser(courantes, [], A.contexteDepuisRegistres(reg, { periode, regimeDe: () => 'reglemente' }));
+  a.lignes.forEach(l => assert.notStrictEqual(l.statut, 'proposition_a_valider', l.article));
+});
+
+ok('références à fiabilité insuffisante jamais dans « Décisions de prix »', () => {
+  const a = analyse(), ins = a.lignes.filter(l => l.fiabilite.niveau === 'insuffisante');
+  const fam = E.familles ? E.familles(a) : null;
+  if (fam) fam.filter(f => /Décisions de prix/.test(f.titre || '')).forEach(f => ins.forEach(l => assert.ok(!(f.articles || []).includes(l.article))));
+});
+
+ok('chaque cible cliquable de la page a une destination', () => {
+  const a = analyse(), l = a.lignes[0];
+  const h = E.htmlPage({ analyse: a, role: 'gerant', filtres: {}, incoherences: [], ouverte: l.article });
+  const cibles = h.match(/data-(fiche|article|controle-liste|conseil|plus|effacer)=/g) || [];
+  assert.ok(cibles.length > 0);
+  const src = fs.readFileSync(require.resolve('./NEXUS-Produits-v1.html'), 'utf8');
+  ['data-fiche', 'data-article', 'data-controle-liste', 'data-conseil', 'data-plus', 'data-effacer'].forEach(k => assert.ok(src.indexOf('[' + k + ']') > 0, k));
+});
+
+ok('NEXUS-Scanner-v1.html et la page Produits : aucune écriture, aucun rpc', () => {
+  const src = fs.readFileSync(require.resolve('./NEXUS-Produits-v1.html'), 'utf8');
+  const i = src.indexOf('async function calculerAnalyseTarif'), j = src.indexOf('function ouvrirVue(cle)');
+  const bloc = src.slice(i, j);
+  assert.ok(!/\.(insert|update|delete|upsert|rpc)\s*\(|tarif_enregistrer_decisions/.test(bloc));
 });
 
 console.log('test_ecran_politique_tarifaire : ' + n + ' épreuves OK');

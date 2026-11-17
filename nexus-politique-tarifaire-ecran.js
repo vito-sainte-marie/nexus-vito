@@ -29,30 +29,56 @@
     return p && p.debut && p.fin ? 'du ' + jourFr(p.debut) + ' au ' + jourFr(p.fin) : 'période inconnue';
   }
 
-  // ---------- Quatre cartes ----------
+  // ---------- Régime de prix : règle du Scanner T1 fournie au moteur ----------
+  // Contractuel avant famille exclue avant libre. Le registre des régimes (tarif_regimes_prix) reste prioritaire dans le moteur.
+  function regimeDe(o) {
+    o = o || {};
+    var contr = o.contractuels || { has: function () { return false; } };
+    return function (row) {
+      var cle = String(row.code_barres || '').trim() || (o.normaliser ? o.normaliser(row.article) : String(row.article || '').trim().toLowerCase());
+      if (contr.has(cle)) return 'contractuel';
+      var fam = o.famille ? o.famille(row.categorie, row.article, o.exclusions) : null;
+      return fam && fam.exclue ? 'reglemente' : null;
+    };
+  }
+
+  function alerteDe(l, code) { return (l.alertes || []).filter(function (a) { return a.code === code; })[0] || null; }
+  function lignesAlerte(L, code) { return L.filter(function (l) { return !!alerteDe(l, code); }); }
+  function montantAlerte(l, code) { var a = alerteDe(l, code); return a && a.consequence ? num(a.consequence.montant) : null; }
+
+  // ---------- Quatre cartes de synthèse (fiche v2) ----------
   function cartes(analyse) {
     var s = analyse.synthese, g = analyse.gains, L = analyse.lignes;
     var per = libellePeriode(s.periode);
     var minimum = g.decisionnels.minimum;
+    var a3 = lignesAlerte(L, 'A3'), nbPertes = 0, nbNulles = 0, sansJust = 0, pertes = 0;
+    a3.forEach(function (l) {
+      var m = montantAlerte(l, 'A3'), a = alerteDe(l, 'A3');
+      if (m !== null && m > 0) { nbPertes++; pertes += m; } else nbNulles++;
+      if (!(a.donnees && a.donnees.justification)) sansJust++;
+    });
     var aVerifier = L.filter(function (l) {
       return l.fiabilite.niveau === 'insuffisante' || ETATS_REGL_OUVERTS.indexOf(l.conformite.etat) >= 0;
-    }).length;
+    });
     var nonConstates = L.filter(function (l) { return l.prixDecide && ETATS_PRIX_NON_CONSTATES.indexOf(l.prixDecide.etat) >= 0; }).length;
-    var regl = L.filter(function (l) { return ETATS_REGL_OUVERTS.indexOf(l.conformite.etat) >= 0; }).length;
+    var sansPrecedente = L.length > 0 && L.every(function (l) { return num(l.tauxPrecedent) === null; });
     return [
+      { id: 'marge_negative', titre: 'Ventes à marge négative', valeur: String(a3.length), unite: 'références vendues à perte ou à marge nulle',
+        secondaire: nbPertes + ' à perte (' + eur0(pertes) + '), ' + nbNulles + ' à marge nulle, dont ' + sansJust + ' sans justification',
+        references: a3.length, periode: per, source: 'Ventes et coûts : dernier export Decenium ; justifications : registres.',
+        limite: 'Pertes et marges nulles comptées à part. La perte est mesurée au volume observé, elle n\'est pas un gain manqué.' },
       { id: 'propositions', titre: 'Propositions à valider', valeur: eur0(minimum.fiable.montant), unite: '€ de gain, scénario minimum, références fiables',
         secondaire: eur0(minimum.a_confirmer.montant) + ' à confirmer', references: minimum.fiable.references, periode: per,
         source: 'Ventes et coûts : dernier export Decenium ; seuils : registres tarifaires.',
         limite: 'Gain théorique à volume constant, non cumulable avec le scénario cible. Les références à confirmer ne sont pas comptées dans le chiffre principal.' },
-      { id: 'a_verifier', titre: 'Références à vérifier', valeur: String(aVerifier), unite: 'références',
+      { id: 'a_verifier', titre: 'Références à vérifier', valeur: String(aVerifier.length), unite: 'références',
+        secondaire: 'fiabilité insuffisante ou contrôle réglementaire ouvert', references: aVerifier.length,
         periode: per, source: 'Moteur de politique tarifaire sur le dernier export Decenium et les registres.',
-        limite: 'Fiabilité insuffisante ou contrôle réglementaire ouvert : ces références restent hors des gains.' },
-      { id: 'non_constates', titre: 'Prix décidés non constatés en caisse', valeur: String(nonConstates), unite: 'références',
+        limite: (sansPrecedente ? 'Sans période précédente : les variations de prix et de coût ne sont pas mesurées. ' : '') + 'Ces références restent hors des gains.' },
+      { id: 'non_constates', titre: 'Prix décidés non constatés', valeur: String(nonConstates), unite: 'références',
+        secondaire: 'prix décidé, pas encore vu en caisse', references: nonConstates,
         periode: per, source: 'Prix décidés : registres ; prix moyen constaté : dernier export Decenium.',
-        limite: 'Le prix moyen de la période ne prouve pas à lui seul le prix affiché en rayon.' },
-      { id: 'reglementaire', titre: 'Contrôles réglementaires ouverts', valeur: String(regl), unite: 'références',
-        periode: per, source: 'Registre des contrôles réglementaires.',
-        limite: 'Aucun gain n\'est calculé sur ces références.' }
+        limite: 'Le prix moyen de la période ne prouve pas à lui seul le prix affiché en rayon.' }
     ];
   }
 
@@ -99,6 +125,7 @@
       if (f.rayon && l.rayon !== f.rayon) return false;
       if (f.statut && l.statut !== f.statut) return false;
       if (f.fiabilite && l.fiabilite.niveau !== f.fiabilite) return false;
+      if (f.hors_insuffisante && l.fiabilite.niveau === 'insuffisante') return false;
       if (f.exception === 'avec' && !l.exception) return false;
       if (f.exception === 'sans' && l.exception) return false;
       if (f.alerte && !(l.alertes || []).some(function (a) { return a.code === f.alerte; })) return false;
@@ -156,77 +183,155 @@
   }
 
   function peutVoirOnglet(role, estCreateur) { return !!estCreateur || role === 'gerant' || role === 'manager'; }
+  // ---------- Contrôles : quatre familles, une carte par alerte du moteur ----------
+  var FAMILLES_CTRL = [
+    { id: 'pertes', titre: 'Pertes et conformité', codes: ['A3', 'A8'] },
+    { id: 'fiabilite', titre: 'Fiabilité des données', codes: ['A4', 'A5', 'FI'] },
+    { id: 'decisions', titre: 'Décisions de prix', codes: ['A1', 'A2'] },
+    { id: 'exceptions', titre: 'Exceptions validées', codes: ['A6', 'A7', 'EX'] }
+  ];
+  var TITRES_CTRL = {
+    A3: 'Quelles ventes se font à marge négative ?', A8: 'Quels contrôles réglementaires restent ouverts ?',
+    A4: 'Quels prix ou coûts varient anormalement ?', A5: 'Quelles sources se contredisent ?', FI: 'Quelles références n\'ont pas de données fiables ?',
+    A1: 'Quelles marges baissent par hausse du coût ?', A2: 'Quelles références sont sous leur seuil ?',
+    A6: 'Quels produits d\'appel se dégradent ?', A7: 'Quelles exceptions sortent de leurs conditions ?', EX: 'Quelles références vivent sous exception validée ?'
+  };
+  var NATURES_CTRL = {
+    A3: 'perte', A8: 'chiffre d\'affaires concerné, aucun gain', A4: 'écart de valorisation, aucun gain', A5: 'à qualifier, aucun montant',
+    FI: 'aucun montant', A1: 'impact estimé', A2: 'gain théorique', A6: 'marge perdue estimée', A7: 'écart au prix déclaré', EX: 'aucun montant'
+  };
+  var METHODES_CTRL = {
+    A3: 'Une vente est à marge négative quand le coût d\'achat dépasse le prix de vente ; à coût égal, la marge est nulle. Montant : écart unitaire multiplié par le volume observé.',
+    A8: 'Contrôles ouverts dans le registre réglementaire. Aucune proposition de prix n\'est faite sur ces références.',
+    A4: 'Variation de coût d\'au moins 50 % ou écart de plus de 10 % au coût du stock. L\'écart est une valorisation, jamais un gain.',
+    A5: 'Sources qui se contredisent : identité changée, régime de prix déclaré, coût nul. Aucun montant n\'est calculé.',
+    FI: 'Références dont les données ne permettent pas de conclure. Elles restent hors des gains et des propositions.',
+    A1: 'Hausse du coût d\'achat non répercutée. Impact estimé au volume observé, information seulement.',
+    A2: 'Taux de marge sous le seuil validé. Gain théorique au seuil, à volume constant. Les références à fiabilité insuffisante n\'apparaissent pas ici.',
+    A6: 'Produit d\'appel dont la marge se dégrade au-delà du réglage. Marge perdue estimée au volume observé.',
+    A7: 'Prix constaté hors des conditions de l\'exception validée. Écart au prix déclaré, au volume observé.',
+    EX: 'Références sous exception validée par le gérant. Ce sont des décisions, pas des anomalies.'
+  };
+  function filtreControle(code) {
+    if (code === 'FI') return { fiabilite: 'insuffisante' };
+    if (code === 'EX') return { statut: 'a_surveiller', exception: 'avec' };
+    if (code === 'A1' || code === 'A2') return { alerte: code, hors_insuffisante: true };
+    return { alerte: code };
+  }
+  function lignesControle(L, code) {
+    if (code === 'FI') return L.filter(function (l) { return l.fiabilite.niveau === 'insuffisante'; });
+    if (code === 'EX') return L.filter(function (l) { return l.statut === 'a_surveiller' && l.exception; });
+    var r = lignesAlerte(L, code);
+    if (code === 'A1' || code === 'A2') r = r.filter(function (l) { return l.fiabilite.niveau !== 'insuffisante'; });
+    return r;
+  }
+  function controle(analyse, code, familleId) {
+    var meta = code === 'FI' ? { gravite: 'a_verifier', action: 'verifier' } : code === 'EX' ? { gravite: 'information', action: 'surveiller' } : T.ALERTES[code];
+    var lignes = trier(lignesControle(analyse.lignes, code)), montant = null;
+    if (code !== 'FI' && code !== 'EX') lignes.forEach(function (l) { var m = montantAlerte(l, code); if (m !== null) montant = (montant || 0) + m; });
+    return { code: code, famille: familleId, icone: familleId, titre: TITRES_CTRL[code], nombre: lignes.length, montant: montant, nature: NATURES_CTRL[code],
+      gravite: meta.gravite, action: meta.action, lignes: lignes, methode: METHODES_CTRL[code], filtre: filtreControle(code) };
+  }
+  function familles(analyse) {
+    return FAMILLES_CTRL.map(function (f) {
+      return { id: f.id, titre: f.titre, cartes: f.codes.map(function (c) { return controle(analyse, c, f.id); }) };
+    });
+  }
+
+  // ---------- Régime de prix à voir dans la liste et la fiche ----------
+  var LIB_REGIME = { reglemente: 'réglementé', contractuel: 'contractuel', a_qualifier: 'à qualifier' };
+  function avertissementRegime(l) {
+    var d = l.regimeDeclare;
+    if (d && d.regime) return 'Régime de prix déclaré : ' + (LIB_REGIME[d.regime] || d.regime) + (d.raison ? ' (' + d.raison + ')' : '') + '. Aucune action de prix.';
+    if (l.regime && l.regime !== 'libre') return 'Régime de prix : ' + (LIB_REGIME[l.regime] || l.regime) + '. Aucune action de prix.';
+    return null;
+  }
 
   // ---------- Rendu ----------
-  function htmlCartes(cs) {
-    return '<div class="pt-cartes">' + cs.map(function (c) {
-      return '<div class="pt-carte" data-carte="' + c.id + '"><div class="pt-carte-titre">' + esc(c.titre) + '</div>' +
-        '<div class="pt-carte-valeur">' + esc(c.valeur) + '</div><div class="pt-carte-unite">' + esc(c.unite) + '</div>' +
-        (c.secondaire ? '<div class="pt-carte-second">' + esc(c.secondaire) + '</div>' : '') +
-        '<div class="pt-carte-meta">' + esc(c.periode) + '</div><div class="pt-carte-meta">' + esc(c.source) + '</div>' +
-        '<div class="pt-carte-limite">' + esc(c.limite) + '</div></div>';
-    }).join('') + '</div>';
-  }
-  function htmlAlertes(as) {
-    return '<div class="pt-alertes">' + as.map(function (a) {
-      return '<button type="button" class="pt-alerte" data-alerte="' + a.code + '"><span class="pt-alerte-n">' + a.nombre + '</span>' +
-        '<span class="pt-alerte-lib">' + esc(a.libelle) + '</span>' + B.gravite(graviteBadge(a.gravite)) + B.action(a.action, { clicable: false }) + '</button>';
-    }).join('') + '</div>';
-  }
   function htmlLigne(l) {
     var g = graviteLigne(l), badge = g === 3 ? '' : B.gravite(graviteBadge(['critique', 'a_verifier', 'information'][g]));
-    return '<tr class="pt-ligne" data-article="' + esc(l.article) + '" tabindex="0"><td>' + esc(l.article) + '</td><td>' + esc(l.rayon || '') + '</td><td>' +
-      esc(LIB_STATUT[l.statut] || l.statut) + '</td><td>' + esc(LIB_FIABILITE[l.fiabilite.niveau] || l.fiabilite.niveau) + '</td><td>' + badge + '</td></tr>';
+    var w = avertissementRegime(l);
+    return '<li><button type="button" class="vp-ligne-prod" data-article="' + esc(l.article) + '">' +
+      '<span class="vp-nom">' + esc(l.article) + (w ? '<span class="vp-badge">Régime à vérifier</span>' : '') + '</span>' +
+      '<span class="vp-meta">' + esc(l.rayon || '') + ' · ' + esc(LIB_STATUT[l.statut] || l.statut) + ' · fiabilité ' + esc((LIB_FIABILITE[l.fiabilite.niveau] || l.fiabilite.niveau).toLowerCase()) + '</span>' +
+      '<span class="vp-chiffres">Marge ' + esc(pct(l.taux)) + ' ' + badge + '</span></button></li>';
   }
-  function htmlFiche(l) {
-    var f = fiche(l), s = f.seuil;
-    var li = function (k, v) { return '<div class="pt-fiche-l"><span>' + esc(k) + '</span><b>' + esc(v) + '</b></div>'; };
-    return '<div class="pt-fiche"><div class="pt-fiche-titre">' + esc(f.article) + '</div>' +
-      li('Famille', (f.famille || 'non rattachée') + (f.origineFamille ? ' (' + f.origineFamille + ')' : '')) +
-      li('Taux de marge actuel', pct(f.tauxActuel)) +
-      li('Seuil applicable', s ? (LIB_REGLE[s.niveau] || s.niveau) + ' : minimum ' + pct(s.minimum) + ', cible ' + pct(s.cible) + (s.version !== null ? ' (version ' + (s.version.seuil_id !== undefined ? s.version.seuil_id : s.version) + ')' : '') : 'aucun seuil valide') +
-      li('PV moyen TTC', eur(f.pvTtc)) + li('Marge unitaire', eur(f.margeUnitaire)) +
+  function blocFiche(l) {
+    var f = fiche(l), s = f.seuil, pd = l.prixDecide, w = avertissementRegime(l);
+    var li = function (k, v) { return '<div class="pt-pol-l"><span class="sc-lib">' + esc(k) + '</span><span>' + esc(v) + '</span></div>'; };
+    var alertes = (l.alertes || []).map(function (a) { return (T.ALERTES[a.code] || {}).libelle || a.code; });
+    var version = s && s.version !== null ? ' (version ' + (s.version.seuil_id !== undefined ? s.version.seuil_id : s.version) + ')' : '';
+    return '<details class="pt-pol" data-pol="1"><summary>Politique tarifaire</summary>' +
+      (w ? '<p class="sc-conseil">' + esc(w) + '</p>' : '') +
+      li('Statut', (LIB_STATUT[f.statut] || f.statut) + (f.raisonStatut ? ' : ' + f.raisonStatut : '')) +
+      li('Seuil applicable', s ? (LIB_REGLE[s.niveau] || s.niveau) + ' : minimum ' + pct(s.minimum) + ' (' + (s.statutMinimum || 'sans statut') + '), cible ' + pct(s.cible) + ' (' + (s.statutCible || 'sans statut') + ')' + version : 'aucun seuil valide') +
       li('Fiabilité', (LIB_FIABILITE[f.fiabilite] || f.fiabilite) + (f.raisons.length ? ' : ' + f.raisons.join(', ') : '')) +
       li('Exception effective', f.exception ? (f.exception.type || 'oui') + ' (' + (f.exception.statut || '') + ')' : 'aucune') +
-      li('Statut', (LIB_STATUT[f.statut] || f.statut) + (f.raisonStatut ? ' : ' + f.raisonStatut : '')) + '</div>';
+      li('Prix décidé', pd ? eur(pd.prix_ttc) + ', état : ' + (pd.etat || 'n/d') : 'aucun') +
+      li('Alertes', alertes.length ? alertes.join(', ') : 'aucune') + '</details>';
+  }
+  function htmlFiche(l) {
+    return '<div class="sc-fiche pt-fiche" data-fiche-ouverte="' + esc(l.article) + '"><div class="sc-nom">' + esc(l.article) + '</div>' + blocFiche(l) +
+      '<button type="button" class="detail-btn" data-fiche="' + esc(l.article) + '">Ouvrir la fiche produit</button></div>';
+  }
+  function htmlControle(c, icone) {
+    var badgeG = c.nombre ? B.gravite(graviteBadge(c.gravite)) : B.gravite('conforme');
+    var chiffres = c.nombre + (c.nombre > 1 ? ' références' : ' référence') + (c.montant !== null ? ' · ' + eur0(c.montant) + ' (' + c.nature + ')' : ' · ' + c.nature);
+    return '<details class="sc-carte pt-ctrl" data-controle="' + c.code + '"><summary aria-label="Ouvrir le contrôle : ' + esc(c.titre) + '">' +
+      (icone ? '<span class="sc-ico">' + icone(c.icone) + '</span>' : '') +
+      '<span class="sc-carte-txt"><span class="sc-nom">' + esc(c.titre) + '</span><span class="vp-chiffres">' + esc(chiffres) + '</span>' +
+      '<span class="pt-badges">' + badgeG + B.action(c.action, { clicable: false }) + '</span></span><span class="sc-chev"></span></summary>' +
+      (c.nombre ? '<ul class="vp-liste">' + c.lignes.slice(0, 5).map(htmlLigne).join('') + '</ul>' +
+        '<button type="button" class="detail-btn" data-controle-liste="' + c.code + '">Voir dans la liste</button>' : '<p class="sc-note">Aucune référence concernée.</p>') +
+      '<p class="sc-methode">' + esc(c.methode) + '</p></details>';
   }
   function htmlPage(etat) {
-    // etat : { analyse, role, filtres, incoherences, ouverte }
-    var a = etat.analyse, f = etat.filtres || {};
+    // etat : { analyse, role, filtres, incoherences, ouverte, toutes, site, icone }
+    var a = etat.analyse, f = etat.filtres || {}, s = a.synthese;
     var lignes = trier(filtrer(a.lignes, f)), toutes = lignes.length, visibles = etat.toutes ? lignes : lignes.slice(0, 10);
     var vf = valeursFiltres(a.lignes);
     var opts = function (liste, sel, lib) { return '<option value="">Tous</option>' + liste.map(function (v) { return '<option value="' + esc(v) + '"' + (sel === v ? ' selected' : '') + '>' + esc(lib ? lib[v] || v : v) + '</option>'; }).join(''); };
-    var h = '';
-    h += htmlCartes(cartes(a));
+    var h = '<div class="sc-entete">' + (etat.icone ? '<span class="sc-entete-ico">' + etat.icone('entete') + '</span>' : '') +
+      '<div><h2 class="sc-h">Scanner tarifaire</h2><div class="sc-methode">' + esc((etat.site ? etat.site + ' · ' : '') + libellePeriode(s.periode) + ' · ' + s.references + ' références analysées') + '</div></div></div>';
+    var cs = cartes(a), couleur = { marge_negative: 'sc-rouge', propositions: 'sc-info', a_verifier: 'sc-ambre', non_constates: 'sc-gris' };
+    h += '<div class="sc-inds pt-inds">' + cs.map(function (c) {
+      return '<div class="sc-ind ' + couleur[c.id] + '" data-carte="' + c.id + '"><span class="sc-ind-val">' + esc(c.valeur) + '</span><span class="sc-ind-lib">' + esc(c.titre) + '</span><span class="sc-ind-sous">' + esc(c.secondaire) + '</span></div>';
+    }).join('') + '</div>';
     var sc = scenarios(a);
-    h += '<div class="pt-scenarios">' + sc.map(function (x) { return '<span>' + esc(x.libelle) + ' : ' + esc(eur0(x.fiable)) + '</span>'; }).join('') + '<em>Scénarios alternatifs, jamais additionnés.</em></div>';
+    h += '<p class="sc-note">' + sc.map(function (x) { return esc(x.libelle) + ' : ' + esc(eur0(x.fiable)); }).join(' · ') + ' (scénarios alternatifs, jamais additionnés).</p>';
     var c = conseiller(a, etat.role);
-    h += '<div class="pt-conseiller"><div class="pt-section-titre">Par où commencer</div><p>' + esc(c.texte) + '</p></div>';
-    h += htmlAlertes(alertesCartes(a));
-    if (etat.role !== 'manager' && etat.incoherences && etat.incoherences.length) h += '<div class="pt-integrite" role="alert">Incohérence dans les registres tarifaires : ' + etat.incoherences.length + ' ligne(s) à faire corriger.</div>';
-    h += '<div class="pt-filtres"><input type="search" id="ptRecherche" placeholder="Rechercher un article" value="' + esc(f.recherche || '') + '">' +
+    h += '<div class="carte conseiller sc-conseiller"><img class="conseiller-avatar" src="assets/avatar/nexus-avatar-128.png" srcset="assets/avatar/nexus-avatar-64.png 64w, assets/avatar/nexus-avatar-96.png 96w, assets/avatar/nexus-avatar-128.png 128w, assets/avatar/nexus-avatar-256.png 256w" sizes="80px" alt="Conseiller NEXUS">' +
+      '<div class="conseiller-corps"><div class="conseiller-titre">Conseiller NEXUS</div><p class="sc-conseil">' + esc(c.texte) + '</p>' +
+      (c.filtre ? '<button type="button" class="detail-btn" data-conseil="1">Voir dans la liste</button>' : '') + '</div></div>';
+    if (a.lignes.length && a.lignes.every(function (l) { return !l.regle; })) h += '<p class="sc-note">Aucun seuil validé : toutes les références restent sans seuil validé.</p>';
+    if (etat.role !== 'manager' && etat.incoherences && etat.incoherences.length) h += '<div class="pt-integrite sc-note" role="alert">Incohérence dans les registres tarifaires : ' + etat.incoherences.length + ' ligne(s) à faire corriger.</div>';
+    familles(a).forEach(function (fa) {
+      h += '<section class="vp-bloc pt-famille" data-famille="' + fa.id + '"><h3 class="nbe-groupe-titre">' + esc(fa.titre) + '</h3>' +
+        (fa.id === 'exceptions' ? '<p class="sc-note">Décisions du gérant : elles ne sont pas des anomalies.</p>' : '') +
+        '<div class="sc-cartes">' + fa.cartes.map(function (x) { return htmlControle(x, etat.icone); }).join('') + '</div></section>';
+    });
+    h += '<div class="vp-bloc sc-tout"><h3>Toutes les références</h3><div class="vp-filtres"><input type="search" id="ptRecherche" placeholder="Rechercher un article" value="' + esc(f.recherche || '') + '">' +
       '<select data-filtre="famille">' + opts(vf.famille, f.famille) + '</select><select data-filtre="rayon">' + opts(vf.rayon, f.rayon) + '</select>' +
       '<select data-filtre="statut">' + opts(Object.keys(LIB_STATUT), f.statut, LIB_STATUT) + '</select>' +
       '<select data-filtre="fiabilite">' + opts(Object.keys(LIB_FIABILITE), f.fiabilite, LIB_FIABILITE) + '</select>' +
       '<select data-filtre="exception"><option value="">Exceptions : toutes</option><option value="avec"' + (f.exception === 'avec' ? ' selected' : '') + '>Avec exception</option><option value="sans"' + (f.exception === 'sans' ? ' selected' : '') + '>Sans exception</option></select>' +
-      (f.alerte ? '<button type="button" class="pt-puce" data-effacer="alerte">Alerte ' + esc(f.alerte) + ' ×</button>' : '') + '</div>';
-    h += '<table class="pt-table"><thead><tr><th>Article</th><th>Rayon</th><th>Statut</th><th>Fiabilité</th><th>Gravité</th></tr></thead><tbody>' + visibles.map(htmlLigne).join('') + '</tbody></table>';
+      (f.alerte ? '<button type="button" class="detail-btn" data-effacer="alerte">Alerte ' + esc(f.alerte) + ' ×</button>' : '') + '</div>';
+    h += '<ul class="vp-liste">' + visibles.map(htmlLigne).join('') + '</ul>';
     if (!toutes) h += '<div class="empty-panel">Aucune référence ne correspond à ces filtres.</div>';
-    if (toutes > visibles.length) h += '<button type="button" class="pt-plus" data-plus="1">Voir les ' + (toutes - visibles.length) + ' autres références</button>';
+    if (toutes > visibles.length) h += '<button type="button" class="detail-btn vp-plus" data-plus="1">Voir les ' + (toutes - visibles.length) + ' autres références</button>';
+    h += '</div>';
     var pr = preuves(a);
-    if (pr.length) h += '<details class="pt-preuves"><summary>Preuves techniques (' + pr.length + ')</summary>' + pr.map(function (p) { return '<div>' + esc(p.article) + ' : ' + esc(p.mention) + (p.raisons.length ? ' (' + esc(p.raisons.join(', ')) + ')' : '') + '</div>'; }).join('') + '</details>';
+    if (pr.length) h += '<details class="sc-carte pt-preuves"><summary>Preuves techniques (' + pr.length + ')</summary>' + pr.map(function (p) { return '<div class="sc-methode">' + esc(p.article) + ' : ' + esc(p.mention) + (p.raisons.length ? ' (' + esc(p.raisons.join(', ')) + ')' : '') + '</div>'; }).join('') + '</details>';
+    h += '<details class="sc-carte pt-sources"><summary>Sources et limites</summary>' + cs.map(function (x) {
+      return '<p class="sc-methode"><b>' + esc(x.titre) + '</b> : ' + esc(x.unite) + '. ' + esc(x.periode) + '. ' + esc(x.source) + ' ' + esc(x.limite) + '</p>';
+    }).join('') + '</details>';
     if (etat.ouverte) { var l = a.lignes.filter(function (x) { return x.article === etat.ouverte; })[0]; if (l) h += htmlFiche(l); }
     return h;
   }
 
-  var CSS = '.pt-cartes{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(220px,100%),1fr));gap:10px}.pt-carte{border:1px solid var(--hairline,var(--nbe-line,#33414F));border-radius:12px;padding:12px;background:var(--panel,transparent)}' +
-    '.pt-carte-titre{font-size:13px;opacity:.85}.pt-carte-valeur{font-size:28px;font-weight:700;line-height:1.2}.pt-carte-unite,.pt-carte-meta,.pt-carte-limite{font-size:11px;opacity:.75}.pt-carte-second{font-size:13px;opacity:.9}' +
-    '.pt-scenarios{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;margin:8px 0}.pt-conseiller,.pt-integrite{margin:12px 0;padding:10px 12px;border-radius:10px;border:1px solid var(--hairline,var(--nbe-line,#33414F))}' +
-    '.pt-section-titre{font-size:12px;text-transform:uppercase;opacity:.7}.pt-alertes{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(240px,100%),1fr));gap:8px}' +
-    '.pt-alerte{display:flex;flex-wrap:wrap;gap:6px;align-items:center;text-align:left;padding:8px;border-radius:10px;border:1px solid var(--hairline,var(--nbe-line,#33414F));background:transparent;color:inherit;cursor:pointer}.pt-alerte-n{font-weight:700;font-size:18px}' +
-    '.pt-filtres{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0}.pt-filtres input,.pt-filtres select{min-width:0;max-width:100%}.pt-table{width:100%;border-collapse:collapse;font-size:13px}.pt-table th,.pt-table td{text-align:left;padding:6px;border-bottom:1px solid var(--hairline,var(--nbe-line,#33414F))}' +
-    '.pt-ligne{cursor:pointer}.pt-fiche{margin-top:12px;padding:12px;border:1px solid var(--hairline,var(--nbe-line,#33414F));border-radius:12px}.pt-fiche-titre{font-weight:700;margin-bottom:6px}.pt-fiche-l{display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:2px 0}' +
-    '.pt-tabs{display:flex;gap:6px;margin:0 0 12px}.pt-tab{padding:6px 12px;border-radius:999px;border:1px solid var(--hairline,var(--nbe-line,#33414F));background:transparent;color:inherit;cursor:pointer}.pt-tab[aria-selected="true"]{font-weight:700}';
+  var CSS = '.vue-p1c .pt-inds{grid-template-columns:repeat(2,1fr)}@media (min-width:900px){.vue-p1c .pt-inds{grid-template-columns:repeat(4,1fr)}}' +
+    '.vue-p1c .pt-badges{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}.vue-p1c .pt-pol{margin:8px 0}.vue-p1c .pt-pol-l{display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:2px 0}' +
+    '.vue-p1c .pt-ctrl .vp-liste{margin:8px 0}';
 
   // ---------- Montage : lecture seule, session de la personne connectée, clé publique, aucun paramètre de site ----------
   var VUES = { familles: 'v_tarif_familles_actifs', rattachements: 'v_tarif_rattachements_actifs', seuils: 'v_tarif_seuils_actifs', reglages: 'v_tarif_reglages_actifs',
@@ -268,54 +373,11 @@
       return { actif: r.data.actif };
     } catch (e) { return { erreur: true }; }
   }
-
-  async function monter(conteneur, opts) {
-    var Ad = global.NexusPolitiqueTarifaireRegistres || (typeof require === 'function' ? require('./nexus-politique-tarifaire-registres.js') : null);
-    if (!conteneur.querySelector('style[data-pt]')) { var st = document.createElement('style'); st.setAttribute('data-pt', '1'); st.textContent = CSS; conteneur.appendChild(st); }
-    var zone = document.createElement('div'); conteneur.appendChild(zone);
-    var message = function (t) { zone.innerHTML = '<div class="empty-panel">' + esc(t) + '</div>'; };
-    zone.innerHTML = '<div class="loading">Chargement de la politique tarifaire…</div>';
-    var compte = await lireCompte(opts.client, opts.employeId);
-    var acces0 = etatAcces(compte, 1);
-    if (acces0.code === 'illisible' || acces0.code === 'inactif') { message(acces0.message); return; }
-    var reg, ventes;
-    try { reg = filtrerSite(await chargerRegistres(opts.client), opts.siteId); ventes = await chargerVentes(opts.client, opts.siteId); }
-    catch (e) { console.error('Politique tarifaire :', e); message('Lecture impossible pour le moment.'); return; }
-    var total = Object.keys(reg).reduce(function (n, k) { return n + reg[k].length; }, 0);
-    var acces = etatAcces(compte, total);
-    if (acces.code === 'vide') { message(acces.message); return; }
-    var incoh = [];
-    if (opts.role === 'gerant' || opts.estCreateur) { var ri = await opts.client.from('v_tarif_incoherences').select('*'); if (!ri.error) incoh = filtrerSite({ x: ri.data || [] }, opts.siteId).x; }
-    var ctx = Ad.contexteDepuisRegistres(reg, { periode: ventes.periode });
-    var analyse = T.analyser(ventes.courantes, ventes.precedentes, ctx);
-    var etat = { analyse: analyse, role: opts.estCreateur ? 'createur' : opts.role, filtres: {}, incoherences: incoh, ouverte: null, toutes: false };
-    var dessiner = function () {
-      zone.innerHTML = '<div class="pt-source">Ventes et coûts : dernier export Decenium, ' + esc(libellePeriode(analyse.synthese.periode)) + '. Règles et décisions : registres tarifaires.</div>' + htmlPage(etat);
-    };
-    zone.addEventListener('click', function (ev) {
-      var t = ev.target.closest('[data-alerte],[data-plus],[data-effacer],.pt-ligne'); if (!t) return;
-      if (t.dataset.alerte) etat.filtres.alerte = t.dataset.alerte;
-      else if (t.dataset.effacer) etat.filtres.alerte = "";
-      else if (t.dataset.plus) etat.toutes = true;
-      else if (t.dataset.article) etat.ouverte = t.dataset.article;
-      dessiner();
-    });
-    zone.addEventListener('change', function (ev) {
-      var k = ev.target.dataset && ev.target.dataset.filtre; if (!k) return;
-      if (ev.target.value) etat.filtres[k] = ev.target.value; else etat.filtres[k] = "";
-      dessiner();
-    });
-    zone.addEventListener('input', function (ev) {
-      if (ev.target.id !== 'ptRecherche') return;
-      etat.filtres.recherche = ev.target.value; dessiner();
-      var i = zone.querySelector('#ptRecherche'); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); }
-    });
-    dessiner();
-  }
-
   var API = { cartes: cartes, scenarios: scenarios, alertesCartes: alertesCartes, trier: trier, filtrer: filtrer, valeursFiltres: valeursFiltres,
     preuves: preuves, conseiller: conseiller, fiche: fiche, etatAcces: etatAcces, peutVoirOnglet: peutVoirOnglet, filtrerSite: filtrerSite,
-    htmlPage: htmlPage, htmlCartes: htmlCartes, htmlAlertes: htmlAlertes, graviteLigne: graviteLigne, monter: monter, CSS: CSS };
+    regimeDe: regimeDe, controle: controle, familles: familles, avertissementRegime: avertissementRegime, blocFiche: blocFiche,
+    chargerRegistres: chargerRegistres, chargerVentes: chargerVentes, lireCompte: lireCompte, libellePeriode: libellePeriode,
+    htmlPage: htmlPage, htmlLigne: htmlLigne, htmlControle: htmlControle, htmlFiche: htmlFiche, graviteLigne: graviteLigne, CSS: CSS };
   global.NexusPolitiqueTarifaireEcran = API;
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
 })(typeof window !== 'undefined' ? window : globalThis);
