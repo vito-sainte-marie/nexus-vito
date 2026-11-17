@@ -56,7 +56,7 @@ ok('sans stock : aucun constat par référence, une seule limite écrite', () =>
 
 ok('la page appelle l\'assistant déclaratif', () => {
   const h = fs.readFileSync('NEXUS-Produits-v1.html', 'utf8');
-  assert.ok(/E\.contexteDeclaratif\(DECLARATIONS_PRODUITS/.test(h));
+  assert.ok(/E\.construireContexteTarif\(\{[^}]*declarations: DECLARATIONS_PRODUITS/.test(h));
 });
 
 console.log('test_page_produits_cablage_declaratif : ' + n + ' épreuves OK');

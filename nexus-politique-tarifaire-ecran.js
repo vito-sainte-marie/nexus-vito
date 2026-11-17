@@ -6,6 +6,7 @@
 
   var T = global.NexusPolitiqueTarifaire || (typeof require === 'function' ? require('./nexus-politique-tarifaire.js') : null);
   var PM = global.NexusProduitsMesure || (typeof require === 'function' ? require('./nexus-produits-mesure.js') : null);
+  var AR = global.NexusPolitiqueTarifaireRegistres || (typeof require === 'function' ? require('./nexus-politique-tarifaire-registres.js') : null);
   var B = global.NexusBadgeEtat || (typeof require === 'function' ? require('./nexus-badge-etat.js') : null);
 
   var RANG_GRAVITE = { critique: 0, a_verifier: 1, information: 2 };
@@ -65,6 +66,41 @@
       tva: { confirmations: PM.actives(d.produits_tva_confirmations || [], 'confirme_le') },
       stockFourni: false
     };
+  }
+
+  // ---------- Contexte complet du moteur : UNE seule construction, appelée par la page ET par le test de parité ----------
+  // sources : { registres, declarations, lignes, periode, exclusions, famille, stock, stockSource, motifsDivergents, tvaExplications }
+  //  - registres : registres tarifaires déjà filtrés par site ;
+  //  - lignes : lignes de ventes de la période (objets) ; declarations : tables Produits (natures, justifications, TVA confirmée) ;
+  //  - stock : relevé brut [{libelle, pa_net_ht}] ou null (alors stockFourni vaut false) ; rapproché par libellé normalisé, jamais par code-barres.
+  // Règle du Scanner T1 : libellé exact (espaces normalisés, casse respectée), première ligne rencontrée retenue.
+  // Un même libellé exact avec deux coûts différents est compté (conflits) : le choix de la ligne reste à arbitrer.
+  function stockParLibelle(brut) {
+    var par = new Map(), conflits = 0;
+    (brut || []).forEach(function (r) {
+      var pa = num(r.pa_net_ht), k = PM.normaliserNom(r.libelle);
+      if (!k || pa === null) return;
+      var e = par.get(k);
+      if (!e) par.set(k, { article: k, pa_net_ht: pa });
+      else if (Math.abs(e.pa_net_ht - pa) > 0.005) conflits++;
+    });
+    var lignes = []; par.forEach(function (e) { lignes.push(e); });
+    return { lignes: lignes, conflits: conflits, libelles: par.size };
+  }
+  function construireContexteTarif(sources) {
+    var S = sources || {};
+    var base = { periode: S.periode };
+    if (S.exclusions || S.famille) {
+      base.regimeDe = regimeDe({ contractuels: new Set(), exclusions: S.exclusions || new Set(), normaliser: PM.normaliserNom, famille: S.famille });
+    }
+    Object.assign(base, contexteDeclaratif(S.declarations, S.lignes, S.periode));
+    if (S.stock) {
+      var st = stockParLibelle(S.stock);
+      base.stock = st.lignes; base.stockFourni = true; base.stockSource = S.stockSource || 'valorisation du stock Decenium, colonne « PA net HT »';
+    } else base.stockFourni = false;
+    if (S.motifsDivergents) base.motifsDivergents = S.motifsDivergents;
+    if (S.tvaExplications) base.tva = Object.assign({}, base.tva, { explications: S.tvaExplications });
+    return AR.contexteDepuisRegistres(S.registres, base);
   }
 
   function alerteDe(l, code) { return (l.alertes || []).filter(function (a) { return a.code === code; })[0] || null; }
@@ -434,7 +470,7 @@
   }
   var API = { cartes: cartes, scenarios: scenarios, alertesCartes: alertesCartes, trier: trier, filtrer: filtrer, valeursFiltres: valeursFiltres,
     preuves: preuves, conseiller: conseiller, fiche: fiche, etatAcces: etatAcces, peutVoirOnglet: peutVoirOnglet, filtrerSite: filtrerSite,
-    regimeDe: regimeDe, contexteDeclaratif: contexteDeclaratif, controle: controle, familles: familles, avertissementRegime: avertissementRegime, infoRegime: infoRegime, badgeRegime: badgeRegime, badgeLigne: badgeLigne, blocFiche: blocFiche,
+    regimeDe: regimeDe, contexteDeclaratif: contexteDeclaratif, construireContexteTarif: construireContexteTarif, stockParLibelle: stockParLibelle, controle: controle, familles: familles, avertissementRegime: avertissementRegime, infoRegime: infoRegime, badgeRegime: badgeRegime, badgeLigne: badgeLigne, blocFiche: blocFiche,
     chargerRegistres: chargerRegistres, chargerVentes: chargerVentes, lireCompte: lireCompte, libellePeriode: libellePeriode,
     htmlPage: htmlPage, htmlLigne: htmlLigne, htmlControle: htmlControle, htmlFiche: htmlFiche, graviteLigne: graviteLigne, CSS: CSS };
   global.NexusPolitiqueTarifaireEcran = API;

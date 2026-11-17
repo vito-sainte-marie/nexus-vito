@@ -1675,11 +1675,8 @@ nexusRequireAuth().then(async employee => {
     if (!forcer && ANALYSE_TARIF) return ANALYSE_TARIF;
     const reg = E.filtrerSite(await E.chargerRegistres(nexusClient), SITE_ACTUEL);
     const exclusions = new Set(((LECTURES_MARGE && LECTURES_MARGE.marge_exceptions) || []).map(r => r.article));
-    const base = { periode: PERIODE_DONNEES, regimeDe: E.regimeDe({
-      contractuels: new Set(), exclusions, normaliser: NexusProduitsMesure.normaliserNom,
-      famille: (cat, art, ex) => (window.NexusMarge && NexusMarge.familleMarge ? NexusMarge.familleMarge(cat, art, ex) : { exclue: false }) }) };
-    Object.assign(base, E.contexteDeclaratif(DECLARATIONS_PRODUITS, MESURES_PRODUITS.map(x => x.row), PERIODE_DONNEES));
-    const ctx = AR.contexteDepuisRegistres(reg, base);
+    const ctx = E.construireContexteTarif({ registres: reg, declarations: DECLARATIONS_PRODUITS, lignes: MESURES_PRODUITS.map(x => x.row), periode: PERIODE_DONNEES,
+      exclusions, famille: (cat, art, ex) => (window.NexusMarge && NexusMarge.familleMarge ? NexusMarge.familleMarge(cat, art, ex) : { exclue: false }) });
     ANALYSE_TARIF = { analyse: TP.analyser(MESURES_PRODUITS.map(x => x.row), LIGNES_PRECEDENTES, ctx), incoherences: (ctx && ctx.incoherences) || [] };
     return ANALYSE_TARIF;
   }
