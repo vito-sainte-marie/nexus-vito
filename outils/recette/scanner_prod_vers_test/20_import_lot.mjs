@@ -1,11 +1,11 @@
 // Génère le SQL d'import d'un lot (AUCUNE connexion, AUCUNE écriture ici). Vérifie d'abord le SHA-256 de l'export et du manifeste
 // (contre EMPREINTES-SHA256.txt) puis le md5 de chaque jeu (lignes jointes par \n, ordre de l'export) contre le manifeste.
-// Usage : node 20_import_lot.mjs <dossier-export> <sortie.sql> [--id-attendu 7678069749886157684]
+// Usage : node 20_import_lot.mjs <dossier-export> <sortie.sql>
 // Le SQL produit commence par la garde projet Test et crée un NOUVEAU lot (jamais de mise à jour). Il est à jouer d'un seul bloc.
 import fs from 'node:fs'; import path from 'node:path'; import crypto from 'node:crypto';
-const [dir, sortie, ...opts] = process.argv.slice(2);
+const [dir, sortie] = process.argv.slice(2);
 if (!dir || !sortie) { console.error('usage : node 20_import_lot.mjs <dossier-export> <sortie.sql>'); process.exit(2); }
-const idAttendu = (opts[opts.indexOf('--id-attendu') + 1]) || '7678069749886157684';
+const ID_TEST = '7678069749886157684'; // en dur : aucune option ne permet de le changer
 const sha = b => crypto.createHash('sha256').update(b).digest('hex'), md5 = s => crypto.createHash('md5').update(s).digest('hex');
 const q = s => s === null || s === undefined ? 'null' : "'" + String(s).replace(/'/g, "''") + "'";
 const fichiers = fs.readdirSync(dir);
@@ -28,21 +28,20 @@ console.log(JSON.stringify({ export: nomExport, sha256_export: shaExp, sha256_ma
 if (verdicts.some(v => !v.ok)) { console.error('ARRÊT : md5 ou effectif d\'un jeu ne correspond pas. Aucun SQL produit.'); process.exit(1); }
 const out = [];
 out.push(`-- Import généré. Vérifié : SHA-256 export ${shaExp}, manifeste ${shaMan}. NOUVEAU lot, ajout seul. À jouer d'un seul bloc.`);
-out.push(`do $garde$ declare v text; begin select system_identifier::text into v from pg_control_system(); if v is distinct from '${idAttendu}' then raise exception 'GARDE PROJET TEST : % ≠ ${idAttendu}. Rien n''est écrit.', v; end if; end $garde$;`);
+out.push(`do $garde$ declare v text; begin select system_identifier::text into v from pg_control_system(); if v is distinct from '${ID_TEST}' then raise exception 'GARDE PROJET TEST : % ≠ ${ID_TEST}. Rien n''est écrit.', v; end if; if (select count(*) from public.sites where site_id in ('site-fantome-test','nexus-station-test')) <> 2 then raise exception 'garde_projet_test : sites de recette absents. Rien n''est écrit.'; end if; end $garde$;`);
 out.push(`create temp table _lot on commit drop as select gen_random_uuid() as lot_id;`);
 out.push(`insert into recette_scanner.lots(lot_id, site, export_nom, export_sha256, manifeste_sha256, source_projet, source_identifiant_systeme, lu_le, note) select lot_id, 'vito-sainte-marie', ${q(nomExport)}, ${q(shaExp)}, ${q(shaMan)}, ${q(man.source.projet)}, ${q(man.source.identifiant_systeme)}, ${q(man.source.lu_le)}::timestamptz, 'import recette scanner' from _lot;`);
 for (const nom of noms) {
-  const j = jeux[nom], cols = j.colonnes;
+  const j = jeux[nom];
   out.push(`insert into recette_scanner.jeux(lot_id, jeu, n, md5_manifeste, lot_import) select lot_id, ${q(nom)}, ${j.n}, ${q(j.md5_base)}, ${q(JSON.stringify(j.lot_import ?? null))}::jsonb from _lot;`);
   const rangs = j.lignes.map((s, i) => { const c = s.split('\t'); return { i: i + 1, s, c }; });
   const par = 500;
   for (let d = 0; d < rangs.length; d += par) {
     const lot = rangs.slice(d, d + par);
     if (nom.startsWith('ventes_')) {
-      out.push(`insert into recette_scanner.ventes(lot_id, jeu, ligne, texte, ${cols.join(', ')}) select lot_id, ${q(nom)}, v.ligne, v.texte, ${cols.map((_, k) => 'v.c' + k).join(', ')} from _lot, (values ${lot.map(r => `(${r.i}, ${q(r.s)}, ${cols.map((_, k) => q(r.c[k] ?? '')).join(', ')})`).join(',\n')}) as v(ligne, texte, ${cols.map((_, k) => 'c' + k).join(', ')});`);
+      out.push(`insert into recette_scanner.ventes(lot_id, jeu, ligne, texte) select lot_id, ${q(nom)}, v.ligne, v.texte from _lot, (values ${lot.map(r => `(${r.i}, ${q(r.s)})`).join(',\n')}) as v(ligne, texte);`);
     } else {
-      const cs = ['categorie', 'libelle', 'pa_net_ht', 'stock_actuel', 'stock_date', 'valeur_stock_ht', 'mouvements'];
-      out.push(`insert into recette_scanner.stock_brut(lot_id, numero_ligne, texte, ${cs.join(', ')}) select lot_id, v.ligne, v.texte, ${cs.map((_, k) => 'v.c' + k).join(', ')} from _lot, (values ${lot.map(r => `(${r.i}, ${q(r.s)}, ${cs.map((_, k) => q(r.c[k + 1] ?? '')).join(', ')})`).join(',\n')}) as v(ligne, texte, ${cs.map((_, k) => 'c' + k).join(', ')});`);
+      out.push(`insert into recette_scanner.stock_brut(lot_id, numero_ligne, texte) select lot_id, v.ligne, v.texte from _lot, (values ${lot.map(r => `(${r.i}, ${q(r.s)})`).join(',\n')}) as v(ligne, texte);`);
     }
   }
 }

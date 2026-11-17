@@ -1,7 +1,8 @@
 // Parité : construireContexteTarif(sources) alimenté par l'export Production (lignes brutes) contre le résultat T1 v2 (440 références).
 // Lecture seule, aucun réseau. Les données de référence ne vivent pas dans ce dépôt : NEXUS_REF_SCANNER=<dossier docs/reference/scanner-tarifaire-dossiers>.
 // Sans ce dossier, le test se déclare IGNORÉ (code 0) : il ne prouve rien dans ce cas.
-// Usage : NEXUS_REF_SCANNER=... node test_parite_contexte_tarif_t1.js [rapport.json]
+// L'export Production (données réelles) n'est pas versionné ici : chemin passé par --export=<fichier.json>, ou par défaut sous NEXUS_REF_SCANNER. Fichier absent : IGNORÉ (code 0).
+// Usage : NEXUS_REF_SCANNER=... node test_parite_contexte_tarif_t1.js [--export=<fichier.json>] [rapport.json]
 const fs = require('fs'), path = require('path');
 const REF = process.env.NEXUS_REF_SCANNER;
 if (!REF || !fs.existsSync(REF)) { console.log('IGNORÉ : NEXUS_REF_SCANNER absent, parité non mesurée'); process.exit(0); }
@@ -11,7 +12,10 @@ const T = require('./nexus-politique-tarifaire.js');
 const T1 = path.join(REF, '01-T1-moteur', 't1');
 const cfg = require(path.join(T1, 'config_sainte_marie_t1.js')), C = cfg.contexte;
 const lireJ = f => JSON.parse(fs.readFileSync(f, 'utf8'));
-const exp = lireJ(path.join(REF, '09-export-production-20261117', 'export_scanner_sm_20261117-2157.json'));
+const argExp = (process.argv.slice(2).find(a => a.startsWith('--export=')) || '').slice(9);
+const fExp = argExp || path.join(REF, '09-export-production-20261117', 'export_scanner_sm_20261117-2157.json');
+if (!fs.existsSync(fExp)) { console.log('IGNORÉ : export Production absent (' + path.basename(fExp) + '), parité non mesurée'); process.exit(0); }
+const exp = lireJ(fExp);
 const reg = lireJ(path.join(REF, '05-T2-recette-fonctionnelle', 't2', 'recette_fonctionnelle', 'preuves', 'export_61_test_20261117-1417.json'));
 const r1 = lireJ(path.join(T1, 'resultats', 'resultats_sainte_marie_t1.json'));
 const ventesLignes = j => j.lignes.map(s => { const c = s.split('\t'); const o = {}; j.colonnes.forEach((k, i) => o[k] = c[i]);
@@ -73,7 +77,8 @@ rapport.parite_complete.classement = rapport.parite_complete._ecarts.map(e => Ob
 const nbReg = rapport.parite_complete.classement.filter(c => c.classe === 'régression').length;
 rapport.regressions = nbReg;
 rapport.verdict = rapport.parite_complete.ecarts === 0 && rapport.parite_complete.gains_identiques ? 'PARITÉ' : (nbReg === 0 && rapport.parite_complete.identiques + rapport.parite_complete.ecarts === 440 ? 'AUCUNE RÉGRESSION (écarts attendus classés)' : 'RÉGRESSION');
-if (process.argv[2]) fs.writeFileSync(process.argv[2], JSON.stringify(rapport, null, 1));
+const sortieRapport = process.argv.slice(2).find(a => !a.startsWith('--'));
+if (sortieRapport) fs.writeFileSync(sortieRapport, JSON.stringify(rapport, null, 1));
 for (const k of ['parite_complete', 'contexte_page_reel', 'sans_stock']) { const p = rapport[k]; console.log(`${p.nom}: ${p.identiques}/${p.references} identiques, ${p.ecarts} écarts ${JSON.stringify(p.champs)}, gains ${p.gains_identiques ? '=' : '≠'}`); }
 console.log('stock', JSON.stringify(rapport.stock), '=>', rapport.verdict);
 process.exit(rapport.verdict === 'RÉGRESSION' ? 1 : 0);
