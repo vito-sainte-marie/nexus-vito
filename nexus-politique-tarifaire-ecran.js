@@ -228,8 +228,13 @@
   function controle(analyse, code, familleId) {
     var meta = code === 'FI' ? { gravite: 'a_verifier', action: 'verifier' } : code === 'EX' ? { gravite: 'information', action: 'surveiller' } : T.ALERTES[code];
     var lignes = trier(lignesControle(analyse.lignes, code)), montant = null;
-    if (code !== 'FI' && code !== 'EX') lignes.forEach(function (l) { var m = montantAlerte(l, code); if (m !== null) montant = (montant || 0) + m; });
-    return { code: code, famille: familleId, icone: familleId, titre: TITRES_CTRL[code], nombre: lignes.length, montant: montant, nature: NATURES_CTRL[code],
+    var sousTotaux = null;
+    if (code === 'A1') {
+      // Jamais de total de grandeurs différentes : prix libres et prix réglementés ou contractuels restent séparés.
+      sousTotaux = { libres: { nombre: 0, montant: 0 }, reglementes: { nombre: 0, montant: 0 } };
+      lignes.forEach(function (l) { var m = montantAlerte(l, 'A1'), k = avertissementRegime(l) ? 'reglementes' : 'libres'; sousTotaux[k].nombre++; if (m !== null) sousTotaux[k].montant += m; });
+    } else if (code !== 'FI' && code !== 'EX') lignes.forEach(function (l) { var m = montantAlerte(l, code); if (m !== null) montant = (montant || 0) + m; });
+    return { code: code, famille: familleId, sousTotaux: sousTotaux, icone: familleId, titre: TITRES_CTRL[code], nombre: lignes.length, montant: montant, nature: NATURES_CTRL[code],
       gravite: meta.gravite, action: meta.action, lignes: lignes, methode: METHODES_CTRL[code], filtre: filtreControle(code) };
   }
   function familles(analyse) {
@@ -276,7 +281,9 @@
   }
   function htmlControle(c, icone) {
     var badgeG = c.nombre ? B.gravite(graviteBadge(c.gravite)) : B.gravite('conforme');
-    var chiffres = c.nombre + (c.nombre > 1 ? ' références' : ' référence') + (c.montant !== null ? ' · ' + eur0(c.montant) + ' (' + c.nature + ')' : ' · ' + c.nature);
+    var st = c.sousTotaux;
+    var chiffres = st ? c.nombre + (c.nombre > 1 ? ' références' : ' référence') + ' · prix libres : ' + eur0(st.libres.montant) + ' (' + c.nature + ') ; prix réglementés et contractuels : aucune action de prix, ' + eur0(st.reglementes.montant) + ' (' + c.nature + ')'
+      : c.nombre + (c.nombre > 1 ? ' références' : ' référence') + (c.montant !== null ? ' · ' + eur0(c.montant) + ' (' + c.nature + ')' : ' · ' + c.nature);
     return '<details class="sc-carte pt-ctrl" data-controle="' + c.code + '"><summary aria-label="Ouvrir le contrôle : ' + esc(c.titre) + '">' +
       (icone ? '<span class="sc-ico">' + icone(c.icone) + '</span>' : '') +
       '<span class="sc-carte-txt"><span class="sc-nom">' + esc(c.titre) + '</span><span class="vp-chiffres">' + esc(chiffres) + '</span>' +

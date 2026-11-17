@@ -20,7 +20,7 @@ const cour = [
   L('Perte justifiee', { prix_achat: 1.2, prix_vente: 1 }), L('Perte nue', { prix_achat: 1.2, prix_vente: 1 }), L('Marge nulle', { prix_achat: 1, prix_vente: 1 }),
   L('Hausse trente', { prix_achat: 1.3, prix_vente: 2 }), L('Hausse soixante', { prix_achat: 1.6, prix_vente: 3 }), L('Cout zero', { prix_achat: 0, prix_vente: 2 }),
   L('Hausse repercutee', { prix_achat: 1.3, prix_vente: 2.6 }), L('Famille exclue', { categorie: 'Tabac', prix_achat: 5.5, prix_vente: 6 }),
-  L('Contractuel', { prix_achat: 1.5, prix_vente: 2 }), L('Identite renommee', { code_barres: 'cb-ID', prix_achat: 1.02, prix_vente: 2 }), L('Ecart mediane', { prix_achat: 1, prix_vente: 1.3 }),
+  L('Contractuel', { prix_achat: 1.2, prix_vente: 2 }), L('Identite renommee', { code_barres: 'cb-ID', prix_achat: 1.02, prix_vente: 2 }), L('Ecart mediane', { prix_achat: 1, prix_vente: 1.3 }),
 ];
 const justif = [{ article: 'Perte justifiee', motif: 'promotion fictive', valide_le: '2030-03-10', periode_debut: periode.debut, periode_fin: periode.fin }];
 const contractuels = new Set(['cb-Contractuel']);
@@ -54,8 +54,8 @@ const ATTENDU = {
   'Ventes à perte|+Marge nulle': 'marge nulle comptée à part dans A3, montant 0 (ligne « vente à marge négative ou nulle »)',
   'Coût suspect / variation anormale|-Hausse trente': 'variation de 30 % : plus d\'alerte A4, fiabilité « à confirmer » et A1/A2 conservées (A4 réservée aux variations anormales)',
   'Coût suspect / variation anormale|-Hausse repercutee': 'hausse répercutée de 30 % : plus d\'alerte A4, fiabilité « à confirmer » (aucun montant en jeu)',
-  'Hausse de coût non répercutée|+Contractuel': 'contractuel : A1 conservée en information, le régime est porté par le badge « Régime à vérifier »',
-  'Hausse de coût non répercutée|+Famille exclue': 'famille exclue : A1 conservée en information, le régime est porté par le badge « Régime à vérifier »',
+  'Hausse de coût non répercutée|+Contractuel': 'matrice, ligne Mes prix réglementés : A1 conservée, affichée sous « prix réglementés et contractuels : aucune action de prix »',
+  'Hausse de coût non répercutée|+Famille exclue': 'matrice, ligne Mes prix réglementés : A1 conservée, affichée sous « prix réglementés et contractuels : aucune action de prix »',
   'Références à vérifier (identité, PA = PV)|-Marge nulle': 'PA = PV : devient A3 (marge nulle), plus un « à vérifier » distinct',
   'Prix réglementés|-Famille exclue': 'prix réglementé : suivi par le régime et A1, A8 réservée aux contrôles réglementaires ouverts',
 };
@@ -73,4 +73,36 @@ assert.strictEqual(lignesT1[0].m1, lignesT1[0].m2, 'montant des ventes à perte 
 // T2 ne perd aucune perte de T1, et ne compte aucun gain dans A3.
 assert.ok(lignesT1[0].t1.every(n => lignesT1[0].t2.includes(n)), 'toute vente à perte T1 reste une alerte A3');
 assert.deepStrictEqual(regressions, [], 'aucune régression : ' + regressions.join(' ; '));
+// ---- Ajouts demandés par Guardian (6960612957) : rien ne doit se perdre. ----
+const lg = n => r2.lignes.find(l => l.article === n);
+['Hausse trente', 'Hausse repercutee'].forEach(n => {
+  assert.strictEqual(lg(n).fiabilite.niveau, 'a_confirmer', n + ' : fiabilité à confirmer');
+  assert.ok(JSON.stringify(lg(n).fiabilite).includes('30'), n + ' : raison « coût en variation de 30 % »');
+});
+['Famille exclue', 'Contractuel'].forEach(n => {
+  assert.strictEqual(lg(n).statut, 'sans_seuil_valide', n + ' : sans seuil valide');
+  assert.ok(!(lg(n).alertes || []).some(a => a.code === 'A2'), n + ' : aucune A2');
+});
+// Écart à la médiane : présent dans le calcul Marge+ (T1 inchangé), sans A2 ni gain T2 quand aucun seuil n'est validé.
+const M = global.NexusMarge;
+const RM = (article, marge) => ({ article, categorie: 'Rayon Alpha', ca: 100, marge });
+const ecM = M.ecartsMargeDeLaPeriode(['a', 'b', 'c', 'd', 'e'].map(n => RM(n, 50)).concat([RM('Ecart mediane', 30)]), { periode });
+const afM = T1.affichageMarge(ecM, r1.lignes);
+assert.ok(JSON.stringify(afM).includes('Ecart mediane'), 'Ecart mediane : présent dans Marge+ (affichageMarge)');
+const r2sans = T2.analyser(cour, prec, Object.assign({}, ctxT2, { seuils: {} }));
+const lm = r2sans.lignes.find(l => l.article === 'Ecart mediane');
+assert.ok(!(lm.alertes || []).some(a => a.code === 'A2'), 'Ecart mediane : aucune A2 sans seuil validé');
+assert.ok(!lm.simulation || (!lm.simulation.minimum && !lm.simulation.cible), 'Ecart mediane : aucun gain T2 sans seuil validé');
+// A1 : deux sous-totaux séparés, jamais un total unique.
+const E = require('./nexus-politique-tarifaire-ecran.js');
+const a1 = E.familles(r2).reduce((acc, f) => acc.concat(f.cartes), []).find(c => c.code === 'A1');
+assert.strictEqual(a1.montant, null, 'A1 : aucun total unique');
+const A1m = l => (((l.alertes || []).find(a => a.code === 'A1') || {}).consequence || {}).montant || 0;
+const regl = l => l.article === 'Famille exclue' || l.article === 'Contractuel';
+const att = f => eur(r2.lignes.filter(l => (l.alertes || []).some(a => a.code === 'A1') && l.fiabilite.niveau !== 'insuffisante' && f(l)).reduce((x, l) => x + A1m(l), 0));
+assert.strictEqual(eur(a1.sousTotaux.libres.montant), att(l => !regl(l)), 'A1 prix libres');
+assert.strictEqual(eur(a1.sousTotaux.reglementes.montant), att(regl), 'A1 prix réglementés et contractuels');
+assert.ok(a1.sousTotaux.reglementes.montant > 0 && a1.sousTotaux.libres.montant > 0, 'A1 : les deux sous-totaux existent');
+const h = E.htmlControle(a1);
+assert.ok(h.includes('prix libres') && h.includes('prix réglementés et contractuels : aucune action de prix') && !h.includes(String(a1.sousTotaux.libres.montant + a1.sousTotaux.reglementes.montant).replace('.', ',')), 'A1 affichée en deux sous-totaux');
 console.log('OK : ' + attendus.length + ' changements attendus, 0 régression.');
