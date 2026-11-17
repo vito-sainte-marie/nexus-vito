@@ -1,0 +1,63 @@
+{
+ "export": "export_scanner_sm_20261117-2157.json",
+ "site": "vito-sainte-marie",
+ "source": {
+  "projet": "uzhjpqpctpvxytxpxoqz",
+  "identifiant_systeme": "7656983981618135123",
+  "lu_le": "2026-11-17T21:57:10Z",
+  "mode": "transaction read only, rollback"
+ },
+ "autorisation": "GO du pilote du 17/11/2026 17:56 (heure de Martinique) : lecture de la Production pour l'export, procédure validée à 17:57",
+ "jeux": {
+  "ventes_20260919": {
+   "table": "public.products",
+   "n": 707,
+   "md5_base": "3af4495742eaab931eba1da8d9f6fd71",
+   "lot_import": {
+    "id": "648ed2ad-58a6-4904-b53d-c4b48b02af44",
+    "fichier": "Export-10.xls",
+    "sha256_fichier": "458ead885d4d8e8382dcb08fb86d8f6bae832b7256d605a7f128e72669955d77"
+   }
+  },
+  "ventes_20261005": {
+   "table": "public.products",
+   "n": 848,
+   "md5_base": "d7b7881e30d4a5d2f703796f257c16c5",
+   "lot_import": {
+    "id": "40238380-56c9-49c9-a28f-b54678f628ce",
+    "fichier": "Export-7.xls",
+    "sha256_fichier": "8ecddabd6abb544ec90d9f877c873544506f1e79539a7d1dd3d09fec8a7028ae"
+   }
+  },
+  "stock_brut_20261110": {
+   "table": "public.import_rows_raw",
+   "n": 2871,
+   "md5_base": "6bca11dfa5d2a4f4d3dd03321818572c",
+   "lot_import": {
+    "id": "a9489b7c-dc34-4ba4-babc-e2ebae95e7a8",
+    "fichier": "valorisation-stock--6.xls",
+    "sha256_fichier": "70a71958792108c63285323db6ca3a664b29ef2b21f9c6273f2872c0b2fedbb6"
+   }
+  }
+ },
+ "declarations": {
+  "produits_justifications_marge": 3,
+  "produits_nature_reference": 0,
+  "produits_tva_confirmations": 0,
+  "produits_appel": 24,
+  "marge_exceptions": 0
+ },
+ "controles": {
+  "md5_recalcule_identique": true,
+  "cles_inattendues_stock": 0,
+  "colonnes_auteur_exportees": 0,
+  "adresses_email": 0,
+  "numeros_telephone": 0,
+  "mots_sensibles": 0,
+  "identique_aux_fichiers_T1": {
+   "ventes": "1555/1555 lignes identiques",
+   "stock": "821/821 libellés T1 présents, PA identiques"
+  }
+ },
+ "ecritures": "aucune (transaction read only terminée par rollback ; aucune écriture Production, Test ou Decenium)"
+}
