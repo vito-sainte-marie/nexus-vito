@@ -351,4 +351,80 @@ ok('version du moteur exposée, conforme à la forme exigée par la base (T3)', 
   assert.ok(/^politique-tarifaire-t2(-[a-z0-9.]+)?$/.test(T.VERSION_MOTEUR));
 });
 
+// ---- Lot moteur T3 : A5 « identité changée », A3 marge nulle / vente à perte, régime injecté
+const alerte = (l, code) => l.alertes.find(a => a.code === code);
+ok('A5 identité changée : libellé changé, code-barres identique', () => {
+  const r = T.analyser([L('Produit A bis', { code_barres: '999001' })], [L('Produit A', { code_barres: '999001' })], ctxBase());
+  const a = alerte(un(r, 'Produit A bis'), 'A5');
+  assert.ok(a && a.donnees.constats.some(c => /identité changée : libellé/.test(c)));
+});
+ok('A5 identité changée : code-barres changé, libellé identique', () => {
+  const r = T.analyser([L('Produit A', { code_barres: '999002' })], [L('Produit A', { code_barres: '999001' })], ctxBase());
+  const a = alerte(un(r, 'Produit A'), 'A5');
+  assert.ok(a && a.donnees.constats.some(c => /identité changée : code-barres 999001 devenu 999002/.test(c)));
+});
+ok('A5 identité changée : sans effet sur les gains ni sur le statut', () => {
+  const avant = T.analyser([L('Produit A', { code_barres: '999001' })], [L('Produit A', { code_barres: '999001' })], ctxBase());
+  const apres = T.analyser([L('Produit A', { code_barres: '999002' })], [L('Produit A', { code_barres: '999001' })], ctxBase());
+  assert.strictEqual(un(apres, 'Produit A').statut, un(avant, 'Produit A').statut);
+  assert.deepStrictEqual(apres.gains.decisionnels, avant.gains.decisionnels);
+});
+ok('A5 identité inchangée : pas de constat (casse et espaces du libellé ignorés)', () => {
+  const r = T.analyser([L('Produit  A ', { code_barres: '999001' })], [L('produit a', { code_barres: '999001' })], ctxBase());
+  const a = alerte(un(r, 'Produit  A '), 'A5');
+  assert.ok(!a || !a.donnees.constats.some(c => /identité changée/.test(c)));
+});
+ok('A3 marge nulle : 0 € et jamais présentée comme une perte', () => {
+  const r = T.analyser([L('Produit A', { prix_vente: 1, prix_achat: 1 })], [], ctxBase());
+  const a = alerte(un(r, 'Produit A'), 'A3');
+  assert.strictEqual(a.donnees.cas, 'marge_nulle');
+  assert.strictEqual(a.consequence.montant, 0);
+  assert.ok(!/^perte/.test(a.consequence.nature));
+});
+ok('A3 vente à perte : montant de la perte, cas distinct', () => {
+  const r = T.analyser([L('Produit B', { prix_vente: 1, prix_achat: 1.5, quantite: 10 })], [], ctxBase());
+  const a = alerte(un(r, 'Produit B'), 'A3');
+  assert.strictEqual(a.donnees.cas, 'vente_a_perte');
+  assert.strictEqual(a.consequence.montant, 5);
+  assert.strictEqual(a.consequence.nature, 'perte');
+});
+ok('A3 : la perte totale ne somme que les ventes à perte', () => {
+  const r = T.analyser([L('Produit A', { prix_vente: 1, prix_achat: 1 }), L('Produit B', { prix_vente: 1, prix_achat: 1.5 }), L('Produit C', { prix_vente: 1, prix_achat: 1.2, quantite: 5 })], [], ctxBase());
+  const a3 = r.lignes.map(l => alerte(l, 'A3')).filter(Boolean);
+  assert.strictEqual(a3.length, 3);
+  const perte = a3.filter(a => a.donnees.cas === 'vente_a_perte').reduce((t, a) => t + a.consequence.montant, 0);
+  assert.strictEqual(Math.round(perte * 100) / 100, 6);
+  assert.strictEqual(a3.filter(a => a.donnees.cas === 'marge_nulle').reduce((t, a) => t + a.consequence.montant, 0), 0);
+});
+ok('A3 marge nulle justifiée : la note ne parle pas de perte', () => {
+  const r = T.analyser([L('Produit A', { prix_vente: 1, prix_achat: 1 })], [], ctxBase({ justifications: [{ article: 'Produit A', motif: 'motif fictif' }] }));
+  const a = alerte(un(r, 'Produit A'), 'A3');
+  assert.ok(a.donnees.note && !/perte/.test(a.donnees.note));
+});
+const sansProposition = (l) => {
+  assert.strictEqual(l.simulation.minimum, null);
+  assert.strictEqual(l.simulation.cible, null);
+  assert.strictEqual(l.simulation.prixDecide, null);
+  assert.ok(!alerte(l, 'A2'));
+  assert.notStrictEqual(l.statut, 'proposition_a_valider');
+};
+ok('régime injecté (réglementé, contractuel) : aucune proposition ni « Décider »', () => {
+  const regimeDe = row => row.article === 'Produit R' ? 'reglemente' : row.article === 'Produit K' ? 'contractuel' : null;
+  const r = T.analyser([L('Produit R', { prix_vente: 1.5 }), L('Produit K', { prix_vente: 1.5 }), L('Produit A', { prix_vente: 1.5 })], [], ctxBase({ regimeDe, prixDecides: [{ article: 'Produit R', prix_ttc: 3, nature: 'changement' }, { article: 'Produit K', prix_ttc: 3, nature: 'changement' }] }));
+  sansProposition(un(r, 'Produit R'));
+  sansProposition(un(r, 'Produit K'));
+  assert.strictEqual(un(r, 'Produit R').regime, 'reglemente');
+  assert.strictEqual(un(r, 'Produit K').regime, 'contractuel');
+  assert.strictEqual(un(r, 'Produit A').regime, 'libre');
+  assert.strictEqual(un(r, 'Produit A').statut, 'proposition_a_valider');
+});
+ok('régime du registre : même exclusion, et il reste prioritaire sur la règle injectée', () => {
+  const r = T.analyser([L('Produit R'), L('Produit K')], [], ctxBase({
+    regimeDe: () => 'libre',
+    regimes: [{ article: 'Produit R', regime: 'reglemente', raison: 'raison fictive' }, { article: 'Produit K', regime: 'contractuel', raison: 'raison fictive' }] }));
+  sansProposition(un(r, 'Produit R'));
+  sansProposition(un(r, 'Produit K'));
+  assert.strictEqual(un(r, 'Produit R').regime, 'reglemente');
+});
+
 console.log('test_politique_tarifaire_t2 : ' + n + ' épreuves OK');

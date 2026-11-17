@@ -289,7 +289,11 @@
         ajoute('A2', { montant: sim.minimum.gain, nature: 'gain théorique au seuil, volume constant' }, { taux, seuil: seuilRef, prixEnvisageableTtc: sim.minimum.ttc, exceptionCandidate: !!(exception && exception.statut === 'candidate') });
       if (pv !== null && pa !== null && pa >= pv) {
         const just = premier(ctx.justifications, row);
-        ajoute('A3', { montant: r2((pa - pv) * q), nature: 'perte' }, { cout: pa, pv, justification: just ? just.motif : null, note: just ? "la justification n'efface pas la perte" : null });
+        // Marge nulle (coût = PV) et vente à perte (coût > PV) sont distinguées : une marge nulle compte 0 € et n'est jamais présentée comme une perte.
+        const nulle = r4(pa) === r4(pv);
+        ajoute('A3', nulle ? { montant: 0, nature: 'marge nulle, aucune perte' } : { montant: r2((pa - pv) * q), nature: 'perte' },
+          { cas: nulle ? 'marge_nulle' : 'vente_a_perte', cout: pa, pv, justification: just ? just.motif : null,
+            note: just ? (nulle ? "la justification n'efface pas l'absence de marge" : "la justification n'efface pas la perte") : null });
       }
       const a4 = [];
       if (varCout !== null && Math.abs(varCout) >= R.variationSuspecte) a4.push('coût ' + Math.round(varCout * 100) + ' %');
@@ -304,6 +308,11 @@
       if (div) a5.push('motif déclaré « ' + div.motif_declare + ' » contre motif enregistré « ' + div.motif_enregistre + ' »');
       if (suivi && suivi.changementProbableEnCours) a5.push('PV moyen entre l\'ancien prix et le prix ' + (suivi.nature === 'en_vigueur' ? 'déclaré' : 'décidé') + ' : changement probable en cours de période, date d\'effet à déclarer (part estimée ' + Math.round(suivi.partEstimee * 100) + ' %)');
       if (suivi && suivi.etat === APPLICATION.ecart_constate && !excValidee) a5.push('prix ' + (suivi.nature === 'en_vigueur' ? 'déclaré' : 'décidé') + ' non retrouvé dans le PV moyen');
+      if (p) {
+        // Identité changée : même rapprochement que pour la période précédente (code-barres d'abord, sinon libellé normalisé unique).
+        if (cb(row) && cb(p) && cb(row) !== cb(p)) a5.push('identité changée : code-barres ' + cb(p) + ' devenu ' + cb(row));
+        else if (nom(row.article) !== nom(p.article)) a5.push('identité changée : libellé « ' + p.article + ' » devenu « ' + row.article + ' »');
+      }
       if (a5.length) ajoute('A5', { montant: null, nature: 'à qualifier' }, { constats: a5 });
       if (excValidee && tauxP !== null && taux !== null) {
         const m6 = { ...REGLAGES_DEFAUT.a6, ...(R.a6 || {}) };

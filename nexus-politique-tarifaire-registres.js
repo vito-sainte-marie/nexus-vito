@@ -59,7 +59,11 @@
     });
     const regimes = (R.regimes || []).map(g => ({ ...ref(g), regime: g.regime, raison: g.raison }));
     const reglementaire = (R.controles || []).map(c => ({ ...(c.portee === 'rayon' ? { rayon: c.rayon } : ref(c)), etat: c.etat, type_element: c.type_element || null, raison: c.raison }));
-    return { ...(base || {}), familles, seuils, seuilsRayon, seuilDefaut, reglages, exceptions, prixDecides, regimes, reglementaire, libellesFamilles: libelles };
+    // Règle de régime injectée par la page (famille exclue = réglementé, contractuel = contractuel) : fonction pure, sans réseau.
+    // Les registres (tarif_regimes_prix) restent prioritaires : le moteur ne consulte la règle qu'à défaut de déclaration.
+    const regimeDe = (base && typeof base.regimeDe === 'function')
+      ? row => { const g = base.regimeDe(row); return g && g !== 'libre' ? g : null; } : undefined;
+    return { ...(base || {}), ...(regimeDe ? { regimeDe } : {}), familles, seuils, seuilsRayon, seuilDefaut, reglages, exceptions, prixDecides, regimes, reglementaire, libellesFamilles: libelles };
   }
 
   const API = { contexteDepuisRegistres, REGLAGES };

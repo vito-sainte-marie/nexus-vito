@@ -135,4 +135,28 @@ ok('l\'adaptateur ne modifie pas ses entrées', () => {
   assert.strictEqual(JSON.stringify(reg), avant);
 });
 
+ok('règle de régime injectée : transmise telle quelle au moteur, « libre » ramené à aucune réponse', () => {
+  const regimeDe = row => row.article === 'Produit R' ? 'reglemente' : row.article === 'Produit L' ? 'libre' : null;
+  const c = A.contexteDepuisRegistres({
+    familles: [{ site: S, famille_code: 'Alpha', libelle: 'Famille Alpha' }],
+    rattachements: [{ site: S, portee: 'rayon', rayon: 'Rayon Alpha', famille_code: 'Alpha' }],
+    seuils: [{ site: S, id: 1, niveau: 'famille', cible_niveau: 'Alpha', minimum: 0.4, cible: 0.5, statut_minimum: 'valide', statut_cible: 'valide' }],
+    regimes: [{ site: S, article: 'Produit K', regime: 'contractuel', raison: 'raison fictive' }],
+  }, { periode, regimeDe });
+  assert.strictEqual(typeof c.regimeDe, 'function');
+  assert.strictEqual(c.regimeDe({ article: 'Produit R' }), 'reglemente');
+  assert.strictEqual(c.regimeDe({ article: 'Produit L' }), null);
+  const L = a => ({ article: a, categorie: 'Rayon Alpha', quantite: 10, prix_vente: 1.5, prix_achat: 1, tva: 20, code_barres: '' });
+  const r = T.analyser([L('Produit R'), L('Produit K'), L('Produit L')], [], c);
+  const par = a => r.lignes.find(l => l.article === a);
+  assert.strictEqual(par('Produit R').regime, 'reglemente');
+  assert.strictEqual(par('Produit R').simulation.minimum, null);
+  assert.strictEqual(par('Produit K').regime, 'contractuel');
+  assert.strictEqual(par('Produit K').simulation.minimum, null);
+  assert.strictEqual(par('Produit L').statut, 'proposition_a_valider');
+});
+ok('sans règle injectée : aucune clé regimeDe dans le contexte', () => {
+  assert.ok(!('regimeDe' in A.contexteDepuisRegistres({}, { periode })));
+});
+
 console.log('test_adaptateur_registres_t2 : ' + n + ' épreuves OK');
