@@ -457,4 +457,19 @@ ok('opération de caisse : jamais une vente à perte (pas de A3), exclue des ven
   assert.strictEqual(un(a, 'Produit W').simulation.exclusion, 'hors ventes commerciales');
 });
 
+ok('stock non fourni : aucune référence fiable sur le coût, aucun A5 « absente du relevé », gains fiables nuls', () => {
+  const lignes = [L('Produit S1', { prix_vente: 1.2, prix_achat: 1 }), L('Produit S2', { prix_vente: 1.2, prix_achat: 1 })];
+  const sans = T.analyser(lignes, [], ctxBase({ stockFourni: false }));
+  assert.ok(sans.lignes.every(l => l.fiabilite.niveau !== 'fiable'));
+  assert.ok(sans.lignes.every(l => JSON.stringify(l.fiabilite).includes('coût non contrôlé : relevé de stock non fourni')));
+  for (const l of sans.lignes) {
+    const a5 = alerte(l, 'A5');
+    assert.ok(!a5 || !JSON.stringify(a5).includes('absente du relevé'));
+  }
+  assert.ok(!sans.lignes.some(l => JSON.stringify(l.alertes || []).includes('absente du relevé')));
+  assert.ok([null, 0].includes(sans.gains.decisionnels.minimum.fiable.montant));
+  assert.strictEqual(sans.gains.decisionnels.minimum.fiable.references, 0);
+  assert.strictEqual(sans.synthese.stockFourni, false);
+});
+
 console.log('test_politique_tarifaire_t2 : ' + n + ' épreuves OK');

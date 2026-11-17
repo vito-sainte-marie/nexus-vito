@@ -215,7 +215,7 @@
       if (varCout !== null && Math.abs(varCout) >= R.variationSuspecte) ins.push('coût en variation de ' + Math.round(varCout * 100) + ' % sur la période précédente');
       else if (varCout !== null && Math.abs(varCout) >= R.variationNotable) conf.push('coût en variation de ' + Math.round(varCout * 100) + ' % sur la période précédente');
       // Sans relevé de stock fourni (ctx.stockFourni === false) : aucun constat par référence ; la limite est écrite une fois (synthese.stockFourni).
-      if (!st) { if (ctx.stockFourni !== false) conf.push('absent du relevé de stock : coût non contrôlé'); }
+      if (!st) conf.push(ctx.stockFourni !== false ? 'absent du relevé de stock : coût non contrôlé' : 'coût non contrôlé : relevé de stock non fourni');
       else if (!(paStock > 0)) conf.push('PA net HT nul au relevé de stock');
       else if (ecartStock !== null && Math.abs(ecartStock) > R.ecartStockInsuffisant) ins.push('coût écarté de ' + Math.round(ecartStock * 100) + ' % du PA net HT du stock');
       else if (ecartStock !== null && Math.abs(ecartStock) > R.ecartStockConfirmer) conf.push('coût écarté de ' + Math.round(ecartStock * 100) + ' % du PA net HT du stock');
@@ -303,7 +303,7 @@
       if (a4.length) ajoute('A4', { montant: (ecartStock !== null && paStock > 0) ? r2((pa - paStock) * q) : null, nature: 'écart de valorisation, jamais un gain' }, { constats: a4, cout: pa, coutPrecedent: paP, paStock: paStock === undefined ? null : paStock });
       const a5 = [];
       if (tva.etat === 'a_verifier') a5.push('TVA : ' + tva.raison);
-      if (!st) a5.push('référence absente du relevé de stock');
+      if (!st && ctx.stockFourni !== false) a5.push('référence absente du relevé de stock');
       if (/^\d{2}-\d{2}-\d{4}\s/.test(row.article || '')) a5.push("libellé préfixé d'une date");
       const div = premier(ctx.motifsDivergents, row);
       if (div) a5.push('motif déclaré « ' + div.motif_declare + ' » contre motif enregistré « ' + div.motif_enregistre + ' »');
