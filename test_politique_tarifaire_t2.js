@@ -440,4 +440,14 @@ ok('A5 régime déclaré contre règle NEXUS : constat, sans effet sur gains ni 
   assert.ok(!(alerte(un(accord, 'Produit R'), 'A5') || { donnees: { constats: [] } }).donnees.constats.some(c => /régime déclaré/.test(c)));
 });
 
+ok('stock non fourni : aucun constat « absent du relevé » par référence, limite portée par la synthèse', () => {
+  const lignes = [L('Produit S1', { prix_vente: 4, prix_achat: 1 }), L('Produit S2', { prix_vente: 4, prix_achat: 1 })];
+  const sans = T.analyser(lignes, [], ctxBase({ stockFourni: false }));
+  for (const l of sans.lignes) assert.ok(!JSON.stringify(l).includes('absent du relevé de stock'));
+  assert.strictEqual(sans.synthese.stockFourni, false);
+  const avec = T.analyser(lignes, [], ctxBase());
+  assert.strictEqual(avec.synthese.stockFourni, true);
+  assert.ok(avec.lignes.every(l => JSON.stringify(l).includes('absent du relevé de stock')));
+});
+
 console.log('test_politique_tarifaire_t2 : ' + n + ' épreuves OK');

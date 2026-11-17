@@ -214,7 +214,8 @@
       if (pv !== null && pa !== null && pa >= pv) ins.push('marge négative ou nulle');
       if (varCout !== null && Math.abs(varCout) >= R.variationSuspecte) ins.push('coût en variation de ' + Math.round(varCout * 100) + ' % sur la période précédente');
       else if (varCout !== null && Math.abs(varCout) >= R.variationNotable) conf.push('coût en variation de ' + Math.round(varCout * 100) + ' % sur la période précédente');
-      if (!st) conf.push('absent du relevé de stock : coût non contrôlé');
+      // Sans relevé de stock fourni (ctx.stockFourni === false) : aucun constat par référence ; la limite est écrite une fois (synthese.stockFourni).
+      if (!st) { if (ctx.stockFourni !== false) conf.push('absent du relevé de stock : coût non contrôlé'); }
       else if (!(paStock > 0)) conf.push('PA net HT nul au relevé de stock');
       else if (ecartStock !== null && Math.abs(ecartStock) > R.ecartStockInsuffisant) ins.push('coût écarté de ' + Math.round(ecartStock * 100) + ' % du PA net HT du stock');
       else if (ecartStock !== null && Math.abs(ecartStock) > R.ecartStockConfirmer) conf.push('coût écarté de ' + Math.round(ecartStock * 100) + ' % du PA net HT du stock');
@@ -381,6 +382,7 @@
       exclusReglementaire: { references: exclus.reglementaire.length, ca_ht: r2(exclus.reglementaire.reduce((s, l) => s + (l.ca_ht || 0), 0)) },
       exclusException: { references: exclus.exception.length },
       cout: { ...cout, methode: cout.methode || 'non établie (PMP ou dernier prix d\'achat)', methodeEtablie },
+      stockFourni: ctx.stockFourni !== false,
     };
     return { lignes, gains, synthese };
   }
