@@ -610,8 +610,8 @@ cas('Réel · l\'arbre de cette branche reçoit une empreinte', () => {
 // .github/deploiement/empreinte-artefact.js --arbre-source=.`) : une mise à
 // jour de ces constantes sans ajout correspondant dans `supabase/migrations/`
 // serait un aveu.
-const MIGRATIONS_REELLES_NOMBRE = 335; // 331 + 4 (20261117100000, nature des références, justifications de marge et confirmations de TVA, lot P1-B, appliquée sur Test seulement, mesurée en worktree le 15/11/2026 ; 20261116100000, PMP avant promotion, campagne V2 lot C5, appliquée sur Test seulement, mesurée en worktree le 14/11/2026 ; 20261115100000, commandes fournisseur et réglages d'achat, campagne V2 lot C4, appliquée sur Test seulement, mesurée en worktree propre le 14/11/2026 ; 20261114190000, livraisons et stock de départ, campagne V2 lot C3, appliquée en Production, mesurée par Guardian le 14/11/2026 à 19:20Z), mesuré le 14/11/2026 après #311
-const MIGRATIONS_REELLES_EMPREINTE = '44ae7e9be16f6637fda406dee5bf78bf35cb2b8df8f8d85b9771026a33e83d00';
+const MIGRATIONS_REELLES_NOMBRE = 339; // 335 + 4 (T2 registres tarifaires versionnés : 20261117020430, 20261117020652, 20261117020851, 20261117021059, appliquées sur Test seulement le 16/11/2026) ; 331 + 4 (20261117100000, nature des références, justifications de marge et confirmations de TVA, lot P1-B, appliquée sur Test seulement, mesurée en worktree le 15/11/2026 ; 20261116100000, PMP avant promotion, campagne V2 lot C5, appliquée sur Test seulement, mesurée en worktree le 14/11/2026 ; 20261115100000, commandes fournisseur et réglages d'achat, campagne V2 lot C4, appliquée sur Test seulement, mesurée en worktree propre le 14/11/2026 ; 20261114190000, livraisons et stock de départ, campagne V2 lot C3, appliquée en Production, mesurée par Guardian le 14/11/2026 à 19:20Z), mesuré le 14/11/2026 après #311
+const MIGRATIONS_REELLES_EMPREINTE = 'cd41811b1475f932dbc9a7a090400e8aad10ff631970d475ee0c62e325804f8e';
 
 cas(`Réel · la provenance des migrations annonce ${MIGRATIONS_REELLES_NOMBRE} et garde son empreinte`, () => {
   const { code, sortie } = lancer([`--racine=${arbre({ ...BASE })}`, `--arbre-source=${RACINE_DEPOT}`]);
