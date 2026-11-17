@@ -450,4 +450,11 @@ ok('stock non fourni : aucun constat « absent du relevé » par référence, li
   assert.ok(avec.lignes.every(l => JSON.stringify(l).includes('absent du relevé de stock')));
 });
 
+ok('opération de caisse : jamais une vente à perte (pas de A3), exclue des ventes commerciales', () => {
+  const a = T.analyser([L('Produit V', { prix_vente: 1, prix_achat: 2 }), L('Produit W', { prix_vente: 1, prix_achat: 2 })], [], ctxBase({ natureDe: r => (r.article === 'Produit W' ? 'operation_caisse' : null) }));
+  assert.ok(alerte(un(a, 'Produit V'), 'A3'));
+  assert.ok(!alerte(un(a, 'Produit W'), 'A3'));
+  assert.strictEqual(un(a, 'Produit W').simulation.exclusion, 'hors ventes commerciales');
+});
+
 console.log('test_politique_tarifaire_t2 : ' + n + ' épreuves OK');

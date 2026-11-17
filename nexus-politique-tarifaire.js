@@ -288,7 +288,7 @@
         ajoute('A1', { montant: r2((pa - paP) * q), nature: 'impact estimé à volume observé' }, { coutPrecedent: paP, cout: pa, tauxPrecedent: tauxP, taux });
       if (statut === STATUTS.proposition_a_valider && sim.minimum)
         ajoute('A2', { montant: sim.minimum.gain, nature: 'gain théorique au seuil, volume constant' }, { taux, seuil: seuilRef, prixEnvisageableTtc: sim.minimum.ttc, exceptionCandidate: !!(exception && exception.statut === 'candidate') });
-      if (pv !== null && pa !== null && pa >= pv) {
+      if (commerciale && pv !== null && pa !== null && pa >= pv) {   // une opération de caisse (ACOMPTE…) n'est jamais une vente à perte
         const just = premier(ctx.justifications, row);
         // Marge nulle (coût = PV) et vente à perte (coût > PV) sont distinguées : une marge nulle compte 0 € et n'est jamais présentée comme une perte.
         const nulle = r4(pa) === r4(pv);
