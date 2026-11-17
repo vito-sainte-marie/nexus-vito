@@ -63,12 +63,16 @@ function executer(html, ROWS, vue) {
   assert.ok(ok.instr && ok.instr.marge && !ok.instr.marge.erreur, 'scannerMarge ne doit pas échouer : ' + ok.errs.join(' | ').slice(0, 400));
   assert.deepStrictEqual(Array.from(ok.instr.marge.ecarts, e => e.article), ['BAS'], 'écarts : ' + JSON.stringify(ok.instr.marge.ecarts.map(e => e.article)));
   assert.ok(ok.instr.texte, 'texte R5 de la fiche présent');
-  // Changement attendu (fiche v2, matrice T1 -> T2, ligne « Marge+ ») : le bloc T1 « Écarts de marge dans le groupe » disparaît ;
-  // l'écart à la médiane n'est plus un gain, il n'est ni proposé ni additionné. Sans seuil validé, aucune carte A2 n'est affichée.
-  assert.ok(!/Écarts de marge dans le groupe/.test(ok.corps), 'le bloc T1 Marge+ ne doit plus exister (matrice, ligne Marge+)');
-  assert.ok(/data-carte="propositions"/.test(ok.corps) && /jamais additionnés/.test(ok.corps), 'la synthèse T2 porte le gain, jamais additionné');
-  // Changement attendu (fiche v2, § actions autorisées) : seules quatre actions sont permises, le lien vers NEXUS-Scanner-v1.html est retiré de la vue.
-  assert.ok(!/NEXUS-Scanner-v1\.html/.test(ok.corps), 'le lien vers l\'ancien Scanner n\'existe plus dans la vue (fiche v2, actions autorisées)');
+  // Changement attendu (matrice T1 -> T2, ligne « Marge+ », arbitrage Guardian 6960156521) : le bloc T1 « Écarts de marge dans le groupe » disparaît
+  // comme proposition ; l'écart est restitué au niveau 3 en repère statistique, sans seuil validé ni carte A2, jamais compté dans un gain.
+  assert.ok(!/Écarts de marge dans le groupe/.test(ok.corps), 'le bloc T1 Marge+ n\'est plus une proposition');
+  assert.ok(/data-marge-plus="repere"/.test(ok.corps), 'repère Marge+ visible sans seuil validé');
+  assert.ok(/Repère statistique : écart à la médiane, hypothèse à vérifier, jamais un gain/.test(ok.corps), 'titre du repère');
+  assert.ok(/class="lien-scanner-nexus" href="NEXUS-Scanner-v1\.html"/.test(ok.corps), 'lien vers NEXUS-Scanner-v1.html');
+  assert.ok(/BAS/.test(ok.corps.slice(ok.corps.indexOf('data-marge-plus'))), 'article en écart présent dans le repère');
+  const gainsTxt = ok.corps.slice(0, ok.corps.indexOf('data-marge-plus'));
+  assert.ok(/data-carte="propositions"/.test(gainsTxt) && /jamais additionnés/.test(gainsTxt), 'la synthèse T2 porte le gain, jamais additionné');
+  assert.ok(!/data-carte="propositions"[^]*?<\/section>/.test(ok.corps.slice(ok.corps.indexOf('data-marge-plus'))), 'repère hors des cartes de gain');
   const tabs = ok.requetes.filter(r => ['produits_appel', 'marge_exceptions', 'journal_decisions'].includes(r.t));
   assert.strictEqual(tabs.length, 3);
   for (const r of tabs) assert.ok(r.filtres.site, `${r.t} doit être filtrée par site`);
