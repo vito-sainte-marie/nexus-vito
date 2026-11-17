@@ -160,17 +160,44 @@ ok('lecture par vues du registre uniquement', () => {
 
 ok('bloc fiche « Politique tarifaire » : replié, en lecture seule, sans bouton de décision', () => {
   const l = analyse().lignes[0], h = E.blocFiche(l);
-  assert.ok(/<details class="pt-pol"/.test(h) && !/<details[^>]* open/.test(h));
+  assert.ok(/<details class="sc-carte pt-pol"/.test(h) && /sc-chev/.test(h) && !/▼/.test(h) && !/Ouvrir la fiche produit/.test(h) && !/<details[^>]* open/.test(h));
   assert.ok(/Politique tarifaire/.test(h));
   assert.ok(!/<button|<input|<form|Appliquer|Proposer une exception|Décider/.test(h));
 });
 
-ok('avertissement de régime (A5) visible dans la liste et dans la fiche', () => {
-  const l = Object.assign({}, analyse().lignes[0], { regime: 'reglemente', regimeDeclare: null });
+const A5 = ['régime déclaré « libre » contre règle NEXUS « réglementé »'];
+const avecA5 = l => Object.assign({}, l, { alertes: (l.alertes || []).concat([{ code: 'A5', donnees: { constats: A5 } }]) });
+const sansA5 = l => Object.assign({}, l, { alertes: (l.alertes || []).filter(a => a.code !== 'A5') });
+
+ok('badge « Régime à vérifier » : seulement le désaccord registre / règle (A5)', () => {
+  const l = avecA5(Object.assign({}, analyse().lignes[0], { regime: 'reglemente', regimeDeclare: null }));
   assert.ok(/Aucune action de prix/.test(E.avertissementRegime(l)));
   assert.ok(/Régime à vérifier/.test(E.htmlLigne(l)));
   assert.ok(/Aucune action de prix/.test(E.blocFiche(l)));
-  assert.strictEqual(E.avertissementRegime(Object.assign({}, l, { regime: 'libre' })), null);
+});
+
+ok('prix réglementé sans désaccord : information neutre « Prix réglementé », aucun avertissement', () => {
+  const l = sansA5(Object.assign({}, analyse().lignes[0], { regime: 'reglemente', regimeDeclare: null }));
+  assert.strictEqual(E.avertissementRegime(l), null);
+  const h = E.htmlLigne(l);
+  assert.ok(/Prix réglementé/.test(h) && !/Régime à vérifier/.test(h));
+  const c = sansA5(Object.assign({}, analyse().lignes[0], { regime: 'contractuel', regimeDeclare: null }));
+  assert.ok(/Prix contractuel/.test(E.htmlLigne(c)) && !/Régime à vérifier/.test(E.htmlLigne(c)));
+});
+
+ok('prix libre : ni « Régime à vérifier » ni « Prix réglementé »', () => {
+  const l = sansA5(Object.assign({}, analyse().lignes[0], { regime: 'libre', regimeDeclare: null }));
+  assert.strictEqual(E.avertissementRegime(l), null);
+  const h = E.htmlLigne(l);
+  assert.ok(!/Régime à vérifier|Prix réglementé|Prix contractuel/.test(h));
+});
+
+ok('un seul état par ligne : « À vérifier » seulement pour statut À vérifier ou A4/A5', () => {
+  const base = sansA5(analyse().lignes[0]);
+  const conf = Object.assign({}, base, { statut: 'conforme', alertes: (base.alertes || []).filter(a => a.code !== 'A4') });
+  assert.ok(!/À vérifier/.test(E.badgeLigne(conf)));
+  assert.ok(/À vérifier/.test(E.badgeLigne(Object.assign({}, conf, { statut: 'a_verifier' }))));
+  assert.ok(/À vérifier/.test(E.badgeLigne(avecA5(conf))));
 });
 
 ok('aucune référence de famille exclue ne reçoit de proposition de prix', () => {

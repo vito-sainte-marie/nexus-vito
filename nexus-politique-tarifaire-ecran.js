@@ -232,7 +232,7 @@
     if (code === 'A1') {
       // Jamais de total de grandeurs différentes : prix libres et prix réglementés ou contractuels restent séparés.
       sousTotaux = { libres: { nombre: 0, montant: 0 }, reglementes: { nombre: 0, montant: 0 } };
-      lignes.forEach(function (l) { var m = montantAlerte(l, 'A1'), k = avertissementRegime(l) ? 'reglementes' : 'libres'; sousTotaux[k].nombre++; if (m !== null) sousTotaux[k].montant += m; });
+      lignes.forEach(function (l) { var m = montantAlerte(l, 'A1'), k = typeRegime(l) ? 'reglementes' : 'libres'; sousTotaux[k].nombre++; if (m !== null) sousTotaux[k].montant += m; });
     } else if (code !== 'FI' && code !== 'EX') lignes.forEach(function (l) { var m = montantAlerte(l, code); if (m !== null) montant = (montant || 0) + m; });
     return { code: code, famille: familleId, sousTotaux: sousTotaux, icone: familleId, titre: TITRES_CTRL[code], nombre: lignes.length, montant: montant, nature: NATURES_CTRL[code],
       gravite: meta.gravite, action: meta.action, lignes: lignes, methode: METHODES_CTRL[code], filtre: filtreControle(code) };
@@ -245,29 +245,57 @@
 
   // ---------- Régime de prix à voir dans la liste et la fiche ----------
   var LIB_REGIME = { reglemente: 'réglementé', contractuel: 'contractuel', a_qualifier: 'à qualifier' };
+  // Régime déclaré par le registre contre règle NEXUS : c'est le seul cas qui demande une vérification (constat A5).
+  function desaccordRegime(l) {
+    var res = null;
+    (l.alertes || []).forEach(function (a) {
+      if (a.code !== 'A5') return;
+      ((a.donnees && a.donnees.constats) || []).forEach(function (c) { if (/^régime déclaré/.test(c)) res = c; });
+    });
+    return res;
+  }
   function avertissementRegime(l) {
-    var d = l.regimeDeclare;
-    if (d && d.regime) return 'Régime de prix déclaré : ' + (LIB_REGIME[d.regime] || d.regime) + (d.raison ? ' (' + d.raison + ')' : '') + '. Aucune action de prix.';
-    if (l.regime && l.regime !== 'libre') return 'Régime de prix : ' + (LIB_REGIME[l.regime] || l.regime) + '. Aucune action de prix.';
-    return null;
+    var c = desaccordRegime(l);
+    return c ? 'Régime à vérifier : ' + c + '. Aucune action de prix.' : null;
+  }
+  // Prix réglementé ou contractuel sans désaccord : une information, jamais un avertissement.
+  function typeRegime(l) {
+    var r = (l.regimeDeclare && l.regimeDeclare.regime) || (l.regime && l.regime !== 'libre' ? l.regime : null);
+    return r === 'contractuel' ? 'contractuel' : r === 'reglemente' ? 'reglemente' : r ? 'a_qualifier' : null;
+  }
+  function infoRegime(l) {
+    if (desaccordRegime(l)) return null;
+    var t = typeRegime(l);
+    return t === 'contractuel' ? 'Prix contractuel' : t === 'reglemente' ? 'Prix réglementé' : t ? 'Régime à qualifier' : null;
+  }
+  function badgeRegime(l) {
+    if (desaccordRegime(l)) return B.gravite('a-verifier', { libelle: 'Régime à vérifier' });
+    var i = infoRegime(l);
+    return i ? '<span class="nbe-qualif" data-axe="regime">' + esc(i) + '</span>' : '';
+  }
+  // Un seul état par ligne : le statut T2 de la référence. « À vérifier » seulement si le statut l'est ou si A4 ou A5 est levée.
+  function badgeLigne(l) {
+    var codes = (l.alertes || []).map(function (a) { return a.code; });
+    if (l.statut === 'a_verifier' || codes.indexOf('A4') >= 0 || codes.indexOf('A5') >= 0) return B.gravite('a-verifier');
+    var lib = LIB_STATUT[l.statut] || l.statut;
+    if (l.statut === 'conforme') return B.gravite('conforme', { libelle: lib });
+    return B.gravite('information', { libelle: lib });
   }
 
   // ---------- Rendu ----------
   function htmlLigne(l) {
-    var g = graviteLigne(l), badge = g === 3 ? '' : B.gravite(graviteBadge(['critique', 'a_verifier', 'information'][g]));
-    var w = avertissementRegime(l);
     return '<li><button type="button" class="vp-ligne-prod" data-article="' + esc(l.article) + '">' +
-      '<span class="vp-nom">' + esc(l.article) + (w ? '<span class="vp-badge">Régime à vérifier</span>' : '') + '</span>' +
-      '<span class="vp-meta">' + esc(l.rayon || '') + ' · ' + esc(LIB_STATUT[l.statut] || l.statut) + ' · fiabilité ' + esc((LIB_FIABILITE[l.fiabilite.niveau] || l.fiabilite.niveau).toLowerCase()) + '</span>' +
-      '<span class="vp-chiffres">Marge ' + esc(pct(l.taux)) + ' ' + badge + '</span></button></li>';
+      '<span class="vp-nom">' + esc(l.article) + ' ' + badgeRegime(l) + '</span>' +
+      '<span class="vp-meta">' + esc(l.rayon || '') + ' · fiabilité ' + esc((LIB_FIABILITE[l.fiabilite.niveau] || l.fiabilite.niveau).toLowerCase()) + '</span>' +
+      '<span class="vp-chiffres">Marge ' + esc(pct(l.taux)) + ' ' + badgeLigne(l) + '</span></button></li>';
   }
   function blocFiche(l) {
     var f = fiche(l), s = f.seuil, pd = l.prixDecide, w = avertissementRegime(l);
     var li = function (k, v) { return '<div class="pt-pol-l"><span class="sc-lib">' + esc(k) + '</span><span>' + esc(v) + '</span></div>'; };
     var alertes = (l.alertes || []).map(function (a) { return (T.ALERTES[a.code] || {}).libelle || a.code; });
     var version = s && s.version !== null ? ' (version ' + (s.version.seuil_id !== undefined ? s.version.seuil_id : s.version) + ')' : '';
-    return '<details class="pt-pol" data-pol="1"><summary>Politique tarifaire</summary>' +
-      (w ? '<p class="sc-conseil">' + esc(w) + '</p>' : '') +
+    return '<details class="sc-carte pt-pol" data-pol="1"><summary><span class="sc-nom">Politique tarifaire</span><span class="sc-chev"></span></summary>' +
+      (w ? '<p class="sc-conseil">' + esc(w) + '</p>' : (infoRegime(l) ? '<p class="sc-note">' + esc(infoRegime(l)) + '. Aucune action de prix.</p>' : '')) +
       li('Statut', (LIB_STATUT[f.statut] || f.statut) + (f.raisonStatut ? ' : ' + f.raisonStatut : '')) +
       li('Seuil applicable', s ? (LIB_REGLE[s.niveau] || s.niveau) + ' : minimum ' + pct(s.minimum) + ' (' + (s.statutMinimum || 'sans statut') + '), cible ' + pct(s.cible) + ' (' + (s.statutCible || 'sans statut') + ')' + version : 'aucun seuil valide') +
       li('Fiabilité', (LIB_FIABILITE[f.fiabilite] || f.fiabilite) + (f.raisons.length ? ' : ' + f.raisons.join(', ') : '')) +
@@ -276,8 +304,7 @@
       li('Alertes', alertes.length ? alertes.join(', ') : 'aucune') + '</details>';
   }
   function htmlFiche(l) {
-    return '<div class="sc-fiche pt-fiche" data-fiche-ouverte="' + esc(l.article) + '"><div class="sc-nom">' + esc(l.article) + '</div>' + blocFiche(l) +
-      '<button type="button" class="detail-btn" data-fiche="' + esc(l.article) + '">Ouvrir la fiche produit</button></div>';
+    return '<div class="sc-fiche pt-fiche" data-fiche-ouverte="' + esc(l.article) + '"><div class="sc-nom">' + esc(l.article) + '</div>' + blocFiche(l)+ '</div>';
   }
   function htmlControle(c, icone) {
     var badgeG = c.nombre ? B.gravite(graviteBadge(c.gravite)) : B.gravite('conforme');
@@ -315,7 +342,7 @@
     familles(a).forEach(function (fa) {
       h += '<section class="vp-bloc pt-famille" data-famille="' + fa.id + '"><h3 class="nbe-groupe-titre">' + esc(fa.titre) + '</h3>' +
         (fa.id === 'exceptions' ? '<p class="sc-note">Décisions du gérant : elles ne sont pas des anomalies.</p>' : '') +
-        '<div class="sc-cartes">' + fa.cartes.map(function (x) { return htmlControle(x, etat.icone); }).join('') + '</div></section>';
+        '<div class="sc-cartes">' + fa.cartes.map(function (x) { return htmlControle(x, etat.icone); }).join('') + '</div>' + (fa.id === 'decisions' && etat.margePlus ? etat.margePlus : '') + '</section>';
     });
     h += '<div class="vp-bloc sc-tout"><h3>Toutes les références</h3><div class="vp-filtres"><input type="search" id="ptRecherche" placeholder="Rechercher un article" value="' + esc(f.recherche || '') + '">' +
       '<select data-filtre="famille">' + opts(vf.famille, f.famille) + '</select><select data-filtre="rayon">' + opts(vf.rayon, f.rayon) + '</select>' +
@@ -328,8 +355,8 @@
     if (toutes > visibles.length) h += '<button type="button" class="detail-btn vp-plus" data-plus="1">Voir les ' + (toutes - visibles.length) + ' autres références</button>';
     h += '</div>';
     var pr = preuves(a);
-    if (pr.length) h += '<details class="sc-carte pt-preuves"><summary>Preuves techniques (' + pr.length + ')</summary>' + pr.map(function (p) { return '<div class="sc-methode">' + esc(p.article) + ' : ' + esc(p.mention) + (p.raisons.length ? ' (' + esc(p.raisons.join(', ')) + ')' : '') + '</div>'; }).join('') + '</details>';
-    h += '<details class="sc-carte pt-sources"><summary>Sources et limites</summary>' + cs.map(function (x) {
+    if (pr.length) h += '<details class="sc-carte pt-preuves"><summary><span class="sc-nom">Preuves techniques (' + pr.length + ')</span><span class="sc-chev"></span></summary>' + pr.map(function (p) { return '<div class="sc-methode">' + esc(p.article) + ' : ' + esc(p.mention) + (p.raisons.length ? ' (' + esc(p.raisons.join(', ')) + ')' : '') + '</div>'; }).join('') + '</details>';
+    h += '<details class="sc-carte pt-sources"><summary><span class="sc-nom">Sources et limites</span><span class="sc-chev"></span></summary>' + cs.map(function (x) {
       return '<p class="sc-methode"><b>' + esc(x.titre) + '</b> : ' + esc(x.unite) + '. ' + esc(x.periode) + '. ' + esc(x.source) + ' ' + esc(x.limite) + '</p>';
     }).join('') + '</details>';
     if (etat.ouverte) { var l = a.lignes.filter(function (x) { return x.article === etat.ouverte; })[0]; if (l) h += htmlFiche(l); }
@@ -382,7 +409,7 @@
   }
   var API = { cartes: cartes, scenarios: scenarios, alertesCartes: alertesCartes, trier: trier, filtrer: filtrer, valeursFiltres: valeursFiltres,
     preuves: preuves, conseiller: conseiller, fiche: fiche, etatAcces: etatAcces, peutVoirOnglet: peutVoirOnglet, filtrerSite: filtrerSite,
-    regimeDe: regimeDe, controle: controle, familles: familles, avertissementRegime: avertissementRegime, blocFiche: blocFiche,
+    regimeDe: regimeDe, controle: controle, familles: familles, avertissementRegime: avertissementRegime, infoRegime: infoRegime, badgeRegime: badgeRegime, badgeLigne: badgeLigne, blocFiche: blocFiche,
     chargerRegistres: chargerRegistres, chargerVentes: chargerVentes, lireCompte: lireCompte, libellePeriode: libellePeriode,
     htmlPage: htmlPage, htmlLigne: htmlLigne, htmlControle: htmlControle, htmlFiche: htmlFiche, graviteLigne: graviteLigne, CSS: CSS };
   global.NexusPolitiqueTarifaireEcran = API;

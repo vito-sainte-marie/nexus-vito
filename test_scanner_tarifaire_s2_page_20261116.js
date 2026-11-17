@@ -67,7 +67,7 @@ function executer(html, ROWS, vue) {
   // comme proposition ; l'écart est restitué au niveau 3 en repère statistique, sans seuil validé ni carte A2, jamais compté dans un gain.
   assert.ok(!/Écarts de marge dans le groupe/.test(ok.corps), 'le bloc T1 Marge+ n\'est plus une proposition');
   assert.ok(/data-marge-plus="repere"/.test(ok.corps), 'repère Marge+ visible sans seuil validé');
-  assert.ok(/Repère statistique : écart à la médiane, hypothèse à vérifier, jamais un gain/.test(ok.corps), 'titre du repère');
+  assert.ok(/Repère statistique : écart à la médiane/.test(ok.corps) && /<details class="sc-carte pt-marge"/.test(ok.corps) && !/<details class="sc-carte pt-marge"[^>]* open/.test(ok.corps), 'titre du repère, bloc replié');
   assert.ok(/class="lien-scanner-nexus" href="NEXUS-Scanner-v1\.html"/.test(ok.corps), 'lien vers NEXUS-Scanner-v1.html');
   assert.ok(/BAS/.test(ok.corps.slice(ok.corps.indexOf('data-marge-plus'))), 'article en écart présent dans le repère');
   const gainsTxt = ok.corps.slice(0, ok.corps.indexOf('data-marge-plus'));

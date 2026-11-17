@@ -1715,12 +1715,12 @@ nexusRequireAuth().then(async employee => {
     // Repère Marge+ (niveau 3) : calcul T1 inchangé (scannerMarge), visible sans seuil validé ni fiche A2, jamais compté dans un gain.
     const blocMargePlus = () => {
       const MG = scannerMarge(), M = MG && MG.affichage, TM = NexusScannerTarifaire.TEXTES.marge;
-      if (MG && MG.erreur) return '<section class="pt-marge" data-marge-plus="erreur"><h3>Repère statistique : écart à la médiane, hypothèse à vérifier, jamais un gain</h3><p class="vp-ligne">Le calcul des écarts de marge a échoué. Le reste du Scanner n\'est pas touché.</p></section>';
+      if (MG && MG.erreur) return '<details class="sc-carte pt-marge" data-marge-plus="erreur"><summary><span class="sc-nom">Repère statistique : écart à la médiane</span><span class="sc-chev"></span></summary><p class="vp-ligne">Le calcul des écarts de marge a échoué. Le reste du Scanner n\'est pas touché.</p></details>';
       if (!M) return '';
       const lignes = (M.premiers || []).map(e => `<li class="vp-ligne"><strong>${esc(e.article)}</strong> <span class="sc-fam">${esc(e.categorie || '')}</span> · taux de marge ${esc(fmtN(e.margePct, 1))} % · médiane du groupe ${esc(fmtN(e.medianeGroupe, 1))} % sur ${esc(String(e.tailleGroupe))} références · écart à la médiane ${esc(eurN(e.gainPotentiel))}${e.aussi_hausse_pa ? ' · ' + esc(TM.aussiHausse) : ''}</li>`).join('');
-      return `<section class="pt-marge" data-marge-plus="repere"><h3>Repère statistique : écart à la médiane, hypothèse à vérifier, jamais un gain</h3><p class="vp-ligne">${esc(TM.ecart)} : ${esc(eurN(M.ecart))} sur ${esc(String(M.total))} référence${M.total > 1 ? 's' : ''}. Ce repère n'entre dans aucun gain.</p><ul class="vp-liste sc-liste">${lignes || '<li class="vp-ligne">Aucun écart de marge.</li>'}</ul><a class="lien-scanner-nexus" href="NEXUS-Scanner-v1.html">${esc(TM.lien)}</a></section>`;
+      return `<details class="sc-carte pt-marge" data-marge-plus="repere"><summary><span class="sc-nom">Repère statistique : écart à la médiane</span><span class="sc-chev"></span></summary><p class="sc-note">Hypothèse à vérifier, jamais un gain.</p><p class="vp-ligne">${esc(TM.ecart)} : ${esc(eurN(M.ecart))} sur ${esc(String(M.total))} référence${M.total > 1 ? 's' : ''}. Ce repère n'entre dans aucun gain.</p><ul class="vp-liste sc-liste">${lignes || '<li class="vp-ligne">Aucun écart de marge.</li>'}</ul><a class="lien-scanner-nexus" href="NEXUS-Scanner-v1.html">${esc(TM.lien)}</a></details>`;
     };
-    const rendre = () => { corps.innerHTML = E.htmlPage(etat) + blocMargePlus(); lier(); };
+    const rendre = () => { etat.margePlus = blocMargePlus(); corps.innerHTML = E.htmlPage(etat); lier(); };
     const versFiche = a => choisirSuggestion(a);
     const lier = () => {
       corps.querySelectorAll('[data-fiche]').forEach(b => b.addEventListener('click', () => versFiche(b.dataset.fiche)));

@@ -83,7 +83,7 @@ const prod = lire('NEXUS-Produits-v1.html');
 assert.ok(/scannerNormalise\(/.test(prod) && /normaliserScannerTarifaire/.test(prod), 'Produits utilise le normaliseur');
 // Arbitrage Guardian 6960156521 (point 2) : le repère Marge+ est restitué au niveau 3, avec son lien vers NEXUS-Scanner-v1.html (page Scanner identique à Production).
 assert.ok(/class="lien-scanner-nexus" href="NEXUS-Scanner-v1\.html"/.test(prod), 'lien vers NEXUS-Scanner-v1.html conservé dans le repère Marge+');
-assert.ok(/Repère statistique : écart à la médiane, hypothèse à vérifier, jamais un gain/.test(prod), 'titre du repère Marge+');
+assert.ok(/Repère statistique : écart à la médiane/.test(prod) && /Hypothèse à vérifier, jamais un gain/.test(prod) && /<details class="sc-carte pt-marge"/.test(prod), 'titre du repère Marge+ (replié, carte)');
 assert.ok(!/journal_decisions[^;\n]*\.(insert|upsert|update|delete)\(/.test(prod), 'Produits n\'écrit pas dans journal_decisions');
 assert.ok(!/\.from\(['"](produits_appel|marge_exceptions|journal_decisions)['"]\)\s*\.(insert|upsert|update|delete)/.test(prod));
 console.log('OK  consommateurs et lecture seule');
