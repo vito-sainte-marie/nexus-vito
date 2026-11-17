@@ -1,0 +1,21 @@
+e0000000-0000-0000-0000-000000000001
+e0000000-0000-0000-0000-000000000002
+D1 gérant désactivé lit les familles : BLOQUE (division by zero)
+D2 gérant désactivé lit la vue des exceptions effectives : BLOQUE (division by zero)
+D2b gérant désactivé lit la vue des incohérences et des prix actifs : BLOQUE (division by zero)
+D3 gérant désactivé crée une famille : BLOQUE (new row violates row-level security policy "compte_actif_obligatoire" for table )
+D4 gérant désactivé décide un prix : BLOQUE (new row violates row-level security policy "compte_actif_obligatoire" for table )
+D5 gérant désactivé annule une famille : BLOQUE (division by zero)
+e0000000-0000-0000-0000-000000000003
+M1 manager désactivé propose une exception candidate : BLOQUE (new row violates row-level security policy "compte_actif_obligatoire" for table )
+M2 manager désactivé déclare une saisie de prix : BLOQUE (tarif_application_invalide : le prix décidé visé n est pas actif, pas du même si)
+e0000000-0000-0000-0000-000000000004
+C1 créateur désactivé lit un site autorisé : BLOQUE (division by zero)
+e0000000-0000-0000-0000-000000000005
+T1 compte de test désactivé lit les familles : BLOQUE (division by zero)
+T2 compte de test désactivé crée un réglage : BLOQUE (new row violates row-level security policy "compte_actif_obligatoire" for table )
+e0000000-0000-0000-0000-000000000001
+G1 témoin : gérant actif lit les familles : ACCES
+G2 témoin : gérant actif crée un réglage : ACCES
+e0000000-0000-0000-0000-000000000002
+R1 gérant réactivé lit les familles : ACCES

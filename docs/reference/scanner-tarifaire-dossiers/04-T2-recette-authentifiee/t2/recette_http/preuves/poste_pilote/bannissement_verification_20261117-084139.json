@@ -1,0 +1,184 @@
+{
+ "mode": "test",
+ "verifier_seulement": true,
+ "debut": "2026-11-17T12:41:39.606Z",
+ "etapes": [
+  {
+   "etape": "garde_cible",
+   "ok": true,
+   "detail": {
+    "cible": "https://udljdqxerrbbbajxubfn.supabase.co"
+   }
+  },
+  {
+   "etape": "garde_cle",
+   "ok": true,
+   "detail": {
+    "format": "jwt",
+    "role": "service_role",
+    "ref": "udljdqxerrbbbajxubfn"
+   }
+  },
+  {
+   "etape": "garde_cle_publique",
+   "ok": true,
+   "detail": {
+    "presente": true
+   }
+  },
+  {
+   "etape": "garde_mots_de_passe",
+   "ok": true
+  },
+  {
+   "etape": "appartenance_cle_auth",
+   "ok": true,
+   "detail": {
+    "http": 200
+   }
+  },
+  {
+   "etape": "appartenance_cle_base",
+   "ok": true,
+   "detail": {
+    "http": 200,
+    "sites_test": 2
+   }
+  },
+  {
+   "etape": "liste_identites",
+   "ok": true,
+   "detail": {
+    "http": 200
+   }
+  },
+  {
+   "etape": "identites_exactes",
+   "ok": true,
+   "detail": {
+    "attendues": 4,
+    "trouvees": 4,
+    "identites_recette_au_total": 4
+   }
+  },
+  {
+   "etape": "lecture_employees",
+   "ok": true,
+   "detail": {
+    "http": 200
+   }
+  },
+  {
+   "etape": "employee_recette-t2-gerant-sm",
+   "ok": true,
+   "detail": {
+    "username": "recette-t2-gerant-sm",
+    "role": "gerant",
+    "role_attendu": "gerant",
+    "site": "vito-sainte-marie",
+    "site_attendu": "vito-sainte-marie",
+    "actif": false,
+    "compte_test": true,
+    "createur": false
+   }
+  },
+  {
+   "etape": "employee_recette-t2-gerant-fantome",
+   "ok": true,
+   "detail": {
+    "username": "recette-t2-gerant-fantome",
+    "role": "gerant",
+    "role_attendu": "gerant",
+    "site": "site-fantome-test",
+    "site_attendu": "site-fantome-test",
+    "actif": false,
+    "compte_test": true,
+    "createur": false
+   }
+  },
+  {
+   "etape": "employee_recette-t2-manager-sm",
+   "ok": true,
+   "detail": {
+    "username": "recette-t2-manager-sm",
+    "role": "manager",
+    "role_attendu": "manager",
+    "site": "vito-sainte-marie",
+    "site_attendu": "vito-sainte-marie",
+    "actif": false,
+    "compte_test": true,
+    "createur": false
+   }
+  },
+  {
+   "etape": "employee_recette-t2-gerant2-sm",
+   "ok": true,
+   "detail": {
+    "username": "recette-t2-gerant2-sm",
+    "role": "gerant",
+    "role_attendu": "gerant",
+    "site": "vito-sainte-marie",
+    "site_attendu": "vito-sainte-marie",
+    "actif": false,
+    "compte_test": true,
+    "createur": false
+   }
+  }
+ ],
+ "identites": [
+  {
+   "email": "recette-t2-gerant-sm@vito-nexus.local",
+   "id": "19d66552-f136-4098-8579-bb37a908e978",
+   "username": "recette-t2-gerant-sm",
+   "role": "gerant",
+   "site": "vito-sainte-marie",
+   "role_attendu": "gerant",
+   "site_attendu": "vito-sainte-marie",
+   "actif": false,
+   "compte_test": true,
+   "createur": false,
+   "banni_avant": null
+  },
+  {
+   "email": "recette-t2-gerant-fantome@vito-nexus.local",
+   "id": "c30f437c-9826-4d0a-8f4b-8e6d852d5181",
+   "username": "recette-t2-gerant-fantome",
+   "role": "gerant",
+   "site": "site-fantome-test",
+   "role_attendu": "gerant",
+   "site_attendu": "site-fantome-test",
+   "actif": false,
+   "compte_test": true,
+   "createur": false,
+   "banni_avant": null
+  },
+  {
+   "email": "recette-t2-manager-sm@vito-nexus.local",
+   "id": "e8bb55be-03d8-4fad-a0d4-1125cec5e82e",
+   "username": "recette-t2-manager-sm",
+   "role": "manager",
+   "site": "vito-sainte-marie",
+   "role_attendu": "manager",
+   "site_attendu": "vito-sainte-marie",
+   "actif": false,
+   "compte_test": true,
+   "createur": false,
+   "banni_avant": null
+  },
+  {
+   "email": "recette-t2-gerant2-sm@vito-nexus.local",
+   "id": "5a9e98c2-3c62-4372-87e5-12f66f8f8bcf",
+   "username": "recette-t2-gerant2-sm",
+   "role": "gerant",
+   "site": "vito-sainte-marie",
+   "role_attendu": "gerant",
+   "site_attendu": "vito-sainte-marie",
+   "actif": false,
+   "compte_test": true,
+   "createur": false,
+   "banni_avant": null
+  }
+ ],
+ "fin": "2026-11-17T12:41:40.629Z",
+ "resultat": "CONFORME"
+}

@@ -1,0 +1,3289 @@
+{
+"source": "NEXUS Production, import_rows_raw, valorisation-stock--6.xls (relevé du 10/11/2026), colonne Decenium « PA net HT », lue le 16/11/2026, site vito-sainte-marie, limitée aux libellés vendus du 05/10 au 09/11/2026",
+"lignes": [
+{
+"article": "2 Eponges Grattantes vegetales",
+"pa_net_ht": 1.94
+},
+{
+"article": "400 ML - LAIT CORPS",
+"pa_net_ht": 3.46
+},
+{
+"article": "AB Chamoisine 40x50 cm",
+"pa_net_ht": 2.33
+},
+{
+"article": "AB Lot de 5 MICROF 30X30",
+"pa_net_ht": 3.1
+},
+{
+"article": "AB Shamp Lustrant 2 en 1 500ml",
+"pa_net_ht": 4.65
+},
+{
+"article": "AB SHINEFRAISE 500ML",
+"pa_net_ht": 5.3
+},
+{
+"article": "AD Blue 10L",
+"pa_net_ht": 14.5
+},
+{
+"article": "Advance 4T Ultra 10W40 1 L - 12P",
+"pa_net_ht": 8.49
+},
+{
+"article": "advance sx 2t 1L - 12P",
+"pa_net_ht": 6.67
+},
+{
+"article": "advance Ultra 2T -12P",
+"pa_net_ht": 7.3
+},
+{
+"article": "Advance VSX2 1L -12P",
+"pa_net_ht": 5.78
+},
+{
+"article": "Allume Feu Cube - 24P",
+"pa_net_ht": 2.4
+},
+{
+"article": "Allumettes Unite Unity - 100P",
+"pa_net_ht": 0.04
+},
+{
+"article": "Aloe Vera Grenade 50cl -20P",
+"pa_net_ht": 1.58
+},
+{
+"article": "Aloe Vera Nature OKF 50cl - 20P",
+"pa_net_ht": 1.6
+},
+{
+"article": "ALOE VERA SPARK 50CL-20P",
+"pa_net_ht": 1.34
+},
+{
+"article": "Amigo Cerise Peyi / Gren 50cl -8P",
+"pa_net_ht": 0.96
+},
+{
+"article": "Amigo Orange 2L -6P",
+"pa_net_ht": 2.87
+},
+{
+"article": "Amigo Orange 50cl -8P",
+"pa_net_ht": 0.94
+},
+{
+"article": "Amigo Pamplemousse 50cl -8P",
+"pa_net_ht": 0.95
+},
+{
+"article": "AMOS 4D FRAISE / CERISE- 12P",
+"pa_net_ht": 2.07
+},
+{
+"article": "AMOS 4D GUMMY ANANAS - 12P",
+"pa_net_ht": 2.18
+},
+{
+"article": "AMOS PEELERZ MANGUE 120G-12P",
+"pa_net_ht": 2.07
+},
+{
+"article": "AMP 12V 02004 H4 50/60W BL",
+"pa_net_ht": 2.65
+},
+{
+"article": "Amp 12v 02006 21.5 w 2 Plots x2",
+"pa_net_ht": 0.89
+},
+{
+"article": "amp 12v 02008 nav 10W x2",
+"pa_net_ht": 0.77
+},
+{
+"article": "amp 12v 02009 graiss 5w x 2",
+"pa_net_ht": 0.76
+},
+{
+"article": "Amp 12v 02025 1 plt amb dec",
+"pa_net_ht": 1.49
+},
+{
+"article": "AMP 24V 02104 21.5W 2PLOTSX2",
+"pa_net_ht": 1.49
+},
+{
+"article": "Ampoule 24v 02101 H7 BL 70/75W",
+"pa_net_ht": 3.2
+},
+{
+"article": "Ampoule12v 02003 H7 55w Axyma",
+"pa_net_ht": 2.65
+},
+{
+"article": "Ampoule12v 02022 H7 x 2 XENON",
+"pa_net_ht": 6.15
+},
+{
+"article": "ANTI FUITE RAD 500ML",
+"pa_net_ht": 10.34
+},
+{
+"article": "AP Nettoyant Plastique Vanille 500 + 100 ml",
+"pa_net_ht": 4.5
+},
+{
+"article": "Assiette Blanche x 15 - 23cm - 15P",
+"pa_net_ht": 2.55
+},
+{
+"article": "Axy Pompe  Siphon",
+"pa_net_ht": 3.6
+},
+{
+"article": "Baguette - 24P",
+"pa_net_ht": 0.69
+},
+{
+"article": "Baguette BEURRE delices prod",
+"pa_net_ht": 0.9
+},
+{
+"article": "BAL Limonade Citron - 24P",
+"pa_net_ht": 1.2
+},
+{
+"article": "BAL Limonade Passion - 24P",
+"pa_net_ht": 1.2
+},
+{
+"article": "BALAI EG FIRST 400MM X1",
+"pa_net_ht": 11.71
+},
+{
+"article": "BALAI EG FIRST 475 MM X1",
+"pa_net_ht": 7.81
+},
+{
+"article": "BALAI EG FIRST 600MM X1",
+"pa_net_ht": 8.52
+},
+{
+"article": "BALAI EG FIRST 650MM X1",
+"pa_net_ht": 12.17
+},
+{
+"article": "BARRE CARAMEL PISTACHE",
+"pa_net_ht": 0.85
+},
+{
+"article": "Barre chacha  27g -50P",
+"pa_net_ht": 0.66
+},
+{
+"article": "Barre Chacha Max 34.3G - 36P",
+"pa_net_ht": 1.02
+},
+{
+"article": "Barre Kinder Bueno 43g - 30P",
+"pa_net_ht": 1.14
+},
+{
+"article": "Barre Kinder Bueno white 43g - 30P",
+"pa_net_ht": 1.14
+},
+{
+"article": "Barre Kit-kat Tablette 41.5g -36P",
+"pa_net_ht": 0.73
+},
+{
+"article": "Barre Lion 42g- 24P",
+"pa_net_ht": 0.75
+},
+{
+"article": "Barre Twix Raider 50g - 32P",
+"pa_net_ht": 0.97
+},
+{
+"article": "Barres snickers 50g - 40P",
+"pa_net_ht": 0.97
+},
+{
+"article": "BIBIFRUIT 60 ML - 28P",
+"pa_net_ht": 0.45
+},
+{
+"article": "Bière 1664 25cl - 28P",
+"pa_net_ht": 1.04
+},
+{
+"article": "Bière 1664 50cl - 24P",
+"pa_net_ht": 1.8
+},
+{
+"article": "Biere Bavaria 8/6 Blonde 50cl -24P",
+"pa_net_ht": 1.68
+},
+{
+"article": "Biere Bavaria 8/6 RED 50cl - P24",
+"pa_net_ht": 1.69
+},
+{
+"article": "Biere BUZZ extra strong 10% Plus 275ml -24P",
+"pa_net_ht": 2.2
+},
+{
+"article": "Biere Corsaire BDE VP 33cl -24P",
+"pa_net_ht": 1.19
+},
+{
+"article": "Biere Desperados 33cl  -24P",
+"pa_net_ht": 1.61
+},
+{
+"article": "Biere Desperados 33cl  mojito -24P",
+"pa_net_ht": 1.74
+},
+{
+"article": "Biere Desperados 33cl lime- 24P",
+"pa_net_ht": 1.83
+},
+{
+"article": "Biere Desperados 33cl SUN CERISE -24P",
+"pa_net_ht": 1.82
+},
+{
+"article": "Bière Desperados 33cl Tropical -24P",
+"pa_net_ht": 1.78
+},
+{
+"article": "Biere Desperados 50cl -24P",
+"pa_net_ht": 1.95
+},
+{
+"article": "Biere Desperados RED 33cl -24P",
+"pa_net_ht": 1.61
+},
+{
+"article": "Biere Desperados RED 50cl  - 12 P",
+"pa_net_ht": 1.95
+},
+{
+"article": "Biere Desperados RED 65cl - 12P",
+"pa_net_ht": 3.07
+},
+{
+"article": "Biere Desperados Virgin 33cl -24P",
+"pa_net_ht": 1.66
+},
+{
+"article": "Biere GUINNESS 33 CL EXTRA 7.5% - 24P",
+"pa_net_ht": 1.9
+},
+{
+"article": "Biere Heineken 0.0 25 cl - 24P",
+"pa_net_ht": 1.18
+},
+{
+"article": "Biere Heineken 25cl -24P",
+"pa_net_ht": 1.06
+},
+{
+"article": "Biere Heineken 33cl - 24P",
+"pa_net_ht": 1.29
+},
+{
+"article": "Biere Heineken 50cl - 24P",
+"pa_net_ht": 1.6
+},
+{
+"article": "Biere Heineken Cannette 33cl -24P",
+"pa_net_ht": 1.2
+},
+{
+"article": "Bière LA BETE BLONDE 50CL - 12P",
+"pa_net_ht": 1.41
+},
+{
+"article": "Bière LA BETE BLUEB 50CL - 12P",
+"pa_net_ht": 1.48
+},
+{
+"article": "Biere Leffe 33cl -24P",
+"pa_net_ht": 2.23
+},
+{
+"article": "Biere Lorraine 25cl - 24P",
+"pa_net_ht": 0.9
+},
+{
+"article": "Biere Lorraine 33 cl blle -24P",
+"pa_net_ht": 1.21
+},
+{
+"article": "Biere Lorraine 50cl  -24P",
+"pa_net_ht": 1.23
+},
+{
+"article": "Biere Lorraine Vibes Citron Ginger 33 cl blle -24P",
+"pa_net_ht": 0
+},
+{
+"article": "Biere Lorraine Vibes Passion 33 cl blle -24P",
+"pa_net_ht": 1.43
+},
+{
+"article": "Bière MACKESON 275ml - 24P",
+"pa_net_ht": 1.43
+},
+{
+"article": "Bière PELICAN ROUGE 50 CL - 12P",
+"pa_net_ht": 2.61
+},
+{
+"article": "BIERE PITON 27.5 CL",
+"pa_net_ht": 1.57
+},
+{
+"article": "Bière Porter 39 25cl -24P",
+"pa_net_ht": 1.37
+},
+{
+"article": "Bière Porter 39 50cl - 24P",
+"pa_net_ht": 1.85
+},
+{
+"article": "Biere Royal faxe 5.6% 50cl  -24P",
+"pa_net_ht": 1.63
+},
+{
+"article": "Biere Skoll 33 cl -24P",
+"pa_net_ht": 1.98
+},
+{
+"article": "Bière Smirnoff ice 275ml -24P",
+"pa_net_ht": 1.74
+},
+{
+"article": "BIERE SOMERSBY FRAMB GREN 3X27.5cl - 24P",
+"pa_net_ht": 1.31
+},
+{
+"article": "BIERE SOMERSBY POMME 27.5CL - 24P",
+"pa_net_ht": 1.31
+},
+{
+"article": "Bisc granola lu choco/lait 200g -18P",
+"pa_net_ht": 3.5
+},
+{
+"article": "BISC GUARINA SALADITAS - 12P",
+"pa_net_ht": 0.17
+},
+{
+"article": "Bisc Oreo 66gr -20P",
+"pa_net_ht": 0.88
+},
+{
+"article": "Bisc OREO ROULEAUX CLASSIC 154grs - 16P",
+"pa_net_ht": 1.97
+},
+{
+"article": "Bisc premium bleu s/s 250g -12P",
+"pa_net_ht": 2.23
+},
+{
+"article": "Bisc premium sale rouge 250gr - 12P",
+"pa_net_ht": 2.23
+},
+{
+"article": "Bisc prince lu 80g  - 20P",
+"pa_net_ht": 0.95
+},
+{
+"article": "Bisc Sultana FRouges 218g -18P",
+"pa_net_ht": 2.69
+},
+{
+"article": "Bisc tuc bacon 100gr - 24P",
+"pa_net_ht": 1.75
+},
+{
+"article": "Bisc tuc fromandi 100grs -24P",
+"pa_net_ht": 1.87
+},
+{
+"article": "Bisc tuc OIGNON 100gr - 24P",
+"pa_net_ht": 1.84
+},
+{
+"article": "Bisc TUC SALE 75g  - 28P",
+"pa_net_ht": 1.09
+},
+{
+"article": "Biscuit petit beurre unité",
+"pa_net_ht": 1.16
+},
+{
+"article": "Biscuits DEVON FOURRES COCONUT - 30P",
+"pa_net_ht": 1.25
+},
+{
+"article": "Biscuits DEVON FOURRES CUSTARD - 30P",
+"pa_net_ht": 1.25
+},
+{
+"article": "Biscuits Salés Delices Prod",
+"pa_net_ht": 1.7
+},
+{
+"article": "BISCUITS SALES RGC",
+"pa_net_ht": 2.7
+},
+{
+"article": "BISON SUPER GLUE - 12P",
+"pa_net_ht": 1.61
+},
+{
+"article": "Bisous fraise FINI 90g -12P",
+"pa_net_ht": 0.95
+},
+{
+"article": "Boisson Aloe COCO 50cl-20P",
+"pa_net_ht": 1.78
+},
+{
+"article": "Boisson energisante Red bull 35.5CL-24P",
+"pa_net_ht": 2.18
+},
+{
+"article": "Boisson energisante Red bull Fruit du dragon 25Cl-24P",
+"pa_net_ht": 1.72
+},
+{
+"article": "Boisson energisante Red bull Myrtille 25Cl-24P",
+"pa_net_ht": 1.75
+},
+{
+"article": "Boisson Fanta orange 50 cl -8P",
+"pa_net_ht": 0.93
+},
+{
+"article": "Boisson magnum tonic 200ml -24P",
+"pa_net_ht": 3.19
+},
+{
+"article": "Boisson Monster Energy Punch 50 cl -12P",
+"pa_net_ht": 1.99
+},
+{
+"article": "Boisson Monster LNORRIS SSUCR 50 cl -12P",
+"pa_net_ht": 1.99
+},
+{
+"article": "Boisson Monster Mango Loco 50cl - 12P",
+"pa_net_ht": 1.99
+},
+{
+"article": "Boisson Monster MONARCH 50cl - 12P",
+"pa_net_ht": 1.99
+},
+{
+"article": "Boisson Monster PIPELINE Punch 50cl - 12P",
+"pa_net_ht": 2
+},
+{
+"article": "Boisson Monster Viking Berry 50 cl -12P",
+"pa_net_ht": 1.99
+},
+{
+"article": "Boisson Orangina 50cl - 8P",
+"pa_net_ht": 0.95
+},
+{
+"article": "Boisson Ordinaire Anis 50cl - 24P",
+"pa_net_ht": 0.94
+},
+{
+"article": "Boisson Ricqles 50cl - 8P",
+"pa_net_ht": 0.98
+},
+{
+"article": "Boisson Sprite 50cl - 24P",
+"pa_net_ht": 0.88
+},
+{
+"article": "Boite 5 Lames DT PLATINIUM - 20P",
+"pa_net_ht": 0.52
+},
+{
+"article": "Bols Réuti 170x50mm -25P",
+"pa_net_ht": 1.65
+},
+{
+"article": "bonbon Bouteilles Cola Sucrees Fini 100g -12P",
+"pa_net_ht": 1
+},
+{
+"article": "bonbon fini  requins 90g -12P",
+"pa_net_ht": 1
+},
+{
+"article": "Bonbon fini Oursons Sucres 90g 12P",
+"pa_net_ht": 1
+},
+{
+"article": "Bonbon fini pailles ts parf - 50P",
+"pa_net_ht": 0.3
+},
+{
+"article": "bonbon fini sachet vers de terre acide 90g -12P",
+"pa_net_ht": 1
+},
+{
+"article": "Bonbon Menthise 250G - 29P",
+"pa_net_ht": 0.11
+},
+{
+"article": "Bonbons 10c",
+"pa_net_ht": 0.05
+},
+{
+"article": "Bonbons 20c",
+"pa_net_ht": 0.07
+},
+{
+"article": "Bonbons Gom's Saveurs 140g -12P",
+"pa_net_ht": 1.7
+},
+{
+"article": "BOUGIE CHAMPION CJ6",
+"pa_net_ht": 4.08
+},
+{
+"article": "Bougie CJ8Y Diam 14 Filetage 9.5mm ( megadustrie)",
+"pa_net_ht": 3.81
+},
+{
+"article": "Bougie Cylindrique PM Blanche -24P",
+"pa_net_ht": 1.39
+},
+{
+"article": "Bougie Lt Croix Grave Blanche- 12P",
+"pa_net_ht": 3.36
+},
+{
+"article": "Bougie LT Cylindrique Blanche GM-12P",
+"pa_net_ht": 2.56
+},
+{
+"article": "Bougie LT Menage x10",
+"pa_net_ht": 2.54
+},
+{
+"article": "Bounty 57g - 24P",
+"pa_net_ht": 0.99
+},
+{
+"article": "BRILL BILLIONNAIRE 414",
+"pa_net_ht": 9.5
+},
+{
+"article": "Briquet bic 1.60€ -50P",
+"pa_net_ht": 0.75
+},
+{
+"article": "Briquet bic 2.1e - 50P",
+"pa_net_ht": 1.15
+},
+{
+"article": "Briquet Clipper 1.60€ -48P",
+"pa_net_ht": 0.55
+},
+{
+"article": "Briquet Clipper large 2.10€ -48P",
+"pa_net_ht": 0
+},
+{
+"article": "Briquet Clipper METAL -30P",
+"pa_net_ht": 0.98
+},
+{
+"article": "briquet gaz single blueflame - 20P",
+"pa_net_ht": 1.66
+},
+{
+"article": "Brosse a dent Medium x 2",
+"pa_net_ht": 0.99
+},
+{
+"article": "Burger 7G FIZZY - 60P",
+"pa_net_ht": 0.17
+},
+{
+"article": "BUZZ VODKA CAN extra strong 10% Plus 250ml -24P",
+"pa_net_ht": 0.73
+},
+{
+"article": "CABLE DE CHARGE LIGHTNING  USB-A",
+"pa_net_ht": 6
+},
+{
+"article": "CABLE DE CHARGE MICRO USB",
+"pa_net_ht": 6
+},
+{
+"article": "CABLE DE CHARGE TYPE - C",
+"pa_net_ht": 6
+},
+{
+"article": "Cable de charge Type C vers Lightning 1M",
+"pa_net_ht": 9.47
+},
+{
+"article": "CABLE DE CHARGE TYPE C VERS TYPE C",
+"pa_net_ht": 8
+},
+{
+"article": "CABLE DE CHARGE TYPE C VERS TYPE C 2M",
+"pa_net_ht": 10
+},
+{
+"article": "Cacahuete Pittjes 200g",
+"pa_net_ht": 2.6
+},
+{
+"article": "Camel Myo pot 30g",
+"pa_net_ht": 8.01
+},
+{
+"article": "Carré aux pommes 110g - 46P",
+"pa_net_ht": 0.71
+},
+{
+"article": "Carte TRANSCASH solo",
+"pa_net_ht": 1.92
+},
+{
+"article": "CARTEC FUSIBLES ENFICH MINI",
+"pa_net_ht": 1.56
+},
+{
+"article": "Cassoulet w.saurin 1/2 420g -12P",
+"pa_net_ht": 3.23
+},
+{
+"article": "Cassoulet w.saurin 840gr -12P",
+"pa_net_ht": 3.89
+},
+{
+"article": "CBD1 Amnesia Buyaka 5G",
+"pa_net_ht": 9.5
+},
+{
+"article": "CBD2 BUYAKA Gelato 5G",
+"pa_net_ht": 9.5
+},
+{
+"article": "CBD3 Fleurs Devil OG 5G",
+"pa_net_ht": 9.5
+},
+{
+"article": "CBD5 Amnesia Haze 4G",
+"pa_net_ht": 12.9
+},
+{
+"article": "CBD7 Super Skunk -2GR",
+"pa_net_ht": 12.9
+},
+{
+"article": "CBD8 White Widow 4G",
+"pa_net_ht": 12.9
+},
+{
+"article": "CBD9 Purple Haze 2g",
+"pa_net_ht": 12.9
+},
+{
+"article": "CBD90 Orange Bud 4gr",
+"pa_net_ht": 12.9
+},
+{
+"article": "CBD901 BUYAKA SUPER SKUNK 5G",
+"pa_net_ht": 9.5
+},
+{
+"article": "Ceintures Fraise FINI 90g -12P",
+"pa_net_ht": 1
+},
+{
+"article": "CERISES FIZZ FINI 90G - 12P",
+"pa_net_ht": 1
+},
+{
+"article": "Champagne Achille Princier 75cl",
+"pa_net_ht": 21.76
+},
+{
+"article": "Champagne Jacquart brut Mosaique 75cl",
+"pa_net_ht": 14.78
+},
+{
+"article": "Chanflor 1.5l -6P",
+"pa_net_ht": 0.46
+},
+{
+"article": "Chanflor 1l - 8P",
+"pa_net_ht": 0.58
+},
+{
+"article": "Chanflor 50cl - 12P",
+"pa_net_ht": 0.56
+},
+{
+"article": "Chanflor 60cl - 8P",
+"pa_net_ht": 0.82
+},
+{
+"article": "Chanflor fruits rge 50cl -8P",
+"pa_net_ht": 0.88
+},
+{
+"article": "Chanflor fruits rge1.5l -6P",
+"pa_net_ht": 1.87
+},
+{
+"article": "Chanflor peche letchi rge50cl -8P",
+"pa_net_ht": 0.88
+},
+{
+"article": "Chanflor Pomme / Aloe 1.5l -6P",
+"pa_net_ht": 1.87
+},
+{
+"article": "Chanflor pomme aloes vera 50cl -8P",
+"pa_net_ht": 0.89
+},
+{
+"article": "Chanflor the peche 0.50cl -8P",
+"pa_net_ht": 0.93
+},
+{
+"article": "Chanflor the peche 1.5l -6P",
+"pa_net_ht": 2.3
+},
+{
+"article": "Chanflor the vert FRUITS RGES 0.50cl -8P",
+"pa_net_ht": 0.95
+},
+{
+"article": "Chanflor Ti Fraise 33cl - 8P",
+"pa_net_ht": 0.75
+},
+{
+"article": "CHARBON DE BOIS 8L / 2.5kg",
+"pa_net_ht": 5.7
+},
+{
+"article": "Chargeur Allume Cigare 2 Ports USB-C & USB",
+"pa_net_ht": 13
+},
+{
+"article": "Chargeur secteur 2 Ports USB + USB-C maXlife 30w",
+"pa_net_ht": 13
+},
+{
+"article": "Chausson Pomme150g - 48 P",
+"pa_net_ht": 0.86
+},
+{
+"article": "Cheetos fromage 27g -24P",
+"pa_net_ht": 0.54
+},
+{
+"article": "Cheetos fromage 80g -12P",
+"pa_net_ht": 1.44
+},
+{
+"article": "Chewin gum malabar a l unite",
+"pa_net_ht": 0.09
+},
+{
+"article": "Chips Banane Nature 95G - 24P",
+"pa_net_ht": 1.15
+},
+{
+"article": "CHIPS BRETS BEURRE SALE 125g - 10P",
+"pa_net_ht": 1.93
+},
+{
+"article": "CHIPS BRETS FROMAGE DU JURA 125g - 10P",
+"pa_net_ht": 1.93
+},
+{
+"article": "CHIPS BRETS MIEL & MOUTARDE 125g - 10P",
+"pa_net_ht": 1.93
+},
+{
+"article": "CHIPS BRETS SAVEUR AIOLI 165g - 10P",
+"pa_net_ht": 2.5
+},
+{
+"article": "Chips de Banane Maduritos 95G - 24P",
+"pa_net_ht": 1.15
+},
+{
+"article": "Chips lays  25g Nature - 24P",
+"pa_net_ht": 0.59
+},
+{
+"article": "Chips Lays BBQ 130g -10P",
+"pa_net_ht": 2.02
+},
+{
+"article": "Chips lays bbq 27.5grs - 24P",
+"pa_net_ht": 0.75
+},
+{
+"article": "Chips LAYS BBQ 45g - 20 P",
+"pa_net_ht": 1.16
+},
+{
+"article": "Chips lays bbq 75g - 15P",
+"pa_net_ht": 1.66
+},
+{
+"article": "Chips Lays Nat 130g- 10P",
+"pa_net_ht": 1.87
+},
+{
+"article": "Chips Lays nat 45g -20P",
+"pa_net_ht": 1.03
+},
+{
+"article": "Chips Lays Nature 75gr - 15P",
+"pa_net_ht": 1.51
+},
+{
+"article": "Choco CRUNCH - 20P",
+"pa_net_ht": 1.99
+},
+{
+"article": "Chouchou Caraibe",
+"pa_net_ht": 1.85
+},
+{
+"article": "cigar Signature Original 20 x 5 - 5P",
+"pa_net_ht": 12.59
+},
+{
+"article": "Cigare principes naturel - 30p",
+"pa_net_ht": 1.69
+},
+{
+"article": "Cigare Principes Vanille -30P",
+"pa_net_ht": 1.68
+},
+{
+"article": "Cigarette King Fresh Ice LS 100'S 20 -10P",
+"pa_net_ht": 8.11
+},
+{
+"article": "Cigarette King Red Filters LS 100 S 20 -10P",
+"pa_net_ht": 8.1
+},
+{
+"article": "Cigarette Signature convertible Menthol -P10",
+"pa_net_ht": 5.43
+},
+{
+"article": "Cigarette Winston Ss 99 S Fesh 20 -10P",
+"pa_net_ht": 10.05
+},
+{
+"article": "Cigarettes Benson hedges 20 -10P",
+"pa_net_ht": 12.08
+},
+{
+"article": "Cigarettes Brooklyn rouge 20 -10P",
+"pa_net_ht": 9.98
+},
+{
+"article": "Cigarettes Brooklyn rouge 25 -8P",
+"pa_net_ht": 12.63
+},
+{
+"article": "Cigarettes Camel filtre 20 -10P",
+"pa_net_ht": 11.04
+},
+{
+"article": "Cigarettes Camel Shift x 20 -10P",
+"pa_net_ht": 11.04
+},
+{
+"article": "Cigarettes Chesterfield rouge 20 -10P",
+"pa_net_ht": 9.61
+},
+{
+"article": "Cigarettes Corset fresh Ice -10P",
+"pa_net_ht": 10.15
+},
+{
+"article": "Cigarettes Corset Lilas / Mauve -10P",
+"pa_net_ht": 10.18
+},
+{
+"article": "Cigarettes Dunhill international large -10P",
+"pa_net_ht": 13.18
+},
+{
+"article": "Cigarettes Dunhill ks 20 -10P",
+"pa_net_ht": 13.11
+},
+{
+"article": "Cigarettes Elixyr rouge 20 -10P",
+"pa_net_ht": 7.59
+},
+{
+"article": "Cigarettes Elixyr rouge100 s -10P",
+"pa_net_ht": 7.71
+},
+{
+"article": "Cigarettes free jack -10P",
+"pa_net_ht": 8.03
+},
+{
+"article": "Cigarettes King Fresh Ice KS 25 -8P",
+"pa_net_ht": 10.13
+},
+{
+"article": "Cigarettes King Red KS 25 -8P",
+"pa_net_ht": 10.15
+},
+{
+"article": "Cigarettes Lucky strike X series -10P",
+"pa_net_ht": 10.7
+},
+{
+"article": "Cigarettes Lucky strike X series clair -10P",
+"pa_net_ht": 10.7
+},
+{
+"article": "Cigarettes Marlboro Gold light 20 -10P",
+"pa_net_ht": 11.41
+},
+{
+"article": "Cigarettes Marlboro rouge 20 -10P",
+"pa_net_ht": 11.41
+},
+{
+"article": "Cigarettes Maryland bleue 20 -10P",
+"pa_net_ht": 8.3
+},
+{
+"article": "Cigarettes Maryland bleue 25 -8P",
+"pa_net_ht": 10.3
+},
+{
+"article": "Cigarettes Maryland rouge 20 -10P",
+"pa_net_ht": 8.36
+},
+{
+"article": "Cigarettes Maryland rouge 25 -8P",
+"pa_net_ht": 10.38
+},
+{
+"article": "Cigarettes Maryland rouge 30 -8P",
+"pa_net_ht": 12.41
+},
+{
+"article": "Cigarettes Maryland rouge 40 -5P",
+"pa_net_ht": 16.28
+},
+{
+"article": "Cigarettes Maya -10P",
+"pa_net_ht": 8.11
+},
+{
+"article": "Cigarettes News bleu 20 -10P",
+"pa_net_ht": 10.01
+},
+{
+"article": "Cigarettes News Up rouge 20 -10P",
+"pa_net_ht": 9.99
+},
+{
+"article": "Cigarettes News Up rouge 25 -8P",
+"pa_net_ht": 12.24
+},
+{
+"article": "Cigarettes News Up rouge 30 -8P",
+"pa_net_ht": 15.47
+},
+{
+"article": "Cigarettes Pall Mall Rouge -10P",
+"pa_net_ht": 7.48
+},
+{
+"article": "Cigarettes Peter Stuyvesant Bleue -10P",
+"pa_net_ht": 11.38
+},
+{
+"article": "Cigarettes Peter Stuyvesant rouge -10P",
+"pa_net_ht": 11.63
+},
+{
+"article": "Cigarettes Philip morris bleu 20 -10P",
+"pa_net_ht": 10.4
+},
+{
+"article": "Cigarettes Philip morris Filter King 20 -10P",
+"pa_net_ht": 10.4
+},
+{
+"article": "Cigarettes Pool rouge 20 -10P",
+"pa_net_ht": 7.72
+},
+{
+"article": "Cigarettes Vogue Originale bleue -10P",
+"pa_net_ht": 11.53
+},
+{
+"article": "Cigarettes Vogue Originale Pastel -10P",
+"pa_net_ht": 11.53
+},
+{
+"article": "Cigarettes Winfield Rouge 25 -8P",
+"pa_net_ht": 12.16
+},
+{
+"article": "Cigarettes Winston Bleu 20 -10P",
+"pa_net_ht": 10.05
+},
+{
+"article": "Cigarettes Winston Bleu 25 -8P",
+"pa_net_ht": 12.57
+},
+{
+"article": "Cigarettes winston rouge 20 -10P",
+"pa_net_ht": 10.05
+},
+{
+"article": "Cigarettes Winston rouge classic 25 -8P",
+"pa_net_ht": 12.57
+},
+{
+"article": "Cigarettes Winston vert fresh N°1 -10P",
+"pa_net_ht": 10.05
+},
+{
+"article": "Claro Republique Dominicaine",
+"pa_net_ht": 0.97
+},
+{
+"article": "CLE DE VIDANGE 8/10MM",
+"pa_net_ht": 3.3
+},
+{
+"article": "Club Master Mini Red x 5 - 20P",
+"pa_net_ht": 2.11
+},
+{
+"article": "Coca cola 1.25 l -6P",
+"pa_net_ht": 1.84
+},
+{
+"article": "Coca cola 2l -6P",
+"pa_net_ht": 2.68
+},
+{
+"article": "Coca cola 50cl - 8P",
+"pa_net_ht": 0.87
+},
+{
+"article": "Coca Cola Cherry 1.25 l - 6P",
+"pa_net_ht": 2.04
+},
+{
+"article": "Coca Cola Cherry 50cl - 8P",
+"pa_net_ht": 0.87
+},
+{
+"article": "Coca cola Sleek Bte 33 cl - 24P",
+"pa_net_ht": 0.78
+},
+{
+"article": "Coca cola vp 25cl - 24P",
+"pa_net_ht": 1.08
+},
+{
+"article": "Coca cola zero 2l -6P",
+"pa_net_ht": 2.14
+},
+{
+"article": "Coca Cola zero 50 cl -8P",
+"pa_net_ht": 0.72
+},
+{
+"article": "COLLIER X 12 - 08 - 12MM W1 32-50",
+"pa_net_ht": 5.98
+},
+{
+"article": "Colorado MANGO PASSION 50cl",
+"pa_net_ht": 1.25
+},
+{
+"article": "Colorado Menthe Peche 50cl",
+"pa_net_ht": 1.23
+},
+{
+"article": "Colorado Peche Mangue 50cl",
+"pa_net_ht": 1.23
+},
+{
+"article": "Consigne GAZ BLEU 12.5Kg",
+"pa_net_ht": 46.8
+},
+{
+"article": "Contrex 1L50 6P",
+"pa_net_ht": 1.28
+},
+{
+"article": "Corned beef COUPE DOUET 275grs - 24P",
+"pa_net_ht": 3.65
+},
+{
+"article": "CORNETTO KINGCONE VAN 260ML - 16P",
+"pa_net_ht": 1.5
+},
+{
+"article": "Couteau Transp REU X20 - 10P",
+"pa_net_ht": 1.68
+},
+{
+"article": "CREME A RECURER VIKING CITRON 500G X10",
+"pa_net_ht": 1.28
+},
+{
+"article": "CRIBICH au fromage 30g",
+"pa_net_ht": 0.59
+},
+{
+"article": "CRIBICH au fromage 75g",
+"pa_net_ht": 1.13
+},
+{
+"article": "CRIBICH piment 30g",
+"pa_net_ht": 0.59
+},
+{
+"article": "CRIBICH piment 75g",
+"pa_net_ht": 1.13
+},
+{
+"article": "Crunch Snack Barre 33g -30P",
+"pa_net_ht": 0.7
+},
+{
+"article": "Cuillere Transp Réuti -50P",
+"pa_net_ht": 1.98
+},
+{
+"article": "cyanolit SPORLIT colle speciale caoutchouc",
+"pa_net_ht": 4.02
+},
+{
+"article": "DECRASSANT MOT DIESEL 5EN1 500ML",
+"pa_net_ht": 31.05
+},
+{
+"article": "DECRASSANT MOT ESS 5EN1 500ML",
+"pa_net_ht": 26.9
+},
+{
+"article": "Dégrippant wd 40 200 ml",
+"pa_net_ht": 3.6
+},
+{
+"article": "Dégrippant wd 40 400 ml",
+"pa_net_ht": 5.9
+},
+{
+"article": "Deo  organic vrac cerise",
+"pa_net_ht": 3.5
+},
+{
+"article": "DEO ADIDAS AFTER Sport 150ml",
+"pa_net_ht": 3.47
+},
+{
+"article": "DEO FRUITE FRAISE",
+"pa_net_ht": 1.11
+},
+{
+"article": "DEO FRUITE VANILLE",
+"pa_net_ht": 1.11
+},
+{
+"article": "Deo LITTLE bottle Framboise",
+"pa_net_ht": 2.45
+},
+{
+"article": "DEO ORGANIC VRAC FRAISE",
+"pa_net_ht": 3.45
+},
+{
+"article": "DEO SCENTS ORGANIC BUBBLE GUM",
+"pa_net_ht": 3.5
+},
+{
+"article": "deo spray menthe new car",
+"pa_net_ht": 2.4
+},
+{
+"article": "Depanne crevaison oto clean 300ml",
+"pa_net_ht": 4.83
+},
+{
+"article": "Depanne crevaison oto clean 500ml",
+"pa_net_ht": 4.9
+},
+{
+"article": "Didier ANANAS GINGEMBRE 50cl -8P",
+"pa_net_ht": 0.76
+},
+{
+"article": "Digicel  Flexi PASS LOCAL",
+"pa_net_ht": 0.89
+},
+{
+"article": "Digicel  Flexi PASS Voyage",
+"pa_net_ht": 0.89
+},
+{
+"article": "Digicel Flexi Pass Data 15 EUR",
+"pa_net_ht": 13.4
+},
+{
+"article": "Digicel Flexi Quick Pick Premium 10 EUR",
+"pa_net_ht": 8.94
+},
+{
+"article": "Digicel Flexi Quick Pick Premium 20 EUR",
+"pa_net_ht": 17.88
+},
+{
+"article": "Digicel Haiti Montant variable 7€ a 125€",
+"pa_net_ht": 0.97
+},
+{
+"article": "Digicel TTC 10 €",
+"pa_net_ht": 8.94
+},
+{
+"article": "Digicel TTC 5 €",
+"pa_net_ht": 4.47
+},
+{
+"article": "Digicel TTC Flexi +",
+"pa_net_ht": 0.89
+},
+{
+"article": "disque A magnetique",
+"pa_net_ht": 1.73
+},
+{
+"article": "Double OCB premium Courte - 50P",
+"pa_net_ht": 0.72
+},
+{
+"article": "Dr Roots Aloe Vera 1.5L - 12P",
+"pa_net_ht": 3.18
+},
+{
+"article": "DV COLOR TOUCH mat blanc 400ML",
+"pa_net_ht": 8.04
+},
+{
+"article": "eau de coco 50 cl",
+"pa_net_ht": 2
+},
+{
+"article": "Eau demineralise trop auto 5l -4P",
+"pa_net_ht": 3.22
+},
+{
+"article": "Eau didier 113 1.5l -6P",
+"pa_net_ht": 1.07
+},
+{
+"article": "Eau didier 113 minerale plate 1l -6P",
+"pa_net_ht": 0.87
+},
+{
+"article": "Eau didier 113 minerale plate 50cl -8P",
+"pa_net_ht": 0.57
+},
+{
+"article": "Eau didier citron vert 1.25l -6P",
+"pa_net_ht": 1.35
+},
+{
+"article": "Eau didier citron vert 50cl -8P",
+"pa_net_ht": 0.77
+},
+{
+"article": "Eau didier Framb /Hibis 1.25L -6P",
+"pa_net_ht": 1.35
+},
+{
+"article": "Eau didier Framb/Hibis 50cl -8P",
+"pa_net_ht": 0.76
+},
+{
+"article": "Eau didier gaz.nat 1.25l -6P",
+"pa_net_ht": 1.18
+},
+{
+"article": "Eau didier gazeux 50 cl -8P",
+"pa_net_ht": 0.6
+},
+{
+"article": "Eau didier gazeux nat 0.75 l - 8P",
+"pa_net_ht": 1.38
+},
+{
+"article": "Eau hepar 75Cl -6P",
+"pa_net_ht": 1.36
+},
+{
+"article": "Eau mabelo 0.50l -P12",
+"pa_net_ht": 0.42
+},
+{
+"article": "EAU MABELO 1.5L - 6P",
+"pa_net_ht": 0.64
+},
+{
+"article": "EAU MABELO 1L - 6P",
+"pa_net_ht": 0.53
+},
+{
+"article": "EAU NATUREL 1.5L ST JUDE -6P",
+"pa_net_ht": 0.49
+},
+{
+"article": "Ecouteur Filaire Lightning",
+"pa_net_ht": 10
+},
+{
+"article": "Ecouteurs Bluetooth",
+"pa_net_ht": 18
+},
+{
+"article": "EFFACE RAYURES RENFORCE 150G",
+"pa_net_ht": 6.82
+},
+{
+"article": "Encens GDE Taille -30P",
+"pa_net_ht": 0.55
+},
+{
+"article": "ENCENS MADINA 20 BAT - 25P",
+"pa_net_ht": 1.3
+},
+{
+"article": "Essuie tout DouDou x 2 - 20P",
+"pa_net_ht": 1.45
+},
+{
+"article": "Evian 1.5l -6P",
+"pa_net_ht": 1.79
+},
+{
+"article": "FA Courses By PARIS TURF",
+"pa_net_ht": 2.13
+},
+{
+"article": "FALCON - X JNR - BLACK DRAGON ICE",
+"pa_net_ht": 14.5
+},
+{
+"article": "FALCON - X JNR - CHERRY ICE",
+"pa_net_ht": 14.5
+},
+{
+"article": "FALCON - X JNR - MIXED BERRIES",
+"pa_net_ht": 14.5
+},
+{
+"article": "FALCON - X JNR - Myrtille Framboise",
+"pa_net_ht": 14.5
+},
+{
+"article": "FALCON - X JNR - Myrtille Grenade",
+"pa_net_ht": 14.5
+},
+{
+"article": "FALCON - X JNR - Pastèque Fraise",
+"pa_net_ht": 14.5
+},
+{
+"article": "Farine de Manioc - 20P",
+"pa_net_ht": 5
+},
+{
+"article": "Farine/Menagere1kg - 10P",
+"pa_net_ht": 1.26
+},
+{
+"article": "Ferodo Dot 4 Liquide de frein 500ml -24P",
+"pa_net_ht": 3.08
+},
+{
+"article": "FESTIVAL CHOCOLAT 403gr - 12P",
+"pa_net_ht": 0.2
+},
+{
+"article": "Feuille à rouler Clipper Black 1/4 50feuilles -100P",
+"pa_net_ht": 0
+},
+{
+"article": "Feuille a rouler OCB slim - 50P",
+"pa_net_ht": 0.71
+},
+{
+"article": "Feuille a rouler OCB slim+ filtre - 32P",
+"pa_net_ht": 1.38
+},
+{
+"article": "Feuille a rouler RAW connoisseur -24P",
+"pa_net_ht": 1.26
+},
+{
+"article": "Feuille a rouler SMOKING Slim - 50P",
+"pa_net_ht": 0.72
+},
+{
+"article": "Feuille a rouler SMOKING Slim+FILTRE- 24P",
+"pa_net_ht": 1.5
+},
+{
+"article": "Feuille de Tabac FINE LEAF 15g - 15P",
+"pa_net_ht": 4
+},
+{
+"article": "Feuilleté Jamb/From 110g -30P",
+"pa_net_ht": 1.5
+},
+{
+"article": "Figolu 192g -28P",
+"pa_net_ht": 2.96
+},
+{
+"article": "fil nylon carre cavalier Rouge 2.4mm x 15m",
+"pa_net_ht": 2.78
+},
+{
+"article": "fil nylon carre rouge cavalier 3mm x 15",
+"pa_net_ht": 3.34
+},
+{
+"article": "fil nylon coq 3 X 56mm Rond",
+"pa_net_ht": 11.72
+},
+{
+"article": "fil nylon Rond jaune 2.4 mm x15 m",
+"pa_net_ht": 2.51
+},
+{
+"article": "fil nylon rond jaune 3 x 15mm",
+"pa_net_ht": 3.09
+},
+{
+"article": "FILIBOS GOUT PEYI-A",
+"pa_net_ht": 0
+},
+{
+"article": "Filtre a cafe n2",
+"pa_net_ht": 1.14
+},
+{
+"article": "Filtre a cafe n4",
+"pa_net_ht": 1.26
+},
+{
+"article": "fini roller fantaisie - 18P",
+"pa_net_ht": 0.3
+},
+{
+"article": "fini roller fraise - 18P",
+"pa_net_ht": 0.3
+},
+{
+"article": "fini roller frambroise- 18P",
+"pa_net_ht": 0.3
+},
+{
+"article": "Fini Sucette 3 en 1 - 200P",
+"pa_net_ht": 0.11
+},
+{
+"article": "FLAVOUR CARD STRONG MENTHOL -25P",
+"pa_net_ht": 0.44
+},
+{
+"article": "fleur de savane PETIT CIGARE 20 -10P",
+"pa_net_ht": 11.18
+},
+{
+"article": "Fourchette Bois x 20 - 20P",
+"pa_net_ht": 1.12
+},
+{
+"article": "Fourchette Transp REU X20 - 10P",
+"pa_net_ht": 1.68
+},
+{
+"article": "Fourres Banane",
+"pa_net_ht": 2.7
+},
+{
+"article": "Fourres Goyave",
+"pa_net_ht": 2.7
+},
+{
+"article": "FR du Paradis glace 1L",
+"pa_net_ht": 4.6
+},
+{
+"article": "FRANCE ANTILLES SEMAINE 2026",
+"pa_net_ht": 1.53
+},
+{
+"article": "France antilles week end",
+"pa_net_ht": 2.38
+},
+{
+"article": "FREEDENT BOX MENTHE VERTE B - 6P",
+"pa_net_ht": 3.66
+},
+{
+"article": "Fromage vache qui rit - 48P",
+"pa_net_ht": 2.49
+},
+{
+"article": "Fruta Stick Menthe",
+"pa_net_ht": 5.99
+},
+{
+"article": "Fuchs Titan Garden  2T M Jardin 1L - 12P",
+"pa_net_ht": 5.69
+},
+{
+"article": "Fuchs Titan Garden HCT 1L -12P",
+"pa_net_ht": 5.25
+},
+{
+"article": "FUSIBLES ENFICHABLES GM",
+"pa_net_ht": 1.58
+},
+{
+"article": "Fusion Open Prod - Freeze Dragon 5P",
+"pa_net_ht": 0
+},
+{
+"article": "Gant Mecanique T9",
+"pa_net_ht": 1.25
+},
+{
+"article": "gateau cannelle bigin 5333 35g - 20P",
+"pa_net_ht": 0.4
+},
+{
+"article": "Gateau Familial Oeuf 5158 300grs",
+"pa_net_ht": 2.51
+},
+{
+"article": "Gatorade Cool Blue - 50cl - 12P",
+"pa_net_ht": 1.93
+},
+{
+"article": "GAZ  BLEU 12.5 Kg",
+"pa_net_ht": 23.75
+},
+{
+"article": "GAZ  BLEU 39 K",
+"pa_net_ht": 81.09
+},
+{
+"article": "GAZ BLEU 3 KG",
+"pa_net_ht": 13.35
+},
+{
+"article": "Gaz SODASTREAM 425G -18P",
+"pa_net_ht": 19
+},
+{
+"article": "GEB AUTOJOINT NOIR 80ML COL",
+"pa_net_ht": 6.55
+},
+{
+"article": "Ginger beer SUPERMALT 33cl -24P",
+"pa_net_ht": 0.96
+},
+{
+"article": "Gizeh - 150 filtres - 20P",
+"pa_net_ht": 1.4
+},
+{
+"article": "Glace Ecailles / Paillettes 8kg Crystal",
+"pa_net_ht": 3.35
+},
+{
+"article": "Glace floup -20P",
+"pa_net_ht": 0.53
+},
+{
+"article": "Glace floup berlingot supercoco -20P",
+"pa_net_ht": 0.73
+},
+{
+"article": "Glace floup fruisson -20P",
+"pa_net_ht": 0.73
+},
+{
+"article": "Glacons Vito 5 kg",
+"pa_net_ht": 2.5
+},
+{
+"article": "Gobelet 20cl X 100 Reutilisable",
+"pa_net_ht": 2.03
+},
+{
+"article": "Gobelet blanc paper 50x20cl - 30P",
+"pa_net_ht": 2.45
+},
+{
+"article": "Gobelet transparent x 50 - 35cl -20P",
+"pa_net_ht": 3.02
+},
+{
+"article": "Gobelet x 25 Couleur 20cl paper -20P",
+"pa_net_ht": 1.44
+},
+{
+"article": "Graisse gadus hd2 400gr -12P",
+"pa_net_ht": 3.95
+},
+{
+"article": "GRAN PAVESI SFOGLIE 180 GRS",
+"pa_net_ht": 2.33
+},
+{
+"article": "Granola Cookies Choco 184g -10P",
+"pa_net_ht": 3.86
+},
+{
+"article": "Great ginger rouge 25cl -24P",
+"pa_net_ht": 1.29
+},
+{
+"article": "Great ginger vert 25cl -24P",
+"pa_net_ht": 1.47
+},
+{
+"article": "GS27 SHAMP MONOI 500ML",
+"pa_net_ht": 7.98
+},
+{
+"article": "GUERI MAN  50 cl",
+"pa_net_ht": 12.33
+},
+{
+"article": "GUERI MAN 1L",
+"pa_net_ht": 24
+},
+{
+"article": "HAAGEN DAZS - HCP MINICUPS 95 ML - 24P",
+"pa_net_ht": 1.55
+},
+{
+"article": "HAAGEN DAZS - HPT 460 ML - 8P",
+"pa_net_ht": 5.14
+},
+{
+"article": "haribo croco pik 120 gr",
+"pa_net_ht": 1.61
+},
+{
+"article": "HARIBO Dragibus Original 120g -P30",
+"pa_net_ht": 1.54
+},
+{
+"article": "HARIBO Dragibus Pocket 50grs - 24P",
+"pa_net_ht": 1.03
+},
+{
+"article": "HARIBO DRAGIBUS SOFT - 30P",
+"pa_net_ht": 1.54
+},
+{
+"article": "HARIBO LANGUE PIK 100G X 30",
+"pa_net_ht": 1.8
+},
+{
+"article": "HARIBO STAR MINT 100GR -30P",
+"pa_net_ht": 1.8
+},
+{
+"article": "Haribo Super frite Pik 120 grs - 30P",
+"pa_net_ht": 1.54
+},
+{
+"article": "Haribo tagada 120gr -30P",
+"pa_net_ht": 1.5
+},
+{
+"article": "Haricots roses Lafleur 500g -24P",
+"pa_net_ht": 1.97
+},
+{
+"article": "helix 10W40 -HX7-1L - 12P",
+"pa_net_ht": 7.54
+},
+{
+"article": "helix 10w40 2L diesel - 8P",
+"pa_net_ht": 13.98
+},
+{
+"article": "helix 10w40 2L essence -8P",
+"pa_net_ht": 13.29
+},
+{
+"article": "Helix 15w40 1l - 12P",
+"pa_net_ht": 7.2
+},
+{
+"article": "helix 15w40 2L diesel - 8P",
+"pa_net_ht": 11.73
+},
+{
+"article": "helix 15w40 2L ess -8P",
+"pa_net_ht": 11.29
+},
+{
+"article": "Helix diesel ultra AR-L 5w30 1l RENAULT -12P",
+"pa_net_ht": 8.41
+},
+{
+"article": "Helix ultra 5w30 AP-L 1l PEUGEOT CITROEN -12P",
+"pa_net_ht": 7.59
+},
+{
+"article": "Helix Ultra 5w40 - 2l diesel - 8P",
+"pa_net_ht": 18.46
+},
+{
+"article": "Helix Ultra 5w40 - 2l essence - 8P",
+"pa_net_ht": 16.08
+},
+{
+"article": "helix ultra 5w40 1L -12P",
+"pa_net_ht": 8.98
+},
+{
+"article": "Helix Ultra 5W40 5 L - 3P",
+"pa_net_ht": 39.19
+},
+{
+"article": "Helix Ultra Extra ECT C3 5w30 1L AUDI VW -12P",
+"pa_net_ht": 10.64
+},
+{
+"article": "Hennessy COGNAC VC 70 CL",
+"pa_net_ht": 43.31
+},
+{
+"article": "Hs Brillant Pneus Spray",
+"pa_net_ht": 10.85
+},
+{
+"article": "hs degraissant purple blaster 4L",
+"pa_net_ht": 10.68
+},
+{
+"article": "hs degraissant purple blaster 949 ml",
+"pa_net_ht": 6.16
+},
+{
+"article": "HS PURPLE FORMULA 949ML",
+"pa_net_ht": 5.97
+},
+{
+"article": "Huile tournesol Loumas 1L",
+"pa_net_ht": 2.25
+},
+{
+"article": "HWD  - ORAL B Menthe Fraiche White -12P",
+"pa_net_ht": 0.79
+},
+{
+"article": "HWD - CHLORO DRAGEE - 20P",
+"pa_net_ht": 0.59
+},
+{
+"article": "HWD - MENTHE DRAGEE - 20P",
+"pa_net_ht": 0.59
+},
+{
+"article": "HWD - ORAL B Menthe verte S/S -12P",
+"pa_net_ht": 0.83
+},
+{
+"article": "HWD 2FRESH CHLORO 16P",
+"pa_net_ht": 0.93
+},
+{
+"article": "HWD 2FRESH MENTHE FORTE - 16P",
+"pa_net_ht": 0.93
+},
+{
+"article": "INDUSTRIAL CLEANER DEGREASER SPRAY  H7",
+"pa_net_ht": 4.98
+},
+{
+"article": "Insecticide Oro Anti Cafard 500ml -12P",
+"pa_net_ht": 4.03
+},
+{
+"article": "Javel Trad T.Force 5 L -4P",
+"pa_net_ht": 4.44
+},
+{
+"article": "Jelly Pop BABY 10G -24P",
+"pa_net_ht": 0.55
+},
+{
+"article": "JERRYCAN RGE 10L HOMOLGUE UN",
+"pa_net_ht": 3.66
+},
+{
+"article": "JERRYCAN RGE 20L HOMOLGUE UN",
+"pa_net_ht": 6.5
+},
+{
+"article": "JERRYCAN RGE 5L HOMOLGUE UN",
+"pa_net_ht": 3.15
+},
+{
+"article": "Jeton Lavazza 1.60€",
+"pa_net_ht": 0
+},
+{
+"article": "Jeu de 54 cartes etui",
+"pa_net_ht": 0.89
+},
+{
+"article": "JM Rhum Blanc 50cl 50%",
+"pa_net_ht": 10.05
+},
+{
+"article": "JNR E-LIQUIDE BLUEBERRY RED",
+"pa_net_ht": 4
+},
+{
+"article": "JNR E-LIQUIDE Cherry Ice",
+"pa_net_ht": 4
+},
+{
+"article": "JNR E-LIQUIDE LADY KILLA",
+"pa_net_ht": 4
+},
+{
+"article": "JNR E-LIQUIDE Peach Berry",
+"pa_net_ht": 4
+},
+{
+"article": "JNR E-LIQUIDE Peach Mango Pineapple - 10P",
+"pa_net_ht": 4
+},
+{
+"article": "JNR E-LIQUIDE Summer Peach - 10P",
+"pa_net_ht": 4
+},
+{
+"article": "JNR E-LIQUIDE WATERMELON BUBBLEGUM",
+"pa_net_ht": 4
+},
+{
+"article": "Ju aero vehidc Blanc nacre",
+"pa_net_ht": 6.46
+},
+{
+"article": "ju aero vehidc gris metallisé 37060 400ml",
+"pa_net_ht": 7.85
+},
+{
+"article": "Ju aero vehidc gris thallium",
+"pa_net_ht": 7.78
+},
+{
+"article": "ju aero vehidc vert fonce metal 400 ml",
+"pa_net_ht": 0
+},
+{
+"article": "ju aero vernis bois satine",
+"pa_net_ht": 0
+},
+{
+"article": "Jus banga goyave 2L",
+"pa_net_ht": 3.8
+},
+{
+"article": "Jus banga multifruits 2L",
+"pa_net_ht": 3.8
+},
+{
+"article": "Jus capri-sun 20 cl monster alarm -10P",
+"pa_net_ht": 0.54
+},
+{
+"article": "Jus capri-sun 20 cl multi -10P",
+"pa_net_ht": 0.52
+},
+{
+"article": "Jus capri-sun 20 cl orange -10P",
+"pa_net_ht": 0.46
+},
+{
+"article": "Jus capri-sun 20 cl safari - 40P",
+"pa_net_ht": 0.54
+},
+{
+"article": "Jus capri-sun 20 cl tropical -40P",
+"pa_net_ht": 0.54
+},
+{
+"article": "Jus capri-sun 33cl Mango/Maracuja - 15P",
+"pa_net_ht": 1.02
+},
+{
+"article": "Jus capri-sun Cherry Pomme  33cl - 15P",
+"pa_net_ht": 1.02
+},
+{
+"article": "Jus capri-sun orange  PECHE 33cl - 15P",
+"pa_net_ht": 0.99
+},
+{
+"article": "Jus caresse 1L ts parf",
+"pa_net_ht": 2.25
+},
+{
+"article": "Jus caresse 50cl canne a sucre",
+"pa_net_ht": 2.33
+},
+{
+"article": "Jus caresse 50cl TS PARF",
+"pa_net_ht": 1.35
+},
+{
+"article": "Jus Fresh 100% Poire 1L - 12P",
+"pa_net_ht": 1.67
+},
+{
+"article": "Jus FRESH 100% POMME 1L - 12P",
+"pa_net_ht": 1.69
+},
+{
+"article": "Jus FRUITYBON Canne 1l",
+"pa_net_ht": 3.75
+},
+{
+"article": "Jus FRUITYBON Canne 50cl",
+"pa_net_ht": 1.95
+},
+{
+"article": "Jus FRUITYBON Local 1l",
+"pa_net_ht": 2.55
+},
+{
+"article": "Jus FRUITYBON Local 50 cl",
+"pa_net_ht": 1.5
+},
+{
+"article": "Jus joker ace 25cl -24P",
+"pa_net_ht": 1.3
+},
+{
+"article": "Jus joker pomme 25cl -24P",
+"pa_net_ht": 1.11
+},
+{
+"article": "Jus joker raisin 25cl -24P",
+"pa_net_ht": 1.26
+},
+{
+"article": "Jus Mont Pele CAN 50cl cocktail tropical -24P",
+"pa_net_ht": 1.17
+},
+{
+"article": "Jus Mont Pele CAN 50cl Fruits rouges -24P",
+"pa_net_ht": 1.14
+},
+{
+"article": "Jus Mont Pele CAN 50cl goyave/ananas -24P",
+"pa_net_ht": 1.12
+},
+{
+"article": "Jus yippy 33cl multi 12P",
+"pa_net_ht": 1.13
+},
+{
+"article": "Jus yippy 33cl Pomme 12P",
+"pa_net_ht": 1.12
+},
+{
+"article": "Jus Yippy 33cl Red Berrie - 12P",
+"pa_net_ht": 1.12
+},
+{
+"article": "JUSTE BIO S GINGEMBRE 100G",
+"pa_net_ht": 1.53
+},
+{
+"article": "JUSTE BIO S MEL CRAQUANT 100G -12P",
+"pa_net_ht": 2.96
+},
+{
+"article": "Kinder Cards Unite x 2 - 5P",
+"pa_net_ht": 0.63
+},
+{
+"article": "Kinder Country / unite",
+"pa_net_ht": 0.39
+},
+{
+"article": "Kinder Tronky  _18G -48P",
+"pa_net_ht": 0.57
+},
+{
+"article": "KIT REPARE PNEUS +5 TRESS",
+"pa_net_ht": 6.75
+},
+{
+"article": "Krazy Glu Duo",
+"pa_net_ht": 3.22
+},
+{
+"article": "La Paz  W Cigarros x 5 -5P",
+"pa_net_ht": 7.57
+},
+{
+"article": "La Paz Cigarillos 10x10",
+"pa_net_ht": 6.8
+},
+{
+"article": "La Paz W Cigarillos 20 -5P",
+"pa_net_ht": 16.29
+},
+{
+"article": "LACET FINI 80 GR - 12P",
+"pa_net_ht": 0.95
+},
+{
+"article": "Lait 1/2ecreme 1l -6P",
+"pa_net_ht": 1.15
+},
+{
+"article": "Lait Concentré non sucre PT gourm -24P",
+"pa_net_ht": 1.75
+},
+{
+"article": "Lait concentre sucre Nestle - 12P",
+"pa_net_ht": 3.05
+},
+{
+"article": "LAMPE PREMIUM VERRE 12V5WBL2",
+"pa_net_ht": 2.24
+},
+{
+"article": "Lave glace Bleu Vito 2l -8P",
+"pa_net_ht": 1.96
+},
+{
+"article": "Lave glace Bleu Vito 5l -4P",
+"pa_net_ht": 3.39
+},
+{
+"article": "Lave glace floral vito 2l - 8P",
+"pa_net_ht": 1.98
+},
+{
+"article": "Lave glace floral Vito 5l -4P",
+"pa_net_ht": 3.4
+},
+{
+"article": "Lavish Cosmopolitan 12.5° 250ml-24P",
+"pa_net_ht": 2.27
+},
+{
+"article": "Lavish extreme 25cl 21% -24P",
+"pa_net_ht": 2.61
+},
+{
+"article": "Lavish Purple Grape 12.5° 250ml -24P",
+"pa_net_ht": 2.28
+},
+{
+"article": "Lavish Rasperry & Guava 12.5% 250ml -24P",
+"pa_net_ht": 2.28
+},
+{
+"article": "LDNE -MINI MALLOW PAQUES 12G - 50P",
+"pa_net_ht": 0.45
+},
+{
+"article": "Lentilles Blondes Celimene 454",
+"pa_net_ht": 1.71
+},
+{
+"article": "Liqui moly diesel top 300ml",
+"pa_net_ht": 26.19
+},
+{
+"article": "Liqui moly inj.diesel cleaner300ml",
+"pa_net_ht": 28.6
+},
+{
+"article": "Liquide refroi 2l Bleu T.A - 8P",
+"pa_net_ht": 2.38
+},
+{
+"article": "Liquide refroi 5l Bleu vito - 4P",
+"pa_net_ht": 3.36
+},
+{
+"article": "Liquide refroi Univ Vito jaune 5L - 4P",
+"pa_net_ht": 11.28
+},
+{
+"article": "Liquide refroi Univ Vito rose 5l - 4P",
+"pa_net_ht": 11.16
+},
+{
+"article": "Liquide vais tropic force 750 ml 20P",
+"pa_net_ht": 1.79
+},
+{
+"article": "Little mix FINI 90g -12P",
+"pa_net_ht": 1
+},
+{
+"article": "Loacker napolitaner 45g -25P",
+"pa_net_ht": 0.52
+},
+{
+"article": "LONG HORN RECOVERY BLUE 50 CL - 12P",
+"pa_net_ht": 1.68
+},
+{
+"article": "LU CENT WAFER 45G -30P",
+"pa_net_ht": 1
+},
+{
+"article": "M&M's 45gr - 36P",
+"pa_net_ht": 1.05
+},
+{
+"article": "M&M'S XXL 82gr-16P",
+"pa_net_ht": 2.03
+},
+{
+"article": "Maaza fruit punch 50cl -12P",
+"pa_net_ht": 1.46
+},
+{
+"article": "Maaza Goyave 50cl -12P",
+"pa_net_ht": 1.47
+},
+{
+"article": "Maaza Tropical 50cl -12P",
+"pa_net_ht": 1.43
+},
+{
+"article": "MACARONS DELICES PROD",
+"pa_net_ht": 1.7
+},
+{
+"article": "Macedoine de fruits Gum FINI 90g -12P",
+"pa_net_ht": 1
+},
+{
+"article": "Madeleines aux oeufs 5143 Bigin 250g - 16P",
+"pa_net_ht": 2.08
+},
+{
+"article": "Madeleinette peyi bigin 5188 - 80g - 18P",
+"pa_net_ht": 0.75
+},
+{
+"article": "Magic Carpets FINI 90g -12P",
+"pa_net_ht": 1
+},
+{
+"article": "Magnum TT PARF -20P",
+"pa_net_ht": 1.41
+},
+{
+"article": "Malta corsaire 50cl -24P",
+"pa_net_ht": 1.18
+},
+{
+"article": "Malta Corsaire VP 33cl -24P",
+"pa_net_ht": 1.02
+},
+{
+"article": "Malta lorraine 33 cl -24P",
+"pa_net_ht": 1.11
+},
+{
+"article": "Malta lorraine 50cl -24P",
+"pa_net_ht": 1.22
+},
+{
+"article": "Malta Lorraine Gingembre 33 cl -24P",
+"pa_net_ht": 1.08
+},
+{
+"article": "Malta lorraine gingembre 50cl -24P",
+"pa_net_ht": 1.22
+},
+{
+"article": "Manio Crakers sale - 6P",
+"pa_net_ht": 1.34
+},
+{
+"article": "Manio Crakers sucre - 6P",
+"pa_net_ht": 1.34
+},
+{
+"article": "MARYLAND CIGARILLOS ICE -10P",
+"pa_net_ht": 7.02
+},
+{
+"article": "Maxi Pain Choco - 90P",
+"pa_net_ht": 0.92
+},
+{
+"article": "Maxi Pop Corn Caramel 90g",
+"pa_net_ht": 1.26
+},
+{
+"article": "Maxi Pop Corn Salé 90g",
+"pa_net_ht": 1.26
+},
+{
+"article": "Maxi pop corn sucré 90g",
+"pa_net_ht": 1.26
+},
+{
+"article": "MENTHE BLEUE DURMINT - 134P",
+"pa_net_ht": 0.06
+},
+{
+"article": "MENTHE VERTE DR TOM - 237P",
+"pa_net_ht": 0.05
+},
+{
+"article": "Mentos chloro 38grs - 40P",
+"pa_net_ht": 0.42
+},
+{
+"article": "Mentos Fanta 38g - 40P",
+"pa_net_ht": 0.7
+},
+{
+"article": "Mentos fruits 38g - 40P",
+"pa_net_ht": 0.57
+},
+{
+"article": "Mentos menthe mint 38g - 40P",
+"pa_net_ht": 0.57
+},
+{
+"article": "Mentos Pure Fresh 30 Fresh Mint 60 g - 6P",
+"pa_net_ht": 2.2
+},
+{
+"article": "Miko Classic 1L ts parfums",
+"pa_net_ht": 3.75
+},
+{
+"article": "MIKO SUPER TWISTER - 28P",
+"pa_net_ht": 0.84
+},
+{
+"article": "MINI FRITES FIZZY - 48P",
+"pa_net_ht": 0.4
+},
+{
+"article": "Monster Can Standard 50cl - 12P",
+"pa_net_ht": 2
+},
+{
+"article": "Mont Pele Refresh 50 cl Fruits Rouges - 24P",
+"pa_net_ht": 1.02
+},
+{
+"article": "Mont Pele Refresh 50 cl Pomme Poire - 24P",
+"pa_net_ht": 1.02
+},
+{
+"article": "Mont Pele Refresh 50 cl Tropical - 24P",
+"pa_net_ht": 1
+},
+{
+"article": "Mont pele the peche hibiscus 50cl - 24p",
+"pa_net_ht": 1.12
+},
+{
+"article": "mouchoir unité vet / soavex",
+"pa_net_ht": 0.19
+},
+{
+"article": "Mr BROWNIE Chocolat 200gX8 -12P",
+"pa_net_ht": 3.06
+},
+{
+"article": "MT PELE Refresh 2L Fruits Rouges - 6P",
+"pa_net_ht": 2.69
+},
+{
+"article": "MT PELE Refresh 2L Pomme Poire - 6P",
+"pa_net_ht": 2.71
+},
+{
+"article": "MT PELE Refresh 2L Tropical - 6P",
+"pa_net_ht": 2.78
+},
+{
+"article": "Muffin Cannelle 5187 - 25P",
+"pa_net_ht": 0.61
+},
+{
+"article": "Muffin Choco 5335 - 25P",
+"pa_net_ht": 0.64
+},
+{
+"article": "Natcom Haiti Montant variable",
+"pa_net_ht": 0.97
+},
+{
+"article": "Natte de plage 60 x 180cm",
+"pa_net_ht": 2.36
+},
+{
+"article": "NAUTILUS PREMIUM OUTBOARD 1L",
+"pa_net_ht": 6.55
+},
+{
+"article": "neos mini rouge 10 -P10",
+"pa_net_ht": 4.21
+},
+{
+"article": "NET CONTACT 400ML",
+"pa_net_ht": 10.28
+},
+{
+"article": "NET CURATIF INJ ESS 500 ML",
+"pa_net_ht": 6.71
+},
+{
+"article": "NETT VITRES / ANTI PLUIE 500ml",
+"pa_net_ht": 5.09
+},
+{
+"article": "NOIX de CAJOU 150G impec _ 24P",
+"pa_net_ht": 4.11
+},
+{
+"article": "Nougat Caramel Pistache 100g",
+"pa_net_ht": 1.9
+},
+{
+"article": "NOUILLE POULET 85G APPOLO -30P",
+"pa_net_ht": 0.65
+},
+{
+"article": "Nutella 200grs - 15P",
+"pa_net_ht": 2.84
+},
+{
+"article": "Nutella and GO - 24P",
+"pa_net_ht": 1.6
+},
+{
+"article": "Nutella B-Ready - 16P",
+"pa_net_ht": 2.65
+},
+{
+"article": "Nutella Biscuit G304 - 12P",
+"pa_net_ht": 4.91
+},
+{
+"article": "Oasis Pomme Poire 2l -6P",
+"pa_net_ht": 3.26
+},
+{
+"article": "Oasis Pomme Poire 50cl -12P",
+"pa_net_ht": 1.04
+},
+{
+"article": "Oasis Tropical 50cl -12P",
+"pa_net_ht": 1.02
+},
+{
+"article": "OCB - 150 filtres - 50P",
+"pa_net_ht": 0.92
+},
+{
+"article": "oeillets carres pr tete manuelle x 2",
+"pa_net_ht": 3.78
+},
+{
+"article": "OEILLETS KRAMP RONDS",
+"pa_net_ht": 0
+},
+{
+"article": "Orange Caraibe Internet 15 € TTC",
+"pa_net_ht": 13.41
+},
+{
+"article": "Orange Caraibe Internet 50 € TTC",
+"pa_net_ht": 44.7
+},
+{
+"article": "Orangina 2l -6P",
+"pa_net_ht": 3.39
+},
+{
+"article": "OTO CLEAN DEGRAISSANT 750 ML",
+"pa_net_ht": 5.5
+},
+{
+"article": "OTO CLEAN NET PLASTQ FRAISE 400ml",
+"pa_net_ht": 3.15
+},
+{
+"article": "OTO CLEAN NET PLASTQ VANILLE 400ml",
+"pa_net_ht": 3.15
+},
+{
+"article": "Pain Chocolat - 96P",
+"pa_net_ht": 0.65
+},
+{
+"article": "Palets Dorés St Georges 125g -24P",
+"pa_net_ht": 0.97
+},
+{
+"article": "Papier à rouler gizeh - 20P",
+"pa_net_ht": 0.79
+},
+{
+"article": "papier a rouler OCB roll's - 24P",
+"pa_net_ht": 1.18
+},
+{
+"article": "Papier aluminium 30m - 12P",
+"pa_net_ht": 3.46
+},
+{
+"article": "PAPIER OCB SLIM + FILTRE NON BLANCHI - 32P",
+"pa_net_ht": 1.56
+},
+{
+"article": "Papier Pure Kss Slim + Tips El Momento -P20",
+"pa_net_ht": 1.26
+},
+{
+"article": "Papier Toillette x 4 rouleaux standard - 10P",
+"pa_net_ht": 1.77
+},
+{
+"article": "PATE BRISE LAMBIS 35g - 192P",
+"pa_net_ht": 0.49
+},
+{
+"article": "Pate de campagne77gr - 48P",
+"pa_net_ht": 1.67
+},
+{
+"article": "Pate de foie 77g - 48P",
+"pa_net_ht": 1.48
+},
+{
+"article": "Pates sagittaire coquillettes 500g - 20P",
+"pa_net_ht": 1.45
+},
+{
+"article": "Patisseries Pain raisin Brioche - 100P",
+"pa_net_ht": 0.73
+},
+{
+"article": "PaySAfeCard 10€",
+"pa_net_ht": 9.85
+},
+{
+"article": "PaySAfeCard 100€",
+"pa_net_ht": 98.5
+},
+{
+"article": "PaySAfeCard 25€",
+"pa_net_ht": 24.62
+},
+{
+"article": "PaySAfeCard 50€",
+"pa_net_ht": 49.25
+},
+{
+"article": "PaySAfeCard montant variable",
+"pa_net_ht": 0.99
+},
+{
+"article": "Pcs Absolut Carte Gold",
+"pa_net_ht": 15.9
+},
+{
+"article": "PCS Creacard de 20€ a 199€",
+"pa_net_ht": 0.99
+},
+{
+"article": "PCS Creacard de 200€ a 250€",
+"pa_net_ht": 0.99
+},
+{
+"article": "PCS Rechargement Direct 200€ a 250€",
+"pa_net_ht": 0.99
+},
+{
+"article": "Pencils Sour Arc en Ciel FINI 90g -12P",
+"pa_net_ht": 1
+},
+{
+"article": "Pencils Sour Fraise FINI 90g",
+"pa_net_ht": 1
+},
+{
+"article": "PG Cones 125ml -16P",
+"pa_net_ht": 1.27
+},
+{
+"article": "PG CONES PREM -16P",
+"pa_net_ht": 1.42
+},
+{
+"article": "PG COUPE 200ml -9P",
+"pa_net_ht": 1.23
+},
+{
+"article": "PG PREM glace 1L VP/MA/PB",
+"pa_net_ht": 7.25
+},
+{
+"article": "Pile alcaline PANASONIC LR03 - 12P",
+"pa_net_ht": 2.23
+},
+{
+"article": "Pile alkaline PANASONIC LR06 - 12P",
+"pa_net_ht": 2.05
+},
+{
+"article": "Pile EV Lithium 3V X2 - 10P",
+"pa_net_ht": 2.79
+},
+{
+"article": "Pile Lithium 3v CR2032 -12P",
+"pa_net_ht": 1.34
+},
+{
+"article": "Pile panasonic  LR09",
+"pa_net_ht": 2.53
+},
+{
+"article": "Pile Plat Panasonic SP12",
+"pa_net_ht": 1.3
+},
+{
+"article": "PLANTEUR IDYLLIK 27.5 CL",
+"pa_net_ht": 2.75
+},
+{
+"article": "Pomme Cannelle - 60P",
+"pa_net_ht": 0.94
+},
+{
+"article": "popping garbage 40g",
+"pa_net_ht": 1.3
+},
+{
+"article": "Pot Kingston Volume 30GRS-4P",
+"pa_net_ht": 6.51
+},
+{
+"article": "Preservatif Erectus Fraise P24",
+"pa_net_ht": 1.3
+},
+{
+"article": "Preservatif Erectus Long Love granue / 3 - 24P",
+"pa_net_ht": 1.39
+},
+{
+"article": "Preservatif erectus long love xxl P24",
+"pa_net_ht": 1.39
+},
+{
+"article": "Preservatif long love GRANULE X2 - 48P",
+"pa_net_ht": 1.83
+},
+{
+"article": "Preservatifs MANIX SKYN Pres Elite 10",
+"pa_net_ht": 13.14
+},
+{
+"article": "Pringles bbq 175g -19P",
+"pa_net_ht": 2.32
+},
+{
+"article": "Pringles bbq 40g -12P",
+"pa_net_ht": 1.21
+},
+{
+"article": "Pringles hot & spicy 40g - 12P",
+"pa_net_ht": 1.21
+},
+{
+"article": "Pringles Hot Spicy 160g -19P",
+"pa_net_ht": 3.05
+},
+{
+"article": "Pringles Origl 175g - 19P",
+"pa_net_ht": 2.37
+},
+{
+"article": "Pringles Origl 40g - 12P",
+"pa_net_ht": 1.24
+},
+{
+"article": "Pringles SCO 175g - 19P",
+"pa_net_ht": 3.04
+},
+{
+"article": "Pringles SCO 40g - 12 P",
+"pa_net_ht": 1.21
+},
+{
+"article": "Quadratini chocolate 125g -12P",
+"pa_net_ht": 2.61
+},
+{
+"article": "Quadratini napoliter 125g - 12P",
+"pa_net_ht": 2.48
+},
+{
+"article": "Quadratini vanille 125g -12P",
+"pa_net_ht": 2.61
+},
+{
+"article": "Quiche Lorraine 150g - 48P",
+"pa_net_ht": 1.86
+},
+{
+"article": "Rasoir bic 1 lame x5",
+"pa_net_ht": 0.73
+},
+{
+"article": "Rasoir bic x 5 - twin lady - 20P",
+"pa_net_ht": 1.26
+},
+{
+"article": "Recharge gaz briquet 90ml",
+"pa_net_ht": 1.74
+},
+{
+"article": "Recharge gaz briquet BELFLAM 120ml - 12P",
+"pa_net_ht": 1.84
+},
+{
+"article": "Recharge gaz briquet BELFLAM 300ml(12)",
+"pa_net_ht": 2.4
+},
+{
+"article": "Recharge Orange Caraibe 10 €",
+"pa_net_ht": 8.94
+},
+{
+"article": "Recharge Orange Caraibe 20 €",
+"pa_net_ht": 17.88
+},
+{
+"article": "Recharge Orange Caraibe 5 €",
+"pa_net_ht": 4.47
+},
+{
+"article": "Recharge Orange Flash",
+"pa_net_ht": 0.89
+},
+{
+"article": "Recharge SFR Antilles 10€",
+"pa_net_ht": 8.94
+},
+{
+"article": "Recharge SFR Antilles 20€",
+"pa_net_ht": 17.88
+},
+{
+"article": "Recharge SFR Antilles 5€",
+"pa_net_ht": 4.47
+},
+{
+"article": "Red bull 25cl -24P",
+"pa_net_ht": 1.61
+},
+{
+"article": "Red bull 25cl SANS SUCRE -24P",
+"pa_net_ht": 1.75
+},
+{
+"article": "Red bull Coconut 25cl -24P",
+"pa_net_ht": 1.57
+},
+{
+"article": "RHUM BLANC 50° 1L HSE -6P",
+"pa_net_ht": 10.91
+},
+{
+"article": "Rhum Neisson 50° Blanc 1L",
+"pa_net_ht": 17.11
+},
+{
+"article": "Rhum st james blanc 50° 1L -12P",
+"pa_net_ht": 10.88
+},
+{
+"article": "Rhum st james blanc 50°70cl -12P",
+"pa_net_ht": 8.39
+},
+{
+"article": "Riz Blanc Thai Dr Roots 1KG- 20P",
+"pa_net_ht": 2.04
+},
+{
+"article": "Rizla regular 25P",
+"pa_net_ht": 1.01
+},
+{
+"article": "Rizla Slim - 50P",
+"pa_net_ht": 0.84
+},
+{
+"article": "ROYAL BAF 2L MULTIFRUITS - 6P",
+"pa_net_ht": 3.6
+},
+{
+"article": "ROYAL CONFIT 330G BANANE - 12P",
+"pa_net_ht": 2.14
+},
+{
+"article": "Royal corn miko -16P",
+"pa_net_ht": 1.27
+},
+{
+"article": "ROYAL NECT CAN 33 GOYAVE - 24P",
+"pa_net_ht": 0.81
+},
+{
+"article": "ROYAL NECT CAN 33 TROPICAL - 24P",
+"pa_net_ht": 0.81
+},
+{
+"article": "Royal soda 2l ananas -6P",
+"pa_net_ht": 2.67
+},
+{
+"article": "Royal soda 2L Anis -6P",
+"pa_net_ht": 2.67
+},
+{
+"article": "Royal soda 2l banane -6P",
+"pa_net_ht": 2.67
+},
+{
+"article": "Royal soda 2l citron -6P",
+"pa_net_ht": 2.67
+},
+{
+"article": "Royal soda 2l grenadine -6P",
+"pa_net_ht": 2.67
+},
+{
+"article": "Royal soda 2l kampane - 6P",
+"pa_net_ht": 2.69
+},
+{
+"article": "Royal soda 50cl BANANE -8P",
+"pa_net_ht": 0.84
+},
+{
+"article": "Royal soda 50cl CITRON -8P",
+"pa_net_ht": 0.86
+},
+{
+"article": "Royal soda 50cl GRENADINE -8P",
+"pa_net_ht": 0.86
+},
+{
+"article": "Royal soda 50cl KAMPANE -8P",
+"pa_net_ht": 0.85
+},
+{
+"article": "Royal soda 50cl Orange -8P",
+"pa_net_ht": 0.85
+},
+{
+"article": "ruban adhesifX2 NR 10m",
+"pa_net_ht": 2.05
+},
+{
+"article": "Sac poubelle 60L",
+"pa_net_ht": 0.96
+},
+{
+"article": "Sac poubelle plas ultra / Lien coul 50L",
+"pa_net_ht": 1.85
+},
+{
+"article": "Sac poubelle ultra/Lien Coul 100l -20P",
+"pa_net_ht": 2.54
+},
+{
+"article": "sachet bretelle",
+"pa_net_ht": 0.1
+},
+{
+"article": "Sachet Menthe Bleue DURMINT 100g - 12P",
+"pa_net_ht": 1.39
+},
+{
+"article": "Sandwich Autres 4.80",
+"pa_net_ht": 3.35
+},
+{
+"article": "SANPE EAU 1L - 6P",
+"pa_net_ht": 1.55
+},
+{
+"article": "Sardines Founty Huile Vegetal 125g 50P",
+"pa_net_ht": 0.77
+},
+{
+"article": "Sardines piment Founty 125g - 50P",
+"pa_net_ht": 0.77
+},
+{
+"article": "Sardines tomato Founty 125g  - 50P",
+"pa_net_ht": 0.83
+},
+{
+"article": "Sauce Creoline Forte 320g -6P",
+"pa_net_ht": 2.99
+},
+{
+"article": "Saucisses Cocktail 400g - 24P",
+"pa_net_ht": 1.89
+},
+{
+"article": "Saucisson gaul 150gr - 34P",
+"pa_net_ht": 3.42
+},
+{
+"article": "Savon marseille i'prop 300grs - 24P",
+"pa_net_ht": 0.98
+},
+{
+"article": "Schweppes agrumes 1.5L -6P",
+"pa_net_ht": 2.46
+},
+{
+"article": "Schweppes agrumes 50cl -8P",
+"pa_net_ht": 1.05
+},
+{
+"article": "Schweppes pomme 50cl -8P",
+"pa_net_ht": 1.04
+},
+{
+"article": "Schweppes Tonic 50cl -8P",
+"pa_net_ht": 1.04
+},
+{
+"article": "scotch fixation dble face 1.5m x 19mm",
+"pa_net_ht": 4.37
+},
+{
+"article": "Sel sachet fin salina 1kg - 20P",
+"pa_net_ht": 0.97
+},
+{
+"article": "SERVIET ULTRA MIN NORM X 16",
+"pa_net_ht": 1.35
+},
+{
+"article": "Signature Beige RED FILTERS 10 - 10P",
+"pa_net_ht": 7.24
+},
+{
+"article": "Signature Piccolini Beige Filtre - P 10",
+"pa_net_ht": 5.43
+},
+{
+"article": "Signature Piccolini Green  filter P 10",
+"pa_net_ht": 5.34
+},
+{
+"article": "Skittles fruits 55g  - 36P",
+"pa_net_ht": 1.06
+},
+{
+"article": "snickers barre glace 53ml - 24P",
+"pa_net_ht": 0.85
+},
+{
+"article": "Snickers Batonnet glace 90 ml - 20P",
+"pa_net_ht": 1.55
+},
+{
+"article": "Soft Ginger beer BOUT 33cl -24P",
+"pa_net_ht": 1.17
+},
+{
+"article": "Soft Ginger beer Can 33cl -24P",
+"pa_net_ht": 0.9
+},
+{
+"article": "Sour potty sucette+poudre citrique 19g/24P",
+"pa_net_ht": 0.95
+},
+{
+"article": "spirax s2 A 80w-90 1L - 12P",
+"pa_net_ht": 6.1
+},
+{
+"article": "Spirax s2 atf direction assistee 1l - 12P",
+"pa_net_ht": 7.81
+},
+{
+"article": "Spirax s4 atf hdx 1L - 12P",
+"pa_net_ht": 8.93
+},
+{
+"article": "Spirax s4 G 75W-80 1L - 12P",
+"pa_net_ht": 9.06
+},
+{
+"article": "Sprite 2l - 6P",
+"pa_net_ht": 2.68
+},
+{
+"article": "START PILOTE DEM MOTEUR 300ml",
+"pa_net_ht": 10.5
+},
+{
+"article": "Stp renov pneus son of gun 600g",
+"pa_net_ht": 11.8
+},
+{
+"article": "Sucette Chupa Tubo XXL P 60",
+"pa_net_ht": 0.48
+},
+{
+"article": "Sucette Col-Bble Bum - 48P",
+"pa_net_ht": 0.12
+},
+{
+"article": "Sucettes Lapipop 40G-18P",
+"pa_net_ht": 1.19
+},
+{
+"article": "Sucre de Canne 1kg - 24P",
+"pa_net_ht": 1.93
+},
+{
+"article": "Tabac a rouler brooklyn 30g - 10P",
+"pa_net_ht": 6.38
+},
+{
+"article": "Tabac a rouler camel 30g -10P",
+"pa_net_ht": 8.01
+},
+{
+"article": "Tabac a rouler eastwood blond 30 g -10P",
+"pa_net_ht": 5.73
+},
+{
+"article": "Tabac a rouler eastwood classic 30 g -10P",
+"pa_net_ht": 5.73
+},
+{
+"article": "Tabac a rouler fleur du pays - 10P",
+"pa_net_ht": 8.01
+},
+{
+"article": "Tabac a rouler frerot 30g -10P",
+"pa_net_ht": 5.64
+},
+{
+"article": "Tabac a rouler kingston 30grs -10P",
+"pa_net_ht": 5.64
+},
+{
+"article": "Tabac a rouler maryland 30g -10P",
+"pa_net_ht": 5.39
+},
+{
+"article": "Tabac a rouler news 30gr  -10P",
+"pa_net_ht": 7.61
+},
+{
+"article": "Tabac a rouler Pueblo 30 grs -10P",
+"pa_net_ht": 7.28
+},
+{
+"article": "Tabac a rouler sauvage 30g -10P",
+"pa_net_ht": 7.29
+},
+{
+"article": "Tabac Kingston à tuber 30g -10P",
+"pa_net_ht": 4.55
+},
+{
+"article": "TABLETTE COCO BLANCHE",
+"pa_net_ht": 1.65
+},
+{
+"article": "Tampon laine d'acier x12",
+"pa_net_ht": 1.29
+},
+{
+"article": "Tartelettes Chocolat 150g -24P",
+"pa_net_ht": 1.6
+},
+{
+"article": "Tartelettes Fraise 150g - 24P",
+"pa_net_ht": 1.68
+},
+{
+"article": "Thon Pecheur de France 1/6",
+"pa_net_ht": 1.62
+},
+{
+"article": "TI BWA au fromage 40g",
+"pa_net_ht": 0.63
+},
+{
+"article": "Ti Bwa au fromage 90g",
+"pa_net_ht": 1.3
+},
+{
+"article": "TI Kafe 125g",
+"pa_net_ht": 2.28
+},
+{
+"article": "TI Kafe 250g",
+"pa_net_ht": 4.05
+},
+{
+"article": "TI Kafe 50g",
+"pa_net_ht": 3.09
+},
+{
+"article": "Tic Tac Extra Mint - 24P",
+"pa_net_ht": 0.57
+},
+{
+"article": "Tic Tac festival fruity mix - 24P",
+"pa_net_ht": 0.57
+},
+{
+"article": "Timbre unité",
+"pa_net_ht": 1.52
+},
+{
+"article": "Tubes ocb",
+"pa_net_ht": 0.69
+},
+{
+"article": "TUILES coco curcuma 60g / coco passion 60g",
+"pa_net_ht": 1.9
+},
+{
+"article": "Tuyau MANUGAZ 1.5M H210E501",
+"pa_net_ht": 14.5
+},
+{
+"article": "URGENCE CREVAISON 600 ML",
+"pa_net_ht": 7.55
+},
+{
+"article": "Vichy Pastilles Barquette 25g  - 24P",
+"pa_net_ht": 0.56
+},
+{
+"article": "VICO CLASSIQUE 135G - 20P",
+"pa_net_ht": 1.52
+},
+{
+"article": "Vin Bordeaux Chateau Lauzanet 2023",
+"pa_net_ht": 4.5
+},
+{
+"article": "Vin Ch La Citadelle 75cl -6P",
+"pa_net_ht": 5.78
+},
+{
+"article": "Vin chavron rouge moelleux 75cl -6P",
+"pa_net_ht": 3.16
+},
+{
+"article": "Vinaigre alcool Crist 1L -12P",
+"pa_net_ht": 1.08
+},
+{
+"article": "Vitamalt 33cl classic -24P",
+"pa_net_ht": 1.29
+},
+{
+"article": "Vitamalt 33cl ginger-24P",
+"pa_net_ht": 1.27
+},
+{
+"article": "Vitamalt 50cl classic -24P",
+"pa_net_ht": 1.4
+},
+{
+"article": "Vitamalt 50cl Ginger -24P",
+"pa_net_ht": 1.42
+},
+{
+"article": "Vul Spirale Anti Moustique  x 10 - 24P",
+"pa_net_ht": 1.28
+},
+{
+"article": "WEEK END ANTILLES BY FA - 2€",
+"pa_net_ht": 1.7
+},
+{
+"article": "Whisky william lawson's 70cl",
+"pa_net_ht": 15.14
+},
+{
+"article": "WPUFF FUSION - STARTER FRUIT DU DRAGON 2% - 10P",
+"pa_net_ht": 13.34
+},
+{
+"article": "WPUFF FUSION - STARTER GROSSE FRAISE 2% - 10P",
+"pa_net_ht": 13.7
+},
+{
+"article": "WPUFF FUSION - STARTER MENTHE 2% - 10P",
+"pa_net_ht": 13.15
+},
+{
+"article": "WPUFF FUSION - STARTER RAISIN GLACE 2% - 10P",
+"pa_net_ht": 11.65
+},
+{
+"article": "WPUFF FUSION -STARTER MYRTILLE FRAMBOYANTE 2% -10P",
+"pa_net_ht": 13.47
+},
+{
+"article": "WPUFF FUSION PS - BATTERIE -10P",
+"pa_net_ht": 8.5
+},
+{
+"article": "WPUFF FUSION PS - FRUITS ROUGES 2% -10P",
+"pa_net_ht": 7.47
+},
+{
+"article": "WPUFF FUSION PS - MENTHE FRAICHE 2% - 10P",
+"pa_net_ht": 7.2
+},
+{
+"article": "WPUFF FUSION PS - MY CHERRY AMOUR 2% - 10P",
+"pa_net_ht": 7.2
+},
+{
+"article": "WPUFF FUSION PS - MYRTILLE FRAMB 2% - 10P",
+"pa_net_ht": 7.04
+},
+{
+"article": "WPUFF FUSION PS - RAISIN GLACE 2% - 10P",
+"pa_net_ht": 7.07
+},
+{
+"article": "WPUFF FUSION PS- GROSSE FRAISE 2% -10P",
+"pa_net_ht": 7.11
+},
+{
+"article": "WPUFF POD 2.0 - 1 POD FRUITS ROUGES 1.7%",
+"pa_net_ht": 4
+},
+{
+"article": "WPUFF POD 2.0 - 1 POD MA CHERIE CITRON 1.7%",
+"pa_net_ht": 4
+},
+{
+"article": "WPUFF POD 2.0 - 1 POD TOP CASSIS 1.7%",
+"pa_net_ht": 4
+},
+{
+"article": "WPUFF POD 2.0 - BATTERY",
+"pa_net_ht": 6.5
+},
+{
+"article": "WYNNS GMS NET INJ GASOIL 325ML",
+"pa_net_ht": 5.2
+},
+{
+"article": "WYNNS STOP FUITE RADIATEUR 325ml",
+"pa_net_ht": 3.98
+},
+{
+"article": "X-BAR KIT SOLO BATTERY - 5P",
+"pa_net_ht": 7.55
+},
+{
+"article": "X-BAR POD CLICK & PUFF - X SAVEURS",
+"pa_net_ht": 2.85
+},
+{
+"article": "Yop 250g ts parf",
+"pa_net_ht": 1.04
+},
+{
+"article": "Yop 500g ts parf",
+"pa_net_ht": 1.84
+},
+{
+"article": "ZENGAZ MINI CUBE LASER 16P",
+"pa_net_ht": 2.75
+}
+]
+}

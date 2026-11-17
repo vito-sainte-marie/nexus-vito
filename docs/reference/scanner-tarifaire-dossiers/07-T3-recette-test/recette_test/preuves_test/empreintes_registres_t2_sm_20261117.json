@@ -1,0 +1,75 @@
+{
+ "cible": "udljdqxerrbbbajxubfn (Supabase Test)",
+ "script": "73_empreintes_registres_t2_sm_lecture_seule.sql",
+ "sha256_script": "86aff2ee7c097ed5c76c7a9d46ef94bd0dc3e0103d7ba0b2d000967e472d0246",
+ "execute_le": "2026-11-17 vers 12 h (Martinique), transaction en lecture seule, site vito-sainte-marie",
+ "role": "référence avant migration (condition 2)",
+ "lignes": [
+  {
+   "registre": "tarif_controles_reglementaires",
+   "actives": 3,
+   "total": 3,
+   "empreinte": "bf8a3b312d942484781c8a7399561018"
+  },
+  {
+   "registre": "tarif_decisions",
+   "actives": 0,
+   "total": 0,
+   "empreinte": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  {
+   "registre": "tarif_exceptions",
+   "actives": 13,
+   "total": 15,
+   "empreinte": "3ab754ae48ab9eecc1319c31b215381d"
+  },
+  {
+   "registre": "tarif_familles",
+   "actives": 24,
+   "total": 26,
+   "empreinte": "bc68d1c06e8c237b5feb733663e19f09"
+  },
+  {
+   "registre": "tarif_prix_application",
+   "actives": 0,
+   "total": 2,
+   "empreinte": "04298647c79a2da46f0ca36cc0c0953d"
+  },
+  {
+   "registre": "tarif_prix_decides",
+   "actives": 21,
+   "total": 23,
+   "empreinte": "b771f101252cab70f000603ee09414f4"
+  },
+  {
+   "registre": "tarif_rattachements",
+   "actives": 51,
+   "total": 51,
+   "empreinte": "3977272c97f8ca3dc164be477487d6e6"
+  },
+  {
+   "registre": "tarif_regimes_prix",
+   "actives": 1,
+   "total": 1,
+   "empreinte": "5a2e6909eeee07840f3293c292904483"
+  },
+  {
+   "registre": "tarif_reglages",
+   "actives": 4,
+   "total": 4,
+   "empreinte": "f2ff2082df6cc3f409ec96e04d5366a9"
+  },
+  {
+   "registre": "tarif_seuils",
+   "actives": 13,
+   "total": 13,
+   "empreinte": "846d136f001666edf0475c66cc8d7271"
+  },
+  {
+   "registre": "TOTAL",
+   "actives": 130,
+   "total": 138,
+   "empreinte": "1752f6f440c7777399d6b0040c86438e"
+  }
+ ]
+}

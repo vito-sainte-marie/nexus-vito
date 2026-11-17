@@ -1,0 +1,32 @@
+OK     L01 schéma auth créé par les migrations du vrai Supabase Auth
+OK     L02 contrôle 70 de préinstallation : 21 OK, 0 écart
+OK     L03 garde : 79 d'origine refusé hors Test (garde_projet_test)
+OK     L03 garde : 80_comptes_recette_t3_creation.sql d'origine refusé hors Test (garde_projet_test)
+OK     L03 garde : 81_desactiver_gerant_sm_t3.sql d'origine refusé hors Test (garde_projet_test)
+OK     L03 garde : 82_desactiver_comptes_recette_t3.sql d'origine refusé hors Test (garde_projet_test)
+OK     L04 migration appliquée par le rôle postgres
+OK     L05 contrôle 71 de postinstallation : 20 OK (objets, droits et privilèges effectifs, historique SM inchangé : 1 (actives 1), empreintes identiques)
+OK     L05b empreintes des registres T2 de SM identiques avant et après migration (2/2 lignes actives/totales)
+OK     L06 étape réservée simulée : trois identités créées dans le vrai Supabase Auth
+OK     L07 script 80 : trois comptes liés (gérant SM, manager SM, gérant fantôme)
+OK     L08 rejeu du 80 refusé (compte_deja_lie) : aucune réactivation implicite
+OK     L11 phase 1, connexions réelles : phase 1 : OK 30 / ECHEC 0 / non joués 0
+OK     L12 phase 2, connexions réelles : phase 2 : OK 9 / ECHEC 0 / non joués 0
+OK     L09 script 81 : gérant SM de recette désactivé, identité conservée
+OK     L13 phase 3, connexions réelles : phase 3 : OK 6 / ECHEC 0 / non joués 0
+OK     L15 bilan : 7 lignes de journal de recette (6 SM, 1 fantôme), toutes annulées, 5 liées ; aucun prix de recette actif
+OK     L16 la décision historique SM (sans lien) est identique après la recette
+OK     L14 sensibilité : avec le gérant réactivé, la phase 3 échoue (T3-01)
+OK     L17 script 82 : trois comptes désactivés, lignes conservées
+OK     L18 bannissement lot recette_t3 : CONFORME (3 identité(s) bannie(s), reconnexion refusée)
+OK     L19 trois identités bannies (plus de 50 ans), aucune supprimée
+OK     L20 rapports sans secret : ni mot de passe, ni clé, ni jeton
+OK     L25b empreintes des registres T2 de SM identiques après la recette (lignes RECETTE T3 exclues)
+OK     L25 bilan 72 de fin de recette : 9 OK (historique SM intact, recette annulée, 1 journal par prix, comptes désactivés et bannis)
+OK     L21 garde : cible « https://uzhjpqpctpvxytxpxoqz.supabase.co » refusée avant tout appel
+OK     L21 garde : cible « https://exemple.supabase.co » refusée avant tout appel
+OK     L22 retour arrière 79 exécuté (répétition)
+OK     L23 retour arrière : 6 liens archivés dans archive_tarif_t3_20261117_1201 (fermé à authenticated), 9 lignes de journal et 7 prix décidés conservés, aucun objet T3 restant
+OK     L24 second retour arrière refusé (retour_arriere_sans_objet)
+---
+Bilan : 30 OK, 0 ECHEC

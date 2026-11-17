@@ -1,0 +1,981 @@
+{
+ "familles": [
+  {
+   "site": "vito-sainte-marie",
+   "famille_code": "bieres",
+   "libelle": "Bières"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "famille_code": "jus",
+   "libelle": "Jus"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "famille_code": "sodas_2_l",
+   "libelle": "Sodas 2 L"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "famille_code": "sodas_autres_formats",
+   "libelle": "Sodas autres formats"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "famille_code": "energetiques",
+   "libelle": "Énergétiques"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "famille_code": "eaux_non_aromatisees",
+   "libelle": "Eaux non aromatisées"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "famille_code": "glaces_hors_floups",
+   "libelle": "Glaces hors Floups"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "famille_code": "confiserie",
+   "libelle": "Confiserie"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "famille_code": "feuilles_a_rouler",
+   "libelle": "Feuilles à rouler"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "famille_code": "biscuiterie",
+   "libelle": "Biscuiterie"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "famille_code": "eaux_aromatisees",
+   "libelle": "Eaux aromatisées"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "famille_code": "chips_et_petits_sales",
+   "libelle": "Chips et petits salés"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "famille_code": "vapotage",
+   "libelle": "Vapotage"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "famille_code": "pains",
+   "libelle": "Pains"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "famille_code": "glacons",
+   "libelle": "Glaçons"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "famille_code": "boissons_a_l_aloe_vera",
+   "libelle": "Boissons à l'aloe vera"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "famille_code": "boissons_maltees",
+   "libelle": "Boissons maltées"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "famille_code": "floup_classique",
+   "libelle": "Floup classique"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "famille_code": "autres_floups",
+   "libelle": "Autres Floups"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "famille_code": "huiles_hors_shell",
+   "libelle": "Huiles hors Shell"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "famille_code": "huiles_shell_5_l",
+   "libelle": "Huiles Shell 5 L"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "famille_code": "huiles_shell_2_l",
+   "libelle": "Huiles Shell 2 L"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "famille_code": "huiles_shell_1_l",
+   "libelle": "Huiles Shell 1 L"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "famille_code": "menthes_a_l_unite",
+   "libelle": "Menthes à l'unité"
+  }
+ ],
+ "rattachements": [
+  {
+   "site": "vito-sainte-marie",
+   "portee": "rayon",
+   "rayon": "Bières, Cidres et Panachés",
+   "famille_code": "bieres"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "portee": "rayon",
+   "rayon": "Bières Stouts",
+   "famille_code": "bieres"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "portee": "rayon",
+   "rayon": "Jus de fruits et légumes",
+   "famille_code": "jus"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "portee": "rayon",
+   "rayon": "Eaux non aromatisées",
+   "famille_code": "eaux_non_aromatisees"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "portee": "rayon",
+   "rayon": "Pains - Patisseries fraiches",
+   "famille_code": "pains"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "portee": "rayon",
+   "rayon": "Confiserie",
+   "famille_code": "confiserie"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "portee": "rayon",
+   "rayon": "Kits et Packs",
+   "famille_code": "vapotage"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "portee": "rayon",
+   "rayon": "PUFFS",
+   "famille_code": "vapotage"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "portee": "rayon",
+   "rayon": "Biscuiterie - Pains d'épices - Patisserie Industrielle",
+   "famille_code": "biscuiterie"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "portee": "rayon",
+   "rayon": "Feuilles à rouler - Filtres - Tubes",
+   "famille_code": "feuilles_a_rouler"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "portee": "rayon",
+   "rayon": "Glacons",
+   "famille_code": "glacons"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "portee": "rayon",
+   "rayon": "Eaux Aromatisées",
+   "famille_code": "eaux_aromatisees"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "portee": "rayon",
+   "rayon": "Chips - Biscuits et Petits Salés",
+   "famille_code": "chips_et_petits_sales"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "portee": "rayon",
+   "rayon": "Sodas, toniques",
+   "famille_code": "sodas_autres_formats"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "portee": "rayon",
+   "rayon": "Glaces et crèmes glacées",
+   "famille_code": "glaces_hors_floups"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "portee": "rayon",
+   "rayon": "Boissons Energétiques",
+   "famille_code": "energetiques"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "portee": "reference",
+   "code_barres": "5011987105607",
+   "article": null,
+   "famille_code": "huiles_hors_shell",
+   "motif": "exception à la déclaration « Shell exclusivement », non reclassée"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "portee": "reference",
+   "code_barres": "2292084000054",
+   "article": null,
+   "famille_code": "sodas_2_l",
+   "motif": "reprise de la règle T1"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "portee": "reference",
+   "code_barres": "5011987237599",
+   "article": null,
+   "famille_code": "huiles_shell_2_l",
+   "motif": "reprise de la règle T1"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "portee": "reference",
+   "code_barres": "3292090000245",
+   "article": null,
+   "famille_code": "sodas_2_l",
+   "motif": "reprise de la règle T1"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "portee": "reference",
+   "code_barres": "5011987237308",
+   "article": null,
+   "famille_code": "huiles_shell_2_l",
+   "motif": "reprise de la règle T1"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "portee": "reference",
+   "code_barres": "5011987035744",
+   "article": null,
+   "famille_code": "huiles_shell_2_l",
+   "motif": "reprise de la règle T1"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "portee": "rayon",
+   "rayon": "Huile Moteur",
+   "famille_code": "huiles_shell_1_l"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "portee": "reference",
+   "code_barres": "5011987243798",
+   "article": null,
+   "famille_code": "huiles_shell_2_l",
+   "motif": "reprise de la règle T1"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "portee": "reference",
+   "code_barres": "5011987064379",
+   "article": null,
+   "famille_code": "huiles_shell_5_l",
+   "motif": "reprise de la règle T1"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "portee": "reference",
+   "code_barres": "5011987249776",
+   "article": null,
+   "famille_code": "huiles_shell_2_l",
+   "motif": "reprise de la règle T1"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "portee": "reference",
+   "code_barres": "4710487051513",
+   "article": null,
+   "famille_code": "boissons_a_l_aloe_vera",
+   "motif": "hors énergétiques (arbitrage), catégorie Decenium inchangée"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "portee": "reference",
+   "code_barres": "5011987074736",
+   "article": null,
+   "famille_code": "huiles_shell_2_l",
+   "motif": "reprise de la règle T1"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "portee": "reference",
+   "code_barres": "3272090000216",
+   "article": null,
+   "famille_code": "sodas_2_l",
+   "motif": "reprise de la règle T1"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "portee": "reference",
+   "code_barres": "3289092002407",
+   "article": null,
+   "famille_code": "sodas_2_l",
+   "motif": "reprise de la règle T1"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "portee": "reference",
+   "code_barres": "3292090001129",
+   "article": null,
+   "famille_code": "sodas_2_l",
+   "motif": "reprise de la règle T1"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "portee": "reference",
+   "code_barres": "8809041426273",
+   "article": null,
+   "famille_code": "boissons_a_l_aloe_vera",
+   "motif": "hors énergétiques (arbitrage), catégorie Decenium inchangée"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "portee": "reference",
+   "code_barres": "3292090000221",
+   "article": null,
+   "famille_code": "sodas_2_l",
+   "motif": "reprise de la règle T1"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "portee": "reference",
+   "code_barres": "3292090000252",
+   "article": null,
+   "famille_code": "sodas_2_l",
+   "motif": "reprise de la règle T1"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "portee": "reference",
+   "code_barres": "8801861931630",
+   "article": null,
+   "famille_code": "boissons_a_l_aloe_vera",
+   "motif": "hors énergétiques (arbitrage), catégorie Decenium inchangée"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "portee": "reference",
+   "code_barres": "3292090135244",
+   "article": null,
+   "famille_code": "sodas_2_l",
+   "motif": "reprise de la règle T1"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "portee": "reference",
+   "code_barres": null,
+   "article": "MENTHE VERTE DR TOM - 237P",
+   "famille_code": "menthes_a_l_unite",
+   "motif": "reprise de la règle T1"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "portee": "reference",
+   "code_barres": "5741000004609",
+   "article": null,
+   "famille_code": "boissons_maltees",
+   "motif": "hors énergétiques (arbitrage), catégorie Decenium inchangée"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "portee": "reference",
+   "code_barres": "8809713918471",
+   "article": null,
+   "famille_code": "boissons_a_l_aloe_vera",
+   "motif": "hors énergétiques (arbitrage), catégorie Decenium inchangée"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "portee": "reference",
+   "code_barres": "3292090000269",
+   "article": null,
+   "famille_code": "sodas_2_l",
+   "motif": "reprise de la règle T1"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "portee": "reference",
+   "code_barres": "3292090000016",
+   "article": null,
+   "famille_code": "sodas_2_l",
+   "motif": "reprise de la règle T1"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "portee": "reference",
+   "code_barres": "5741000002315",
+   "article": null,
+   "famille_code": "boissons_maltees",
+   "motif": "hors énergétiques (arbitrage), catégorie Decenium inchangée"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "portee": "reference",
+   "code_barres": "5907439965618",
+   "article": null,
+   "famille_code": "huiles_hors_shell",
+   "motif": "exception à la déclaration « Shell exclusivement », non reclassée"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "portee": "reference",
+   "code_barres": "5741000140963",
+   "article": null,
+   "famille_code": "boissons_maltees",
+   "motif": "hors énergétiques (arbitrage), catégorie Decenium inchangée"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "portee": "reference",
+   "code_barres": "5741000142110",
+   "article": null,
+   "famille_code": "boissons_maltees",
+   "motif": "hors énergétiques (arbitrage), catégorie Decenium inchangée"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "portee": "reference",
+   "code_barres": "3291330001240",
+   "article": null,
+   "famille_code": "autres_floups",
+   "motif": "reprise de la règle T1"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "portee": "reference",
+   "code_barres": null,
+   "article": "MENTHE BLEUE DURMINT - 134P",
+   "famille_code": "menthes_a_l_unite",
+   "motif": "reprise de la règle T1"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "portee": "reference",
+   "code_barres": "31014",
+   "article": null,
+   "famille_code": "autres_floups",
+   "motif": "reprise de la règle T1"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "portee": "reference",
+   "code_barres": "3291330000182",
+   "article": null,
+   "famille_code": "floup_classique",
+   "motif": "reprise de la règle T1"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "portee": "reference",
+   "code_barres": "3292090000238",
+   "article": null,
+   "famille_code": "sodas_2_l",
+   "motif": "reprise de la règle T1"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "portee": "reference",
+   "code_barres": "5011987069053",
+   "article": null,
+   "famille_code": "huiles_shell_5_l",
+   "motif": "reprise de la règle T1"
+  }
+ ],
+ "seuils": [
+  {
+   "site": "vito-sainte-marie",
+   "niveau": "famille",
+   "cible_niveau": "bieres",
+   "minimum": 0.47,
+   "statut_minimum": "indicatif",
+   "cible": 0.5,
+   "statut_cible": "indicatif"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "niveau": "famille",
+   "cible_niveau": "jus",
+   "minimum": 0.41,
+   "statut_minimum": "indicatif",
+   "cible": 0.49,
+   "statut_cible": "a_l_etude"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "niveau": "famille",
+   "cible_niveau": "sodas_2_l",
+   "minimum": 0.41,
+   "statut_minimum": "valide",
+   "cible": 0.42,
+   "statut_cible": "valide"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "niveau": "famille",
+   "cible_niveau": "sodas_autres_formats",
+   "minimum": 0.39,
+   "statut_minimum": "hypothese",
+   "cible": 0.48,
+   "statut_cible": "hypothese"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "niveau": "famille",
+   "cible_niveau": "energetiques",
+   "minimum": 0.47,
+   "statut_minimum": "indicatif",
+   "cible": 0.48,
+   "statut_cible": "indicatif"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "niveau": "famille",
+   "cible_niveau": "eaux_non_aromatisees",
+   "minimum": 0.46,
+   "statut_minimum": "indicatif",
+   "cible": 0.51,
+   "statut_cible": "indicatif"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "niveau": "famille",
+   "cible_niveau": "glaces_hors_floups",
+   "minimum": 0.4,
+   "statut_minimum": "a_l_etude",
+   "cible": 0.42,
+   "statut_cible": "a_l_etude"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "niveau": "famille",
+   "cible_niveau": "confiserie",
+   "minimum": null,
+   "statut_minimum": null,
+   "cible": 0.5,
+   "statut_cible": "valide"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "niveau": "famille",
+   "cible_niveau": "feuilles_a_rouler",
+   "minimum": 0.47,
+   "statut_minimum": "indicatif",
+   "cible": 0.51,
+   "statut_cible": "indicatif"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "niveau": "famille",
+   "cible_niveau": "biscuiterie",
+   "minimum": 0.37,
+   "statut_minimum": "indicatif",
+   "cible": 0.41,
+   "statut_cible": "indicatif"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "niveau": "famille",
+   "cible_niveau": "eaux_aromatisees",
+   "minimum": 0.47,
+   "statut_minimum": "indicatif",
+   "cible": 0.51,
+   "statut_cible": "indicatif"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "niveau": "famille",
+   "cible_niveau": "chips_et_petits_sales",
+   "minimum": 0.41,
+   "statut_minimum": "indicatif",
+   "cible": 0.45,
+   "statut_cible": "indicatif"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "niveau": "famille",
+   "cible_niveau": "vapotage",
+   "minimum": 0.5,
+   "statut_minimum": "valide",
+   "cible": null,
+   "statut_cible": null
+  }
+ ],
+ "reglages": [
+  {
+   "site": "vito-sainte-marie",
+   "parametre": "a6_baisse_points",
+   "valeur": 0.02
+  },
+  {
+   "site": "vito-sainte-marie",
+   "parametre": "a6_baisse_marge_unitaire_euros",
+   "valeur": 0.02
+  },
+  {
+   "site": "vito-sainte-marie",
+   "parametre": "a6_baisse_marge_unitaire_relative",
+   "valeur": 0.05
+  },
+  {
+   "site": "vito-sainte-marie",
+   "parametre": "a6_montant_minimal",
+   "valeur": 5
+  }
+ ],
+ "exceptions": [
+  {
+   "site": "vito-sainte-marie",
+   "article": "Glace floup -20P",
+   "code_barres": null,
+   "type": "produit_appel",
+   "statut": "validee",
+   "motif": "Floup classique à 0,95 € TTC, prix d'appel",
+   "cond_prix_ttc": 0.95,
+   "source": "tarif_exceptions"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "article": "MENTHE BLEUE DURMINT - 134P",
+   "code_barres": null,
+   "type": "produit_appel",
+   "statut": "validee",
+   "motif": "menthe à l'unité",
+   "cond_prix_ttc": null,
+   "source": "tarif_exceptions"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "article": "MENTHE VERTE DR TOM - 237P",
+   "code_barres": null,
+   "type": "produit_appel",
+   "statut": "validee",
+   "motif": "menthe à l'unité",
+   "cond_prix_ttc": null,
+   "source": "tarif_exceptions"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "article": null,
+   "code_barres": "8712000900014",
+   "type": "pack",
+   "statut": "validee",
+   "motif": "pack Heineken",
+   "cond_prix_ttc": null,
+   "source": "tarif_exceptions"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "article": null,
+   "code_barres": "8712000018948",
+   "type": "pack",
+   "statut": "validee",
+   "motif": "pack Heineken",
+   "cond_prix_ttc": null,
+   "source": "tarif_exceptions"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "article": null,
+   "code_barres": "3330901751129",
+   "type": "pack",
+   "statut": "validee",
+   "motif": "pack Lorraine",
+   "cond_prix_ttc": null,
+   "source": "tarif_exceptions"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "article": null,
+   "code_barres": "3289090001938",
+   "type": "pack",
+   "statut": "validee",
+   "motif": "pack Chanflor 1,5 L × 6",
+   "cond_prix_ttc": null,
+   "source": "tarif_exceptions"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "article": null,
+   "code_barres": "8714800004114",
+   "type": "produit_appel",
+   "statut": "validee",
+   "motif": "Bavaria Blonde, enregistrée le 29/07/2026",
+   "cond_prix_ttc": null,
+   "source": "tarif_exceptions"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "article": "Glacons Vito 5 kg",
+   "code_barres": null,
+   "type": "concurrence_directe",
+   "statut": "validee",
+   "motif": "sac de 5 kg à 4,00 € TTC",
+   "cond_prix_ttc": 4,
+   "source": "tarif_exceptions"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "article": "Biere GUINNESS 27.5 CL - 24P",
+   "code_barres": null,
+   "type": "produit_appel",
+   "statut": "validee",
+   "motif": "enregistré le 29/07/2026",
+   "cond_prix_ttc": null,
+   "source": "tarif_exceptions"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "article": "Bonbon Menthise 250G - 29P",
+   "code_barres": null,
+   "type": "autre",
+   "statut": "candidate",
+   "motif": "à confirmer : conditionnement et vente réelle à l'unité",
+   "cond_prix_ttc": null,
+   "source": "tarif_exceptions"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "article": null,
+   "code_barres": "543860131458",
+   "type": "autre",
+   "statut": "candidate",
+   "motif": "à confirmer : prix, coût et politique du pack",
+   "cond_prix_ttc": null,
+   "source": "tarif_exceptions"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "article": null,
+   "code_barres": "69861498510",
+   "type": "autre",
+   "statut": "refusee",
+   "motif": "pack Guinness : pas d'exception validée",
+   "cond_prix_ttc": null,
+   "source": "tarif_exceptions"
+  }
+ ],
+ "prixDecides": [
+  {
+   "id": "pd0",
+   "site": "vito-sainte-marie",
+   "article": "Sprite 2l - 6P",
+   "nature": "changement",
+   "prix_ttc": 4.8,
+   "decide_le": "2026-11-16"
+  },
+  {
+   "id": "pd1",
+   "site": "vito-sainte-marie",
+   "article": "Royal soda 2l ananas -6P",
+   "nature": "changement",
+   "prix_ttc": 4.8,
+   "decide_le": "2026-11-16"
+  },
+  {
+   "id": "pd2",
+   "site": "vito-sainte-marie",
+   "article": "Royal soda 2L Anis -6P",
+   "nature": "changement",
+   "prix_ttc": 4.8,
+   "decide_le": "2026-11-16"
+  },
+  {
+   "id": "pd3",
+   "site": "vito-sainte-marie",
+   "article": "Royal soda 2l banane -6P",
+   "nature": "changement",
+   "prix_ttc": 4.8,
+   "decide_le": "2026-11-16"
+  },
+  {
+   "id": "pd4",
+   "site": "vito-sainte-marie",
+   "article": "Royal soda 2l citron -6P",
+   "nature": "changement",
+   "prix_ttc": 4.8,
+   "decide_le": "2026-11-16"
+  },
+  {
+   "id": "pd5",
+   "site": "vito-sainte-marie",
+   "article": "Royal soda 2l grenadine -6P",
+   "nature": "changement",
+   "prix_ttc": 4.8,
+   "decide_le": "2026-11-16"
+  },
+  {
+   "id": "pd6",
+   "site": "vito-sainte-marie",
+   "article": "Royal soda 2l kampane - 6P",
+   "nature": "changement",
+   "prix_ttc": 4.8,
+   "decide_le": "2026-11-16"
+  },
+  {
+   "id": "pd7",
+   "site": "vito-sainte-marie",
+   "article": "Orangina 2l -6P",
+   "nature": "changement",
+   "prix_ttc": 5.9,
+   "decide_le": "2026-11-16"
+  },
+  {
+   "id": "pd8",
+   "site": "vito-sainte-marie",
+   "article": "Amigo Orange 2L -6P",
+   "nature": "changement",
+   "prix_ttc": 5.9,
+   "decide_le": "2026-11-16"
+  },
+  {
+   "id": "pd9",
+   "site": "vito-sainte-marie",
+   "article": "Monster Can Standard 50cl - 12P",
+   "nature": "changement",
+   "prix_ttc": 4.2,
+   "decide_le": "2026-11-16"
+  },
+  {
+   "id": "pd10",
+   "site": "vito-sainte-marie",
+   "article": "Boisson Monster Viking Berry 50 cl -12P",
+   "nature": "changement",
+   "prix_ttc": 4.2,
+   "decide_le": "2026-11-16"
+  },
+  {
+   "id": "pd11",
+   "site": "vito-sainte-marie",
+   "article": "Boisson Monster Energy Punch 50 cl -12P",
+   "nature": "changement",
+   "prix_ttc": 4.2,
+   "decide_le": "2026-11-16"
+  },
+  {
+   "id": "pd12",
+   "site": "vito-sainte-marie",
+   "article": "Boisson Monster PIPELINE Punch 50cl - 12P",
+   "nature": "changement",
+   "prix_ttc": 4.2,
+   "decide_le": "2026-11-16"
+  },
+  {
+   "id": "pd13",
+   "site": "vito-sainte-marie",
+   "article": "Boisson Monster LNORRIS SSUCR 50 cl -12P",
+   "nature": "changement",
+   "prix_ttc": 4.2,
+   "decide_le": "2026-11-16"
+  },
+  {
+   "id": "pd14",
+   "site": "vito-sainte-marie",
+   "article": "Boisson Monster MONARCH 50cl - 12P",
+   "nature": "changement",
+   "prix_ttc": 4.2,
+   "decide_le": "2026-11-16"
+  },
+  {
+   "id": "pd15",
+   "site": "vito-sainte-marie",
+   "article": "Boisson Monster Mango Loco 50cl - 12P",
+   "nature": "changement",
+   "prix_ttc": 4.2,
+   "decide_le": "2026-11-16"
+  },
+  {
+   "id": "pd16",
+   "site": "vito-sainte-marie",
+   "article": "Coca cola 2l -6P",
+   "nature": "maintenu",
+   "prix_ttc": null,
+   "decide_le": "2026-11-16"
+  },
+  {
+   "id": "pd17",
+   "site": "vito-sainte-marie",
+   "article": "Glace floup -20P",
+   "nature": "en_vigueur",
+   "prix_ttc": 0.95,
+   "decide_le": "2026-11-16"
+  },
+  {
+   "id": "pd18",
+   "site": "vito-sainte-marie",
+   "article": "Glace floup fruisson -20P",
+   "nature": "en_vigueur",
+   "prix_ttc": 1.25,
+   "decide_le": "2026-11-16"
+  },
+  {
+   "id": "pd19",
+   "site": "vito-sainte-marie",
+   "article": "Glace floup berlingot supercoco -20P",
+   "nature": "en_vigueur",
+   "prix_ttc": 1.25,
+   "decide_le": "2026-11-16"
+  },
+  {
+   "id": "pd20",
+   "site": "vito-sainte-marie",
+   "article": "Glacons Vito 5 kg",
+   "nature": "en_vigueur",
+   "prix_ttc": 4,
+   "decide_le": "2026-11-16"
+  }
+ ],
+ "applications": [],
+ "regimes": [
+  {
+   "site": "vito-sainte-marie",
+   "article": "Feuille de Tabac FINE LEAF 15g - 15P",
+   "regime": "a_qualifier",
+   "raison": "produit du tabac, régime de prix non établi"
+  }
+ ],
+ "controles": [
+  {
+   "site": "vito-sainte-marie",
+   "portee": "reference",
+   "rayon": null,
+   "article": "Feuille de Tabac FINE LEAF 15g - 15P",
+   "etat": "controle_ouvert",
+   "type_element": "produit_tabac",
+   "raison": "régime de prix et réglementation du tabac à qualifier ; TVA importée à 0 % à vérifier"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "portee": "rayon",
+   "rayon": "Kits et Packs",
+   "article": null,
+   "etat": "controle_ouvert",
+   "type_element": null,
+   "raison": "CSP art. L3513-5-1 et L3513-15 : fiche technique du modèle exact à obtenir"
+  },
+  {
+   "site": "vito-sainte-marie",
+   "portee": "rayon",
+   "rayon": "PUFFS",
+   "article": null,
+   "etat": "controle_ouvert",
+   "type_element": null,
+   "raison": "CSP art. L3513-5-1 et L3513-15 : fiche technique du modèle exact à obtenir"
+  }
+ ]
+}

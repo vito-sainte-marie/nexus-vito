@@ -1,0 +1,207 @@
+﻿Désignation;Famille;Statut v1;Statut v2;Gain minimum v1;Gain minimum v2 (décisionnel);Repère indicatif v2 (non décisionnel);A6 v1;A6 v2;Changements;Raison v2
+BIERE PITON 27.5 CL;Bières;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+BIERE SOMERSBY FRAMB GREN 3X27.5cl - 24P;Bières;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+BIERE SOMERSBY POMME 27.5CL - 24P;Bières;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+BISC GUARINA SALADITAS - 12P;Biscuiterie;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+BISCUITS SALES RGC;Biscuiterie;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Biere BUZZ extra strong 10% Plus 275ml -24P;Bières;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Biere Bavaria 8/6 Blonde 50cl -24P;Bières;a_surveiller;a_surveiller;;;;oui;non;A6;exception commerciale validée
+Biere Bavaria 8/6 RED 50cl - P24;Bières;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Biere Corsaire BDE VP 33cl -24P;Bières;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Biere Desperados 33cl  -24P;Bières;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Biere Desperados 33cl  mojito -24P;Bières;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Biere Desperados 33cl SUN CERISE -24P;Bières;proposition_a_valider;a_surveiller;0.88;;0.88;non;non;statut, simulation minimum;sous le seuil indicatif de 47 %, non décisionnel
+Biere Desperados 33cl lime- 24P;Bières;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Biere Desperados 50cl -24P;Bières;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Biere Desperados RED 33cl -24P;Bières;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Biere Desperados RED 50cl  - 12 P;Bières;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Biere Desperados RED 65cl - 12P;Bières;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Biere Desperados Virgin 33cl -24P;Bières;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Biere GUINNESS 33 CL EXTRA 7.5% - 24P;Bières;proposition_a_valider;a_surveiller;35.07;;35.07;non;non;statut, simulation minimum;sous le seuil indicatif de 47 %, non décisionnel
+Biere Heineken 0.0 25 cl - 24P;Bières;proposition_a_valider;a_surveiller;3.7;;3.7;non;non;statut, simulation minimum;sous le seuil indicatif de 47 %, non décisionnel
+Biere Heineken 25cl -24P;Bières;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Biere Heineken 33cl - 24P;Bières;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Biere Heineken 50cl - 24P;Bières;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Biere Heineken Cannette 33cl -24P;Bières;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Biere Leffe 33cl -24P;Bières;proposition_a_valider;a_surveiller;10.82;;10.82;non;non;statut, simulation minimum;sous le seuil indicatif de 47 %, non décisionnel
+Biere Lorraine 25cl - 24P;Bières;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Biere Lorraine 33 cl blle -24P;Bières;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Biere Lorraine 50cl  -24P;Bières;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Biere Lorraine Vibes Citron Ginger 33 cl blle -24P;Bières;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Biere Lorraine Vibes Passion 33 cl blle -24P;Bières;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Biere Royal faxe 5.6% 50cl  -24P;Bières;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Biere Skoll 33 cl -24P;Bières;proposition_a_valider;a_surveiller;3.4;;3.4;non;non;statut, simulation minimum;sous le seuil indicatif de 47 %, non décisionnel
+Bisc OREO ROULEAUX CLASSIC 154grs - 16P;Biscuiterie;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Bisc Oreo 66gr -20P;Biscuiterie;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Bisc Sultana FRouges 218g -18P;Biscuiterie;proposition_a_valider;a_surveiller;3.43;;3.43;non;non;statut, simulation minimum;sous le seuil indicatif de 37 %, non décisionnel
+Bisc TUC SALE 75g  - 28P;Biscuiterie;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Bisc granola lu choco/lait 200g -18P;Biscuiterie;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Bisc premium bleu s/s 250g -12P;Biscuiterie;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Bisc premium sale rouge 250gr - 12P;Biscuiterie;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Bisc prince lu 80g  - 20P;Biscuiterie;proposition_a_valider;a_surveiller;6.87;;6.87;non;non;statut, simulation minimum;sous le seuil indicatif de 37 %, non décisionnel
+Bisc tuc OIGNON 100gr - 24P;Biscuiterie;proposition_a_valider;a_surveiller;5.42;;5.42;non;non;statut, simulation minimum;sous le seuil indicatif de 37 %, non décisionnel
+Bisc tuc bacon 100gr - 24P;Biscuiterie;proposition_a_valider;a_surveiller;6.6;;6.6;non;non;statut, simulation minimum;sous le seuil indicatif de 37 %, non décisionnel
+Bisc tuc fromandi 100grs -24P;Biscuiterie;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Biscuit petit beurre unité;Biscuiterie;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Biscuits DEVON FOURRES COCONUT - 30P;Biscuiterie;proposition_a_valider;a_surveiller;1.29;;1.29;non;non;statut, simulation minimum;sous le seuil indicatif de 37 %, non décisionnel
+Biscuits DEVON FOURRES CUSTARD - 30P;Biscuiterie;proposition_a_valider;a_surveiller;1.05;;1.05;non;non;statut, simulation minimum;sous le seuil indicatif de 37 %, non décisionnel
+Biscuits petit beurre 200g/20P;Biscuiterie;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Bière 1664 25cl - 28P;Bières;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Bière 1664 50cl - 24P;Bières;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Bière Desperados 33cl Tropical -24P;Bières;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Bière LA BETE BLONDE 50CL - 12P;Bières;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Bière LA BETE BLUEB 50CL - 12P;Bières;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Bière MACKESON 275ml - 24P;Bières;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Bière PELICAN ROUGE 50 CL - 12P;Bières;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Bière Porter 39 25cl -24P;Bières;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Bière Porter 39 50cl - 24P;Bières;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Bière Smirnoff ice 275ml -24P;Bières;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Boisson energisante Red bull 35.5CL-24P;Énergétiques;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Boisson energisante Red bull Fruit du dragon 25Cl-24P;Énergétiques;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Boisson energisante Red bull Myrtille 25Cl-24P;Énergétiques;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Boisson magnum tonic 200ml -24P;Énergétiques;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+CRIBICH au fromage 30g;Chips et petits salés;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+CRIBICH au fromage 75g;Chips et petits salés;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+CRIBICH piment 30g;Chips et petits salés;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+CRIBICH piment 75g;Chips et petits salés;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Carré aux pommes 110g - 46P;Biscuiterie;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Chanflor 50cl - 12P;Eaux non aromatisées;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Chanflor 60cl - 8P;Eaux non aromatisées;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Chanflor Pomme / Aloe 1.5l -6P;Eaux aromatisées;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Chanflor Ti Fraise 33cl - 8P;Eaux aromatisées;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Chanflor fruits rge 50cl -8P;Eaux aromatisées;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Chanflor fruits rge1.5l -6P;Eaux aromatisées;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Chanflor peche letchi rge50cl -8P;Eaux aromatisées;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Chanflor pomme aloes vera 50cl -8P;Eaux aromatisées;proposition_a_valider;a_surveiller;2.42;;2.42;non;non;statut, simulation minimum;sous le seuil indicatif de 47 %, non décisionnel
+Cheetos fromage 27g -24P;Chips et petits salés;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Cheetos fromage 80g -12P;Chips et petits salés;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Chips Banane Nature 95G - 24P;Chips et petits salés;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Chips LAYS BBQ 45g - 20 P;Chips et petits salés;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Chips Lays BBQ 130g -10P;Chips et petits salés;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Chips Lays Nat 130g- 10P;Chips et petits salés;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Chips Lays Nature 75gr - 15P;Chips et petits salés;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Chips Lays nat 45g -20P;Chips et petits salés;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Chips de Banane Maduritos 95G - 24P;Chips et petits salés;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Chips lays  25g Nature - 24P;Chips et petits salés;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Chips lays bbq 27.5grs - 24P;Chips et petits salés;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Chips lays bbq 75g - 15P;Chips et petits salés;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Contrex 1L50 6P;Eaux non aromatisées;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Didier ANANAS GINGEMBRE 50cl -8P;Eaux aromatisées;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Double OCB premium Courte - 50P;Feuilles à rouler;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Dr Roots Aloe Vera 1.5L - 12P;Eaux aromatisées;proposition_a_valider;a_surveiller;5.36;;5.36;non;non;statut, simulation minimum;sous le seuil indicatif de 47 %, non décisionnel
+EAU NATUREL 1.5L ST JUDE -6P;Eaux non aromatisées;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Eau didier 113 1.5l -6P;Eaux non aromatisées;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Eau didier 113 minerale plate 1l -6P;Eaux non aromatisées;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Eau didier 113 minerale plate 50cl -8P;Eaux non aromatisées;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Eau didier Framb /Hibis 1.25L -6P;Eaux aromatisées;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Eau didier Framb/Hibis 50cl -8P;Eaux aromatisées;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Eau didier citron vert 1.25l -6P;Eaux aromatisées;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Eau didier citron vert 50cl -8P;Eaux aromatisées;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Eau didier gaz.nat 1.25l -6P;Eaux non aromatisées;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Eau didier gazeux nat 0.75 l - 8P;Eaux non aromatisées;proposition_a_valider;a_surveiller;1;;1;non;non;statut, simulation minimum;sous le seuil indicatif de 46 %, non décisionnel
+Eau hepar 75Cl -6P;Eaux non aromatisées;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Eau mabelo 0.50l -P12;Eaux non aromatisées;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Evian 1.5l -6P;Eaux non aromatisées;proposition_a_valider;a_surveiller;0.9;;0.9;non;non;statut, simulation minimum;sous le seuil indicatif de 46 %, non décisionnel
+FESTIVAL CHOCOLAT 403gr - 12P;Biscuiterie;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Feuille a rouler OCB slim - 50P;Feuilles à rouler;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Feuille a rouler OCB slim+ filtre - 32P;Feuilles à rouler;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Feuille a rouler RAW connoisseur -24P;Feuilles à rouler;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Feuille a rouler SMOKING Slim - 50P;Feuilles à rouler;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Feuille a rouler SMOKING Slim+FILTRE- 24P;Feuilles à rouler;proposition_a_valider;a_surveiller;1.33;;1.33;non;non;statut, simulation minimum;sous le seuil indicatif de 47 %, non décisionnel
+Feuille de Tabac FINE LEAF 15g - 15P;Feuilles à rouler;a_verifier;a_verifier;113.75;;;non;non;conformité, simulation minimum;contrôle réglementaire controle ouvert
+Feuille à rouler Clipper Black 1/4 50feuilles -100P;Feuilles à rouler;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Feuilleté Jamb/From 110g -30P;Biscuiterie;proposition_a_valider;a_surveiller;5.25;;5.25;non;non;statut, simulation minimum;sous le seuil indicatif de 37 %, non décisionnel
+Figolu 192g -28P;Biscuiterie;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Fourres Banane;Biscuiterie;proposition_a_valider;a_surveiller;3.59;;3.59;non;non;statut, simulation minimum;sous le seuil indicatif de 37 %, non décisionnel
+Fourres Goyave;Biscuiterie;proposition_a_valider;a_surveiller;2.59;;2.59;non;non;statut, simulation minimum;sous le seuil indicatif de 37 %, non décisionnel
+GRAN PAVESI SFOGLIE 180 GRS;Chips et petits salés;proposition_a_valider;a_surveiller;1.46;;1.46;non;non;statut, simulation minimum;sous le seuil indicatif de 41 %, non décisionnel
+Gateau Familial Oeuf 5158 300grs;Biscuiterie;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Gatorade Cool Blue - 50cl - 12P;Énergétiques;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Ginger beer SUPERMALT 33cl -24P;Bières;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Gizeh - 150 filtres - 20P;Feuilles à rouler;proposition_a_valider;a_surveiller;2.36;;2.36;non;non;statut, simulation minimum;sous le seuil indicatif de 47 %, non décisionnel
+Granola Cookies Choco 184g -10P;Biscuiterie;proposition_a_valider;a_surveiller;9.45;;9.45;non;non;statut, simulation minimum;sous le seuil indicatif de 37 %, non décisionnel
+Jus FRESH 100% POMME 1L - 12P;Jus;proposition_a_valider;a_surveiller;2.24;;2.24;non;non;statut, simulation minimum;sous le seuil indicatif de 41 %, non décisionnel
+Jus FRUITYBON Canne 1l;Jus;proposition_a_valider;a_surveiller;7.29;;7.29;non;non;statut, simulation minimum;sous le seuil indicatif de 41 %, non décisionnel
+Jus FRUITYBON Canne 50cl;Jus;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Jus FRUITYBON Local 1l;Jus;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Jus FRUITYBON Local 50 cl;Jus;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Jus Fresh 100% Poire 1L - 12P;Jus;proposition_a_valider;a_surveiller;2.97;;2.97;non;non;statut, simulation minimum;sous le seuil indicatif de 41 %, non décisionnel
+Jus Mont Pele CAN 50cl Fruits rouges -24P;Jus;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Jus Mont Pele CAN 50cl cocktail tropical -24P;Jus;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Jus Mont Pele CAN 50cl goyave/ananas -24P;Jus;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Jus Yippy 33cl Red Berrie - 12P;Jus;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Jus banga goyave 2L;Jus;proposition_a_valider;a_surveiller;4.75;;4.75;non;non;statut, simulation minimum;sous le seuil indicatif de 41 %, non décisionnel
+Jus banga multifruits 2L;Jus;proposition_a_valider;a_surveiller;14.86;;14.86;non;non;statut, simulation minimum;sous le seuil indicatif de 41 %, non décisionnel
+Jus capri-sun 20 cl monster alarm -10P;Jus;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Jus capri-sun 20 cl multi -10P;Jus;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Jus capri-sun 20 cl orange -10P;Jus;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Jus capri-sun 20 cl safari - 40P;Jus;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Jus capri-sun 20 cl tropical -40P;Jus;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Jus capri-sun 33cl Mango/Maracuja - 15P;Jus;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Jus capri-sun Cherry Pomme  33cl - 15P;Jus;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Jus capri-sun orange  PECHE 33cl - 15P;Jus;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Jus caresse 1L ts parf;Jus;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Jus caresse 50cl TS PARF;Jus;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Jus caresse 50cl canne a sucre;Jus;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Jus yippy 33cl Pomme 12P;Jus;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Jus yippy 33cl multi 12P;Jus;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+LONG HORN RECOVERY BLUE 50 CL - 12P;Énergétiques;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+LOT DE 5 PATES LAMBI;Biscuiterie;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+LU CENT WAFER 45G -30P;Biscuiterie;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+MT PELE Refresh 2L Fruits Rouges - 6P;Jus;proposition_a_valider;a_surveiller;4.45;;4.45;non;non;statut, simulation minimum;sous le seuil indicatif de 41 %, non décisionnel
+MT PELE Refresh 2L Pomme Poire - 6P;Jus;proposition_a_valider;a_surveiller;6.57;;6.57;non;non;statut, simulation minimum;sous le seuil indicatif de 41 %, non décisionnel
+MT PELE Refresh 2L Tropical - 6P;Jus;proposition_a_valider;a_surveiller;9.87;;9.87;non;non;statut, simulation minimum;sous le seuil indicatif de 41 %, non décisionnel
+Maaza Goyave 50cl -12P;Jus;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Maaza Tropical 50cl -12P;Jus;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Maaza fruit punch 50cl -12P;Jus;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Madeleines aux oeufs 5143 Bigin 250g - 16P;Biscuiterie;proposition_a_valider;a_surveiller;3.4;;3.4;non;non;statut, simulation minimum;sous le seuil indicatif de 37 %, non décisionnel
+Madeleinette peyi bigin 5188 - 80g - 18P;Biscuiterie;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Manio Crakers sale - 6P;Biscuiterie;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Mont Pele Refresh 50 cl Fruits Rouges - 24P;Jus;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Mont Pele Refresh 50 cl Pomme Poire - 24P;Jus;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Mont Pele Refresh 50 cl Tropical - 24P;Jus;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Mont pele the peche hibiscus 50cl - 24p;Jus;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Mr BROWNIE Chocolat 200gX8 -12P;Biscuiterie;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Muffin Cannelle 5187 - 25P;Biscuiterie;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Muffin Choco 5335 - 25P;Biscuiterie;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Nougat Caramel Pistache 100g;Biscuiterie;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Nutella Biscuit G304 - 12P;Biscuiterie;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+OCB - 150 filtres - 50P;Feuilles à rouler;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Oasis Pomme Poire 2l -6P;Jus;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Oasis Pomme Poire 50cl -12P;Jus;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Oasis Tropical 50cl -12P;Jus;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+PACK ST JUDE 1.5 X 6;Eaux non aromatisées;proposition_a_valider;a_surveiller;0.49;;0.49;non;non;statut, simulation minimum;sous le seuil indicatif de 46 %, non décisionnel
+PAPIER OCB SLIM + FILTRE NON BLANCHI - 32P;Feuilles à rouler;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+PATE BRISE LAMBIS 35g - 192P;Biscuiterie;proposition_a_valider;a_surveiller;26.56;;26.56;non;non;statut, simulation minimum;sous le seuil indicatif de 37 %, non décisionnel
+Pack Guinness 27.5cl - 6P;Bières;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Palets Dorés St Georges 125g -24P;Biscuiterie;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Papier Pure Kss Slim + Tips El Momento -P20;Feuilles à rouler;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Pringles Hot Spicy 160g -19P;Chips et petits salés;proposition_a_valider;a_surveiller;1.8;;1.8;non;non;statut, simulation minimum;sous le seuil indicatif de 41 %, non décisionnel
+Pringles Origl 175g - 19P;Chips et petits salés;a_verifier;a_verifier;6.6;;6.6;non;non;simulation minimum;fiabilité comptable insuffisante
+Pringles Origl 40g - 12P;Chips et petits salés;proposition_a_valider;a_surveiller;1.25;;1.25;non;non;statut, simulation minimum;sous le seuil indicatif de 41 %, non décisionnel
+Pringles SCO 175g - 19P;Chips et petits salés;proposition_a_valider;a_surveiller;0.4;;0.4;non;non;statut, simulation minimum;sous le seuil indicatif de 41 %, non décisionnel
+Pringles SCO 40g - 12 P;Chips et petits salés;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Pringles bbq 175g -19P;Chips et petits salés;a_verifier;a_verifier;4;;4;non;non;simulation minimum;fiabilité comptable insuffisante
+Pringles bbq 40g -12P;Chips et petits salés;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Pringles hot & spicy 40g - 12P;Chips et petits salés;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Quadratini chocolate 125g -12P;Biscuiterie;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Quadratini napoliter 125g - 12P;Biscuiterie;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Quadratini vanille 125g -12P;Biscuiterie;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+ROYAL BAF 2L MULTIFRUITS - 6P;Jus;proposition_a_valider;a_surveiller;3.53;;3.53;non;non;statut, simulation minimum;sous le seuil indicatif de 41 %, non décisionnel
+ROYAL NECT CAN 33 GOYAVE - 24P;Jus;a_verifier;a_verifier;20.77;;20.77;non;non;simulation minimum;fiabilité comptable insuffisante
+ROYAL NECT CAN 33 TROPICAL - 24P;Jus;a_verifier;a_verifier;25.8;;25.8;non;non;simulation minimum;fiabilité comptable insuffisante
+Red bull 25cl -24P;Énergétiques;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Red bull 25cl SANS SUCRE -24P;Énergétiques;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Red bull Coconut 25cl -24P;Énergétiques;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+SANPE EAU 1L - 6P;Eaux non aromatisées;proposition_a_valider;a_surveiller;1.11;;1.11;non;non;statut, simulation minimum;sous le seuil indicatif de 46 %, non décisionnel
+Soft Ginger beer BOUT 33cl -24P;Bières;proposition_a_valider;a_surveiller;2.9;;2.9;non;non;statut, simulation minimum;sous le seuil indicatif de 47 %, non décisionnel
+Soft Ginger beer Can 33cl -24P;Bières;proposition_a_valider;a_surveiller;1.28;;1.28;non;non;statut, simulation minimum;sous le seuil indicatif de 47 %, non décisionnel
+TI BWA au fromage 40g;Chips et petits salés;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+TUILES coco curcuma 60g / coco passion 60g;Biscuiterie;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Tartelettes Chocolat 150g -24P;Biscuiterie;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Tartelettes Fraise 150g - 24P;Biscuiterie;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Ti Bwa au fromage 90g;Chips et petits salés;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+Tubes ocb;Feuilles à rouler;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+VICO CLASSIQUE 135G - 20P;Chips et petits salés;a_surveiller;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+eau de coco 50 cl;Jus;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé
+gateau cannelle bigin 5333 35g - 20P;Biscuiterie;conforme;sans_seuil_valide;;;;non;non;statut;seuil indicatif, non validé

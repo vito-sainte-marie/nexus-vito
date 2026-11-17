@@ -1,0 +1,11 @@
+{"etape":"3 phase HTTP 1","incident":"phase 1 executee deux fois depuis le Terminal de le pilote",
+ "premiere_execution":{"heure_utc":"2026-11-17T12:28:57 a 12:29:00","cause_probable":"bloc colle a 08:28 : read -s a consomme une ligne du bloc, les lignes suivantes se sont executees ; sortie non vue dans le Terminal","ecritures_constatees":[
+   {"table":"tarif_familles","site":"vito-sainte-marie","code":"recette_t2","par":"recette-t2-gerant-sm","le":"12:28:57.683"},
+   {"table":"tarif_familles","site":"site-fantome-test","code":"recette_t2","par":"recette-t2-gerant-fantome","le":"12:28:58.335"},
+   {"table":"tarif_prix_decides","article":"Article recette T2","nature":"changement","prix":2,"par":"recette-t2-gerant-sm","le":"12:28:58.464"},
+   {"table":"tarif_exceptions","article":"Article recette T2","statut":"candidate","par":"recette-t2-manager-sm","le":"12:28:58.815"},
+   {"table":"tarif_prix_application","evenement":"saisie_declaree","commentaire":"recette T2","par":"recette-t2-manager-sm","le":"12:28:59.245"}],
+   "lecture":"exactement les 5 ecritures prevues par P1-01 a P1-05, par les bonnes personnes ; aucune ecriture des cas de refus ; connexion du gerant bis a 12:29:00 (cas P1-14 et P1-15 atteints)",
+   "rapport":"perdu : ecrase par la seconde execution (meme fichier de sortie)"},
+ "seconde_execution":{"heure_utc":"2026-11-17T12:32:10","resultat":"phase 1 : OK 0 / ECHEC 1 / non joues 16","cause":"P1-01 refuse : une famille recette_t2 active existe deja pour le site (declencheur une seule version active)","ecritures":"aucune"},
+ "decision":"arret, compte rendu, attente de decision"}

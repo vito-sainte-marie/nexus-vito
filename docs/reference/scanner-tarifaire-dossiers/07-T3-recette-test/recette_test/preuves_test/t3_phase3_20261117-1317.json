@@ -1,0 +1,136 @@
+{
+ "mode": "test",
+ "phase": 3,
+ "cible": "udljdqxerrbbbajxubfn",
+ "debut": "2026-11-17T17:17:16.755Z",
+ "cas": [
+  {
+   "id": "T3-01",
+   "persona": "GSM",
+   "libelle": "gérant désactivé : refus nommé de la fonction",
+   "attendu": {
+    "statut": "refus",
+    "message": "tarif_decision_compte_inactif"
+   },
+   "obtenu": {
+    "http": 400,
+    "statut": "refus",
+    "lignes": null,
+    "code": "P0001",
+    "message": "tarif_decision_compte_inactif : compte désactivé",
+    "sites": null
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "T3-02",
+   "persona": "GSM",
+   "libelle": "sa fiche est lisible et dit actif = false",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 1,
+    "valeurs": {
+     "actif": false
+    }
+   },
+   "obtenu": {
+    "http": 200,
+    "statut": "ok",
+    "lignes": 1,
+    "code": null,
+    "message": null,
+    "sites": [],
+    "valeurs": {
+     "actif": false
+    }
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "T3-03",
+   "persona": "GSM",
+   "libelle": "ses lectures du journal sont vides (expliqué par T3-02, jamais déduit)",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 0
+   },
+   "obtenu": {
+    "http": 200,
+    "statut": "ok",
+    "lignes": 0,
+    "code": null,
+    "message": null,
+    "sites": []
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "T3-04",
+   "persona": "GSM",
+   "libelle": "aucune écriture directe",
+   "attendu": {
+    "statut": "refus",
+    "message": "42501"
+   },
+   "obtenu": {
+    "http": 403,
+    "statut": "refus",
+    "lignes": null,
+    "code": "42501",
+    "message": "new row violates row-level security policy \"compte_actif_obligatoire\" for table \"tarif_prix_decides\"",
+    "sites": null
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "T3-05",
+   "persona": "MSM",
+   "libelle": "contrôle : le manager actif lit toujours les six lignes annulées",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 6
+   },
+   "obtenu": {
+    "http": 200,
+    "statut": "ok",
+    "lignes": 6,
+    "code": null,
+    "message": null,
+    "sites": [
+     "SM"
+    ]
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "T3-06",
+   "persona": "MSM",
+   "libelle": "contrôle : sa fiche dit actif = true",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 1,
+    "valeurs": {
+     "actif": true
+    }
+   },
+   "obtenu": {
+    "http": 200,
+    "statut": "ok",
+    "lignes": 1,
+    "code": null,
+    "message": null,
+    "sites": [],
+    "valeurs": {
+     "actif": true
+    }
+   },
+   "verdict": "OK"
+  }
+ ],
+ "fin": "2026-11-17T17:17:18.843Z",
+ "resume": {
+  "ok": 6,
+  "echec": 0,
+  "non_joue": 0
+ }
+}

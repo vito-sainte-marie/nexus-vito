@@ -1,0 +1,14 @@
+Références 440 | fiabilité { insuffisante: 45, a_confirmer: 127, fiable: 268 } | conformité { non_concerne: 416, controle_ouvert: 24 }
+Statuts {
+  a_verifier: 70,
+  proposition_a_valider: 88,
+  sans_seuil_valide: 76,
+  a_surveiller: 110,
+  conforme: 96
+}
+Alertes { A4: 45, A2: 88, A5: 22, A8: 24, A1: 58, A3: 3, A6: 2, A7: 1 }
+prixDecides  {"fiable":{"montant":159.91,"references":12},"a_confirmer":{"montant":18.49,"references":3},"insuffisante":{"montant":6.16,"references":1}}
+minimum      {"fiable":{"montant":245.75,"references":58},"a_confirmer":{"montant":189.27,"references":30},"insuffisante":{"montant":200.29,"references":12}}
+cible        {"fiable":{"montant":566.19,"references":83},"a_confirmer":{"montant":262.8,"references":42},"insuffisante":{"montant":273.13,"references":14}}
+Exclus réglementaire { references: 24, ca_ht: 2907.36 } | exceptions validées { references: 9 }
+Coût PA HT | non établie (PMP ou dernier prix d'achat)

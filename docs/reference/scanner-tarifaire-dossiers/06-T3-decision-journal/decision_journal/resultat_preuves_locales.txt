@@ -1,0 +1,103 @@
+OK     G1 garde : fichier d'origine refusé hors Test (garde_projet_test)
+OK     G2 ordre : refusée sans les migrations T2 (ordre_migrations)
+OK     G3 migration appliquée par le rôle postgres (non superutilisateur)
+OK     G4 rejeu de la migration sans erreur (idempotence)
+OK     G5 la fonction est SECURITY INVOKER (prosecdef = false)
+OK     G6 exécution réservée à authenticated (et au propriétaire postgres) : authenticated,postgres
+--- 1. Fonctionnement nominal (gérant A)
+OK     D01 décision validée : un prix décidé et une ligne de journal
+OK     D01b lien : même site, même référence, même prix, même auteur
+OK     D02 autre prix sur la même référence : remplace la version active
+OK     D02b une seule version active, 2,40 €, qui remplace 2,35 €
+OK     D03 refus : journal seul, aucun prix décidé
+OK     D03b refus sans lien et sans prix
+OK     D03c aucun prix décidé pour le refus
+OK     D04 lot de trois décisions
+OK     D04b le lot a écrit 2 prix et 3 lignes de journal
+OK     D05 seuil du site lié à la décision
+OK     D06 état après le nominal (prix/journal, tous sites)
+--- 2. Atomicité : tout ou rien
+OK     D10 lot dont la deuxième ligne a une photo incomplète (refusé : new row for relation "tarif_decisions" violates check constraint "tarif_decision)
+OK     D11 décision seule dont le journal échoue après le prix (photo incomplète) (refusé : new row for relation "tarif_decisions" violates check constraint "tarif_decision)
+OK     D12 référence en double dans le lot (refusé : tarif_decision_doublon_lot : la référence lib:ref 8 figure deux fois dans le lot)
+OK     D13 autre prix sans motif (refusé : new row for relation "tarif_decisions" violates check constraint "tarif_decision)
+OK     D14 lot vide (refusé : tarif_decision_lot_invalide : de 1 à 200 décisions par appel)
+OK     D15 lot de 201 décisions (refusé : tarif_decision_lot_invalide : de 1 à 200 décisions par appel)
+OK     D16 aucun refus n'a laissé de ligne (prix/journal, tous sites)
+--- 3. Droits (RLS, rôles, comptes)
+OK     D20 manager A ne décide pas (refusé : tarif_decision_reservee_gerant : seul le gérant décide d un prix)
+OK     D21 caissier A ne décide pas (refusé : tarif_decision_reservee_gerant : seul le gérant décide d un prix)
+OK     D22 gérant désactivé : refus explicite, pas une lecture vide (refusé : tarif_decision_compte_inactif : compte désactivé)
+OK     D22b le même compte lit bien sa fiche (actif = false)
+OK     D23 créateur : lecture seule, même gérant de son site (refusé : tarif_decision_createur_lecture_seule : le créateur ne décide pas)
+OK     D24 anon : aucun droit d'exécution (refusé : permission denied for function tarif_enregistrer_decisions)
+OK     D25 service_role : aucun droit d'exécution (refusé : permission denied for function tarif_enregistrer_decisions)
+OK     D26 session sans fiche employé (refusé : tarif_decision_compte_illisible : fiche employé introuvable)
+OK     D27 insertion directe d'un journal lié à un prix différent (refusé : tarif_decision_lien_invalide : le prix décidé lié n est pas celui de cette décis)
+OK     D28 deuxième journal sur le même prix décidé (refusé : duplicate key value violates unique constraint "tarif_decisions_prix_decide_uq")
+OK     D29 insertion directe d'une décision validée sans prix lié (refusé : tarif_decision_lien_absent : une décision validée ou à un autre prix doit viser )
+OK     D29b aucun refus de droits n'a laissé de ligne
+--- 4. Isolation multisite
+OK     D30 gérant B décide sur la même référence que A
+OK     D30b la décision de B est sur le site B, sans remplacer la version de A
+OK     D31 gérant B ne voit aucune décision du site A
+OK     D32 gérant B transmet un site (refusé : tarif_decision_champ_inconnu : champ non admis (le site n est jamais transmis))
+OK     D33 gérant B cite un seuil du site A (refusé : insert or update on table "tarif_decisions" violates foreign key constraint "tar)
+OK     D34 gérant A voit toujours 2,40 € comme version active, pas 2,50 €
+OK     D35 état après multisite (une décision de B en plus)
+--- 5. Version de moteur déclarée (contrôle de forme, pas une preuve d'origine)
+OK     D40 version déclarée du moteur T1 (refusé : tarif_decision_version_moteur_refusee : version de moteur déclarée absente ou ho)
+OK     D41 version de moteur absente (refusé : tarif_decision_version_moteur_refusee : version de moteur déclarée absente ou ho)
+--- 6. Écritures directes et modifications autorisées : tarif_prix_decides
+OK     P01 gérant A : prix décidé inséré directement, sans journal (droit T2 conservé)
+OK     P01b il est visible comme prix sans journal (repérable par l'écran)
+OK     P03 gérant A : prix décidé pour le site B (refusé : new row violates row-level security policy for table "tarif_prix_decides")
+OK     P04 gérant A : auteur imposé (refusé : new row violates row-level security policy for table "tarif_prix_decides")
+OK     P05 modification du prix (refusé : permission denied for table tarif_prix_decides)
+OK     P06 modification du remplacement (refusé : permission denied for table tarif_prix_decides)
+OK     P07 suppression (refusé : permission denied for table tarif_prix_decides)
+OK     P10 annulation sans motif (refusé : new row for relation "tarif_prix_decides" violates check constraint "tarif_prix_)
+OK     P11 gérant A annule un prix lié à une décision (motif)
+OK     P11b la ligne de journal liée reste intacte et liée (historique)
+OK     P12 réannulation : aucune ligne
+OK     P02 manager A : prix décidé direct (refusé : new row violates row-level security policy for table "tarif_prix_decides")
+OK     P08 manager A n'annule aucun prix décidé
+OK     P09 gérant B n'annule aucun prix du site A
+--- 7. Écritures directes et modifications autorisées : tarif_decisions
+OK     J01 refus direct sans lien
+OK     J02 refus direct avec un lien (refusé : tarif_decision_lien_invalide : un refus ne crée pas de prix décidé)
+OK     J03a prix direct Direct 2 puis annulé
+OK     J03 décision liée à un prix annulé (refusé : tarif_decision_lien_invalide : le prix décidé lié n est pas celui de cette décis)
+OK     J04a prix direct Direct 3 en deux versions
+OK     J04 décision liée à la version remplacée (refusé : tarif_decision_lien_invalide : le prix décidé lié n est pas celui de cette décis)
+OK     J06a prix direct « en vigueur »
+OK     J06 décision liée à un prix « en vigueur » (refusé : tarif_decision_lien_invalide : le prix décidé lié n est pas celui de cette décis)
+OK     J07 décision liée au prix d'une autre référence (refusé : tarif_decision_lien_invalide : le prix décidé lié n est pas celui de cette décis)
+OK     J07b décision liée à un prix différent (refusé : tarif_decision_lien_invalide : le prix décidé lié n est pas celui de cette décis)
+OK     J07c décision liée à un prix du site B (refusé : tarif_decision_lien_invalide : le prix décidé lié n est pas celui de cette décis)
+OK     J07d décision du site B écrite par A (refusé : new row violates row-level security policy for table "tarif_decisions")
+OK     J08 décision directe cohérente liée à Direct 1 (même auteur, même prix, actif)
+OK     J12 modification du lien (refusé : permission denied for table tarif_decisions)
+OK     J13 modification de la décision ou de la photo (refusé : permission denied for table tarif_decisions)
+OK     J14 suppression (refusé : permission denied for table tarif_decisions)
+OK     J15 gérant A annule une ligne de journal liée (motif)
+OK     J15b le prix décidé lié reste actif : annulations indépendantes
+OK     J05a second gérant A : prix direct Direct 5
+OK     J05 gérant A lie son journal au prix d'un autre gérant (refusé : tarif_decision_lien_invalide : le prix décidé lié n est pas celui de cette décis)
+OK     J09 manager A : journal direct (refusé : new row violates row-level security policy for table "tarif_decisions")
+OK     J16 manager A n'annule aucune ligne de journal
+OK     J17 gérant B n'annule aucune ligne du site A
+OK     J10 service_role (contourne la RLS) : lien incohérent refusé quand même (refusé : tarif_decision_lien_invalide : le prix décidé lié n est pas celui de cette décis)
+OK     J11 service_role : validée sans lien refusée (refusé : tarif_decision_lien_absent : une décision validée ou à un autre prix doit viser )
+OK     J11b service_role : lien vers un prix d'un autre site refusé (refusé : tarif_decision_lien_invalide : le prix décidé lié n est pas celui de cette décis)
+OK     D50 concurrence : le second lot simultané est refusé (tarif_version_active_existante), 1 prix et 1 journal
+OK     D51 chaque prix décidé créé par la fonction a exactement un journal
+OK     H1 migration : les 3 décisions historiques et le prix décidé historique sont inchangés (empreintes identiques), lien nul
+OK     H2 aucune contrainte CHECK sur le lien : rien n'est contrôlé à l'annulation
+OK     H3 une décision historique validée sans lien reste annulable par le gérant
+OK     H4 après migration, une nouvelle décision validée sans lien est refusée (tarif_decision_lien_absent)
+OK     H5 deux rejeux : journal inchangé, 1 déclencheur, 1 clé étrangère, 1 index, 1 fonction SECURITY INVOKER
+OK     H6a défaut de la version 1 reproduit : avec la CHECK NOT VALID, l'annulation d'une décision historique est refusée (tarif_decisions_lien_prix)
+OK     H6 la contrainte CHECK de la version 1, si elle existait, est retirée par le rejeu
+---
+Bilan : 94 OK, 0 ECHEC

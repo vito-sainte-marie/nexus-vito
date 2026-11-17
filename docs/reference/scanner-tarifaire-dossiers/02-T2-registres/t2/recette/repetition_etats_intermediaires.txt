@@ -1,0 +1,4 @@
+1 20261118100000_tarif_registres.sql 10:1:0:0:0:0
+2 20261118100100_tarif_registres_controles_rls.sql 10:5:13:30:0:10
+3 20261118100200_tarif_registres_vues.sql 10:5:13:30:11:10
+4 20261118100300_tarif_registres_comptes_desactives.sql 10:5:13:40:11:10

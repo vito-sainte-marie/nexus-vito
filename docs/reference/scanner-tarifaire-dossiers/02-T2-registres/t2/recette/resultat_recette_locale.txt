@@ -1,0 +1,196 @@
+--- Isolation et rôles (familles)
+a0000000-0000-0000-0000-000000000001
+OK     01 gérant A crée une famille
+OK     01b gérant A crée la famille sodas_2l
+OK     05 gérant A ne crée rien pour le site B (refusé : new row violates row-level security policy for table "tarif_familles")
+OK     06 auteur imposé : saisi_par d'un autre refusé (refusé : new row violates row-level security policy for table "tarif_familles")
+a0000000-0000-0000-0000-000000000002
+OK     02 manager A ne crée pas de famille (refusé : new row violates row-level security policy for table "tarif_familles")
+OK     02b manager A lit les familles de son site
+a0000000-0000-0000-0000-000000000003
+OK     03 caissier A ne voit aucune ligne
+OK     03b caissier A ne crée rien (refusé : new row violates row-level security policy for table "tarif_familles")
+b0000000-0000-0000-0000-000000000001
+OK     04 gérant B ne voit pas les familles du site A
+OK     04b gérant B crée sa propre famille confiserie
+OK     07 anon : aucun accès (refusé : permission denied for table tarif_familles)
+--- Versions, ajout seul, annulation
+a0000000-0000-0000-0000-000000000001
+OK     08 deuxième version sans remplacer l'active (refusé : tarif_version_active_existante : remplacer la version active ou l annuler d abord)
+OK     09 nouvelle version qui remplace l'active
+OK     09b une seule version active, la nouvelle
+OK     10 remplacer une version déjà remplacée (refusé : tarif_version_inactive : la version visée n est plus active)
+OK     12 UPDATE d'une colonne métier (refusé : permission denied for table tarif_familles)
+OK     13 DELETE (refusé : permission denied for table tarif_familles)
+OK     14 annulation de la version active par le gérant
+OK     14b la version précédente redevient active (règle actives de Produits)
+OK     14c annulation sans motif (refusé : new row for relation "tarif_familles" violates check constraint "tarif_familles_annulation)
+OK     15 une annulation ne se défait pas
+b0000000-0000-0000-0000-000000000001
+b0000000-0000-0000-0000-000000000001
+OK     11b remplacer une version du site A depuis le site B (refusé : insert or update on table "tarif_familles" violates foreign key constraint "tarif_familles)
+--- Rattachements et seuils
+a0000000-0000-0000-0000-000000000001
+OK     16 rattachement d'un rayon à une famille active
+OK     16b rattachement vers une famille inconnue (refusé : tarif_famille_inconnue : famille bieres absente ou inactive sur le site site-a)
+OK     16c rattachement par rayon avec une référence (refusé : new row for relation "tarif_rattachements" violates check constraint "tarif_rattachements_)
+OK     16d rattachement d'une référence par code-barres
+OK     17 seuil validé de la confiserie (objectif 50 %)
+OK     17b seuil sodas 2 L validé 41 / 42 %
+OK     17c seuil sans statut (refusé : new row for relation "tarif_seuils" violates check constraint "tarif_seuils_statuts")
+OK     18 minimum supérieur à la cible (refusé : new row for relation "tarif_seuils" violates check constraint "tarif_seuils_ordre")
+OK     18b statut de seuil inconnu (refusé : new row for relation "tarif_seuils" violates check constraint "tarif_seuils_statut_minimum)
+OK     18c seuil de famille inconnue (refusé : tarif_famille_inconnue : famille inconnue absente ou inactive sur le site site-a)
+OK     18d seuil indicatif de rayon
+a0000000-0000-0000-0000-000000000002
+OK     19 manager ne crée pas de seuil (refusé : new row violates row-level security policy for table "tarif_seuils")
+--- Exceptions
+a0000000-0000-0000-0000-000000000002
+OK     20 manager propose une exception candidate
+OK     21 manager ne valide pas une exception (refusé : new row violates row-level security policy for table "tarif_exceptions")
+a0000000-0000-0000-0000-000000000001
+OK     22 gérant valide le pack Chanflor
+OK     22b gérant valide le Floup avec condition de prix
+OK     22c gérant enregistre un refus (pack Guinness)
+a0000000-0000-0000-0000-000000000002
+OK     23 manager ne rétrograde pas une exception validée en candidate (refusé : tarif_retrogradation_refusee : seule une candidature peut être remplacée par un manager)
+OK     24 manager n'annule pas une exception validée
+OK     25 manager complète sa candidature (nouvelle version)
+a0000000-0000-0000-0000-000000000001
+OK     46 exceptions effectives : registre et produits_appel non repris
+OK     47 reprise des glaçons dans le registre
+OK     47b la ligne produits_appel couverte disparaît, sans doublon
+OK     47c la décision du gérant fait foi
+a0000000-0000-0000-0000-000000000002
+OK     80 manager propose une candidature sur un produit d'appel déjà enregistré (Bavaria, casse et espaces différents)
+OK     81 la candidature ne neutralise pas le produit d'appel validé
+OK     81b une seule ligne, la candidature est signalée sans effet
+a0000000-0000-0000-0000-000000000001
+OK     82 gérant refuse la candidature (nouvelle version refusee)
+OK     83 le refus ne neutralise pas non plus le produit d'appel validé
+OK     84 gérant lève l'exception (levee)
+OK     85 la levée du gérant prime sur produits_appel
+OK     86 candidature sans produit d'appel : visible, sans effet
+b0000000-0000-0000-0000-000000000001
+OK     48 la vue respecte le site : gérant B ne voit que le site B
+--- Contrôles réglementaires
+a0000000-0000-0000-0000-000000000002
+OK     26 manager ouvre un contrôle (rayon Kits et Packs)
+OK     26b manager ouvre FINE LEAF (produit du tabac)
+OK     27 manager ne déclare pas conforme (refusé : new row violates row-level security policy for table "tarif_controles_reglementaires")
+a0000000-0000-0000-0000-000000000001
+OK     28 gérant qualifie le contrôle
+OK     28b pièces : un tableau est exigé (refusé : new row for relation "tarif_controles_reglementaires" violates check constraint "tarif_con)
+--- Prix décidés, application, régimes, réglages, décisions
+a0000000-0000-0000-0000-000000000001
+OK     29 gérant décide Sprite 2 L à 4,80 €
+OK     29b Coca-Cola 2 L maintenu, sans valeur
+OK     30 maintenu avec un prix (refusé : new row for relation "tarif_prix_decides" violates check constraint "tarif_prix_decides_va)
+OK     30b changement sans prix (refusé : new row for relation "tarif_prix_decides" violates check constraint "tarif_prix_decides_va)
+OK     35 gérant déclare FINE LEAF « à qualifier »
+OK     37 réglage A6 : 5 € minimum
+OK     38 palier TTC nul (refusé : new row for relation "tarif_reglages" violates check constraint "tarif_reglages_bornes")
+OK     39 paramètre inconnu (refusé : new row for relation "tarif_reglages" violates check constraint "tarif_reglages_bornes")
+OK     40 refus sans motif (refusé : new row for relation "tarif_decisions" violates check constraint "tarif_decisions_motif")
+OK     41 photo incomplète (refusé : new row for relation "tarif_decisions" violates check constraint "tarif_decisions_photo_ch)
+OK     42 décision validée avec sa photo
+a0000000-0000-0000-0000-000000000002
+OK     31 manager ne décide pas de prix (refusé : new row violates row-level security policy for table "tarif_prix_decides")
+OK     36 manager ne déclare pas de régime (refusé : new row violates row-level security policy for table "tarif_regimes_prix")
+OK     32 manager déclare la saisie dans Decenium
+OK     33 preuve sans type (refusé : new row for relation "tarif_prix_application" violates check constraint "tarif_prix_applic)
+OK     33b manager ne décide pas en se faisant passer pour une décision (refusé : new row violates row-level security policy for table "tarif_decisions")
+b0000000-0000-0000-0000-000000000002
+OK     34 manager B ne déclare rien sur un prix du site A (refusé : tarif_application_invalide : le prix décidé visé n est pas actif, pas du même site, ou est)
+OK     34b ni en se déclarant sur le site A (refusé : tarif_application_invalide : le prix décidé visé n est pas actif, pas du même site, ou est)
+a0000000-0000-0000-0000-000000000002
+OK     87 application sur un prix « maintenu » refusée (refusé : tarif_application_invalide : le prix décidé visé n est pas actif, pas du même site, ou est)
+a0000000-0000-0000-0000-000000000001
+OK     88 gérant remplace le prix Sprite (4,90 €)
+a0000000-0000-0000-0000-000000000002
+OK     89 application sur un prix décidé remplacé refusée (refusé : tarif_application_invalide : le prix décidé visé n est pas actif, pas du même site, ou est)
+--- Accès créateur
+c0000000-0000-0000-0000-000000000001
+OK     43 créateur lit le site A (accès autorisé)
+OK     44 créateur ne lit pas le site B (accès non autorisé)
+OK     45 créateur n'écrit pas sur le site A (refusé : new row violates row-level security policy for table "tarif_familles")
+--- Ajout seul sur toutes les tables
+OK     50 aucun droit DELETE ni UPDATE de colonne métier pour authenticated
+OK     51 UPDATE ouvert sur les trois seules colonnes d'annulation
+OK     52 RLS active et forcée sur les dix tables
+OK     53 aucun droit pour anon
+--- Intégrité, incohérences et service_role
+a0000000-0000-0000-0000-000000000001
+OK     90 gérant annule la famille sodas_2l
+OK     91 incohérences signalées : rattachement, seuil, application sur prix remplacé
+b0000000-0000-0000-0000-000000000001
+OK     91b gérant B ne voit pas les incohérences du site A
+
+OK     92 service_role : UPDATE d'une colonne métier refusé (refusé : permission denied for table tarif_familles)
+OK     93 service_role : DELETE refusé (refusé : permission denied for table tarif_exceptions)
+OK     94 service_role : TRUNCATE refusé (refusé : permission denied for table tarif_decisions)
+OK     95 service_role : rétrogradation d'une exception validée refusée (refusé : tarif_retrogradation_refusee : seule une candidature peut être remplacée par un manager)
+OK     96 service_role : version croisée entre sites refusée (clé étrangère composite) (refusé : insert or update on table "tarif_familles" violates foreign key constraint "tarif_familles)
+OK     97 service_role : application vers un prix d'un autre site refusée (refusé : tarif_application_invalide : le prix décidé visé n est pas actif, pas du même site, ou est)
+OK     98 anon : tarif_cle_reference non exécutable (refusé : permission denied for function tarif_cle_reference)
+OK     99 aucune fonction tarif en SECURITY DEFINER
+OK     99b anon : aucun EXECUTE sur une fonction tarif
+OK     99c service_role : ni DELETE ni TRUNCATE ni UPDATE de table
+OK     99d propriétaire des tables : postgres, non superutilisateur, BYPASSRLS
+OK     99e auth.uid lit aussi request.jwt.claims (format Supabase actuel)
+OK     99f vues : authenticated n'a que SELECT
+OK     60 données de recette chargées sous RLS par le gérant
+OK     61 rechargement : aucune deuxième version active (refusé : tarif_version_active_existante : remplacer la version active ou l annuler d abord)
+OK     126 ordre : 100200 refusée après 100300 (ordre_migrations), la vue filtrée reste en place
+OK     127 ordre : 100300 refusée tant que 100200 n'est pas appliquée (ordre_migrations)
+OK     49 concurrence : la seconde saisie simultanée est refusée (tarif_version_active_existante)
+OK     70 retour arrière jetable refusé sur une base avec données (retour_arriere_refuse : 159 ligne(s) dans les registres T2), 22 exceptions intactes
+OK     71 retour arrière avec données : archive archive_tarif_t2_20261116_2143 (75 lignes contrôlées = source), 0 vue, 10 tables conservées, accès coupé (authenticated et service_role)
+OK     72 retour arrière jetable sur base vide : aucun objet T2 restant, produits_appel intact (3 lignes)
+OK     100 faille démontrée sans correction : les 11 accès de comptes désactivés passent
+OK     1D1 gérant désactivé lit les familles : BLOQUE (division by zero)
+OK     1D2 gérant désactivé lit la vue des exceptions effectives : BLOQUE (division by zero)
+OK     1D2b gérant désactivé lit la vue des incohérences et des prix actifs : BLOQUE (division by zero)
+OK     1D3 gérant désactivé crée une famille : BLOQUE (new row violates row-level security policy "compte_actif_obligatoire" for table )
+OK     1D4 gérant désactivé décide un prix : BLOQUE (new row violates row-level security policy "compte_actif_obligatoire" for table )
+OK     1D5 gérant désactivé annule une famille : BLOQUE (division by zero)
+OK     1M1 manager désactivé propose une exception candidate : BLOQUE (new row violates row-level security policy "compte_actif_obligatoire" for table )
+OK     1M2 manager désactivé déclare une saisie de prix : BLOQUE (tarif_application_invalide : le prix décidé visé n est pas actif, pas du même si)
+OK     1C1 créateur désactivé lit un site autorisé : BLOQUE (division by zero)
+OK     1T1 compte de test désactivé lit les familles : BLOQUE (division by zero)
+OK     1T2 compte de test désactivé crée un réglage : BLOQUE (new row violates row-level security policy "compte_actif_obligatoire" for table )
+OK     1G1 témoin : gérant actif lit les familles : ACCES
+OK     1G2 témoin : gérant actif crée un réglage : ACCES
+OK     1R1 gérant réactivé lit les familles : ACCES
+OK     120 création refusée tant que les identités n'existent pas (garde_identites)
+OK     121 deux gérants de recette créés : rôle gerant, compte de test, non créateurs, un par site
+OK     122 gérant de recette Sainte-Marie écrit sur son site, sous RLS
+OK     123 gérant de recette fantôme ne voit rien de Sainte-Marie
+OK     124 après désactivation : le gérant de recette ne lit plus les registres, sa ligne employees est conservée
+OK     128 garde : script de création d'origine refusé sur une base qui n'est pas Test (garde_projet_test : identifiant système)
+OK     128b garde : données de recette d'origine refusées hors Test
+OK     129 preuve d'accès : 16 cas conformes (gérant actif, gérant désactivé, manager, deux sites, anon)
+OK     130 preuve d'accès : aucune écriture conservée (employés/familles/exceptions 2/1/0 avant et après)
+OK     131 sensibilité : politique retirée, la preuve le détecte (OK 15 / ECHEC 1, cas 13 en échec)
+OK     125 garde : refus hors projet Test (garde_projet_test)
+OK     140 garde : 20261118100000_tarif_registres.sql refusée sur base non autorisée (socle seul), catalogue et données identiques (empreinte 63b62721e3e2)
+OK     141 garde : 20261118100100_tarif_registres_controles_rls.sql refusée sur base non autorisée (socle seul), catalogue et données identiques (empreinte 63b62721e3e2)
+OK     142 garde : 20261118100200_tarif_registres_vues.sql refusée sur base non autorisée (socle seul), catalogue et données identiques (empreinte 63b62721e3e2)
+OK     143 garde : 20261118100300_tarif_registres_comptes_desactives.sql refusée sur base non autorisée (socle seul), catalogue et données identiques (empreinte 63b62721e3e2)
+OK     145 garde : 20261118100000_tarif_registres.sql refusée sur base non autorisée (trois migrations déjà en place), catalogue et données identiques (empreinte 727f10ff3d6c)
+OK     146 garde : 20261118100100_tarif_registres_controles_rls.sql refusée sur base non autorisée (trois migrations déjà en place), catalogue et données identiques (empreinte 727f10ff3d6c)
+OK     147 garde : 20261118100200_tarif_registres_vues.sql refusée sur base non autorisée (trois migrations déjà en place), catalogue et données identiques (empreinte 727f10ff3d6c)
+OK     148 garde : 20261118100300_tarif_registres_comptes_desactives.sql refusée sur base non autorisée (trois migrations déjà en place), catalogue et données identiques (empreinte 727f10ff3d6c)
+OK     149 20261118100000_tarif_registres.sql : la garde est la première instruction
+OK     149 20261118100100_tarif_registres_controles_rls.sql : la garde est la première instruction
+OK     149 20261118100200_tarif_registres_vues.sql : la garde est la première instruction
+OK     149 20261118100300_tarif_registres_comptes_desactives.sql : la garde est la première instruction
+OK     160 étape 1 20261118100000_tarif_registres.sql appliquée seule, en transaction unique : état 10:1:0:0:0:0
+OK     161 étape 2 20261118100100_tarif_registres_controles_rls.sql appliquée seule, en transaction unique : état 10:5:13:30:0:10
+OK     162 étape 3 20261118100200_tarif_registres_vues.sql appliquée seule, en transaction unique : état 10:5:13:30:11:10
+OK     163 étape 4 20261118100300_tarif_registres_comptes_desactives.sql appliquée seule, en transaction unique : état 10:5:13:40:11:10
+OK     164 preuves avant/après : rien d'autre que T2 n'a changé, état T2 conforme (empreinte hors T2 fc895812c59c -> fc895812c59c ; {"tables)
+OK     165 arrêt immédiat : erreur au milieu de 100000, aucune table T2 créée (tarif_familles et tarif_rattachements annulées), empreinte inchangée
+OK     166 garde : retour arrière jetable d'origine refusé hors Test
+OK     167 garde : retour arrière avec données d'origine refusé hors Test
+OK     168 retour arrière jetable sur la répétition : plus aucun objet T2, empreinte hors T2 revenue à l'état avant

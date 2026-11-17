@@ -1,0 +1,186 @@
+{
+ "mode": "local_auth",
+ "phase": 2,
+ "cible": "local",
+ "debut": "2026-11-17T16:01:35.290Z",
+ "cas": [
+  {
+   "id": "T2-01",
+   "persona": "MSM",
+   "libelle": "le manager n annule aucune ligne de journal",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 0
+   },
+   "obtenu": {
+    "http": 200,
+    "statut": "ok",
+    "lignes": 0,
+    "code": null,
+    "message": null,
+    "sites": []
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "T2-02",
+   "persona": "GFA",
+   "libelle": "le gérant fantôme n annule rien sur SM",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 0
+   },
+   "obtenu": {
+    "http": 200,
+    "statut": "ok",
+    "lignes": 0,
+    "code": null,
+    "message": null,
+    "sites": []
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "T2-03",
+   "persona": "GSM",
+   "libelle": "annulation des six lignes de journal de recette SM",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 6
+   },
+   "obtenu": {
+    "http": 200,
+    "statut": "ok",
+    "lignes": 6,
+    "code": null,
+    "message": null,
+    "sites": [
+     "SM"
+    ]
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "T2-04",
+   "persona": "GSM",
+   "libelle": "annulation des quatre prix décidés de recette SM",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 4
+   },
+   "obtenu": {
+    "http": 200,
+    "statut": "ok",
+    "lignes": 4,
+    "code": null,
+    "message": null,
+    "sites": [
+     "SM"
+    ]
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "T2-05",
+   "persona": "GFA",
+   "libelle": "annulation de la ligne de journal fantôme",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 1
+   },
+   "obtenu": {
+    "http": 200,
+    "statut": "ok",
+    "lignes": 1,
+    "code": null,
+    "message": null,
+    "sites": [
+     "FA"
+    ]
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "T2-06",
+   "persona": "GFA",
+   "libelle": "annulation du prix décidé fantôme",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 1
+   },
+   "obtenu": {
+    "http": 200,
+    "statut": "ok",
+    "lignes": 1,
+    "code": null,
+    "message": null,
+    "sites": [
+     "FA"
+    ]
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "T2-07",
+   "persona": "GSM",
+   "libelle": "aucun prix décidé de recette actif",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 0
+   },
+   "obtenu": {
+    "http": 200,
+    "statut": "ok",
+    "lignes": 0,
+    "code": null,
+    "message": null,
+    "sites": []
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "T2-08",
+   "persona": "GSM",
+   "libelle": "traçabilité : les six lignes annulées restent",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 6
+   },
+   "obtenu": {
+    "http": 200,
+    "statut": "ok",
+    "lignes": 6,
+    "code": null,
+    "message": null,
+    "sites": [
+     "SM"
+    ]
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "T2-09",
+   "persona": "GSM",
+   "libelle": "réannulation sans effet",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 0
+   },
+   "obtenu": {
+    "http": 200,
+    "statut": "ok",
+    "lignes": 0,
+    "code": null,
+    "message": null,
+    "sites": []
+   },
+   "verdict": "OK"
+  }
+ ],
+ "fin": "2026-11-17T16:01:35.629Z",
+ "resume": {
+  "ok": 9,
+  "echec": 0,
+  "non_joue": 0
+ }
+}

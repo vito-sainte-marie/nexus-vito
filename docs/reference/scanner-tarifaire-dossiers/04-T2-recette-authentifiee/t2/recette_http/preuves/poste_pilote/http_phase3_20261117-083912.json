@@ -1,0 +1,168 @@
+{
+ "mode": "test",
+ "phase": 3,
+ "cible": "udljdqxerrbbbajxubfn",
+ "debut": "2026-11-17T12:39:14.974Z",
+ "cas": [
+  {
+   "id": "P3-01",
+   "persona": "MSM",
+   "action": "annuler",
+   "table": "tarif_prix_application",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 1
+   },
+   "obtenu": {
+    "http": 200,
+    "statut": "ok",
+    "lignes": 1,
+    "code": null,
+    "sites": [
+     "SM"
+    ]
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "P3-02",
+   "persona": "MSM",
+   "action": "annuler",
+   "table": "tarif_exceptions",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 1
+   },
+   "obtenu": {
+    "http": 200,
+    "statut": "ok",
+    "lignes": 1,
+    "code": null,
+    "sites": [
+     "SM"
+    ]
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "P3-03",
+   "persona": "GSM",
+   "action": "annuler",
+   "table": "tarif_prix_decides",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 1
+   },
+   "obtenu": {
+    "http": 200,
+    "statut": "ok",
+    "lignes": 1,
+    "code": null,
+    "sites": [
+     "SM"
+    ]
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "P3-04",
+   "persona": "GSM",
+   "action": "annuler",
+   "table": "tarif_familles",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 1
+   },
+   "obtenu": {
+    "http": 200,
+    "statut": "ok",
+    "lignes": 1,
+    "code": null,
+    "sites": [
+     "SM"
+    ]
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "P3-05",
+   "persona": "GFA",
+   "action": "annuler",
+   "table": "tarif_familles",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 1
+   },
+   "obtenu": {
+    "http": 200,
+    "statut": "ok",
+    "lignes": 1,
+    "code": null,
+    "sites": [
+     "FA"
+    ]
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "P3-06",
+   "persona": "GSM",
+   "action": "select",
+   "table": "v_tarif_familles_actifs",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 0
+   },
+   "obtenu": {
+    "http": 200,
+    "statut": "ok",
+    "lignes": 0,
+    "code": null,
+    "sites": []
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "P3-07",
+   "persona": "GFA",
+   "action": "select",
+   "table": "v_tarif_familles_actifs",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 0
+   },
+   "obtenu": {
+    "http": 200,
+    "statut": "ok",
+    "lignes": 0,
+    "code": null,
+    "sites": []
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "P3-08",
+   "persona": "GSM",
+   "action": "select",
+   "table": "v_tarif_prix_decides_actifs",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 0
+   },
+   "obtenu": {
+    "http": 200,
+    "statut": "ok",
+    "lignes": 0,
+    "code": null,
+    "sites": []
+   },
+   "verdict": "OK"
+  }
+ ],
+ "fin": "2026-11-17T12:39:16.938Z",
+ "resume": {
+  "ok": 8,
+  "echec": 0,
+  "non_joue": 0
+ }
+}

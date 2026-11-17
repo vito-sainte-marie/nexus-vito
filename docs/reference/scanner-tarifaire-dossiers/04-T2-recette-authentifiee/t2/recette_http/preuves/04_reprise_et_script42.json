@@ -1,0 +1,4 @@
+{"etape":"4 reprise apres incident, puis script 42","autorisation":"« go reprise », 17/11/2026 08:35 (heure de Martinique)",
+ "terminal":{"phase3_reprise":"phase 3 : OK 8 / ECHEC 0 / non joués 0","phase1_propre":"phase 1 : OK 17 / ECHEC 0 / non joués 0","rapports":"preuves/http_phase3_reprise_<horodatage>.json et preuves/http_phase1_<horodatage>.json sur le poste de le pilote"},
+ "controle_base_apres_reprise":{"horodatage":"2026-11-17T12:37:25.124398+00:00","familles":"2 annulees (premier passage) + 2 actives (phase 1 propre)","prix":"1 actif / 2","exceptions":"1 active / 2","applications":"1 active / 2","ecritures_des_cas_de_refus":0,"annulations_par_leur_auteur":true},
+ "script42":{"sha256":"094c242d6b169c265518b979a78a738be01d2cbd5c9d9a4302deef81dbf9bcaa","resultat":"sans erreur","controle":{"horodatage":"2026-11-17T12:37:40.390973+00:00","recette-t2-gerant2-sm":"desactive, identite non bannie","trois_autres":"actifs"}},"conforme":true}

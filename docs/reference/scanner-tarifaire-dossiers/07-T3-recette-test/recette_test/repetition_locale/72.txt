@@ -1,0 +1,9 @@
+1|SM hors recette : journal inchangé (empreinte des colonnes T2)|1cfd259c77638d2f9adcd4c630d4c264|1cfd259c77638d2f9adcd4c630d4c264|OK
+2|SM hors recette : prix décidés inchangés (empreinte)|1c6fb1409bcd1e3a90f95e34d682468f|1c6fb1409bcd1e3a90f95e34d682468f|OK
+3|lignes de journal de recette : SM / fantôme|7/1|7/1|OK
+4|lignes de journal de recette encore actives|0|0|OK
+5|prix décidés de recette encore actifs|0|0|OK
+6|chaque prix décidé de recette a exactement une ligne de journal|0|0|OK
+7|aucune ligne de recette sur un autre site|0|0|OK
+8|comptes de recette T3 : désactivés / liés|0/3|0/3|OK
+9|identités de recette T3 : bannies / conservées|3/3|3/3|OK

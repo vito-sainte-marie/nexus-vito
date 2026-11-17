@@ -1,0 +1,96 @@
+{
+ "mode": "test",
+ "phase": 1,
+ "cible": "udljdqxerrbbbajxubfn",
+ "debut": "2026-11-17T12:32:09.979Z",
+ "cas": [
+  {
+   "id": "P1-01",
+   "persona": "GSM",
+   "action": "insert",
+   "table": "tarif_familles",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 1
+   },
+   "obtenu": {
+    "http": 400,
+    "statut": "refus",
+    "lignes": null,
+    "code": "P0001",
+    "sites": null
+   },
+   "verdict": "ECHEC"
+  },
+  {
+   "id": "P1-02",
+   "verdict": "NON_JOUE"
+  },
+  {
+   "id": "P1-03",
+   "verdict": "NON_JOUE"
+  },
+  {
+   "id": "P1-04",
+   "verdict": "NON_JOUE"
+  },
+  {
+   "id": "P1-05",
+   "verdict": "NON_JOUE"
+  },
+  {
+   "id": "P1-06",
+   "verdict": "NON_JOUE"
+  },
+  {
+   "id": "P1-07",
+   "verdict": "NON_JOUE"
+  },
+  {
+   "id": "P1-08",
+   "verdict": "NON_JOUE"
+  },
+  {
+   "id": "P1-09",
+   "verdict": "NON_JOUE"
+  },
+  {
+   "id": "P1-10",
+   "verdict": "NON_JOUE"
+  },
+  {
+   "id": "P1-11",
+   "verdict": "NON_JOUE"
+  },
+  {
+   "id": "P1-12",
+   "verdict": "NON_JOUE"
+  },
+  {
+   "id": "P1-13",
+   "verdict": "NON_JOUE"
+  },
+  {
+   "id": "P1-14",
+   "verdict": "NON_JOUE"
+  },
+  {
+   "id": "P1-15",
+   "verdict": "NON_JOUE"
+  },
+  {
+   "id": "P1-16",
+   "verdict": "NON_JOUE"
+  },
+  {
+   "id": "P1-17",
+   "verdict": "NON_JOUE"
+  }
+ ],
+ "fin": "2026-11-17T12:32:10.843Z",
+ "resume": {
+  "ok": 0,
+  "echec": 1,
+  "non_joue": 16
+ }
+}

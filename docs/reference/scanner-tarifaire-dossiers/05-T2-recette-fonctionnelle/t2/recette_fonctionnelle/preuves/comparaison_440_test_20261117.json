@@ -1,0 +1,39 @@
+{
+ "repetition_locale": false,
+ "source": "export_61_test_20261117-1417.json",
+ "lu_le": "2026-11-17T14:17:57.230216+00:00",
+ "est_projet_test": true,
+ "comptes": {
+  "familles": 24,
+  "rattachements": 51,
+  "seuils": 13,
+  "reglages": 4,
+  "exceptions": 13,
+  "prixDecides": 21,
+  "applications": 0,
+  "regimes": 1,
+  "controles": 3
+ },
+ "attendus": {
+  "familles": 24,
+  "rattachements": 51,
+  "seuils": 13,
+  "reglages": 4,
+  "exceptions": 13,
+  "prixDecides": 21,
+  "applications": 0,
+  "regimes": 1,
+  "controles": 3
+ },
+ "ecarts": [],
+ "references": {
+  "t2": 440,
+  "t1": 440,
+  "identiques": 440
+ },
+ "gains_identiques": true,
+ "statuts_identiques": true,
+ "alertes_identiques": true,
+ "comptes_conformes": true,
+ "verdict": "CONFORME"
+}

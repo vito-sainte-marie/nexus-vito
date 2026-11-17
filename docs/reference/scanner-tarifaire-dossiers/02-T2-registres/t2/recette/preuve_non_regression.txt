@@ -1,0 +1,2 @@
+Non-régression T1 → T2 : 440 références identiques (statut, fiabilité, conformité, alertes, simulations), gains identiques.
+Registres : 24 familles, 51 rattachements (34 par référence), 13 seuils, 4 réglages, 13 exceptions, 21 prix décidés, 1 régime, 3 contrôles.

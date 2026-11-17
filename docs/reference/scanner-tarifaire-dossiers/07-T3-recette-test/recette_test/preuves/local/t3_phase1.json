@@ -1,0 +1,612 @@
+{
+ "mode": "local_auth",
+ "phase": 1,
+ "cible": "local",
+ "debut": "2026-11-17T16:01:34.791Z",
+ "cas": [
+  {
+   "id": "T1-01",
+   "persona": "GSM",
+   "libelle": "décision validée : un prix décidé et une ligne de journal liés",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 1,
+    "lien_par_ligne": [
+     "lien"
+    ]
+   },
+   "obtenu": {
+    "http": 200,
+    "statut": "ok",
+    "lignes": 1,
+    "code": null,
+    "message": null,
+    "sites": []
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "T1-02",
+   "persona": "GSM",
+   "libelle": "la ligne de journal porte le lien, site SM",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 1,
+    "sites": [
+     "SM"
+    ]
+   },
+   "obtenu": {
+    "http": 200,
+    "statut": "ok",
+    "lignes": 1,
+    "code": null,
+    "message": null,
+    "sites": [
+     "SM"
+    ]
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "T1-03",
+   "persona": "GSM",
+   "libelle": "autre prix sur la même référence : remplace la version active",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 1,
+    "lien_par_ligne": [
+     "lien"
+    ]
+   },
+   "obtenu": {
+    "http": 200,
+    "statut": "ok",
+    "lignes": 1,
+    "code": null,
+    "message": null,
+    "sites": []
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "T1-04",
+   "persona": "GSM",
+   "libelle": "une seule version active, 1,15 €",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 1,
+    "valeurs": {
+     "prix_ttc": 1.15
+    }
+   },
+   "obtenu": {
+    "http": 200,
+    "statut": "ok",
+    "lignes": 1,
+    "code": null,
+    "message": null,
+    "sites": [
+     "SM"
+    ],
+    "valeurs": {
+     "prix_ttc": 1.15
+    }
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "T1-05",
+   "persona": "GSM",
+   "libelle": "refus : journal seul, sans lien",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 1,
+    "lien_par_ligne": [
+     "sans"
+    ]
+   },
+   "obtenu": {
+    "http": 200,
+    "statut": "ok",
+    "lignes": 1,
+    "code": null,
+    "message": null,
+    "sites": []
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "T1-06",
+   "persona": "GSM",
+   "libelle": "lot de trois décisions",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 3,
+    "lien_par_ligne": [
+     "lien",
+     "lien",
+     "sans"
+    ]
+   },
+   "obtenu": {
+    "http": 200,
+    "statut": "ok",
+    "lignes": 3,
+    "code": null,
+    "message": null,
+    "sites": []
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "T1-07",
+   "persona": "GSM",
+   "libelle": "six lignes de journal de recette, toutes sur SM",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 6,
+    "sites": [
+     "SM"
+    ]
+   },
+   "obtenu": {
+    "http": 200,
+    "statut": "ok",
+    "lignes": 6,
+    "code": null,
+    "message": null,
+    "sites": [
+     "SM"
+    ]
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "T1-10",
+   "persona": "GSM",
+   "libelle": "atomicité : la deuxième ligne du lot échoue, rien n est écrit",
+   "attendu": {
+    "statut": "refus",
+    "message": "tarif_decisions_photo_check"
+   },
+   "obtenu": {
+    "http": 400,
+    "statut": "refus",
+    "lignes": null,
+    "code": "23514",
+    "message": "new row for relation \"tarif_decisions\" violates check constraint \"tarif_decisions_photo_check\"",
+    "sites": null
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "T1-11",
+   "persona": "GSM",
+   "libelle": "atomicité : aucun prix décidé pour C",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 0
+   },
+   "obtenu": {
+    "http": 200,
+    "statut": "ok",
+    "lignes": 0,
+    "code": null,
+    "message": null,
+    "sites": []
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "T1-12",
+   "persona": "GSM",
+   "libelle": "atomicité : aucun prix décidé pour D",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 0
+   },
+   "obtenu": {
+    "http": 200,
+    "statut": "ok",
+    "lignes": 0,
+    "code": null,
+    "message": null,
+    "sites": []
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "T1-13",
+   "persona": "GSM",
+   "libelle": "référence en double dans le lot",
+   "attendu": {
+    "statut": "refus",
+    "message": "tarif_decision_doublon_lot"
+   },
+   "obtenu": {
+    "http": 400,
+    "statut": "refus",
+    "lignes": null,
+    "code": "P0001",
+    "message": "tarif_decision_doublon_lot : la référence lib:recette t3 h figure deux fois dans le lot",
+    "sites": null
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "T1-14",
+   "persona": "GSM",
+   "libelle": "autre prix sans motif : refusé après l insertion du prix",
+   "attendu": {
+    "statut": "refus",
+    "message": "tarif_decisions_motif"
+   },
+   "obtenu": {
+    "http": 400,
+    "statut": "refus",
+    "lignes": null,
+    "code": "23514",
+    "message": "new row for relation \"tarif_decisions\" violates check constraint \"tarif_decisions_motif\"",
+    "sites": null
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "T1-15",
+   "persona": "GSM",
+   "libelle": "atomicité : aucun prix décidé pour I",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 0
+   },
+   "obtenu": {
+    "http": 200,
+    "statut": "ok",
+    "lignes": 0,
+    "code": null,
+    "message": null,
+    "sites": []
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "T1-16",
+   "persona": "GSM",
+   "libelle": "version de moteur déclarée hors T2",
+   "attendu": {
+    "statut": "refus",
+    "message": "tarif_decision_version_moteur_refusee"
+   },
+   "obtenu": {
+    "http": 400,
+    "statut": "refus",
+    "lignes": null,
+    "code": "P0001",
+    "message": "tarif_decision_version_moteur_refusee : version de moteur déclarée absente ou hors T2",
+    "sites": null
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "T1-17",
+   "persona": "GSM",
+   "libelle": "aucun reste : toujours six lignes de journal",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 6
+   },
+   "obtenu": {
+    "http": 200,
+    "statut": "ok",
+    "lignes": 6,
+    "code": null,
+    "message": null,
+    "sites": [
+     "SM"
+    ]
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "T1-20",
+   "persona": "MSM",
+   "libelle": "le manager ne décide pas",
+   "attendu": {
+    "statut": "refus",
+    "message": "tarif_decision_reservee_gerant"
+   },
+   "obtenu": {
+    "http": 400,
+    "statut": "refus",
+    "lignes": null,
+    "code": "P0001",
+    "message": "tarif_decision_reservee_gerant : seul le gérant décide d un prix",
+    "sites": null
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "T1-21",
+   "persona": "MSM",
+   "libelle": "le manager lit le journal de son site",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 6,
+    "sites": [
+     "SM"
+    ]
+   },
+   "obtenu": {
+    "http": 200,
+    "statut": "ok",
+    "lignes": 6,
+    "code": null,
+    "message": null,
+    "sites": [
+     "SM"
+    ]
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "T1-22",
+   "persona": "MSM",
+   "libelle": "le manager n écrit pas directement au journal",
+   "attendu": {
+    "statut": "refus",
+    "message": "42501"
+   },
+   "obtenu": {
+    "http": 403,
+    "statut": "refus",
+    "lignes": null,
+    "code": "42501",
+    "message": "new row violates row-level security policy for table \"tarif_decisions\"",
+    "sites": null
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "T1-23",
+   "persona": "MSM",
+   "libelle": "le manager n écrit pas de prix décidé",
+   "attendu": {
+    "statut": "refus",
+    "message": "42501"
+   },
+   "obtenu": {
+    "http": 403,
+    "statut": "refus",
+    "lignes": null,
+    "code": "42501",
+    "message": "new row violates row-level security policy for table \"tarif_prix_decides\"",
+    "sites": null
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "T1-24",
+   "persona": "ANON",
+   "libelle": "anonyme : aucun droit d exécution",
+   "attendu": {
+    "statut": "refus",
+    "message": "permission denied"
+   },
+   "obtenu": {
+    "http": 401,
+    "statut": "refus",
+    "lignes": null,
+    "code": "42501",
+    "message": "permission denied for function tarif_enregistrer_decisions",
+    "sites": null
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "T1-25",
+   "persona": "GSM",
+   "libelle": "écriture directe : décision validée sans lien refusée",
+   "attendu": {
+    "statut": "refus",
+    "message": "tarif_decision_lien_absent"
+   },
+   "obtenu": {
+    "http": 400,
+    "statut": "refus",
+    "lignes": null,
+    "code": "P0001",
+    "message": "tarif_decision_lien_absent : une décision validée ou à un autre prix doit viser son prix décidé",
+    "sites": null
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "T1-26",
+   "persona": "GSM",
+   "libelle": "modification du lien refusée",
+   "attendu": {
+    "statut": "refus",
+    "message": "42501"
+   },
+   "obtenu": {
+    "http": 403,
+    "statut": "refus",
+    "lignes": null,
+    "code": "42501",
+    "message": "permission denied for table tarif_decisions",
+    "sites": null
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "T1-27",
+   "persona": "GSM",
+   "libelle": "suppression d une ligne de journal refusée",
+   "attendu": {
+    "statut": "refus",
+    "message": "42501"
+   },
+   "obtenu": {
+    "http": 403,
+    "statut": "refus",
+    "lignes": null,
+    "code": "42501",
+    "message": "permission denied for table tarif_decisions",
+    "sites": null
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "T1-28",
+   "persona": "GSM",
+   "libelle": "modification d un prix décidé refusée",
+   "attendu": {
+    "statut": "refus",
+    "message": "42501"
+   },
+   "obtenu": {
+    "http": 403,
+    "statut": "refus",
+    "lignes": null,
+    "code": "42501",
+    "message": "permission denied for table tarif_prix_decides",
+    "sites": null
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "T1-30",
+   "persona": "GFA",
+   "libelle": "gérant du site fantôme : même référence, son propre site",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 1,
+    "lien_par_ligne": [
+     "lien"
+    ]
+   },
+   "obtenu": {
+    "http": 200,
+    "statut": "ok",
+    "lignes": 1,
+    "code": null,
+    "message": null,
+    "sites": []
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "T1-31",
+   "persona": "GFA",
+   "libelle": "il ne voit que sa ligne, site fantôme",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 1,
+    "sites": [
+     "FA"
+    ]
+   },
+   "obtenu": {
+    "http": 200,
+    "statut": "ok",
+    "lignes": 1,
+    "code": null,
+    "message": null,
+    "sites": [
+     "FA"
+    ]
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "T1-32",
+   "persona": "GSM",
+   "libelle": "la version active de SM reste 1,15 €",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 1,
+    "sites": [
+     "SM"
+    ],
+    "valeurs": {
+     "prix_ttc": 1.15
+    }
+   },
+   "obtenu": {
+    "http": 200,
+    "statut": "ok",
+    "lignes": 1,
+    "code": null,
+    "message": null,
+    "sites": [
+     "SM"
+    ],
+    "valeurs": {
+     "prix_ttc": 1.15
+    }
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "T1-33",
+   "persona": "GFA",
+   "libelle": "site transmis dans la décision : refusé",
+   "attendu": {
+    "statut": "refus",
+    "message": "tarif_decision_champ_inconnu"
+   },
+   "obtenu": {
+    "http": 400,
+    "statut": "refus",
+    "lignes": null,
+    "code": "P0001",
+    "message": "tarif_decision_champ_inconnu : champ non admis (le site n est jamais transmis)",
+    "sites": null
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "T1-34",
+   "persona": "GFA",
+   "libelle": "aucun prix décidé de SM visible",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 0
+   },
+   "obtenu": {
+    "http": 200,
+    "statut": "ok",
+    "lignes": 0,
+    "code": null,
+    "message": null,
+    "sites": []
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "T1-35",
+   "persona": "GFA",
+   "libelle": "aucune écriture directe sur SM",
+   "attendu": {
+    "statut": "refus",
+    "message": "42501"
+   },
+   "obtenu": {
+    "http": 403,
+    "statut": "refus",
+    "lignes": null,
+    "code": "42501",
+    "message": "new row violates row-level security policy for table \"tarif_decisions\"",
+    "sites": null
+   },
+   "verdict": "OK"
+  }
+ ],
+ "fin": "2026-11-17T16:01:35.252Z",
+ "resume": {
+  "ok": 30,
+  "echec": 0,
+  "non_joue": 0
+ }
+}

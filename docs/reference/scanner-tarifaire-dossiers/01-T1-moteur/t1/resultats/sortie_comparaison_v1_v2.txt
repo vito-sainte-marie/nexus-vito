@@ -1,0 +1,4 @@
+206 références modifiées sur 440
+[(('conforme', 'sans_seuil_valide'), 83), (('a_surveiller', 'sans_seuil_valide'), 77), (('proposition_a_valider', 'a_surveiller'), 40)]
+[('Bières', 44), ('Biscuiterie', 44), ('Jus', 42), ('Chips et petits salés', 28), ('Eaux non aromatisées', 14), ('Feuilles à rouler', 13), ('Eaux aromatisées', 12), ('Énergétiques', 9)]
+['Biere Bavaria 8/6 Blonde 50cl -24P'] ['Feuille de Tabac FINE LEAF 15g - 15P']

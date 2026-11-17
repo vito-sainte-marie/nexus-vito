@@ -1,0 +1,354 @@
+{
+ "mode": "test",
+ "phase": 1,
+ "cible": "udljdqxerrbbbajxubfn",
+ "debut": "2026-11-17T12:37:03.633Z",
+ "cas": [
+  {
+   "id": "P1-01",
+   "persona": "GSM",
+   "action": "insert",
+   "table": "tarif_familles",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 1
+   },
+   "obtenu": {
+    "http": 201,
+    "statut": "ok",
+    "lignes": 1,
+    "code": null,
+    "sites": [
+     "SM"
+    ]
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "P1-02",
+   "persona": "GFA",
+   "action": "insert",
+   "table": "tarif_familles",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 1
+   },
+   "obtenu": {
+    "http": 201,
+    "statut": "ok",
+    "lignes": 1,
+    "code": null,
+    "sites": [
+     "FA"
+    ]
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "P1-03",
+   "persona": "GSM",
+   "action": "insert",
+   "table": "tarif_prix_decides",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 1
+   },
+   "obtenu": {
+    "http": 201,
+    "statut": "ok",
+    "lignes": 1,
+    "code": null,
+    "sites": [
+     "SM"
+    ]
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "P1-04",
+   "persona": "MSM",
+   "action": "insert",
+   "table": "tarif_exceptions",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 1
+   },
+   "obtenu": {
+    "http": 201,
+    "statut": "ok",
+    "lignes": 1,
+    "code": null,
+    "sites": [
+     "SM"
+    ]
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "P1-05",
+   "persona": "MSM",
+   "action": "insert",
+   "table": "tarif_prix_application",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 1
+   },
+   "resolution": {
+    "http": 200,
+    "lignes": 1
+   },
+   "obtenu": {
+    "http": 201,
+    "statut": "ok",
+    "lignes": 1,
+    "code": null,
+    "sites": [
+     "SM"
+    ]
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "P1-06",
+   "persona": "MSM",
+   "action": "insert",
+   "table": "tarif_familles",
+   "attendu": {
+    "statut": "refus"
+   },
+   "obtenu": {
+    "http": 403,
+    "statut": "refus",
+    "lignes": null,
+    "code": "42501",
+    "sites": null
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "P1-07",
+   "persona": "MSM",
+   "action": "insert",
+   "table": "tarif_exceptions",
+   "attendu": {
+    "statut": "refus"
+   },
+   "obtenu": {
+    "http": 403,
+    "statut": "refus",
+    "lignes": null,
+    "code": "42501",
+    "sites": null
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "P1-08",
+   "persona": "GFA",
+   "action": "insert",
+   "table": "tarif_familles",
+   "attendu": {
+    "statut": "refus"
+   },
+   "obtenu": {
+    "http": 403,
+    "statut": "refus",
+    "lignes": null,
+    "code": "42501",
+    "sites": null
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "P1-09",
+   "persona": "GSM",
+   "action": "insert",
+   "table": "tarif_familles",
+   "attendu": {
+    "statut": "refus"
+   },
+   "obtenu": {
+    "http": 403,
+    "statut": "refus",
+    "lignes": null,
+    "code": "42501",
+    "sites": null
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "P1-10",
+   "persona": "MSM",
+   "action": "annuler",
+   "table": "tarif_familles",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 0
+   },
+   "obtenu": {
+    "http": 200,
+    "statut": "ok",
+    "lignes": 0,
+    "code": null,
+    "sites": []
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "P1-11",
+   "persona": "GSM",
+   "action": "select",
+   "table": "tarif_familles",
+   "attendu": {
+    "statut": "ok",
+    "lignes": "au_moins_une",
+    "sites": [
+     "SM"
+    ]
+   },
+   "obtenu": {
+    "http": 200,
+    "statut": "ok",
+    "lignes": 2,
+    "code": null,
+    "sites": [
+     "SM"
+    ]
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "P1-12",
+   "persona": "GFA",
+   "action": "select",
+   "table": "tarif_familles",
+   "attendu": {
+    "statut": "ok",
+    "lignes": "au_moins_une",
+    "sites": [
+     "FA"
+    ]
+   },
+   "obtenu": {
+    "http": 200,
+    "statut": "ok",
+    "lignes": 2,
+    "code": null,
+    "sites": [
+     "FA"
+    ]
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "P1-13",
+   "persona": "MSM",
+   "action": "select",
+   "table": "tarif_familles",
+   "attendu": {
+    "statut": "ok",
+    "lignes": "au_moins_une",
+    "sites": [
+     "SM"
+    ]
+   },
+   "obtenu": {
+    "http": 200,
+    "statut": "ok",
+    "lignes": 2,
+    "code": null,
+    "sites": [
+     "SM"
+    ]
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "P1-14",
+   "persona": "DSM",
+   "action": "select",
+   "table": "tarif_familles",
+   "attendu": {
+    "statut": "ok",
+    "lignes": "au_moins_une",
+    "sites": [
+     "SM"
+    ]
+   },
+   "obtenu": {
+    "http": 200,
+    "statut": "ok",
+    "lignes": 2,
+    "code": null,
+    "sites": [
+     "SM"
+    ]
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "P1-15",
+   "persona": "DSM",
+   "action": "select",
+   "table": "v_tarif_exceptions_effectives",
+   "attendu": {
+    "statut": "ok",
+    "lignes": "au_moins_une",
+    "sites": [
+     "SM"
+    ]
+   },
+   "obtenu": {
+    "http": 200,
+    "statut": "ok",
+    "lignes": 1,
+    "code": null,
+    "sites": [
+     "SM"
+    ]
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "P1-16",
+   "persona": "ANON",
+   "action": "select",
+   "table": "tarif_familles",
+   "attendu": {
+    "statut": "refus"
+   },
+   "obtenu": {
+    "http": 401,
+    "statut": "refus",
+    "lignes": null,
+    "code": "42501",
+    "sites": null
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "P1-17",
+   "persona": "GSM",
+   "action": "select",
+   "table": "tarif_familles",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 0
+   },
+   "obtenu": {
+    "http": 200,
+    "statut": "ok",
+    "lignes": 0,
+    "code": null,
+    "sites": []
+   },
+   "verdict": "OK"
+  }
+ ],
+ "fin": "2026-11-17T12:37:07.320Z",
+ "resume": {
+  "ok": 17,
+  "echec": 0,
+  "non_joue": 0
+ }
+}

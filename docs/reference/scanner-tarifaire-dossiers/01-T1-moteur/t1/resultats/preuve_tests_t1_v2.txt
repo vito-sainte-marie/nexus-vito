@@ -1,0 +1,62 @@
+Arrondi au palier de 0,05 € TTC
+  ✓ valeurs flottantes juste sous le palier ramenées au palier
+  ✓ toute valeur au-dessus du palier monte au palier suivant
+  ✓ palier réglable (0,10 €)
+  ✓ le prix arrondi atteint toujours le seuil, sur 20 000 tirages
+  ✓ cas réel : Royal Soda 2 L au minimum de 41 %
+Prix décidés : décision, saisie, cohérence, application vérifiée
+  ✓ décidé, non saisi : état « decide », gain dans le compartiment des prix décidés
+  ✓ PV moyen égal au prix décidé : cohérence constatée, jamais « appliqué » ni « conforme »
+  ✓ preuve explicite datée : application vérifiée, conforme
+  ✓ preuve contredite par le PV moyen d'une période postérieure : écart constaté
+  ✓ saisie déclarée après la période : saisie déclarée, aucun écart reproché
+  ✓ saisie déclarée avant la période, PV inchangé : écart constaté
+Périodes chevauchant un changement de tarif
+  ✓ saisie déclarée en cours de période : période chevauchante et part estimée
+  ✓ prix déclaré en vigueur, PV entre ancien et nouveau prix, sans date : changement probable, A5, pas d'A7 de prix
+  ✓ prix en vigueur non retrouvé (Floup) : écart constaté et A7 sur l'exception
+Références sans historique
+  ✓ sans période précédente : pas d'erreur, pas d'A1, fiabilité à confirmer, variations nulles
+  ✓ sans historique ni stock : coût non contrôlé, A5
+Coût : provenance et méthode, pas de PMP présumé
+  ✓ le coût garde son libellé « PA HT » et une méthode non établie par défaut
+  ✓ une méthode prouvée est reprise telle quelle
+Gains séparés, sans double comptage
+  ✓ chaque référence dans un seul compartiment par scénario ; scénarios non additionnables
+Conformité réglementaire, axe indépendant
+  ✓ chiffres fiables et contrôle ouvert : fiable, à vérifier, sans simulation, A8
+  ✓ contrôle clos conforme : la référence retrouve le circuit normal
+« Conforme » seulement avec une règle validée
+  ✓ seuils à l'étude : sans seuil validé, même très au-dessus
+  ✓ hypothèse statistique : sans seuil validé, aucune simulation
+  ✓ famille sans seuil : sans seuil validé
+  ✓ minimum validé, cible à l'étude : conforme au-dessus du minimum
+  ✓ aucune ligne n'est conforme sans règle validée, sur un lot mélangé
+Exceptions commerciales toujours contrôlées
+  ✓ marge négative sur une exception : A3, statut à vérifier
+  ✓ coût anormal sur une exception : A4 (et A7 coût hors tolérance)
+  ✓ TVA incohérente sur une exception : A5
+  ✓ contrôle réglementaire sur une exception : A8
+  ✓ exception candidate : aucun effet, la proposition reste et le signale
+  ✓ exception validée : jamais de prix envisageable
+Alertes de base
+  ✓ A1 hausse de coût non répercutée
+  ✓ A4 variation suspecte : fiabilité insuffisante, gain isolé
+  ✓ ramener à 30 jours
+Seuils validés, indicatifs et hypothèses
+  ✓ sous un seuil indicatif : à surveiller, aucune proposition, aucun A2, repère non décisionnel
+  ✓ au-dessus d'un seuil indicatif : sans seuil validé, jamais conforme
+  ✓ minimum indicatif et cible à l'étude : aucune proposition
+  ✓ seuil validé : proposition décisionnelle et A2
+Régime de prix déclaré, jamais déduit
+  ✓ régime « à qualifier » déclaré : aucune simulation, aucun conforme
+  ✓ sans déclaration, le libellé ne change pas le régime
+Matérialité de l'alerte A6
+  ✓ baisse d'un centime de marge unitaire : pas d'A6
+  ✓ forte baisse de taux (Floup) : A6 avec montant et déclencheur
+  ✓ baisse de taux de 3 points : A6 par le taux
+  ✓ baisse de marge unitaire matérielle sous 2 points de taux (0,06 €, 6 %) : A6 par la marge
+  ✓ baisse réelle mais sous le montant minimal : pas d'A6
+  ✓ seuils A6 réglables par site
+
+47 tests réussis

@@ -1,0 +1,20 @@
+1|identifiant système du cluster (projet Test)|7709171195576468503|7709171195576468503|OK
+2|migration enregistrée une seule fois|1|1|OK
+3|colonne prix_decide_id : uuid, facultative|uuid/YES|uuid/YES|OK
+4|clé étrangère composite vers le prix décidé du même site|FOREIGN KEY (prix_decide_id, site) REFERENCES tarif_prix_decides(id, site)|FOREIGN KEY (prix_decide_id, site) REFERENCES tarif_prix_decides(id, site)|OK
+5|aucune contrainte CHECK sur le lien (annulations jamais bloquées)|0|0|OK
+6|index unique partiel : un journal par prix décidé|1|1|OK
+7|déclencheur d'insertion du lien, actif|BEFORE INSERT/O|BEFORE INSERT/O|OK
+8|fonction : SECURITY INVOKER, volatile, search_path fixé|false/v/search_path=public, pg_temp|false/v/search_path=public, pg_temp|OK
+9|exécution de la fonction : authenticated et propriétaire seulement|authenticated,postgres|authenticated,postgres|OK
+10|fonction de déclencheur : aucun droit d'exécution hors propriétaire|postgres|postgres|OK
+11|droits de table inchangés sur tarif_decisions|authenticated:INSERT+SELECT,service_role:INSERT+SELECT|authenticated:INSERT+SELECT,service_role:INSERT+SELECT|OK
+12|mise à jour toujours limitée aux trois colonnes d'annulation (pas prix_decide_id)|annule_le+annule_par+motif_annulation|annule_le+annule_par+motif_annulation|OK
+13|vito-sainte-marie : journal inchangé (nombre)|1 (actives 1)|1 (actives 1)|OK
+14|vito-sainte-marie : journal inchangé (empreinte des colonnes T2)|0b663e717bd4de732401ae843da9e68b|0b663e717bd4de732401ae843da9e68b|OK
+15|vito-sainte-marie : prix décidés inchangés (empreinte)|7f90f62689889f8ba7886bfc15ec604a|7f90f62689889f8ba7886bfc15ec604a|OK
+16|vito-sainte-marie : lignes historiques sans lien (aucun lien posé par la migration)|0|0|OK
+17|privilège effectif EXECUTE sur la fonction : anon / authenticated / service_role / public|non/oui/non/non|non/oui/non/non|OK
+18|privilège effectif EXECUTE sur la fonction de déclencheur : anon / authenticated / service_role|non/non/non|non/non/non|OK
+19|privilège effectif UPDATE de prix_decide_id : anon / authenticated / service_role|non/non/non|non/non/non|OK
+20|privilège effectif SELECT et INSERT de prix_decide_id pour authenticated (lecture et lien par la fonction)|oui/oui|oui/oui|OK

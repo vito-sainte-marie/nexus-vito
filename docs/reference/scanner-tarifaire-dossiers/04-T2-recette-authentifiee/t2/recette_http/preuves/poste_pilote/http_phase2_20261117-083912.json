@@ -1,0 +1,131 @@
+{
+ "mode": "test",
+ "phase": 2,
+ "cible": "udljdqxerrbbbajxubfn",
+ "debut": "2026-11-17T12:39:12.960Z",
+ "cas": [
+  {
+   "id": "P2-01",
+   "persona": "DSM",
+   "action": "select",
+   "table": "tarif_familles",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 0
+   },
+   "obtenu": {
+    "http": 200,
+    "statut": "ok",
+    "lignes": 0,
+    "code": null,
+    "sites": []
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "P2-02",
+   "persona": "DSM",
+   "action": "select",
+   "table": "v_tarif_exceptions_effectives",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 0
+   },
+   "obtenu": {
+    "http": 200,
+    "statut": "ok",
+    "lignes": 0,
+    "code": null,
+    "sites": []
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "P2-03",
+   "persona": "DSM",
+   "action": "insert",
+   "table": "tarif_reglages",
+   "attendu": {
+    "statut": "refus"
+   },
+   "obtenu": {
+    "http": 403,
+    "statut": "refus",
+    "lignes": null,
+    "code": "42501",
+    "sites": null
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "P2-04",
+   "persona": "DSM",
+   "action": "annuler",
+   "table": "tarif_familles",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 0
+   },
+   "obtenu": {
+    "http": 200,
+    "statut": "ok",
+    "lignes": 0,
+    "code": null,
+    "sites": []
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "P2-05",
+   "persona": "GSM",
+   "action": "select",
+   "table": "tarif_familles",
+   "attendu": {
+    "statut": "ok",
+    "lignes": "au_moins_une",
+    "sites": [
+     "SM"
+    ]
+   },
+   "obtenu": {
+    "http": 200,
+    "statut": "ok",
+    "lignes": 2,
+    "code": null,
+    "sites": [
+     "SM"
+    ]
+   },
+   "verdict": "OK"
+  },
+  {
+   "id": "P2-06",
+   "persona": "MSM",
+   "action": "select",
+   "table": "tarif_familles",
+   "attendu": {
+    "statut": "ok",
+    "lignes": "au_moins_une",
+    "sites": [
+     "SM"
+    ]
+   },
+   "obtenu": {
+    "http": 200,
+    "statut": "ok",
+    "lignes": 2,
+    "code": null,
+    "sites": [
+     "SM"
+    ]
+   },
+   "verdict": "OK"
+  }
+ ],
+ "fin": "2026-11-17T12:39:14.879Z",
+ "resume": {
+  "ok": 6,
+  "echec": 0,
+  "non_joue": 0
+ }
+}

@@ -1,0 +1,27 @@
+1|identifiant système du cluster (projet Test)|7709161736205309681|7709161736205309681|OK
+2|sites de recette propres à Test|2|2|OK
+3|version PostgreSQL|17.6 attendu (banc local en 16)|16.15 (Ubuntu 16.15-0ubuntu0.24.04.1)|INFO
+4|migrations T2 enregistrées (4)|20261117020430,20261117020652,20261117020851,20261117021059|20261117020430,20261117020652,20261117020851,20261117021059|OK
+5|aucune migration T3 décision-journal déjà enregistrée|0|0|OK
+6|colonnes de tarif_decisions (18, sans prix_decide_id)|id,site,article,code_barres,periode_debut,periode_fin,decision,prix_ttc_retenu,motif,seuil_id,moteur_version,photo,saisi_par,saisi_le,annule_le,annule_par,motif_annulation,cle|id,site,article,code_barres,periode_debut,periode_fin,decision,prix_ttc_retenu,motif,seuil_id,moteur_version,photo,saisi_par,saisi_le,annule_le,annule_par,motif_annulation,cle|OK
+7|unicité (id, site) de tarif_prix_decides, cible de la clé étrangère|1|1|OK
+8|objets T3 absents (fonctions, déclencheur, index, contraintes)|0|0|OK
+9|dépendance : tarif_cle_reference(text, text)|1|1|OK
+10|dépendance : vue v_tarif_prix_decides_actifs en security_invoker|security_invoker=true|security_invoker=true|OK
+11|dépendance : déclencheur de version unique sur tarif_prix_decides|1|1|OK
+12|politiques de tarif_decisions|tarif_decisions:annulation_roles_meme_site/PERMISSIVE+compte_actif_obligatoire/RESTRICTIVE+insertion_roles_meme_site/PERMISSIVE+lecture_meme_site/PERMISSIVE|tarif_decisions:annulation_roles_meme_site/PERMISSIVE+compte_actif_obligatoire/RESTRICTIVE+insertion_roles_meme_site/PERMISSIVE+lecture_meme_site/PERMISSIVE|OK
+13|politiques de tarif_prix_decides|tarif_prix_decides:annulation_roles_meme_site/PERMISSIVE+compte_actif_obligatoire/RESTRICTIVE+insertion_roles_meme_site/PERMISSIVE+lecture_meme_site/PERMISSIVE|tarif_prix_decides:annulation_roles_meme_site/PERMISSIVE+compte_actif_obligatoire/RESTRICTIVE+insertion_roles_meme_site/PERMISSIVE+lecture_meme_site/PERMISSIVE|OK
+14|RLS activée et forcée sur les deux tables|tarif_decisions:t/t,tarif_prix_decides:t/t|tarif_decisions:t/t,tarif_prix_decides:t/t|OK
+15|droits de table sur tarif_decisions (anon aucun)|authenticated:INSERT+SELECT,service_role:INSERT+SELECT|authenticated:INSERT+SELECT,service_role:INSERT+SELECT|OK
+16|droits de table sur tarif_prix_decides (anon aucun)|authenticated:INSERT+SELECT,service_role:INSERT+SELECT|authenticated:INSERT+SELECT,service_role:INSERT+SELECT|OK
+17|mise à jour limitée aux trois colonnes d'annulation|tarif_decisions:annule_le+annule_par+motif_annulation,tarif_prix_decides:annule_le+annule_par+motif_annulation|tarif_decisions:annule_le+annule_par+motif_annulation,tarif_prix_decides:annule_le+annule_par+motif_annulation|OK
+18|propriétaire des deux tables (exécutant de la migration)|postgres,postgres|postgres,postgres|OK
+19|colonnes employees lues par la fonction|actif,est_createur,id,role,site_id|actif,est_createur,id,role,site_id|OK
+20|politique select_employees : lecture de sa propre fiche|oui|oui|OK
+21|privilèges par défaut sur les fonctions créées par postgres (raison du REVOKE de la migration)|EXECUTE accordé par défaut à anon/authenticated/service_role|anon=X/postgres authenticated=X/postgres service_role=X/postgres|INFO
+22|vito-sainte-marie : décisions au journal (toutes, dont annulées)|référence de postinstallation|1 (actives 1)|INFO
+23|vito-sainte-marie : prix décidés (tous, dont annulés)|référence de postinstallation|1 (actifs 1, nature changement)|INFO
+24|vito-sainte-marie : empreinte du journal (colonnes T2)|référence de postinstallation|1cfd259c77638d2f9adcd4c630d4c264|INFO
+25|vito-sainte-marie : empreinte des prix décidés|référence de postinstallation|1c6fb1409bcd1e3a90f95e34d682468f|INFO
+26|identités de recette T3 déjà présentes dans Auth|0|0|OK
+27|employés de recette T3 déjà liés|0|0|OK

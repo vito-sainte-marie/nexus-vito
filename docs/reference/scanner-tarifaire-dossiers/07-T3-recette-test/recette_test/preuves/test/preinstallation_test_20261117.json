@@ -1,0 +1,202 @@
+{
+ "cible": "udljdqxerrbbbajxubfn (Supabase Test)",
+ "script": "70_preinstallation_t3_lecture_seule.sql",
+ "sha256_script": "2a5e108928df6eb943adceaef39cc902d30ebcbb7c27966a8723c1e3cd3e34ac",
+ "execute_le": "2026-11-17, transaction en lecture seule, données filtrées sur vito-sainte-marie",
+ "lignes": [
+  {
+   "n": 1,
+   "controle": "identifiant système du cluster (projet Test)",
+   "attendu": "7678069749886157684",
+   "obtenu": "7678069749886157684",
+   "verdict": "OK"
+  },
+  {
+   "n": 2,
+   "controle": "sites de recette propres à Test",
+   "attendu": "2",
+   "obtenu": "2",
+   "verdict": "OK"
+  },
+  {
+   "n": 3,
+   "controle": "version PostgreSQL",
+   "attendu": "17.6 attendu (banc local en 16)",
+   "obtenu": "17.6",
+   "verdict": "INFO"
+  },
+  {
+   "n": 4,
+   "controle": "migrations T2 enregistrées (4)",
+   "attendu": "20261117020430,20261117020652,20261117020851,20261117021059",
+   "obtenu": "20261117020430,20261117020652,20261117020851,20261117021059",
+   "verdict": "OK"
+  },
+  {
+   "n": 5,
+   "controle": "aucune migration T3 décision-journal déjà enregistrée",
+   "attendu": "0",
+   "obtenu": "0",
+   "verdict": "OK"
+  },
+  {
+   "n": 6,
+   "controle": "colonnes de tarif_decisions (18, sans prix_decide_id)",
+   "attendu": "id,site,article,code_barres,periode_debut,periode_fin,decision,prix_ttc_retenu,motif,seuil_id,moteur_version,photo,saisi_par,saisi_le,annule_le,annule_par,motif_annulation,cle",
+   "obtenu": "id,site,article,code_barres,periode_debut,periode_fin,decision,prix_ttc_retenu,motif,seuil_id,moteur_version,photo,saisi_par,saisi_le,annule_le,annule_par,motif_annulation,cle",
+   "verdict": "OK"
+  },
+  {
+   "n": 7,
+   "controle": "unicité (id, site) de tarif_prix_decides, cible de la clé étrangère",
+   "attendu": "1",
+   "obtenu": "1",
+   "verdict": "OK"
+  },
+  {
+   "n": 8,
+   "controle": "objets T3 absents (fonctions, déclencheur, index, contraintes)",
+   "attendu": "0",
+   "obtenu": "0",
+   "verdict": "OK"
+  },
+  {
+   "n": 9,
+   "controle": "dépendance : tarif_cle_reference(text, text)",
+   "attendu": "1",
+   "obtenu": "1",
+   "verdict": "OK"
+  },
+  {
+   "n": 10,
+   "controle": "dépendance : vue v_tarif_prix_decides_actifs en security_invoker",
+   "attendu": "security_invoker=true",
+   "obtenu": "security_invoker=true",
+   "verdict": "OK"
+  },
+  {
+   "n": 11,
+   "controle": "dépendance : déclencheur de version unique sur tarif_prix_decides",
+   "attendu": "1",
+   "obtenu": "1",
+   "verdict": "OK"
+  },
+  {
+   "n": 12,
+   "controle": "politiques de tarif_decisions",
+   "attendu": "tarif_decisions:annulation_roles_meme_site/PERMISSIVE+compte_actif_obligatoire/RESTRICTIVE+insertion_roles_meme_site/PERMISSIVE+lecture_meme_site/PERMISSIVE",
+   "obtenu": "tarif_decisions:annulation_roles_meme_site/PERMISSIVE+compte_actif_obligatoire/RESTRICTIVE+insertion_roles_meme_site/PERMISSIVE+lecture_meme_site/PERMISSIVE",
+   "verdict": "OK"
+  },
+  {
+   "n": 13,
+   "controle": "politiques de tarif_prix_decides",
+   "attendu": "tarif_prix_decides:annulation_roles_meme_site/PERMISSIVE+compte_actif_obligatoire/RESTRICTIVE+insertion_roles_meme_site/PERMISSIVE+lecture_meme_site/PERMISSIVE",
+   "obtenu": "tarif_prix_decides:annulation_roles_meme_site/PERMISSIVE+compte_actif_obligatoire/RESTRICTIVE+insertion_roles_meme_site/PERMISSIVE+lecture_meme_site/PERMISSIVE",
+   "verdict": "OK"
+  },
+  {
+   "n": 14,
+   "controle": "RLS activée et forcée sur les deux tables",
+   "attendu": "tarif_decisions:t/t,tarif_prix_decides:t/t",
+   "obtenu": "tarif_decisions:t/t,tarif_prix_decides:t/t",
+   "verdict": "OK"
+  },
+  {
+   "n": 15,
+   "controle": "droits de table sur tarif_decisions (anon aucun)",
+   "attendu": "authenticated:INSERT+SELECT,service_role:INSERT+SELECT",
+   "obtenu": "authenticated:INSERT+SELECT,service_role:INSERT+SELECT",
+   "verdict": "OK"
+  },
+  {
+   "n": 16,
+   "controle": "droits de table sur tarif_prix_decides (anon aucun)",
+   "attendu": "authenticated:INSERT+SELECT,service_role:INSERT+SELECT",
+   "obtenu": "authenticated:INSERT+SELECT,service_role:INSERT+SELECT",
+   "verdict": "OK"
+  },
+  {
+   "n": 17,
+   "controle": "mise à jour limitée aux trois colonnes d'annulation",
+   "attendu": "tarif_decisions:annule_le+annule_par+motif_annulation,tarif_prix_decides:annule_le+annule_par+motif_annulation",
+   "obtenu": "tarif_decisions:annule_le+annule_par+motif_annulation,tarif_prix_decides:annule_le+annule_par+motif_annulation",
+   "verdict": "OK"
+  },
+  {
+   "n": 18,
+   "controle": "propriétaire des deux tables (exécutant de la migration)",
+   "attendu": "postgres,postgres",
+   "obtenu": "postgres,postgres",
+   "verdict": "OK"
+  },
+  {
+   "n": 19,
+   "controle": "colonnes employees lues par la fonction",
+   "attendu": "actif,est_createur,id,role,site_id",
+   "obtenu": "actif,est_createur,id,role,site_id",
+   "verdict": "OK"
+  },
+  {
+   "n": 20,
+   "controle": "politique select_employees : lecture de sa propre fiche",
+   "attendu": "oui",
+   "obtenu": "oui",
+   "verdict": "OK"
+  },
+  {
+   "n": 21,
+   "controle": "privilèges par défaut sur les fonctions créées par postgres (raison du REVOKE de la migration)",
+   "attendu": "EXECUTE accordé par défaut à anon/authenticated/service_role",
+   "obtenu": "anon=X/postgres authenticated=X/postgres service_role=X/postgres",
+   "verdict": "INFO"
+  },
+  {
+   "n": 22,
+   "controle": "vito-sainte-marie : décisions au journal (toutes, dont annulées)",
+   "attendu": "référence de postinstallation",
+   "obtenu": "0 (actives 0)",
+   "verdict": "INFO"
+  },
+  {
+   "n": 23,
+   "controle": "vito-sainte-marie : prix décidés (tous, dont annulés)",
+   "attendu": "référence de postinstallation",
+   "obtenu": "23 (actifs 21, nature changement+en_vigueur+maintenu)",
+   "verdict": "INFO"
+  },
+  {
+   "n": 24,
+   "controle": "vito-sainte-marie : empreinte du journal (colonnes T2)",
+   "attendu": "référence de postinstallation",
+   "obtenu": "vide",
+   "verdict": "INFO"
+  },
+  {
+   "n": 25,
+   "controle": "vito-sainte-marie : empreinte des prix décidés",
+   "attendu": "référence de postinstallation",
+   "obtenu": "1b75f1f3ca55c1282f87f47ca8822780",
+   "verdict": "INFO"
+  },
+  {
+   "n": 26,
+   "controle": "identités de recette T3 déjà présentes dans Auth",
+   "attendu": "0",
+   "obtenu": "0",
+   "verdict": "OK"
+  },
+  {
+   "n": 27,
+   "controle": "employés de recette T3 déjà liés",
+   "attendu": "0",
+   "obtenu": "0",
+   "verdict": "OK"
+  }
+ ],
+ "bilan": {
+  "OK": 21,
+  "ECART": 0,
+  "INFO": 6
+ }
+}

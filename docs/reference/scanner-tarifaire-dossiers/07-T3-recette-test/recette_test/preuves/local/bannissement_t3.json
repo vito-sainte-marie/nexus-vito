@@ -1,0 +1,243 @@
+{
+ "lot": "recette_t3",
+ "mode": "local_auth",
+ "verifier_seulement": false,
+ "debut": "2026-11-17T16:01:36.387Z",
+ "etapes": [
+  {
+   "etape": "garde_lot",
+   "ok": true,
+   "detail": {
+    "lot": "recette_t3"
+   }
+  },
+  {
+   "etape": "garde_cible",
+   "ok": true,
+   "detail": {
+    "cible": "http://127.0.0.1:8712"
+   }
+  },
+  {
+   "etape": "garde_cle",
+   "ok": true,
+   "detail": {
+    "format": "jwt",
+    "role": "service_role",
+    "ref": null
+   }
+  },
+  {
+   "etape": "garde_cle_publique",
+   "ok": true,
+   "detail": {
+    "presente": true
+   }
+  },
+  {
+   "etape": "garde_mots_de_passe",
+   "ok": true
+  },
+  {
+   "etape": "appartenance_cle_auth",
+   "ok": true,
+   "detail": {
+    "http": 200
+   }
+  },
+  {
+   "etape": "appartenance_cle_base",
+   "ok": true,
+   "detail": {
+    "http": 200,
+    "sites_test": 2
+   }
+  },
+  {
+   "etape": "liste_identites",
+   "ok": true,
+   "detail": {
+    "http": 200
+   }
+  },
+  {
+   "etape": "identites_exactes",
+   "ok": true,
+   "detail": {
+    "attendues": 3,
+    "trouvees": 3,
+    "identites_recette_inconnues": 0
+   }
+  },
+  {
+   "etape": "lecture_employees",
+   "ok": true,
+   "detail": {
+    "http": 200
+   }
+  },
+  {
+   "etape": "employee_recette-t3-gerant-sm",
+   "ok": true,
+   "detail": {
+    "username": "recette-t3-gerant-sm",
+    "role": "gerant",
+    "role_attendu": "gerant",
+    "site": "vito-sainte-marie",
+    "site_attendu": "vito-sainte-marie",
+    "actif": false,
+    "compte_test": true,
+    "createur": false
+   }
+  },
+  {
+   "etape": "employee_recette-t3-manager-sm",
+   "ok": true,
+   "detail": {
+    "username": "recette-t3-manager-sm",
+    "role": "manager",
+    "role_attendu": "manager",
+    "site": "vito-sainte-marie",
+    "site_attendu": "vito-sainte-marie",
+    "actif": false,
+    "compte_test": true,
+    "createur": false
+   }
+  },
+  {
+   "etape": "employee_recette-t3-gerant-fantome",
+   "ok": true,
+   "detail": {
+    "username": "recette-t3-gerant-fantome",
+    "role": "gerant",
+    "role_attendu": "gerant",
+    "site": "site-fantome-test",
+    "site_attendu": "site-fantome-test",
+    "actif": false,
+    "compte_test": true,
+    "createur": false
+   }
+  },
+  {
+   "etape": "bannissement_recette-t3-gerant-sm",
+   "ok": true,
+   "detail": {
+    "http": 200,
+    "banni_jusqu_au": "2126-10-24T12:01:36.439933145-04:00"
+   }
+  },
+  {
+   "etape": "bannissement_recette-t3-manager-sm",
+   "ok": true,
+   "detail": {
+    "http": 200,
+    "banni_jusqu_au": "2126-10-24T12:01:36.44533044-04:00"
+   }
+  },
+  {
+   "etape": "bannissement_recette-t3-gerant-fantome",
+   "ok": true,
+   "detail": {
+    "http": 200,
+    "banni_jusqu_au": "2126-10-24T12:01:36.450047529-04:00"
+   }
+  },
+  {
+   "etape": "verification_recette-t3-gerant-sm",
+   "ok": true,
+   "detail": {
+    "banni_jusqu_au_relu": "2126-10-24T12:01:36.439933-04:00",
+    "reconnexion": {
+     "http": 400,
+     "code": "user_banned",
+     "jeton_obtenu": false
+    }
+   }
+  },
+  {
+   "etape": "verification_recette-t3-manager-sm",
+   "ok": true,
+   "detail": {
+    "banni_jusqu_au_relu": "2126-10-24T12:01:36.44533-04:00",
+    "reconnexion": {
+     "http": 400,
+     "code": "user_banned",
+     "jeton_obtenu": false
+    }
+   }
+  },
+  {
+   "etape": "verification_recette-t3-gerant-fantome",
+   "ok": true,
+   "detail": {
+    "banni_jusqu_au_relu": "2126-10-24T12:01:36.450047-04:00",
+    "reconnexion": {
+     "http": 400,
+     "code": "user_banned",
+     "jeton_obtenu": false
+    }
+   }
+  }
+ ],
+ "identites": [
+  {
+   "email": "recette-t3-gerant-sm@vito-nexus.local",
+   "id": "59ab3b74-a6c4-4218-a793-4d5de9e439d8",
+   "username": "recette-t3-gerant-sm",
+   "role": "gerant",
+   "site": "vito-sainte-marie",
+   "role_attendu": "gerant",
+   "site_attendu": "vito-sainte-marie",
+   "actif": false,
+   "compte_test": true,
+   "createur": false,
+   "banni_avant": null,
+   "banni_jusqu_au": "2126-10-24T12:01:36.439933145-04:00",
+   "reconnexion": {
+    "http": 400,
+    "code": "user_banned",
+    "jeton_obtenu": false
+   }
+  },
+  {
+   "email": "recette-t3-manager-sm@vito-nexus.local",
+   "id": "7d6ac9c0-9bfe-48b5-9422-9006bc03b5bc",
+   "username": "recette-t3-manager-sm",
+   "role": "manager",
+   "site": "vito-sainte-marie",
+   "role_attendu": "manager",
+   "site_attendu": "vito-sainte-marie",
+   "actif": false,
+   "compte_test": true,
+   "createur": false,
+   "banni_avant": null,
+   "banni_jusqu_au": "2126-10-24T12:01:36.44533044-04:00",
+   "reconnexion": {
+    "http": 400,
+    "code": "user_banned",
+    "jeton_obtenu": false
+   }
+  },
+  {
+   "email": "recette-t3-gerant-fantome@vito-nexus.local",
+   "id": "d4159e82-fa28-43bd-b8bc-8b102220dd55",
+   "username": "recette-t3-gerant-fantome",
+   "role": "gerant",
+   "site": "site-fantome-test",
+   "role_attendu": "gerant",
+   "site_attendu": "site-fantome-test",
+   "actif": false,
+   "compte_test": true,
+   "createur": false,
+   "banni_avant": null,
+   "banni_jusqu_au": "2126-10-24T12:01:36.450047529-04:00",
+   "reconnexion": {
+    "http": 400,
+    "code": "user_banned",
+    "jeton_obtenu": false
+   }
+  }
+ ],
+ "fin": "2026-11-17T16:01:36.468Z",
+ "resultat": "CONFORME"
+}

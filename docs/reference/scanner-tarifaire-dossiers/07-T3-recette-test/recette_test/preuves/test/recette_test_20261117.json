@@ -1,0 +1,70 @@
+{
+ "cible": "udljdqxerrbbbajxubfn (Supabase Test)",
+ "date": "2026-11-17, Martinique (UTC-4)",
+ "etapes": [
+  {
+   "etape": "R1",
+   "heure": "12 h 20",
+   "geste": "trois identités créées par Frédéric (API d'administration, mots de passe dans le trousseau, service nexus-recette-t3)",
+   "resultat": "HTTP 200 x 3 ; relu en lecture seule : 3 identités confirmées, non bannies, non liées, cluster 7678069749886157684"
+  },
+  {
+   "etape": "R2",
+   "geste": "script 80 (liaison)",
+   "ecart_de_forme": "texte exécuté sans les commentaires ni la ligne raise notice ; gardes et insertion identiques au fichier 3577737e…",
+   "resultat": "3 comptes liés : gérant SM, manager SM, gérant site-fantome-test ; actifs, comptes de test, non créateurs"
+  },
+  {
+   "etape": "R3",
+   "heure": "13 h 12",
+   "resultat_terminal": "phase 1 : OK 30 / ECHEC 0 / non joués 0"
+  },
+  {
+   "etape": "R4",
+   "heure": "13 h 12",
+   "resultat_terminal": "phase 2 : OK 9 / ECHEC 0 / non joués 0"
+  },
+  {
+   "etape": "R5",
+   "geste": "script 81",
+   "resultat": "recette-t3-gerant-sm désactivé (1 ligne), manager SM et gérant fantôme actifs"
+  },
+  {
+   "etape": "R6",
+   "heure": "13 h 17",
+   "resultat_terminal": "phase 3 : OK 6 / ECHEC 0 / non joués 0"
+  },
+  {
+   "etape": "R7",
+   "geste": "script 82",
+   "resultat": "3 comptes désactivés, fiches conservées"
+  },
+  {
+   "etape": "R8",
+   "heure": "13 h 25",
+   "geste": "bannissement lot recette_t3 par Frédéric",
+   "resultat": "rapport bannissement_t3_20261117-1325.json produit ; état vérifié par 72 ligne 9"
+  },
+  {
+   "etape": "R9-72",
+   "script": "72_bilan_recette_t3_lecture_seule.sql",
+   "sha256": "124803092c9289f71ea389d34af947698b4701d6d8dcfabd16cd5777aa9fd7a6",
+   "resultat": "9 OK, 0 ECART",
+   "details": {
+    "journal_SM_hors_recette": "vide (inchangé)",
+    "prix_SM_hors_recette": "1b75f1f3ca55c1282f87f47ca8822780 (inchangé)",
+    "journal_recette_SM_fantome": "6/1",
+    "recette_active": "0 ligne, 0 prix",
+    "un_journal_par_prix": "0 écart",
+    "autre_site": "0",
+    "comptes_actifs_lies": "0/3",
+    "identites_bannies_conservees": "3/3"
+   }
+  },
+  {
+   "etape": "R9-73",
+   "script": "73_empreintes_registres_t2_sm_lecture_seule.sql",
+   "resultat": "130 actives / 138, empreinte globale 1752f6f440c7777399d6b0040c86438e, identique à M2 et M5"
+  }
+ ]
+}

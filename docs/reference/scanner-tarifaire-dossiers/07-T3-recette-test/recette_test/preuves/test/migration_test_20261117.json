@@ -1,0 +1,170 @@
+{
+ "cible": "udljdqxerrbbbajxubfn (Supabase Test)",
+ "date": "2026-11-17, Martinique (UTC-4)",
+ "GO": "Frédéric, 17/11/2026 12 h 11 : migration T3 et recette sur Test",
+ "etapes": [
+  {
+   "etape": "M1",
+   "heure_approx": "12 h 12",
+   "script": "70_preinstallation_t3_lecture_seule.sql",
+   "sha256": "2a5e108928df6eb943adceaef39cc902d30ebcbb7c27966a8723c1e3cd3e34ac",
+   "resultat": "21 OK, 0 ECART, 6 INFO",
+   "cluster": "7678069749886157684",
+   "postgres": "17.6",
+   "sm_journal": "0 (actives 0)",
+   "sm_prix_decides": "23 (actifs 21)",
+   "sm_empreinte_prix": "1b75f1f3ca55c1282f87f47ca8822780",
+   "identites_t3": 0,
+   "verdict": "conforme, point A1 franchi"
+  },
+  {
+   "etape": "M2",
+   "script": "73_empreintes_registres_t2_sm_lecture_seule.sql",
+   "sha256": "86aff2ee7c097ed5c76c7a9d46ef94bd0dc3e0103d7ba0b2d000967e472d0246",
+   "registres": {
+    "tarif_controles_reglementaires": [
+     3,
+     3,
+     "bf8a3b312d942484781c8a7399561018"
+    ],
+    "tarif_decisions": [
+     0,
+     0,
+     "d41d8cd98f00b204e9800998ecf8427e"
+    ],
+    "tarif_exceptions": [
+     13,
+     15,
+     "3ab754ae48ab9eecc1319c31b215381d"
+    ],
+    "tarif_familles": [
+     24,
+     26,
+     "bc68d1c06e8c237b5feb733663e19f09"
+    ],
+    "tarif_prix_application": [
+     0,
+     2,
+     "04298647c79a2da46f0ca36cc0c0953d"
+    ],
+    "tarif_prix_decides": [
+     21,
+     23,
+     "b771f101252cab70f000603ee09414f4"
+    ],
+    "tarif_rattachements": [
+     51,
+     51,
+     "3977272c97f8ca3dc164be477487d6e6"
+    ],
+    "tarif_regimes_prix": [
+     1,
+     1,
+     "5a2e6909eeee07840f3293c292904483"
+    ],
+    "tarif_reglages": [
+     4,
+     4,
+     "f2ff2082df6cc3f409ec96e04d5366a9"
+    ],
+    "tarif_seuils": [
+     13,
+     13,
+     "846d136f001666edf0475c66cc8d7271"
+    ],
+    "TOTAL": [
+     130,
+     138,
+     "1752f6f440c7777399d6b0040c86438e"
+    ]
+   },
+   "verdict": "identique à la référence du 17/11 (130 actives, 138 lignes)"
+  },
+  {
+   "etape": "M3",
+   "heure_utc_avant_envoi": "2026-11-17T16:12:27Z",
+   "fichier": "20261119100000_tarif_decision_journal.sql",
+   "sha256": "53c5d90cd5cd5d53b892fd81aff80ab18f73b8e102aa39faf72873e1b98cbd09",
+   "outil": "apply_migration, nom tarif_decision_journal",
+   "resultat": "success",
+   "version_enregistree_par_supabase": "20261117161325",
+   "verdict": "migration appliquée, points A2 et A3 franchis"
+  },
+  {
+   "etape": "M4",
+   "script": "71_postinstallation_t3_lecture_seule.sql",
+   "sha256": "b5a17772615879700880841c85aa839b8f4cd7a663045d4459a34ec35b7774cc",
+   "resultat": "20 OK, 0 ECART",
+   "privileges_effectifs": {
+    "execute_fonction_anon_authenticated_service_role_public": "non/oui/non/non",
+    "execute_declencheur": "non/non/non",
+    "update_prix_decide_id": "non/non/non",
+    "select_insert_prix_decide_id_authenticated": "oui/oui"
+   },
+   "securite": "prosecdef=false, volatile, search_path=public, pg_temp",
+   "verdict": "conforme, point A4 franchi"
+  },
+  {
+   "etape": "M5",
+   "script": "73_empreintes_registres_t2_sm_lecture_seule.sql",
+   "registres": {
+    "tarif_controles_reglementaires": [
+     3,
+     3,
+     "bf8a3b312d942484781c8a7399561018"
+    ],
+    "tarif_decisions": [
+     0,
+     0,
+     "d41d8cd98f00b204e9800998ecf8427e"
+    ],
+    "tarif_exceptions": [
+     13,
+     15,
+     "3ab754ae48ab9eecc1319c31b215381d"
+    ],
+    "tarif_familles": [
+     24,
+     26,
+     "bc68d1c06e8c237b5feb733663e19f09"
+    ],
+    "tarif_prix_application": [
+     0,
+     2,
+     "04298647c79a2da46f0ca36cc0c0953d"
+    ],
+    "tarif_prix_decides": [
+     21,
+     23,
+     "b771f101252cab70f000603ee09414f4"
+    ],
+    "tarif_rattachements": [
+     51,
+     51,
+     "3977272c97f8ca3dc164be477487d6e6"
+    ],
+    "tarif_regimes_prix": [
+     1,
+     1,
+     "5a2e6909eeee07840f3293c292904483"
+    ],
+    "tarif_reglages": [
+     4,
+     4,
+     "f2ff2082df6cc3f409ec96e04d5366a9"
+    ],
+    "tarif_seuils": [
+     13,
+     13,
+     "846d136f001666edf0475c66cc8d7271"
+    ],
+    "TOTAL": [
+     130,
+     138,
+     "1752f6f440c7777399d6b0040c86438e"
+    ]
+   },
+   "verdict": "identique à M2 : 130 règles actives et historique préservés, point A5 franchi"
+  }
+ ]
+}

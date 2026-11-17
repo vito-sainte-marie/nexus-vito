@@ -1,0 +1,7 @@
+{"etape":"6 bannissement par l'API d'administration, puis controle final (script 44 etendu)",
+ "terminal":{"verification_seule":"CONFORME (vérification seule)","bannissement":"CONFORME (4 identités bannies, reconnexion refusée)","rapports":"preuves/bannissement_verification_<horodatage>.json et preuves/bannissement_<horodatage>.json sur le poste de le pilote","cle":"service_role saisie masquee, effacee de la session apres usage"},
+ "controle_final":{"horodatage":"2026-11-17T12:42:03.110268+00:00",
+   "comptes":"4 comptes : desactives, comptes de test, non createurs, identites bannies plus de 50 ans, aucune supprimee",
+   "identites_recette_restantes":4,"sessions_recette_en_base":18,"lignes_t2_actives":0,"lignes_t2_total":10,"migrations_t2":4,"derniere_migration":"20261117021059 tarif_registres_comptes_desactives"},
+ "note_sessions":"18 sessions restent inscrites dans auth.sessions : le bannissement interdit connexion et renouvellement ; les jetons deja emis expirent sous une heure et n ouvrent aucun registre T2 (comptes desactives, politique restrictive).",
+ "conforme":true}

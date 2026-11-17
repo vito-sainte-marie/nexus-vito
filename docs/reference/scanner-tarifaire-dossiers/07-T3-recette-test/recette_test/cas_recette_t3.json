@@ -1,0 +1,786 @@
+{
+ "description": "Recette authentifiée T3 de tarif_enregistrer_decisions sur Supabase Test : connexion Supabase Auth réelle, appels RPC et REST réels, RLS réelle.",
+ "prefixe": "RECETTE T3 ",
+ "sites": {
+  "SM": "vito-sainte-marie",
+  "FA": "site-fantome-test"
+ },
+ "personas": {
+  "GSM": {
+   "email": "recette-t3-gerant-sm@vito-nexus.local",
+   "role": "gerant",
+   "site": "SM",
+   "env_mdp": "NEXUS_RECETTE_T3_MDP_GSM",
+   "note": "désactivé par 81 entre les phases 2 et 3"
+  },
+  "MSM": {
+   "email": "recette-t3-manager-sm@vito-nexus.local",
+   "role": "manager",
+   "site": "SM",
+   "env_mdp": "NEXUS_RECETTE_T3_MDP_MSM"
+  },
+  "GFA": {
+   "email": "recette-t3-gerant-fantome@vito-nexus.local",
+   "role": "gerant",
+   "site": "FA",
+   "env_mdp": "NEXUS_RECETTE_T3_MDP_GFA"
+  },
+  "ANON": {
+   "anonyme": true
+  }
+ },
+ "cas": [
+  {
+   "id": "T1-01",
+   "phase": 1,
+   "persona": "GSM",
+   "libelle": "décision validée : un prix décidé et une ligne de journal liés",
+   "action": "rpc",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 1,
+    "lien_par_ligne": [
+     "lien"
+    ]
+   },
+   "lignes": [
+    {
+     "article": "A",
+     "decision": "validee",
+     "prix": 1.11
+    }
+   ]
+  },
+  {
+   "id": "T1-02",
+   "phase": 1,
+   "persona": "GSM",
+   "libelle": "la ligne de journal porte le lien, site SM",
+   "action": "select",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 1,
+    "sites": [
+     "SM"
+    ]
+   },
+   "chemin": "tarif_decisions?article=eq.@PREFIXEA&prix_decide_id=not.is.null"
+  },
+  {
+   "id": "T1-03",
+   "phase": 1,
+   "persona": "GSM",
+   "libelle": "autre prix sur la même référence : remplace la version active",
+   "action": "rpc",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 1,
+    "lien_par_ligne": [
+     "lien"
+    ]
+   },
+   "lignes": [
+    {
+     "article": "A",
+     "decision": "autre_prix",
+     "prix": 1.15,
+     "motif": "palier"
+    }
+   ]
+  },
+  {
+   "id": "T1-04",
+   "phase": 1,
+   "persona": "GSM",
+   "libelle": "une seule version active, 1,15 €",
+   "action": "select",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 1,
+    "valeurs": {
+     "prix_ttc": 1.15
+    }
+   },
+   "chemin": "v_tarif_prix_decides_actifs?article=eq.@PREFIXEA"
+  },
+  {
+   "id": "T1-05",
+   "phase": 1,
+   "persona": "GSM",
+   "libelle": "refus : journal seul, sans lien",
+   "action": "rpc",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 1,
+    "lien_par_ligne": [
+     "sans"
+    ]
+   },
+   "lignes": [
+    {
+     "article": "B",
+     "decision": "refusee",
+     "motif": "prix concurrent"
+    }
+   ]
+  },
+  {
+   "id": "T1-06",
+   "phase": 1,
+   "persona": "GSM",
+   "libelle": "lot de trois décisions",
+   "action": "rpc",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 3,
+    "lien_par_ligne": [
+     "lien",
+     "lien",
+     "sans"
+    ]
+   },
+   "lignes": [
+    {
+     "article": "E",
+     "decision": "validee",
+     "prix": 1.2
+    },
+    {
+     "article": "F",
+     "decision": "validee",
+     "prix": 1.3
+    },
+    {
+     "article": "G",
+     "decision": "refusee",
+     "motif": "non"
+    }
+   ]
+  },
+  {
+   "id": "T1-07",
+   "phase": 1,
+   "persona": "GSM",
+   "libelle": "six lignes de journal de recette, toutes sur SM",
+   "action": "select",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 6,
+    "sites": [
+     "SM"
+    ]
+   },
+   "chemin": "tarif_decisions?article=like.@PREFIXE*"
+  },
+  {
+   "id": "T1-10",
+   "phase": 1,
+   "persona": "GSM",
+   "libelle": "atomicité : la deuxième ligne du lot échoue, rien n est écrit",
+   "action": "rpc",
+   "attendu": {
+    "statut": "refus",
+    "message": "tarif_decisions_photo_check"
+   },
+   "lignes": [
+    {
+     "article": "C",
+     "decision": "validee",
+     "prix": 1.4
+    },
+    {
+     "article": "D",
+     "decision": "validee",
+     "prix": 1.5,
+     "photo_incomplete": true
+    }
+   ]
+  },
+  {
+   "id": "T1-11",
+   "phase": 1,
+   "persona": "GSM",
+   "libelle": "atomicité : aucun prix décidé pour C",
+   "action": "select",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 0
+   },
+   "chemin": "tarif_prix_decides?article=eq.@PREFIXEC"
+  },
+  {
+   "id": "T1-12",
+   "phase": 1,
+   "persona": "GSM",
+   "libelle": "atomicité : aucun prix décidé pour D",
+   "action": "select",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 0
+   },
+   "chemin": "tarif_prix_decides?article=eq.@PREFIXED"
+  },
+  {
+   "id": "T1-13",
+   "phase": 1,
+   "persona": "GSM",
+   "libelle": "référence en double dans le lot",
+   "action": "rpc",
+   "attendu": {
+    "statut": "refus",
+    "message": "tarif_decision_doublon_lot"
+   },
+   "lignes": [
+    {
+     "article": "H",
+     "decision": "validee",
+     "prix": 1.6
+    },
+    {
+     "article": "h",
+     "decision": "validee",
+     "prix": 1.7
+    }
+   ]
+  },
+  {
+   "id": "T1-14",
+   "phase": 1,
+   "persona": "GSM",
+   "libelle": "autre prix sans motif : refusé après l insertion du prix",
+   "action": "rpc",
+   "attendu": {
+    "statut": "refus",
+    "message": "tarif_decisions_motif"
+   },
+   "lignes": [
+    {
+     "article": "I",
+     "decision": "autre_prix",
+     "prix": 1.8
+    }
+   ]
+  },
+  {
+   "id": "T1-15",
+   "phase": 1,
+   "persona": "GSM",
+   "libelle": "atomicité : aucun prix décidé pour I",
+   "action": "select",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 0
+   },
+   "chemin": "tarif_prix_decides?article=eq.@PREFIXEI"
+  },
+  {
+   "id": "T1-16",
+   "phase": 1,
+   "persona": "GSM",
+   "libelle": "version de moteur déclarée hors T2",
+   "action": "rpc",
+   "attendu": {
+    "statut": "refus",
+    "message": "tarif_decision_version_moteur_refusee"
+   },
+   "lignes": [
+    {
+     "article": "J",
+     "decision": "validee",
+     "prix": 1,
+     "moteur": "t1-v2"
+    }
+   ]
+  },
+  {
+   "id": "T1-17",
+   "phase": 1,
+   "persona": "GSM",
+   "libelle": "aucun reste : toujours six lignes de journal",
+   "action": "select",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 6
+   },
+   "chemin": "tarif_decisions?article=like.@PREFIXE*"
+  },
+  {
+   "id": "T1-20",
+   "phase": 1,
+   "persona": "MSM",
+   "libelle": "le manager ne décide pas",
+   "action": "rpc",
+   "attendu": {
+    "statut": "refus",
+    "message": "tarif_decision_reservee_gerant"
+   },
+   "lignes": [
+    {
+     "article": "K",
+     "decision": "validee",
+     "prix": 1
+    }
+   ]
+  },
+  {
+   "id": "T1-21",
+   "phase": 1,
+   "persona": "MSM",
+   "libelle": "le manager lit le journal de son site",
+   "action": "select",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 6,
+    "sites": [
+     "SM"
+    ]
+   },
+   "chemin": "tarif_decisions?article=like.@PREFIXE*"
+  },
+  {
+   "id": "T1-22",
+   "phase": 1,
+   "persona": "MSM",
+   "libelle": "le manager n écrit pas directement au journal",
+   "action": "insert",
+   "attendu": {
+    "statut": "refus",
+    "message": "42501"
+   },
+   "chemin": "tarif_decisions",
+   "corps": {
+    "site": "@SM",
+    "article": "L",
+    "periode_debut": "2026-10-05",
+    "periode_fin": "2026-11-09",
+    "decision": "refusee",
+    "moteur_version": "politique-tarifaire-t2-v2",
+    "photo": {
+     "cout": 1,
+     "pv_ht": 2,
+     "quantite": 3,
+     "taux": 0.5,
+     "fiabilite": "fiable"
+    },
+    "motif": "x"
+   }
+  },
+  {
+   "id": "T1-23",
+   "phase": 1,
+   "persona": "MSM",
+   "libelle": "le manager n écrit pas de prix décidé",
+   "action": "insert",
+   "attendu": {
+    "statut": "refus",
+    "message": "42501"
+   },
+   "chemin": "tarif_prix_decides",
+   "corps": {
+    "site": "@SM",
+    "article": "L",
+    "nature": "changement",
+    "prix_ttc": 1
+   }
+  },
+  {
+   "id": "T1-24",
+   "phase": 1,
+   "persona": "ANON",
+   "libelle": "anonyme : aucun droit d exécution",
+   "action": "rpc",
+   "attendu": {
+    "statut": "refus",
+    "message": "permission denied"
+   },
+   "lignes": [
+    {
+     "article": "K",
+     "decision": "validee",
+     "prix": 1
+    }
+   ]
+  },
+  {
+   "id": "T1-25",
+   "phase": 1,
+   "persona": "GSM",
+   "libelle": "écriture directe : décision validée sans lien refusée",
+   "action": "insert",
+   "attendu": {
+    "statut": "refus",
+    "message": "tarif_decision_lien_absent"
+   },
+   "chemin": "tarif_decisions",
+   "corps": {
+    "site": "@SM",
+    "article": "M",
+    "periode_debut": "2026-10-05",
+    "periode_fin": "2026-11-09",
+    "decision": "validee",
+    "moteur_version": "politique-tarifaire-t2-v2",
+    "photo": {
+     "cout": 1,
+     "pv_ht": 2,
+     "quantite": 3,
+     "taux": 0.5,
+     "fiabilite": "fiable"
+    },
+    "prix_ttc_retenu": 1
+   }
+  },
+  {
+   "id": "T1-26",
+   "phase": 1,
+   "persona": "GSM",
+   "libelle": "modification du lien refusée",
+   "action": "patch",
+   "attendu": {
+    "statut": "refus",
+    "message": "42501"
+   },
+   "chemin": "tarif_decisions?article=eq.@PREFIXEA",
+   "corps": {
+    "prix_decide_id": null
+   }
+  },
+  {
+   "id": "T1-27",
+   "phase": 1,
+   "persona": "GSM",
+   "libelle": "suppression d une ligne de journal refusée",
+   "action": "delete",
+   "attendu": {
+    "statut": "refus",
+    "message": "42501"
+   },
+   "chemin": "tarif_decisions?article=eq.@PREFIXEB"
+  },
+  {
+   "id": "T1-28",
+   "phase": 1,
+   "persona": "GSM",
+   "libelle": "modification d un prix décidé refusée",
+   "action": "patch",
+   "attendu": {
+    "statut": "refus",
+    "message": "42501"
+   },
+   "chemin": "tarif_prix_decides?article=eq.@PREFIXEE",
+   "corps": {
+    "prix_ttc": 9
+   }
+  },
+  {
+   "id": "T1-30",
+   "phase": 1,
+   "persona": "GFA",
+   "libelle": "gérant du site fantôme : même référence, son propre site",
+   "action": "rpc",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 1,
+    "lien_par_ligne": [
+     "lien"
+    ]
+   },
+   "lignes": [
+    {
+     "article": "A",
+     "decision": "validee",
+     "prix": 2.22
+    }
+   ]
+  },
+  {
+   "id": "T1-31",
+   "phase": 1,
+   "persona": "GFA",
+   "libelle": "il ne voit que sa ligne, site fantôme",
+   "action": "select",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 1,
+    "sites": [
+     "FA"
+    ]
+   },
+   "chemin": "tarif_decisions?article=like.@PREFIXE*"
+  },
+  {
+   "id": "T1-32",
+   "phase": 1,
+   "persona": "GSM",
+   "libelle": "la version active de SM reste 1,15 €",
+   "action": "select",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 1,
+    "sites": [
+     "SM"
+    ],
+    "valeurs": {
+     "prix_ttc": 1.15
+    }
+   },
+   "chemin": "v_tarif_prix_decides_actifs?article=eq.@PREFIXEA"
+  },
+  {
+   "id": "T1-33",
+   "phase": 1,
+   "persona": "GFA",
+   "libelle": "site transmis dans la décision : refusé",
+   "action": "rpc",
+   "attendu": {
+    "statut": "refus",
+    "message": "tarif_decision_champ_inconnu"
+   },
+   "lignes": [
+    {
+     "article": "N",
+     "decision": "validee",
+     "prix": 1,
+     "site_injecte": "SM"
+    }
+   ]
+  },
+  {
+   "id": "T1-34",
+   "phase": 1,
+   "persona": "GFA",
+   "libelle": "aucun prix décidé de SM visible",
+   "action": "select",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 0
+   },
+   "chemin": "tarif_prix_decides?site=eq.@SM"
+  },
+  {
+   "id": "T1-35",
+   "phase": 1,
+   "persona": "GFA",
+   "libelle": "aucune écriture directe sur SM",
+   "action": "insert",
+   "attendu": {
+    "statut": "refus",
+    "message": "42501"
+   },
+   "chemin": "tarif_decisions",
+   "corps": {
+    "site": "@SM",
+    "article": "O",
+    "periode_debut": "2026-10-05",
+    "periode_fin": "2026-11-09",
+    "decision": "refusee",
+    "moteur_version": "politique-tarifaire-t2-v2",
+    "photo": {
+     "cout": 1,
+     "pv_ht": 2,
+     "quantite": 3,
+     "taux": 0.5,
+     "fiabilite": "fiable"
+    },
+    "motif": "x"
+   }
+  },
+  {
+   "id": "T2-01",
+   "phase": 2,
+   "persona": "MSM",
+   "libelle": "le manager n annule aucune ligne de journal",
+   "action": "annuler",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 0
+   },
+   "chemin": "tarif_decisions?article=like.@PREFIXE*&annule_le=is.null"
+  },
+  {
+   "id": "T2-02",
+   "phase": 2,
+   "persona": "GFA",
+   "libelle": "le gérant fantôme n annule rien sur SM",
+   "action": "annuler",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 0
+   },
+   "chemin": "tarif_decisions?site=eq.@SM&annule_le=is.null"
+  },
+  {
+   "id": "T2-03",
+   "phase": 2,
+   "persona": "GSM",
+   "libelle": "annulation des six lignes de journal de recette SM",
+   "action": "annuler",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 6
+   },
+   "chemin": "tarif_decisions?article=like.@PREFIXE*&annule_le=is.null"
+  },
+  {
+   "id": "T2-04",
+   "phase": 2,
+   "persona": "GSM",
+   "libelle": "annulation des quatre prix décidés de recette SM",
+   "action": "annuler",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 4
+   },
+   "chemin": "tarif_prix_decides?article=like.@PREFIXE*&annule_le=is.null"
+  },
+  {
+   "id": "T2-05",
+   "phase": 2,
+   "persona": "GFA",
+   "libelle": "annulation de la ligne de journal fantôme",
+   "action": "annuler",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 1
+   },
+   "chemin": "tarif_decisions?article=like.@PREFIXE*&annule_le=is.null"
+  },
+  {
+   "id": "T2-06",
+   "phase": 2,
+   "persona": "GFA",
+   "libelle": "annulation du prix décidé fantôme",
+   "action": "annuler",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 1
+   },
+   "chemin": "tarif_prix_decides?article=like.@PREFIXE*&annule_le=is.null"
+  },
+  {
+   "id": "T2-07",
+   "phase": 2,
+   "persona": "GSM",
+   "libelle": "aucun prix décidé de recette actif",
+   "action": "select",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 0
+   },
+   "chemin": "v_tarif_prix_decides_actifs?article=like.@PREFIXE*"
+  },
+  {
+   "id": "T2-08",
+   "phase": 2,
+   "persona": "GSM",
+   "libelle": "traçabilité : les six lignes annulées restent",
+   "action": "select",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 6
+   },
+   "chemin": "tarif_decisions?article=like.@PREFIXE*&annule_le=not.is.null"
+  },
+  {
+   "id": "T2-09",
+   "phase": 2,
+   "persona": "GSM",
+   "libelle": "réannulation sans effet",
+   "action": "annuler",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 0
+   },
+   "chemin": "tarif_decisions?article=like.@PREFIXE*&annule_le=not.is.null"
+  },
+  {
+   "id": "T3-01",
+   "phase": 3,
+   "persona": "GSM",
+   "libelle": "gérant désactivé : refus nommé de la fonction",
+   "action": "rpc",
+   "attendu": {
+    "statut": "refus",
+    "message": "tarif_decision_compte_inactif"
+   },
+   "lignes": [
+    {
+     "article": "P",
+     "decision": "validee",
+     "prix": 1
+    }
+   ]
+  },
+  {
+   "id": "T3-02",
+   "phase": 3,
+   "persona": "GSM",
+   "libelle": "sa fiche est lisible et dit actif = false",
+   "action": "select",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 1,
+    "valeurs": {
+     "actif": false
+    }
+   },
+   "chemin": "employees?id=eq.@MOI&select=id,actif"
+  },
+  {
+   "id": "T3-03",
+   "phase": 3,
+   "persona": "GSM",
+   "libelle": "ses lectures du journal sont vides (expliqué par T3-02, jamais déduit)",
+   "action": "select",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 0
+   },
+   "chemin": "tarif_decisions?article=like.@PREFIXE*"
+  },
+  {
+   "id": "T3-04",
+   "phase": 3,
+   "persona": "GSM",
+   "libelle": "aucune écriture directe",
+   "action": "insert",
+   "attendu": {
+    "statut": "refus",
+    "message": "42501"
+   },
+   "chemin": "tarif_prix_decides",
+   "corps": {
+    "site": "@SM",
+    "article": "Q",
+    "nature": "changement",
+    "prix_ttc": 1
+   }
+  },
+  {
+   "id": "T3-05",
+   "phase": 3,
+   "persona": "MSM",
+   "libelle": "contrôle : le manager actif lit toujours les six lignes annulées",
+   "action": "select",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 6
+   },
+   "chemin": "tarif_decisions?article=like.@PREFIXE*"
+  },
+  {
+   "id": "T3-06",
+   "phase": 3,
+   "persona": "MSM",
+   "libelle": "contrôle : sa fiche dit actif = true",
+   "action": "select",
+   "attendu": {
+    "statut": "ok",
+    "lignes": 1,
+    "valeurs": {
+     "actif": true
+    }
+   },
+   "chemin": "employees?id=eq.@MOI&select=id,actif"
+  }
+ ]
+}

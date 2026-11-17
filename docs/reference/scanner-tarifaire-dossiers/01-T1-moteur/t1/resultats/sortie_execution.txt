@@ -1,0 +1,18 @@
+Références 440 | fiabilité { insuffisante: 45, a_confirmer: 127, fiable: 268 } | conformité { non_concerne: 415, controle_ouvert: 25 }
+Statuts {
+  a_verifier: 70,
+  proposition_a_valider: 48,
+  a_surveiller: 73,
+  sans_seuil_valide: 236,
+  conforme: 13
+}
+Alertes { A4: 45, A2: 48, A5: 22, A8: 25, A1: 58, A3: 3, A6: 1, A7: 1 }
+Règles { validee: 115, indicative: 235, non_validee: 42, aucune: 48 }
+décisionnel prixDecides  {"fiable":{"montant":159.91,"references":12},"a_confirmer":{"montant":18.49,"references":3}}
+décisionnel minimum      {"fiable":{"montant":125.8,"references":28},"a_confirmer":{"montant":99.26,"references":20}}
+décisionnel cible        {"fiable":{"montant":125.8,"references":28},"a_confirmer":{"montant":99.26,"references":20}}
+repère indicatif, non décisionnel minimum  {"fiable":{"montant":119.95,"references":30},"a_confirmer":{"montant":90.01,"references":10}}
+repère indicatif, non décisionnel cible    {"fiable":{"montant":440.39,"references":55},"a_confirmer":{"montant":163.54,"references":22}}
+preuves techniques (insuffisantes, jamais un gain exploitable) {"prixDecides":{"montant":6.16,"references":1},"minimum":{"montant":29.37,"references":7},"cible":{"montant":29.37,"references":7},"repereMinimum":{"montant":57.17,"references":4},"repereCible":{"montant":87.76,"references":6},"usage":"preuve technique, jamais un gain exploitable"}
+Exclus réglementaire { references: 25, ca_ht: 3284.36 } | exceptions validées { references: 9 }
+Coût PA HT | non établie (PMP ou dernier prix d'achat)

@@ -1,0 +1,9 @@
+{"objet":"référence de l'autorisation ayant précédé l'exécution T2 sur Supabase Test",
+ "chronologie_heure_martinique":[
+  {"heure":"21:51","source":"contre-audit T2 v6","contenu":"APPROVED_WITH_CONDITIONS ; OWNER_NEXT Frédéric ; ACTION_NEXT obtenir l'autorisation explicite d'exécuter les quatre migrations sur Supabase Test"},
+  {"heure":"21:53","source":"Claude","contenu":"dossier v7 et proposition de texte d'autorisation (preuve avant, sonde, quatre migrations dans l'ordre, preuve après, arrêt au premier écart, aucun compte, aucune donnée)"},
+  {"heure":"21:56","source":"contrat NEXT_ACTION","contenu":"BLOCKED ; OWNER_NEXT Frédéric ; ACTION_NEXT autoriser explicitement la sonde d'atomicité et les quatre migrations T2 sur Supabase Test uniquement ; CONDITIONS arrêt sur erreur, contrôle avant/après chaque envoi, aucun compte ni donnée de recette, aucun retour arrière automatique, aucune opération Production ou Decenium"},
+  {"heure":"21:59","source":"message de l'utilisateur dans cette conversation","contenu":"« go »"},
+  {"heure":"21:59:34","source":"Claude","contenu":"début d'exécution : vérification des empreintes, puis preuve avant (2026-11-17T01:59:34Z)"}],
+ "interpretation_retenue":"le « go » de 21:59 a été lu comme l'autorisation du périmètre exact du contrat de 21:56 et de la procédure v7, conditions comprises (aucun retour arrière automatique).",
+ "limite":"l'autorisation tient en un mot et ne reprend pas le texte proposé à 21:53 ; elle n'a pas d'identifiant de message accessible à Claude, seulement son horodatage dans la conversation."}

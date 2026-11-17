@@ -1,0 +1,11 @@
+TOTAL|2|2|06098efcb7a177c22cd60880e00fa3ce
+tarif_controles_reglementaires|0|0|d41d8cd98f00b204e9800998ecf8427e
+tarif_decisions|1|1|dae4880858820a06601058d23192a05a
+tarif_exceptions|0|0|d41d8cd98f00b204e9800998ecf8427e
+tarif_familles|0|0|d41d8cd98f00b204e9800998ecf8427e
+tarif_prix_application|0|0|d41d8cd98f00b204e9800998ecf8427e
+tarif_prix_decides|1|1|ae8af93149f737f5bfd0a64d4239b565
+tarif_rattachements|0|0|d41d8cd98f00b204e9800998ecf8427e
+tarif_regimes_prix|0|0|d41d8cd98f00b204e9800998ecf8427e
+tarif_reglages|0|0|d41d8cd98f00b204e9800998ecf8427e
+tarif_seuils|0|0|d41d8cd98f00b204e9800998ecf8427e

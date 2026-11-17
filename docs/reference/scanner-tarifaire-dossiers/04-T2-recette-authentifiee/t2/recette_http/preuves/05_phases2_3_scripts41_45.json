@@ -1,0 +1,7 @@
+{"etape":"5 phases 2 et 3, scripts 41 et 45",
+ "terminal":{"phase2":"phase 2 : OK 6 / ECHEC 0 / non joués 0","phase3":"phase 3 : OK 8 / ECHEC 0 / non joués 0"},
+ "controle_base_apres_phases":{"horodatage":"2026-11-17T12:39:31.565422+00:00","lignes_actives":0,"familles_total":4,"ecrits_par_gerant_bis":0,"annulations_par_auteur":true},
+ "script41":{"sha256":"8eb381448c9ea16ea578fde7f9088be5e2c9fe2a13e35295ce83f1c560f48565","resultat":"sans erreur, aucun compte de recette actif"},
+ "script45":{"sha256":"1e8bf09a2d55adb05d978686a395b16a750a2f928037b7dc77f9580a20fa6fec","horodatage":"2026-11-17T12:39:54.115613+00:00","controles":{"fk_hors_auth_vers_auth_users":0,"declencheurs_sur_auth_users":0,"fk_tarif_employees_non_bloquantes":0,"comptes_trouves":4,"comptes_encore_actifs":0,"lignes_t2_des_comptes":10},
+   "correspondance_identites":[{"username":"recette-t2-gerant-fantome","employee_id":"c30f437c-9826-4d0a-8f4b-8e6d852d5181","role":"gerant","site":"site-fantome-test"},{"username":"recette-t2-gerant-sm","employee_id":"19d66552-f136-4098-8579-bb37a908e978","role":"gerant","site":"vito-sainte-marie"},{"username":"recette-t2-gerant2-sm","employee_id":"5a9e98c2-3c62-4372-87e5-12f66f8f8bcf","role":"gerant","site":"vito-sainte-marie"},{"username":"recette-t2-manager-sm","employee_id":"e8bb55be-03d8-4fad-a0d4-1125cec5e82e","role":"manager","site":"vito-sainte-marie"}],
+   "suppression_sans_perte":true,"usage":"verdict archive ; decision : bannissement sans suppression"},"conforme":true}

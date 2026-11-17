@@ -1,0 +1,1 @@
+{"etape":"0 bis sonde d'arret sur erreur","envoi":"apply_migration tarif_sonde_arret_sur_erreur","resultat_envoi":"Failed to apply database migration: ERROR: 22012: division by zero (attendu)","controle_06":{"table_sonde":false,"sonde_enregistree":0},"conclusion":"canal sur : erreur renvoyee, tout annule, rien enregistre"}
