@@ -1,5 +1,5 @@
 {
-  "_statut": "PROJET NON VALIDE : a relire et approuver par le pilote avant toute insertion dans qualification-ordre-migration-code.json. Aucune ecriture Production.",
+  "_statut": "VALIDE par le pilote (#160, commentaire 6995017878) et INSERE dans #331 (commit 7db1509e) le 2026-11-18. Conserve comme trace. La garde de la CI refuse encore deux migrations pour DDL destructif apparent : voir #160.",
   "_mesure_commune": {
     "source": "catalogue",
     "le": "2026-11-18T23:12:00Z",
