@@ -31,6 +31,13 @@ create table if not exists tarif_anomalies_verifications (
   empreinte text not null check (length(btrim(empreinte)) > 0),
   fichier_hash text not null check (length(btrim(fichier_hash)) > 0),
   date_releve date,
+  -- Traçabilité : ce que le moteur a constaté au moment de la vérification (gravité comprise : le cycle de vie la compare à la suivante).
+  gravite numeric not null check (gravite >= 0),
+  niveau text,
+  valeurs jsonb not null check (jsonb_typeof(valeurs) = 'object'),
+  periode_debut date, periode_fin date,
+  import_batch_id uuid not null references import_batches(id),
+  moteur_version text not null check (length(btrim(moteur_version)) > 0),
   commentaire text,
   saisi_par uuid not null default auth.uid() references employees(id),
   saisi_le timestamptz not null default now(),
@@ -55,6 +62,8 @@ create table if not exists tarif_anomalies_reevaluations (
   fichier_hash text not null check (length(btrim(fichier_hash)) > 0),
   date_releve date,
   empreinte text,
+  gravite numeric check (gravite >= 0),
+  valeurs jsonb check (valeurs is null or jsonb_typeof(valeurs) = 'object'),
   saisi_par uuid not null default auth.uid() references employees(id),
   saisi_le timestamptz not null default now(),
   annule_le timestamptz, annule_par uuid references employees(id), motif_annulation text,
@@ -98,8 +107,14 @@ begin
   end loop;
 end $$;
 
+-- Le lot d'import cité par une vérification doit appartenir au site de la personne (import_batches n'a pas de clé (id, site) : politique restrictive).
+drop policy if exists lot_import_meme_site on tarif_anomalies_verifications;
+create policy lot_import_meme_site on tarif_anomalies_verifications as restrictive for insert to authenticated
+  with check (exists (select 1 from import_batches b where b.id = import_batch_id and b.site = tarif_anomalies_verifications.site));
+
 -- 4. Marquer des anomalies comme vérifiées, par lot, tout ou rien. SECURITY INVOKER : la RLS s'applique à chaque insertion.
---    Champs admis par ligne, et aucun autre (le site est refusé) : article, code_barres, cause, empreinte, fichier_hash, date_releve, commentaire.
+--    Champs admis par ligne, et aucun autre (le site est refusé) : article, code_barres, cause, empreinte, fichier_hash, date_releve, commentaire,
+--    gravite, niveau, valeurs, periode_debut, periode_fin, import_batch_id, moteur_version (traçabilité du constat).
 --    Idempotent : une vérification active identique n'est pas dupliquée, son identifiant est rendu avec o_deja = true.
 create or replace function tarif_marquer_verifie(p_lignes jsonb)
 returns table (o_id uuid, o_cle text, o_deja boolean)
@@ -126,19 +141,27 @@ begin
   end if;
   for l in select value from jsonb_array_elements(p_lignes) loop
     if jsonb_typeof(l) <> 'object' or exists (select 1 from jsonb_object_keys(l) k where k not in
-         ('article','code_barres','cause','empreinte','fichier_hash','date_releve','commentaire')) then
+         ('article','code_barres','cause','empreinte','fichier_hash','date_releve','commentaire',
+          'gravite','niveau','valeurs','periode_debut','periode_fin','import_batch_id','moteur_version')) then
       raise exception 'tarif_verif_champ_inconnu : champ non admis (le site n est jamais transmis)' using errcode = 'P0001';
     end if;
     v_cle := tarif_cle_reference(l->>'code_barres', l->>'article');
     if v_cle is null then raise exception 'tarif_verif_reference_absente : code-barres ou libellé obligatoire' using errcode = 'P0001'; end if;
+    if (l->>'import_batch_id') is null or not exists (select 1 from import_batches b
+         where b.id = (l->>'import_batch_id')::uuid and b.site = v_emp.site_id and (b.fichier_hash is null or b.fichier_hash = l->>'fichier_hash')) then
+      raise exception 'tarif_verif_lot_import_incoherent : le lot d import doit exister, appartenir au site et porter ce fichier_hash' using errcode = 'P0001';
+    end if;
     select v.id into v_id from tarif_anomalies_verifications v
       where v.site = v_emp.site_id and v.cle = v_cle and v.cause = l->>'cause' and v.empreinte = l->>'empreinte' and v.annule_le is null;
     if v_id is not null then
       o_id := v_id; o_cle := v_cle; o_deja := true; return next;
     else
-      insert into tarif_anomalies_verifications (site, article, code_barres, cause, empreinte, fichier_hash, date_releve, commentaire)
+      insert into tarif_anomalies_verifications (site, article, code_barres, cause, empreinte, fichier_hash, date_releve, commentaire,
+              gravite, niveau, valeurs, periode_debut, periode_fin, import_batch_id, moteur_version)
       values (v_emp.site_id, l->>'article', l->>'code_barres', l->>'cause', l->>'empreinte', l->>'fichier_hash',
-              nullif(l->>'date_releve','')::date, nullif(btrim(l->>'commentaire'),''))
+              nullif(l->>'date_releve','')::date, nullif(btrim(l->>'commentaire'),''),
+              (l->>'gravite')::numeric, nullif(l->>'niveau',''), l->'valeurs', nullif(l->>'periode_debut','')::date,
+              nullif(l->>'periode_fin','')::date, (l->>'import_batch_id')::uuid, l->>'moteur_version')
       returning id into v_id;
       o_id := v_id; o_cle := v_cle; o_deja := false; return next;
     end if;
@@ -148,7 +171,8 @@ revoke all on function tarif_marquer_verifie(jsonb) from public, anon, authentic
 grant execute on function tarif_marquer_verifie(jsonb) to authenticated;
 
 -- 5. Enregistrer les réévaluations d'un nouvel import. Idempotent par (vérification, fichier_hash).
---    Champs admis : verification_id, article, code_barres, etat, fichier_hash, date_releve, empreinte.
+--    Champs admis : verification_id, article, code_barres, etat, fichier_hash, date_releve, empreinte, gravite, valeurs.
+--    La clé et la cause de la ligne doivent correspondre à la vérification citée, sinon tarif_reeval_incoherente.
 create or replace function tarif_enregistrer_reevaluations(p_lignes jsonb)
 returns table (o_id uuid, o_deja boolean)
 language plpgsql volatile security invoker set search_path = public, pg_temp as $$
@@ -157,6 +181,7 @@ declare
   v_emp record;
   l jsonb;
   v_id uuid;
+  v_ver record;
 begin
   if v_uid is null then
     raise exception 'tarif_reeval_session_absente : aucune personne connectée' using errcode = 'P0001';
@@ -173,8 +198,14 @@ begin
   end if;
   for l in select value from jsonb_array_elements(p_lignes) loop
     if jsonb_typeof(l) <> 'object' or exists (select 1 from jsonb_object_keys(l) k where k not in
-         ('verification_id','article','code_barres','etat','fichier_hash','date_releve','empreinte')) then
+         ('verification_id','article','code_barres','etat','fichier_hash','date_releve','empreinte','gravite','valeurs','cause')) then
       raise exception 'tarif_reeval_champ_inconnu : champ non admis (le site n est jamais transmis)' using errcode = 'P0001';
+    end if;
+    select v.cle, v.cause into v_ver from tarif_anomalies_verifications v
+      where v.id = (l->>'verification_id')::uuid and v.site = v_emp.site_id;
+    if not found or v_ver.cle is distinct from tarif_cle_reference(l->>'code_barres', l->>'article')
+       or (l ? 'cause' and v_ver.cause is distinct from l->>'cause') then
+      raise exception 'tarif_reeval_incoherente : la référence ou la cause ne correspond pas à la vérification citée' using errcode = 'P0001';
     end if;
     select r.id into v_id from tarif_anomalies_reevaluations r
       where r.verification_id = (l->>'verification_id')::uuid and r.fichier_hash = l->>'fichier_hash' and r.annule_le is null;
@@ -182,9 +213,9 @@ begin
       o_id := v_id; o_deja := true; return next;
     else
       -- La clé étrangère composée (verification_id, site) interdit une vérification d'un autre site.
-      insert into tarif_anomalies_reevaluations (site, article, code_barres, verification_id, etat, fichier_hash, date_releve, empreinte)
+      insert into tarif_anomalies_reevaluations (site, article, code_barres, verification_id, etat, fichier_hash, date_releve, empreinte, gravite, valeurs)
       values (v_emp.site_id, l->>'article', l->>'code_barres', (l->>'verification_id')::uuid, l->>'etat', l->>'fichier_hash',
-              nullif(l->>'date_releve','')::date, l->>'empreinte')
+              nullif(l->>'date_releve','')::date, l->>'empreinte', (l->>'gravite')::numeric, l->'valeurs')
       returning id into v_id;
       o_id := v_id; o_deja := false; return next;
     end if;
