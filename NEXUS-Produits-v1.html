@@ -1684,10 +1684,13 @@ nexusRequireAuth().then(async employee => {
     try {
       const { data: lots } = await nexusClient.from('import_batches').select('fichier_hash').eq('site', SITE_ACTUEL).order('cree_le', { ascending: false }).limit(1);
       if (lots && lots.length) ctx.fichierHash = lots[0].fichier_hash;
+      // Date du relevé de stock réellement utilisé pour le calcul (sans relevé : marge non calculable, pas de S2/S4/S5).
+      if (SYNTHESE_STOCK_DATE) ctx.stockDate = String(SYNTHESE_STOCK_DATE).slice(0, 10);
       VERIFS = (await E.chargerVerifications(nexusClient, SITE_ACTUEL)).verifications;
       ctx.verifications = VERIFS;
     } catch (e) { console.warn('Historique des vérifications indisponible', e); VERIFS = null; }
-    ANALYSE_TARIF = { verifications: VERIFS, analyse: TP.analyser(MESURES_PRODUITS.map(x => x.row), LIGNES_PRECEDENTES, ctx), incoherences: (ctx && ctx.incoherences) || [] };
+    ANALYSE_TARIF = { verifications: VERIFS, analyse: TP.analyser(MESURES_PRODUITS.map(x => x.row), LIGNES_PRECEDENTES, ctx), incoherences: (ctx && ctx.incoherences) || [],
+      identite: { fichierHash: ctx.fichierHash || null, dateReleve: ctx.stockDate || ctx.dateReleve || null } };
     return ANALYSE_TARIF;
   }
   function ajouterStyleTarif() {
@@ -1715,8 +1718,8 @@ nexusRequireAuth().then(async employee => {
       return `<img class="${cls || 'sc-photo sc-photo-ico'}" src="assets/icones/campagne/premium/${i}-96.webp" srcset="assets/icones/campagne/premium/${i}-48.webp 48w, assets/icones/campagne/premium/${i}-96.webp 96w, assets/icones/campagne/premium/${i}-144.webp 144w" sizes="48px" width="48" height="48" alt="" onerror="this.onerror=null;this.src='assets/icones/campagne/premium/campagne-alerte-produit-96.webp'">`;
     };
     corps.innerHTML = '<div class="vp-ligne" role="status">Chargement du scanner tarifaire…</div>';
-    let analyse, incoherences = [], verifs = null;
-    try { const r = await calculerAnalyseTarif(true); analyse = r.analyse; incoherences = r.incoherences; verifs = r.verifications; }
+    let analyse, incoherences = [], verifs = null, identite = null;
+    try { const r = await calculerAnalyseTarif(true); analyse = r.analyse; incoherences = r.incoherences; verifs = r.verifications; identite = r.identite; }
     catch (e) { console.error('Scanner tarifaire:', e); indispo('Impossible de lire les registres tarifaires.'); return; }
     if (!analyse.lignes.length) { indispo('Aucune donnée tarifaire pour ce site'); return; }
     const etat = { analyse, verifications: verifs || [], historiqueDispo: !!verifs, filtreHisto: 'actifs', histoOuverte: null, role: employee.role, filtres: {}, incoherences, ouverte: null, toutes: false, site: ((document.querySelector('.nexus-nom-commerce') || {}).textContent || ''), icone, estCreateur: !!employee.estCreateur };
@@ -1728,6 +1731,13 @@ nexusRequireAuth().then(async employee => {
       const lignes = (M.premiers || []).map(e => `<li class="vp-ligne"><strong>${esc(e.article)}</strong> <span class="sc-fam">${esc(e.categorie || '')}</span> · taux de marge ${esc(fmtN(e.margePct, 1))} % · médiane du groupe ${esc(fmtN(e.medianeGroupe, 1))} % sur ${esc(String(e.tailleGroupe))} références · écart à la médiane ${esc(eurN(e.gainPotentiel))}${e.aussi_hausse_pa ? ' · ' + esc(TM.aussiHausse) : ''}</li>`).join('');
       return `<details class="sc-carte pt-marge" data-marge-plus="repere"><summary><span class="sc-nom">Repère statistique : écart à la médiane</span><span class="sc-chev"></span></summary><p class="sc-note">Hypothèse à vérifier, jamais un gain.</p><p class="vp-ligne">${esc(TM.ecart)} : ${esc(eurN(M.ecart))} sur ${esc(String(M.total))} référence${M.total > 1 ? 's' : ''}. Ce repère n'entre dans aucun gain.</p><ul class="vp-liste sc-liste">${lignes || '<li class="vp-ligne">Aucun écart de marge.</li>'}</ul><a class="lien-scanner-nexus" href="NEXUS-Scanner-v1.html">${esc(TM.lien)}</a></details>`;
     };
+    // Réévaluations : périmètre complet de l'import (analyse.lignes, jamais la vue filtrée). Rien n'est écrit sans nouvel import ni sans droits.
+    if (verifs) {
+      const rr = await E.enregistrerReevaluations(nexusClient, employee.role, !!employee.estCreateur, analyse, verifs, identite);
+      if (rr.statut === 'droits') etat.reevalNonEnregistree = true;
+      else if (rr.statut === 'ecrit') { try { etat.verifications = (await E.chargerVerifications(nexusClient, SITE_ACTUEL)).verifications; } catch (e) { /* relecture facultative */ } }
+      else if (rr.statut === 'erreur') { console.warn('Réévaluations non enregistrées', rr.erreur); etat.messageReeval = "Les réévaluations n'ont pas pu être enregistrées. L'écran reste à jour, l'enregistrement sera retenté à la prochaine ouverture."; }
+    }
     const rendre = () => { etat.margePlus = blocMargePlus(); corps.innerHTML = E.htmlPage(etat); lier(); };
     // « Marquer comme vérifié » : écriture append-only par la fonction SQL ; le site n'est jamais envoyé ; message avec date et auteur (nom affiché).
     const marquerVerifie = async (btn) => {

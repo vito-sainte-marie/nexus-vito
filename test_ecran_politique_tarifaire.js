@@ -6,7 +6,8 @@ const A = require('./nexus-politique-tarifaire-registres.js');
 const T = require('./nexus-politique-tarifaire.js');
 
 let n = 0;
-const ok = (nom, f) => { f(); n++; };
+const PROMESSES = [];
+const ok = (nom, f) => { const r = f(); if (r && r.then) PROMESSES.push(r.then(() => { n++; })); else n++; };
 const S = 'site-fictif-1';
 const periode = { debut: '2030-03-01', fin: '2030-03-30' };
 
@@ -145,9 +146,10 @@ ok('Conseiller : deux tons, filtre associé', () => {
 
 ok('aucune écriture dans le module ni dans le montage', () => {
   const src = fs.readFileSync(require.resolve('./nexus-politique-tarifaire-ecran.js'), 'utf8');
-  assert.ok(!/\.(insert|update|delete|upsert|rpc)\s*\(/.test(src));
+  assert.ok(!/\.(insert|update|delete|upsert)\s*\(/.test(src));
+  const rpcs = src.match(/\.rpc\s*\(\s*'[a-z_]+'/g) || [];
+  assert.deepStrictEqual(rpcs.map(x => x.replace(/.*'([a-z_]+)'/, '$1')), ['tarif_enregistrer_reevaluations']);
   assert.ok(!/tarif_enregistrer_decisions|Appliquer|\.post\(|method\s*:\s*['"](POST|PUT|PATCH|DELETE)/i.test(src));
-  assert.ok(!/\.rpc\b/.test(src));
   assert.ok(!/[?&]site=/.test(src), 'aucun paramètre de site côté client');
 });
 
@@ -313,4 +315,85 @@ ok('historique : filtre par défaut Nouveau/Persistant/Aggravé, détail (i), le
   assert.strictEqual(E.htmlHistorique({ analyse, historiqueDispo: false }), '');
 });
 
+
+// ---------- Point 1 et 2 de la revue : date du relevé de stock, réévaluations ----------
+const MA = require('./nexus-anomalies-tarifaires.js');
+const page = fs.readFileSync(__dirname + '/NEXUS-Produits-v1.html', 'utf8');
+const vref = (o) => Object.assign({ id: 'v-1', code: 'S2', cle: 'k1', article: 'Art A', code_barres: '123', empreinte: 'e1', gravite: 10, verifie_le: '2030-03-02T10:00:00Z',
+  identiteDonnees: { fichierHash: 'h1', dateReleve: '2030-03-01' }, reevaluation: null }, o || {});
+const anom = (o) => Object.assign({ code: 'S2', cle: 'k1', empreinte: 'e2', gravite: 60, valeurs: { a: 1 } }, o || {});
+const faux = () => { const appels = []; return { appels, rpc: async (nom, args) => { appels.push([nom, args]); return { error: null }; } }; };
+const id2 = { fichierHash: 'h2', dateReleve: '2030-03-15' };
+
+ok('page : ctx.stockDate vient de SYNTHESE_STOCK_DATE, relu puis transmis en date_releve à l\'écriture', () => {
+  assert.ok(/ctx\.stockDate\s*=\s*String\(SYNTHESE_STOCK_DATE\)/.test(page));
+  assert.ok(/identite:\s*\{\s*fichierHash:[^}]*dateReleve:\s*ctx\.stockDate/.test(page));
+  const p = E.payloadVerification({ code: 'S2', empreinte: 'e', gravite: 5, niveau: 2, identiteDonnees: { fichierHash: 'h', dateReleve: '2030-03-15' } }, { article: 'A' }, { importBatchId: 'b', moteurVersion: 'm' });
+  assert.strictEqual(p.date_releve, '2030-03-15');
+});
+ok('cycle de vie : même relevé, aucune réévaluation ; nouveau relevé et nouveau fichier, une réévaluation', () => {
+  const v = [vref()];
+  const memeReleve = MA.cycleDeVie([anom()], v, { fichierHash: 'h2', dateReleve: '2030-03-01' });
+  assert.strictEqual(MA.reevaluations(memeReleve).length, 0);
+  const neuf = MA.cycleDeVie([anom()], v, id2);
+  assert.strictEqual(MA.reevaluations(neuf).length, 1);
+});
+ok('réévaluations : mêmes clés que la fonction SQL, une ligne par changement de cycle', () => {
+  const a = { lignes: [{ article: 'Art A', anomalies: [anom({ cycle: 'aggravee' }), anom({ code: 'S3', cle: 'k9', cycle: 'verifiee' })], anomaliesResolues: [{ code: 'S1', cle: 'k5', empreinte: 'e5' }] }] };
+  const v = [vref(), vref({ id: 'v-5', code: 'S1', cle: 'k5', empreinte: 'e5', article: 'Art B', code_barres: null })];
+  const L = E.reevaluationsAEcrire(a, v, id2);
+  assert.strictEqual(L.length, 2);
+  const ADMIS = ['verification_id', 'article', 'code_barres', 'etat', 'fichier_hash', 'date_releve', 'empreinte', 'gravite', 'valeurs', 'cause'];
+  L.forEach(x => Object.keys(x).forEach(k => assert.ok(ADMIS.indexOf(k) >= 0, k)));
+  assert.strictEqual(L[0].etat, 'aggravee'); assert.strictEqual(L[0].verification_id, 'v-1'); assert.strictEqual(L[0].cause, 'S2');
+  assert.strictEqual(L[1].etat, 'resolue'); assert.strictEqual(L[1].gravite, null); assert.strictEqual(L[1].article, 'Art B');
+  assert.ok(!('site' in L[0]));
+});
+ok('réévaluations : même import, aucun appel ; nouvel import, un appel avec les bons états', async () => {
+  const a = { lignes: [{ article: 'Art A', anomalies: [anom({ cycle: 'verifiee' })], anomaliesResolues: [] }] };
+  const c1 = faux();
+  assert.strictEqual((await E.enregistrerReevaluations(c1, 'gerant', false, a, [vref()], { fichierHash: 'h1', dateReleve: '2030-03-01' })).statut, 'aucune');
+  assert.strictEqual(c1.appels.length, 0);
+  const b = { lignes: [{ article: 'Art A', anomalies: [anom({ cycle: 'persistante' })], anomaliesResolues: [] }] };
+  const c2 = faux(); const r = await E.enregistrerReevaluations(c2, 'manager', false, b, [vref()], id2);
+  assert.strictEqual(r.statut, 'ecrit'); assert.strictEqual(c2.appels.length, 1);
+  assert.strictEqual(c2.appels[0][0], 'tarif_enregistrer_reevaluations'); assert.strictEqual(c2.appels[0][1].p_lignes[0].etat, 'persistante');
+  const c3 = faux(); // déjà enregistrée pour cet import : plus rien à envoyer
+  await E.enregistrerReevaluations(c3, 'manager', false, b, [vref({ reevaluation: { etat: 'persistante', fichier_hash: 'h2' } })], id2);
+  assert.strictEqual(c3.appels.length, 0);
+});
+ok('réévaluations : le filtre de l\'écran ne change pas les lignes envoyées', () => {
+  const a = { lignes: [{ article: 'Art A', anomalies: [anom({ cycle: 'persistante' })], anomaliesResolues: [] }, { article: 'Art B', anomalies: [anom({ cle: 'k2', code: 'S4', cycle: 'aggravee' })], anomaliesResolues: [] }] };
+  const v = [vref(), vref({ id: 'v-2', code: 'S4', cle: 'k2', article: 'Art B' })];
+  const sans = JSON.stringify(E.reevaluationsAEcrire(a, v, id2));
+    assert.strictEqual(JSON.stringify(E.reevaluationsAEcrire(a, v, id2)), sans);
+  assert.ok(!/filtres/.test(String(E.reevaluationsAEcrire)));
+});
+ok('réévaluations : sans droits, rien n\'est écrit et la mention « non encore enregistrée » apparaît dans le (i)', async () => {
+  const b = { lignes: [{ article: 'Art A', anomalies: [anom({ cycle: 'persistante' })], anomaliesResolues: [] }] };
+  for (const [role, cr] of [['employe', false], ['gerant', true]]) {
+    const c = faux(); const r = await E.enregistrerReevaluations(c, role, cr, b, [vref()], id2);
+    assert.strictEqual(r.statut, 'droits'); assert.strictEqual(c.appels.length, 0);
+  }
+  const x = { article: 'Art A', code: 'S2', cle: 'k1', cycle: 'persistante', verif: vref({ auteur: 'Alex Test' }) };
+  assert.ok(/non encore enregistrée/.test(E.htmlDetailHistorique(x, { reevalNonEnregistree: true })));
+  assert.ok(!/non encore enregistrée/.test(E.htmlDetailHistorique(x, {})));
+});
+ok('réévaluations : un échec d\'écriture est signalé sans empêcher l\'affichage', async () => {
+  const b = { lignes: [{ article: 'Art A', anomalies: [anom({ cycle: 'persistante' })], anomaliesResolues: [] }] };
+  const r = await E.enregistrerReevaluations({ rpc: async () => ({ error: new Error('x') }) }, 'gerant', false, b, [vref()], id2);
+  assert.strictEqual(r.statut, 'erreur');
+  assert.ok(/pt-reeval-msg/.test(E.htmlPage({ analyse: analyse(), role: 'gerant', filtres: {}, incoherences: [], messageReeval: 'echec' })));
+  assert.ok(/enregistrerReevaluations\(nexusClient/.test(page) && /etat\.messageReeval/.test(page));
+});
+ok('bouton Marquer comme vérifié masqué avant le clic si l\'import de référence est absent', () => {
+  const l = { article: 'Art A', code_barres: '123' };
+  const sans = E.htmlControlesAFaire(Object.assign({}, l, { anomalies: [{ code: 'S2', cycle: 'nouvelle', empreinte: 'e', identiteDonnees: {} }] }), true);
+  assert.ok(!/data-verifier=/.test(sans) && /data-verif-indispo/.test(sans));
+  const avec = E.htmlControlesAFaire(Object.assign({}, l, { anomalies: [{ code: 'S2', cycle: 'nouvelle', empreinte: 'e', identiteDonnees: { fichierHash: 'h1' } }] }), true);
+  assert.ok(/data-verifier=/.test(avec));
+});
+
+Promise.all(PROMESSES).then(() => {
 console.log('test_ecran_politique_tarifaire : ' + n + ' épreuves OK');
+});
