@@ -85,8 +85,8 @@ create table if not exists tarif_anomalies_verifications (
   constraint tarif_anom_verif_motif_long check (motif_annulation is null or char_length(motif_annulation) <= 500),
   constraint tarif_anom_verif_id_site unique (id, site)
 );
--- Idempotence : une seule vérification active par site, référence, cause et empreinte.
-create unique index if not exists tarif_anom_verif_active_uq on tarif_anomalies_verifications (site, cle, cause, empreinte) where annule_le is null;
+-- Idempotence : une seule vérification active par site, référence, cause, empreinte et fichier importé. Une nouvelle vérification sur un nouvel import crée donc une nouvelle ligne (l'historique garde les deux).
+create unique index if not exists tarif_anom_verif_active_uq on tarif_anomalies_verifications (site, cle, cause, empreinte, fichier_hash) where annule_le is null;
 create index if not exists tarif_anom_verif_site_cle on tarif_anomalies_verifications (site, cle);
 
 -- 2. Réévaluations : ce que le moteur constate à un nouvel import pour une anomalie déjà vérifiée. Ajout seul.
@@ -193,7 +193,7 @@ begin
       raise exception 'tarif_verif_commentaire_trop_long : le commentaire est limité à 500 caractères' using errcode = 'P0001';
     end if;
     select v.id into v_id from tarif_anomalies_verifications v
-      where v.site = v_emp.site_id and v.cle = v_cle and v.cause = l->>'cause' and v.empreinte = l->>'empreinte' and v.annule_le is null;
+      where v.site = v_emp.site_id and v.cle = v_cle and v.cause = l->>'cause' and v.empreinte = l->>'empreinte' and v.fichier_hash = l->>'fichier_hash' and v.annule_le is null;
     if v_id is not null then
       o_id := v_id; o_cle := v_cle; o_deja := true; return next;
     else
@@ -324,7 +324,8 @@ grant execute on function pg_temp.rj(text,text,text,text,text) to public;
 insert into import_batches(id, site, intention, fichier_hash) values
   ('00000000-0000-4000-8000-00000000f001', 'site-fantome-test', 'stock_theorique', 'H1'),
   ('00000000-0000-4000-8000-00000000f002', 'site-fantome-test', 'stock_theorique', null),
-  ('00000000-0000-4000-8000-00000000f003', 'nexus-station-test', 'stock_theorique', 'H1');
+  ('00000000-0000-4000-8000-00000000f003', 'nexus-station-test', 'stock_theorique', 'H1'),
+  ('00000000-0000-4000-8000-00000000f004', 'site-fantome-test', 'stock_theorique', 'H2');
 
 select pg_temp.note('00 comptes de recette trouves (7 attendus)', '7', (select count(*)::text from employees where id::text like '00000000-0000-4000-8000-0000000e00%' and compte_test));
 
@@ -332,6 +333,11 @@ select pg_temp.comme('authenticated', pg_temp.u('mA'));
 select pg_temp.note('01 manager marque', 'ok n=1', pg_temp.tente(pg_temp.marque(pg_temp.js('essai-1','00000000-0000-4000-8000-00000000f001','H1'))));
 select pg_temp.note('02 idempotence : o_deja vrai', 't', pg_temp.val(format('select o_deja::text from tarif_marquer_verifie(%L::jsonb)', pg_temp.js('essai-1','00000000-0000-4000-8000-00000000f001','H1'))));
 select pg_temp.note('03 une seule ligne apres repetition', '1', pg_temp.val($q$select count(*)::text from tarif_anomalies_verifications where article='essai-1'$q$));
+select pg_temp.note('03a marque l article dedie sur le premier fichier (o_deja faux)', 'f', pg_temp.val(format('select o_deja::text from tarif_marquer_verifie(%L::jsonb)', pg_temp.js('essai-h','00000000-0000-4000-8000-00000000f001','H1'))));
+select pg_temp.note('03b meme empreinte, autre fichier importe : nouvelle ligne (o_deja faux)', 'f', pg_temp.val(format('select o_deja::text from tarif_marquer_verifie(%L::jsonb)', pg_temp.js('essai-h','00000000-0000-4000-8000-00000000f004','H2'))));
+select pg_temp.note('03c l historique garde les deux verifications', '2', pg_temp.val($q$select count(*)::text from tarif_anomalies_verifications where article='essai-h'$q$));
+select pg_temp.note('03d meme empreinte, meme fichier que la nouvelle : o_deja vrai', 't', pg_temp.val(format('select o_deja::text from tarif_marquer_verifie(%L::jsonb)', pg_temp.js('essai-h','00000000-0000-4000-8000-00000000f004','H2'))));
+select pg_temp.note('03e toujours deux lignes', '2', pg_temp.val($q$select count(*)::text from tarif_anomalies_verifications where article='essai-h'$q$));
 select pg_temp.note('04 site transmis refuse', 'tarif_verif_champ_inconnu', pg_temp.tente(pg_temp.marque(pg_temp.js('essai-2','00000000-0000-4000-8000-00000000f001','H1','S1',',"site":"nexus-station-test"'))));
 select pg_temp.note('05 lot d''un autre site refuse', 'tarif_verif_lot_import', pg_temp.tente(pg_temp.marque(pg_temp.js('essai-3','00000000-0000-4000-8000-00000000f003','H1'))));
 select pg_temp.note('06 empreinte de fichier differente du lot refusee', 'tarif_verif_lot_import', pg_temp.tente(pg_temp.marque(pg_temp.js('essai-4','00000000-0000-4000-8000-00000000f001','H2'))));
