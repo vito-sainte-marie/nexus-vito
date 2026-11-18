@@ -1291,5 +1291,21 @@
     },
   };
 
+  // Anomalies tarifaires S1–S7 (lot C, #331). Le moteur détecte ; les libellés et le contrôle conseillé vivent ici.
+  NexusVocab.anomaliesTarifaires = {
+    niveaux: { demontree: 'Démontrée', a_verifier: 'À vérifier' },
+    cycles: { nouvelle: 'Nouvelle', verifiee: 'Vérifiée', resolue: 'Résolue', persistante: 'Persistante', aggravee: 'Aggravée' },
+    masque: 'peut expliquer aussi :',
+    codes: {
+      S1: { titre: 'Marge négative ou nulle', controle: 'Vérifier le coût de revient et le prix de vente dans Decenium.' },
+      S2: { titre: 'Coût écarté du relevé de stock', controle: 'Comparer à la dernière facture fournisseur (prix brut, remise) ; une remise mal prise en compte est une cause possible, jamais une conclusion.' },
+      S3: { titre: 'Coût en variation', controle: 'Vérifier la dernière réception : prix, remise, quantité ; une remise mal prise en compte est une cause possible, jamais une conclusion.' },
+      S4: { titre: 'Conditionnement suspect', controle: 'Vérifier l’unité d’achat et le colisage de la fiche.' },
+      S5: { titre: 'Correspondance incertaine', controle: 'Vérifier la référence et ses doublons.' },
+      S6: { titre: 'Prix de vente modifié sans décision', controle: 'Confirmer le prix en caisse.' },
+      S7: { titre: 'TVA à vérifier', controle: 'Vérifier le taux de TVA de l’article.' },
+    },
+  };
+
   global.NexusVocab = NexusVocab;
 })(window);

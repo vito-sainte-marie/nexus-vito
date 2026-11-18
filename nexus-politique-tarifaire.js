@@ -71,6 +71,15 @@
     if (!vocabMarge) throw new Error('NexusVocab.margeEstimee introuvable : charger nexus-vocabulaire.js avant le moteur');
     return vocabMarge;
   }
+  let moduleAnomalies;
+  function anomaliesModule() {
+    if (global.NexusAnomaliesTarifaires) return global.NexusAnomaliesTarifaires;
+    if (moduleAnomalies === undefined) {
+      moduleAnomalies = null;
+      if (typeof require === 'function') { try { moduleAnomalies = require('./nexus-anomalies-tarifaires.js'); } catch (e) { moduleAnomalies = null; } }
+    }
+    return moduleAnomalies;
+  }
   const jjmm = d => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(d || '')); return m ? m[3] + '/' + m[2] : ''; };
   const eur = n => (n === null || n === undefined) ? '' : (Math.round(n * 100) / 100).toFixed(2).replace('.', ',');
 
@@ -411,6 +420,19 @@
         exception, prixDecide: suivi, conformite, fiabilite: { niveau, raisons: ins.concat(conf) },
         simulation: sim, statut, raisonStatut, alertes, margeEstimee,
       });
+    }
+
+    // Anomalies S1–S7 : lecture additive par ligne, aucun effet sur taux, statut, fiabilité, simulation, alerte ni gain.
+    const MA = anomaliesModule();
+    if (MA) {
+      const cx = { periode: ctx.periode || null, fichierHash: ctx.fichierHash || null, dateReleve: ctx.stockDate || ctx.dateReleve || null };
+      for (const l of lignes) {
+        const an = MA.anomaliesLigne(l, cx);
+        if (ctx.verifications) {
+          const cyc = MA.cycleDeVie(an, ctx.verifications.filter(v => v.cle === MA.cle(l)));
+          l.anomalies = cyc.anomalies; l.anomaliesResolues = cyc.resolues;
+        } else l.anomalies = an;
+      }
     }
 
     // Gains : chaque référence entre dans UNE case par scénario, celle de son niveau de fiabilité.
