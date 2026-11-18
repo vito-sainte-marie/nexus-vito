@@ -1775,8 +1775,7 @@ nexusRequireAuth().then(async employee => {
       corps.querySelectorAll('[data-info-marge]').forEach(b => b.addEventListener('click', () => { etat.ouverte = b.dataset.infoMarge; rendre(); const f = corps.querySelector('[data-marge-fiche]'); if (f && f.scrollIntoView) f.scrollIntoView({ block: 'start' }); }));
       corps.querySelectorAll('textarea.pt-verif-com').forEach(t => t.addEventListener('input', () => { const n = t.parentNode.querySelector('[data-com-compteur]'); if (n) n.textContent = String(t.value.trim().length) + ' / ' + E.LIMITE_COMMENTAIRE; }));
       corps.querySelectorAll('[data-verifier]').forEach(b => b.addEventListener('click', () => marquerVerifie(b)));
-      corps.querySelectorAll('[data-carte="controles_a_effectuer"]').forEach(b => b.addEventListener('click', () => { etat.ctlReplie = false; rendre(); const bl = corps.querySelector('[data-bloc-controles]'); if (bl) { if (bl.scrollIntoView) bl.scrollIntoView({ block: 'start' }); const sm = bl.querySelector('summary'); if (sm) sm.focus(); } }));
-      corps.querySelectorAll('[data-com-ouvrir]').forEach(b => b.addEventListener('click', () => { etat.comOuvert = (etat.comOuvert || []).concat([b.dataset.comOuvrir]); rendre(); const t = Array.from(corps.querySelectorAll('textarea.pt-verif-com')).filter(x => x.dataset.comCode + '|' + x.dataset.comArticle === b.dataset.comOuvrir)[0]; if (t) t.focus(); }));
+      E.lierOuvertures(corps, etat, rendre);
       corps.querySelectorAll('select[data-filtre]').forEach(s => s.addEventListener('change', () => { etat.filtres[s.dataset.filtre] = s.value || undefined; etat.toutes = false; rendre(); }));
       corps.querySelectorAll('select[data-filtre-histo]').forEach(s => s.addEventListener('change', () => { etat.filtreHisto = s.value || 'actifs'; etat.histoOuverte = null; rendre(); }));
       corps.querySelectorAll('[data-histo-info]').forEach(b => b.addEventListener('click', () => { etat.histoOuverte = etat.histoOuverte === b.dataset.histoInfo ? null : b.dataset.histoInfo; rendre(); }));
@@ -1784,7 +1783,7 @@ nexusRequireAuth().then(async employee => {
       const plus = corps.querySelector('[data-plus]'); if (plus) plus.addEventListener('click', () => { etat.toutes = true; rendre(); });
       const aller = f => { etat.filtres = f; etat.toutes = false; rendre(); const t = corps.querySelector('.sc-tout'); if (t && t.scrollIntoView) t.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
       corps.querySelectorAll('[data-controle-liste]').forEach(b => b.addEventListener('click', () => aller(E.controle(analyse, b.dataset.controleListe, '').filtre)));
-      const cs = corps.querySelector('[data-conseil]'); if (cs) cs.addEventListener('click', () => { const c = E.conseiller(analyse, employee.role); aller(c.filtre || {}); });
+      const cs = corps.querySelector('[data-conseil]:not([data-bloc-conseil])'); if (cs) cs.addEventListener('click', () => { const c = E.conseiller(analyse, employee.role); aller(c.filtre || {}); });
       const r = corps.querySelector('#ptRecherche'); if (r) r.addEventListener('input', () => {
         etat.filtres.recherche = r.value; etat.toutes = false; const p = r.selectionStart; rendre();
         const n = corps.querySelector('#ptRecherche'); if (n) { n.focus(); try { n.setSelectionRange(p, p); } catch (e) {} }

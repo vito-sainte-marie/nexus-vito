@@ -150,8 +150,13 @@
   var etat;
   try {
     var reg = E.filtrerSite(await E.chargerRegistres(nexusClient), SITE);
-    var ctx = E.construireContexteTarif({ site: 'vito-sainte-marie' /* le banc rejoue les données T1 du site pilote */, registres: reg, declarations: {}, lignes: lignes, periode: cfg.contexte.periode, stock: stockUtilise });
+    var ctx = E.construireContexteTarif({ site: 'vito-sainte-marie' /* le banc rejoue les données T1 du site pilote */, registres: reg, declarations: {}, lignes: lignes, periode: cfg.contexte.periode, stock: stockUtilise,
+      exclusions: new Set(), famille: function (cat, art, ex) { return NexusMarge.familleMarge(cat, art, ex); } /* comme la page réelle */ });
+    var natureCommune = ctx.natureDe;
     Object.keys(cfg.contexte).forEach(function (k) { if (k !== 'tva' && k !== 'stock') ctx[k] = cfg.contexte[k]; });
+    // Le critère commun (acompte, opérations de caisse) passe d'abord, comme sur la page ; la config T1 ne fait que s'y ajouter.
+    var natureT1 = cfg.contexte.natureDe;
+    ctx.natureDe = function (r) { return (natureCommune && natureCommune(r)) || (natureT1 && natureT1(r)) || null; };
     ctx.stockSource = cfg.contexte.stockSource;
     if (scenario === 'nonfiable') { ctx.stockFourni = false; /* comme la page réelle : sans relevé, ni S2, ni S4, ni S5 */ }
     ctx.tva = Object.assign({}, ctx.tva, { explications: cfg.contexte.tva.explications });
@@ -227,7 +232,8 @@
     var plus = corps.querySelector('[data-plus]'); if (plus) plus.addEventListener('click', function () { etat.toutes = true; rendre(); });
     var aller = function (f) { etat.filtres = f; etat.toutes = false; rendre(); };
     corps.querySelectorAll('[data-controle-liste]').forEach(function (b) { b.addEventListener('click', function () { aller(E.controle(etat.analyse, b.dataset.controleListe, '').filtre); }); });
-    var cs = corps.querySelector('[data-conseil]'); if (cs) cs.addEventListener('click', function () { var c = E.conseiller(etat.analyse, role); aller(c.filtre || {}); });
+    E.lierOuvertures(corps, etat, rendre);
+    var cs = corps.querySelector('[data-conseil]:not([data-bloc-conseil])'); if (cs) cs.addEventListener('click', function () { var c = E.conseiller(etat.analyse, role); aller(c.filtre || {}); });
     var r = corps.querySelector('#ptRecherche'); if (r) r.addEventListener('input', function () {
       etat.filtres.recherche = r.value; etat.toutes = false; var p = r.selectionStart; rendre();
       var n = corps.querySelector('#ptRecherche'); if (n) { n.focus(); try { n.setSelectionRange(p, p); } catch (e) {} }

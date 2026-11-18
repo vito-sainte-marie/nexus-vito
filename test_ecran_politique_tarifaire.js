@@ -499,6 +499,63 @@ ok('recette Guardian : commentaire replié derrière un lien, (i) sur la ligne d
 ok('recette Guardian : cases de filtre avec accent-color', () => {
   assert.ok(/input\[type=checkbox\]\{accent-color:var\(--accent\)/.test(E.CSS));
 });
+
+// ---- Recette Guardian du 18/11 (c40006d6) : gaz, acompte, Conseiller contrôles, cartes, câblage ----
+global.window = global; require('./nexus-marge.js');
+const NM = global.NexusMarge || global.window.NexusMarge;
+const SP = 'vito-sainte-marie';
+const regP = { familles: [], rattachements: [], seuils: [] };
+const analyserP = (lignes, extra) => T.analyser(lignes, [], E.construireContexteTarif(Object.assign({ site: SP, registres: regP, periode, lignes, exclusions: new Set(), famille: (c, a, ex) => NM.familleMarge(c, a, ex) }, extra || {})));
+const ligneDe = (a, art) => a.lignes.find(l => l.article === art);
+
+ok('gaz : 12,5 kg réglementé, 3 kg et 39 kg à qualifier, jamais libre', () => {
+  const lg = [prod('GAZ FICTIF 12.5 KG', 'Gaz', 10, 30, 25), prod('GAZ FICTIF 3 KG', 'Gaz', 10, 15, 12), prod('GAZ FICTIF 39 KG', 'Gaz', 10, 90, 80)];
+  const a = analyserP(lg);
+  const h = E.htmlMarge(ligneDe(a, 'GAZ FICTIF 12.5 KG')), h3 = E.htmlMarge(ligneDe(a, 'GAZ FICTIF 3 KG')), h39 = E.htmlMarge(ligneDe(a, 'GAZ FICTIF 39 KG'));
+  assert.ok(/Prix réglementé/.test(h), h);
+  assert.ok(/Régime à qualifier/.test(h3) && /Régime à qualifier/.test(h39));
+  assert.ok(!/libre/i.test(h3 + h39));
+});
+ok('acompte : les deux libellés exacts du relevé sont exclus partout', () => {
+  ['22-09-2026 ACOMPTE', '30-10-2026 ACOMPTE', '30/10/2026 acompte'].forEach(lib => {
+    const lg = [prod(lib, 'Divers', 1, 50, 0), prod('Produit réel', 'Divers', 10, 2, 1)];
+    const a = analyserP(lg);
+    const l = ligneDe(a, lib);
+    assert.deepStrictEqual(l.anomalies || [], [], lib);
+    assert.ok(!E.cartes(a).some(c => /ACOMPTE/i.test(JSON.stringify(c))), lib);
+    assert.ok(!/ACOMPTE/i.test(E.conseiller(a, 'gerant').texte), lib);
+  });
+});
+ok('Conseiller : sans vente à perte, il renvoie vers le bloc des contrôles', () => {
+  const a = { synthese: { alertes: {}, statuts: {} }, lignes: [{ article: 'X', anomalies: [{ code: 'S2', cycle: 'nouvelle' }] }] };
+  const c = E.conseiller(a, 'gerant');
+  assert.strictEqual(c.code, 'CTRL'); assert.strictEqual(c.bloc, 'controles'); assert.ok(/1 contrôle/.test(c.texte));
+});
+ok('deux cartes orange : libellés qui disent la différence', () => {
+  const a = analyse();
+  const v = E.cartes(a).find(c => c.id === 'a_verifier');
+  assert.ok(/fiabilité incomplète/.test(v.titre + ' ' + (v.secondaire || '')));
+  const h = E.htmlPage({ analyse: a, role: 'gerant', estCreateur: false, filtres: {}, incoherences: [] });
+  const carte = h.slice(h.indexOf('data-carte="controles_a_effectuer"'));
+  const carte1 = carte.slice(0, carte.indexOf('</button>'));
+  assert.ok(/contrôle/.test(carte1) && !/fiabilité/.test(carte1));
+});
+ok('Historique : le (i) est sur la ligne du titre', () => {
+  const a = analyse();
+  const h = E.htmlPage({ analyse: a, role: 'manager', estCreateur: false, filtres: {}, incoherences: [] });
+  if (/pt-histo-li/.test(h)) assert.ok(/<div class="pt-histo-t"><span class="pt-histo-txt">[\s\S]*?<\/span><button[^>]*pt-histo-i/.test(h));
+});
+ok('câblage commun : lierOuvertures ouvre le bloc et le commentaire', () => {
+  assert.strictEqual(typeof E.lierOuvertures, 'function');
+  const ecouteurs = [];
+  const mk = (sel) => ({ dataset: { comOuvrir: 'S2|X' }, addEventListener: (t, f) => ecouteurs.push([sel, f]) });
+  const corps = { querySelectorAll: sel => /data-carte|data-bloc-conseil/.test(sel) ? [mk('ctl')] : /data-com-ouvrir/.test(sel) ? [mk('com')] : [], querySelector: () => null };
+  const etat = { ctlReplie: true }; let rendus = 0;
+  E.lierOuvertures(corps, etat, () => { rendus++; });
+  assert.strictEqual(ecouteurs.length, 2);
+  ecouteurs.find(e => e[0] === 'ctl')[1](); assert.strictEqual(etat.ctlReplie, false);
+  ecouteurs.find(e => e[0] === 'com')[1](); assert.deepStrictEqual(etat.comOuvert, ['S2|X']); assert.strictEqual(rendus, 2);
+});
 Promise.all(PROMESSES).then(() => {
 console.log('test_ecran_politique_tarifaire : ' + n + ' épreuves OK');
 });

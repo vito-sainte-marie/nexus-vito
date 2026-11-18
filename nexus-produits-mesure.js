@@ -228,7 +228,7 @@
   const ARTICLES_CAISSE_HORS_CATALOGUE = ['ACOMPTE'];
   // On retire un préfixe de date en tête, puis le libellé doit commencer par le mot entier. Jamais de recherche ailleurs.
   function articleCaisseHorsCatalogue(article) {
-    const k = normaliserNom(article).replace(/^\d{2}-\d{2}-\d{4}\s+/, '').toUpperCase();
+    const k = normaliserNom(article).replace(/^\s*\d{1,2}[-\/.]\d{1,2}[-\/.]\d{2,4}\s*[-:]?\s*/, '').toUpperCase();
     return ARTICLES_CAISSE_HORS_CATALOGUE.some(mot => k === mot || (k.startsWith(mot) && !/^[\p{L}\p{N}_]/u.test(k.slice(mot.length))));
   }
   // Déclaration d'un responsable en priorité ; à défaut, la règle NEXUS (objet marqué regle: true, sans id).
