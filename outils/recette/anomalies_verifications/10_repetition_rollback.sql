@@ -3,6 +3,17 @@
 -- A jouer ensuite : 20_verifier_rien_ne_reste.sql. Identites de recette creees DANS la transaction (auth.users puis employees, ids 00000000-0000-4000-8000-0000000e00xx), annulees par le rollback.
 -- Tous les appels de la preuve passent par tente()/val() : un echec est note KO, il n'arrete pas la transaction. Sortie : UN seul select final (JSON), puis rollback.
 begin;
+-- Garde de Test (recette uniquement, hors migrations) : ce script cree des comptes de recette et, pour le 40, supprime les 10 registres. Refuse hors Test.
+do $garde_recette$
+declare v_sysid bigint := (select system_identifier from pg_control_system());
+begin
+  if v_sysid is distinct from 7678069749886157684 then
+    raise exception 'garde_projet_test : identifiant système % : ce n est pas le projet Supabase Test udljdqxerrbbbajxubfn', v_sysid;
+  end if;
+  if (select count(*) from public.sites where site_id in ('site-fantome-test', 'nexus-station-test')) <> 2 then
+    raise exception 'garde_projet_test : sites de recette absents';
+  end if;
+end $garde_recette$;
 create temp table ctl (n serial, nom text, detail jsonb) on commit drop;
 
 create temp table c73 as
@@ -33,9 +44,9 @@ insert into ctl(nom, detail) select 'controle40_avant', to_jsonb(q) from (select
   (select md5(coalesce(string_agg(t::text, '|' order by t::text), '')) from stock_releves t) as stock_releves_empreinte) q;
 
 -- ===== Migration 20261118120000, contenu tel quel (prérequis neutres compris) =====
--- NEXUS Scanner, anomalies tarifaires : vérifications et réévaluations (PROJET, NON EXÉCUTÉ).
--- Dépend des migrations T2 (20261117020430, 020652, 020851, 021059) et du journal 20261117161325. Cible : Test uniquement, après GO écrit.
--- Production non concernée. Additive : deux tables d'ajout seul, deux fonctions SECURITY INVOKER. Aucune donnée existante modifiée.
+-- NEXUS Scanner, anomalies tarifaires : vérifications et réévaluations, applicable après les migrations T2 et le journal des décisions.
+-- Dépend des migrations T2 (20261117020430, 020652, 020851, 021059) et du journal 20261117161325.
+-- Additive : deux tables d'ajout seul, deux fonctions SECURITY INVOKER. Aucune donnée existante modifiée.
 -- Aucune écriture Decenium. Le site n'est jamais un paramètre : il est lu dans la ligne employees de la personne connectée.
 -- Retour arrière : docs/deploiement/retour-arriere-tarif-anomalies-verifications-20261118.sql (ne retire que ces quatre objets).
 

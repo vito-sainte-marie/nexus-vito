@@ -1,7 +1,7 @@
--- NEXUS Scanner, T3 : enregistrement transactionnel d'une décision de prix et de sa ligne de journal (PROJET, NON EXÉCUTÉ).
+-- NEXUS Scanner, T3 : enregistrement transactionnel d'une décision de prix et de sa ligne de journal, applicable après les quatre migrations T2.
 -- Version 2 (contre-audit du 17/11/2026, 11 h 09) : règle du lien portée par le déclencheur d'insertion (plus de CHECK),
 -- lien limité à un prix décidé actif, version de moteur présentée comme un contrôle de forme.
--- Dépend des quatre migrations T2 (20261118100000 à 100300). Cible : Test uniquement, après GO écrit. Production non concernée.
+-- Dépend des quatre migrations T2 (20261118100000 à 100300).
 --
 -- Arbitrage du 17/11/2026, condition 1 : fonction SECURITY INVOKER ; RLS, atomicité et isolation multisite prouvées
 -- sur base jetable avant toute migration.
