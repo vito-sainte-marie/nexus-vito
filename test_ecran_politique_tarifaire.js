@@ -259,7 +259,7 @@ ok('prix réglementé : qualification, aucune recommandation ni variation de co�
   // La marge d'une ligne à régime reste une estimation : l'étiquette « Estimation » doit rester visible.
   assert.ok(/Estimation/.test(E.htmlMarge(l)) && /Estimation/.test(E.htmlLigne(l)));
   assert.strictEqual((E.htmlLigne(l).match(/Prix réglementé/g) || []).length, 1);
-  assert.ok(!/Sans seuil validé/.test(E.htmlLigne(l)) && /Aucune action de prix/.test(E.htmlLigne(l)));
+  assert.ok(!/Sans seuil validé/.test(E.htmlLigne(l)) && !/Aucune action de prix/.test(E.htmlLigne(l)) && /Aucune action de prix/.test(E.ficheMarge(l)));
   assert.ok(!/variation de coût\s*:|inférieur au coût|augmenter|baisser/i.test(h.replace(/aucune variation de coût ni recommandation de prix/i, '')));
 });
 ok('(i) : bouton de 44 px ciblé, destination = fiche', () => {
@@ -626,6 +626,75 @@ ok('bout en bout : Persistant, puis vérifié sur l\'import courant (nouvelle li
   const bilan = await E.enregistrerReevaluations(client, 'gerant', false, analyse, verifications, { fichierHash: ctxN.fichierHash, dateReleve: ctxN.dateReleve });
   assert.deepStrictEqual(E.historiqueLignes(analyse, verifications, 'tous').map(x => x.cycle), ['verifiee']);
   assert.strictEqual(client.appels.length, 0); assert.strictEqual(bilan.statut, 'aucune');
+});
+
+// ---------- #332 avenant : ligne épurée (un régime, deux niveaux de marge, statuts dans le (i), filtres repliés) ----------
+const nbReg = h => (h.match(/Prix réglementé|Prix contractuel|Régime à qualifier|Régime à vérifier/g) || []).length;
+ok('ligne : un seul libellé de régime par ligne, quel que soit le régime', () => {
+  [['reglemente', 'Prix réglementé'], ['contractuel', 'Prix contractuel'], ['x', 'Régime à qualifier']].forEach(([r, lib]) => {
+    const h = E.htmlLigne(ligneAvec('estimation', { statut: 'sans_seuil_valide', regimeDeclare: { regime: r } }));
+    assert.strictEqual(nbReg(h), 1); assert.ok(h.indexOf(lib) >= 0);
+  });
+  const h = E.htmlLigne(avecA5(ligneAvec('estimation', { statut: 'sans_seuil_valide', regimeDeclare: { regime: 'libre' } })));
+  assert.strictEqual(nbReg(h), 1); assert.ok(/Régime à vérifier/.test(h));
+});
+ok('ligne : « Estimation » sur toute marge estimée, avec ou sans régime', () => {
+  assert.ok(/Estimation/.test(E.htmlLigne(ligneAvec('estimation'))));
+  assert.ok(/Estimation/.test(E.htmlLigne(ligneAvec('estimation', { regimeDeclare: { regime: 'contractuel' } }))));
+});
+ok('marge : deux niveaux, principal « Marge estimée : 30,0 % », secondaire en € HT/unité', () => {
+  const h = E.htmlMarge(ligneAvec('estimation'));
+  assert.ok(/Marge estimée : <span class="pt-mono pt-marge-prin">[^<]*%<\/span>/.test(h), h);
+  assert.ok(/class="pt-marge-sec[^"]*"[^>]*>[^<]*HT\/unité/.test(h), h);
+});
+ok('marge non calculable : « Non calculable », jamais « n/d » seul ni 0, raison dans le (i)', () => {
+  const l = ligneAvec('non_calculable', { margeEstimee: { etat: 'non_calculable', taux: null, margeUnitaireHt: null, cout: {}, raisons: ['Coût absent de l\'export'], limites: [] } });
+  const h = E.htmlLigne(l);
+  assert.ok(/Non calculable/.test(h) && !/n\/d/.test(h) && !/\b0,0 ?%/.test(h));
+  assert.ok(/Non calculable/.test(E.ficheMarge(l)) && /Coût absent de l'export/.test(E.ficheMarge(l)));
+  const l2 = ligneAvec('non_calculable', { margeEstimee: { etat: 'non_calculable', taux: null, cout: {}, raisons: [], limites: [] } });
+  assert.ok(/Non calculable\s*:/.test(E.ficheMarge(l2)), 'raison par défaut dite dans le (i)');
+});
+ok('statuts écartés absents de la ligne, présents dans le (i) ; « À vérifier » et « Proposition à valider » visibles', () => {
+  ['a_surveiller', 'conforme', 'sans_seuil_valide'].forEach(st => {
+    const l = ligneAvec('estimation', { statut: st, alertes: [] });
+    const lib = { a_surveiller: 'À surveiller', conforme: 'Conforme', sans_seuil_valide: 'Sans seuil validé' }[st];
+    assert.ok(E.htmlLigne(l).indexOf(lib) < 0, st + ' hors ligne');
+    assert.ok(E.ficheMarge(l).indexOf(lib) >= 0, st + ' dans le (i)');
+  });
+  assert.ok(/Aucune action de prix/.test(E.ficheMarge(ligneAvec('estimation', { statut: 'sans_seuil_valide', regimeDeclare: { regime: 'reglemente' } }))));
+  assert.ok(/À vérifier/.test(E.htmlLigne(ligneAvec('estimation', { statut: 'a_verifier', alertes: [] }))));
+  assert.ok(/Proposition à valider/.test(E.htmlLigne(ligneAvec('estimation', { statut: 'proposition_a_valider', alertes: [] }))));
+});
+ok('marge : aucune couleur d\'état (ni badge de gravité, ni classe de couleur, ni couleur en dur)', () => {
+  ['estimation', 'a_verifier', 'non_calculable'].forEach(e => {
+    const h = E.htmlMarge(ligneAvec(e, { statut: 'a_verifier' }));
+    assert.ok(!/nbe-badge-etat|sc-rouge|sc-ambre|sc-vert|sc-info|style=/.test(h), e);
+  });
+  const css = E.CSS.split('}').filter(r => /pt-marge-(prin|sec)/.test(r)).join('}');
+  assert.ok(css.length > 0 && /var\(--t-text\)/.test(css) && !/#[0-9a-f]{3,6}|rgb|var\(--t-(red|amber|green|danger|warn|ok)/i.test(css), css);
+});
+ok('filtres : panneau « Filtres (n) », n = filtres actifs, recherche visible hors panneau', () => {
+  const a = analyse(), fam = a.lignes[0].famille, ray = a.lignes[0].rayon;
+  const h0 = E.htmlPage({ analyse: a, role: 'gerant', filtres: {} });
+  assert.ok(/<details class="[^"]*pt-filtres[^"]*"[^>]*><summary>[^]*Filtres \(0\)/.test(h0));
+  assert.ok(!/<details class="[^"]*pt-filtres[^"]*"[^>]* open/.test(h0), 'replié par défaut');
+  const h3 = E.htmlPage({ analyse: a, role: 'gerant', filtres: { famille: fam, rayon: ray, statut: 'conforme', recherche: 'zz' } });
+  assert.ok(/Filtres \(3\)/.test(h3), 'la recherche ne compte pas');
+  const panneau = h3.match(/<details class="[^"]*pt-filtres[^]*?<\/details>/)[0];
+  assert.ok(!/id="ptRecherche"/.test(panneau) && /id="ptRecherche"/.test(h3));
+  assert.ok(/Filtres \(5\)/.test(E.htmlPage({ analyse: a, role: 'gerant', filtres: { famille: fam, rayon: ray, statut: 'conforme', fiabilite: 'fiable', exception: 'sans' } })));
+  assert.ok(/<details class="[^"]*pt-filtres[^"]*"[^>]* open/.test(E.htmlPage({ analyse: a, role: 'gerant', filtres: {}, filtresOuverts: true })));
+});
+ok('filtres : le bouton d\'alerte du Conseiller reste visible hors du panneau', () => {
+  const a = analyse(), h = E.htmlPage({ analyse: a, role: 'gerant', filtres: { alerte: 'A4' } });
+  const panneau = h.match(/<details class="[^"]*pt-filtres[^]*?<\/details>/)[0];
+  assert.ok(/data-effacer="alerte"/.test(h) && !/data-effacer="alerte"/.test(panneau));
+});
+ok('aucun calcul changé : margeEstimee, statut et ordre des lignes identiques après rendu', () => {
+  const a = analyse(), avant = JSON.stringify(a.lignes);
+  E.htmlPage({ analyse: a, role: 'gerant', filtres: {} }); a.lignes.forEach(E.htmlLigne);
+  assert.strictEqual(JSON.stringify(a.lignes), avant);
 });
 Promise.all(PROMESSES).then(() => {
 console.log('test_ecran_politique_tarifaire : ' + n + ' épreuves OK');

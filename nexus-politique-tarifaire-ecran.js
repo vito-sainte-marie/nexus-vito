@@ -371,16 +371,14 @@
     var i = infoRegime(l);
     return i ? '<span class="nbe-qualif" data-axe="regime">' + esc(i) + '</span>' : '';
   }
-  // Un seul état par ligne : le statut T2 de la référence. « À vérifier » seulement si le statut l'est ou si A4 ou A5 est levée.
+  // Ligne épurée : seuls « À vérifier » et « Proposition à valider » restent visibles, en étiquette discrète.
+  // Les autres statuts (Conforme, À surveiller, Sans seuil validé, Aucune action de prix) sont dits dans le (i).
   function badgeLigne(l) {
     var codes = (l.alertes || []).map(function (a) { return a.code; });
-    if (l.statut === 'a_verifier' || codes.indexOf('A4') >= 0 || codes.indexOf('A5') >= 0) return B.gravite('a-verifier');
-    var lib = LIB_STATUT[l.statut] || l.statut;
-    if (l.statut === 'sans_seuil_valide' && typeRegime(l)) return B.gravite('information', { libelle: 'Aucune action de prix' });
-    if (l.statut === 'conforme') return B.gravite('conforme', { libelle: lib });
-    return B.gravite('information', { libelle: lib });
+    if (l.statut === 'a_verifier' || codes.indexOf('A4') >= 0 || codes.indexOf('A5') >= 0) return '<span class="nbe-qualif" data-axe="statut">' + esc(LIB_STATUT.a_verifier) + '</span>';
+    if (l.statut === 'proposition_a_valider') return '<span class="nbe-qualif" data-axe="statut">' + esc(LIB_STATUT.proposition_a_valider) + '</span>';
+    return '';
   }
-
 
   // ---------- Marge estimée (lot A) : textes du lexique, jamais de conclusion de prix ----------
   var LIMITE_COMMENTAIRE = 500;
@@ -390,22 +388,22 @@
   function infoBouton(cle, libelle) {
     return '<button type="button" class="info-btn pt-info" data-info-marge="' + esc(cle) + '" aria-label="Information : ' + esc(libelle) + '">i</button>';
   }
+  // Aucune couleur d'état près de la marge : étiquettes neutres (nbe-qualif), régime compris (dit une fois, après le nom).
   function badgeMarge(l) {
     var m = l.margeEstimee;
     if (!m) return '';
     var E = V.margeEstimee.etats;
-    // Le régime est déjà dit une fois, après le nom de l'article : on ne le répète pas après la marge.
-    // Le qualificatif « estimation » reste dit : la marge d'une ligne à régime demeure une estimation.
-    if (typeOf(l)) return m.etat === 'estimation' ? B.qualification('estimation') : '';
-    if (m.etat === 'a_verifier') return B.gravite('a-verifier', { libelle: E.a_verifier });
-    return B.qualification(QUALIF[m.etat] || 'non-calculable');
+    if (m.etat === 'estimation') return B.qualification('estimation');
+    if (m.etat === 'a_verifier') return '<span class="nbe-qualif" data-axe="marge">' + esc(E.a_verifier) + '</span>';
+    return B.qualification('non-calculable');
   }
+  // Deux niveaux : « Marge estimée : 9,8 % » (principal) puis « 2,59 € HT/unité » (secondaire). Non calculable : dit, raison dans le (i).
   function htmlMarge(l) {
     var m = l.margeEstimee;
     if (!m) return 'Marge ' + esc(pct(l.taux));
-    var chiffre = m.etat === 'non_calculable' || m.taux === null || m.taux === undefined ? '<span class="pt-mono">n/d</span>' :
-      '<span class="pt-mono">' + esc(pct(m.taux)) + '</span>' + (num(m.margeUnitaireHt) !== null ? ' <span class="pt-mono">' + esc(eur(m.margeUnitaireHt)) + ' HT/unité</span>' : '');
-    return 'Marge estimée ' + chiffre + ' ' + badgeMarge(l);
+    if (m.etat === 'non_calculable' || m.taux === null || m.taux === undefined) return '<span class="pt-marge-l1">Marge estimée : ' + B.qualification('non-calculable') + '</span>';
+    return '<span class="pt-marge-l1">Marge estimée : <span class="pt-mono pt-marge-prin">' + esc(pct(m.taux)) + '</span> ' + badgeMarge(l) + '</span>' +
+      (num(m.margeUnitaireHt) !== null ? '<span class="pt-marge-sec pt-mono">' + esc(eur(m.margeUnitaireHt)) + ' HT/unité</span>' : '');
   }
   function ficheMarge(l) {
     var m = l.margeEstimee, T0 = V.margeEstimee, li = function (k, v) { return '<div class="pt-pol-l"><span class="sc-lib">' + esc(k) + '</span><span>' + esc(v) + '</span></div>'; };
@@ -413,6 +411,9 @@
     var c = m.cout || {}, h = '<div class="sc-carte pt-marge-fiche" data-marge-fiche="' + esc(l.article) + '"><div class="sc-nom">Marge estimée : ' + esc(T0.etats[m.etat] || m.etat) + '</div>';
     if (estReglemente(l)) h += '<p class="sc-note">Prix fixé par un tiers : aucune variation de coût ni recommandation de prix.</p>';
     else if (typeOf(l) === 'a_qualifier') h += '<p class="sc-note">Régime de prix à qualifier : le prix de ce format peut être fixé par un tiers. Aucune recommandation de prix tant que le régime n\'est pas décidé.</p>';
+    var lib = LIB_STATUT[l.statut] || l.statut;
+    h += li('Statut', lib + (l.statut === 'sans_seuil_valide' && typeOf(l) ? ' : Aucune action de prix' : ''));
+    if (m.etat === 'non_calculable') h += li('Marge', 'Non calculable : ' + (m.raisons || []).map(function (r) { return typeof r === 'string' ? r : (r.texte || r.code || ''); }).filter(Boolean).join(' ; ') || 'coût ou taux de TVA absent');
     h += li('Coût utilisé', c.valeur === undefined || c.valeur === null ? 'n/d' : eur(c.valeur)) +
       li('Source', c.source === 'releve' ? T0.sources.releve(c.dateReleve ? jourFr(c.dateReleve) : '') : T0.sources.export) +
       li('Méthode', c.methode || T0.methode);
@@ -586,7 +587,7 @@
     return '<li class="pt-li"><button type="button" class="vp-ligne-prod" data-article="' + esc(l.article) + '">' +
       '<span class="vp-nom">' + esc(l.article) + ' ' + badgeRegime(l) + '</span>' +
       '<span class="vp-meta">' + esc(l.rayon || '') + ' · fiabilité ' + esc((LIB_FIABILITE[l.fiabilite.niveau] || l.fiabilite.niveau).toLowerCase()) + '</span>' +
-      '<span class="vp-chiffres">' + htmlMarge(l) + ' ' + badgeLigne(l) + '</span></button>' + infoBouton(l.article, 'marge estimée de ' + l.article) + '</li>';
+      '<span class="vp-chiffres">' + htmlMarge(l) + (badgeLigne(l) ? ' ' + badgeLigne(l) : '') + '</span></button>' + infoBouton(l.article, 'marge estimée de ' + l.article) + '</li>';
   }
   function blocFiche(l) {
     var f = fiche(l), s = f.seuil, pd = l.prixDecide, w = avertissementRegime(l);
@@ -693,6 +694,11 @@
       if (bl) { if (bl.scrollIntoView) bl.scrollIntoView({ block: 'start' }); var sm = bl.querySelector('summary'); if (sm) sm.focus(); }
     }
     Array.prototype.forEach.call(corps.querySelectorAll('[data-carte="controles_a_effectuer"], [data-bloc-conseil="controles"]'), function (b) { b.addEventListener('click', ouvrirControles); });
+    var pf = corps.querySelector('[data-filtres-panneau]');
+    if (pf) {
+      if (etat.filtresOuverts === undefined && typeof matchMedia === 'function' && matchMedia('(min-width:900px)').matches) { etat.filtresOuverts = true; pf.open = true; }
+      pf.addEventListener('toggle', function () { etat.filtresOuverts = pf.open; });
+    }
     Array.prototype.forEach.call(corps.querySelectorAll('[data-com-ouvrir]'), function (b) {
       b.addEventListener('click', function () {
         etat.comOuvert = (etat.comOuvert || []).concat([b.dataset.comOuvrir]); rendre();
@@ -701,6 +707,8 @@
       });
     });
   }
+  // Filtres actifs du panneau (la recherche et l'alerte du Conseiller restent visibles, hors compte).
+  function nbFiltres(f) { return ['famille', 'rayon', 'statut', 'fiabilite', 'exception'].filter(function (k) { return !!f[k]; }).length; }
   function htmlPage(etat) {
     // etat : { analyse, role, filtres, incoherences, ouverte, toutes, site, icone }
     var a = etat.analyse, f = etat.filtres || {}, s = a.synthese;
@@ -734,10 +742,12 @@
     });
     h += htmlHistorique(etat);
     h += '<div class="vp-bloc sc-tout"><h3>Toutes les références</h3><div class="vp-filtres"><label class="pt-f pt-f-rech"><span class="sc-methode">Recherche</span><input type="search" id="ptRecherche" placeholder="Nom ou code-barres" value="' + esc(f.recherche || '') + '"></label>' +
+      '<details class="pt-filtres" data-filtres-panneau="1"' + (etat.filtresOuverts ? ' open' : '') + '><summary><span class="sc-nom">Filtres (' + nbFiltres(f) + ')</span><span class="sc-chev"></span></summary><div class="pt-filtres-corps">' +
       lab('Famille', 'famille', opts(vf.famille, f.famille)) + lab('Rayon', 'rayon', opts(vf.rayon, f.rayon)) +
       lab('Statut', 'statut', opts(Object.keys(LIB_STATUT), f.statut, LIB_STATUT)) +
       lab('Fiabilité', 'fiabilite', opts(Object.keys(LIB_FIABILITE), f.fiabilite, LIB_FIABILITE)) +
       lab('Exception', 'exception', '<option value="">Toutes</option><option value="avec"' + (f.exception === 'avec' ? ' selected' : '') + '>Avec exception</option><option value="sans"' + (f.exception === 'sans' ? ' selected' : '') + '>Sans exception</option>') +
+      '</div></details>' +
       (f.alerte ? '<button type="button" class="detail-btn" data-effacer="alerte">Alerte ' + esc(f.alerte) + ' ×</button>' : '') + '</div>';
     h += '<ul class="vp-liste">' + visibles.map(htmlLigne).join('') + '</ul>';
     if (!toutes) h += '<div class="empty-panel">Aucune référence ne correspond à ces filtres.</div>';
@@ -754,7 +764,7 @@
 
   var CSS = '.vue-p1c .pt-inds{grid-template-columns:repeat(2,1fr)}@media (min-width:900px){.vue-p1c .pt-inds{grid-template-columns:repeat(4,1fr)}}' +
     '.vue-p1c .pt-badges{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}.vue-p1c .pt-pol{margin:8px 0}.vue-p1c .pt-pol-l{display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:2px 0}' +
-    '.vue-p1c .pt-ctrl .vp-liste{margin:8px 0}.vue-p1c .pt-f{display:flex;flex-direction:column;gap:2px;min-width:0}.vue-p1c .pt-f select,.vue-p1c .pt-f input{min-height:44px;border-radius:8px;border:1px solid var(--t-line);background:var(--t-panel);color:var(--t-text);font:inherit;padding:0 8px}.vue-p1c .pt-f-rech{flex:1 1 100%}.vue-p1c .pt-f:not(.pt-f-rech){flex:1 1 140px}.vue-p1c .pt-scenarios{margin:8px 0}.vue-p1c .pt-aucun{margin:4px 0 0}.vue-p1c .sc-conseiller{margin:0 0 10px}.vue-p1c .pt-histo-t{display:flex;align-items:center;gap:6px}.vue-p1c .pt-histo-txt{flex:1;min-width:0}.vue-p1c .pt-li{display:flex;align-items:center;gap:6px}.vue-p1c .pt-li .vp-ligne-prod{flex:1;min-width:0}.vue-p1c .pt-li .pt-info{flex:none}.vue-p1c .pt-ctl{list-style:none;padding:10px 0;border-top:1px solid var(--t-line)}.vue-p1c .pt-ctl-2,.vue-p1c .pt-ctl-3{margin:4px 0}.vue-p1c .pt-ctl .pt-verifier{width:100%;min-height:44px;margin-top:8px}.vue-p1c .pt-ctl-titre{margin:0 0 8px}.vue-p1c .pt-controles-faire{margin:14px 0 10px}.vue-p1c .pt-bloc-controles{margin:10px 0}.vue-p1c .pt-ctl-outils{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}.vue-p1c .pt-ctl-cycles{border:0;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:4px 12px}.vue-p1c .pt-carte-ctl{text-align:left;font:inherit;cursor:pointer;width:100%;border:1px solid var(--t-line);background:var(--t-panel);color:var(--t-text);min-height:44px}.vue-p1c .pt-com-lien{background:none;border:0;padding:0 2px;min-height:44px;font:inherit;font-size:13px;color:var(--accent,inherit);text-decoration:underline;cursor:pointer}.vue-p1c input[type=checkbox]{accent-color:var(--accent)}.vue-p1c .pt-chk{display:inline-flex;align-items:center;gap:6px;min-height:44px}.vue-p1c .pt-verif-champ{margin-top:8px}.vue-p1c .pt-verif-zone{display:flex;flex-direction:column;gap:4px}.vue-p1c .pt-verif-com{width:100%;box-sizing:border-box;min-height:64px;border-radius:8px;border:1px solid var(--t-line);background:var(--t-panel);color:var(--t-text);font:inherit;padding:8px;resize:vertical}.vue-p1c .pt-verif-n{align-self:flex-end}.vue-p1c .pt-fond{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:40}.vue-p1c .pt-fiche{position:fixed;z-index:41;background:var(--t-panel);overflow:auto;box-sizing:border-box;left:0;right:0;bottom:0;max-height:85vh;border-radius:16px 16px 0 0;padding:12px 16px 24px}@media (min-width:900px){.vue-p1c .pt-fiche{left:auto;top:0;bottom:0;right:0;width:420px;max-height:none;border-radius:0}}.vue-p1c .pt-fiche-tete{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}.vue-p1c .pt-fermer{min-height:44px}@media (max-width:599px){.vue-p1c .sc-conseiller .conseiller-avatar{width:48px;height:48px}.vue-p1c .sc-ind{padding:10px 12px}.vue-p1c .sc-ind-val{font-size:20px}}';
+    '.vue-p1c .pt-ctrl .vp-liste{margin:8px 0}.vue-p1c .pt-f{display:flex;flex-direction:column;gap:2px;min-width:0}.vue-p1c .pt-f select,.vue-p1c .pt-f input{min-height:44px;border-radius:8px;border:1px solid var(--t-line);background:var(--t-panel);color:var(--t-text);font:inherit;padding:0 8px}.vue-p1c .pt-f-rech{flex:1 1 100%}.vue-p1c .pt-f:not(.pt-f-rech){flex:1 1 140px}.vue-p1c .pt-scenarios{margin:8px 0}.vue-p1c .pt-aucun{margin:4px 0 0}.vue-p1c .sc-conseiller{margin:0 0 10px}.vue-p1c .pt-histo-t{display:flex;align-items:center;gap:6px}.vue-p1c .pt-histo-txt{flex:1;min-width:0}.vue-p1c .pt-li{display:flex;align-items:center;gap:6px}.vue-p1c .pt-li .vp-ligne-prod{flex:1;min-width:0}.vue-p1c .pt-li .pt-info{flex:none}.vue-p1c .pt-ctl{list-style:none;padding:10px 0;border-top:1px solid var(--t-line)}.vue-p1c .pt-ctl-2,.vue-p1c .pt-ctl-3{margin:4px 0}.vue-p1c .pt-ctl .pt-verifier{width:100%;min-height:44px;margin-top:8px}.vue-p1c .pt-ctl-titre{margin:0 0 8px}.vue-p1c .pt-controles-faire{margin:14px 0 10px}.vue-p1c .pt-bloc-controles{margin:10px 0}.vue-p1c .pt-ctl-outils{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}.vue-p1c .pt-ctl-cycles{border:0;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:4px 12px}.vue-p1c .pt-carte-ctl{text-align:left;font:inherit;cursor:pointer;width:100%;border:1px solid var(--t-line);background:var(--t-panel);color:var(--t-text);min-height:44px}.vue-p1c .pt-com-lien{background:none;border:0;padding:0 2px;min-height:44px;font:inherit;font-size:13px;color:var(--accent,inherit);text-decoration:underline;cursor:pointer}.vue-p1c input[type=checkbox]{accent-color:var(--accent)}.vue-p1c .pt-chk{display:inline-flex;align-items:center;gap:6px;min-height:44px}.vue-p1c .pt-verif-champ{margin-top:8px}.vue-p1c .pt-verif-zone{display:flex;flex-direction:column;gap:4px}.vue-p1c .pt-verif-com{width:100%;box-sizing:border-box;min-height:64px;border-radius:8px;border:1px solid var(--t-line);background:var(--t-panel);color:var(--t-text);font:inherit;padding:8px;resize:vertical}.vue-p1c .pt-verif-n{align-self:flex-end}.vue-p1c .pt-fond{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:40}.vue-p1c .pt-fiche{position:fixed;z-index:41;background:var(--t-panel);overflow:auto;box-sizing:border-box;left:0;right:0;bottom:0;max-height:85vh;border-radius:16px 16px 0 0;padding:12px 16px 24px}@media (min-width:900px){.vue-p1c .pt-fiche{left:auto;top:0;bottom:0;right:0;width:420px;max-height:none;border-radius:0}}.vue-p1c .pt-fiche-tete{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}.vue-p1c .pt-fermer{min-height:44px}.vue-p1c .pt-marge-l1{display:block;color:var(--t-text)}.vue-p1c .pt-marge-prin{color:var(--t-text)}.vue-p1c .pt-marge-sec{display:block;color:var(--t-text);font-size:13px}.vue-p1c .vp-filtres{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start}.vue-p1c .pt-filtres{flex:1 1 100%}.vue-p1c .pt-filtres>summary{min-height:44px;display:flex;align-items:center;justify-content:space-between;cursor:pointer}.vue-p1c .pt-filtres-corps{display:flex;flex-wrap:wrap;gap:8px}@media (min-width:900px){.vue-p1c .pt-filtres-corps{flex-wrap:nowrap}}@media (max-width:599px){.vue-p1c .sc-conseiller .conseiller-avatar{width:48px;height:48px}.vue-p1c .sc-ind{padding:10px 12px}.vue-p1c .sc-ind-val{font-size:20px}}';
 
   // ---------- Montage : lecture seule, session de la personne connectée, clé publique, aucun paramètre de site ----------
   var VUES = { familles: 'v_tarif_familles_actifs', rattachements: 'v_tarif_rattachements_actifs', seuils: 'v_tarif_seuils_actifs', reglages: 'v_tarif_reglages_actifs',
