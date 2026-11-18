@@ -122,4 +122,9 @@ ok('16 S3 sans relevé : nouvel import suffit (fichierHash seul) ; S7 limité à
   assert.strictEqual(codes(A.anomaliesLigne(ligne({ variationCout: 0.2 }), { ...ctx, reglages: { variationNotable: 0.25 } })), '');
   assert.strictEqual(codes(A.anomaliesLigne(ligne({ margeEstimee: ecartReleve(0.2) }), { ...ctx, reglages: { ecartStockInsuffisant: 0.25 } })), '');
 });
+ok('17 S7 contre une confirmation du pilote : démontrée ; sans confirmation : à vérifier', () => {
+  const d = A.anomaliesLigne(ligne({ tva: { etat: 'a_verifier', taux: 8.5, contreConfirmation: true, tauxConfirme: 0 } }), ctx).filter(a => a.code === 'S7')[0];
+  assert.strictEqual(d.niveau, 'demontree'); assert.strictEqual(d.valeurs.tauxConfirme, 0);
+  assert.strictEqual(A.anomaliesLigne(ligne({ tva: { etat: 'a_verifier', taux: 8.5 } }), ctx).filter(a => a.code === 'S7')[0].niveau, 'a_verifier');
+});
 console.log('test_anomalies_tarifaires : ' + n + ' épreuves OK');

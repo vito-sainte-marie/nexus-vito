@@ -102,7 +102,7 @@
     const vp = num(l.variationPv);
     if (!admin && vp !== null && Math.abs(vp) >= R.variationSuspecte && !l.prixDecide) out.push({ code: 'S6', gravite: pts(Math.abs(vp)), valeurs: { variationPv: r4(vp) } });
     const te = l.tva && l.tva.etat;
-    if (te === 'a_verifier') out.push({ code: 'S7', gravite: 0, valeurs: { tva: l.tva.taux === undefined ? null : l.tva.taux, etat: te } });
+    if (te === 'a_verifier') out.push({ code: 'S7', gravite: 0, valeurs: { tva: l.tva.taux === undefined ? null : l.tva.taux, etat: te }, ...(l.tva.contreConfirmation ? { niveau: 'demontree', valeurs: { tva: l.tva.taux === undefined ? null : l.tva.taux, etat: te, tauxConfirme: l.tva.tauxConfirme } } : {}) });
     return out;
   }
 
@@ -121,7 +121,7 @@
     return brutes.filter(c => !PRIORITE.includes(c.code) || c.code === gardee).map(c => {
       const t = textes(c.code);
       return {
-        code: c.code, niveau: NIVEAU[c.code], titre: t.titre, controleConseille: t.controle, gravite: c.gravite, valeurs: c.valeurs,
+        code: c.code, niveau: c.niveau || NIVEAU[c.code], titre: t.titre, controleConseille: t.controle, gravite: c.gravite, valeurs: c.valeurs,
         peutExpliquerAussi: c.code === gardee ? aussi : [],
         empreinte: empreinte(c.code, l, c.valeurs, ctx.periode),
         cle: cle(l),

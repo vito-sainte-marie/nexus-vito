@@ -154,7 +154,7 @@
     const expl = (ctx.tva && ctx.tva.explications || []).find(x => correspond(x, row) && (x.taux === undefined || x.taux === tva));
     const changee = tvaP !== null && tvaP !== tva;
     if (expl && !changee) return { taux: tva, etat: 'a_confirmer', raison: expl.raison };
-    if (e.etat === 'incoherente') return { taux: tva, etat: 'a_verifier', raison: e.raison };
+    if (e.etat === 'incoherente') return { taux: tva, etat: 'a_verifier', raison: e.raison, ...(conf ? { contreConfirmation: true, tauxConfirme: num(conf.taux_confirme) } : {}) };
     return { taux: tva, etat: 'coherente', raison: e.raison };
   }
 
