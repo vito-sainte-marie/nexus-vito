@@ -380,7 +380,8 @@ select pg_temp.comme('authenticated', null);
 select pg_temp.note('29 sans session refuse', 'tarif_verif_session_absente', pg_temp.tente(pg_temp.marque(pg_temp.js('essai-13','00000000-0000-4000-8000-00000000f001','H1'))));
 reset role;
 
-select pg_temp.note('30 FK inter-sites refusee', 'foreign key', pg_temp.tente(format($q$insert into tarif_anomalies_reevaluations(site, article, code_barres, verification_id, etat, fichier_hash, date_releve, empreinte, gravite, valeurs) values ('nexus-station-test','essai-1','',%L,'persistante','HX','2026-11-18','e',1,'{}')$q$, (select v from pg_temp.ids where k='v1'))));
+reset role;
+select pg_temp.note('30 FK inter-sites refusee', 'foreign key', pg_temp.tente(format($q$insert into tarif_anomalies_reevaluations(site, saisi_par, article, code_barres, verification_id, etat, fichier_hash, date_releve, empreinte, gravite, valeurs) values ('nexus-station-test',%L,'essai-1','',%L,'persistante','HX','2026-11-18','e',1,'{}')$q$, (select v from pg_temp.ids where k='mB'), (select v from pg_temp.ids where k='v1'))));
 reset role;
 
 create temp table c73b as

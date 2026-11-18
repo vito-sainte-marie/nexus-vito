@@ -7,7 +7,6 @@ select 'ABSENCE tables et fonctions' as controle,
   (to_regprocedure('public.tarif_enregistrer_reevaluations(jsonb)') is null) as fonction_reevaluations_absente;
 select 'ABSENCE : verdict' as controle, case when to_regclass('public.tarif_anomalies_verifications') is null and to_regclass('public.tarif_anomalies_reevaluations') is null
   and to_regprocedure('public.tarif_marquer_verifie(jsonb)') is null and to_regprocedure('public.tarif_enregistrer_reevaluations(jsonb)') is null then 'OK rien ne reste' else 'KO objet restant' end as verdict;
-create temp table c73 as
 with r(registre, actives, total, empreinte) as (
   select 'tarif_familles', count(*) filter (where annule_le is null), count(*), md5(coalesce(string_agg(concat_ws('|', id, cle, libelle, remplace_id, annule_le), ';' order by id), '')) from tarif_familles where site = 'vito-sainte-marie'
   union all select 'tarif_rattachements', count(*) filter (where annule_le is null), count(*), md5(coalesce(string_agg(concat_ws('|', id, cle, famille_code, remplace_id, annule_le), ';' order by id), '')) from tarif_rattachements where site = 'vito-sainte-marie'
@@ -20,13 +19,14 @@ with r(registre, actives, total, empreinte) as (
   union all select 'tarif_controles_reglementaires', count(*) filter (where annule_le is null), count(*), md5(coalesce(string_agg(concat_ws('|', id, cle, etat, remplace_id, annule_le), ';' order by id), '')) from tarif_controles_reglementaires where site = 'vito-sainte-marie'
   union all select 'tarif_decisions', count(*) filter (where annule_le is null), count(*), md5(coalesce(string_agg(concat_ws('|', id, cle, decision, prix_ttc_retenu, photo::text, annule_le), ';' order by id), '')) from tarif_decisions where site = 'vito-sainte-marie' and coalesce(article, '') not like 'RECETTE T3 %'
 )
+, c as (
 select registre, actives, total, empreinte from r
 union all select 'TOTAL', sum(actives), sum(total), md5(string_agg(empreinte, '' order by registre)) from r
-order by 1;
-
-select * from pg_temp.c73 order by 1;
-select 'CONTROLE 73 : TOTAL attendu 130 / 138 / 1752f6f440c7777399d6b0040c86438e' as controle,
-  case when (select count(*) from pg_temp.c73 where registre='TOTAL' and actives=130 and total=138 and empreinte='1752f6f440c7777399d6b0040c86438e')=1 then 'OK identique' else 'KO different' end as verdict;
+order by 1
+)
+select 'CONTROLE 73 : TOTAL attendu 130 / 138 / 1752f6f440c7777399d6b0040c86438e' as controle, registre, actives, total, empreinte,
+  case when registre='TOTAL' then case when actives=130 and total=138 and empreinte='1752f6f440c7777399d6b0040c86438e' then 'OK identique' else 'KO different' end end as verdict
+from c order by registre;
 select 'CONTROLE 40 : ' || 'apres' as controle, (select count(*) from products) as products_lignes,
   (select md5(coalesce(string_agg(t::text, '|' order by t::text), '')) from products t) as products_empreinte,
   (select count(*) from stock_releves) as stock_releves_lignes,
