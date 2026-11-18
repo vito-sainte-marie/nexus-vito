@@ -3,7 +3,9 @@
 // Aucun mot « certifié » : une anomalie est « démontrée » ou « à vérifier », jamais prouvée par une vérification humaine.
 (function (global) {
   'use strict';
-  const SEUIL_COUT = 0.10, SEUIL_PV = 0.10, SEUIL_RELEVE = 0.10, TOL_COLIS = 0.03;
+  const TOL_COLIS = 0.03;
+  // Seuils : source unique = réglages du moteur (variationNotable, variationSuspecte, ecartStockInsuffisant). Valeurs par défaut identiques à celles du moteur.
+  const REGLAGES_DEFAUT = { variationNotable: 0.10, variationSuspecte: 0.50, ecartStockInsuffisant: 0.10 };
   const AGGRAVATION_POINTS = 5, AGGRAVATION_RELATIF = 0.20;
   const PRIORITE = ['S5', 'S4', 'S2', 'S3']; // la cause amont masque l'aval
   const NIVEAU = { S1: 'demontree', S2: 'a_verifier', S3: 'a_verifier', S4: 'a_verifier', S5: 'a_verifier', S6: 'a_verifier', S7: 'a_verifier' };
@@ -28,7 +30,14 @@
   const r4 = x => Math.round(x * 1e4) / 1e4;
   const pts = x => Math.round(x * 1000) / 10; // points de pourcentage, une décimale
   const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
-  const cle = l => String(l.code_barres || '').trim() || norm(l.article);
+  // Port exact de tarif_cle_reference (SQL) : btrim = espaces seuls, \s = [ \t\n\r\f\v], accents conservés, null si vide.
+  const btrim = x => String(x === null || x === undefined ? '' : x).replace(/^ +| +$/g, '');
+  const cle = l => {
+    const cb = btrim(l.code_barres), ar = btrim(l.article);
+    if (cb !== '') return 'cb:' + cb;
+    if (ar !== '') return 'lib:' + ar.replace(/[ \t\n\r\f\v]+/g, ' ').toLowerCase();
+    return null;
+  };
 
   // SHA-256 synchrone autonome : même empreinte en Node et dans le navigateur.
   function sha256(msg) {
@@ -68,7 +77,8 @@
   }
   const proche = (rapport, n) => rapport > 0 && (Math.abs(rapport - n) / n <= TOL_COLIS || Math.abs(1 / rapport - n) / n <= TOL_COLIS);
 
-  function causes(l) {
+  function causes(l, R) {
+    R = { ...REGLAGES_DEFAUT, ...(R || {}) };
     const out = [], reg = l.regime, admin = reg === 'reglemente';
     const al = c => (l.alertes || []).filter(a => a.code === c)[0] || null;
     const cout = l.margeEstimee && l.margeEstimee.cout ? num(l.margeEstimee.cout.valeur) : null;
@@ -86,13 +96,13 @@
       if ((r1 !== null && proche(r1, n)) || (r2 !== null && proche(r2, n))) out.push({ code: 'S4', gravite: 0, valeurs: { unites: n, rapportReleve: r1 === null ? null : r4(r1), rapportPv: r2 === null ? null : r4(r2) } });
     }
     const ec = ctl ? num(ctl.ecart) : null;
-    if (ec !== null && Math.abs(ec) > SEUIL_RELEVE) out.push({ code: 'S2', gravite: pts(Math.abs(ec)), valeurs: { ecart: r4(ec), paNetHtReleve: paRel } });
+    if (ec !== null && Math.abs(ec) > R.ecartStockInsuffisant) out.push({ code: 'S2', gravite: pts(Math.abs(ec)), valeurs: { ecart: r4(ec), paNetHtReleve: paRel } });
     const vc = num(l.variationCout);
-    if (!admin && vc !== null && Math.abs(vc) >= SEUIL_COUT) out.push({ code: 'S3', gravite: pts(Math.abs(vc)), valeurs: { variationCout: r4(vc) } });
+    if (!admin && vc !== null && Math.abs(vc) >= R.variationNotable) out.push({ code: 'S3', gravite: pts(Math.abs(vc)), valeurs: { variationCout: r4(vc) } });
     const vp = num(l.variationPv);
-    if (!admin && vp !== null && Math.abs(vp) >= SEUIL_PV && !l.prixDecide) out.push({ code: 'S6', gravite: pts(Math.abs(vp)), valeurs: { variationPv: r4(vp) } });
+    if (!admin && vp !== null && Math.abs(vp) >= R.variationSuspecte && !l.prixDecide) out.push({ code: 'S6', gravite: pts(Math.abs(vp)), valeurs: { variationPv: r4(vp) } });
     const te = l.tva && l.tva.etat;
-    if (te === 'a_verifier' || te === 'a_confirmer') out.push({ code: 'S7', gravite: 0, valeurs: { tva: l.tva.taux === undefined ? null : l.tva.taux, etat: te } });
+    if (te === 'a_verifier') out.push({ code: 'S7', gravite: 0, valeurs: { tva: l.tva.taux === undefined ? null : l.tva.taux, etat: te } });
     return out;
   }
 
@@ -105,7 +115,7 @@
   // Détection par ligne, dédoublonnée : la cause amont masque l'aval (S5 > S4 > S2 > S3) ; S1, S6, S7 indépendantes.
   function anomaliesLigne(l, ctx) {
     ctx = ctx || {};
-    const brutes = causes(l), masquantes = brutes.filter(c => PRIORITE.includes(c.code)).sort((a, b) => PRIORITE.indexOf(a.code) - PRIORITE.indexOf(b.code));
+    const brutes = causes(l, ctx.reglages), masquantes = brutes.filter(c => PRIORITE.includes(c.code)).sort((a, b) => PRIORITE.indexOf(a.code) - PRIORITE.indexOf(b.code));
     const gardee = masquantes[0] ? masquantes[0].code : null;
     const aussi = masquantes.slice(1).map(c => c.code);
     return brutes.filter(c => !PRIORITE.includes(c.code) || c.code === gardee).map(c => {
@@ -121,22 +131,30 @@
   }
 
   // Cycle de vie. verifications : [{ code, cle, empreinte, gravite, identiteDonnees, verifie_le }] — la plus récente par (code, cle) fait foi.
+  // identiteCourante : { fichierHash, dateReleve } de l'import en cours. Sans nouvel import, rien ne change : l'anomalie reste « vérifiée », rien n'est écrit.
+  // Nouvel import = fichierHash courant renseigné et différent de celui de la vérification ; pour S2, S4, S5, la dateReleve courante doit aussi différer.
   // Retourne { anomalies: [... + cycle], resolues: [...] }.
-  function cycleDeVie(anomalies, verifications) {
+  function cycleDeVie(anomalies, verifications, identiteCourante) {
+    const cur = identiteCourante || {};
     const dernier = new Map();
     (verifications || []).forEach(v => { const k = v.code + '|' + v.cle; const o = dernier.get(k); if (!o || String(v.verifie_le || '') >= String(o.verifie_le || '')) dernier.set(k, v); });
-    const memeId = (a, b) => !!a && !!b && (a.fichierHash || null) === (b.fichierHash || null) && (a.dateReleve || null) === (b.dateReleve || null);
+    const nouvelImport = v => {
+      const id = v.identiteDonnees || {};
+      if (!cur.fichierHash || cur.fichierHash === (id.fichierHash || null)) return false;
+      if (IDENTITE_RELEVE[v.code] && (!cur.dateReleve || cur.dateReleve === (id.dateReleve || null))) return false;
+      return true;
+    };
     const vus = new Set();
     const res = (anomalies || []).map(a => {
       const k = a.code + '|' + a.cle, v = dernier.get(k); vus.add(k);
       if (!v) return { ...a, cycle: 'nouvelle', nouveauControle: true };
-      if (v.empreinte === a.empreinte || memeId(v.identiteDonnees, a.identiteDonnees)) return { ...a, cycle: 'verifiee', nouveauControle: false };
+      if (v.empreinte === a.empreinte || !nouvelImport(v)) return { ...a, cycle: 'verifiee', nouveauControle: false };
       const g0 = num(v.gravite) || 0, g1 = num(a.gravite) || 0;
       const aggrave = g1 - g0 >= AGGRAVATION_POINTS || (g0 > 0 && (g1 - g0) / g0 >= AGGRAVATION_RELATIF);
       return { ...a, cycle: aggrave ? 'aggravee' : 'persistante', nouveauControle: true };
     });
     const resolues = [];
-    dernier.forEach((v, k) => { if (!vus.has(k)) resolues.push({ code: v.code, cle: v.cle, empreinte: v.empreinte, cycle: 'resolue', nouveauControle: false }); });
+    dernier.forEach((v, k) => { if (!vus.has(k) && nouvelImport(v)) resolues.push({ code: v.code, cle: v.cle, empreinte: v.empreinte, cycle: 'resolue', nouveauControle: false }); });
     return { anomalies: res, resolues };
   }
 

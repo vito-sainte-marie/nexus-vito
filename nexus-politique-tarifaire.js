@@ -425,11 +425,11 @@
     // Anomalies S1–S7 : lecture additive par ligne, aucun effet sur taux, statut, fiabilité, simulation, alerte ni gain.
     const MA = anomaliesModule();
     if (MA) {
-      const cx = { periode: ctx.periode || null, fichierHash: ctx.fichierHash || null, dateReleve: ctx.stockDate || ctx.dateReleve || null };
+      const cx = { periode: ctx.periode || null, fichierHash: ctx.fichierHash || null, dateReleve: ctx.stockDate || ctx.dateReleve || null, reglages: R };
       for (const l of lignes) {
         const an = MA.anomaliesLigne(l, cx);
         if (ctx.verifications) {
-          const cyc = MA.cycleDeVie(an, ctx.verifications.filter(v => v.cle === MA.cle(l)));
+          const cyc = MA.cycleDeVie(an, ctx.verifications.filter(v => v.cle === MA.cle(l)), { fichierHash: cx.fichierHash, dateReleve: cx.dateReleve });
           l.anomalies = cyc.anomalies; l.anomaliesResolues = cyc.resolues;
         } else l.anomalies = an;
       }
