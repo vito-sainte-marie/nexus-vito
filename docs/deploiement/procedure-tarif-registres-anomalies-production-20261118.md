@@ -8,7 +8,7 @@ Aucune migration n'a été appliquée en Production. Aucune lecture de Productio
 
 Les six migrations portaient une garde « projet Test » qui les refusait en Production. La décision A (Guardian, 6992560740) est appliquée : **une seule version de chaque fichier**, qui sert à la répétition et à la Production. La garde d'identité est remplacée par un bloc `do $prerequis$` neutre : il lève `prerequis_migrations : <étiquette> : objets absents : ...` si un objet attendu manque (`sites`, `employees`, `import_batches` et, pour les migrations 2 à 6, les objets des précédentes). Aucune identité de projet n'est supposée. La migration 6 garde en plus son contrôle `ordre_migrations`. Le diff est limité à la garde.
 
-Limite : les commentaires d'en-tête des fichiers disent encore « Test uniquement ». Laissés volontairement, à relire avant tout GO.
+En-têtes des six migrations corrigés (#331, tête `dbb6e97d`). Empreinte des migrations réelles : `995aa68a3b3caae31e3d2429585dffd7151c9896d84dfa56d2cc8baaa9e5970a`.
 
 Les empreintes du §1 sont celles des fichiers du candidat (#331, tête `8d3af48b`). Rien n'a été appliqué en Production, ni sur Test avec ces nouvelles versions.
 
@@ -18,21 +18,21 @@ Ordre obligatoire (chaque fichier vérifie ou suppose les précédents) :
 
 | # | Fichier | Empreinte (16 premiers car. du SHA-256) | Objets | Risque |
 |---|---|---|---|---|
-| 1 | `20261117020430_tarif_registres.sql` | `28485767f90670db` | fonction `tarif_cle_reference`, 10 tables `tarif_*` (familles, rattachements, seuils, réglages, exceptions, prix décidés, application, régimes, contrôles réglementaires, décisions), 1 index | Faible : ajout seul, aucune table existante touchée |
-| 2 | `20261117020652_tarif_registres_controles_rls.sql` | `5f2271e09cd444bd` | 4 fonctions de contrôle (`SECURITY INVOKER`), 3 déclencheurs, politiques RLS | Moyen : isolation par site portée ici ; à vérifier par rôle |
-| 3 | `20261117020851_tarif_registres_vues.sql` | `a6251f2238766d7a` | 3 vues `security_invoker` (`v_tarif_prix_application_actifs`, `v_tarif_exceptions_effectives`, `v_tarif_incoherences`) | Faible : lecture seule, droits `authenticated` et `service_role` |
-| 4 | `20261117021059_tarif_registres_comptes_desactives.sql` | `dcf7597074f7cd86` | politique `compte_actif_obligatoire` (RESTRICTIVE) par registre, remplace `v_tarif_exceptions_effectives` | Moyen : ne peut que retirer un accès ; à passer en dernier des quatre T2 |
-| 5 | `20261117161325_tarif_decision_journal.sql` | `b4e70015376ddf84` | colonne `tarif_decisions.prix_decide_id`, index unique, déclencheur, RPC `tarif_enregistrer_decisions(jsonb)` | Moyen : première écriture applicative ; exige 1 à 4 |
-| 6 | `20261118120000_tarif_anomalies_verifications.sql` | `0ee24d78e2a3c2ac` | tables `tarif_anomalies_verifications`, `tarif_anomalies_reevaluations`, 3 index, politique `lot_import_meme_site`, RPC `tarif_marquer_verifie`, `tarif_enregistrer_reevaluations` | Moyen : exige 1 à 5 (il le vérifie lui-même : `ordre_migrations`) |
+| 1 | `20261117020430_tarif_registres.sql` | `022666fce4623a1b` | fonction `tarif_cle_reference`, 10 tables `tarif_*` (familles, rattachements, seuils, réglages, exceptions, prix décidés, application, régimes, contrôles réglementaires, décisions), 1 index | Faible : ajout seul, aucune table existante touchée |
+| 2 | `20261117020652_tarif_registres_controles_rls.sql` | `fd44166b680954ac` | 4 fonctions de contrôle (`SECURITY INVOKER`), 3 déclencheurs, politiques RLS | Moyen : isolation par site portée ici ; à vérifier par rôle |
+| 3 | `20261117020851_tarif_registres_vues.sql` | `15a75b36dfb1448f` | 3 vues `security_invoker` (`v_tarif_prix_application_actifs`, `v_tarif_exceptions_effectives`, `v_tarif_incoherences`) | Faible : lecture seule, droits `authenticated` et `service_role` |
+| 4 | `20261117021059_tarif_registres_comptes_desactives.sql` | `7d6ea18e81c6f23e` | politique `compte_actif_obligatoire` (RESTRICTIVE) par registre, remplace `v_tarif_exceptions_effectives` | Moyen : ne peut que retirer un accès ; à passer en dernier des quatre T2 |
+| 5 | `20261117161325_tarif_decision_journal.sql` | `7715490e6e8dd792` | colonne `tarif_decisions.prix_decide_id`, index unique, déclencheur, RPC `tarif_enregistrer_decisions(jsonb)` | Moyen : première écriture applicative ; exige 1 à 4 |
+| 6 | `20261118120000_tarif_anomalies_verifications.sql` | `c1df723f6dbcab3d` | tables `tarif_anomalies_verifications`, `tarif_anomalies_reevaluations`, 3 index, politique `lot_import_meme_site`, RPC `tarif_marquer_verifie`, `tarif_enregistrer_reevaluations` | Moyen : exige 1 à 5 (il le vérifie lui-même : `ordre_migrations`) |
 
 SHA-256 complets (fichiers du candidat, à recalculer par `shasum -a 256`) :
 
-- 1 `28485767f90670dbefc852a76601a38eb2f7eaf241ccbb0316df2a717a0f6249`
-- 2 `5f2271e09cd444bdc61d06eea03083665be355920b72bebda79c68a0772e9873`
-- 3 `a6251f2238766d7aa3a8dc3715025a43c83257bcd208ac37e3caccc1108ec520`
-- 4 `dcf7597074f7cd862a843cfde83e1fbaa691ee5bf3a034e349d6b884200e1eab`
-- 5 `b4e70015376ddf842dd4b9938a1f4ec7f314adb0350724c3280456349a8b7636`
-- 6 `0ee24d78e2a3c2acdf0d5e3f6ac5709c366ead359f6e842fab1ef7271da6114d`
+- 1 `022666fce4623a1b924ac98a39794f3bee66ce3406b68566340fee6b51288f5e`
+- 2 `fd44166b680954ace8fb1a40eb7b66c33ece9a5d56e3a529fe06173e1d1976b6`
+- 3 `15a75b36dfb1448fbd02285c1e655c503f9fb262978f41e221219a6c0d014714`
+- 4 `7d6ea18e81c6f23edcd26cb18a5a101a3fc85030cedc61f509154b366b48c1b2`
+- 5 `7715490e6e8dd79289a527bc069e66948ed015a3c0822c70e2c48d17ba351700`
+- 6 `c1df723f6dbcab3d5bb06f1e1f726c96a0765db0b4009e60b526ec8c30d8702c`
 
 Toutes sont **additives** : aucune table, vue ou fonction existante de Production n'est modifiée ou supprimée, aucune donnée n'est réécrite. Les fonctions écrivantes sont `SECURITY INVOKER` : la RLS s'applique à la personne connectée, aucune élévation de droits. Le site n'est jamais un paramètre.
 
