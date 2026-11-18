@@ -1,5 +1,5 @@
 -- NEXUS Scanner tarifaire : REPETITION COMPLETE de la chaine des six migrations (1 a 6) et de leurs retours arriere, en UNE transaction annulee. Cible : Test uniquement.
--- Aucun commit. Deroulement : etat initial, retraits 6 a 1, etat vide, application 1 a 6, etat plein, nouveaux retraits 6 a 1, etat vide, ROLLBACK (Test retrouve son etat initial).
+-- Aucun commit. Deroulement : etat initial, retraits 6 a 1, etat vide, application 1 a 6, etat plein, nouveaux retraits 6 a 1, etat vide, ROLLBACK (Test retrouve son etat initial). Verdict : l'etat initial de Test (migrations 1 a 5) est compare a l'etat apres application 1 a 5, mesure juste avant la 6 ; apres application 1 a 6, 12 politiques compte_actif (10 + 2 de la 6).
 -- Le contenu des migrations et des retours arriere est celui des fichiers du depot, sans changement (begin et commit des retours arriere retires pour tenir dans la transaction).
 -- Les 33 cas fonctionnels de la 6 restent dans 10_repetition_rollback.sql. A jouer ensuite : 20_verifier_rien_ne_reste.sql n'est PAS attendu ici (les tables existent sur Test) ; relire plutot le controle 73.
 -- Sortie : UN seul select final (JSON).
@@ -991,6 +991,15 @@ revoke all on function tarif_enregistrer_decisions(jsonb) from public, anon, aut
 grant execute on function tarif_enregistrer_decisions(jsonb) to authenticated;
 comment on function tarif_enregistrer_decisions(jsonb) is
   'T3 : enregistre ensemble prix décidé et journal, par lot, tout ou rien. SECURITY INVOKER : RLS T2 appliquée. Gérant actif, non créateur, site du compte.';
+insert into ctl(nom, detail) select 'etat_apres_1_a_5', to_jsonb(q) from (select
+  (select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relname in ('tarif_familles','tarif_rattachements','tarif_seuils','tarif_reglages','tarif_exceptions','tarif_prix_decides','tarif_prix_application','tarif_regimes_prix','tarif_controles_reglementaires','tarif_decisions') and c.relkind='r') as tables_t2,
+  (select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relname in ('tarif_familles','tarif_rattachements','tarif_seuils','tarif_reglages','tarif_exceptions','tarif_prix_decides','tarif_prix_application','tarif_regimes_prix','tarif_controles_reglementaires','tarif_decisions') and c.relrowsecurity and c.relforcerowsecurity) as tables_rls_forcee,
+  (select count(*) from pg_policies where schemaname='public' and policyname='compte_actif_obligatoire') as policies_compte_actif,
+  (select count(*) from pg_policies where schemaname='public' and tablename like 'tarif\_%') as policies_site,
+  (select count(*) from pg_views where schemaname='public' and viewname like 'v\_tarif\_%') as vues,
+  (select count(*) from pg_trigger g join pg_class c on c.oid=g.tgrelid join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relname like 'tarif\_%' and not g.tgisinternal) as triggers,
+  (select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname like 'tarif\_%') as fonctions,
+  (select count(*) from information_schema.table_privileges where table_schema='public' and table_name in ('tarif_familles','tarif_rattachements','tarif_seuils','tarif_reglages','tarif_exceptions','tarif_prix_decides','tarif_prix_application','tarif_regimes_prix','tarif_controles_reglementaires','tarif_decisions') and grantee in ('anon','public')) as droits_anon_public) q;
 -- migration 6
 -- NEXUS Scanner, anomalies tarifaires : vérifications et réévaluations, applicable après les migrations T2 et le journal des décisions.
 -- Dépend des migrations T2 (20261117020430, 020652, 020851, 021059) et du journal 20261117161325.
@@ -1401,11 +1410,11 @@ insert into ctl(nom, detail) select 'etat_apres_second_retrait', to_jsonb(q) fro
 select jsonb_build_object('script','40_repetition_chaine_complete','etats',(select jsonb_agg(jsonb_build_object('nom',nom,'detail',detail) order by n) from ctl),
   'verdict', case when
     (select detail from ctl where nom='etat_apres_retraits') = (select detail from ctl where nom='etat_apres_second_retrait')
-    and (select detail from ctl where nom='etat_initial') = (select detail from ctl where nom='etat_apres_application')
+    and (select detail from ctl where nom='etat_initial') = (select detail from ctl where nom='etat_apres_1_a_5')
     and (select (detail->>'tables_t2')::int from ctl where nom='etat_apres_retraits')=0
     and (select (detail->>'tables_t2')::int from ctl where nom='etat_apres_application')=10
     and (select (detail->>'tables_rls_forcee')::int from ctl where nom='etat_apres_application')=10
-    and (select (detail->>'policies_compte_actif')::int from ctl where nom='etat_apres_application')=10
+    and (select (detail->>'policies_compte_actif')::int from ctl where nom='etat_apres_application')=12
     and (select (detail->>'droits_anon_public')::int from ctl where nom='etat_apres_application')=0
     and (select (detail->>'vues')::int from ctl where nom='etat_apres_application')=11
     and (select (detail->>'vues')::int from ctl where nom='etat_apres_retraits')=0
