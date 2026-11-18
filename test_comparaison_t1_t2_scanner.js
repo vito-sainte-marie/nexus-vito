@@ -44,7 +44,7 @@ const lignesT1 = [
   { cle: 'Références à vérifier (identité, PA = PV)', t1: noms1(l => l.a_verifier), m1: null, t2: noms2('A5'), m2: null },
   { cle: 'Prix réglementés', t1: noms1(l => l.prix_type === 'reglemente'), m1: eur(r1.lignes.reduce((s, l) => s + (l.prix_type === 'reglemente' && l.hausse ? l.hausse.impact : 0), 0)), t2: noms2('A8'), m2: mnt2('A8') },
 ];
-const fmt = a => (a.length ? a.join(', ') : '—');
+const fmt = a => (a.length ? a.join(', ') : 'aucun');
 const tableau = ['| Contrôle T1 | T1 nb | T1 montant | Alerte T2 nb | T2 montant | Références T1 | Références T2 |', '|---|---:|---:|---:|---:|---|---|']
   .concat(lignesT1.map(x => `| ${x.cle} | ${x.t1.length} | ${x.m1 === null ? 'n.d.' : x.m1} | ${x.t2.length} | ${x.m2 === null ? 'n.d.' : x.m2} | ${fmt(x.t1)} | ${fmt(x.t2)} |`));
 console.log(tableau.join('\n'));
@@ -66,7 +66,7 @@ lignesT1.forEach(x => {
   x.t2.filter(n => !x.t1.includes(n)).forEach(n => diffs.push([x.cle, '+' + n]));
 });
 // Les références renommées (identité) sont rapprochées par code-barres : T1 les nomme « Identite renommee », idem T2.
-diffs.forEach(([cle, ref]) => { const k = cle + '|' + ref; (ATTENDU[k] ? attendus : regressions).push(ATTENDU[k] ? `${cle} / ${ref} : changement attendu — ${ATTENDU[k]}` : `${cle} / ${ref} : RÉGRESSION`); });
+diffs.forEach(([cle, ref]) => { const k = cle + '|' + ref; (ATTENDU[k] ? attendus : regressions).push(ATTENDU[k] ? `${cle} / ${ref} : changement attendu : ${ATTENDU[k]}` : `${cle} / ${ref} : RÉGRESSION`); });
 console.log('\nÉcarts :'); attendus.concat(regressions).forEach(l => console.log(' -', l));
 // Montants : les pertes de T1 et de T2 doivent être identiques (le moteur ne change pas la mesure).
 assert.strictEqual(lignesT1[0].m1, lignesT1[0].m2, 'montant des ventes à perte T1 = T2');

@@ -48,4 +48,4 @@ for (const nom of noms) {
 const dec = exp.declarations || {};
 for (const [reg, d] of Object.entries(dec)) (d && d.lignes || []).forEach((r, i) => out.push(`insert into recette_scanner.declarations(lot_id, registre, rang, donnees) select lot_id, ${q(reg)}, ${i + 1}, ${q(JSON.stringify(r))}::jsonb from _lot;`));
 fs.writeFileSync(sortie, out.join('\n') + '\n');
-console.log('SQL écrit :', sortie, '—', out.length, 'instructions');
+console.log('SQL écrit :', sortie, ',', out.length, 'instructions');

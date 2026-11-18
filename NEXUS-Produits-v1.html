@@ -1728,21 +1728,24 @@ nexusRequireAuth().then(async employee => {
       const zone = btn.closest('li') || btn.parentNode;
       const dire = (t) => { let m = zone.querySelector('.pt-verif-msg'); if (!m) { m = document.createElement('p'); m.className = 'sc-note pt-verif-msg'; m.setAttribute('role', 'status'); zone.appendChild(m); } m.textContent = t; };
       if (!an || !E2.peutVerifier(employee.role, !!employee.estCreateur)) { dire('Action réservée au gérant et au manager.'); return; }
+      const zc = zone.querySelector('textarea.pt-verif-com'); const com = zc ? zc.value : '';
+      if (!E2.commentaireValide(com)) { dire(E2.messageErreurEcriture('tarif_verif_commentaire_trop_long')); return; }
       btn.disabled = true; dire('Enregistrement…');
       try {
         const { data: lots, error: e1 } = await nexusClient.from('import_batches').select('id, fichier_hash').eq('site', SITE_ACTUEL).eq('fichier_hash', (an.identiteDonnees || {}).fichierHash || '').order('cree_le', { ascending: false }).limit(1);
         if (e1 || !lots || !lots.length) throw new Error('lot');
-        const v = E2.payloadVerification(an, l, { importBatchId: lots[0].id, moteurVersion: window.NexusPolitiqueTarifaire.VERSION_MOTEUR });
+        const v = E2.payloadVerification(an, l, { importBatchId: lots[0].id, moteurVersion: window.NexusPolitiqueTarifaire.VERSION_MOTEUR, commentaire: com });
         const { error } = await nexusClient.rpc('tarif_marquer_verifie', { p_lignes: [v] });
         if (error) throw error;
         dire(E2.messageApresEcriture({ date: new Date().toISOString().slice(0, 10), auteur: employee.nom }));
-      } catch (e) { console.error('Marquer vérifié:', e); btn.disabled = false; dire("L'enregistrement a échoué. Rien n'a été modifié, vous pouvez réessayer."); }
+      } catch (e) { console.error('Marquer vérifié:', e); btn.disabled = false; dire(E2.messageErreurEcriture(e)); }
     };
     const versFiche = a => choisirSuggestion(a);
     const lier = () => {
       corps.querySelectorAll('[data-fiche]').forEach(b => b.addEventListener('click', () => versFiche(b.dataset.fiche)));
       corps.querySelectorAll('[data-article]').forEach(b => b.addEventListener('click', () => { etat.ouverte = b.dataset.article; rendre(); }));
       corps.querySelectorAll('[data-info-marge]').forEach(b => b.addEventListener('click', () => { etat.ouverte = b.dataset.infoMarge; rendre(); const f = corps.querySelector('[data-marge-fiche]'); if (f && f.scrollIntoView) f.scrollIntoView({ block: 'start' }); }));
+      corps.querySelectorAll('textarea.pt-verif-com').forEach(t => t.addEventListener('input', () => { const n = t.parentNode.querySelector('[data-com-compteur]'); if (n) n.textContent = String(t.value.trim().length) + ' / ' + E.LIMITE_COMMENTAIRE; }));
       corps.querySelectorAll('[data-verifier]').forEach(b => b.addEventListener('click', () => marquerVerifie(b)));
       corps.querySelectorAll('select[data-filtre]').forEach(s => s.addEventListener('change', () => { etat.filtres[s.dataset.filtre] = s.value || undefined; etat.toutes = false; rendre(); }));
       corps.querySelectorAll('[data-effacer]').forEach(b => b.addEventListener('click', () => { delete etat.filtres[b.dataset.effacer]; rendre(); }));

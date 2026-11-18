@@ -290,4 +290,12 @@ ok('aucune recommandation de prix depuis une marge Estimation', () => {
   assert.ok(!/prix conseillé|appliquer ce prix|proposition de prix/i.test(h));
 });
 
+ok('commentaire : libellé visible, compteur n / 500, message traduit', () => {
+  assert.ok(E.messageErreurEcriture('P0001 tarif_verif_commentaire_trop_long : x').indexOf('500') >= 0);
+  assert.ok(E.messageErreurEcriture(new Error('autre')).indexOf('échoué') >= 0);
+  assert.ok(E.commentaireValide('x'.repeat(500)) && !E.commentaireValide('x'.repeat(501)));
+  const h = E.htmlFiche(ligneAvec('estimation'), { role: 'manager' });
+  if (/pt-verif-com/.test(h)) assert.ok(/<label[^>]*for=/.test(h) && /0 \/ 500/.test(h));
+});
+
 console.log('test_ecran_politique_tarifaire : ' + n + ' épreuves OK');

@@ -414,8 +414,13 @@
     var cycle = AL.cycles[an.cycle] || '';
     var statut = an.cycle === 'verifiee' ? 'Vérifié' : an.cycle === 'nouvelle' ? 'Nouveau' : cycle;
     var masque = (an.peutExpliquerAussi || []).length ? '<p class="sc-note">' + esc(AL.masque) + ' ' + esc(an.peutExpliquerAussi.map(function (c) { return (AL.codes[c] || {}).titre || c; }).join(', ')) + '</p>' : '';
-    var btn = droits && an.cycle !== 'verifiee' ?
-      '<button type="button" class="detail-btn pt-verifier" data-verifier="' + esc(code) + '" data-ver-article="' + esc(l.article) + '">✓ Marquer comme vérifié</button>' : '';
+    var idc = 'ptc-' + esc(l.article).replace(/[^A-Za-z0-9_-]/g, '_') + '-' + esc(code);
+    var champ = droits && an.cycle !== 'verifiee' ?
+      '<div class="pt-verif-champ"><label class="sc-lib" for="' + idc + '">Commentaire (facultatif)</label>' +
+      '<textarea id="' + idc + '" class="pt-verif-com" rows="2" data-com-article="' + esc(l.article) + '" data-com-code="' + esc(code) + '" aria-describedby="' + idc + '-n"></textarea>' +
+      '<span id="' + idc + '-n" class="sc-note pt-verif-n" data-com-compteur="1">0 / ' + LIMITE_COMMENTAIRE + '</span></div>' : '';
+    var btn = champ + (droits && an.cycle !== 'verifiee' ?
+      '<button type="button" class="detail-btn pt-verifier" data-verifier="' + esc(code) + '" data-ver-article="' + esc(l.article) + '">✓ Marquer comme vérifié</button>' : '');
     return '<li class="pt-anomalie" data-anomalie="' + esc(code) + '"><span class="sc-nom">' + esc(cd.titre || code) + '</span> ' +
       '<span class="nbe-qualif" data-axe="cycle">' + esc(statut) + '</span>' +
       '<p class="sc-note">' + esc(cd.controle || '') + '</p>' + masque + btn + '</li>';
@@ -425,6 +430,11 @@
     if (!L.length) return '';
     return '<div class="sc-carte pt-controles-faire" data-controles-faire="1"><div class="sc-nom">Contrôles à effectuer</div><ul class="vp-liste">' +
       L.map(function (a) { return htmlAnomalie(a, l, droits); }).join('') + '</ul></div>';
+  }
+  function messageErreurEcriture(err) {
+    var m = String((err && (err.message || err)) || '');
+    if (m.indexOf('tarif_verif_commentaire_trop_long') >= 0) return 'Le commentaire dépasse ' + LIMITE_COMMENTAIRE + ' caractères. Raccourcissez-le puis réessayez.';
+    return "L'enregistrement a échoué. Rien n'a été modifié, vous pouvez réessayer.";
   }
   function messageApresEcriture(info) {
     var d = jourFr(info.date), qui = info.auteur || 'un responsable';
@@ -572,7 +582,7 @@
     preuves: preuves, conseiller: conseiller, fiche: fiche, etatAcces: etatAcces, peutVoirOnglet: peutVoirOnglet, filtrerSite: filtrerSite,
     regimeDe: regimeDe, contexteDeclaratif: contexteDeclaratif, construireContexteTarif: construireContexteTarif, stockParLibelle: stockParLibelle, controle: controle, familles: familles, avertissementRegime: avertissementRegime, infoRegime: infoRegime, badgeRegime: badgeRegime, badgeLigne: badgeLigne, blocFiche: blocFiche,
     chargerRegistres: chargerRegistres, chargerVentes: chargerVentes, lireCompte: lireCompte, libellePeriode: libellePeriode,
-    htmlPage: htmlPage, htmlLigne: htmlLigne, htmlControle: htmlControle, htmlFiche: htmlFiche, carteMarge: carteMarge, htmlMarge: htmlMarge, ficheMarge: ficheMarge, peutVerifier: peutVerifier, commentaireValide: commentaireValide, messageApresEcriture: messageApresEcriture, payloadVerification: payloadVerification, LIMITE_COMMENTAIRE: LIMITE_COMMENTAIRE, graviteLigne: graviteLigne, CSS: CSS };
+    htmlPage: htmlPage, htmlLigne: htmlLigne, htmlControle: htmlControle, htmlFiche: htmlFiche, carteMarge: carteMarge, htmlMarge: htmlMarge, ficheMarge: ficheMarge, peutVerifier: peutVerifier, commentaireValide: commentaireValide, messageApresEcriture: messageApresEcriture, messageErreurEcriture: messageErreurEcriture, payloadVerification: payloadVerification, LIMITE_COMMENTAIRE: LIMITE_COMMENTAIRE, graviteLigne: graviteLigne, CSS: CSS };
   global.NexusPolitiqueTarifaireEcran = API;
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
 })(typeof window !== 'undefined' ? window : globalThis);
