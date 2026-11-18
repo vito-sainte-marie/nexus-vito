@@ -1,8 +1,9 @@
 -- NEXUS Scanner tarifaire : REPETITION de la migration 20261118120000 en transaction, puis ROLLBACK. Cible : Test uniquement (la garde de la migration l'impose).
 -- Aucun commit. Une seule piece : controle 73, controle 40, migration telle quelle, 30 cas, comptes des deux tables, rollback.
--- A jouer ensuite : 20_verifier_rien_ne_reste.sql. Comptes de recette : comptes EXISTANTS des sites site-fantome-test (A) et nexus-station-test (B), choisis par SELECT.
--- Un compte manquant fait echouer (KO) les cas qui en dependent, il n'est jamais cree.
+-- A jouer ensuite : 20_verifier_rien_ne_reste.sql. Identites de recette creees DANS la transaction (auth.users puis employees, ids 00000000-0000-4000-8000-0000000e00xx), annulees par le rollback.
+-- Tous les appels de la preuve passent par tente()/val() : un echec est note KO, il n'arrete pas la transaction. Sortie : UN seul select final (JSON), puis rollback.
 begin;
+create temp table ctl (n serial, nom text, detail jsonb) on commit drop;
 
 create temp table c73 as
 with r(registre, actives, total, empreinte) as (
@@ -22,14 +23,14 @@ union all select 'TOTAL', sum(actives), sum(total), md5(string_agg(empreinte, ''
 order by 1;
 
 -- Controle 73, avant
-select * from pg_temp.c73 order by 1;
-select 'CONTROLE 73 : TOTAL attendu 130 / 138 / 1752f6f440c7777399d6b0040c86438e' as controle,
-  case when (select count(*) from pg_temp.c73 where registre='TOTAL' and actives=130 and total=138 and empreinte='1752f6f440c7777399d6b0040c86438e')=1 then 'OK identique' else 'KO different' end as verdict;
+insert into ctl(nom, detail) select 'controle73_avant', jsonb_agg(to_jsonb(c) order by registre) from pg_temp.c73 c;
+insert into ctl(nom, detail) select 'controle73_avant_verdict', to_jsonb(q) from (select 'CONTROLE 73 : TOTAL attendu 130 / 138 / 1752f6f440c7777399d6b0040c86438e' as controle,
+  case when (select count(*) from pg_temp.c73 where registre='TOTAL' and actives=130 and total=138 and empreinte='1752f6f440c7777399d6b0040c86438e')=1 then 'OK identique' else 'KO different' end as verdict) q;
 -- Controle 40, avant
-select 'CONTROLE 40 : ' || 'avant' as controle, (select count(*) from products) as products_lignes,
+insert into ctl(nom, detail) select 'controle40_avant', to_jsonb(q) from (select 'CONTROLE 40 : ' || 'avant' as controle, (select count(*) from products) as products_lignes,
   (select md5(coalesce(string_agg(t::text, '|' order by t::text), '')) from products t) as products_empreinte,
   (select count(*) from stock_releves) as stock_releves_lignes,
-  (select md5(coalesce(string_agg(t::text, '|' order by t::text), '')) from stock_releves t) as stock_releves_empreinte;
+  (select md5(coalesce(string_agg(t::text, '|' order by t::text), '')) from stock_releves t) as stock_releves_empreinte) q;
 
 -- ===== Migration 20261118120000, contenu tel quel (garde comprise) =====
 -- NEXUS Scanner, anomalies tarifaires : vérifications et réévaluations (PROJET, NON EXÉCUTÉ).
@@ -266,12 +267,16 @@ grant all on journal to public; grant all on sequence journal_n_seq to public;
 create temp table ids (k text, v text) on commit drop;
 grant all on ids to public;
 
--- Comptes de recette existants, choisis par role. Aucun nom n'est affiche.
-insert into ids(k, v)
-select k, (select e.id::text from employees e where e.site_id = s and e.actif is true and coalesce(e.est_createur,false) = cr and e.role = r order by e.id offset o limit 1)
-from (values ('gA','site-fantome-test',false,'gerant',0), ('mA','site-fantome-test',false,'manager',0), ('mA2','site-fantome-test',false,'manager',1),
-  ('pA','site-fantome-test',false,'pompiste',0), ('cA','site-fantome-test',true,'gerant',0), ('mB','nexus-station-test',false,'manager',0)) as t(k,s,cr,r,o);
-insert into ids(k, v) select 'iA', (select e.id::text from employees e where e.site_id='site-fantome-test' and e.actif is false and coalesce(e.est_createur,false) is false order by e.id limit 1);
+-- Identites de recette creees dans la transaction (rollback). Colonnes obligatoires lues sur Test : auth.users(id), employees(id, username, nom, role ; actif, est_createur, site_id, compte_test ont un defaut).
+insert into auth.users(id, aud, role, email) select ('00000000-0000-4000-8000-0000000e00' || k)::uuid, 'authenticated', 'authenticated', 'recette-' || k || '@invalid.test'
+from (values ('01'),('02'),('03'),('04'),('05'),('06'),('07')) t(k);
+insert into employees(id, username, nom, role, actif, est_createur, site_id, compte_test)
+select ('00000000-0000-4000-8000-0000000e00' || k)::uuid, 'recette-ano-' || k, 'Recette ' || k, r, a, c, s, true
+from (values ('01','gerant',true,false,'site-fantome-test'), ('02','manager',true,false,'site-fantome-test'), ('03','manager',true,false,'site-fantome-test'),
+  ('04','pompiste',true,false,'site-fantome-test'), ('05','gerant',true,true,'site-fantome-test'), ('06','manager',false,false,'site-fantome-test'),
+  ('07','manager',true,false,'nexus-station-test')) t(k,r,a,c,s);
+insert into ids(k, v) values ('gA','00000000-0000-4000-8000-0000000e0001'),('mA','00000000-0000-4000-8000-0000000e0002'),('mA2','00000000-0000-4000-8000-0000000e0003'),
+  ('pA','00000000-0000-4000-8000-0000000e0004'),('cA','00000000-0000-4000-8000-0000000e0005'),('iA','00000000-0000-4000-8000-0000000e0006'),('mB','00000000-0000-4000-8000-0000000e0007');
 
 create function pg_temp.u(p_k text) returns uuid language sql as $$ select v::uuid from pg_temp.ids where k = p_k $$;
 grant execute on function pg_temp.u(text) to public;
@@ -292,6 +297,10 @@ declare n bigint;
 begin execute p_sql; get diagnostics n = row_count; return 'ok n=' || n;
 exception when others then return sqlstate || ' ' || sqlerrm; end $$;
 grant execute on function pg_temp.tente(text) to public;
+create function pg_temp.val(p_sql text) returns text language plpgsql as $$
+declare r text;
+begin execute p_sql into r; return r; exception when others then return sqlstate || ' ' || sqlerrm; end $$;
+grant execute on function pg_temp.val(text) to public;
 create function pg_temp.js(p_art text, p_batch text, p_hash text, p_cause text default 'S1', p_extra text default '') returns text language sql as $$
   select format('[{"article":"%s","code_barres":"","cause":"%s","empreinte":"e-%s","fichier_hash":"%s","date_releve":"2026-11-10","gravite":3.5,"niveau":"moyen","valeurs":{"a":1},"import_batch_id":"%s","moteur_version":"politique-tarifaire-t2-v2"%s}]', p_art, p_cause, p_art, p_hash, p_batch, p_extra);
 $$;
@@ -311,24 +320,24 @@ insert into import_batches(id, site, intention, fichier_hash) values
   ('00000000-0000-4000-8000-00000000f002', 'site-fantome-test', 'stock_theorique', null),
   ('00000000-0000-4000-8000-00000000f003', 'nexus-station-test', 'stock_theorique', 'H1');
 
-select pg_temp.note('00 comptes de recette trouves (7 attendus)', '7', (select count(v)::text from pg_temp.ids));
+select pg_temp.note('00 comptes de recette trouves (7 attendus)', '7', (select count(*)::text from employees where id::text like '00000000-0000-4000-8000-0000000e00%' and compte_test));
 
 select pg_temp.comme('authenticated', pg_temp.u('mA'));
 select pg_temp.note('01 manager marque', 'ok n=1', pg_temp.tente(pg_temp.marque(pg_temp.js('essai-1','00000000-0000-4000-8000-00000000f001','H1'))));
-select pg_temp.note('02 idempotence : o_deja vrai', 't', (select o_deja::text from tarif_marquer_verifie(pg_temp.js('essai-1','00000000-0000-4000-8000-00000000f001','H1')::jsonb)));
-select pg_temp.note('03 une seule ligne apres repetition', '1', (select count(*)::text from tarif_anomalies_verifications where article='essai-1'));
+select pg_temp.note('02 idempotence : o_deja vrai', 't', pg_temp.val(format('select o_deja::text from tarif_marquer_verifie(%L::jsonb)', pg_temp.js('essai-1','00000000-0000-4000-8000-00000000f001','H1'))));
+select pg_temp.note('03 une seule ligne apres repetition', '1', pg_temp.val($q$select count(*)::text from tarif_anomalies_verifications where article='essai-1'$q$));
 select pg_temp.note('04 site transmis refuse', 'tarif_verif_champ_inconnu', pg_temp.tente(pg_temp.marque(pg_temp.js('essai-2','00000000-0000-4000-8000-00000000f001','H1','S1',',"site":"nexus-station-test"'))));
 select pg_temp.note('05 lot d''un autre site refuse', 'tarif_verif_lot_import', pg_temp.tente(pg_temp.marque(pg_temp.js('essai-3','00000000-0000-4000-8000-00000000f003','H1'))));
 select pg_temp.note('06 empreinte de fichier differente du lot refusee', 'tarif_verif_lot_import', pg_temp.tente(pg_temp.marque(pg_temp.js('essai-4','00000000-0000-4000-8000-00000000f001','H2'))));
 select pg_temp.note('07 lot sans hash accepte un hash passe', 'ok n=1', pg_temp.tente(pg_temp.marque(pg_temp.js('essai-5','00000000-0000-4000-8000-00000000f002','H2'))));
-select pg_temp.note('08 manager lit les lots de son site', '2', (select count(*)::text from import_batches where id in ('00000000-0000-4000-8000-00000000f001','00000000-0000-4000-8000-00000000f002')));
-select pg_temp.note('09 manager ne voit pas le lot d''un autre site', '0', (select count(*)::text from import_batches where id='00000000-0000-4000-8000-00000000f003'));
-select pg_temp.note('10 gravite relue en base', '3.5', (select gravite::text from tarif_anomalies_verifications where article='essai-1'));
+select pg_temp.note('08 manager lit les lots de son site', '2', pg_temp.val($q$select count(*)::text from import_batches where id in ('00000000-0000-4000-8000-00000000f001','00000000-0000-4000-8000-00000000f002')$q$));
+select pg_temp.note('09 manager ne voit pas le lot d''un autre site', '0', pg_temp.val($q$select count(*)::text from import_batches where id='00000000-0000-4000-8000-00000000f003'$q$));
+select pg_temp.note('10 gravite relue en base', '3.5', pg_temp.val($q$select gravite::text from tarif_anomalies_verifications where article='essai-1'$q$));
 reset role;
 insert into ids(k, v) select 'v1', id::text from tarif_anomalies_verifications where article='essai-1';
 select pg_temp.comme('authenticated', pg_temp.u('mA'));
 select pg_temp.note('11 reevaluation persistante', 'ok n=1', pg_temp.tente(pg_temp.reeval(pg_temp.rj('persistante','H2','2026-11-17','S1','3.5'))));
-select pg_temp.note('12 reevaluation idempotente', 't', (select o_deja::text from tarif_enregistrer_reevaluations(pg_temp.rj('persistante','H2','2026-11-17','S1','3.5')::jsonb)));
+select pg_temp.note('12 reevaluation idempotente', 't', pg_temp.val(format('select o_deja::text from tarif_enregistrer_reevaluations(%L::jsonb)', pg_temp.rj('persistante','H2','2026-11-17','S1','3.5'))));
 select pg_temp.note('13 reevaluation incoherente (cause)', 'tarif_reeval_incoherente', pg_temp.tente(pg_temp.reeval(pg_temp.rj('aggravee','H3','2026-11-18','S2','4'))));
 select pg_temp.note('14 DELETE refuse', 'permission denied', pg_temp.tente('delete from tarif_anomalies_verifications'));
 select pg_temp.note('15 modification de la gravite refusee', 'permission denied', pg_temp.tente('update tarif_anomalies_verifications set gravite = 0'));
@@ -349,7 +358,7 @@ select pg_temp.note('20 manager ne peut pas annuler la saisie du gerant', 'ok n=
 reset role;
 
 select pg_temp.comme('authenticated', pg_temp.u('mB'));
-select pg_temp.note('21 manager B ne voit aucune verification du site A', '0', (select count(*)::text from tarif_anomalies_verifications where site='site-fantome-test'));
+select pg_temp.note('21 manager B ne voit aucune verification du site A', '0', pg_temp.val($q$select count(*)::text from tarif_anomalies_verifications where site='site-fantome-test'$q$));
 select pg_temp.note('22 manager B ne peut pas citer un lot du site A', 'tarif_verif_lot_import', pg_temp.tente(pg_temp.marque(pg_temp.js('essai-7','00000000-0000-4000-8000-00000000f001','H1'))));
 select pg_temp.note('23 manager B ne reevalue pas une verification du site A', 'tarif_reeval_', pg_temp.tente(pg_temp.reeval(pg_temp.rj('persistante','H9','2026-11-18','S1','3.5'))));
 select pg_temp.note('24 manager B marque sur son site', 'ok n=1', pg_temp.tente(pg_temp.marque(pg_temp.js('essai-8','00000000-0000-4000-8000-00000000f003','H1'))));
@@ -372,11 +381,8 @@ select pg_temp.note('29 sans session refuse', 'tarif_verif_session_absente', pg_
 reset role;
 
 select pg_temp.note('30 FK inter-sites refusee', 'foreign key', pg_temp.tente(format($q$insert into tarif_anomalies_reevaluations(site, article, code_barres, verification_id, etat, fichier_hash, date_releve, empreinte, gravite, valeurs) values ('nexus-station-test','essai-1','',%L,'persistante','HX','2026-11-18','e',1,'{}')$q$, (select v from pg_temp.ids where k='v1'))));
+reset role;
 
-select n, cas, attendu, left(obtenu, 90) as obtenu, case when ok then 'ok' else 'KO' end as verdict from journal order by n;
-select 'VERDICT PREUVE ANOMALIES : ' || count(*) filter (where ok) || '/' || count(*) || ' ok, ' || count(*) filter (where not ok) || ' KO' as bilan from journal;
-select 'COMPTES DES DEUX TABLES AVANT ROLLBACK' as controle, (select count(*) from tarif_anomalies_verifications) as verifications, (select count(*) from tarif_anomalies_reevaluations) as reevaluations;
--- Controle 73 et controle 40, en fin de transaction
 create temp table c73b as
 with r(registre, actives, total, empreinte) as (
   select 'tarif_familles', count(*) filter (where annule_le is null), count(*), md5(coalesce(string_agg(concat_ws('|', id, cle, libelle, remplace_id, annule_le), ';' order by id), '')) from tarif_familles where site = 'vito-sainte-marie'
@@ -394,9 +400,17 @@ select registre, actives, total, empreinte from r
 union all select 'TOTAL', sum(actives), sum(total), md5(string_agg(empreinte, '' order by registre)) from r
 order by 1;
 
-select 'CONTROLE 73 : fin de transaction' as controle, case when (select string_agg(registre||actives||total||empreinte,'|' order by registre) from pg_temp.c73) = (select string_agg(registre||actives||total||empreinte,'|' order by registre) from pg_temp.c73b) then 'OK identique' else 'KO different' end as verdict;
-select 'CONTROLE 40 : ' || 'fin de transaction' as controle, (select count(*) from products) as products_lignes,
+insert into ctl(nom, detail) select 'controle73_fin', jsonb_agg(to_jsonb(c) order by registre) from pg_temp.c73b c;
+insert into ctl(nom, detail) select 'controle73_fin_verdict', to_jsonb(q) from (select case when (select string_agg(registre||actives||total||empreinte,'|' order by registre) from pg_temp.c73) = (select string_agg(registre||actives||total||empreinte,'|' order by registre) from pg_temp.c73b) then 'OK identique a l''avant' else 'KO different de l''avant' end as verdict) q;
+insert into ctl(nom, detail) select 'controle40_fin', to_jsonb(q) from (select (select count(*) from products) as products_lignes,
   (select md5(coalesce(string_agg(t::text, '|' order by t::text), '')) from products t) as products_empreinte,
   (select count(*) from stock_releves) as stock_releves_lignes,
-  (select md5(coalesce(string_agg(t::text, '|' order by t::text), '')) from stock_releves t) as stock_releves_empreinte;
+  (select md5(coalesce(string_agg(t::text, '|' order by t::text), '')) from stock_releves t) as stock_releves_empreinte) q;
+insert into ctl(nom, detail) select 'comptes_deux_tables_avant_rollback', to_jsonb(q) from (select (select count(*) from tarif_anomalies_verifications) as verifications, (select count(*) from tarif_anomalies_reevaluations) as reevaluations) q;
+
+-- Sortie unique : tout le journal en JSON, puis rollback.
+select jsonb_pretty(jsonb_build_object(
+  'bilan', (select count(*) filter (where ok) || '/' || count(*) || ' ok, ' || count(*) filter (where not ok) || ' KO' from journal),
+  'cas', (select jsonb_agg(jsonb_build_object('n', n, 'cas', cas, 'attendu', attendu, 'obtenu', left(obtenu, 120), 'verdict', case when ok then 'ok' else 'KO' end) order by n) from journal),
+  'controles', (select jsonb_object_agg(nom, detail) from ctl))) as preuve_anomalies_json;
 rollback;
