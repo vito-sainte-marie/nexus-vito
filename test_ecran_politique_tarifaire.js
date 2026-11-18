@@ -434,6 +434,50 @@ ok('catégorie lue comme T1 : « Ã  » devient « à », la variante fautive es
   assert.ok(s7 && s7.niveau === 'demontree');
 });
 
+const avecControles = (k) => {
+  const a = analyse();
+  a.lignes.forEach((l, i) => { l.anomalies = []; });
+  for (let i = 0; i < k; i++) {
+    const l = a.lignes[i % a.lignes.length];
+    l.anomalies.push({ code: i % 2 ? 'S2' : 'S7', niveau: i % 2 ? 'a_verifier' : 'demontree', cycle: 'nouvelle', gravite: i, valeurs: i % 2 ? { ecart: 0.3, paNetHtReleve: 1.1 } : { tva: 20, etat: 'a_verifier' }, identiteDonnees: { fichierHash: 'h' + i }, empreinte: 'e' + i, peutExpliquerAussi: [] });
+  }
+  return a;
+};
+ok('B2 : bloc Contrôles, trois lignes, niveau et bouton pleine largeur', () => {
+  const h = E.htmlPage({ analyse: avecControles(2), role: 'manager', estCreateur: false, filtres: {}, incoherences: [] });
+  assert.ok(/data-bloc-controles/.test(h) && /data-carte="controles_a_effectuer"/.test(h));
+  assert.ok(/data-axe="niveau">Démontré/.test(h) && /data-axe="niveau">À vérifier/.test(h));
+  assert.ok(/pt-ctl-1/.test(h) && /pt-ctl-2/.test(h) && /pt-ctl-3/.test(h) && /data-ctl-info/.test(h));
+  assert.ok(/✓ Marquer comme vérifié/.test(h) && /data-ctl-expl/.test(h));
+  assert.ok(!/data-ctl-plus/.test(h) && !/ptCtlRecherche/.test(h));
+});
+ok('B2 : au-delà de 10 contrôles, outils et suite', () => {
+  const h = E.htmlPage({ analyse: avecControles(14), role: 'manager', estCreateur: false, filtres: {}, incoherences: [] });
+  assert.ok(/ptCtlRecherche/.test(h) && /data-ctl-tri/.test(h) && /data-ctl-cycle="resolue"/.test(h) && /data-ctl-plus/.test(h));
+  assert.strictEqual((h.match(/class="pt-anomalie pt-ctl"/g) || []).length, 10);
+});
+ok('B2 : une ligne vérifiée quitte la liste active, état vide et lecture seule', () => {
+  const a = avecControles(2); a.lignes.forEach(l => l.anomalies.forEach(x => { x.cycle = 'verifiee'; }));
+  const h = E.htmlPage({ analyse: a, role: 'employe', estCreateur: false, filtres: {}, incoherences: [] });
+  assert.ok(/Contrôles à effectuer \(0\)/.test(h) && !/class="pt-anomalie pt-ctl"/.test(h));
+  assert.ok(/data-ctl-lecture/.test(avecH('employe')));
+  const v = E.htmlPage({ analyse: avecControles(0), role: 'manager', estCreateur: false, filtres: {}, incoherences: [] });
+  assert.ok(/Aucune anomalie à vérifier sur cet import/.test(v));
+});
+function avecH(role) { return E.htmlPage({ analyse: avecControles(2), role, estCreateur: false, filtres: {}, incoherences: [] }); }
+ok('B2 : fiche en dialogue avec fermeture, et information (i) sur la ligne de référence', () => {
+  const a = avecControles(2);
+  const h = E.htmlPage({ analyse: a, role: 'manager', estCreateur: false, filtres: {}, incoherences: [], ouverte: a.lignes[0].article });
+  assert.ok(/role="dialog"/.test(h) && /data-fermer/.test(h) && /pt-fiche-corps/.test(h));
+  assert.ok(/class="pt-li"/.test(h));
+});
+ok('lignes hors ventes commerciales : aucune anomalie', () => {
+  const ctx = A.contexteDepuisRegistres(reg, { periode }); ctx.natureDe = row => row.article === 'Produit A' ? 'operation_caisse' : null;
+  const r = T.analyser(courantes, [], ctx);
+  const l = r.lignes.filter(x => x.article === 'Produit A')[0];
+  assert.deepStrictEqual(l.anomalies, []);
+});
+
 Promise.all(PROMESSES).then(() => {
 console.log('test_ecran_politique_tarifaire : ' + n + ' épreuves OK');
 });

@@ -424,28 +424,93 @@
   var A_LIB = function () { return V.anomaliesTarifaires; };
   function peutVerifier(role, estCreateur) { return !estCreateur && (role === 'gerant' || role === 'manager'); }
   function commentaireValide(t) { return String(t == null ? '' : t).trim().length <= LIMITE_COMMENTAIRE; }
-  function htmlAnomalie(an, l, droits) {
+  var LIB_NIVEAU = { demontree: 'Démontré', a_verifier: 'À vérifier' };
+  // Valeurs à comparer, dans un ordre fixe par cause (Decenium d'un côté, relevé de l'autre).
+  function valeursAComparer(an) {
+    var v = an.valeurs || {}, c = an.code;
+    if (c === 'S1') return 'Marge : ' + pct(v.taux);
+    if (c === 'S2') return 'Écart : ' + pct(v.ecart) + ' · PA net HT du relevé de stock : ' + eur(v.paNetHtReleve);
+    if (c === 'S3') return 'Variation du coût : ' + pct(v.variationCout);
+    if (c === 'S4') return 'Unités par colis : ' + (v.unites === undefined || v.unites === null ? 'n/d' : v.unites) + ' · rapport du relevé : ' + (num(v.rapportReleve) === null ? 'n/d' : v.rapportReleve) + ' · rapport du prix de vente : ' + (num(v.rapportPv) === null ? 'n/d' : v.rapportPv);
+    if (c === 'S5') return 'Constats de correspondance : ' + (v.constats === undefined || v.constats === null ? 'n/d' : v.constats);
+    if (c === 'S6') return 'Variation du prix de vente : ' + pct(v.variationPv);
+    if (c === 'S7') return 'Taux de TVA : ' + (v.tva === undefined || v.tva === null ? 'n/d' : v.tva + ' %') + ' · état : ' + (v.etat === 'a_verifier' ? 'à confirmer' : esc(v.etat || 'n/d'));
+    return '';
+  }
+  function htmlVerification(an, l, droits) {
+    var code = an.code, idc = 'ptc-' + String(l.article).replace(/[^A-Za-z0-9_-]/g, '_') + '-' + code;
+    var fiable = !!(an.identiteDonnees || {}).fichierHash;
+    if (!droits || an.cycle === 'verifiee') return '';
+    if (!fiable) return '<p class="sc-note pt-verif-indispo" data-verif-indispo="1">Donnée non fiable : l\'import de référence est introuvable, la vérification n\'est pas possible.</p>';
+    return '<div class="pt-verif-champ"><label class="sc-lib" for="' + idc + '">Commentaire (facultatif)</label>' +
+      '<div class="pt-verif-zone"><textarea id="' + idc + '" class="pt-verif-com" rows="2" data-com-article="' + esc(l.article) + '" data-com-code="' + esc(code) + '" aria-describedby="' + idc + '-n"></textarea>' +
+      '<span id="' + idc + '-n" class="sc-note pt-verif-n" data-com-compteur="1">0 / ' + LIMITE_COMMENTAIRE + '</span></div></div>' +
+      '<button type="button" class="detail-btn pt-verifier" data-verifier="' + esc(code) + '" data-ver-article="' + esc(l.article) + '">✓ Marquer comme vérifié</button>';
+  }
+  function htmlAnomalie(an, l, droits, etat, avecProduit) {
     var AL = A_LIB(), code = an.code, cd = AL.codes[code] || {};
     var cycle = AL.cycles[an.cycle] || '';
     var statut = an.cycle === 'verifiee' ? 'Vérifié' : an.cycle === 'nouvelle' ? 'Nouveau' : cycle;
+    var cle = code + '|' + l.article, ouvert = !!(etat && etat.ctlInfo === cle);
     var masque = (an.peutExpliquerAussi || []).length ? '<p class="sc-note">' + esc(AL.masque) + ' ' + esc(an.peutExpliquerAussi.map(function (c) { return (AL.codes[c] || {}).titre || c; }).join(', ')) + '</p>' : '';
-    var idc = 'ptc-' + esc(l.article).replace(/[^A-Za-z0-9_-]/g, '_') + '-' + esc(code);
-    var fiable = !!(an.identiteDonnees || {}).fichierHash;
-    var champ = droits && fiable && an.cycle !== 'verifiee' ?
-      '<div class="pt-verif-champ"><label class="sc-lib" for="' + idc + '">Commentaire (facultatif)</label>' +
-      '<textarea id="' + idc + '" class="pt-verif-com" rows="2" data-com-article="' + esc(l.article) + '" data-com-code="' + esc(code) + '" aria-describedby="' + idc + '-n"></textarea>' +
-      '<span id="' + idc + '-n" class="sc-note pt-verif-n" data-com-compteur="1">0 / ' + LIMITE_COMMENTAIRE + '</span></div>' : '';
-    var btn = champ + (droits && !fiable && an.cycle !== 'verifiee' ? '<p class="sc-note pt-verif-indispo" data-verif-indispo="1">Donnée non fiable : l\'import de référence est introuvable, la vérification n\'est pas possible.</p>' : '') + (droits && fiable && an.cycle !== 'verifiee' ?
-      '<button type="button" class="detail-btn pt-verifier" data-verifier="' + esc(code) + '" data-ver-article="' + esc(l.article) + '">✓ Marquer comme vérifié</button>' : '');
-    return '<li class="pt-anomalie" data-anomalie="' + esc(code) + '"><span class="sc-nom">' + esc(cd.titre || code) + '</span> ' +
-      '<span class="nbe-qualif" data-axe="cycle">' + esc(statut) + '</span>' +
-      '<p class="sc-note">' + esc(cd.controle || '') + '</p>' + masque + btn + '</li>';
+    var info = '<button type="button" class="info-btn pt-info" data-ctl-info="' + esc(cle) + '" aria-expanded="' + (ouvert ? 'true' : 'false') + '" aria-label="Information : ' + esc(cd.titre || code) + ' pour ' + esc(l.article) + '">i</button>';
+    var detail = ouvert ? '<p class="sc-methode">' + esc(AL.explication || 'Un contrôle indique où comparer avec Decenium. Ce n\'est pas une erreur constatée.') + '</p>' + masque : '';
+    return '<li class="pt-anomalie pt-ctl" data-anomalie="' + esc(code) + '">' +
+      '<div class="pt-ctl-1">' + (avecProduit ? '<button type="button" class="vp-ligne-prod pt-ctl-prod" data-article="' + esc(l.article) + '"><span class="vp-nom">' + esc(l.article) + '</span></button>' : '') +
+      '<span class="sc-nom">' + esc(cd.titre || code) + '</span> <span class="nbe-qualif" data-axe="niveau">' + esc(LIB_NIVEAU[an.niveau] || '') + '</span> ' +
+      '<span class="nbe-qualif" data-axe="cycle">' + esc(statut) + '</span></div>' +
+      '<p class="pt-ctl-2 sc-methode">' + valeursAComparer(an) + '</p>' +
+      '<p class="pt-ctl-3 sc-note">' + esc(cd.controle || '') + ' ' + info + '</p>' + detail +
+      htmlVerification(an, l, droits) + '</li>';
   }
-  function htmlControlesAFaire(l, droits) {
+  function htmlControlesAFaire(l, droits, etat) {
     var L = l.anomalies || [];
     if (!L.length) return '';
-    return '<div class="sc-carte pt-controles-faire" data-controles-faire="1"><div class="sc-nom">Contrôles à effectuer</div><ul class="vp-liste">' +
-      L.map(function (a) { return htmlAnomalie(a, l, droits); }).join('') + '</ul></div>';
+    return '<div class="sc-carte pt-controles-faire" data-controles-faire="1"><div class="sc-nom pt-ctl-titre">Contrôles à effectuer</div><ul class="vp-liste">' +
+      L.map(function (a) { return htmlAnomalie(a, l, droits, etat, false); }).join('') + '</ul></div>';
+  }
+  // Liste de tous les contrôles de l'import : une ligne par référence et par cause, filtrée par cycle, recherche et tri.
+  var CYCLES_DEFAUT = ['nouvelle', 'persistante', 'aggravee'];
+  var TRI_CTL = [['gravite', 'Gravité décroissante'], ['produit', 'Produit, A à Z']];
+  var SEUIL_OUTILS = 10;
+  function tousControles(a) {
+    var out = [];
+    (a.lignes || []).forEach(function (l) { (l.anomalies || []).forEach(function (x) { out.push({ l: l, a: x }); }); });
+    return out;
+  }
+  function controlesFiltres(etat) {
+    var cy = etat.ctlCycles || CYCLES_DEFAUT, q = String(etat.ctlRecherche || '').trim().toLowerCase();
+    var L = tousControles(etat.analyse).filter(function (x) { return cy.indexOf(x.a.cycle || 'nouvelle') >= 0 && (!q || String(x.l.article).toLowerCase().indexOf(q) >= 0); });
+    if ((etat.ctlTri || 'gravite') === 'produit') L.sort(function (x, y) { return String(x.l.article).localeCompare(String(y.l.article), 'fr'); });
+    else L.sort(function (x, y) { return (y.a.gravite || 0) - (x.a.gravite || 0) || String(x.l.article).localeCompare(String(y.l.article), 'fr'); });
+    return L;
+  }
+  function htmlBlocControles(etat) {
+    var a = etat.analyse, droits = peutVerifier(etat.role, etat.estCreateur), tous = tousControles(a);
+    var actifs = tous.filter(function (x) { return CYCLES_ACTIFS.indexOf(x.a.cycle || 'nouvelle') >= 0; });
+    var AL = A_LIB(), S = a.synthese || {}, ouvert = etat.ctlReplie ? '' : ' open';
+    var h = '<details class="vp-bloc sc-carte pt-bloc-controles" data-bloc-controles="1"' + ouvert + '><summary><span class="sc-nom">Contrôles à effectuer (' + actifs.length + ')</span><span class="sc-chev"></span></summary>';
+    if (!tous.length) {
+      var id = a.identiteDonnees || S.identiteDonnees || {};
+      return h + '<p class="sc-note" data-ctl-vide="1">Aucune anomalie à vérifier sur cet import' + (id.dateReleve ? ' (relevé du ' + esc(jourFr(String(id.dateReleve).slice(0, 10))) + ')' : '') + (id.fichierHash ? ', empreinte ' + esc(String(id.fichierHash).slice(0, 8)) : '') + '.</p></details>';
+    }
+    if (etat.messageVerif) h += '<p class="sc-note pt-verif-msg" role="status" data-verif-ok="1">' + esc(etat.messageVerif) + '</p>';
+    if (etat.erreurEcriture) h += '<p class="sc-note pt-erreur" role="alert" data-ctl-erreur="1">' + esc(etat.erreurEcriture) + '</p>';
+    h += '<p class="sc-methode pt-ctl-expl" data-ctl-expl="1">' + esc(AL.explication || 'Un contrôle indique où comparer avec Decenium. Ce n\'est pas une erreur constatée : comparez les valeurs, puis marquez la ligne comme vérifiée.') + '</p>';
+    if (!droits) h += '<p class="sc-note" data-ctl-lecture="1">Lecture seule : seuls le gérant et le manager marquent un contrôle comme vérifié.</p>';
+    var L = controlesFiltres(etat);
+    if (tous.length > SEUIL_OUTILS) {
+      var cy = etat.ctlCycles || CYCLES_DEFAUT;
+      h += '<div class="vp-filtres pt-ctl-outils"><label class="pt-f pt-f-rech"><span class="sc-methode">Recherche</span><input type="search" id="ptCtlRecherche" placeholder="Nom du produit" value="' + esc(etat.ctlRecherche || '') + '"></label>' +
+        '<label class="pt-f"><span class="sc-methode">Tri</span><select data-ctl-tri="1">' + TRI_CTL.map(function (o) { return '<option value="' + o[0] + '"' + ((etat.ctlTri || 'gravite') === o[0] ? ' selected' : '') + '>' + esc(o[1]) + '</option>'; }).join('') + '</select></label>' +
+        '<fieldset class="pt-ctl-cycles"><legend class="sc-methode">Historique</legend>' + ['nouvelle', 'persistante', 'aggravee', 'verifiee', 'resolue'].map(function (k) {
+          return '<label class="pt-chk"><input type="checkbox" data-ctl-cycle="' + k + '"' + (cy.indexOf(k) >= 0 ? ' checked' : '') + '> ' + esc(LIB_CYCLE[k]) + '</label>'; }).join('') + '</fieldset></div>';
+    }
+    var vis = etat.ctlToutes || tous.length <= SEUIL_OUTILS ? L : L.slice(0, SEUIL_OUTILS);
+    h += '<ul class="vp-liste pt-ctl-liste">' + vis.map(function (x) { return htmlAnomalie(x.a, x.l, droits, etat, true); }).join('') + '</ul>';
+    if (!L.length) h += '<p class="sc-note">Aucun contrôle ne correspond à ces filtres.</p>';
+    if (L.length > vis.length) h += '<button type="button" class="detail-btn vp-plus" data-ctl-plus="1">Afficher la suite (' + (L.length - vis.length) + ')</button>';
+    return h + '</details>';
   }
   // Réévaluations à enregistrer : périmètre complet de l'import (jamais la vue filtrée), une ligne par anomalie dont le cycle change.
   // identite : { fichierHash, dateReleve } de l'import en cours. La vérification la plus récente de chaque (cause, clé) fait foi.
@@ -516,14 +581,16 @@
       (w ? '<p class="sc-conseil">' + esc(w) + '</p>' : (infoRegime(l) ? '<p class="sc-note">' + esc(infoRegime(l)) + '. Aucune action de prix.</p>' : '')) +
       li('Statut', (LIB_STATUT[f.statut] || f.statut) + (f.raisonStatut ? ' : ' + f.raisonStatut : '')) +
       li('Seuil applicable', s ? (LIB_REGLE[s.niveau] || s.niveau) + ' : minimum ' + pct(s.minimum) + ' (' + (s.statutMinimum || 'sans statut') + '), cible ' + pct(s.cible) + ' (' + (s.statutCible || 'sans statut') + ')' + version : 'aucun seuil valide') +
-      li('Fiabilité', (LIB_FIABILITE[f.fiabilite] || f.fiabilite) + (f.raisons.length ? ' : ' + f.raisons.join(', ') : '')) +
+      li('Fiabilité', (LIB_FIABILITE[f.fiabilite] || f.fiabilite) + (f.raisons.length ? ' : ' + f.raisons.map(function (r) { return String(r).charAt(0).toUpperCase() + String(r).slice(1); }).join(' ; ') : '')) +
       li('Exception effective', f.exception ? (f.exception.type || 'oui') + ' (' + (f.exception.statut || '') + ')' : 'aucune') +
       li('Prix décidé', pd ? eur(pd.prix_ttc) + ', état : ' + (pd.etat || 'n/d') : 'aucun') +
       li('Alertes', alertes.length ? alertes.join(', ') : 'aucune') + '</details>';
   }
   function htmlFiche(l, etat) {
     var droits = etat ? peutVerifier(etat.role, etat.estCreateur) : false;
-    return '<div class="sc-fiche pt-fiche" data-fiche-ouverte="' + esc(l.article) + '"><div class="sc-nom">' + esc(l.article) + '</div>' + ficheMarge(l) + htmlControlesAFaire(l, droits) + blocFiche(l)+ '</div>';
+    return '<div class="pt-fond" data-fermer="1"></div><aside class="sc-fiche pt-fiche" role="dialog" aria-modal="true" aria-label="Fiche de ' + esc(l.article) + '" tabindex="-1" data-fiche-ouverte="' + esc(l.article) + '">' +
+      '<div class="pt-fiche-tete"><div class="sc-nom">' + esc(l.article) + '</div><button type="button" class="detail-btn pt-fermer" data-fermer="1" aria-label="Fermer la fiche">Fermer</button></div>' +
+      '<div class="pt-fiche-corps">' + ficheMarge(l) + htmlControlesAFaire(l, droits, etat) + blocFiche(l) + '</div></aside>';
   }
   function htmlControle(c, icone) {
     var badgeG = c.nombre ? B.gravite(graviteBadge(c.gravite)) : B.gravite('conforme');
@@ -596,6 +663,10 @@
       '<ul class="vp-liste">' + (li || '<li class="vp-ligne">Aucune anomalie dans cette vue.</li>') + '</ul>' + (L.length > 50 ? '<p class="sc-note">' + esc(String(L.length - 50)) + ' autres : affinez avec le filtre.</p>' : '') + '</div>';
   }
 
+  function htmlCarteControles(a, s) {
+    var n = tousControles(a).filter(function (x) { return CYCLES_ACTIFS.indexOf(x.a.cycle || 'nouvelle') >= 0; }).length;
+    return '<div class="sc-ind sc-ambre" data-carte="controles_a_effectuer"><span class="sc-ind-val">' + n + '</span><span class="sc-ind-lib">Contrôles à effectuer : ' + (n > 1 ? 'références à comparer avec Decenium' : 'référence à comparer avec Decenium') + '</span><span class="sc-ind-sous">' + esc(libellePeriode(s.periode)) + ' · un contrôle n\'est pas une erreur constatée</span></div>';
+  }
   function htmlPage(etat) {
     // etat : { analyse, role, filtres, incoherences, ouverte, toutes, site, icone }
     var a = etat.analyse, f = etat.filtres || {}, s = a.synthese;
@@ -614,7 +685,7 @@
       return '<div class="sc-ind ' + couleur[c.id] + '" data-carte="' + c.id + '"><span class="sc-ind-val">' + esc(c.valeur) + '</span><span class="sc-ind-lib">' + esc(c.titre) + '</span><span class="sc-ind-sous">' + esc(c.secondaire) + '</span></div>';
     }).join('') + '</div>';
     var cm = carteMarge(a);
-    h += '<div class="sc-inds pt-inds"><div class="sc-ind sc-info" data-carte="marge_estimee"><span class="sc-ind-val">' + esc(cm.valeur) + '</span><span class="sc-ind-lib">' + esc(cm.titre) + ' : ' + esc(cm.unite) + '</span><span class="sc-ind-sous">' + esc(cm.secondaire) + '</span></div><p class="sc-note">' + esc(cm.limite) + '</p></div>';
+    h += '<div class="sc-inds pt-inds"><div class="sc-ind sc-info" data-carte="marge_estimee"><span class="sc-ind-val">' + esc(cm.valeur) + '</span><span class="sc-ind-lib">' + esc(cm.titre) + ' : ' + esc(cm.unite) + '</span><span class="sc-ind-sous">' + esc(cm.secondaire) + '</span></div>' + htmlCarteControles(a, s) + '<p class="sc-note">' + esc(cm.limite) + '</p></div>';
     var sc = scenarios(a);
     if (s.stockFourni === false) h += '<p class="sc-note pt-stock-absent"><b>Relevé de stock</b> : non fourni. Le coût des références n\'est pas comparé au PA net HT du stock.</p>';
     h += '<details class="sc-carte pt-scenarios"><summary><span class="sc-nom">Scénarios de gain</span><span class="sc-chev"></span></summary><p class="sc-note">' + sc.map(function (x) { return esc(x.libelle) + ' : ' + esc(eur0(x.fiable)); }).join(' · ') + ' (scénarios alternatifs, jamais additionnés).</p></details>';
@@ -626,6 +697,7 @@
         (fa.id === 'exceptions' ? '<p class="sc-note">Décisions du gérant : elles ne sont pas des anomalies.</p>' : '') +
         '<div class="sc-cartes">' + fa.cartes.map(function (x) { return htmlControle(x, etat.icone); }).join('') + '</div>' + (fa.id === 'decisions' && etat.margePlus ? etat.margePlus : '') + '</section>';
     });
+    h += htmlBlocControles(etat);
     h += htmlHistorique(etat);
     h += '<div class="vp-bloc sc-tout"><h3>Toutes les références</h3><div class="vp-filtres"><label class="pt-f pt-f-rech"><span class="sc-methode">Recherche</span><input type="search" id="ptRecherche" placeholder="Nom ou code-barres" value="' + esc(f.recherche || '') + '"></label>' +
       lab('Famille', 'famille', opts(vf.famille, f.famille)) + lab('Rayon', 'rayon', opts(vf.rayon, f.rayon)) +
@@ -648,7 +720,7 @@
 
   var CSS = '.vue-p1c .pt-inds{grid-template-columns:repeat(2,1fr)}@media (min-width:900px){.vue-p1c .pt-inds{grid-template-columns:repeat(4,1fr)}}' +
     '.vue-p1c .pt-badges{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}.vue-p1c .pt-pol{margin:8px 0}.vue-p1c .pt-pol-l{display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:2px 0}' +
-    '.vue-p1c .pt-ctrl .vp-liste{margin:8px 0}.vue-p1c .pt-f{display:flex;flex-direction:column;gap:2px;min-width:0}.vue-p1c .pt-f select,.vue-p1c .pt-f input{min-height:44px;border-radius:8px;border:1px solid var(--t-line);background:var(--t-panel);color:var(--t-text);font:inherit;padding:0 8px}.vue-p1c .pt-f-rech{flex:1 1 100%}.vue-p1c .pt-f:not(.pt-f-rech){flex:1 1 140px}.vue-p1c .pt-scenarios{margin:8px 0}.vue-p1c .pt-aucun{margin:4px 0 0}.vue-p1c .sc-conseiller{margin:0 0 10px}@media (max-width:599px){.vue-p1c .sc-conseiller .conseiller-avatar{width:48px;height:48px}.vue-p1c .sc-ind{padding:10px 12px}.vue-p1c .sc-ind-val{font-size:20px}}';
+    '.vue-p1c .pt-ctrl .vp-liste{margin:8px 0}.vue-p1c .pt-f{display:flex;flex-direction:column;gap:2px;min-width:0}.vue-p1c .pt-f select,.vue-p1c .pt-f input{min-height:44px;border-radius:8px;border:1px solid var(--t-line);background:var(--t-panel);color:var(--t-text);font:inherit;padding:0 8px}.vue-p1c .pt-f-rech{flex:1 1 100%}.vue-p1c .pt-f:not(.pt-f-rech){flex:1 1 140px}.vue-p1c .pt-scenarios{margin:8px 0}.vue-p1c .pt-aucun{margin:4px 0 0}.vue-p1c .sc-conseiller{margin:0 0 10px}.vue-p1c .pt-li{display:flex;align-items:center;gap:6px}.vue-p1c .pt-li .vp-ligne-prod{flex:1;min-width:0}.vue-p1c .pt-li .pt-info{flex:none}.vue-p1c .pt-ctl{list-style:none;padding:10px 0;border-top:1px solid var(--t-line)}.vue-p1c .pt-ctl-2,.vue-p1c .pt-ctl-3{margin:4px 0}.vue-p1c .pt-ctl .pt-verifier{width:100%;min-height:44px;margin-top:8px}.vue-p1c .pt-ctl-titre{margin:0 0 8px}.vue-p1c .pt-controles-faire{margin:14px 0 10px}.vue-p1c .pt-bloc-controles{margin:10px 0}.vue-p1c .pt-ctl-outils{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}.vue-p1c .pt-ctl-cycles{border:0;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:4px 12px}.vue-p1c .pt-chk{display:inline-flex;align-items:center;gap:6px;min-height:44px}.vue-p1c .pt-verif-champ{margin-top:8px}.vue-p1c .pt-verif-zone{display:flex;flex-direction:column;gap:4px}.vue-p1c .pt-verif-com{width:100%;box-sizing:border-box;min-height:64px;border-radius:8px;border:1px solid var(--t-line);background:var(--t-panel);color:var(--t-text);font:inherit;padding:8px;resize:vertical}.vue-p1c .pt-verif-n{align-self:flex-end}.vue-p1c .pt-fond{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:40}.vue-p1c .pt-fiche{position:fixed;z-index:41;background:var(--t-panel);overflow:auto;box-sizing:border-box;left:0;right:0;bottom:0;max-height:85vh;border-radius:16px 16px 0 0;padding:12px 16px 24px}@media (min-width:900px){.vue-p1c .pt-fiche{left:auto;top:0;bottom:0;right:0;width:420px;max-height:none;border-radius:0}}.vue-p1c .pt-fiche-tete{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}.vue-p1c .pt-fermer{min-height:44px}@media (max-width:599px){.vue-p1c .sc-conseiller .conseiller-avatar{width:48px;height:48px}.vue-p1c .sc-ind{padding:10px 12px}.vue-p1c .sc-ind-val{font-size:20px}}';
 
   // ---------- Montage : lecture seule, session de la personne connectée, clé publique, aucun paramètre de site ----------
   var VUES = { familles: 'v_tarif_familles_actifs', rattachements: 'v_tarif_rattachements_actifs', seuils: 'v_tarif_seuils_actifs', reglages: 'v_tarif_reglages_actifs',

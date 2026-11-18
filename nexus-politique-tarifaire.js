@@ -429,6 +429,8 @@
     if (MA) {
       const cx = { periode: ctx.periode || null, fichierHash: ctx.fichierHash || null, dateReleve: ctx.stockDate || ctx.dateReleve || null, reglages: R };
       for (const l of lignes) {
+        // Une ligne hors ventes commerciales (acompte, opération de caisse, sortie déclarée) n'est pas analysée.
+        if (l.nature) { l.anomalies = []; l.anomaliesResolues = []; continue; }
         const an = MA.anomaliesLigne(l, cx);
         if (ctx.verifications) {
           const cyc = MA.cycleDeVie(an, ctx.verifications.filter(v => v.cle === MA.cle(l)), { fichierHash: cx.fichierHash, dateReleve: cx.dateReleve });
