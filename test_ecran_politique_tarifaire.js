@@ -705,6 +705,10 @@ ok('recette 2f3f9a11 : filtres sans débordement (wrap), marge en deux niveaux m
   const h = E.htmlPage({ analyse: analyse(), role: 'gerant', filtres: {} });
   assert.ok(/ · Fiabilité : /.test(h) && !/ · fiabilité /.test(h));
 });
+ok('recette : le chevron du panneau Filtres pointe vers le bas quand il est ouvert', () => {
+  const src = fs.readFileSync(require.resolve('./nexus-politique-tarifaire-ecran.js'), 'utf8');
+  assert.ok(/details\.pt-filtres\[open\]>summary \.sc-chev\{transform:rotate\(45deg\)\}/.test(src));
+});
 Promise.all(PROMESSES).then(() => {
 console.log('test_ecran_politique_tarifaire : ' + n + ' épreuves OK');
 });
