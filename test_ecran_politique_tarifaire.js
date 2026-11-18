@@ -761,6 +761,22 @@ ok('historique : aucune donnée modifiée (analyse et vérifications intactes)',
   E.htmlHistorique(e); E.htmlHistorique(Object.assign({}, e, { filtreHisto: 'tous' }));
   assert.strictEqual(JSON.stringify([e.analyse, e.verifications]), avant);
 });
+ok('historique : chevron au bord droit (summary en flex, space-between)', () => {
+  const css = E.css ? E.css() : require('fs').readFileSync(require('path').join(__dirname, 'nexus-politique-tarifaire-ecran.js'), 'utf8');
+  assert.ok(/pt-histo-sec>summary\{[^}]*display:flex[^}]*justify-content:space-between/.test(css));
+});
+ok('historique : vue vide hors filtre par défaut = action « Changer de statut » qui remet le défaut', () => {
+  const vide = (f) => histoEtat({ filtreHisto: f, analyse: { lignes: [{ article: 'Art-X', anomalies: [] }] } });
+  const h = E.htmlHistorique(vide('verifiee'));
+  assert.ok(/Aucune anomalie dans cette vue/.test(h) && /data-histo-reset="1">Changer de statut</.test(h));
+  assert.ok(!/data-histo-reset/.test(E.htmlHistorique(vide('actifs'))), 'déjà au défaut : pas d\'action inutile');
+  const ec = []; const b = { dataset: {}, addEventListener: (t, fn) => ec.push(fn) };
+  const corps = { querySelectorAll: (sel) => /data-histo-reset/.test(sel) ? [b] : [], querySelector: () => null };
+  const etat = { filtreHisto: 'verifiee', histoOuverte: 'S3|A' }; let rendus = 0;
+  E.lierOuvertures(corps, etat, () => { rendus++; });
+  ec[0]();
+  assert.strictEqual(etat.filtreHisto, 'actifs'); assert.strictEqual(etat.histoOuverte, null); assert.strictEqual(rendus, 1);
+});
 Promise.all(PROMESSES).then(() => {
 console.log('test_ecran_politique_tarifaire : ' + n + ' épreuves OK');
 });
