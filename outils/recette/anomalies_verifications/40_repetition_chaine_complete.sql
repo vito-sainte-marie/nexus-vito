@@ -21,10 +21,10 @@ insert into ctl(nom, detail) select 'etat_initial', to_jsonb(q) from (select
   (select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relname in ('tarif_familles','tarif_rattachements','tarif_seuils','tarif_reglages','tarif_exceptions','tarif_prix_decides','tarif_prix_application','tarif_regimes_prix','tarif_controles_reglementaires','tarif_decisions') and c.relkind='r') as tables_t2,
   (select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relname in ('tarif_familles','tarif_rattachements','tarif_seuils','tarif_reglages','tarif_exceptions','tarif_prix_decides','tarif_prix_application','tarif_regimes_prix','tarif_controles_reglementaires','tarif_decisions') and c.relrowsecurity and c.relforcerowsecurity) as tables_rls_forcee,
   (select count(*) from pg_policies where schemaname='public' and policyname='compte_actif_obligatoire') as policies_compte_actif,
-  (select count(*) from pg_policies where schemaname='public' and policyname in ('lecture_meme_site','insertion_roles_meme_site','annulation_roles_meme_site')) as policies_site,
-  (select count(*) from pg_views where schemaname='public' and viewname in ('v_tarif_prix_application_actifs','v_tarif_exceptions_effectives','v_tarif_incoherences')) as vues,
-  (select count(*) from pg_trigger where tgname in ('tarif_rattachements_famille','tarif_seuils_famille','tarif_prix_application_controle','tarif_decisions_lien') and not tgisinternal) as triggers,
-  (select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname in ('tarif_cle_reference','tarif_controle_version','tarif_controle_retrogradation','tarif_controle_famille','tarif_controle_application','tarif_controle_decision_lien','tarif_enregistrer_decisions','tarif_marquer_verifie','tarif_enregistrer_reevaluations')) as fonctions,
+  (select count(*) from pg_policies where schemaname='public' and tablename like 'tarif\_%') as policies_site,
+  (select count(*) from pg_views where schemaname='public' and viewname like 'v\_tarif\_%') as vues,
+  (select count(*) from pg_trigger g join pg_class c on c.oid=g.tgrelid join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relname like 'tarif\_%' and not g.tgisinternal) as triggers,
+  (select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname like 'tarif\_%') as fonctions,
   (select count(*) from information_schema.table_privileges where table_schema='public' and table_name in ('tarif_familles','tarif_rattachements','tarif_seuils','tarif_reglages','tarif_exceptions','tarif_prix_decides','tarif_prix_application','tarif_regimes_prix','tarif_controles_reglementaires','tarif_decisions') and grantee in ('anon','public')) as droits_anon_public) q;
 -- ===== Retraits 6 a 1 =====
 -- retour arriere 6
@@ -94,6 +94,14 @@ grant select on v_tarif_exceptions_effectives to authenticated, service_role;
 drop view if exists v_tarif_incoherences;
 drop view if exists v_tarif_exceptions_effectives;
 drop view if exists v_tarif_prix_application_actifs;
+drop view if exists v_tarif_familles_actifs;
+drop view if exists v_tarif_rattachements_actifs;
+drop view if exists v_tarif_seuils_actifs;
+drop view if exists v_tarif_reglages_actifs;
+drop view if exists v_tarif_exceptions_actifs;
+drop view if exists v_tarif_prix_decides_actifs;
+drop view if exists v_tarif_regimes_prix_actifs;
+drop view if exists v_tarif_controles_reglementaires_actifs;
 -- retour arriere 2
 drop policy if exists lecture_meme_site on tarif_familles;
 drop policy if exists insertion_roles_meme_site on tarif_familles;
@@ -145,6 +153,16 @@ drop policy if exists insertion_roles_meme_site on tarif_decisions;
 drop policy if exists annulation_roles_meme_site on tarif_decisions;
 alter table tarif_decisions no force row level security;
 alter table tarif_decisions disable row level security;
+drop trigger if exists tarif_familles_version on tarif_familles;
+drop trigger if exists tarif_rattachements_version on tarif_rattachements;
+drop trigger if exists tarif_seuils_version on tarif_seuils;
+drop trigger if exists tarif_reglages_version on tarif_reglages;
+drop trigger if exists tarif_exceptions_version on tarif_exceptions;
+drop trigger if exists tarif_prix_decides_version on tarif_prix_decides;
+drop trigger if exists tarif_regimes_prix_version on tarif_regimes_prix;
+drop trigger if exists tarif_controles_reglementaires_version on tarif_controles_reglementaires;
+drop trigger if exists tarif_exceptions_retrogradation on tarif_exceptions;
+drop trigger if exists tarif_controles_reglementaires_retrogradation on tarif_controles_reglementaires;
 drop trigger if exists tarif_rattachements_famille on tarif_rattachements;
 drop trigger if exists tarif_seuils_famille on tarif_seuils;
 drop trigger if exists tarif_prix_application_controle on tarif_prix_application;
@@ -168,10 +186,10 @@ insert into ctl(nom, detail) select 'etat_apres_retraits', to_jsonb(q) from (sel
   (select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relname in ('tarif_familles','tarif_rattachements','tarif_seuils','tarif_reglages','tarif_exceptions','tarif_prix_decides','tarif_prix_application','tarif_regimes_prix','tarif_controles_reglementaires','tarif_decisions') and c.relkind='r') as tables_t2,
   (select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relname in ('tarif_familles','tarif_rattachements','tarif_seuils','tarif_reglages','tarif_exceptions','tarif_prix_decides','tarif_prix_application','tarif_regimes_prix','tarif_controles_reglementaires','tarif_decisions') and c.relrowsecurity and c.relforcerowsecurity) as tables_rls_forcee,
   (select count(*) from pg_policies where schemaname='public' and policyname='compte_actif_obligatoire') as policies_compte_actif,
-  (select count(*) from pg_policies where schemaname='public' and policyname in ('lecture_meme_site','insertion_roles_meme_site','annulation_roles_meme_site')) as policies_site,
-  (select count(*) from pg_views where schemaname='public' and viewname in ('v_tarif_prix_application_actifs','v_tarif_exceptions_effectives','v_tarif_incoherences')) as vues,
-  (select count(*) from pg_trigger where tgname in ('tarif_rattachements_famille','tarif_seuils_famille','tarif_prix_application_controle','tarif_decisions_lien') and not tgisinternal) as triggers,
-  (select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname in ('tarif_cle_reference','tarif_controle_version','tarif_controle_retrogradation','tarif_controle_famille','tarif_controle_application','tarif_controle_decision_lien','tarif_enregistrer_decisions','tarif_marquer_verifie','tarif_enregistrer_reevaluations')) as fonctions,
+  (select count(*) from pg_policies where schemaname='public' and tablename like 'tarif\_%') as policies_site,
+  (select count(*) from pg_views where schemaname='public' and viewname like 'v\_tarif\_%') as vues,
+  (select count(*) from pg_trigger g join pg_class c on c.oid=g.tgrelid join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relname like 'tarif\_%' and not g.tgisinternal) as triggers,
+  (select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname like 'tarif\_%') as fonctions,
   (select count(*) from information_schema.table_privileges where table_schema='public' and table_name in ('tarif_familles','tarif_rattachements','tarif_seuils','tarif_reglages','tarif_exceptions','tarif_prix_decides','tarif_prix_application','tarif_regimes_prix','tarif_controles_reglementaires','tarif_decisions') and grantee in ('anon','public')) as droits_anon_public) q;
 -- ===== Application 1 a 6 =====
 -- migration 1
@@ -1210,10 +1228,10 @@ insert into ctl(nom, detail) select 'etat_apres_application', to_jsonb(q) from (
   (select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relname in ('tarif_familles','tarif_rattachements','tarif_seuils','tarif_reglages','tarif_exceptions','tarif_prix_decides','tarif_prix_application','tarif_regimes_prix','tarif_controles_reglementaires','tarif_decisions') and c.relkind='r') as tables_t2,
   (select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relname in ('tarif_familles','tarif_rattachements','tarif_seuils','tarif_reglages','tarif_exceptions','tarif_prix_decides','tarif_prix_application','tarif_regimes_prix','tarif_controles_reglementaires','tarif_decisions') and c.relrowsecurity and c.relforcerowsecurity) as tables_rls_forcee,
   (select count(*) from pg_policies where schemaname='public' and policyname='compte_actif_obligatoire') as policies_compte_actif,
-  (select count(*) from pg_policies where schemaname='public' and policyname in ('lecture_meme_site','insertion_roles_meme_site','annulation_roles_meme_site')) as policies_site,
-  (select count(*) from pg_views where schemaname='public' and viewname in ('v_tarif_prix_application_actifs','v_tarif_exceptions_effectives','v_tarif_incoherences')) as vues,
-  (select count(*) from pg_trigger where tgname in ('tarif_rattachements_famille','tarif_seuils_famille','tarif_prix_application_controle','tarif_decisions_lien') and not tgisinternal) as triggers,
-  (select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname in ('tarif_cle_reference','tarif_controle_version','tarif_controle_retrogradation','tarif_controle_famille','tarif_controle_application','tarif_controle_decision_lien','tarif_enregistrer_decisions','tarif_marquer_verifie','tarif_enregistrer_reevaluations')) as fonctions,
+  (select count(*) from pg_policies where schemaname='public' and tablename like 'tarif\_%') as policies_site,
+  (select count(*) from pg_views where schemaname='public' and viewname like 'v\_tarif\_%') as vues,
+  (select count(*) from pg_trigger g join pg_class c on c.oid=g.tgrelid join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relname like 'tarif\_%' and not g.tgisinternal) as triggers,
+  (select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname like 'tarif\_%') as fonctions,
   (select count(*) from information_schema.table_privileges where table_schema='public' and table_name in ('tarif_familles','tarif_rattachements','tarif_seuils','tarif_reglages','tarif_exceptions','tarif_prix_decides','tarif_prix_application','tarif_regimes_prix','tarif_controles_reglementaires','tarif_decisions') and grantee in ('anon','public')) as droits_anon_public) q;
 -- ===== Nouveaux retraits 6 a 1 =====
 -- retour arriere 6
@@ -1283,6 +1301,14 @@ grant select on v_tarif_exceptions_effectives to authenticated, service_role;
 drop view if exists v_tarif_incoherences;
 drop view if exists v_tarif_exceptions_effectives;
 drop view if exists v_tarif_prix_application_actifs;
+drop view if exists v_tarif_familles_actifs;
+drop view if exists v_tarif_rattachements_actifs;
+drop view if exists v_tarif_seuils_actifs;
+drop view if exists v_tarif_reglages_actifs;
+drop view if exists v_tarif_exceptions_actifs;
+drop view if exists v_tarif_prix_decides_actifs;
+drop view if exists v_tarif_regimes_prix_actifs;
+drop view if exists v_tarif_controles_reglementaires_actifs;
 -- retour arriere 2
 drop policy if exists lecture_meme_site on tarif_familles;
 drop policy if exists insertion_roles_meme_site on tarif_familles;
@@ -1334,6 +1360,16 @@ drop policy if exists insertion_roles_meme_site on tarif_decisions;
 drop policy if exists annulation_roles_meme_site on tarif_decisions;
 alter table tarif_decisions no force row level security;
 alter table tarif_decisions disable row level security;
+drop trigger if exists tarif_familles_version on tarif_familles;
+drop trigger if exists tarif_rattachements_version on tarif_rattachements;
+drop trigger if exists tarif_seuils_version on tarif_seuils;
+drop trigger if exists tarif_reglages_version on tarif_reglages;
+drop trigger if exists tarif_exceptions_version on tarif_exceptions;
+drop trigger if exists tarif_prix_decides_version on tarif_prix_decides;
+drop trigger if exists tarif_regimes_prix_version on tarif_regimes_prix;
+drop trigger if exists tarif_controles_reglementaires_version on tarif_controles_reglementaires;
+drop trigger if exists tarif_exceptions_retrogradation on tarif_exceptions;
+drop trigger if exists tarif_controles_reglementaires_retrogradation on tarif_controles_reglementaires;
 drop trigger if exists tarif_rattachements_famille on tarif_rattachements;
 drop trigger if exists tarif_seuils_famille on tarif_seuils;
 drop trigger if exists tarif_prix_application_controle on tarif_prix_application;
@@ -1357,10 +1393,10 @@ insert into ctl(nom, detail) select 'etat_apres_second_retrait', to_jsonb(q) fro
   (select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relname in ('tarif_familles','tarif_rattachements','tarif_seuils','tarif_reglages','tarif_exceptions','tarif_prix_decides','tarif_prix_application','tarif_regimes_prix','tarif_controles_reglementaires','tarif_decisions') and c.relkind='r') as tables_t2,
   (select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relname in ('tarif_familles','tarif_rattachements','tarif_seuils','tarif_reglages','tarif_exceptions','tarif_prix_decides','tarif_prix_application','tarif_regimes_prix','tarif_controles_reglementaires','tarif_decisions') and c.relrowsecurity and c.relforcerowsecurity) as tables_rls_forcee,
   (select count(*) from pg_policies where schemaname='public' and policyname='compte_actif_obligatoire') as policies_compte_actif,
-  (select count(*) from pg_policies where schemaname='public' and policyname in ('lecture_meme_site','insertion_roles_meme_site','annulation_roles_meme_site')) as policies_site,
-  (select count(*) from pg_views where schemaname='public' and viewname in ('v_tarif_prix_application_actifs','v_tarif_exceptions_effectives','v_tarif_incoherences')) as vues,
-  (select count(*) from pg_trigger where tgname in ('tarif_rattachements_famille','tarif_seuils_famille','tarif_prix_application_controle','tarif_decisions_lien') and not tgisinternal) as triggers,
-  (select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname in ('tarif_cle_reference','tarif_controle_version','tarif_controle_retrogradation','tarif_controle_famille','tarif_controle_application','tarif_controle_decision_lien','tarif_enregistrer_decisions','tarif_marquer_verifie','tarif_enregistrer_reevaluations')) as fonctions,
+  (select count(*) from pg_policies where schemaname='public' and tablename like 'tarif\_%') as policies_site,
+  (select count(*) from pg_views where schemaname='public' and viewname like 'v\_tarif\_%') as vues,
+  (select count(*) from pg_trigger g join pg_class c on c.oid=g.tgrelid join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relname like 'tarif\_%' and not g.tgisinternal) as triggers,
+  (select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname like 'tarif\_%') as fonctions,
   (select count(*) from information_schema.table_privileges where table_schema='public' and table_name in ('tarif_familles','tarif_rattachements','tarif_seuils','tarif_reglages','tarif_exceptions','tarif_prix_decides','tarif_prix_application','tarif_regimes_prix','tarif_controles_reglementaires','tarif_decisions') and grantee in ('anon','public')) as droits_anon_public) q;
 select jsonb_build_object('script','40_repetition_chaine_complete','etats',(select jsonb_agg(jsonb_build_object('nom',nom,'detail',detail) order by n) from ctl),
   'verdict', case when
@@ -1371,6 +1407,11 @@ select jsonb_build_object('script','40_repetition_chaine_complete','etats',(sele
     and (select (detail->>'tables_rls_forcee')::int from ctl where nom='etat_apres_application')=10
     and (select (detail->>'policies_compte_actif')::int from ctl where nom='etat_apres_application')=10
     and (select (detail->>'droits_anon_public')::int from ctl where nom='etat_apres_application')=0
-    and (select (detail->>'vues')::int from ctl where nom='etat_apres_application')=3
+    and (select (detail->>'vues')::int from ctl where nom='etat_apres_application')=11
+    and (select (detail->>'vues')::int from ctl where nom='etat_apres_retraits')=0
+    and (select (detail->>'triggers')::int from ctl where nom='etat_apres_retraits')=0
+    and (select (detail->>'fonctions')::int from ctl where nom='etat_apres_retraits')=0
+    and (select (detail->>'policies_site')::int from ctl where nom='etat_apres_retraits')=0
+    and (select (detail->>'policies_compte_actif')::int from ctl where nom='etat_apres_retraits')=0
     then 'OK chaine complete rejouable' else 'KO voir etats' end) as repetition_40;
 rollback;
