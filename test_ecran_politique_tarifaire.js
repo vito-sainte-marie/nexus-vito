@@ -394,6 +394,28 @@ ok('bouton Marquer comme vérifié masqué avant le clic si l\'import de référ
   assert.ok(/data-verifier=/.test(avec));
 });
 
+ok('confirmations du pilote portées par le contexte : source, date et taux écrits', () => {
+  const ctx = E.construireContexteTarif({ registres: reg, periode });
+  const c = ctx.tva.confirmations;
+  assert.ok(c.length >= 8);
+  c.forEach(x => { assert.strictEqual(x.source, 'pilote, 18/11/2026'); assert.ok(typeof x.taux_confirme === 'number'); });
+  const tx = (cat, art) => { const e = c.find(x => (!x.rayon || x.rayon === cat) && (!x.motif || new RegExp(x.motif, 'i').test(art))); return e && e.taux_confirme; };
+  assert.strictEqual(tx('Cartes prépayées', 'Recharge Digicel Haïti 10'), 0);
+  assert.strictEqual(tx('Cartes prépayées', 'Recharge Digicel 10'), 8.5);
+  assert.strictEqual(tx('Cartes prépayées', 'Recharge Orange 20'), 8.5);
+  assert.strictEqual(tx('Cartes prépayées', 'Autre carte'), 0);
+  assert.strictEqual(tx('Cigarettes', 'X'), 0);
+  assert.strictEqual(tx('Rayon Alpha', 'X'), undefined);
+});
+ok('un taux importé qui contredit la confirmation du pilote : S7 démontrée', () => {
+  const lignes = [prod('Recharge Orange 20', 'Cartes prépayées', 10, 20, 18), prod('Recharge Orange 10', 'Cartes prépayées', 10, 10, 9)];
+  lignes[0].tva = 0; lignes[1].tva = 8.5;
+  const r = T.analyser(lignes, [], E.construireContexteTarif({ registres: reg, periode }));
+  const s7 = l => (l.anomalies || []).filter(a => a.code === 'S7')[0];
+  assert.ok(s7(r.lignes[0]) && s7(r.lignes[0]).niveau === 'demontree');
+  assert.ok(!s7(r.lignes[1]));
+});
+
 Promise.all(PROMESSES).then(() => {
 console.log('test_ecran_politique_tarifaire : ' + n + ' épreuves OK');
 });

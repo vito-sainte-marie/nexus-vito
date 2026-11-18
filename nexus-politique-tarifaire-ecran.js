@@ -99,6 +99,18 @@
     });
     return { lignes: lignes, conflits: conflits, ambigus: ambigus, libelles: par.size };
   }
+  // Taux de TVA confirmés par le pilote le 18/11/2026. Données de paramétrage portées par le contexte, pas un registre :
+  // le registre produits_tva_confirmations passe en premier s'il couvre la référence. Premier élément qui correspond gagne.
+  // Recharges : Digicel Haïti à 0 % ; Digicel (hors Haïti), Orange, SFR à 8,5 % ; toute autre recharge à 0 %.
+  var SRC_PILOTE = 'pilote, 18/11/2026';
+  var HAITI = 'ha[iïí]ti';
+  var TVA_CONFIRMATIONS_PILOTE = [
+    { rayon: 'Cartes prépayées', motif: HAITI, taux_confirme: 0, source: SRC_PILOTE },
+    { rayon: 'Cartes prépayées', motif: 'digicel|orange|sfr', taux_confirme: 8.5, source: SRC_PILOTE },
+    { rayon: 'Cartes prépayées', taux_confirme: 0, source: SRC_PILOTE }
+  ].concat(['Cigarettes', 'Cigares', 'Tabac Ã rouler - 30g', 'Tabac à rouler - 30g', 'Gaz'].map(function (r) {
+    return { rayon: r, taux_confirme: 0, source: SRC_PILOTE };
+  }));
   function construireContexteTarif(sources) {
     var S = sources || {};
     var base = { periode: S.periode };
@@ -111,6 +123,7 @@
       base.stock = st.lignes; base.stockFourni = true; base.stockSource = S.stockSource || 'valorisation du stock Decenium, colonne « PA net HT »';
     } else base.stockFourni = false;
     if (S.motifsDivergents) base.motifsDivergents = S.motifsDivergents;
+    base.tva = Object.assign({}, base.tva, { confirmations: ((base.tva && base.tva.confirmations) || []).concat(TVA_CONFIRMATIONS_PILOTE) });
     if (S.tvaExplications) base.tva = Object.assign({}, base.tva, { explications: S.tvaExplications });
     return AR.contexteDepuisRegistres(S.registres, base);
   }
@@ -675,7 +688,7 @@
       return { actif: r.data.actif };
     } catch (e) { return { erreur: true }; }
   }
-  var API = { cartes: cartes, scenarios: scenarios, alertesCartes: alertesCartes, trier: trier, filtrer: filtrer, valeursFiltres: valeursFiltres,
+  var API = { TVA_CONFIRMATIONS_PILOTE: TVA_CONFIRMATIONS_PILOTE, cartes: cartes, scenarios: scenarios, alertesCartes: alertesCartes, trier: trier, filtrer: filtrer, valeursFiltres: valeursFiltres,
     preuves: preuves, conseiller: conseiller, fiche: fiche, etatAcces: etatAcces, peutVoirOnglet: peutVoirOnglet, filtrerSite: filtrerSite,
     regimeDe: regimeDe, contexteDeclaratif: contexteDeclaratif, construireContexteTarif: construireContexteTarif, stockParLibelle: stockParLibelle, controle: controle, familles: familles, avertissementRegime: avertissementRegime, infoRegime: infoRegime, badgeRegime: badgeRegime, badgeLigne: badgeLigne, blocFiche: blocFiche,
     chargerRegistres: chargerRegistres, chargerVerifications: chargerVerifications, historiqueLignes: historiqueLignes, htmlHistorique: htmlHistorique, chargerVentes: chargerVentes, lireCompte: lireCompte, libellePeriode: libellePeriode,
