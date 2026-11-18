@@ -256,6 +256,8 @@ ok('prix réglementé : qualification, aucune recommandation ni variation de co�
   assert.ok(/Prix fixé par un tiers/.test(h));
   // Le régime est dit une seule fois dans la ligne (après le nom), jamais répété après la marge.
   assert.ok(!/Prix réglementé/.test(E.htmlMarge(l)));
+  // La marge d'une ligne à régime reste une estimation : l'étiquette « Estimation » doit rester visible.
+  assert.ok(/Estimation/.test(E.htmlMarge(l)) && /Estimation/.test(E.htmlLigne(l)));
   assert.strictEqual((E.htmlLigne(l).match(/Prix réglementé/g) || []).length, 1);
   assert.ok(!/Sans seuil validé/.test(E.htmlLigne(l)) && /Aucune action de prix/.test(E.htmlLigne(l)));
   assert.ok(!/variation de coût\s*:|inférieur au coût|augmenter|baisser/i.test(h.replace(/aucune variation de coût ni recommandation de prix/i, '')));

@@ -395,7 +395,8 @@
     if (!m) return '';
     var E = V.margeEstimee.etats;
     // Le régime est déjà dit une fois, après le nom de l'article : on ne le répète pas après la marge.
-    if (typeOf(l)) return '';
+    // Le qualificatif « estimation » reste dit : la marge d'une ligne à régime demeure une estimation.
+    if (typeOf(l)) return m.etat === 'estimation' ? B.qualification('estimation') : '';
     if (m.etat === 'a_verifier') return B.gravite('a-verifier', { libelle: E.a_verifier });
     return B.qualification(QUALIF[m.etat] || 'non-calculable');
   }
