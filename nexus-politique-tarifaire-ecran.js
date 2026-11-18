@@ -409,8 +409,8 @@
       return '<div class="sc-ind ' + couleur[c.id] + '" data-carte="' + c.id + '"><span class="sc-ind-val">' + esc(c.valeur) + '</span><span class="sc-ind-lib">' + esc(c.titre) + '</span><span class="sc-ind-sous">' + esc(c.secondaire) + '</span></div>';
     }).join('') + '</div>';
     var sc = scenarios(a);
-    h += '<details class="sc-carte pt-scenarios"><summary><span class="sc-nom">Scénarios de gain</span><span class="sc-chev"></span></summary><p class="sc-note">' + sc.map(function (x) { return esc(x.libelle) + ' : ' + esc(eur0(x.fiable)); }).join(' · ') + ' (scénarios alternatifs, jamais additionnés).</p></details>';
     if (s.stockFourni === false) h += '<p class="sc-note pt-stock-absent"><b>Relevé de stock</b> : non fourni. Le coût des références n\'est pas comparé au PA net HT du stock.</p>';
+    h += '<details class="sc-carte pt-scenarios"><summary><span class="sc-nom">Scénarios de gain</span><span class="sc-chev"></span></summary><p class="sc-note">' + sc.map(function (x) { return esc(x.libelle) + ' : ' + esc(eur0(x.fiable)); }).join(' · ') + ' (scénarios alternatifs, jamais additionnés).</p></details>';
     if (a.lignes.length && a.lignes.every(function (l) { return !l.regle; })) h += '<p class="sc-note">Aucun seuil validé : toutes les références restent sans seuil validé.</p>';
     if (etat.role !== 'manager' && etat.incoherences && etat.incoherences.length) h += '<div class="pt-integrite sc-note" role="alert">Incohérence dans les registres tarifaires : ' + plur(etat.incoherences.length, 'ligne', 'lignes') + ' à corriger.</div>';
     familles(a).forEach(function (fa) {
