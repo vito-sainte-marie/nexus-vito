@@ -1,5 +1,5 @@
 -- NEXUS Scanner tarifaire : REPETITION de la migration 20261118120000 en transaction, puis ROLLBACK. Cible : Test uniquement (la garde de la migration l'impose).
--- Aucun commit. Une seule piece : controle 73, controle 40, migration telle quelle, 30 cas, comptes des deux tables, rollback.
+-- Aucun commit. Une seule piece : controle 73, controle 40, migration telle quelle, 33 cas, comptes des deux tables, rollback.
 -- A jouer ensuite : 20_verifier_rien_ne_reste.sql. Identites de recette creees DANS la transaction (auth.users puis employees, ids 00000000-0000-4000-8000-0000000e00xx), annulees par le rollback.
 -- Tous les appels de la preuve passent par tente()/val() : un echec est note KO, il n'arrete pas la transaction. Sortie : UN seul select final (JSON), puis rollback.
 begin;
@@ -81,6 +81,8 @@ create table if not exists tarif_anomalies_verifications (
   constraint tarif_anom_verif_cible check (tarif_cle_reference(code_barres, article) is not null),
   constraint tarif_anom_verif_annulation check ((annule_le is null and annule_par is null and motif_annulation is null)
     or (annule_le is not null and annule_par is not null and length(btrim(coalesce(motif_annulation, ''))) > 0)),
+  constraint tarif_anom_verif_commentaire_long check (commentaire is null or char_length(commentaire) <= 500),
+  constraint tarif_anom_verif_motif_long check (motif_annulation is null or char_length(motif_annulation) <= 500),
   constraint tarif_anom_verif_id_site unique (id, site)
 );
 -- Idempotence : une seule vérification active par site, référence, cause et empreinte.
@@ -106,7 +108,8 @@ create table if not exists tarif_anomalies_reevaluations (
   constraint tarif_anom_reeval_cible check (tarif_cle_reference(code_barres, article) is not null),
   constraint tarif_anom_reeval_verif_fk foreign key (verification_id, site) references tarif_anomalies_verifications (id, site),
   constraint tarif_anom_reeval_annulation check ((annule_le is null and annule_par is null and motif_annulation is null)
-    or (annule_le is not null and annule_par is not null and length(btrim(coalesce(motif_annulation, ''))) > 0))
+    or (annule_le is not null and annule_par is not null and length(btrim(coalesce(motif_annulation, ''))) > 0)),
+  constraint tarif_anom_reeval_motif_long check (motif_annulation is null or char_length(motif_annulation) <= 500)
 );
 create unique index if not exists tarif_anom_reeval_active_uq on tarif_anomalies_reevaluations (verification_id, fichier_hash) where annule_le is null;
 
@@ -186,6 +189,9 @@ begin
          where b.id = (l->>'import_batch_id')::uuid and b.site = v_emp.site_id and (b.fichier_hash is null or b.fichier_hash = l->>'fichier_hash')) then
       raise exception 'tarif_verif_lot_import_incoherent : le lot d import doit exister, appartenir au site et porter ce fichier_hash' using errcode = 'P0001';
     end if;
+    if char_length(btrim(coalesce(l->>'commentaire',''))) > 500 then
+      raise exception 'tarif_verif_commentaire_trop_long : le commentaire est limité à 500 caractères' using errcode = 'P0001';
+    end if;
     select v.id into v_id from tarif_anomalies_verifications v
       where v.site = v_emp.site_id and v.cle = v_cle and v.cause = l->>'cause' and v.empreinte = l->>'empreinte' and v.annule_le is null;
     if v_id is not null then
@@ -261,7 +267,7 @@ grant execute on function tarif_enregistrer_reevaluations(jsonb) to authenticate
 comment on function tarif_marquer_verifie(jsonb) is 'Marque des anomalies tarifaires comme vérifiées, par lot, tout ou rien, idempotent. SECURITY INVOKER : RLS appliquée. Manager ou gérant actif, non créateur, site du compte.';
 comment on function tarif_enregistrer_reevaluations(jsonb) is 'Enregistre les réévaluations d un nouvel import, idempotent par vérification et fichier. SECURITY INVOKER.';
 
--- ===== Preuve : 30 cas =====
+-- ===== Preuve : 33 cas =====
 create temp table journal (n serial, cas text, attendu text, obtenu text, ok boolean) on commit drop;
 grant all on journal to public; grant all on sequence journal_n_seq to public;
 create temp table ids (k text, v text) on commit drop;
@@ -333,6 +339,9 @@ select pg_temp.note('07 lot sans hash accepte un hash passe', 'ok n=1', pg_temp.
 select pg_temp.note('08 manager lit les lots de son site', '2', pg_temp.val($q$select count(*)::text from import_batches where id in ('00000000-0000-4000-8000-00000000f001','00000000-0000-4000-8000-00000000f002')$q$));
 select pg_temp.note('09 manager ne voit pas le lot d''un autre site', '0', pg_temp.val($q$select count(*)::text from import_batches where id='00000000-0000-4000-8000-00000000f003'$q$));
 select pg_temp.note('10 gravite relue en base', '3.5', pg_temp.val($q$select gravite::text from tarif_anomalies_verifications where article='essai-1'$q$));
+select pg_temp.note('31 commentaire de 501 caracteres refuse', 'tarif_verif_commentaire_trop_long', pg_temp.tente(pg_temp.marque(pg_temp.js('essai-c1','00000000-0000-4000-8000-00000000f001','H1','S1',',"commentaire":"' || repeat('x',501) || '"'))));
+select pg_temp.note('32 commentaire de 500 caracteres accepte', 'ok n=1', pg_temp.tente(pg_temp.marque(pg_temp.js('essai-c2','00000000-0000-4000-8000-00000000f001','H1','S1',',"commentaire":"' || repeat('x',500) || '"'))));
+select pg_temp.note('33 motif d''annulation de 501 caracteres refuse par la base', 'tarif_anom_verif_motif_long', pg_temp.tente(format($q$update tarif_anomalies_verifications set annule_le=now(), annule_par=%L, motif_annulation=repeat('y',501) where article='essai-c2'$q$, pg_temp.u('mA'))));
 reset role;
 insert into ids(k, v) select 'v1', id::text from tarif_anomalies_verifications where article='essai-1';
 select pg_temp.comme('authenticated', pg_temp.u('mA'));

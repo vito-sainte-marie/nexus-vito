@@ -46,6 +46,8 @@ create table if not exists tarif_anomalies_verifications (
   constraint tarif_anom_verif_cible check (tarif_cle_reference(code_barres, article) is not null),
   constraint tarif_anom_verif_annulation check ((annule_le is null and annule_par is null and motif_annulation is null)
     or (annule_le is not null and annule_par is not null and length(btrim(coalesce(motif_annulation, ''))) > 0)),
+  constraint tarif_anom_verif_commentaire_long check (commentaire is null or char_length(commentaire) <= 500),
+  constraint tarif_anom_verif_motif_long check (motif_annulation is null or char_length(motif_annulation) <= 500),
   constraint tarif_anom_verif_id_site unique (id, site)
 );
 -- Idempotence : une seule vérification active par site, référence, cause et empreinte.
@@ -71,7 +73,8 @@ create table if not exists tarif_anomalies_reevaluations (
   constraint tarif_anom_reeval_cible check (tarif_cle_reference(code_barres, article) is not null),
   constraint tarif_anom_reeval_verif_fk foreign key (verification_id, site) references tarif_anomalies_verifications (id, site),
   constraint tarif_anom_reeval_annulation check ((annule_le is null and annule_par is null and motif_annulation is null)
-    or (annule_le is not null and annule_par is not null and length(btrim(coalesce(motif_annulation, ''))) > 0))
+    or (annule_le is not null and annule_par is not null and length(btrim(coalesce(motif_annulation, ''))) > 0)),
+  constraint tarif_anom_reeval_motif_long check (motif_annulation is null or char_length(motif_annulation) <= 500)
 );
 create unique index if not exists tarif_anom_reeval_active_uq on tarif_anomalies_reevaluations (verification_id, fichier_hash) where annule_le is null;
 
@@ -150,6 +153,9 @@ begin
     if (l->>'import_batch_id') is null or not exists (select 1 from import_batches b
          where b.id = (l->>'import_batch_id')::uuid and b.site = v_emp.site_id and (b.fichier_hash is null or b.fichier_hash = l->>'fichier_hash')) then
       raise exception 'tarif_verif_lot_import_incoherent : le lot d import doit exister, appartenir au site et porter ce fichier_hash' using errcode = 'P0001';
+    end if;
+    if char_length(btrim(coalesce(l->>'commentaire',''))) > 500 then
+      raise exception 'tarif_verif_commentaire_trop_long : le commentaire est limité à 500 caractères' using errcode = 'P0001';
     end if;
     select v.id into v_id from tarif_anomalies_verifications v
       where v.site = v_emp.site_id and v.cle = v_cle and v.cause = l->>'cause' and v.empreinte = l->>'empreinte' and v.annule_le is null;
