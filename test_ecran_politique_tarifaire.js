@@ -227,4 +227,15 @@ ok('NEXUS-Scanner-v1.html et la page Produits : aucune écriture, aucun rpc', ()
   assert.ok(!/\.(insert|update|delete|upsert|rpc)\s*\(|tarif_enregistrer_decisions/.test(bloc));
 });
 
+ok('Écran v2 : Conseiller avant les cartes, scénarios dans le détail, filtres étiquetés, pas de « (s) »', () => {
+  const a = analyse();
+  const h = E.htmlPage({ analyse: a, role: 'gerant', filtres: {}, incoherences: [{}, {}] });
+  assert.ok(h.indexOf('sc-conseiller') > 0 && h.indexOf('sc-conseiller') < h.indexOf('pt-inds'), 'Conseiller avant les cartes');
+  assert.ok(/<details class="sc-carte pt-scenarios">[\s\S]*Prix décidés[\s\S]*<\/details>/.test(h), 'scénarios dans un détail');
+  ['Famille', 'Rayon', 'Statut', 'Fiabilité', 'Exception', 'Recherche'].forEach(t => assert.ok(h.indexOf('<span class="sc-methode">' + t + '</span>') > 0, t));
+  assert.ok(!/\(s\)/.test(h.replace(/<style[\s\S]*?<\/style>/g, '')), 'plus de (s)');
+  assert.ok(/2 lignes à corriger/.test(h));
+  assert.strictEqual((E.htmlControle({ code: 'X', titre: 'T', nombre: 0, nature: 'n', montant: null, gravite: 'info', action: 'a', methode: 'm', lignes: [], icone: 'x' }, null).match(/Aucun cas sur la période/g) || []).length, 1);
+});
+
 console.log('test_ecran_politique_tarifaire : ' + n + ' épreuves OK');

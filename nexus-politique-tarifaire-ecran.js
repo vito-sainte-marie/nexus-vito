@@ -135,19 +135,19 @@
     var sansPrecedente = L.length > 0 && L.every(function (l) { return num(l.tauxPrecedent) === null; });
     return [
       { id: 'marge_negative', titre: 'Ventes à marge négative', valeur: String(a3.length), unite: 'références vendues à perte ou à marge nulle',
-        secondaire: nbPertes + ' à perte (' + eur0(pertes) + '), ' + nbNulles + ' à marge nulle, dont ' + sansJust + ' sans justification',
+        secondaire: nbPertes + ' à perte · ' + nbNulles + ' à marge nulle',
         references: a3.length, periode: per, source: 'Ventes et coûts : dernier export Decenium ; justifications : registres.',
-        limite: 'Pertes et marges nulles comptées à part. La perte est mesurée au volume observé, elle n\'est pas un gain manqué.' },
+        limite: 'Pertes : ' + eur0(pertes) + '. Sans justification dans les registres : ' + sansJust + '. Pertes et marges nulles comptées à part. La perte est mesurée au volume observé, elle n\'est pas un gain manqué.' },
       { id: 'propositions', titre: 'Propositions à valider', valeur: eur0(minimum.fiable.montant), unite: '€ de gain, scénario minimum, références fiables',
         secondaire: eur0(minimum.a_confirmer.montant) + ' à confirmer', references: minimum.fiable.references, periode: per,
         source: 'Ventes et coûts : dernier export Decenium ; seuils : registres tarifaires.',
         limite: 'Gain théorique à volume constant, non cumulable avec le scénario cible. Les références à confirmer ne sont pas comptées dans le chiffre principal.' },
       { id: 'a_verifier', titre: 'Références à vérifier', valeur: String(aVerifier.length), unite: 'références',
-        secondaire: 'fiabilité insuffisante ou contrôle réglementaire ouvert', references: aVerifier.length,
+        secondaire: 'fiabilité ou contrôle à revoir', references: aVerifier.length,
         periode: per, source: 'Moteur de politique tarifaire sur le dernier export Decenium et les registres.',
         limite: (sansPrecedente ? 'Sans période précédente : les variations de prix et de coût ne sont pas mesurées. ' : '') + 'Ces références restent hors des gains.' },
       { id: 'non_constates', titre: 'Prix décidés non constatés', valeur: String(nonConstates), unite: 'références',
-        secondaire: 'prix décidé, pas encore vu en caisse', references: nonConstates,
+        secondaire: 'pas encore vu en caisse', references: nonConstates,
         periode: per, source: 'Prix décidés : registres ; prix moyen constaté : dernier export Decenium.',
         limite: 'Le prix moyen de la période ne prouve pas à lui seul le prix affiché en rayon.' }
     ];
@@ -215,13 +215,14 @@
   }
 
   // ---------- Conseiller ----------
+  var plur = function (n, un, plusieurs) { return n + ' ' + (n > 1 ? plusieurs : un); };
   function conseiller(analyse, role) {
     var c = analyse.synthese.alertes || {}, st = analyse.synthese.statuts || {};
     var gerant = role === 'gerant' || role === 'createur';
     var pas;
-    if (c.A3) pas = { code: 'A3', filtre: { alerte: 'A3' }, quoi: c.A3 + ' référence(s) vendue(s) à marge négative', pourquoi: 'chaque vente creuse la caisse tant que le prix ou le coût n\'est pas vérifié' };
-    else if (c.A8) pas = { code: 'A8', filtre: { alerte: 'A8' }, quoi: c.A8 + ' contrôle(s) réglementaire(s) ouvert(s)', pourquoi: 'ils bloquent toute proposition de prix sur ces références' };
-    else if (st.proposition_a_valider) pas = { code: 'PROP', filtre: { statut: 'proposition_a_valider' }, quoi: st.proposition_a_valider + ' proposition(s) à valider', pourquoi: 'c\'est là que se trouve le gain le plus net' };
+    if (c.A3) pas = { code: 'A3', filtre: { alerte: 'A3' }, quoi: plur(c.A3, 'référence vendue', 'références vendues') + ' à marge négative', pourquoi: 'chaque vente creuse la caisse tant que le prix ou le coût n\'est pas vérifié' };
+    else if (c.A8) pas = { code: 'A8', filtre: { alerte: 'A8' }, quoi: plur(c.A8, 'contrôle réglementaire ouvert', 'contrôles réglementaires ouverts'), pourquoi: 'ils bloquent toute proposition de prix sur ces références' };
+    else if (st.proposition_a_valider) pas = { code: 'PROP', filtre: { statut: 'proposition_a_valider' }, quoi: plur(st.proposition_a_valider, 'proposition', 'propositions') + ' à valider', pourquoi: 'c\'est là que se trouve le gain le plus net' };
     else if (c.A5 || c.A4 || c.A7) pas = { code: 'VERIF', filtre: { statut: 'a_verifier' }, quoi: 'les références signalées à vérifier', pourquoi: 'des sources se contredisent ou une variation sort de l\'ordinaire' };
     else pas = null;
     if (!pas) return { code: 'RAS', texte: gerant ? 'Rien d\'urgent : aucune alerte forte sur cette période. Vous pouvez surveiller les prix décidés.' : 'Rien d\'urgent sur cette période.', filtre: null };
@@ -385,7 +386,7 @@
     return '<details class="sc-carte pt-ctrl" data-controle="' + c.code + '"><summary aria-label="Ouvrir le contrôle : ' + esc(c.titre) + '">' +
       (icone ? '<span class="sc-ico">' + icone(c.icone) + '</span>' : '') +
       '<span class="sc-carte-txt"><span class="sc-nom">' + esc(c.titre) + '</span><span class="vp-chiffres">' + esc(chiffres) + '</span>' +
-      '<span class="pt-badges">' + badgeG + B.action(c.action, { clicable: false }) + '</span></span><span class="sc-chev"></span></summary>' +
+      (c.nombre ? '<span class="pt-badges">' + badgeG + B.action(c.action, { clicable: false }) + '</span>' : '<span class="sc-note pt-aucun">Aucun cas sur la période</span>') + '</span><span class="sc-chev"></span></summary>' +
       (c.nombre ? '<ul class="vp-liste">' + c.lignes.slice(0, 5).map(htmlLigne).join('') + '</ul>' +
         '<button type="button" class="detail-btn" data-controle-liste="' + c.code + '">Voir dans la liste</button>' : '<p class="sc-note">Aucune référence concernée.</p>') +
       '<p class="sc-methode">' + esc(c.methode) + '</p></details>';
@@ -396,31 +397,32 @@
     var lignes = trier(filtrer(a.lignes, f)), toutes = lignes.length, visibles = etat.toutes ? lignes : lignes.slice(0, 10);
     var vf = valeursFiltres(a.lignes);
     var opts = function (liste, sel, lib) { return '<option value="">Tous</option>' + liste.map(function (v) { return '<option value="' + esc(v) + '"' + (sel === v ? ' selected' : '') + '>' + esc(lib ? lib[v] || v : v) + '</option>'; }).join(''); };
+    var lab = function (t, k, o) { return '<label class="pt-f"><span class="sc-methode">' + t + '</span><select data-filtre="' + k + '">' + o + '</select></label>'; };
     var h = '<div class="sc-entete">' + (etat.icone ? '<span class="sc-entete-ico">' + etat.icone('entete') + '</span>' : '') +
       '<div><h2 class="sc-h">Scanner tarifaire</h2><div class="sc-methode">' + esc((etat.site ? etat.site + ' · ' : '') + libellePeriode(s.periode) + ' · ' + s.references + ' références analysées') + '</div></div></div>';
+    var c = conseiller(a, etat.role);
+    h += '<div class="carte conseiller sc-conseiller"><img class="conseiller-avatar" src="assets/avatar/nexus-avatar-128.png" srcset="assets/avatar/nexus-avatar-64.png 64w, assets/avatar/nexus-avatar-96.png 96w, assets/avatar/nexus-avatar-128.png 128w, assets/avatar/nexus-avatar-256.png 256w" sizes="80px" alt="Conseiller NEXUS">' +
+      '<div class="conseiller-corps"><div class="conseiller-titre">Conseiller NEXUS</div><p class="sc-conseil">' + esc(c.texte) + '</p>' +
+      (c.filtre ? '<button type="button" class="detail-btn" data-conseil="1">Voir dans la liste</button>' : '') + '</div></div>';
     var cs = cartes(a), couleur = { marge_negative: 'sc-rouge', propositions: 'sc-info', a_verifier: 'sc-ambre', non_constates: 'sc-gris' };
     h += '<div class="sc-inds pt-inds">' + cs.map(function (c) {
       return '<div class="sc-ind ' + couleur[c.id] + '" data-carte="' + c.id + '"><span class="sc-ind-val">' + esc(c.valeur) + '</span><span class="sc-ind-lib">' + esc(c.titre) + '</span><span class="sc-ind-sous">' + esc(c.secondaire) + '</span></div>';
     }).join('') + '</div>';
     var sc = scenarios(a);
-    h += '<p class="sc-note">' + sc.map(function (x) { return esc(x.libelle) + ' : ' + esc(eur0(x.fiable)); }).join(' · ') + ' (scénarios alternatifs, jamais additionnés).</p>';
+    h += '<details class="sc-carte pt-scenarios"><summary><span class="sc-nom">Scénarios de gain</span><span class="sc-chev"></span></summary><p class="sc-note">' + sc.map(function (x) { return esc(x.libelle) + ' : ' + esc(eur0(x.fiable)); }).join(' · ') + ' (scénarios alternatifs, jamais additionnés).</p></details>';
     if (s.stockFourni === false) h += '<p class="sc-note pt-stock-absent"><b>Relevé de stock</b> : non fourni. Le coût des références n\'est pas comparé au PA net HT du stock.</p>';
-    var c = conseiller(a, etat.role);
-    h += '<div class="carte conseiller sc-conseiller"><img class="conseiller-avatar" src="assets/avatar/nexus-avatar-128.png" srcset="assets/avatar/nexus-avatar-64.png 64w, assets/avatar/nexus-avatar-96.png 96w, assets/avatar/nexus-avatar-128.png 128w, assets/avatar/nexus-avatar-256.png 256w" sizes="80px" alt="Conseiller NEXUS">' +
-      '<div class="conseiller-corps"><div class="conseiller-titre">Conseiller NEXUS</div><p class="sc-conseil">' + esc(c.texte) + '</p>' +
-      (c.filtre ? '<button type="button" class="detail-btn" data-conseil="1">Voir dans la liste</button>' : '') + '</div></div>';
     if (a.lignes.length && a.lignes.every(function (l) { return !l.regle; })) h += '<p class="sc-note">Aucun seuil validé : toutes les références restent sans seuil validé.</p>';
-    if (etat.role !== 'manager' && etat.incoherences && etat.incoherences.length) h += '<div class="pt-integrite sc-note" role="alert">Incohérence dans les registres tarifaires : ' + etat.incoherences.length + ' ligne(s) à faire corriger.</div>';
+    if (etat.role !== 'manager' && etat.incoherences && etat.incoherences.length) h += '<div class="pt-integrite sc-note" role="alert">Incohérence dans les registres tarifaires : ' + plur(etat.incoherences.length, 'ligne', 'lignes') + ' à corriger.</div>';
     familles(a).forEach(function (fa) {
       h += '<section class="vp-bloc pt-famille" data-famille="' + fa.id + '"><h3 class="nbe-groupe-titre">' + esc(fa.titre) + '</h3>' +
         (fa.id === 'exceptions' ? '<p class="sc-note">Décisions du gérant : elles ne sont pas des anomalies.</p>' : '') +
         '<div class="sc-cartes">' + fa.cartes.map(function (x) { return htmlControle(x, etat.icone); }).join('') + '</div>' + (fa.id === 'decisions' && etat.margePlus ? etat.margePlus : '') + '</section>';
     });
-    h += '<div class="vp-bloc sc-tout"><h3>Toutes les références</h3><div class="vp-filtres"><input type="search" id="ptRecherche" placeholder="Rechercher un article" value="' + esc(f.recherche || '') + '">' +
-      '<select data-filtre="famille">' + opts(vf.famille, f.famille) + '</select><select data-filtre="rayon">' + opts(vf.rayon, f.rayon) + '</select>' +
-      '<select data-filtre="statut">' + opts(Object.keys(LIB_STATUT), f.statut, LIB_STATUT) + '</select>' +
-      '<select data-filtre="fiabilite">' + opts(Object.keys(LIB_FIABILITE), f.fiabilite, LIB_FIABILITE) + '</select>' +
-      '<select data-filtre="exception"><option value="">Exceptions : toutes</option><option value="avec"' + (f.exception === 'avec' ? ' selected' : '') + '>Avec exception</option><option value="sans"' + (f.exception === 'sans' ? ' selected' : '') + '>Sans exception</option></select>' +
+    h += '<div class="vp-bloc sc-tout"><h3>Toutes les références</h3><div class="vp-filtres"><label class="pt-f pt-f-rech"><span class="sc-methode">Recherche</span><input type="search" id="ptRecherche" placeholder="Nom ou code-barres" value="' + esc(f.recherche || '') + '"></label>' +
+      lab('Famille', 'famille', opts(vf.famille, f.famille)) + lab('Rayon', 'rayon', opts(vf.rayon, f.rayon)) +
+      lab('Statut', 'statut', opts(Object.keys(LIB_STATUT), f.statut, LIB_STATUT)) +
+      lab('Fiabilité', 'fiabilite', opts(Object.keys(LIB_FIABILITE), f.fiabilite, LIB_FIABILITE)) +
+      lab('Exception', 'exception', '<option value="">Toutes</option><option value="avec"' + (f.exception === 'avec' ? ' selected' : '') + '>Avec exception</option><option value="sans"' + (f.exception === 'sans' ? ' selected' : '') + '>Sans exception</option>') +
       (f.alerte ? '<button type="button" class="detail-btn" data-effacer="alerte">Alerte ' + esc(f.alerte) + ' ×</button>' : '') + '</div>';
     h += '<ul class="vp-liste">' + visibles.map(htmlLigne).join('') + '</ul>';
     if (!toutes) h += '<div class="empty-panel">Aucune référence ne correspond à ces filtres.</div>';
@@ -437,7 +439,7 @@
 
   var CSS = '.vue-p1c .pt-inds{grid-template-columns:repeat(2,1fr)}@media (min-width:900px){.vue-p1c .pt-inds{grid-template-columns:repeat(4,1fr)}}' +
     '.vue-p1c .pt-badges{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}.vue-p1c .pt-pol{margin:8px 0}.vue-p1c .pt-pol-l{display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:2px 0}' +
-    '.vue-p1c .pt-ctrl .vp-liste{margin:8px 0}';
+    '.vue-p1c .pt-ctrl .vp-liste{margin:8px 0}.vue-p1c .pt-f{display:flex;flex-direction:column;gap:2px;min-width:0}.vue-p1c .pt-f select,.vue-p1c .pt-f input{min-height:44px;border-radius:8px;border:1px solid var(--t-line);background:var(--t-panel);color:var(--t-text);font:inherit;padding:0 8px}.vue-p1c .pt-f-rech{flex:1 1 100%}.vue-p1c .pt-f:not(.pt-f-rech){flex:1 1 140px}.vue-p1c .pt-scenarios{margin:8px 0}.vue-p1c .pt-aucun{margin:4px 0 0}.vue-p1c .sc-conseiller{margin:0 0 10px}@media (max-width:599px){.vue-p1c .sc-conseiller .conseiller-avatar{width:48px;height:48px}.vue-p1c .sc-ind{padding:10px 12px}.vue-p1c .sc-ind-val{font-size:20px}}';
 
   // ---------- Montage : lecture seule, session de la personne connectée, clé publique, aucun paramètre de site ----------
   var VUES = { familles: 'v_tarif_familles_actifs', rattachements: 'v_tarif_rattachements_actifs', seuils: 'v_tarif_seuils_actifs', reglages: 'v_tarif_reglages_actifs',
