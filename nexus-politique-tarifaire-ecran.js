@@ -108,9 +108,11 @@
     { rayon: 'Cartes prépayées', motif: HAITI, taux_confirme: 0, source: SRC_PILOTE },
     { rayon: 'Cartes prépayées', motif: 'digicel|orange|sfr', taux_confirme: 8.5, source: SRC_PILOTE },
     { rayon: 'Cartes prépayées', taux_confirme: 0, source: SRC_PILOTE }
-  ].concat(['Cigarettes', 'Cigares', 'Tabac Ã rouler - 30g', 'Tabac à rouler - 30g', 'Gaz'].map(function (r) {
+  ].concat(['Cigarettes', 'Cigares', 'Tabac à rouler - 30g', 'Gaz'].map(function (r) {
     return { rayon: r, taux_confirme: 0, source: SRC_PILOTE };
   }));
+  // Ces confirmations valent pour le seul site du pilote, lu dans la session par l'appelant (S.site), jamais saisi librement.
+  var SITE_PILOTE = 'vito-sainte-marie';
   function construireContexteTarif(sources) {
     var S = sources || {};
     var base = { periode: S.periode };
@@ -123,7 +125,7 @@
       base.stock = st.lignes; base.stockFourni = true; base.stockSource = S.stockSource || 'valorisation du stock Decenium, colonne « PA net HT »';
     } else base.stockFourni = false;
     if (S.motifsDivergents) base.motifsDivergents = S.motifsDivergents;
-    base.tva = Object.assign({}, base.tva, { confirmations: ((base.tva && base.tva.confirmations) || []).concat(TVA_CONFIRMATIONS_PILOTE) });
+    if (S.site === SITE_PILOTE) base.tva = Object.assign({}, base.tva, { confirmations: ((base.tva && base.tva.confirmations) || []).concat(TVA_CONFIRMATIONS_PILOTE) });
     if (S.tvaExplications) base.tva = Object.assign({}, base.tva, { explications: S.tvaExplications });
     return AR.contexteDepuisRegistres(S.registres, base);
   }

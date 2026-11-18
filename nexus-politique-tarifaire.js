@@ -100,11 +100,13 @@
   }
 
   // Correspondance d'une entrée de registre avec une ligne : code-barres si les deux en ont un, sinon libellé exact normalisé.
+  // Catégorie lue comme T1 : « Ã  » (accent mal encodé) devient « à », espaces réduits.
+  const catNorm = c => String(c == null ? '' : c).replace(/Ã\s+/g, 'à ').replace(/\s+/g, ' ').trim();
   function correspond(entree, row) {
     if (entree.code_barres && cb(row)) return String(entree.code_barres).trim() === cb(row);
     if (entree.article) return nom(entree.article) === nom(row.article);
-    if (entree.rayon && entree.motif) return entree.rayon === row.categorie && new RegExp(entree.motif, 'i').test(row.article || '');
-    if (entree.rayon) return entree.rayon === row.categorie;
+    if (entree.rayon && entree.motif) return catNorm(entree.rayon) === catNorm(row.categorie) && new RegExp(entree.motif, 'i').test(row.article || '');
+    if (entree.rayon) return catNorm(entree.rayon) === catNorm(row.categorie);
     return false;
   }
   const premier = (liste, row) => (liste || []).find(e => correspond(e, row)) || null;

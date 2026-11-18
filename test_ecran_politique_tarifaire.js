@@ -395,9 +395,9 @@ ok('bouton Marquer comme vérifié masqué avant le clic si l\'import de référ
 });
 
 ok('confirmations du pilote portées par le contexte : source, date et taux écrits', () => {
-  const ctx = E.construireContexteTarif({ registres: reg, periode });
+  const ctx = E.construireContexteTarif({ site: 'vito-sainte-marie', registres: reg, periode });
   const c = ctx.tva.confirmations;
-  assert.ok(c.length >= 8);
+  assert.ok(c.length >= 7);
   c.forEach(x => { assert.strictEqual(x.source, 'pilote, 18/11/2026'); assert.ok(typeof x.taux_confirme === 'number'); });
   const tx = (cat, art) => { const e = c.find(x => (!x.rayon || x.rayon === cat) && (!x.motif || new RegExp(x.motif, 'i').test(art))); return e && e.taux_confirme; };
   assert.strictEqual(tx('Cartes prépayées', 'Recharge Digicel Haïti 10'), 0);
@@ -410,10 +410,28 @@ ok('confirmations du pilote portées par le contexte : source, date et taux écr
 ok('un taux importé qui contredit la confirmation du pilote : S7 démontrée', () => {
   const lignes = [prod('Recharge Orange 20', 'Cartes prépayées', 10, 20, 18), prod('Recharge Orange 10', 'Cartes prépayées', 10, 10, 9)];
   lignes[0].tva = 0; lignes[1].tva = 8.5;
-  const r = T.analyser(lignes, [], E.construireContexteTarif({ registres: reg, periode }));
+  const r = T.analyser(lignes, [], E.construireContexteTarif({ site: 'vito-sainte-marie', registres: reg, periode }));
   const s7 = l => (l.anomalies || []).filter(a => a.code === 'S7')[0];
   assert.ok(s7(r.lignes[0]) && s7(r.lignes[0]).niveau === 'demontree');
   assert.ok(!s7(r.lignes[1]));
+});
+
+ok('un autre site ne reçoit aucune confirmation du pilote', () => {
+  ['autre-site', '', null, undefined, 'Vito-Sainte-Marie'].forEach(site => {
+    const ctx = E.construireContexteTarif({ site, registres: reg, periode });
+    assert.strictEqual(((ctx.tva && ctx.tva.confirmations) || []).filter(x => x.source === 'pilote, 18/11/2026').length, 0);
+  });
+  const lignes = [prod('Recharge Orange 20', 'Cartes prépayées', 10, 20, 18)]; lignes[0].tva = 0;
+  const r = T.analyser(lignes, [], E.construireContexteTarif({ site: 'autre-site', registres: reg, periode }));
+  assert.ok(!(r.lignes[0].anomalies || []).some(a => a.code === 'S7' && a.niveau === 'demontree'));
+});
+ok('catégorie lue comme T1 : « Ã  » devient « à », la variante fautive est reconnue sans être listée', () => {
+  const ctx = E.construireContexteTarif({ site: 'vito-sainte-marie', registres: reg, periode });
+  assert.ok(!ctx.tva.confirmations.some(x => /Ã/.test(x.rayon || '')));
+  const lignes = [prod('Tabac X', 'Tabac Ã\u00a0rouler - 30g', 10, 20, 18)]; lignes[0].tva = 8.5;
+  const r = T.analyser(lignes, [], ctx);
+  const s7 = (r.lignes[0].anomalies || []).filter(a => a.code === 'S7')[0];
+  assert.ok(s7 && s7.niveau === 'demontree');
 });
 
 Promise.all(PROMESSES).then(() => {

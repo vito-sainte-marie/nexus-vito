@@ -1677,7 +1677,7 @@ nexusRequireAuth().then(async employee => {
     if (!forcer && ANALYSE_TARIF) return ANALYSE_TARIF;
     const reg = E.filtrerSite(await E.chargerRegistres(nexusClient), SITE_ACTUEL);
     const exclusions = new Set(((LECTURES_MARGE && LECTURES_MARGE.marge_exceptions) || []).map(r => r.article));
-    const ctx = E.construireContexteTarif({ registres: reg, declarations: DECLARATIONS_PRODUITS, lignes: MESURES_PRODUITS.map(x => x.row), periode: PERIODE_DONNEES,
+    const ctx = E.construireContexteTarif({ site: SITE_ACTUEL, registres: reg, declarations: DECLARATIONS_PRODUITS, lignes: MESURES_PRODUITS.map(x => x.row), periode: PERIODE_DONNEES,
       exclusions, famille: (cat, art, ex) => (window.NexusMarge && NexusMarge.familleMarge ? NexusMarge.familleMarge(cat, art, ex) : { exclue: false }) });
     // Cycle de vie des anomalies : dernier import du site + historique des vérifications (lecture seule ; la RLS filtre par site).
     let VERIFS = null;
