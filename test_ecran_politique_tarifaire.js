@@ -696,6 +696,15 @@ ok('aucun calcul changé : margeEstimee, statut et ordre des lignes identiques a
   E.htmlPage({ analyse: a, role: 'gerant', filtres: {} }); a.lignes.forEach(E.htmlLigne);
   assert.strictEqual(JSON.stringify(a.lignes), avant);
 });
+ok('recette 2f3f9a11 : filtres sans débordement (wrap), marge en deux niveaux mono, libellé « Fiabilité : »', () => {
+  const src = fs.readFileSync(require.resolve('./nexus-politique-tarifaire-ecran.js'), 'utf8');
+  assert.ok(!/pt-filtres-corps\{flex-wrap:nowrap/.test(src), 'plus de ligne unique de filtres');
+  assert.ok(/pt-filtres-corps>\.pt-f\{flex:1 1 160px;min-width:0/.test(src));
+  assert.ok(/pt-marge-prin\{[^}]*var\(--t-mono\)[^}]*font-weight:700/.test(src));
+  assert.ok(/pt-marge-sec\{[^}]*var\(--t-mid\)[^}]*var\(--t-mono\)[^}]*font-size:12px/.test(src));
+  const h = E.htmlPage({ analyse: analyse(), role: 'gerant', filtres: {} });
+  assert.ok(/ · Fiabilité : /.test(h) && !/ · fiabilité /.test(h));
+});
 Promise.all(PROMESSES).then(() => {
 console.log('test_ecran_politique_tarifaire : ' + n + ' épreuves OK');
 });
