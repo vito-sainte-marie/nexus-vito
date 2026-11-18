@@ -57,6 +57,30 @@
   const nom = s => String(s || '').replace(/\s+/g, ' ').trim().toLowerCase();
   const cb = r => (r && r.code_barres ? String(r.code_barres).trim() : '');
   const jour = d => (d ? String(d).slice(0, 10) : null);
+  // Textes fixes de la marge estimée : lus dans nexus-vocabulaire-tarif.js, jamais écrits ici.
+  let vocabMarge = null;
+  function vocabulaireMarge() {
+    if (global.NexusVocabTarif && global.NexusVocabTarif.margeEstimee) return global.NexusVocabTarif.margeEstimee;
+    if (vocabMarge) return vocabMarge;
+    if (typeof require === 'function') {
+      const vm = require('vm'), fs = require('fs'), path = require('path');
+      const w = {};
+      vm.runInNewContext(fs.readFileSync(path.join(__dirname, 'nexus-vocabulaire-tarif.js'), 'utf8'), { window: w });
+      vocabMarge = w.NexusVocabTarif && w.NexusVocabTarif.margeEstimee;
+    }
+    if (!vocabMarge) throw new Error('NexusVocabTarif.margeEstimee introuvable : charger nexus-vocabulaire-tarif.js avant le moteur');
+    return vocabMarge;
+  }
+  let moduleAnomalies;
+  function anomaliesModule() {
+    if (global.NexusAnomaliesTarifaires) return global.NexusAnomaliesTarifaires;
+    if (moduleAnomalies === undefined) {
+      moduleAnomalies = null;
+      if (typeof require === 'function') { try { moduleAnomalies = require('./nexus-anomalies-tarifaires.js'); } catch (e) { moduleAnomalies = null; } }
+    }
+    return moduleAnomalies;
+  }
+  const jjmm = d => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(d || '')); return m ? m[3] + '/' + m[2] : ''; };
   const eur = n => (n === null || n === undefined) ? '' : (Math.round(n * 100) / 100).toFixed(2).replace('.', ',');
 
   // Arrondi au palier TTC supérieur, en centimes entiers pour éviter les erreurs de virgule flottante.
@@ -174,6 +198,20 @@
     const methodeEtablie = !!cout.methode;
     const prec = indexer(precedentes);
     const stock = indexer((ctx.stock || []).map(s => ({ article: s.article, code_barres: s.code_barres || '', pa: num(s.pa_net_ht), ambigu: s.ambigu || null })));
+    // Un seul PA au relevé : la marge estimée ne reprend le PA net HT que si le libellé (ou le code-barres) n'en porte qu'un.
+    const paDistincts = new Map();
+    for (const s of ctx.stock || []) {
+      const v = num(s.pa_net_ht);
+      for (const k of [cb(s) && 'cb:' + cb(s), 'nom:' + nom(s.article)]) {
+        if (!k) continue;
+        if (!paDistincts.has(k)) paDistincts.set(k, new Set());
+        if (v !== null && v > 0) paDistincts.get(k).add(r4(v));
+      }
+    }
+    const paUniqueStock = row => {
+      const ens = (cb(row) && paDistincts.get('cb:' + cb(row))) || paDistincts.get('nom:' + nom(row.article));
+      return ens && ens.size === 1 ? [...ens][0] : null;
+    };
     const taxe = new Map();
     for (const r of courantes || []) if (num(r.tva) > 0) taxe.set(r.categorie, (taxe.get(r.categorie) || 0) + 1);
     const debut = jour(ctx.periode && ctx.periode.debut), fin = jour(ctx.periode && ctx.periode.fin);
@@ -203,7 +241,7 @@
       const ecartStock = (st && paStock > 0 && pa !== null) ? r4((pa - paStock) / paStock) : null;
 
       // Coût : provenance et méthode conservées ; jamais renommé PMP sans preuve.
-      const coutLigne = { valeur: pa, libelle: cout.libelle, provenance: cout.provenance, methode: cout.methode || 'non établie (PMP ou dernier prix d\'achat)',
+      const coutLigne = { valeur: pa, libelle: cout.libelle, provenance: cout.provenance, methode: cout.methode || vocabulaireMarge().methode,
         stock: st ? { pa_net_ht: paStock, ecart: ecartStock, source: ctx.stockSource || 'valorisation du stock Decenium, colonne « PA net HT »' } : null };
 
       // Fiabilité comptable : aucun critère réglementaire ni d'application de prix.
@@ -212,7 +250,9 @@
       if (pa === null || pa <= 0) ins.push('coût absent ou nul');
       if (pv === null || pv <= 0) ins.push('prix de vente absent ou nul');
       if (pv !== null && pa !== null && pa >= pv) ins.push('marge négative ou nulle');
-      if (varCout !== null && Math.abs(varCout) >= R.variationSuspecte) ins.push('coût en variation de ' + Math.round(varCout * 100) + ' % sur la période précédente');
+      const prixAdministre = regime === 'reglemente';
+      if (prixAdministre) { /* prix administré : le coût suit le tarif officiel, une variation n'est pas un constat de fiabilité */ }
+      else if (varCout !== null && Math.abs(varCout) >= R.variationSuspecte) ins.push('coût en variation de ' + Math.round(varCout * 100) + ' % sur la période précédente');
       else if (varCout !== null && Math.abs(varCout) >= R.variationNotable) conf.push('coût en variation de ' + Math.round(varCout * 100) + ' % sur la période précédente');
       // Sans relevé de stock fourni (ctx.stockFourni === false) : aucun constat par référence ; la limite est écrite une fois (synthese.stockFourni).
       if (!st) conf.push(ctx.stockFourni !== false ? 'absent du relevé de stock : coût non contrôlé' : 'coût non contrôlé : relevé de stock non fourni');
@@ -285,7 +325,7 @@
       const alertes = [];
       const ca = pv !== null ? r2(pv * q) : null;
       const ajoute = (code, consequence, donnees) => alertes.push({ ...ALERTES[code], consequence, donnees });
-      if (p && pa !== null && paP !== null && pa > paP + 0.005 && pv !== null && pvP !== null && Math.abs(pv - pvP) <= 0.005 && taux !== null && tauxP !== null && taux < tauxP)
+      if (!prixAdministre && p && pa !== null && paP !== null && pa > paP + 0.005 && pv !== null && pvP !== null && Math.abs(pv - pvP) <= 0.005 && taux !== null && tauxP !== null && taux < tauxP)
         ajoute('A1', { montant: r2((pa - paP) * q), nature: 'impact estimé à volume observé' }, { coutPrecedent: paP, cout: pa, tauxPrecedent: tauxP, taux });
       if (statut === STATUTS.proposition_a_valider && sim.minimum)
         ajoute('A2', { montant: sim.minimum.gain, nature: 'gain théorique au seuil, volume constant' }, { taux, seuil: seuilRef, prixEnvisageableTtc: sim.minimum.ttc, exceptionCandidate: !!(exception && exception.statut === 'candidate') });
@@ -338,6 +378,38 @@
       }
       if (reglementaireOuvert) ajoute('A8', { montant: ca, nature: "chiffre d'affaires HT concerné, aucun gain" }, { etat: conformite.etat, type_element: conformite.type_element });
 
+      // Marge estimée : lecture additive. Ne modifie ni taux, ni statut, ni fiabilité, ni simulation, ni alerte, ni gain.
+      const V = vocabulaireMarge();
+      const paRel = paUniqueStock(row);
+      const dateRel = jjmm(ctx.stockDate || ctx.dateReleve);
+      let coutM = null, sourceM = null, periodeM = null;
+      if (pa !== null && pa > 0) { coutM = pa; sourceM = V.sources.export; periodeM = ctx.periode || null; }
+      else if (paRel !== null) { coutM = paRel; sourceM = V.sources.releve(dateRel); }
+      const raisonsM = [], limitesM = [V.limites.remises, V.limites.ttc, V.limites.decision];
+      let etatM;
+      if (!commerciale) { etatM = 'non_calculable'; raisonsM.push(V.raisons.horsVentes(nature)); }
+      else if (coutM === null || coutM <= 0) { etatM = 'non_calculable'; raisonsM.push(V.raisons.coutAbsent); }
+      else if (pv === null || pv <= 0) { etatM = 'non_calculable'; raisonsM.push(V.raisons.pvAbsent); }
+      else {
+        if (ecartStock !== null && pa > 0 && Math.abs(ecartStock) > R.ecartStockInsuffisant) raisonsM.push(V.raisons.ecartReleve(Math.round(ecartStock * 100)));
+        if (!prixAdministre && varCout !== null && Math.abs(varCout) >= R.variationSuspecte) raisonsM.push(V.raisons.variationCout(Math.round(varCout * 100)));
+        if (coutM >= pv) raisonsM.push(V.raisons.margeNonPositive);
+        if (tva.etat === 'a_verifier') raisonsM.push(V.raisons.tva);
+        etatM = raisonsM.length ? 'a_verifier' : 'estimation';
+        if (!st) limitesM.push(V.limites.sansReleve);
+        if (prixAdministre) limitesM.push(V.limites.administre);
+      }
+      const calcM = etatM !== 'non_calculable';
+      const margeEstimee = {
+        etat: etatM,
+        taux: calcM ? r4((pv - coutM) / pv) : null,
+        margeUnitaireHt: calcM ? r4(pv - coutM) : null,
+        margeHt: calcM ? r2((pv - coutM) * q) : null,
+        cout: { valeur: coutM, source: sourceM, periode: periodeM, dateReleve: ctx.stockDate || ctx.dateReleve || null, methode: vocabulaireMarge().methode },
+        controle: (st && paStock > 0) ? { paNetHtReleve: paStock, ecart: (pa > 0 ? ecartStock : null), dateReleve: ctx.stockDate || ctx.dateReleve || null } : null,
+        raisons: raisonsM, limites: limitesM,
+      };
+
       lignes.push({
         article: row.article, code_barres: cb(row), rayon: row.categorie, famille: fam.famille, sourceFamille: fam.source, noteFamille: fam.motif,
         quantite: q, pv_ht: pv, pv_ttc: pvTtc, ca_ht: ca, tva, cout: coutLigne, taux, tauxPrecedent: tauxP, variationCout: varCout, variationPv: varPv,
@@ -346,8 +418,21 @@
           nature: regleValide ? 'validee' : seuil.indicatif ? 'indicative' : 'non_validee', valide: regleValide, seuilApplique: seuilRef, repereIndicatif: repere } : null,
         regimeDeclare: regDecl ? { regime: regDecl.regime, raison: regDecl.raison || null } : null,
         exception, prixDecide: suivi, conformite, fiabilite: { niveau, raisons: ins.concat(conf) },
-        simulation: sim, statut, raisonStatut, alertes,
+        simulation: sim, statut, raisonStatut, alertes, margeEstimee,
       });
+    }
+
+    // Anomalies S1–S7 : lecture additive par ligne, aucun effet sur taux, statut, fiabilité, simulation, alerte ni gain.
+    const MA = anomaliesModule();
+    if (MA) {
+      const cx = { periode: ctx.periode || null, fichierHash: ctx.fichierHash || null, dateReleve: ctx.stockDate || ctx.dateReleve || null, reglages: R };
+      for (const l of lignes) {
+        const an = MA.anomaliesLigne(l, cx);
+        if (ctx.verifications) {
+          const cyc = MA.cycleDeVie(an, ctx.verifications.filter(v => v.cle === MA.cle(l)), { fichierHash: cx.fichierHash, dateReleve: cx.dateReleve });
+          l.anomalies = cyc.anomalies; l.anomaliesResolues = cyc.resolues;
+        } else l.anomalies = an;
+      }
     }
 
     // Gains : chaque référence entre dans UNE case par scénario, celle de son niveau de fiabilité.
@@ -382,7 +467,7 @@
       alertes: lignes.reduce((m, l) => { for (const a of l.alertes) m[a.code] = (m[a.code] || 0) + 1; return m; }, {}),
       exclusReglementaire: { references: exclus.reglementaire.length, ca_ht: r2(exclus.reglementaire.reduce((s, l) => s + (l.ca_ht || 0), 0)) },
       exclusException: { references: exclus.exception.length },
-      cout: { ...cout, methode: cout.methode || 'non établie (PMP ou dernier prix d\'achat)', methodeEtablie },
+      cout: { ...cout, methode: cout.methode || vocabulaireMarge().methode, methodeEtablie },
       stockFourni: ctx.stockFourni !== false,
     };
     return { lignes, gains, synthese };

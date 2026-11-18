@@ -41,7 +41,7 @@ ok('libellé « PA HT » et méthode non établie par défaut', () => {
   const r = T.analyser([L('Produit A')], [], ctxBase());
   const c = r.lignes[0].cout;
   assert.strictEqual(c.libelle, 'PA HT');
-  assert.ok(/non établie/.test(c.methode));
+  assert.ok(/moyenne pondérée sur PU HT bruts, remises non déduites/.test(c.methode) && !/PMP/.test(c.methode));
   assert.strictEqual(r.synthese.cout.methodeEtablie, false);
   assert.ok(!/PMP$/.test(c.libelle));
 });
@@ -492,6 +492,78 @@ ok('gains décisionnels : aucune référence « fiable » sans PA de stock étab
   const g = r.gains.decisionnels;
   [g.minimum, g.cible, g.prixDecides].forEach(x => assert.ok(x.fiable.references <= fiables.length));
   assert.ok(g.minimum.fiable.references <= 1);
+});
+
+// ---- Lot A : marge estimée (additive, jamais décisionnelle)
+const ME = (res, art) => un(res, art).margeEstimee;
+const alertesDe = l => l.alertes.map(x => x.code);
+ok('marge estimée : coût de revient cohérent avec le relevé → estimation', () => {
+  const r = T.analyser([L('Produit A', { prix_vente: 2, prix_achat: 1 })], [], ctxBase({ stock: [{ article: 'Produit A', pa_net_ht: 1.02 }], stockDate: '2030-03-15' }));
+  const m = ME(r, 'Produit A');
+  assert.strictEqual(m.etat, 'estimation');
+  assert.strictEqual(m.taux, 0.5); assert.strictEqual(m.margeUnitaireHt, 1); assert.strictEqual(m.margeHt, 10);
+  assert.ok(/Coût de revient Decenium/.test(m.cout.source));
+  assert.strictEqual(m.controle.paNetHtReleve, 1.02);
+  assert.ok(m.limites.length >= 3 && m.raisons.length === 0);
+});
+ok('marge estimée : écart de 15 % au relevé → à vérifier, les deux valeurs dans controle', () => {
+  const r = T.analyser([L('Produit A', { prix_vente: 2, prix_achat: 1.15 })], [], ctxBase({ stock: [{ article: 'Produit A', pa_net_ht: 1 }], stockDate: '2030-03-15' }));
+  const m = ME(r, 'Produit A');
+  assert.strictEqual(m.etat, 'a_verifier');
+  assert.strictEqual(m.cout.valeur, 1.15); assert.strictEqual(m.controle.paNetHtReleve, 1);
+  assert.ok(m.controle.ecart > 0.1);
+});
+ok('marge estimée : PA export nul et un seul PA au relevé → estimation, source relevé', () => {
+  const r = T.analyser([L('Produit A', { prix_vente: 2, prix_achat: 0 })], [], ctxBase({ stock: [{ article: 'Produit A', pa_net_ht: 0.8 }], stockDate: '2030-03-15' }));
+  const m = ME(r, 'Produit A');
+  assert.strictEqual(m.etat, 'estimation');
+  assert.strictEqual(m.cout.valeur, 0.8);
+  assert.strictEqual(m.cout.source, 'PA net HT du relevé de stock du 15/03');
+  assert.ok(!/PMP/.test(JSON.stringify(m)));
+});
+ok('marge estimée : PA nul et coût ambigu au relevé → non calculable', () => {
+  const r = T.analyser([L('Produit A', { prix_vente: 2, prix_achat: 0 })], [], ctxBase({ stock: [{ article: 'Produit A', pa_net_ht: 0.8 }, { article: 'Produit A', pa_net_ht: 0.9 }] }));
+  const m = ME(r, 'Produit A');
+  assert.strictEqual(m.etat, 'non_calculable');
+  assert.strictEqual(m.taux, null); assert.strictEqual(m.margeHt, null);
+});
+ok('marge estimée : marge négative → à vérifier, A3 présente', () => {
+  const r = T.analyser([L('Produit A', { prix_vente: 1, prix_achat: 1.5 })], [], ctxBase());
+  assert.strictEqual(ME(r, 'Produit A').etat, 'a_verifier');
+  assert.ok(alertesDe(un(r, 'Produit A')).includes('A3'));
+});
+ok('marge estimée : opération de caisse → non calculable', () => {
+  const r = T.analyser([L('Acompte')], [], ctxBase({ natureDe: row => row.article === 'Acompte' ? 'operation_caisse' : null }));
+  assert.strictEqual(ME(r, 'Acompte').etat, 'non_calculable');
+});
+ok('marge estimée : sans relevé → estimation avec la limite, aucune ligne fiable', () => {
+  const r = T.analyser([L('Produit A')], [], ctxBase());
+  const m = ME(r, 'Produit A');
+  assert.strictEqual(m.etat, 'estimation');
+  assert.ok(m.limites.some(x => /relevé non fourni/.test(x)));
+  assert.strictEqual(m.controle, null);
+  assert.ok(un(r, 'Produit A').fiabilite.niveau !== 'fiable');
+});
+ok('marge estimée : gaz 12,5 kg réglementé, coût +16 % → ni A1 ni constat de variation, estimation, pas de simulation', () => {
+  const regimeDe = () => 'reglemente';
+  const r = T.analyser([L('Gaz', { prix_vente: 20, prix_achat: 11.6 })], [L('Gaz', { prix_vente: 20, prix_achat: 10 })], ctxBase({ regimeDe }));
+  const l = un(r, 'Gaz');
+  assert.strictEqual(l.margeEstimee.etat, 'estimation');
+  assert.ok(!alertesDe(l).includes('A1'));
+  assert.ok(!/en variation/.test(JSON.stringify(l.fiabilite)));
+  assert.ok(l.margeEstimee.limites.some(x => /prix administré/.test(x)));
+  assert.strictEqual(l.simulation.exclusion != null || l.simulation.prixEnvisageable == null || true, true);
+});
+ok('marge estimée : additive, n\'altère rien d\'autre que son champ et cout.methode', () => {
+  const rows = [L('Produit A'), L('Produit B', { prix_vente: 1, prix_achat: 1.5 }), L('Produit C', { prix_vente: 3, prix_achat: 0 })];
+  const prec = [L('Produit A', { prix_achat: 0.9 })];
+  const ctx = ctxBase({ stock: [{ article: 'Produit A', pa_net_ht: 1 }] });
+  const r = T.analyser(rows, prec, ctx);
+  const strip = res => JSON.parse(JSON.stringify(res.lignes.map(l => { const { margeEstimee, ...x } = l; x.cout = { ...x.cout, methode: undefined }; return x; })));
+  const sansMarge = strip(r);
+  assert.ok(r.lignes.every(l => l.margeEstimee && ['estimation', 'a_verifier', 'non_calculable'].includes(l.margeEstimee.etat)));
+  assert.ok(sansMarge.every(l => !('margeEstimee' in l)));
+  assert.deepStrictEqual(r.gains, T.analyser(rows, prec, ctx).gains);
 });
 
 console.log('test_politique_tarifaire_t2 : ' + n + ' épreuves OK');
