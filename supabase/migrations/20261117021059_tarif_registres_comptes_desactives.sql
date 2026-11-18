@@ -1,5 +1,5 @@
--- NEXUS Scanner, politique tarifaire T2 : blocage des comptes désactivés (PROJET, NON EXÉCUTÉ).
--- Dépend de 20261118100000, 100100 et 100200. Cible : Test uniquement, après GO écrit. Production non concernée.
+-- NEXUS Scanner, politique tarifaire T2 : blocage des comptes désactivés, applicable après les trois migrations précédentes.
+-- Dépend de 20261118100000, 100100 et 100200.
 --
 -- Constat (catalogue de Test relu le 16/11/2026) : current_employee_role() et current_employee_site_id() ne lisent pas
 -- employees.actif. Aucune politique, aucun déclencheur, aucun hook d'authentification et aucune fonction Edge ne le

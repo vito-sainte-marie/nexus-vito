@@ -1,6 +1,6 @@
--- NEXUS Scanner, anomalies tarifaires : vérifications et réévaluations (PROJET, NON EXÉCUTÉ).
--- Dépend des migrations T2 (20261117020430, 020652, 020851, 021059) et du journal 20261117161325. Cible : Test uniquement, après GO écrit.
--- Production non concernée. Additive : deux tables d'ajout seul, deux fonctions SECURITY INVOKER. Aucune donnée existante modifiée.
+-- NEXUS Scanner, anomalies tarifaires : vérifications et réévaluations, applicable après les migrations T2 et le journal des décisions.
+-- Dépend des migrations T2 (20261117020430, 020652, 020851, 021059) et du journal 20261117161325.
+-- Additive : deux tables d'ajout seul, deux fonctions SECURITY INVOKER. Aucune donnée existante modifiée.
 -- Aucune écriture Decenium. Le site n'est jamais un paramètre : il est lu dans la ligne employees de la personne connectée.
 -- Retour arrière : docs/deploiement/retour-arriere-tarif-anomalies-verifications-20261118.sql (ne retire que ces quatre objets).
 

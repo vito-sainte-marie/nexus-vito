@@ -4,6 +4,17 @@
 -- Les 33 cas fonctionnels de la 6 restent dans 10_repetition_rollback.sql. A jouer ensuite : 20_verifier_rien_ne_reste.sql n'est PAS attendu ici (les tables existent sur Test) ; relire plutot le controle 73.
 -- Sortie : UN seul select final (JSON).
 begin;
+-- Garde de Test (recette uniquement, hors migrations) : ce script cree des comptes de recette et, pour le 40, supprime les 10 registres. Refuse hors Test.
+do $garde_recette$
+declare v_sysid bigint := (select system_identifier from pg_control_system());
+begin
+  if v_sysid is distinct from 7678069749886157684 then
+    raise exception 'garde_projet_test : identifiant système % : ce n est pas le projet Supabase Test udljdqxerrbbbajxubfn', v_sysid;
+  end if;
+  if (select count(*) from public.sites where site_id in ('site-fantome-test', 'nexus-station-test')) <> 2 then
+    raise exception 'garde_projet_test : sites de recette absents';
+  end if;
+end $garde_recette$;
 create temp table ctl (n serial, nom text, detail jsonb) on commit drop;
 create temp table c73_avant as select (select count(*) from tarif_familles) a, (select count(*) from tarif_rattachements) b, (select count(*) from tarif_seuils) c, (select count(*) from tarif_reglages) d, (select count(*) from tarif_exceptions) e, (select count(*) from tarif_prix_decides) f, (select count(*) from tarif_prix_application) g, (select count(*) from tarif_regimes_prix) h, (select count(*) from tarif_controles_reglementaires) i, (select count(*) from tarif_decisions) j;
 insert into ctl(nom, detail) select 'etat_initial', to_jsonb(q) from (select
@@ -164,8 +175,8 @@ insert into ctl(nom, detail) select 'etat_apres_retraits', to_jsonb(q) from (sel
   (select count(*) from information_schema.table_privileges where table_schema='public' and table_name in ('tarif_familles','tarif_rattachements','tarif_seuils','tarif_reglages','tarif_exceptions','tarif_prix_decides','tarif_prix_application','tarif_regimes_prix','tarif_controles_reglementaires','tarif_decisions') and grantee in ('anon','public')) as droits_anon_public) q;
 -- ===== Application 1 a 6 =====
 -- migration 1
--- NEXUS Scanner, politique tarifaire T2 : registres versionnés (PROJET, soumis à l'examen du gérant, NON EXÉCUTÉ).
--- Cible : projet Supabase Test uniquement, après GO écrit. Aucune donnée Production, aucune donnée Decenium modifiée.
+-- NEXUS Scanner, politique tarifaire T2 : registres versionnés (10 tables tarif_*), prérequis vérifiés par un bloc neutre, applicable sur tout projet portant les tables du socle.
+-- Aucune donnée Production, aucune donnée Decenium modifiée.
 -- Modèle repris de 20261117100000_produits_nature_tva_justifications.sql :
 --   ajout seul ; correction = nouvelle ligne avec remplace_id ; annulation = UPDATE limité à trois colonnes ; aucun DELETE.
 -- Nouveauté : une seule version active par clé, garantie par déclencheur et verrou consultatif.
@@ -447,8 +458,8 @@ end $$;
 revoke all on function tarif_cle_reference(text, text) from public, anon;
 grant execute on function tarif_cle_reference(text, text) to authenticated, service_role;
 -- migration 2
--- NEXUS Scanner, politique tarifaire T2 : déclencheurs d'intégrité, permissions et isolation par site (PROJET, NON EXÉCUTÉ).
--- Dépend de 20261118100000_tarif_registres.sql. Cible : Test uniquement, après GO écrit.
+-- NEXUS Scanner, politique tarifaire T2 : déclencheurs d'intégrité, permissions et isolation par site, applicable après la migration 20261117020430.
+-- Dépend de 20261118100000_tarif_registres.sql.
 -- Version 2 (examen du 16/11/2026) : aucune fonction SECURITY DEFINER nouvelle. Les deux fonctions de lecture
 -- de statut de la version 1 sont remplacées par un déclencheur ordinaire, qui lit la table sous les droits de la personne.
 
@@ -611,7 +622,7 @@ begin
   end loop;
 end $$;
 -- migration 3
--- NEXUS Scanner, politique tarifaire T2 : vues de l'état courant (PROJET, NON EXÉCUTÉ).
+-- NEXUS Scanner, politique tarifaire T2 : vues de l'état courant (security_invoker), applicable après les migrations 20261117020430 et 20261117020652.
 -- security_invoker : chaque vue applique les permissions de la personne connectée (RLS des tables sous-jacentes).
 -- Version 2 (examen du 16/11/2026, 20 h 22) : exceptions effectives par priorité, vue des incohérences.
 
@@ -716,8 +727,8 @@ create or replace view v_tarif_incoherences with (security_invoker = true) as
 revoke all on v_tarif_incoherences from anon, public, authenticated, service_role;
 grant select on v_tarif_incoherences to authenticated, service_role;
 -- migration 4
--- NEXUS Scanner, politique tarifaire T2 : blocage des comptes désactivés (PROJET, NON EXÉCUTÉ).
--- Dépend de 20261118100000, 100100 et 100200. Cible : Test uniquement, après GO écrit. Production non concernée.
+-- NEXUS Scanner, politique tarifaire T2 : blocage des comptes désactivés, applicable après les trois migrations précédentes.
+-- Dépend de 20261118100000, 100100 et 100200.
 --
 -- Constat (catalogue de Test relu le 16/11/2026) : current_employee_role() et current_employee_site_id() ne lisent pas
 -- employees.actif. Aucune politique, aucun déclencheur, aucun hook d'authentification et aucune fonction Edge ne le
@@ -805,10 +816,10 @@ from candidats;
 revoke all on v_tarif_exceptions_effectives from anon, public, authenticated, service_role;
 grant select on v_tarif_exceptions_effectives to authenticated, service_role;
 -- migration 5
--- NEXUS Scanner, T3 : enregistrement transactionnel d'une décision de prix et de sa ligne de journal (PROJET, NON EXÉCUTÉ).
+-- NEXUS Scanner, T3 : enregistrement transactionnel d'une décision de prix et de sa ligne de journal, applicable après les quatre migrations T2.
 -- Version 2 (contre-audit du 17/11/2026, 11 h 09) : règle du lien portée par le déclencheur d'insertion (plus de CHECK),
 -- lien limité à un prix décidé actif, version de moteur présentée comme un contrôle de forme.
--- Dépend des quatre migrations T2 (20261118100000 à 100300). Cible : Test uniquement, après GO écrit. Production non concernée.
+-- Dépend des quatre migrations T2 (20261118100000 à 100300).
 --
 -- Arbitrage du 17/11/2026, condition 1 : fonction SECURITY INVOKER ; RLS, atomicité et isolation multisite prouvées
 -- sur base jetable avant toute migration.
@@ -963,9 +974,9 @@ grant execute on function tarif_enregistrer_decisions(jsonb) to authenticated;
 comment on function tarif_enregistrer_decisions(jsonb) is
   'T3 : enregistre ensemble prix décidé et journal, par lot, tout ou rien. SECURITY INVOKER : RLS T2 appliquée. Gérant actif, non créateur, site du compte.';
 -- migration 6
--- NEXUS Scanner, anomalies tarifaires : vérifications et réévaluations (PROJET, NON EXÉCUTÉ).
--- Dépend des migrations T2 (20261117020430, 020652, 020851, 021059) et du journal 20261117161325. Cible : Test uniquement, après GO écrit.
--- Production non concernée. Additive : deux tables d'ajout seul, deux fonctions SECURITY INVOKER. Aucune donnée existante modifiée.
+-- NEXUS Scanner, anomalies tarifaires : vérifications et réévaluations, applicable après les migrations T2 et le journal des décisions.
+-- Dépend des migrations T2 (20261117020430, 020652, 020851, 021059) et du journal 20261117161325.
+-- Additive : deux tables d'ajout seul, deux fonctions SECURITY INVOKER. Aucune donnée existante modifiée.
 -- Aucune écriture Decenium. Le site n'est jamais un paramètre : il est lu dans la ligne employees de la personne connectée.
 -- Retour arrière : docs/deploiement/retour-arriere-tarif-anomalies-verifications-20261118.sql (ne retire que ces quatre objets).
 
@@ -1354,6 +1365,7 @@ insert into ctl(nom, detail) select 'etat_apres_second_retrait', to_jsonb(q) fro
 select jsonb_build_object('script','40_repetition_chaine_complete','etats',(select jsonb_agg(jsonb_build_object('nom',nom,'detail',detail) order by n) from ctl),
   'verdict', case when
     (select detail from ctl where nom='etat_apres_retraits') = (select detail from ctl where nom='etat_apres_second_retrait')
+    and (select detail from ctl where nom='etat_initial') = (select detail from ctl where nom='etat_apres_application')
     and (select (detail->>'tables_t2')::int from ctl where nom='etat_apres_retraits')=0
     and (select (detail->>'tables_t2')::int from ctl where nom='etat_apres_application')=10
     and (select (detail->>'tables_rls_forcee')::int from ctl where nom='etat_apres_application')=10
