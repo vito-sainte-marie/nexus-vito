@@ -1265,5 +1265,31 @@
     aucuneDonnee: 'Aucun quart attribuable à un pompiste n’est encore mesuré.',
   };
 
+  // Marge estimée du Scanner (lot A, #331). Textes fixes : le moteur les lit ici, il ne les porte pas.
+  NexusVocab.margeEstimee = {
+    etats: { estimation: 'Estimation', a_verifier: 'À vérifier', non_calculable: 'Non calculable' },
+    sources: {
+      export: 'Coût de revient Decenium (export des ventes)',
+      releve: d => 'PA net HT du relevé de stock' + (d ? ' du ' + d : ''),
+    },
+    methode: 'coût de revient Decenium : moyenne pondérée sur PU HT bruts, remises non déduites (formule exacte non confirmée par l’éditeur)',
+    limites: {
+      remises: 'Coût de revient calculé par Decenium sur les prix bruts : les remises fournisseurs n’y sont pas déduites.',
+      ttc: 'Le total TTC des factures est vérifié ; le coût unitaire peut rester inexact.',
+      decision: 'Estimation : n’autorise aucune décision de prix.',
+      administre: 'prix administré : aucune recommandation',
+      sansReleve: 'coût non contrôlé : relevé non fourni',
+    },
+    raisons: {
+      coutAbsent: 'coût absent ou nul',
+      pvAbsent: 'prix de vente absent ou nul',
+      horsVentes: n => 'hors ventes commerciales (' + n + ')',
+      ecartReleve: p => 'coût écarté de ' + p + ' % du PA net HT du relevé de stock',
+      variationCout: p => 'coût en variation de ' + p + ' % sur la période précédente',
+      margeNonPositive: 'marge négative ou nulle',
+      tva: 'TVA à vérifier',
+    },
+  };
+
   global.NexusVocab = NexusVocab;
 })(window);
