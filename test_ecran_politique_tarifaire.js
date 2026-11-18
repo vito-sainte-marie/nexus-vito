@@ -709,6 +709,58 @@ ok('recette : le chevron du panneau Filtres pointe vers le bas quand il est ouve
   const src = fs.readFileSync(require.resolve('./nexus-politique-tarifaire-ecran.js'), 'utf8');
   assert.ok(/details\.pt-filtres\[open\]>summary \.sc-chev\{transform:rotate\(45deg\)\}/.test(src));
 });
+// ---------- Historique classé par cause (lot présentation) ----------
+const histoEtat = (extra) => {
+  const mk = (code, n, cycle) => Array.from({ length: n }, (_, i) => ({ code, cle: code + '-' + i, cycle: cycle || 'nouvelle' }));
+  const lignes = [];
+  mk('S3', 13).forEach((a, i) => lignes.push({ article: 'Art-S3-' + i, anomalies: [a] }));
+  mk('S2', 4).forEach((a, i) => lignes.push({ article: 'Art-S2-' + i, anomalies: [a] }));
+  mk('S7', 2, 'persistante').forEach((a, i) => lignes.push({ article: 'Art-S7-' + i, anomalies: [a] }));
+  lignes.push({ article: 'Art-RES', anomalies: [], anomaliesResolues: [{ code: 'S5', cle: 'S5-0' }] });
+  return Object.assign({ historiqueDispo: true, analyse: { lignes }, verifications: [], filtreHisto: 'actifs' }, extra || {});
+};
+ok('historique : une section par cause présente, aucune section vide, tri décroissant', () => {
+  const h = E.htmlHistorique(histoEtat());
+  const secs = (h.match(/data-histo-sec="(S\d)"/g) || []).map((x) => x.slice(-3, -1));
+  assert.deepStrictEqual(secs, ['S3', 'S2', 'S7']);
+  assert.ok(!/data-histo-sec="S5"/.test(h), 'S5 résolue : absente du filtre par défaut, donc pas de section vide');
+  assert.ok(/data-histo-sec="S5"/.test(E.htmlHistorique(histoEtat({ filtreHisto: 'resolue' }))));
+});
+ok('historique : la somme des compteurs de sections = lignes du filtre', () => {
+  ['actifs', 'verifiee', 'resolue', 'tous'].forEach((f) => {
+    const e = histoEtat({ filtreHisto: f }), h = E.htmlHistorique(e);
+    const somme = (h.match(/\((\d+)\)<\/span><span class="sc-chev"/g) || []).reduce((t, x) => t + Number(/\((\d+)\)/.exec(x)[1]), 0);
+    assert.strictEqual(somme, E.historiqueLignes(e.analyse, e.verifications, f).length, f);
+  });
+});
+ok('historique : filtre par défaut inchangé (nouveau, persistant, aggravé)', () => {
+  const h = E.htmlHistorique(histoEtat({ filtreHisto: undefined }));
+  assert.ok(/<option value="actifs" selected>/.test(h) && !/>Résolu au nouvel import</.test(h));
+});
+ok('historique : la plus grosse section seule est ouverte, 10 lignes puis « Afficher la suite »', () => {
+  const h = E.htmlHistorique(histoEtat());
+  assert.strictEqual((h.match(/<details class="sc-carte pt-histo-sec"[^>]* open>/g) || []).length, 1);
+  assert.ok(/data-histo-sec="S3" open>/.test(h));
+  assert.strictEqual((h.match(/<strong>Art-S3-/g) || []).length, 10);
+  assert.ok(/data-histo-plus="S3">Afficher la suite \(3\)/.test(h));
+  const h2 = E.htmlHistorique(histoEtat({ histoPlus: { S3: true } }));
+  assert.strictEqual((h2.match(/<strong>Art-S3-/g) || []).length, 13);
+  assert.ok(!/data-histo-plus/.test(h2));
+});
+ok('historique : aucun code S1 à S7 dans le texte visible, titre du lexique, compteur dans le nom accessible', () => {
+  const h = E.htmlHistorique(histoEtat({ histoOuverte: 'S3|Art-S3-0' }));
+  const visible = h.replace(/<[^>]*>/g, ' ');
+  const sansArticles = visible.replace(/Art-S\d-\d+/g, ' ');
+  assert.ok(!/\bS[1-7]\b/.test(sansArticles), 'code visible');
+  assert.ok(/<summary aria-label="Coût en variation : 13 lignes"><span class="sc-nom">Coût en variation \(13\)<\/span>/.test(h));
+  assert.ok(/<details[^>]*><summary/.test(h), 'details/summary natifs : ouverture au clavier');
+  assert.ok(/data-histo-info="S3\|Art-S3-0"/.test(h), 'le code reste dans le (i)');
+});
+ok('historique : aucune donnée modifiée (analyse et vérifications intactes)', () => {
+  const e = histoEtat(), avant = JSON.stringify([e.analyse, e.verifications]);
+  E.htmlHistorique(e); E.htmlHistorique(Object.assign({}, e, { filtreHisto: 'tous' }));
+  assert.strictEqual(JSON.stringify([e.analyse, e.verifications]), avant);
+});
 Promise.all(PROMESSES).then(() => {
 console.log('test_ecran_politique_tarifaire : ' + n + ' épreuves OK');
 });
