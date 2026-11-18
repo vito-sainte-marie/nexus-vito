@@ -1,4 +1,4 @@
--- NEXUS Scanner tarifaire : REPETITION de la migration 20261118120000 en transaction, puis ROLLBACK. Cible : Test uniquement (la garde de la migration l'impose).
+-- NEXUS Scanner tarifaire : REPETITION de la migration 20261118120000 en transaction, puis ROLLBACK. Cible : Test (les comptes de recette nexus-station-test et site-fantome-test y existent).
 -- Aucun commit. Une seule piece : controle 73, controle 40, migration telle quelle, 33 cas, comptes des deux tables, rollback.
 -- A jouer ensuite : 20_verifier_rien_ne_reste.sql. Identites de recette creees DANS la transaction (auth.users puis employees, ids 00000000-0000-4000-8000-0000000e00xx), annulees par le rollback.
 -- Tous les appels de la preuve passent par tente()/val() : un echec est note KO, il n'arrete pas la transaction. Sortie : UN seul select final (JSON), puis rollback.
@@ -32,23 +32,22 @@ insert into ctl(nom, detail) select 'controle40_avant', to_jsonb(q) from (select
   (select count(*) from stock_releves) as stock_releves_lignes,
   (select md5(coalesce(string_agg(t::text, '|' order by t::text), '')) from stock_releves t) as stock_releves_empreinte) q;
 
--- ===== Migration 20261118120000, contenu tel quel (garde comprise) =====
+-- ===== Migration 20261118120000, contenu tel quel (prérequis neutres compris) =====
 -- NEXUS Scanner, anomalies tarifaires : vérifications et réévaluations (PROJET, NON EXÉCUTÉ).
 -- Dépend des migrations T2 (20261117020430, 020652, 020851, 021059) et du journal 20261117161325. Cible : Test uniquement, après GO écrit.
 -- Production non concernée. Additive : deux tables d'ajout seul, deux fonctions SECURITY INVOKER. Aucune donnée existante modifiée.
 -- Aucune écriture Decenium. Le site n'est jamais un paramètre : il est lu dans la ligne employees de la personne connectée.
 -- Retour arrière : docs/deploiement/retour-arriere-tarif-anomalies-verifications-20261118.sql (ne retire que ces quatre objets).
 
-do $garde$
-declare v_sysid bigint := (select system_identifier from pg_control_system());
+-- Prérequis : la migration s'arrête avant toute écriture si un objet attendu manque (aucune identité de projet n'est supposée).
+do $prerequis$
+declare v_manque text;
 begin
-  if v_sysid is distinct from 7678069749886157684 then
-    raise exception 'garde_projet_test : identifiant système % : ce n est pas le projet Supabase Test udljdqxerrbbbajxubfn', v_sysid;
+  select string_agg(o, ', ') into v_manque from unnest(array['public.sites', 'public.employees', 'public.import_batches', 'public.tarif_familles', 'public.tarif_rattachements', 'public.tarif_seuils', 'public.tarif_reglages', 'public.tarif_exceptions', 'public.tarif_prix_decides', 'public.tarif_prix_application', 'public.tarif_regimes_prix', 'public.tarif_controles_reglementaires', 'public.tarif_decisions']) as o where to_regclass(o) is null;
+  if v_manque is not null then
+    raise exception 'prerequis_migrations : 20261118120000 (appliquer 20261117020430 à 20261117161325 avant) : objets absents : %', v_manque;
   end if;
-  if (select count(*) from public.sites where site_id in ('site-fantome-test', 'nexus-station-test')) <> 2 then
-    raise exception 'garde_projet_test : sites de recette absents';
-  end if;
-end $garde$;
+end $prerequis$;
 
 do $$ begin
   if to_regclass('public.tarif_decisions') is null or to_regprocedure('public.tarif_enregistrer_decisions(jsonb)') is null

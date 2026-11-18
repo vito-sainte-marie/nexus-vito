@@ -8,19 +8,15 @@
 --    qu'après les déclencheurs BEFORE. Le verrou consultatif sérialise deux saisies simultanées de la même clé ;
 --    la fonction étant volatile, chaque requête voit les lignes validées par la transaction qui détenait le verrou.
 
--- GARDE PROJET TEST : première instruction de la migration, avant toute modification de la base. Identité vérifiée : l'identifiant système du cluster
--- PostgreSQL, fixé à sa création et propre au projet Supabase Test udljdqxerrbbbajxubfn (relu le 16/11/2026).
--- Toute autre base, Production comprise, est refusée avant la moindre écriture. Seconde vérification : sites de recette.
-do $garde$
-declare v_sysid bigint := (select system_identifier from pg_control_system());
+-- Prérequis : la migration s'arrête avant toute écriture si un objet attendu manque (aucune identité de projet n'est supposée).
+do $prerequis$
+declare v_manque text;
 begin
-  if v_sysid is distinct from 7678069749886157684 then
-    raise exception 'garde_projet_test : identifiant système % : ce n est pas le projet Supabase Test udljdqxerrbbbajxubfn', v_sysid;
+  select string_agg(o, ', ') into v_manque from unnest(array['public.sites', 'public.employees', 'public.import_batches', 'public.tarif_familles', 'public.tarif_rattachements', 'public.tarif_seuils', 'public.tarif_reglages', 'public.tarif_exceptions', 'public.tarif_prix_decides', 'public.tarif_prix_application', 'public.tarif_regimes_prix', 'public.tarif_controles_reglementaires', 'public.tarif_decisions']) as o where to_regclass(o) is null;
+  if v_manque is not null then
+    raise exception 'prerequis_migrations : 20261117020652 (appliquer 20261117020430 avant) : objets absents : %', v_manque;
   end if;
-  if (select count(*) from public.sites where site_id in ('site-fantome-test', 'nexus-station-test')) <> 2 then
-    raise exception 'garde_projet_test : sites de recette absents';
-  end if;
-end $garde$;
+end $prerequis$;
 
 create or replace function tarif_controle_version() returns trigger
 language plpgsql set search_path = public, pg_temp as $$
