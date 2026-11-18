@@ -8,7 +8,7 @@ Aucune migration n'a été appliquée en Production. Aucune lecture de Productio
 
 Les six migrations portaient une garde « projet Test » qui les refusait en Production. La décision A (Guardian, 6992560740) est appliquée : **une seule version de chaque fichier**, qui sert à la répétition et à la Production. La garde d'identité est remplacée par un bloc `do $prerequis$` neutre : il lève `prerequis_migrations : <étiquette> : objets absents : ...` si un objet attendu manque (`sites`, `employees`, `import_batches` et, pour les migrations 2 à 6, les objets des précédentes). Aucune identité de projet n'est supposée. La migration 6 garde en plus son contrôle `ordre_migrations`. Le diff est limité à la garde.
 
-En-têtes des six migrations corrigés (#331, tête `9d6eda2d`). Retours arrière 2 et 3 complétés (10 déclencheurs, 11 vues `v_tarif_%`) ; empreintes SHA-256 : retour 2 `0cdc2d68…`, retour 3 `1cad4f92…`, script 40 `f6a96d46…`. Empreinte des migrations réelles : `995aa68a3b3caae31e3d2429585dffd7151c9896d84dfa56d2cc8baaa9e5970a`.
+En-têtes des six migrations corrigés (#331, tête `9d6eda2d`). Retours arrière 2 et 3 complétés (10 déclencheurs, 11 vues `v_tarif_%`) ; empreintes SHA-256 : retour 2 `0cdc2d68…`, retour 3 `1cad4f92…`, script 40 `a7043bf6… (tête #331 76a70100)`. Empreinte des migrations réelles : `995aa68a3b3caae31e3d2429585dffd7151c9896d84dfa56d2cc8baaa9e5970a`.
 
 Les empreintes du §1 sont celles des fichiers du candidat (#331, tête `8d3af48b`). Rien n'a été appliqué en Production, ni sur Test avec ces nouvelles versions.
 
