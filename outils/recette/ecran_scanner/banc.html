@@ -153,6 +153,7 @@
     var ctx = E.construireContexteTarif({ site: 'vito-sainte-marie' /* le banc rejoue les données T1 du site pilote */, registres: reg, declarations: {}, lignes: lignes, periode: cfg.contexte.periode, stock: stockUtilise });
     Object.keys(cfg.contexte).forEach(function (k) { if (k !== 'tva' && k !== 'stock') ctx[k] = cfg.contexte[k]; });
     ctx.stockSource = cfg.contexte.stockSource;
+    if (scenario === 'nonfiable') { ctx.stockFourni = false; /* comme la page réelle : sans relevé, ni S2, ni S4, ni S5 */ }
     ctx.tva = Object.assign({}, ctx.tva, { explications: cfg.contexte.tva.explications });
     var verifs = null, identite = null;
     var lots = await nexusClient.from('import_batches').select('fichier_hash').eq('site', SITE).order('cree_le', { ascending: false }).limit(1);

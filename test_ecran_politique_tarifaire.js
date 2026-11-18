@@ -478,6 +478,27 @@ ok('lignes hors ventes commerciales : aucune anomalie', () => {
   assert.deepStrictEqual(l.anomalies, []);
 });
 
+ok('recette Guardian : le bloc suit les cartes B et précède les scénarios ; la carte est un bouton', () => {
+  const h = E.htmlPage({ analyse: avecControles(3), role: 'manager', estCreateur: false, filtres: {}, incoherences: [] });
+  const iB = h.indexOf('data-bloc-controles'), iC = h.indexOf('data-carte="controles_a_effectuer"'), iS = h.indexOf('Scénarios de gain');
+  assert.ok(iC > 0 && iB > iC && iB < iS, 'ordre carte, bloc, scénarios');
+  assert.ok(/<button type="button"[^>]*data-carte="controles_a_effectuer"/.test(h), 'carte en bouton');
+  assert.ok(/sc-ind-lib">contrôles? sur \d+ références?</.test(h), 'unité contrôles sur références');
+});
+ok('recette Guardian : commentaire replié derrière un lien, (i) sur la ligne du titre', () => {
+  const a = avecControles(2);
+  const h = E.htmlPage({ analyse: a, role: 'manager', estCreateur: false, filtres: {}, incoherences: [] });
+  assert.ok(/data-com-ouvrir=/.test(h) && !/<textarea/.test(h), 'zone fermée par défaut');
+  assert.ok(/Ajouter un commentaire/.test(h));
+  const li = h.slice(h.indexOf('pt-ctl-1'), h.indexOf('pt-ctl-2'));
+  assert.ok(/data-ctl-info/.test(li), '(i) dans pt-ctl-1');
+  const x = a.lignes[0].anomalies[0];
+  const h2 = E.htmlPage({ analyse: a, role: 'manager', estCreateur: false, filtres: {}, incoherences: [], comOuvert: [x.code + '|' + a.lignes[0].article] });
+  assert.ok(/<textarea/.test(h2), 'zone ouverte sur cette ligne');
+});
+ok('recette Guardian : cases de filtre avec accent-color', () => {
+  assert.ok(/input\[type=checkbox\]\{accent-color:var\(--accent\)/.test(E.CSS));
+});
 Promise.all(PROMESSES).then(() => {
 console.log('test_ecran_politique_tarifaire : ' + n + ' épreuves OK');
 });
