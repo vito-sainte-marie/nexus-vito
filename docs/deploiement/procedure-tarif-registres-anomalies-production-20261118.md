@@ -10,7 +10,7 @@ Les six migrations portaient une garde « projet Test » qui les refusait en Pro
 
 En-têtes des six migrations corrigés (#331, tête `9d6eda2d`). Retours arrière 2 et 3 complétés (10 déclencheurs, 11 vues `v_tarif_%`) ; empreintes SHA-256 : retour 2 `0cdc2d68…`, retour 3 `1cad4f92…`, script 40 `a7043bf6… (tête #331 76a70100)`. Empreinte des migrations réelles : `995aa68a3b3caae31e3d2429585dffd7151c9896d84dfa56d2cc8baaa9e5970a`.
 
-Les empreintes du §1 sont celles des fichiers du candidat (#331, tête `8d3af48b`). Rien n'a été appliqué en Production, ni sur Test avec ces nouvelles versions.
+Les empreintes du §1 sont celles des fichiers du candidat (#331, tête `76a70100`, fusionnée dans cette branche). La procédure exécute les fichiers de #331 tels que répétés, pas d'autre version. Rien n'a été appliqué en Production, ni sur Test avec ces nouvelles versions.
 
 ## 1. Les six migrations, dans l'ordre
 
@@ -115,8 +115,15 @@ Les migrations n'ayant écrit aucune donnée, le retour arrière consiste à ret
 
 1. **Code** : annuler (revert) d'abord #332, puis #331, par PR sur `production` (protégée, PR obligatoire). Sans le code, les nouvelles tables ne sont plus lues.
 2. **Migration 6** : script existant `docs/deploiement/retour-arriere-tarif-anomalies-verifications-20261118.sql`. Il supprime, dans `begin; … commit;`, les RPC `tarif_enregistrer_reevaluations(jsonb)` et `tarif_marquer_verifie(jsonb)`, puis les deux tables. La suppression des tables emporte leurs index, **y compris l'index unique à cinq colonnes** (`tarif_anom_verif_active_uq`) : vérifié par lecture du script, pas besoin de `drop index` séparé. **Il perd les vérifications enregistrées** : les exporter avant si elles comptent, par un `select` en lecture seule dont le résultat est gardé hors du dépôt (à ajouter au script au moment du lot du §0).
-3. **Migrations 5 à 1** : scripts `retour-arriere-tarif-registres-5-decision-journal-20261118.sql`, `...-4-comptes-desactives-...`, `...-3-vues-...`, `...-2-controles-rls-...`, `...-1-registres-...` (tous du 20261118, chacun en `begin; ... commit;`), à passer dans l'ordre 6, 5, 4, 3, 2, 1. Le retrait de 4 recrée `v_tarif_exceptions_effectives` telle que la migration 3 la définit ; le retrait de 2 laisse les tables sans RLS jusqu'au retrait de 1. **Le retrait de 1 perd toutes les données des 10 registres : les exporter avant.** Le script de la 6 commence par un export en lecture seule des deux tables. Répétition complète sur base jetable : `outils/recette/anomalies_verifications/40_repetition_chaine_complete.sql` (état initial, retraits, migrations 1 à 6, retraits, état vide ; un `rollback` final). **Non encore exécutée.**
-4. Retirer ensuite les estampilles correspondantes du registre des migrations seulement sur décision du pilote.
+3. **Empreintes SHA-256 des six scripts de retour arrière** (fichiers de #331 `76a70100`, recalculés par `shasum -a 256`) :
+   - retour 6, `retour-arriere-tarif-anomalies-verifications-20261118.sql` : `bb491540adb5a5ade4ee20dcacfaaa94da7c42af69c977cb3035fe61a1de54a3`
+   - retour 1, `retour-arriere-tarif-registres-1-registres-20261118.sql` : `5e520cee9b20be669064d8bb364abfbdcd36dd9feccf38856914816851585df0`
+   - retour 2, `retour-arriere-tarif-registres-2-controles-rls-20261118.sql` : `0cdc2d68decb3d1d9f4d7bcb8ccb34e0f66a1646d9661dc1c97a4ee0bdcd6956`
+   - retour 3, `retour-arriere-tarif-registres-3-vues-20261118.sql` : `1cad4f925890aa1b24a79c4ddd7ceb6b0c8f649dab5159902ef54a0a82e14598`
+   - retour 4, `retour-arriere-tarif-registres-4-comptes-desactives-20261118.sql` : `880835dd4a11262f7ff12f3ad5597eafbca57fc34636604b84b39462cec7a6ef`
+   - retour 5, `retour-arriere-tarif-registres-5-decision-journal-20261118.sql` : `5cc78a85107609f5d720380a7b6d0b7e93c085680e4ed1ad3f564c61bdddb3c4`
+4. **Migrations 5 à 1** : scripts `retour-arriere-tarif-registres-5-decision-journal-20261118.sql`, `...-4-comptes-desactives-...`, `...-3-vues-...`, `...-2-controles-rls-...`, `...-1-registres-...` (tous du 20261118, chacun en `begin; ... commit;`), à passer dans l'ordre 6, 5, 4, 3, 2, 1. Le retrait de 4 recrée `v_tarif_exceptions_effectives` telle que la migration 3 la définit ; le retrait de 2 laisse les tables sans RLS jusqu'au retrait de 1. **Le retrait de 1 perd toutes les données des 10 registres : les exporter avant.** Le script de la 6 commence par un export en lecture seule des deux tables. Répétition complète sur base jetable : `outils/recette/anomalies_verifications/40_repetition_chaine_complete.sql` (état initial, retraits, migrations 1 à 6, retraits, état vide ; un `rollback` final). Rejouée par Guardian sur Test : « OK chaîne complète rejouable » (script 40 `a7043bf6…`).
+5. Retirer ensuite les estampilles correspondantes du registre des migrations seulement sur décision du pilote.
 
 Ordre de décision : le retour arrière du code est sans risque de données ; le retrait des objets SQL est destructeur pour tout ce qui aurait été saisi entre-temps. Il se décide au cas par cas, jamais automatiquement.
 
@@ -128,8 +135,8 @@ Ordre de décision : le retour arrière du code est sans risque de données ; le
 
 ## 10. Conditions pour dire « prêt »
 
-1. Décision A exécutée (garde neutre, empreintes du §1) : fait dans #331 `8d3af48b`, à relire par Guardian.
-2. Scripts de retour arrière 1 à 5 écrits (faits) et répétition complète (script 40) **rejouée sur Test avec succès** : à faire.
+1. Décision A exécutée (garde neutre, empreintes du §1) : fait dans #331 `76a70100`, à relire par Guardian.
+2. Scripts de retour arrière 1 à 5 écrits (faits) et répétition complète (script 40) rejouée sur Test avec succès par Guardian : fait.
 3. Mesure du catalogue de Production prise par le pilote, et les six migrations qualifiées dans le fichier de qualification.
 4. Cette procédure relue et validée par Guardian puis par le pilote.
 5. GO explicite du pilote pour l'application et pour la fusion.
