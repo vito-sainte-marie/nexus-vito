@@ -1,5 +1,5 @@
--- NEXUS Scanner, politique tarifaire T2 : déclencheurs d'intégrité, permissions et isolation par site (PROJET, NON EXÉCUTÉ).
--- Dépend de 20261118100000_tarif_registres.sql. Cible : Test uniquement, après GO écrit.
+-- NEXUS Scanner, politique tarifaire T2 : déclencheurs d'intégrité, permissions et isolation par site, applicable après la migration 20261117020430.
+-- Dépend de 20261118100000_tarif_registres.sql.
 -- Version 2 (examen du 16/11/2026) : aucune fonction SECURITY DEFINER nouvelle. Les deux fonctions de lecture
 -- de statut de la version 1 sont remplacées par un déclencheur ordinaire, qui lit la table sous les droits de la personne.
 

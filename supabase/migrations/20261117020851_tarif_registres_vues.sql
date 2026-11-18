@@ -1,4 +1,4 @@
--- NEXUS Scanner, politique tarifaire T2 : vues de l'état courant (PROJET, NON EXÉCUTÉ).
+-- NEXUS Scanner, politique tarifaire T2 : vues de l'état courant (security_invoker), applicable après les migrations 20261117020430 et 20261117020652.
 -- security_invoker : chaque vue applique les permissions de la personne connectée (RLS des tables sous-jacentes).
 -- Version 2 (examen du 16/11/2026, 20 h 22) : exceptions effectives par priorité, vue des incohérences.
 

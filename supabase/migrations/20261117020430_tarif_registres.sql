@@ -1,5 +1,5 @@
--- NEXUS Scanner, politique tarifaire T2 : registres versionnés (PROJET, soumis à l'examen du gérant, NON EXÉCUTÉ).
--- Cible : projet Supabase Test uniquement, après GO écrit. Aucune donnée Production, aucune donnée Decenium modifiée.
+-- NEXUS Scanner, politique tarifaire T2 : registres versionnés (10 tables tarif_*), prérequis vérifiés par un bloc neutre, applicable sur tout projet portant les tables du socle.
+-- Aucune donnée Production, aucune donnée Decenium modifiée.
 -- Modèle repris de 20261117100000_produits_nature_tva_justifications.sql :
 --   ajout seul ; correction = nouvelle ligne avec remplace_id ; annulation = UPDATE limité à trois colonnes ; aucun DELETE.
 -- Nouveauté : une seule version active par clé, garantie par déclencheur et verrou consultatif.
