@@ -163,7 +163,7 @@
         source: 'Ventes et coûts : dernier export Decenium ; seuils : registres tarifaires.',
         limite: 'Gain théorique à volume constant, non cumulable avec le scénario cible. Les références à confirmer ne sont pas comptées dans le chiffre principal.' },
       { id: 'a_verifier', titre: 'Références à fiabilité incomplète', valeur: String(aVerifier.length), unite: 'références',
-        secondaire: 'à fiabilité incomplète (coût, TVA ou prix à revoir)', references: aVerifier.length,
+        secondaire: 'coût, TVA ou prix à revoir', references: aVerifier.length,
         periode: per, source: 'Moteur de politique tarifaire sur le dernier export Decenium et les registres.',
         limite: (sansPrecedente ? 'Sans période précédente : les variations de prix et de coût ne sont pas mesurées. ' : '') + 'Ces références restent hors des gains.' },
       { id: 'non_constates', titre: 'Prix décidés non constatés', valeur: String(nonConstates), unite: 'références',
@@ -376,6 +376,7 @@
     var codes = (l.alertes || []).map(function (a) { return a.code; });
     if (l.statut === 'a_verifier' || codes.indexOf('A4') >= 0 || codes.indexOf('A5') >= 0) return B.gravite('a-verifier');
     var lib = LIB_STATUT[l.statut] || l.statut;
+    if (l.statut === 'sans_seuil_valide' && typeRegime(l)) return B.gravite('information', { libelle: 'Aucune action de prix' });
     if (l.statut === 'conforme') return B.gravite('conforme', { libelle: lib });
     return B.gravite('information', { libelle: lib });
   }
@@ -393,8 +394,8 @@
     var m = l.margeEstimee;
     if (!m) return '';
     var E = V.margeEstimee.etats;
-    if (estReglemente(l)) return '<span class="nbe-qualif" data-axe="regime">Prix réglementé</span>';
-    if (typeOf(l) === 'a_qualifier') return '<span class="nbe-qualif" data-axe="regime">Régime à qualifier</span>';
+    // Le régime est déjà dit une fois, après le nom de l'article : on ne le répète pas après la marge.
+    if (typeOf(l)) return '';
     if (m.etat === 'a_verifier') return B.gravite('a-verifier', { libelle: E.a_verifier });
     return B.qualification(QUALIF[m.etat] || 'non-calculable');
   }
@@ -621,7 +622,7 @@
   }
   // ---------- Historique des vérifications (lecture des deux tables ; la RLS filtre par site) ----------
   var CYCLES_ACTIFS = ['nouvelle', 'persistante', 'aggravee'];
-  var LIB_CYCLE = { nouvelle: 'Nouveau', persistante: 'Persistant', aggravee: 'Aggravé', verifiee: 'Vérifié', resolue: 'Résolu' };
+  var LIB_CYCLE = { nouvelle: 'Nouveau', persistante: 'Persistant', aggravee: 'Aggravé', verifiee: 'Vérifié', resolue: 'Résolu au nouvel import' };
   var FILTRES_HISTO = [['actifs', 'Nouveau, persistant, aggravé'], ['verifiee', 'Vérifiés'], ['resolue', 'Résolus'], ['tous', 'Tous']];
   async function chargerVerifications(client, site) {
     var v = await client.from('tarif_anomalies_verifications').select('id, article, code_barres, cause, empreinte, gravite, fichier_hash, date_releve, commentaire, saisi_par, saisi_le, cle').eq('site', site).is('annule_le', null).order('saisi_le', { ascending: false }).range(0, 4999);

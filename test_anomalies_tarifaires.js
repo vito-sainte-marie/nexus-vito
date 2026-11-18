@@ -21,6 +21,14 @@ ok('2 recalcul : même empreinte, aucun nouveau signalement', () => {
   const v = [{ code: 'S2', cle: a1[0].cle, empreinte: a1[0].empreinte, gravite: a1[0].gravite, identiteDonnees: a1[0].identiteDonnees, verifie_le: '2026-11-01' }];
   const r = A.cycleDeVie(a2, v, ctx); assert.strictEqual(r.anomalies[0].cycle, 'verifiee'); assert.strictEqual(A.reevaluations(r).length, 0);
 });
+ok('2b nouvel import et nouveau relevé, empreinte identique : persistante, une réévaluation (jamais Vérifié)', () => {
+  const l = ligne({ margeEstimee: ecartReleve(0.59) }), a1 = A.anomaliesLigne(l, ctx)[0];
+  const v = [{ code: 'S2', cle: a1.cle, empreinte: a1.empreinte, gravite: a1.gravite, identiteDonnees: a1.identiteDonnees, verifie_le: '2026-11-01' }];
+  const ctx2 = { ...ctx, fichierHash: 'H2', dateReleve: '2026-11-10' };
+  const r = A.cycleDeVie(A.anomaliesLigne(l, ctx2), v, ctx2);
+  assert.strictEqual(r.anomalies[0].empreinte, a1.empreinte); assert.strictEqual(r.anomalies[0].cycle, 'persistante');
+  assert.strictEqual(A.reevaluations(r).length, 1); assert.strictEqual(A.reevaluations(r)[0].cycle, 'persistante');
+});
 ok('3 même fichier réimporté : verifiee, aucune réévaluation', () => {
   const l = ligne({ margeEstimee: ecartReleve(0.59) }), a1 = A.anomaliesLigne(l, ctx);
   const v = [{ code: 'S2', cle: a1[0].cle, empreinte: 'autre', gravite: 59, identiteDonnees: a1[0].identiteDonnees, verifie_le: 'x' }];

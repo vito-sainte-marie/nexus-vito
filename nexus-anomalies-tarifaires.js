@@ -148,7 +148,8 @@
     const res = (anomalies || []).map(a => {
       const k = a.code + '|' + a.cle, v = dernier.get(k); vus.add(k);
       if (!v) return { ...a, cycle: 'nouvelle', nouveauControle: true };
-      if (v.empreinte === a.empreinte || !nouvelImport(v)) return { ...a, cycle: 'verifiee', nouveauControle: false };
+      // Sans nouvel import : « Vérifié », rien n'est écrit. Sur un nouvel import, l'anomalie encore présente est réévaluée, même à empreinte identique.
+      if (!nouvelImport(v)) return { ...a, cycle: 'verifiee', nouveauControle: false };
       const g0 = num(v.gravite) || 0, g1 = num(a.gravite) || 0;
       const aggrave = g1 - g0 >= AGGRAVATION_POINTS || (g0 > 0 && (g1 - g0) / g0 >= AGGRAVATION_RELATIF);
       return { ...a, cycle: aggrave ? 'aggravee' : 'persistante', nouveauControle: true };

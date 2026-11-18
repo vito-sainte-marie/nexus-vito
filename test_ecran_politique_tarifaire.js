@@ -251,9 +251,13 @@ ok('marge : trois états, une qualification chacun, jamais « certifié »', () 
   assert.ok(!/certifi/i.test(h));
 });
 ok('prix réglementé : qualification, aucune recommandation ni variation de coût', () => {
-  const l = ligneAvec('estimation', { article: 'Bouteille gaz', regimeDeclare: { regime: 'reglemente' } });
+  const l = ligneAvec('estimation', { article: 'Bouteille gaz', statut: 'sans_seuil_valide', regimeDeclare: { regime: 'reglemente' } });
   const h = E.htmlMarge(l) + E.ficheMarge(l);
-  assert.ok(/Prix réglementé/.test(h) && /Prix fixé par un tiers/.test(h));
+  assert.ok(/Prix fixé par un tiers/.test(h));
+  // Le régime est dit une seule fois dans la ligne (après le nom), jamais répété après la marge.
+  assert.ok(!/Prix réglementé/.test(E.htmlMarge(l)));
+  assert.strictEqual((E.htmlLigne(l).match(/Prix réglementé/g) || []).length, 1);
+  assert.ok(!/Sans seuil validé/.test(E.htmlLigne(l)) && /Aucune action de prix/.test(E.htmlLigne(l)));
   assert.ok(!/variation de coût\s*:|inférieur au coût|augmenter|baisser/i.test(h.replace(/aucune variation de coût ni recommandation de prix/i, '')));
 });
 ok('(i) : bouton de 44 px ciblé, destination = fiche', () => {
@@ -511,7 +515,7 @@ const ligneDe = (a, art) => a.lignes.find(l => l.article === art);
 ok('gaz : 12,5 kg réglementé, 3 kg et 39 kg à qualifier, jamais libre', () => {
   const lg = [prod('GAZ FICTIF 12.5 KG', 'Gaz', 10, 30, 25), prod('GAZ FICTIF 3 KG', 'Gaz', 10, 15, 12), prod('GAZ FICTIF 39 KG', 'Gaz', 10, 90, 80)];
   const a = analyserP(lg);
-  const h = E.htmlMarge(ligneDe(a, 'GAZ FICTIF 12.5 KG')), h3 = E.htmlMarge(ligneDe(a, 'GAZ FICTIF 3 KG')), h39 = E.htmlMarge(ligneDe(a, 'GAZ FICTIF 39 KG'));
+  const h = E.htmlLigne(ligneDe(a, 'GAZ FICTIF 12.5 KG')), h3 = E.htmlLigne(ligneDe(a, 'GAZ FICTIF 3 KG')), h39 = E.htmlLigne(ligneDe(a, 'GAZ FICTIF 39 KG'));
   assert.ok(/Prix réglementé/.test(h), h);
   assert.ok(/Régime à qualifier/.test(h3) && /Régime à qualifier/.test(h39));
   assert.ok(!/libre/i.test(h3 + h39));
@@ -555,6 +559,53 @@ ok('câblage commun : lierOuvertures ouvre le bloc et le commentaire', () => {
   assert.strictEqual(ecouteurs.length, 2);
   ecouteurs.find(e => e[0] === 'ctl')[1](); assert.strictEqual(etat.ctlReplie, false);
   ecouteurs.find(e => e[0] === 'com')[1](); assert.deepStrictEqual(etat.comOuvert, ['S2|X']); assert.strictEqual(rendus, 2);
+});
+// ---------- Bout en bout : chargerVerifications -> cycle de vie -> affichage -> appel RPC (données synthétiques) ----------
+const clientLecture = (rows) => { const q = { eq: () => q, is: () => q, order: () => q, range: () => q, in: () => q, select: () => q, then: (r) => r({ data: rows, error: null }) };
+  return { from: (t) => (t === 'tarif_anomalies_verifications' ? q : Object.assign({}, q, { then: (r) => r({ data: [], error: null }) })) }; };
+ok('bout en bout : même import = Vérifié sans appel ; nouvel import = Persistant, Aggravé, Résolu avec un appel chacun', async () => {
+  const ctxV = { periode: { debut: '2026-10-01', fin: '2026-10-31' }, fichierHash: 'hash-v', dateReleve: '2026-10-05' };
+  const l0 = { article: 'ARTICLE FICTIF', code_barres: '3000000000001', regime: 'libre', taux: 0.3, pv_ht: 1, variationCout: null, variationPv: null, alertes: [], fiabilite: { raisons: [] }, prixDecide: null, tva: { etat: 'coherente', taux: 5.5 },
+    margeEstimee: { cout: { valeur: 0.73 }, controle: { paNetHtReleve: 0.46, ecart: 0.27 } } };
+  const ancienne = MA.anomaliesLigne(l0, ctxV).find(a => a.code === 'S2');
+  assert.ok(ancienne, 'S2 attendue sur la ligne fictive');
+  const rows = [{ id: 'v-e2e', article: l0.article, code_barres: l0.code_barres, cause: 'S2', cle: ancienne.cle, empreinte: ancienne.empreinte, gravite: ancienne.gravite,
+    fichier_hash: 'hash-v', date_releve: '2026-10-05', commentaire: null, saisi_par: null, saisi_le: '2026-10-06T08:00:00Z' }];
+  const { verifications } = await E.chargerVerifications(clientLecture(rows), 'site-fictif-1');
+  assert.strictEqual(verifications.length, 1); assert.strictEqual(verifications[0].code, 'S2');
+  const parcours = async (ligneCourante, ctx) => {
+    const an = MA.anomaliesLigne(ligneCourante, ctx).filter(a => a.code === 'S2');
+    const r = MA.cycleDeVie(an, verifications.filter(v => v.cle === MA.cle(ligneCourante)), { fichierHash: ctx.fichierHash, dateReleve: ctx.dateReleve });
+    const analyse = { lignes: [{ article: l0.article, anomalies: r.anomalies, anomaliesResolues: r.resolues }] };
+    const client = faux();
+    const bilan = await E.enregistrerReevaluations(client, 'gerant', false, analyse, verifications, { fichierHash: ctx.fichierHash, dateReleve: ctx.dateReleve });
+    const affichage = E.historiqueLignes(analyse, verifications, 'tous').map(x => x.cycle);
+    return { r, client, bilan, affichage };
+  };
+  // 1. même import : Vérifié, aucune écriture
+  const m = await parcours(l0, ctxV);
+  assert.deepStrictEqual(m.affichage, ['verifiee']); assert.strictEqual(m.client.appels.length, 0); assert.strictEqual(m.bilan.statut, 'aucune');
+  // 2. nouvel import et nouveau relevé, anomalie identique : Persistant, un appel
+  const ctxN = { periode: ctxV.periode, fichierHash: 'hash-nouveau', dateReleve: '2026-11-10' };
+  const p = await parcours(l0, ctxN);
+  assert.strictEqual(p.r.anomalies[0].empreinte, ancienne.empreinte, 'anomalie strictement identique');
+  assert.deepStrictEqual(p.affichage, ['persistante']);
+  assert.strictEqual(p.client.appels.length, 1); assert.strictEqual(p.client.appels[0][0], 'tarif_enregistrer_reevaluations');
+  assert.strictEqual(p.client.appels[0][1].p_lignes.length, 1); assert.strictEqual(p.client.appels[0][1].p_lignes[0].etat, 'persistante');
+  assert.strictEqual(p.client.appels[0][1].p_lignes[0].fichier_hash, 'hash-nouveau'); assert.strictEqual(p.client.appels[0][1].p_lignes[0].verification_id, 'v-e2e');
+  // 3. gravité plus forte : Aggravé, un appel
+  const forte = Object.assign({}, l0, { margeEstimee: { cout: { valeur: 0.73 }, controle: { paNetHtReleve: 0.46, ecart: 0.9 } } });
+  const g = await parcours(forte, ctxN);
+  assert.deepStrictEqual(g.affichage, ['aggravee']); assert.strictEqual(g.client.appels.length, 1); assert.strictEqual(g.client.appels[0][1].p_lignes[0].etat, 'aggravee');
+  // 4. anomalie absente : Résolu au nouvel import, un appel
+  const saine = Object.assign({}, l0, { margeEstimee: { cout: { valeur: 0.73 }, controle: { paNetHtReleve: 0.73, ecart: 0 } } });
+  const rs = await parcours(saine, ctxN);
+  assert.deepStrictEqual(rs.affichage, ['resolue']); assert.strictEqual(rs.client.appels.length, 1); assert.strictEqual(rs.client.appels[0][1].p_lignes[0].etat, 'resolue');
+  const vue = (r) => E.htmlHistorique({ historiqueDispo: true, analyse: { lignes: [{ article: l0.article, anomalies: r.anomalies, anomaliesResolues: r.resolues }] }, verifications, filtreHisto: 'tous' });
+  assert.ok(/>Persistant</.test(vue(p.r)), 'Persistant affiché');
+  assert.ok(/>Aggravé</.test(vue(g.r)), 'Aggravé affiché');
+  assert.ok(/>Résolu au nouvel import</.test(vue(rs.r)), 'Résolu au nouvel import affiché');
+  assert.ok(/>Vérifié</.test(vue(m.r)), 'Vérifié affiché sans nouvel import');
 });
 Promise.all(PROMESSES).then(() => {
 console.log('test_ecran_politique_tarifaire : ' + n + ' épreuves OK');
