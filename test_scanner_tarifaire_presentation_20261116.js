@@ -80,7 +80,9 @@ function jeu(site) {
   assert.ok(/nexus-avatar-128\.png/.test(c), 'avatar du Conseiller');
   // Matrice « Synthèse » : les cinq cartes T1 (pertes/couts/marges/regl/verif) deviennent quatre cartes de synthèse.
   for (const id of ['marge_negative', 'propositions', 'a_verifier', 'non_constates']) assert.ok(c.includes(`data-carte="${id}"`), 'carte ' + id);
-  assert.strictEqual((c.match(/data-carte="/g) || []).length, 4, 'quatre cartes de synthèse');
+  // Lot A (accord Guardian 6984645857, point 4) : la carte « Marge estimée » s'ajoute aux quatre cartes de synthèse.
+  assert.ok(c.includes('data-carte="marge_estimee"'), 'carte marge estimée');
+  assert.strictEqual((c.match(/data-carte="/g) || []).length, 5, 'quatre cartes de synthèse + marge estimée');
   for (const id of ['pertes', 'couts', 'marges', 'regl', 'verif']) assert.ok(!c.includes(`data-carte="${id}"`), 'carte T1 ' + id + ' remplacée');
   // Matrice « Familles de contrôle » : quatre familles (bloc D) ; ventes à perte → A3, prix réglementés → A8, coûts → A4.
   for (const t of ['Pertes et conformité', 'Fiabilité des données', 'Décisions de prix', 'Exceptions validées']) assert.ok(c.includes(t), 'famille ' + t);

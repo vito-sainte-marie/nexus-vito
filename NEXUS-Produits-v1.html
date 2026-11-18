@@ -23,7 +23,7 @@
     --boutique:#C47A55; --boutique-rgb:196,122,85; --piste:#3F6E94; --piste-rgb:63,110,148;
     --t-mono:'IBM Plex Mono',ui-monospace,monospace; --t-sans:'IBM Plex Sans',system-ui,sans-serif; --banniere-cadrage:70% 50%;
     /* passerelle vers les anciens noms de variables, pour ne rien casser */
-    --bg:var(--t-bg); --panel:var(--t-panel); --panel-raised:var(--t-raised); --hairline:var(--t-line);
+    --bg:var(--t-bg); --panel:var(--t-panel); --panel-raised:var(--t-raised); --hairline:var(--t-line); --line:var(--t-line); --mid:var(--t-text-mid, var(--text-mid)); --caps:var(--t-text-dim, var(--text-dim));
     --text:var(--t-text); --text-mid:var(--t-mid); --text-dim:var(--t-mid);
     --green:var(--t-green); --amber:var(--t-amber); --red:var(--t-red); --cyan:var(--t-cyan); --purple:#B794F6;
     --green-dim:color-mix(in srgb,var(--t-green) 16%,transparent); --amber-dim:color-mix(in srgb,var(--t-amber) 16%,transparent);
@@ -407,6 +407,7 @@ body.nexus-desktop #resultSection > *{margin-bottom:12px;}
 <script src="nexus-produits-vues.js?v=20261116-1"></script>
 <script src="nexus-scanner-tarifaire.js?v=20261116-3"></script>
 <script src="nexus-badge-etat.js"></script>
+<script src="nexus-composants-pilotage.js"></script>
 <script src="nexus-politique-tarifaire.js"></script>
 <script src="nexus-politique-tarifaire-registres.js"></script>
 <script src="nexus-politique-tarifaire-ecran.js"></script>
@@ -1710,7 +1711,7 @@ nexusRequireAuth().then(async employee => {
     try { const r = await calculerAnalyseTarif(true); analyse = r.analyse; incoherences = r.incoherences; }
     catch (e) { console.error('Scanner tarifaire:', e); indispo('Impossible de lire les registres tarifaires.'); return; }
     if (!analyse.lignes.length) { indispo('Aucune donnée tarifaire pour ce site'); return; }
-    const etat = { analyse, role: employee.role, filtres: {}, incoherences, ouverte: null, toutes: false, site: ((document.querySelector('.nexus-nom-commerce') || {}).textContent || ''), icone };
+    const etat = { analyse, role: employee.role, filtres: {}, incoherences, ouverte: null, toutes: false, site: ((document.querySelector('.nexus-nom-commerce') || {}).textContent || ''), icone, estCreateur: !!employee.estCreateur };
     // Repère Marge+ (niveau 3) : calcul T1 inchangé (scannerMarge), visible sans seuil validé ni fiche A2, jamais compté dans un gain.
     const blocMargePlus = () => {
       const MG = scannerMarge(), M = MG && MG.affichage, TM = NexusScannerTarifaire.TEXTES.marge;
@@ -1720,10 +1721,29 @@ nexusRequireAuth().then(async employee => {
       return `<details class="sc-carte pt-marge" data-marge-plus="repere"><summary><span class="sc-nom">Repère statistique : écart à la médiane</span><span class="sc-chev"></span></summary><p class="sc-note">Hypothèse à vérifier, jamais un gain.</p><p class="vp-ligne">${esc(TM.ecart)} : ${esc(eurN(M.ecart))} sur ${esc(String(M.total))} référence${M.total > 1 ? 's' : ''}. Ce repère n'entre dans aucun gain.</p><ul class="vp-liste sc-liste">${lignes || '<li class="vp-ligne">Aucun écart de marge.</li>'}</ul><a class="lien-scanner-nexus" href="NEXUS-Scanner-v1.html">${esc(TM.lien)}</a></details>`;
     };
     const rendre = () => { etat.margePlus = blocMargePlus(); corps.innerHTML = E.htmlPage(etat); lier(); };
+    // « Marquer comme vérifié » : écriture append-only par la fonction SQL ; le site n'est jamais envoyé ; message avec date et auteur (nom affiché).
+    const marquerVerifie = async (btn) => {
+      const E2 = E, art = btn.dataset.verArticle, code = btn.dataset.verifier;
+      const l = analyse.lignes.filter(x => x.article === art)[0]; const an = l && (l.anomalies || []).filter(x => x.code === code)[0];
+      const zone = btn.closest('li') || btn.parentNode;
+      const dire = (t) => { let m = zone.querySelector('.pt-verif-msg'); if (!m) { m = document.createElement('p'); m.className = 'sc-note pt-verif-msg'; m.setAttribute('role', 'status'); zone.appendChild(m); } m.textContent = t; };
+      if (!an || !E2.peutVerifier(employee.role, !!employee.estCreateur)) { dire('Action réservée au gérant et au manager.'); return; }
+      btn.disabled = true; dire('Enregistrement…');
+      try {
+        const { data: lots, error: e1 } = await nexusClient.from('import_batches').select('id, fichier_hash').eq('site', SITE_ACTUEL).eq('fichier_hash', (an.identiteDonnees || {}).fichierHash || '').order('cree_le', { ascending: false }).limit(1);
+        if (e1 || !lots || !lots.length) throw new Error('lot');
+        const v = E2.payloadVerification(an, l, { importBatchId: lots[0].id, moteurVersion: window.NexusPolitiqueTarifaire.VERSION_MOTEUR });
+        const { error } = await nexusClient.rpc('tarif_marquer_verifie', { p_lignes: [v] });
+        if (error) throw error;
+        dire(E2.messageApresEcriture({ date: new Date().toISOString().slice(0, 10), auteur: employee.nom }));
+      } catch (e) { console.error('Marquer vérifié:', e); btn.disabled = false; dire("L'enregistrement a échoué. Rien n'a été modifié, vous pouvez réessayer."); }
+    };
     const versFiche = a => choisirSuggestion(a);
     const lier = () => {
       corps.querySelectorAll('[data-fiche]').forEach(b => b.addEventListener('click', () => versFiche(b.dataset.fiche)));
       corps.querySelectorAll('[data-article]').forEach(b => b.addEventListener('click', () => { etat.ouverte = b.dataset.article; rendre(); }));
+      corps.querySelectorAll('[data-info-marge]').forEach(b => b.addEventListener('click', () => { etat.ouverte = b.dataset.infoMarge; rendre(); const f = corps.querySelector('[data-marge-fiche]'); if (f && f.scrollIntoView) f.scrollIntoView({ block: 'start' }); }));
+      corps.querySelectorAll('[data-verifier]').forEach(b => b.addEventListener('click', () => marquerVerifie(b)));
       corps.querySelectorAll('select[data-filtre]').forEach(s => s.addEventListener('change', () => { etat.filtres[s.dataset.filtre] = s.value || undefined; etat.toutes = false; rendre(); }));
       corps.querySelectorAll('[data-effacer]').forEach(b => b.addEventListener('click', () => { delete etat.filtres[b.dataset.effacer]; rendre(); }));
       const plus = corps.querySelector('[data-plus]'); if (plus) plus.addEventListener('click', () => { etat.toutes = true; rendre(); });

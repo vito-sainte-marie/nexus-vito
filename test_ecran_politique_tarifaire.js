@@ -220,11 +220,13 @@ ok('chaque cible cliquable de la page a une destination', () => {
   ['data-fiche', 'data-article', 'data-controle-liste', 'data-conseil', 'data-plus', 'data-effacer'].forEach(k => assert.ok(src.indexOf('[' + k + ']') > 0, k));
 });
 
-ok('NEXUS-Scanner-v1.html et la page Produits : aucune écriture, aucun rpc', () => {
+ok('page Produits : une seule écriture permise, tarif_marquer_verifie, aucune autre', () => {
   const src = fs.readFileSync(require.resolve('./NEXUS-Produits-v1.html'), 'utf8');
   const i = src.indexOf('async function calculerAnalyseTarif'), j = src.indexOf('function ouvrirVue(cle)');
   const bloc = src.slice(i, j);
-  assert.ok(!/\.(insert|update|delete|upsert|rpc)\s*\(|tarif_enregistrer_decisions/.test(bloc));
+  assert.ok(!/\.(insert|update|delete|upsert)\s*\(|tarif_enregistrer_decisions/.test(bloc));
+  const rpcs = (src.match(/\.rpc\(\s*['"][a-z_]+/g) || []).map(x => x.replace(/.*['"]/, ''));
+  rpcs.forEach(r => assert.ok(['tarif_marquer_verifie'].indexOf(r) >= 0 || !/tarif/.test(r), 'rpc inattendu : ' + r));
 });
 
 ok('Écran v2 : Conseiller avant les cartes, scénarios dans le détail, filtres étiquetés, pas de « (s) »', () => {
@@ -236,6 +238,56 @@ ok('Écran v2 : Conseiller avant les cartes, scénarios dans le détail, filtres
   assert.ok(!/\(s\)/.test(h.replace(/<style[\s\S]*?<\/style>/g, '')), 'plus de (s)');
   assert.ok(/2 lignes à corriger/.test(h));
   assert.strictEqual((E.htmlControle({ code: 'X', titre: 'T', nombre: 0, nature: 'n', montant: null, gravite: 'info', action: 'a', methode: 'm', lignes: [], icone: 'x' }, null).match(/Aucun cas sur la période/g) || []).length, 1);
+});
+
+// ---------- Lot A : marge estimée, anomalies, vérification ----------
+const ligneAvec = (etat, extra) => Object.assign({ article: 'Produit Z', rayon: 'Rayon Alpha', taux: 0.3, fiabilite: { niveau: 'bonne' }, conformite: { etat: 'conforme' },
+  margeEstimee: { etat, taux: etat === 'non_calculable' ? null : 0.3, margeUnitaireHt: 0.2, cout: { valeur: 1, source: 'export', methode: 'x' }, raisons: [], limites: [] }, anomalies: [] }, extra || {});
+ok('marge : trois états, une qualification chacun, jamais « certifié »', () => {
+  const h = ['estimation', 'a_verifier', 'non_calculable'].map(e => E.htmlMarge(ligneAvec(e))).join(' ');
+  assert.ok(/Estimation/.test(h) && /Non calculable/.test(h) && /À vérifier/.test(h));
+  assert.ok(!/certifi/i.test(h));
+});
+ok('prix réglementé : qualification, aucune recommandation ni variation de coût', () => {
+  const l = ligneAvec('estimation', { article: 'Bouteille gaz', regimeDeclare: { regime: 'reglemente' } });
+  const h = E.htmlMarge(l) + E.ficheMarge(l);
+  assert.ok(/Prix réglementé/.test(h) && /Prix fixé par un tiers/.test(h));
+  assert.ok(!/variation de coût\s*:|inférieur au coût|augmenter|baisser/i.test(h.replace(/aucune variation de coût ni recommandation de prix/i, '')));
+});
+ok('(i) : bouton de 44 px ciblé, destination = fiche', () => {
+  const h = E.htmlLigne(ligneAvec('estimation'));
+  assert.ok(/data-info-marge="Produit Z"/.test(h) && /aria-label="Information/.test(h));
+  assert.ok(!/<button[^>]*vp-ligne-prod[^>]*>[^]*<button/.test(h.replace(/<\/button>[^]*$/, '</button>')), 'pas de bouton imbriqué');
+});
+ok('carte marge estimée : X sur Y, répartition, limites', () => {
+  const a = analyse(), c = E.carteMarge(a);
+  assert.ok(/^\d+ sur 3$/.test(c.valeur) && /Estimation/.test(c.secondaire) && c.limite);
+});
+ok('droits : vérifier réservé au gérant et manager, jamais au créateur', () => {
+  assert.strictEqual(E.peutVerifier('gerant', false), true); assert.strictEqual(E.peutVerifier('manager', false), true);
+  assert.strictEqual(E.peutVerifier('employe', false), false); assert.strictEqual(E.peutVerifier('manager', true), false);
+});
+ok('bouton « vérifié » : présent avec droits, absent sinon, absent si déjà vérifié', () => {
+  const an = { code: 'S2', niveau: 'a_verifier', cycle: 'nouvelle', empreinte: 'e', identiteDonnees: { fichierHash: 'H1', dateReleve: '2030-03-01' }, gravite: 'a_verifier' };
+  const l = ligneAvec('estimation', { anomalies: [an] });
+  assert.ok(/✓ Marquer comme vérifié/.test(E.htmlFiche(l, { role: 'manager' })));
+  assert.ok(!/Marquer comme vérifié/.test(E.htmlFiche(l, { role: 'employe' })));
+  l.anomalies[0].cycle = 'verifiee';
+  assert.ok(!/Marquer comme vérifié/.test(E.htmlFiche(l, { role: 'manager' })) && /Vérifié/.test(E.htmlFiche(l, { role: 'manager' })));
+});
+ok('message après écriture : date, nom affiché, réévaluation', () => {
+  const m = E.messageApresEcriture({ date: '2030-03-05', auteur: 'Alex Test' });
+  assert.ok(/05\/03\/2030/.test(m) && /Alex Test/.test(m) && /Réévalué au prochain import/.test(m) && !/@/.test(m));
+});
+ok('commentaire : limite unique, charge utile sans site, lot et empreinte transmis', () => {
+  assert.ok(E.commentaireValide('x'.repeat(E.LIMITE_COMMENTAIRE)) && !E.commentaireValide('x'.repeat(E.LIMITE_COMMENTAIRE + 1)));
+  const an = { code: 'S2', niveau: 'a_verifier', empreinte: 'e', identiteDonnees: { fichierHash: 'H1', dateReleve: '2030-03-01' }, gravite: 'a_verifier' };
+  const v = E.payloadVerification(an, { article: 'A' }, { importBatchId: 'b', moteurVersion: 'm', commentaire: 'y'.repeat(900) });
+  assert.ok(!('site' in v) && v.fichier_hash === 'H1' && v.import_batch_id === 'b' && v.empreinte === 'e' && v.commentaire.length === E.LIMITE_COMMENTAIRE);
+});
+ok('aucune recommandation de prix depuis une marge Estimation', () => {
+  const h = E.htmlFiche(ligneAvec('estimation'), { role: 'manager' });
+  assert.ok(!/prix conseillé|appliquer ce prix|proposition de prix/i.test(h));
 });
 
 console.log('test_ecran_politique_tarifaire : ' + n + ' épreuves OK');

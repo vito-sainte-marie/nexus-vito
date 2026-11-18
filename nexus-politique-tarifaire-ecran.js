@@ -7,6 +7,8 @@
   var T = global.NexusPolitiqueTarifaire || (typeof require === 'function' ? require('./nexus-politique-tarifaire.js') : null);
   var PM = global.NexusProduitsMesure || (typeof require === 'function' ? require('./nexus-produits-mesure.js') : null);
   var AR = global.NexusPolitiqueTarifaireRegistres || (typeof require === 'function' ? require('./nexus-politique-tarifaire-registres.js') : null);
+  var V = global.NexusVocabTarif || (typeof require === 'function' ? require('./nexus-vocabulaire-tarif.js') : null);
+  var CP = global.NexusComposantsPilotage || (typeof require === 'function' ? (function () { try { return require('./nexus-composants-pilotage.js'); } catch (e) { return null; } })() : null);
   var B = global.NexusBadgeEtat || (typeof require === 'function' ? require('./nexus-badge-etat.js') : null);
 
   var RANG_GRAVITE = { critique: 0, a_verifier: 1, information: 2 };
@@ -354,12 +356,94 @@
     return B.gravite('information', { libelle: lib });
   }
 
+
+  // ---------- Marge estimée (lot A) : textes du lexique, jamais de conclusion de prix ----------
+  var LIMITE_COMMENTAIRE = 500;
+  var QUALIF = { estimation: 'estimation', a_verifier: null, non_calculable: 'non-calculable' };
+  function estReglemente(l) { return typeOf(l) === 'reglemente'; }
+  function typeOf(l) { return typeRegime(l); }
+  function infoBouton(cle, libelle) {
+    return '<button type="button" class="info-btn pt-info" data-info-marge="' + esc(cle) + '" aria-label="Information : ' + esc(libelle) + '">i</button>';
+  }
+  function badgeMarge(l) {
+    var m = l.margeEstimee;
+    if (!m) return '';
+    var E = V.margeEstimee.etats;
+    if (estReglemente(l)) return '<span class="nbe-qualif" data-axe="regime">Prix réglementé</span>';
+    if (m.etat === 'a_verifier') return B.gravite('a-verifier', { libelle: E.a_verifier });
+    return B.qualification(QUALIF[m.etat] || 'non-calculable');
+  }
+  function htmlMarge(l) {
+    var m = l.margeEstimee;
+    if (!m) return 'Marge ' + esc(pct(l.taux));
+    var chiffre = m.etat === 'non_calculable' || m.taux === null || m.taux === undefined ? '<span class="pt-mono">n/d</span>' :
+      '<span class="pt-mono">' + esc(pct(m.taux)) + '</span>' + (num(m.margeUnitaireHt) !== null ? ' <span class="pt-mono">' + esc(eur(m.margeUnitaireHt)) + ' HT/unité</span>' : '');
+    return 'Marge estimée ' + chiffre + ' ' + badgeMarge(l);
+  }
+  function ficheMarge(l) {
+    var m = l.margeEstimee, T0 = V.margeEstimee, li = function (k, v) { return '<div class="pt-pol-l"><span class="sc-lib">' + esc(k) + '</span><span>' + esc(v) + '</span></div>'; };
+    if (!m) return '';
+    var c = m.cout || {}, h = '<div class="sc-carte pt-marge-fiche" data-marge-fiche="' + esc(l.article) + '"><div class="sc-nom">Marge estimée : ' + esc(T0.etats[m.etat] || m.etat) + '</div>';
+    if (estReglemente(l)) h += '<p class="sc-note">Prix fixé par un tiers : aucune variation de coût ni recommandation de prix.</p>';
+    h += li('Coût utilisé', c.valeur === undefined || c.valeur === null ? 'n/d' : eur(c.valeur)) +
+      li('Source', c.source === 'releve' ? T0.sources.releve(c.dateReleve ? jourFr(c.dateReleve) : '') : T0.sources.export) +
+      li('Méthode', c.methode || T0.methode);
+    if (m.controle) h += li('Écart au relevé', 'PA net HT du relevé ' + eur(m.controle.paNetHtReleve) + ' (' + pct(m.controle.ecart) + ')');
+    (m.raisons || []).forEach(function (r) { h += '<p class="sc-note">' + esc(typeof r === 'string' ? r : (r.texte || r.code || '')) + '</p>'; });
+    h += '<p class="sc-methode">' + esc(T0.limites.remises) + ' ' + esc(T0.limites.decision) + '</p></div>';
+    return h;
+  }
+
+
+  function carteMarge(analyse) {
+    var L = analyse.lignes, n = { estimation: 0, a_verifier: 0, non_calculable: 0 }, regl = 0;
+    L.forEach(function (l) { if (l.margeEstimee) n[l.margeEstimee.etat] = (n[l.margeEstimee.etat] || 0) + 1; if (estReglemente(l)) regl++; });
+    var calc = n.estimation + n.a_verifier, E = V.margeEstimee.etats;
+    return { id: 'marge_estimee', titre: 'Marge estimée', valeur: calc + ' sur ' + L.length,
+      secondaire: E.estimation + ' ' + n.estimation + ' · ' + E.a_verifier + ' ' + n.a_verifier + ' · ' + E.non_calculable + ' ' + n.non_calculable,
+      unite: 'références dont la marge est calculable', reglementees: regl,
+      limite: V.margeEstimee.limites.remises + ' ' + V.margeEstimee.limites.decision };
+  }
+
+  // ---------- Anomalies : contrôles à effectuer et marquage « vérifié » ----------
+  var A_LIB = function () { return V.anomaliesTarifaires; };
+  function peutVerifier(role, estCreateur) { return !estCreateur && (role === 'gerant' || role === 'manager'); }
+  function commentaireValide(t) { return String(t == null ? '' : t).trim().length <= LIMITE_COMMENTAIRE; }
+  function htmlAnomalie(an, l, droits) {
+    var AL = A_LIB(), code = an.code, cd = AL.codes[code] || {};
+    var cycle = AL.cycles[an.cycle] || '';
+    var statut = an.cycle === 'verifiee' ? 'Vérifié' : an.cycle === 'nouvelle' ? 'Nouveau' : cycle;
+    var masque = (an.peutExpliquerAussi || []).length ? '<p class="sc-note">' + esc(AL.masque) + ' ' + esc(an.peutExpliquerAussi.map(function (c) { return (AL.codes[c] || {}).titre || c; }).join(', ')) + '</p>' : '';
+    var btn = droits && an.cycle !== 'verifiee' ?
+      '<button type="button" class="detail-btn pt-verifier" data-verifier="' + esc(code) + '" data-ver-article="' + esc(l.article) + '">✓ Marquer comme vérifié</button>' : '';
+    return '<li class="pt-anomalie" data-anomalie="' + esc(code) + '"><span class="sc-nom">' + esc(cd.titre || code) + '</span> ' +
+      '<span class="nbe-qualif" data-axe="cycle">' + esc(statut) + '</span>' +
+      '<p class="sc-note">' + esc(cd.controle || '') + '</p>' + masque + btn + '</li>';
+  }
+  function htmlControlesAFaire(l, droits) {
+    var L = l.anomalies || [];
+    if (!L.length) return '';
+    return '<div class="sc-carte pt-controles-faire" data-controles-faire="1"><div class="sc-nom">Contrôles à effectuer</div><ul class="vp-liste">' +
+      L.map(function (a) { return htmlAnomalie(a, l, droits); }).join('') + '</ul></div>';
+  }
+  function messageApresEcriture(info) {
+    var d = jourFr(info.date), qui = info.auteur || 'un responsable';
+    return 'Vérifié le ' + d + ' par ' + qui + '. Réévalué au prochain import.';
+  }
+  function payloadVerification(an, l, lot) {
+    var v = { article: l.article, code_barres: l.code_barres || null, cause: an.code, empreinte: an.empreinte,
+      fichier_hash: (an.identiteDonnees || {}).fichierHash, date_releve: (an.identiteDonnees || {}).dateReleve || null,
+      gravite: an.gravite, niveau: an.niveau, valeurs: an.valeurs || null, import_batch_id: lot.importBatchId, moteur_version: lot.moteurVersion };
+    if (lot.commentaire && String(lot.commentaire).trim()) v.commentaire = String(lot.commentaire).trim().slice(0, LIMITE_COMMENTAIRE);
+    return v;
+  }
+
   // ---------- Rendu ----------
   function htmlLigne(l) {
-    return '<li><button type="button" class="vp-ligne-prod" data-article="' + esc(l.article) + '">' +
+    return '<li class="pt-li"><button type="button" class="vp-ligne-prod" data-article="' + esc(l.article) + '">' +
       '<span class="vp-nom">' + esc(l.article) + ' ' + badgeRegime(l) + '</span>' +
       '<span class="vp-meta">' + esc(l.rayon || '') + ' · fiabilité ' + esc((LIB_FIABILITE[l.fiabilite.niveau] || l.fiabilite.niveau).toLowerCase()) + '</span>' +
-      '<span class="vp-chiffres">Marge ' + esc(pct(l.taux)) + ' ' + badgeLigne(l) + '</span></button></li>';
+      '<span class="vp-chiffres">' + htmlMarge(l) + ' ' + badgeLigne(l) + '</span></button>' + infoBouton(l.article, 'marge estimée de ' + l.article) + '</li>';
   }
   function blocFiche(l) {
     var f = fiche(l), s = f.seuil, pd = l.prixDecide, w = avertissementRegime(l);
@@ -375,8 +459,9 @@
       li('Prix décidé', pd ? eur(pd.prix_ttc) + ', état : ' + (pd.etat || 'n/d') : 'aucun') +
       li('Alertes', alertes.length ? alertes.join(', ') : 'aucune') + '</details>';
   }
-  function htmlFiche(l) {
-    return '<div class="sc-fiche pt-fiche" data-fiche-ouverte="' + esc(l.article) + '"><div class="sc-nom">' + esc(l.article) + '</div>' + blocFiche(l)+ '</div>';
+  function htmlFiche(l, etat) {
+    var droits = etat ? peutVerifier(etat.role, etat.estCreateur) : false;
+    return '<div class="sc-fiche pt-fiche" data-fiche-ouverte="' + esc(l.article) + '"><div class="sc-nom">' + esc(l.article) + '</div>' + ficheMarge(l) + htmlControlesAFaire(l, droits) + blocFiche(l)+ '</div>';
   }
   function htmlControle(c, icone) {
     var badgeG = c.nombre ? B.gravite(graviteBadge(c.gravite)) : B.gravite('conforme');
@@ -408,6 +493,8 @@
     h += '<div class="sc-inds pt-inds">' + cs.map(function (c) {
       return '<div class="sc-ind ' + couleur[c.id] + '" data-carte="' + c.id + '"><span class="sc-ind-val">' + esc(c.valeur) + '</span><span class="sc-ind-lib">' + esc(c.titre) + '</span><span class="sc-ind-sous">' + esc(c.secondaire) + '</span></div>';
     }).join('') + '</div>';
+    var cm = carteMarge(a);
+    h += '<div class="sc-inds pt-inds"><div class="sc-ind sc-info" data-carte="marge_estimee"><span class="sc-ind-val">' + esc(cm.valeur) + '</span><span class="sc-ind-lib">' + esc(cm.titre) + ' : ' + esc(cm.unite) + '</span><span class="sc-ind-sous">' + esc(cm.secondaire) + '</span></div><p class="sc-note">' + esc(cm.limite) + '</p></div>';
     var sc = scenarios(a);
     if (s.stockFourni === false) h += '<p class="sc-note pt-stock-absent"><b>Relevé de stock</b> : non fourni. Le coût des références n\'est pas comparé au PA net HT du stock.</p>';
     h += '<details class="sc-carte pt-scenarios"><summary><span class="sc-nom">Scénarios de gain</span><span class="sc-chev"></span></summary><p class="sc-note">' + sc.map(function (x) { return esc(x.libelle) + ' : ' + esc(eur0(x.fiable)); }).join(' · ') + ' (scénarios alternatifs, jamais additionnés).</p></details>';
@@ -433,7 +520,7 @@
     h += '<details class="sc-carte pt-sources"><summary><span class="sc-nom">Sources et limites</span><span class="sc-chev"></span></summary>' + cs.map(function (x) {
       return '<p class="sc-methode"><b>' + esc(x.titre) + '</b> : ' + esc(x.unite) + '. ' + esc(x.periode) + '. ' + esc(x.source) + ' ' + esc(x.limite) + '</p>';
     }).join('') + '</details>';
-    if (etat.ouverte) { var l = a.lignes.filter(function (x) { return x.article === etat.ouverte; })[0]; if (l) h += htmlFiche(l); }
+    if (etat.ouverte) { var l = a.lignes.filter(function (x) { return x.article === etat.ouverte; })[0]; if (l) h += htmlFiche(l, etat); }
     return h;
   }
 
@@ -485,7 +572,7 @@
     preuves: preuves, conseiller: conseiller, fiche: fiche, etatAcces: etatAcces, peutVoirOnglet: peutVoirOnglet, filtrerSite: filtrerSite,
     regimeDe: regimeDe, contexteDeclaratif: contexteDeclaratif, construireContexteTarif: construireContexteTarif, stockParLibelle: stockParLibelle, controle: controle, familles: familles, avertissementRegime: avertissementRegime, infoRegime: infoRegime, badgeRegime: badgeRegime, badgeLigne: badgeLigne, blocFiche: blocFiche,
     chargerRegistres: chargerRegistres, chargerVentes: chargerVentes, lireCompte: lireCompte, libellePeriode: libellePeriode,
-    htmlPage: htmlPage, htmlLigne: htmlLigne, htmlControle: htmlControle, htmlFiche: htmlFiche, graviteLigne: graviteLigne, CSS: CSS };
+    htmlPage: htmlPage, htmlLigne: htmlLigne, htmlControle: htmlControle, htmlFiche: htmlFiche, carteMarge: carteMarge, htmlMarge: htmlMarge, ficheMarge: ficheMarge, peutVerifier: peutVerifier, commentaireValide: commentaireValide, messageApresEcriture: messageApresEcriture, payloadVerification: payloadVerification, LIMITE_COMMENTAIRE: LIMITE_COMMENTAIRE, graviteLigne: graviteLigne, CSS: CSS };
   global.NexusPolitiqueTarifaireEcran = API;
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
 })(typeof window !== 'undefined' ? window : globalThis);
