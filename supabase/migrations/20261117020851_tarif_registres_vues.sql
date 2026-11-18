@@ -5,19 +5,15 @@
 -- Ordre obligatoire : 100000, 100100, 100200, puis 100300 en dernier. Rejouer ce fichier après 100300 rétablirait
 -- la vue des exceptions sans le filtre des comptes actifs : refusé.
 
--- GARDE PROJET TEST : première instruction de la migration, avant toute modification de la base. Identité vérifiée : l'identifiant système du cluster
--- PostgreSQL, fixé à sa création et propre au projet Supabase Test udljdqxerrbbbajxubfn (relu le 16/11/2026).
--- Toute autre base, Production comprise, est refusée avant la moindre écriture. Seconde vérification : sites de recette.
-do $garde$
-declare v_sysid bigint := (select system_identifier from pg_control_system());
+-- Prérequis : la migration s'arrête avant toute écriture si un objet attendu manque (aucune identité de projet n'est supposée).
+do $prerequis$
+declare v_manque text;
 begin
-  if v_sysid is distinct from 7678069749886157684 then
-    raise exception 'garde_projet_test : identifiant système % : ce n est pas le projet Supabase Test udljdqxerrbbbajxubfn', v_sysid;
+  select string_agg(o, ', ') into v_manque from unnest(array['public.sites', 'public.employees', 'public.import_batches', 'public.tarif_familles', 'public.tarif_rattachements', 'public.tarif_seuils', 'public.tarif_reglages', 'public.tarif_exceptions', 'public.tarif_prix_decides', 'public.tarif_prix_application', 'public.tarif_regimes_prix', 'public.tarif_controles_reglementaires', 'public.tarif_decisions']) as o where to_regclass(o) is null;
+  if v_manque is not null then
+    raise exception 'prerequis_migrations : 20261117020851 (appliquer 20261117020430 et 20261117020652 avant) : objets absents : %', v_manque;
   end if;
-  if (select count(*) from public.sites where site_id in ('site-fantome-test', 'nexus-station-test')) <> 2 then
-    raise exception 'garde_projet_test : sites de recette absents';
-  end if;
-end $garde$;
+end $prerequis$;
 
 do $$ begin
   if exists (select 1 from pg_policies where schemaname = 'public' and policyname = 'compte_actif_obligatoire') then
