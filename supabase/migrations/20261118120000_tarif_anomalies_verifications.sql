@@ -50,8 +50,8 @@ create table if not exists tarif_anomalies_verifications (
   constraint tarif_anom_verif_motif_long check (motif_annulation is null or char_length(motif_annulation) <= 500),
   constraint tarif_anom_verif_id_site unique (id, site)
 );
--- Idempotence : une seule vérification active par site, référence, cause et empreinte.
-create unique index if not exists tarif_anom_verif_active_uq on tarif_anomalies_verifications (site, cle, cause, empreinte) where annule_le is null;
+-- Idempotence : une seule vérification active par site, référence, cause, empreinte et fichier importé. Une nouvelle vérification sur un nouvel import crée donc une nouvelle ligne (l'historique garde les deux).
+create unique index if not exists tarif_anom_verif_active_uq on tarif_anomalies_verifications (site, cle, cause, empreinte, fichier_hash) where annule_le is null;
 create index if not exists tarif_anom_verif_site_cle on tarif_anomalies_verifications (site, cle);
 
 -- 2. Réévaluations : ce que le moteur constate à un nouvel import pour une anomalie déjà vérifiée. Ajout seul.
@@ -158,7 +158,7 @@ begin
       raise exception 'tarif_verif_commentaire_trop_long : le commentaire est limité à 500 caractères' using errcode = 'P0001';
     end if;
     select v.id into v_id from tarif_anomalies_verifications v
-      where v.site = v_emp.site_id and v.cle = v_cle and v.cause = l->>'cause' and v.empreinte = l->>'empreinte' and v.annule_le is null;
+      where v.site = v_emp.site_id and v.cle = v_cle and v.cause = l->>'cause' and v.empreinte = l->>'empreinte' and v.fichier_hash = l->>'fichier_hash' and v.annule_le is null;
     if v_id is not null then
       o_id := v_id; o_cle := v_cle; o_deja := true; return next;
     else
