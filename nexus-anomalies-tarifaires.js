@@ -14,14 +14,14 @@
   let cache = null;
   function vocab() {
     try {
-      const w = global.NexusVocab || (typeof window !== 'undefined' && window.NexusVocab);
+      const w = global.NexusVocabTarif || (typeof window !== 'undefined' && window.NexusVocabTarif);
       if (w && w.anomaliesTarifaires) return w.anomaliesTarifaires;
     } catch (e) { /* repli ci-dessous */ }
     if (cache) return cache;
     if (typeof require === 'function') {
       const vm = require('vm'), fs = require('fs'), path = require('path'), w = {};
-      vm.runInNewContext(fs.readFileSync(path.join(__dirname, 'nexus-vocabulaire.js'), 'utf8'), { window: w });
-      cache = w.NexusVocab && w.NexusVocab.anomaliesTarifaires || null;
+      vm.runInNewContext(fs.readFileSync(path.join(__dirname, 'nexus-vocabulaire-tarif.js'), 'utf8'), { window: w });
+      cache = w.NexusVocabTarif && w.NexusVocabTarif.anomaliesTarifaires || null;
     }
     return cache;
   }

@@ -1265,47 +1265,5 @@
     aucuneDonnee: 'Aucun quart attribuable à un pompiste n’est encore mesuré.',
   };
 
-  // Marge estimée du Scanner (lot A, #331). Textes fixes : le moteur les lit ici, il ne les porte pas.
-  NexusVocab.margeEstimee = {
-    etats: { estimation: 'Estimation', a_verifier: 'À vérifier', non_calculable: 'Non calculable' },
-    sources: {
-      export: 'Coût de revient Decenium (export des ventes)',
-      releve: d => 'PA net HT du relevé de stock' + (d ? ' du ' + d : ''),
-    },
-    methode: 'coût de revient Decenium : moyenne pondérée sur PU HT bruts, remises non déduites (formule exacte non confirmée par l’éditeur)',
-    limites: {
-      remises: 'Coût de revient calculé par Decenium sur les prix bruts : les remises fournisseurs n’y sont pas déduites.',
-      ttc: 'Le total TTC des factures est vérifié ; le coût unitaire peut rester inexact.',
-      decision: 'Estimation : n’autorise aucune décision de prix.',
-      administre: 'prix administré : aucune recommandation',
-      sansReleve: 'coût non contrôlé : relevé non fourni',
-    },
-    raisons: {
-      coutAbsent: 'coût absent ou nul',
-      pvAbsent: 'prix de vente absent ou nul',
-      horsVentes: n => 'hors ventes commerciales (' + n + ')',
-      ecartReleve: p => 'coût écarté de ' + p + ' % du PA net HT du relevé de stock',
-      variationCout: p => 'coût en variation de ' + p + ' % sur la période précédente',
-      margeNonPositive: 'marge négative ou nulle',
-      tva: 'TVA à vérifier',
-    },
-  };
-
-  // Anomalies tarifaires S1–S7 (lot C, #331). Le moteur détecte ; les libellés et le contrôle conseillé vivent ici.
-  NexusVocab.anomaliesTarifaires = {
-    niveaux: { demontree: 'Démontrée', a_verifier: 'À vérifier' },
-    cycles: { nouvelle: 'Nouvelle', verifiee: 'Vérifiée', resolue: 'Résolue', persistante: 'Persistante', aggravee: 'Aggravée' },
-    masque: 'peut expliquer aussi :',
-    codes: {
-      S1: { titre: 'Marge négative ou nulle', controle: 'Vérifier le coût de revient et le prix de vente dans Decenium.' },
-      S2: { titre: 'Coût écarté du relevé de stock', controle: 'Comparer à la dernière facture fournisseur (prix brut, remise) ; une remise mal prise en compte est une cause possible, jamais une conclusion.' },
-      S3: { titre: 'Coût en variation', controle: 'Vérifier la dernière réception : prix, remise, quantité ; une remise mal prise en compte est une cause possible, jamais une conclusion.' },
-      S4: { titre: 'Conditionnement suspect', controle: 'Vérifier l’unité d’achat et le colisage de la fiche.' },
-      S5: { titre: 'Correspondance incertaine', controle: 'Vérifier la référence et ses doublons.' },
-      S6: { titre: 'Prix de vente modifié sans décision', controle: 'Confirmer le prix en caisse.' },
-      S7: { titre: 'TVA à vérifier', controle: 'Vérifier le taux de TVA de l’article.' },
-    },
-  };
-
   global.NexusVocab = NexusVocab;
 })(window);

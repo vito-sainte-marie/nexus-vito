@@ -57,18 +57,18 @@
   const nom = s => String(s || '').replace(/\s+/g, ' ').trim().toLowerCase();
   const cb = r => (r && r.code_barres ? String(r.code_barres).trim() : '');
   const jour = d => (d ? String(d).slice(0, 10) : null);
-  // Textes fixes de la marge estimée : lus dans nexus-vocabulaire.js, jamais écrits ici.
+  // Textes fixes de la marge estimée : lus dans nexus-vocabulaire-tarif.js, jamais écrits ici.
   let vocabMarge = null;
   function vocabulaireMarge() {
-    if (global.NexusVocab && global.NexusVocab.margeEstimee) return global.NexusVocab.margeEstimee;
+    if (global.NexusVocabTarif && global.NexusVocabTarif.margeEstimee) return global.NexusVocabTarif.margeEstimee;
     if (vocabMarge) return vocabMarge;
     if (typeof require === 'function') {
       const vm = require('vm'), fs = require('fs'), path = require('path');
       const w = {};
-      vm.runInNewContext(fs.readFileSync(path.join(__dirname, 'nexus-vocabulaire.js'), 'utf8'), { window: w });
-      vocabMarge = w.NexusVocab && w.NexusVocab.margeEstimee;
+      vm.runInNewContext(fs.readFileSync(path.join(__dirname, 'nexus-vocabulaire-tarif.js'), 'utf8'), { window: w });
+      vocabMarge = w.NexusVocabTarif && w.NexusVocabTarif.margeEstimee;
     }
-    if (!vocabMarge) throw new Error('NexusVocab.margeEstimee introuvable : charger nexus-vocabulaire.js avant le moteur');
+    if (!vocabMarge) throw new Error('NexusVocabTarif.margeEstimee introuvable : charger nexus-vocabulaire-tarif.js avant le moteur');
     return vocabMarge;
   }
   let moduleAnomalies;
