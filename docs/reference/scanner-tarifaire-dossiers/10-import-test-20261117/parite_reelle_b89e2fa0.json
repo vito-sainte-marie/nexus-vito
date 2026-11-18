@@ -1,0 +1,4959 @@
+{
+ "export": "cmp_export.json",
+ "periode": {
+  "debut": "2026-10-05",
+  "fin": "2026-11-09"
+ },
+ "jours": 36,
+ "stock_source": "valorisation du stock Decenium du 10/11/2026, colonne « PA net HT »",
+ "rayons": 17,
+ "perimetre_rayons": "rayons des résultats T1 (décision 1 du pilote non tranchée)",
+ "stock": {
+  "lignes_brutes": 2871,
+  "libelles_ambigus": 12
+ },
+ "passes": [
+  {
+   "passe": "A",
+   "etiquette": "réel",
+   "references": 440,
+   "comparees_a_t1": 440,
+   "hors_t1": 0,
+   "identiques": 383,
+   "ecarts": 57,
+   "classes": {
+    "donnée absente": 51,
+    "attendu": 6
+   },
+   "statuts": {
+    "a_verifier": 89,
+    "sans_seuil_valide": 221,
+    "proposition_a_valider": 48,
+    "a_surveiller": 69,
+    "conforme": 13
+   },
+   "classement": [
+    {
+     "article": "02-10-2026 Barre Mars Coeur Fondant 50.4g- 40P",
+     "champs": [
+      "fiabilite",
+      "minimum",
+      "cible"
+     ],
+     "classe": "donnée absente",
+     "donnee": "nature non établie (produits_nature_reference sans ligne pour cette référence)"
+    },
+    {
+     "article": "07-10-2026 HARIBO CARENSAC 120g -P30",
+     "champs": [
+      "fiabilite",
+      "minimum",
+      "cible"
+     ],
+     "classe": "donnée absente",
+     "donnee": "nature non établie (produits_nature_reference sans ligne pour cette référence)"
+    },
+    {
+     "article": "Advance 4T Ultra 10W40 1 L - 12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "advance sx 2t 1L - 12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "advance Ultra 2T -12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Advance VSX2 1L -12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Baguette - 24P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Baguette BEURRE delices prod",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Biere Lorraine Vibes Citron Ginger 33 cl blle -24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "attendu",
+     "arbitrage": "règle du coût ambigu : libellé de stock aux PA différents retenu sans PA, référence à confirmer (T1 prenait la première ligne)"
+    },
+    {
+     "article": "Bisous fraise FINI 90g -12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "attendu",
+     "arbitrage": "règle du coût ambigu : libellé de stock aux PA différents retenu sans PA, référence à confirmer (T1 prenait la première ligne)"
+    },
+    {
+     "article": "Chips Banane Nature 95G - 24P",
+     "champs": [
+      "alertes"
+     ],
+     "classe": "attendu",
+     "arbitrage": "alerte A5 « identité changée » propre au moteur T2, absente de T1"
+    },
+    {
+     "article": "CHIPS BRETS BEURRE SALE 125g - 10P",
+     "champs": [
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "CHIPS BRETS FROMAGE DU JURA 125g - 10P",
+     "champs": [
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "CHIPS BRETS MIEL & MOUTARDE 125g - 10P",
+     "champs": [
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "CHIPS BRETS SAVEUR AIOLI 165g - 10P",
+     "champs": [
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Chips lays  25g Nature - 24P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes",
+      "repereCible"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Chips Lays BBQ 130g -10P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Chips lays bbq 27.5grs - 24P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Chips LAYS BBQ 45g - 20 P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes",
+      "repereCible"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Chips lays bbq 75g - 15P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Chips Lays Nat 130g- 10P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Chips Lays nat 45g -20P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes",
+      "repereCible"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Chips Lays Nature 75gr - 15P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Coca cola Sleek Bte 33 cl - 24P",
+     "champs": [
+      "alertes"
+     ],
+     "classe": "attendu",
+     "arbitrage": "alerte A5 « identité changée » propre au moteur T2, absente de T1"
+    },
+    {
+     "article": "eau de coco 50 cl",
+     "champs": [
+      "alertes"
+     ],
+     "classe": "attendu",
+     "arbitrage": "alerte A5 « identité changée » propre au moteur T2, absente de T1"
+    },
+    {
+     "article": "Figolu 192g -28P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes",
+      "repereCible"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Fuchs Titan Garden  2T M Jardin 1L - 12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Granola Cookies Choco 184g -10P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes",
+      "repereMinimum",
+      "repereCible"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "helix 10W40 -HX7-1L - 12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "helix 10w40 2L diesel - 8P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "helix 10w40 2L essence -8P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Helix 15w40 1l - 12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "helix 15w40 2L diesel - 8P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "helix 15w40 2L ess -8P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Helix diesel ultra AR-L 5w30 1l RENAULT -12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Helix ultra 5w30 AP-L 1l PEUGEOT CITROEN -12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Helix Ultra 5w40 - 2l diesel - 8P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Helix Ultra 5w40 - 2l essence - 8P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "helix ultra 5w40 1L -12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Helix Ultra 5W40 5 L - 3P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Helix Ultra Extra ECT C3 5w30 1L AUDI VW -12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "NAUTILUS PREMIUM OUTBOARD 1L",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Pringles bbq 175g -19P",
+     "champs": [
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Pringles bbq 40g -12P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes",
+      "repereCible"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Pringles hot & spicy 40g - 12P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes",
+      "repereCible"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Pringles Hot Spicy 160g -19P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes",
+      "repereMinimum",
+      "repereCible"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Pringles Origl 175g - 19P",
+     "champs": [
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Pringles Origl 40g - 12P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes",
+      "repereMinimum",
+      "repereCible"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Pringles SCO 175g - 19P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes",
+      "repereMinimum",
+      "repereCible"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Pringles SCO 40g - 12 P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes",
+      "repereCible"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Royal soda 50cl Orange -8P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "attendu",
+     "arbitrage": "règle du coût ambigu : libellé de stock aux PA différents retenu sans PA, référence à confirmer (T1 prenait la première ligne)"
+    },
+    {
+     "article": "Sachet Menthe Bleue DURMINT 100g - 12P",
+     "champs": [
+      "fiabilite",
+      "alertes",
+      "minimum",
+      "cible"
+     ],
+     "classe": "donnée absente",
+     "donnee": "nature non établie (produits_nature_reference sans ligne pour cette référence)"
+    },
+    {
+     "article": "spirax s2 A 80w-90 1L - 12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Spirax s2 atf direction assistee 1l - 12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Spirax s4 atf hdx 1L - 12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Spirax s4 G 75W-80 1L - 12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "VICO CLASSIQUE 135G - 20P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    }
+   ]
+  },
+  {
+   "passe": "B",
+   "etiquette": "réel",
+   "references": 440,
+   "comparees_a_t1": 440,
+   "hors_t1": 0,
+   "identiques": 0,
+   "ecarts": 440,
+   "classes": {
+    "donnée absente": 437,
+    "attendu": 3
+   },
+   "statuts": {
+    "a_verifier": 59,
+    "sans_seuil_valide": 239,
+    "a_surveiller": 88,
+    "proposition_a_valider": 54
+   },
+   "classement": [
+    {
+     "article": "02-10-2026 Barre Mars Coeur Fondant 50.4g- 40P",
+     "champs": [
+      "fiabilite",
+      "minimum",
+      "cible"
+     ],
+     "classe": "donnée absente",
+     "donnee": "nature non établie (produits_nature_reference sans ligne pour cette référence)"
+    },
+    {
+     "article": "07-10-2026 HARIBO CARENSAC 120g -P30",
+     "champs": [
+      "fiabilite",
+      "minimum",
+      "cible"
+     ],
+     "classe": "donnée absente",
+     "donnee": "nature non établie (produits_nature_reference sans ligne pour cette référence)"
+    },
+    {
+     "article": "07-10-2026 WPUFF POD 2.0 - 1 POD GROSSE FRAISE 1.7%",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "08-10-2026 WPUFF POD 2.0 - 1 POD Pomme Glacee 1.7%",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Advance 4T Ultra 10W40 1 L - 12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "advance sx 2t 1L - 12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "advance Ultra 2T -12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Advance VSX2 1L -12P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Aloe Vera Grenade 50cl -20P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Aloe Vera Nature OKF 50cl - 20P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "ALOE VERA SPARK 50CL-20P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Amigo Cerise Peyi / Gren 50cl -8P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Amigo Orange 2L -6P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes",
+      "prixDecide"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Amigo Orange 50cl -8P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Amigo Pamplemousse 50cl -8P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "AMOS 4D FRAISE / CERISE- 12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "AMOS 4D GUMMY ANANAS - 12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "AMOS PEELERZ MANGUE 120G-12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Baguette - 24P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Baguette BEURRE delices prod",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "BAL Limonade Citron - 24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "BAL Limonade Passion - 24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "BARRE CARAMEL PISTACHE",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Barre chacha  27g -50P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Barre Chacha Max 34.3G - 36P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Barre Kinder Bueno 43g - 30P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Barre Kinder Bueno white 43g - 30P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Barre Kit-kat Tablette 41.5g -36P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Barre Lion 42g- 24P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Barre Twix Raider 50g - 32P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Barres snickers 50g - 40P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "BIBIFRUIT 60 ML - 28P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes",
+      "minimum",
+      "cible"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Bière 1664 25cl - 28P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Bière 1664 50cl - 24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Biere Bavaria 8/6 Blonde 50cl -24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Biere Bavaria 8/6 RED 50cl - P24",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Bière Blonde Heineken 4 x 50 cl",
+     "champs": [
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Bière Blonde Lorraine x 4 - 50 cl",
+     "champs": [
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Biere BUZZ extra strong 10% Plus 275ml -24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Biere Corsaire BDE VP 33cl -24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Biere Desperados 33cl  -24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Biere Desperados 33cl  mojito -24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Biere Desperados 33cl lime- 24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Biere Desperados 33cl SUN CERISE -24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Bière Desperados 33cl Tropical -24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Biere Desperados 50cl -24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Biere Desperados RED 33cl -24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Biere Desperados RED 50cl  - 12 P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Biere Desperados RED 65cl - 12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Biere Desperados Virgin 33cl -24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Biere GUINNESS 33 CL EXTRA 7.5% - 24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Biere Heineken 0.0 25 cl - 24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Biere Heineken 25cl -24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Biere Heineken 33cl - 24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Biere Heineken 50cl - 24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Biere Heineken Cannette 33cl -24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Bière LA BETE BLONDE 50CL - 12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Bière LA BETE BLUEB 50CL - 12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Biere Leffe 33cl -24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Biere Lorraine 25cl - 24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Biere Lorraine 33 cl blle -24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Biere Lorraine 50cl  -24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Biere Lorraine Vibes Citron Ginger 33 cl blle -24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "attendu",
+     "arbitrage": "règle du coût ambigu : libellé de stock aux PA différents retenu sans PA, référence à confirmer (T1 prenait la première ligne)"
+    },
+    {
+     "article": "Biere Lorraine Vibes Passion 33 cl blle -24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Bière MACKESON 275ml - 24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Bière PELICAN ROUGE 50 CL - 12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "BIERE PITON 27.5 CL",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Bière Porter 39 25cl -24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Bière Porter 39 50cl - 24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Biere Royal faxe 5.6% 50cl  -24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Biere Skoll 33 cl -24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Bière Smirnoff ice 275ml -24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "BIERE SOMERSBY FRAMB GREN 3X27.5cl - 24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "BIERE SOMERSBY POMME 27.5CL - 24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Bisc granola lu choco/lait 200g -18P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "BISC GUARINA SALADITAS - 12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Bisc Oreo 66gr -20P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Bisc OREO ROULEAUX CLASSIC 154grs - 16P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Bisc premium bleu s/s 250g -12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Bisc premium sale rouge 250gr - 12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Bisc prince lu 80g  - 20P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Bisc Sultana FRouges 218g -18P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Bisc tuc bacon 100gr - 24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Bisc tuc fromandi 100grs -24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Bisc tuc OIGNON 100gr - 24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Bisc TUC SALE 75g  - 28P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Biscuit petit beurre unité",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Biscuits DEVON FOURRES COCONUT - 30P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Biscuits DEVON FOURRES CUSTARD - 30P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Biscuits petit beurre 200g/20P",
+     "champs": [
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Biscuits Salés Delices Prod",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "BISCUITS SALES RGC",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Bisous fraise FINI 90g -12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "attendu",
+     "arbitrage": "règle du coût ambigu : libellé de stock aux PA différents retenu sans PA, référence à confirmer (T1 prenait la première ligne)"
+    },
+    {
+     "article": "Boisson Aloe COCO 50cl-20P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Boisson energisante Red bull 35.5CL-24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Boisson energisante Red bull Fruit du dragon 25Cl-24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Boisson energisante Red bull Myrtille 25Cl-24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Boisson Fanta orange 50 cl -8P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Boisson magnum tonic 200ml -24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Boisson Monster Energy Punch 50 cl -12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Boisson Monster LNORRIS SSUCR 50 cl -12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Boisson Monster Mango Loco 50cl - 12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Boisson Monster MONARCH 50cl - 12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Boisson Monster PIPELINE Punch 50cl - 12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Boisson Monster Viking Berry 50 cl -12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Boisson Orangina 50cl - 8P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Boisson Ordinaire Anis 50cl - 24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Boisson Ricqles 50cl - 8P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Boisson Sprite 50cl - 24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "bonbon Bouteilles Cola Sucrees Fini 100g -12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "bonbon fini  requins 90g -12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Bonbon fini Oursons Sucres 90g 12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Bonbon fini pailles ts parf - 50P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "bonbon fini sachet vers de terre acide 90g -12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Bonbon Menthise 250G - 29P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Bonbons 10c",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Bonbons 20c",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Bonbons Gom's Saveurs 140g -12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Bounty 57g - 24P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Burger 7G FIZZY - 60P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "BUZZ VODKA CAN extra strong 10% Plus 250ml -24P",
+     "champs": [
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Carré aux pommes 110g - 46P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Ceintures Fraise FINI 90g -12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "CERISES FIZZ FINI 90G - 12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Chanflor 1.5l -6P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes",
+      "repereCible"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Chanflor 1l - 8P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Chanflor 50cl - 12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Chanflor 60cl - 8P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Chanflor fruits rge 50cl -8P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Chanflor fruits rge1.5l -6P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Chanflor peche letchi rge50cl -8P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Chanflor Pomme / Aloe 1.5l -6P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Chanflor pomme aloes vera 50cl -8P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Chanflor Ti Fraise 33cl - 8P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Chausson Pomme150g - 48 P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Cheetos fromage 27g -24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Cheetos fromage 80g -12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Chewin gum malabar a l unite",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Chips Banane Nature 95G - 24P",
+     "champs": [
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "CHIPS BRETS BEURRE SALE 125g - 10P",
+     "champs": [
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "CHIPS BRETS FROMAGE DU JURA 125g - 10P",
+     "champs": [
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "CHIPS BRETS MIEL & MOUTARDE 125g - 10P",
+     "champs": [
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "CHIPS BRETS SAVEUR AIOLI 165g - 10P",
+     "champs": [
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Chips de Banane Maduritos 95G - 24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Chips lays  25g Nature - 24P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes",
+      "repereCible"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Chips Lays BBQ 130g -10P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Chips lays bbq 27.5grs - 24P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Chips LAYS BBQ 45g - 20 P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes",
+      "repereCible"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Chips lays bbq 75g - 15P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Chips Lays Nat 130g- 10P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Chips Lays nat 45g -20P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes",
+      "repereCible"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Chips Lays Nature 75gr - 15P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Chouchou Caraibe",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Coca cola 1.25 l -6P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Coca cola 2l -6P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Coca cola 50cl - 8P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Coca Cola Cherry 1.25 l - 6P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Coca Cola Cherry 50cl - 8P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Coca cola Sleek Bte 33 cl - 24P",
+     "champs": [
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Coca cola vp 25cl - 24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Coca cola zero 2l -6P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Coca Cola zero 50 cl -8P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Contrex 1L50 6P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "CORNETTO KINGCONE VAN 260ML - 16P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "CRIBICH au fromage 30g",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "CRIBICH au fromage 75g",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "CRIBICH piment 30g",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "CRIBICH piment 75g",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Croissant - 90P",
+     "champs": [
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Didier ANANAS GINGEMBRE 50cl -8P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Double OCB premium Courte - 50P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Dr Roots Aloe Vera 1.5L - 12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "eau de coco 50 cl",
+     "champs": [
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Eau didier 113 1.5l -6P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Eau didier 113 minerale plate 1l -6P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Eau didier 113 minerale plate 50cl -8P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Eau didier citron vert 1.25l -6P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Eau didier citron vert 50cl -8P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Eau didier Framb /Hibis 1.25L -6P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Eau didier Framb/Hibis 50cl -8P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Eau didier gaz.nat 1.25l -6P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Eau didier gazeux 50 cl -8P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Eau didier gazeux nat 0.75 l - 8P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Eau hepar 75Cl -6P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Eau mabelo 0.50l -P12",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "EAU NATUREL 1.5L ST JUDE -6P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Evian 1.5l -6P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "FALCON - X JNR - BLACK DRAGON ICE",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "FALCON - X JNR - CHERRY ICE",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "FALCON - X JNR - MIXED BERRIES",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "FALCON - X JNR - Myrtille Framboise",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "FALCON - X JNR - Myrtille Grenade",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "FALCON - X JNR - Pastèque Fraise",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "FESTIVAL CHOCOLAT 403gr - 12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Feuille à rouler Clipper Black 1/4 50feuilles -100P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Feuille a rouler OCB slim - 50P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Feuille a rouler OCB slim+ filtre - 32P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Feuille a rouler RAW connoisseur -24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Feuille a rouler SMOKING Slim - 50P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Feuille a rouler SMOKING Slim+FILTRE- 24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Feuille de Tabac FINE LEAF 15g - 15P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Feuilleté Jamb/From 110g -30P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Figolu 192g -28P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes",
+      "repereCible"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "FILIBOS GOUT PEYI-A",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "fini roller fantaisie - 18P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "fini roller fraise - 18P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "fini roller frambroise- 18P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Fini Sucette 3 en 1 - 200P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Fourres Banane",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Fourres Goyave",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "FR du Paradis glace 1L",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "FREEDENT BOX MENTHE VERTE B - 6P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Fuchs Titan Garden  2T M Jardin 1L - 12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "gateau cannelle bigin 5333 35g - 20P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Gateau Familial Oeuf 5158 300grs",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Gatorade Cool Blue - 50cl - 12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Ginger beer SUPERMALT 33cl -24P",
+     "champs": [
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Gizeh - 150 filtres - 20P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Glace Ecailles / Paillettes 8kg Crystal",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Glace floup -20P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Glace floup berlingot supercoco -20P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Glace floup fruisson -20P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Glacons Vito 5 kg",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "GRAN PAVESI SFOGLIE 180 GRS",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Granola Cookies Choco 184g -10P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes",
+      "repereMinimum",
+      "repereCible"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Great ginger rouge 25cl -24P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Great ginger vert 25cl -24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "HAAGEN DAZS - HCP MINICUPS 95 ML - 24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "HAAGEN DAZS - HPT 460 ML - 8P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "haribo croco pik 120 gr",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "HARIBO Dragibus Original 120g -P30",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "HARIBO Dragibus Pocket 50grs - 24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "HARIBO DRAGIBUS SOFT - 30P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "HARIBO LANGUE PIK 100G X 30",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "HARIBO STAR MINT 100GR -30P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Haribo Super frite Pik 120 grs - 30P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Haribo tagada 120gr -30P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "helix 10W40 -HX7-1L - 12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "helix 10w40 2L diesel - 8P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "helix 10w40 2L essence -8P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Helix 15w40 1l - 12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "helix 15w40 2L diesel - 8P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "helix 15w40 2L ess -8P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Helix diesel ultra AR-L 5w30 1l RENAULT -12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Helix ultra 5w30 AP-L 1l PEUGEOT CITROEN -12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Helix Ultra 5w40 - 2l diesel - 8P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Helix Ultra 5w40 - 2l essence - 8P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "helix ultra 5w40 1L -12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Helix Ultra 5W40 5 L - 3P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Helix Ultra Extra ECT C3 5w30 1L AUDI VW -12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "HWD  - ORAL B Menthe Fraiche White -12P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "HWD - CHLORO DRAGEE - 20P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes",
+      "minimum",
+      "cible"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "HWD - MENTHE DRAGEE - 20P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "HWD - ORAL B Menthe verte S/S -12P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "HWD 2FRESH CHLORO 16P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes",
+      "minimum",
+      "cible"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "HWD 2FRESH MENTHE FORTE - 16P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes",
+      "minimum",
+      "cible"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Jelly Pop BABY 10G -24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Jus banga goyave 2L",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Jus banga multifruits 2L",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Jus capri-sun 20 cl monster alarm -10P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Jus capri-sun 20 cl multi -10P",
+     "champs": [
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Jus capri-sun 20 cl orange -10P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Jus capri-sun 20 cl safari - 40P",
+     "champs": [
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Jus capri-sun 20 cl tropical -40P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Jus capri-sun 33cl Mango/Maracuja - 15P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Jus capri-sun Cherry Pomme  33cl - 15P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Jus capri-sun orange  PECHE 33cl - 15P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Jus caresse 1L ts parf",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Jus caresse 50cl canne a sucre",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Jus caresse 50cl TS PARF",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Jus Fresh 100% Poire 1L - 12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Jus FRESH 100% POMME 1L - 12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Jus FRUITYBON Canne 1l",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Jus FRUITYBON Canne 50cl",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Jus FRUITYBON Local 1l",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Jus FRUITYBON Local 50 cl",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Jus joker ace 25cl -24P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Jus joker pomme 25cl -24P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Jus joker raisin 25cl -24P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Jus Mont Pele CAN 50cl cocktail tropical -24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Jus Mont Pele CAN 50cl Fruits rouges -24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Jus Mont Pele CAN 50cl goyave/ananas -24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Jus yippy 33cl multi 12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Jus yippy 33cl Pomme 12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Jus Yippy 33cl Red Berrie - 12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Kinder Country / unite",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "KINDER COUNTRY T4 X 24 P",
+     "champs": [
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "LACET FINI 80 GR - 12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "LDNE -MINI MALLOW PAQUES 12G - 50P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Little mix FINI 90g -12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Loacker napolitaner 45g -25P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "LONG HORN RECOVERY BLUE 50 CL - 12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "LOT DE 5 PATES LAMBI",
+     "champs": [
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "LU CENT WAFER 45G -30P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "M&M's 45gr - 36P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "M&M'S XXL 82gr-16P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Maaza fruit punch 50cl -12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Maaza Goyave 50cl -12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Maaza Tropical 50cl -12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "MACARONS DELICES PROD",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Macedoine de fruits Gum FINI 90g -12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Madeleines aux oeufs 5143 Bigin 250g - 16P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Madeleinette peyi bigin 5188 - 80g - 18P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Magic Carpets FINI 90g -12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Magnum TT PARF -20P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Manio Crakers sale - 6P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Manio Crakers sucre - 6P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Maxi Pain Choco - 90P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Maxi Pop Corn Caramel 90g",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes",
+      "repereCible"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Maxi Pop Corn Salé 90g",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes",
+      "repereCible"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Maxi pop corn sucré 90g",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes",
+      "repereCible"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "MENTHE BLEUE DURMINT - 134P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "MENTHE VERTE DR TOM - 237P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Mentos chloro 38grs - 40P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes",
+      "minimum",
+      "cible"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Mentos Fanta 38g - 40P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Mentos fruits 38g - 40P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Mentos menthe mint 38g - 40P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Mentos Pure Fresh 30 Fresh Mint 60 g - 6P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Miko Classic 1L ts parfums",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "MIKO SUPER TWISTER - 28P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "MINI FRITES FIZZY - 48P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Monster Can Standard 50cl - 12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Mont Pele Refresh 50 cl Fruits Rouges - 24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Mont Pele Refresh 50 cl Pomme Poire - 24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Mont Pele Refresh 50 cl Tropical - 24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Mont pele the peche hibiscus 50cl - 24p",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Mr BROWNIE Chocolat 200gX8 -12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "MT PELE Refresh 2L Fruits Rouges - 6P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "MT PELE Refresh 2L Pomme Poire - 6P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "MT PELE Refresh 2L Tropical - 6P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Muffin Cannelle 5187 - 25P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Muffin Choco 5335 - 25P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "NAUTILUS PREMIUM OUTBOARD 1L",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Nougat Caramel Pistache 100g",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Nutella Biscuit G304 - 12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Oasis Pomme Poire 2l -6P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Oasis Pomme Poire 50cl -12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Oasis Tropical 50cl -12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "OCB - 150 filtres - 50P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Orangina 2l -6P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Pack Chanflor 1.5L x6",
+     "champs": [
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Pack Guinness 27.5cl - 6P",
+     "champs": [
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Pack Heineken 25cl - 6P",
+     "champs": [
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "PACK ST JUDE 1.5 X 6",
+     "champs": [
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Pain Chocolat - 96P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Palets Dorés St Georges 125g -24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "PAPIER OCB SLIM + FILTRE NON BLANCHI - 32P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Papier Pure Kss Slim + Tips El Momento -P20",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "PATE BRISE LAMBIS 35g - 192P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Patisseries Pain raisin Brioche - 100P",
+     "champs": [
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Pencils Sour Arc en Ciel FINI 90g -12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Pencils Sour Fraise FINI 90g",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "PG Cones 125ml -16P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "PG CONES PREM -16P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "PG COUPE 200ml -9P",
+     "champs": [
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "PG PREM glace 1L VP/MA/PB",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Pomme Cannelle - 60P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "popping garbage 40g",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Pringles bbq 175g -19P",
+     "champs": [
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Pringles bbq 40g -12P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes",
+      "repereCible"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Pringles hot & spicy 40g - 12P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes",
+      "repereCible"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Pringles Hot Spicy 160g -19P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes",
+      "repereMinimum",
+      "repereCible"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Pringles Origl 175g - 19P",
+     "champs": [
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Pringles Origl 40g - 12P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes",
+      "repereMinimum",
+      "repereCible"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Pringles SCO 175g - 19P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes",
+      "repereMinimum",
+      "repereCible"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Pringles SCO 40g - 12 P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes",
+      "repereCible"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Quadratini chocolate 125g -12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Quadratini napoliter 125g - 12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Quadratini vanille 125g -12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Quiche Lorraine 150g - 48P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Red bull 25cl -24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Red bull 25cl SANS SUCRE -24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Red bull Coconut 25cl -24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "ROYAL BAF 2L MULTIFRUITS - 6P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Royal corn miko -16P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "ROYAL NECT CAN 33 GOYAVE - 24P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes",
+      "repereMinimum"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "ROYAL NECT CAN 33 TROPICAL - 24P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes",
+      "repereMinimum"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Royal soda 2l ananas -6P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Royal soda 2L Anis -6P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Royal soda 2l banane -6P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Royal soda 2l citron -6P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Royal soda 2l grenadine -6P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Royal soda 2l kampane - 6P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Royal soda 50cl BANANE -8P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Royal soda 50cl CITRON -8P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Royal soda 50cl GRENADINE -8P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Royal soda 50cl KAMPANE -8P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Royal soda 50cl Orange -8P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "attendu",
+     "arbitrage": "règle du coût ambigu : libellé de stock aux PA différents retenu sans PA, référence à confirmer (T1 prenait la première ligne)"
+    },
+    {
+     "article": "Sachet Menthe Bleue DURMINT 100g - 12P",
+     "champs": [
+      "fiabilite",
+      "alertes",
+      "minimum",
+      "cible"
+     ],
+     "classe": "donnée absente",
+     "donnee": "nature non établie (produits_nature_reference sans ligne pour cette référence)"
+    },
+    {
+     "article": "Sandwich Autres 4.80",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "SANPE EAU 1L - 6P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Schweppes agrumes 1.5L -6P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Schweppes agrumes 50cl -8P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Schweppes pomme 50cl -8P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Schweppes Tonic 50cl -8P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Skittles fruits 55g  - 36P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "snickers barre glace 53ml - 24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Snickers Batonnet glace 90 ml - 20P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Soft Ginger beer BOUT 33cl -24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Soft Ginger beer Can 33cl -24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Sour potty sucette+poudre citrique 19g/24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "spirax s2 A 80w-90 1L - 12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Spirax s2 atf direction assistee 1l - 12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Spirax s4 atf hdx 1L - 12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Spirax s4 G 75W-80 1L - 12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Sprite 2l - 6P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Sucette Chupa Tubo XXL P 60",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Sucette Col-Bble Bum - 48P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Sucettes Lapipop 40G-18P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes",
+      "minimum",
+      "cible"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "TABLETTE COCO BLANCHE",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Tartelettes Chocolat 150g -24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Tartelettes Fraise 150g - 24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "TI BWA au fromage 40g",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Ti Bwa au fromage 90g",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Tic Tac Extra Mint - 24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Tic Tac festival fruity mix - 24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Tubes ocb",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "TUILES coco curcuma 60g / coco passion 60g",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Vichy Pastilles Barquette 25g  - 24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "VICO CLASSIQUE 135G - 20P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Vitamalt 33cl classic -24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Vitamalt 33cl ginger-24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Vitamalt 50cl classic -24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "Vitamalt 50cl Ginger -24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "WPUFF FUSION - STARTER FRUIT DU DRAGON 2% - 10P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "WPUFF FUSION - STARTER GROSSE FRAISE 2% - 10P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "WPUFF FUSION - STARTER MENTHE 2% - 10P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "WPUFF FUSION - STARTER RAISIN GLACE 2% - 10P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "WPUFF FUSION -STARTER MYRTILLE FRAMBOYANTE 2% -10P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "WPUFF FUSION PS - BATTERIE -10P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "WPUFF FUSION PS - FRUITS ROUGES 2% -10P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "WPUFF FUSION PS - MENTHE FRAICHE 2% - 10P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "WPUFF FUSION PS - MY CHERRY AMOUR 2% - 10P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "WPUFF FUSION PS - MYRTILLE FRAMB 2% - 10P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "WPUFF FUSION PS - RAISIN GLACE 2% - 10P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "WPUFF FUSION PS- GROSSE FRAISE 2% -10P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "WPUFF POD 2.0 - 1 POD FRUITS ROUGES 1.7%",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "WPUFF POD 2.0 - 1 POD MA CHERIE CITRON 1.7%",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "WPUFF POD 2.0 - 1 POD TOP CASSIS 1.7%",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    },
+    {
+     "article": "WPUFF POD 2.0 - BATTERY",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "absence du relevé de stock (passe sans stock : coûts absents)"
+    }
+   ]
+  },
+  {
+   "passe": "C",
+   "etiquette": "réel",
+   "references": 848,
+   "comparees_a_t1": 440,
+   "hors_t1": 408,
+   "identiques": 383,
+   "ecarts": 57,
+   "classes": {
+    "donnée absente": 51,
+    "attendu": 6
+   },
+   "statuts": {
+    "a_verifier": 183,
+    "sans_seuil_valide": 535,
+    "proposition_a_valider": 48,
+    "a_surveiller": 69,
+    "conforme": 13
+   },
+   "classement": [
+    {
+     "article": "02-10-2026 Barre Mars Coeur Fondant 50.4g- 40P",
+     "champs": [
+      "fiabilite",
+      "minimum",
+      "cible"
+     ],
+     "classe": "donnée absente",
+     "donnee": "nature non établie (produits_nature_reference sans ligne pour cette référence)"
+    },
+    {
+     "article": "07-10-2026 HARIBO CARENSAC 120g -P30",
+     "champs": [
+      "fiabilite",
+      "minimum",
+      "cible"
+     ],
+     "classe": "donnée absente",
+     "donnee": "nature non établie (produits_nature_reference sans ligne pour cette référence)"
+    },
+    {
+     "article": "Advance 4T Ultra 10W40 1 L - 12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "advance sx 2t 1L - 12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "advance Ultra 2T -12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Advance VSX2 1L -12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Baguette - 24P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Baguette BEURRE delices prod",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Biere Lorraine Vibes Citron Ginger 33 cl blle -24P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "attendu",
+     "arbitrage": "règle du coût ambigu : libellé de stock aux PA différents retenu sans PA, référence à confirmer (T1 prenait la première ligne)"
+    },
+    {
+     "article": "Bisous fraise FINI 90g -12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "attendu",
+     "arbitrage": "règle du coût ambigu : libellé de stock aux PA différents retenu sans PA, référence à confirmer (T1 prenait la première ligne)"
+    },
+    {
+     "article": "Chips Banane Nature 95G - 24P",
+     "champs": [
+      "alertes"
+     ],
+     "classe": "attendu",
+     "arbitrage": "alerte A5 « identité changée » propre au moteur T2, absente de T1"
+    },
+    {
+     "article": "CHIPS BRETS BEURRE SALE 125g - 10P",
+     "champs": [
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "CHIPS BRETS FROMAGE DU JURA 125g - 10P",
+     "champs": [
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "CHIPS BRETS MIEL & MOUTARDE 125g - 10P",
+     "champs": [
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "CHIPS BRETS SAVEUR AIOLI 165g - 10P",
+     "champs": [
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Chips lays  25g Nature - 24P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes",
+      "repereCible"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Chips Lays BBQ 130g -10P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Chips lays bbq 27.5grs - 24P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Chips LAYS BBQ 45g - 20 P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes",
+      "repereCible"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Chips lays bbq 75g - 15P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Chips Lays Nat 130g- 10P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Chips Lays nat 45g -20P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes",
+      "repereCible"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Chips Lays Nature 75gr - 15P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Coca cola Sleek Bte 33 cl - 24P",
+     "champs": [
+      "alertes"
+     ],
+     "classe": "attendu",
+     "arbitrage": "alerte A5 « identité changée » propre au moteur T2, absente de T1"
+    },
+    {
+     "article": "eau de coco 50 cl",
+     "champs": [
+      "alertes"
+     ],
+     "classe": "attendu",
+     "arbitrage": "alerte A5 « identité changée » propre au moteur T2, absente de T1"
+    },
+    {
+     "article": "Figolu 192g -28P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes",
+      "repereCible"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Fuchs Titan Garden  2T M Jardin 1L - 12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Granola Cookies Choco 184g -10P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes",
+      "repereMinimum",
+      "repereCible"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "helix 10W40 -HX7-1L - 12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "helix 10w40 2L diesel - 8P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "helix 10w40 2L essence -8P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Helix 15w40 1l - 12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "helix 15w40 2L diesel - 8P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "helix 15w40 2L ess -8P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Helix diesel ultra AR-L 5w30 1l RENAULT -12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Helix ultra 5w30 AP-L 1l PEUGEOT CITROEN -12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Helix Ultra 5w40 - 2l diesel - 8P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Helix Ultra 5w40 - 2l essence - 8P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "helix ultra 5w40 1L -12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Helix Ultra 5W40 5 L - 3P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Helix Ultra Extra ECT C3 5w30 1L AUDI VW -12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "NAUTILUS PREMIUM OUTBOARD 1L",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Pringles bbq 175g -19P",
+     "champs": [
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Pringles bbq 40g -12P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes",
+      "repereCible"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Pringles hot & spicy 40g - 12P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes",
+      "repereCible"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Pringles Hot Spicy 160g -19P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes",
+      "repereMinimum",
+      "repereCible"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Pringles Origl 175g - 19P",
+     "champs": [
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Pringles Origl 40g - 12P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes",
+      "repereMinimum",
+      "repereCible"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Pringles SCO 175g - 19P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes",
+      "repereMinimum",
+      "repereCible"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Pringles SCO 40g - 12 P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes",
+      "repereCible"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Royal soda 50cl Orange -8P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "attendu",
+     "arbitrage": "règle du coût ambigu : libellé de stock aux PA différents retenu sans PA, référence à confirmer (T1 prenait la première ligne)"
+    },
+    {
+     "article": "Sachet Menthe Bleue DURMINT 100g - 12P",
+     "champs": [
+      "fiabilite",
+      "alertes",
+      "minimum",
+      "cible"
+     ],
+     "classe": "donnée absente",
+     "donnee": "nature non établie (produits_nature_reference sans ligne pour cette référence)"
+    },
+    {
+     "article": "spirax s2 A 80w-90 1L - 12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Spirax s2 atf direction assistee 1l - 12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Spirax s4 atf hdx 1L - 12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "Spirax s4 G 75W-80 1L - 12P",
+     "champs": [
+      "fiabilite"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    },
+    {
+     "article": "VICO CLASSIQUE 135G - 20P",
+     "champs": [
+      "statut",
+      "raisonStatut",
+      "fiabilite",
+      "alertes"
+     ],
+     "classe": "donnée absente",
+     "donnee": "explication de TVA non fournie pour ce rayon (décision du pilote : aucun nouveau registre)"
+    }
+   ]
+  }
+ ],
+ "passage_conditionnel": "non calculé : aucun complément fourni (--complements)",
+ "regressions": 0,
+ "verdict": "conforme",
+ "entrees": {
+  "export": {
+   "fichier": "cmp_export.json",
+   "sha256": "8d7f25e698bc1eec6448db7884cd4aa7fd563ed054225dc1f8b3510607ea513d"
+  },
+  "registres": {
+   "fichier": "registres_test_20261118-0000.json",
+   "origine": "export de Test en lecture seule (--registres-test)",
+   "sha256": "a6931475a6e6f254244441c12d939eba6dd07071834abc31f605112de9c34813"
+  },
+  "t1": {
+   "fichier": "resultats_sainte_marie_t1.json",
+   "sha256": "f8b1a650d1a9edc2afef77a62b78193ce5e697e74f3e7dd318f969bf725cb145"
+  },
+  "complements": null,
+  "moteur": [
+   {
+    "fichier": "nexus-politique-tarifaire-ecran.js",
+    "sha256": "ece0e72e55f040b2e48fefd0afab242655ac0eec491c855302e146ecac753bf1",
+    "dernier_commit": null
+   },
+   {
+    "fichier": "nexus-produits-mesure.js",
+    "sha256": "a031cc4d2a5b4967d8e20127421537c4e102a87b67570f8180a0e84cd0158b60",
+    "dernier_commit": null
+   },
+   {
+    "fichier": "nexus-politique-tarifaire.js",
+    "sha256": "c21fba041e7b241ef84bef80914d1d44289150c2d22f6289c4225b9e13dce020",
+    "dernier_commit": null
+   }
+  ]
+ }
+}
