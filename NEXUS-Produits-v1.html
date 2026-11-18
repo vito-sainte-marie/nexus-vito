@@ -1679,7 +1679,15 @@ nexusRequireAuth().then(async employee => {
     const exclusions = new Set(((LECTURES_MARGE && LECTURES_MARGE.marge_exceptions) || []).map(r => r.article));
     const ctx = E.construireContexteTarif({ registres: reg, declarations: DECLARATIONS_PRODUITS, lignes: MESURES_PRODUITS.map(x => x.row), periode: PERIODE_DONNEES,
       exclusions, famille: (cat, art, ex) => (window.NexusMarge && NexusMarge.familleMarge ? NexusMarge.familleMarge(cat, art, ex) : { exclue: false }) });
-    ANALYSE_TARIF = { analyse: TP.analyser(MESURES_PRODUITS.map(x => x.row), LIGNES_PRECEDENTES, ctx), incoherences: (ctx && ctx.incoherences) || [] };
+    // Cycle de vie des anomalies : dernier import du site + historique des vérifications (lecture seule ; la RLS filtre par site).
+    let VERIFS = null;
+    try {
+      const { data: lots } = await nexusClient.from('import_batches').select('fichier_hash').eq('site', SITE_ACTUEL).order('cree_le', { ascending: false }).limit(1);
+      if (lots && lots.length) ctx.fichierHash = lots[0].fichier_hash;
+      VERIFS = (await E.chargerVerifications(nexusClient, SITE_ACTUEL)).verifications;
+      ctx.verifications = VERIFS;
+    } catch (e) { console.warn('Historique des vérifications indisponible', e); VERIFS = null; }
+    ANALYSE_TARIF = { verifications: VERIFS, analyse: TP.analyser(MESURES_PRODUITS.map(x => x.row), LIGNES_PRECEDENTES, ctx), incoherences: (ctx && ctx.incoherences) || [] };
     return ANALYSE_TARIF;
   }
   function ajouterStyleTarif() {
@@ -1707,11 +1715,11 @@ nexusRequireAuth().then(async employee => {
       return `<img class="${cls || 'sc-photo sc-photo-ico'}" src="assets/icones/campagne/premium/${i}-96.webp" srcset="assets/icones/campagne/premium/${i}-48.webp 48w, assets/icones/campagne/premium/${i}-96.webp 96w, assets/icones/campagne/premium/${i}-144.webp 144w" sizes="48px" width="48" height="48" alt="" onerror="this.onerror=null;this.src='assets/icones/campagne/premium/campagne-alerte-produit-96.webp'">`;
     };
     corps.innerHTML = '<div class="vp-ligne" role="status">Chargement du scanner tarifaire…</div>';
-    let analyse, incoherences = [];
-    try { const r = await calculerAnalyseTarif(true); analyse = r.analyse; incoherences = r.incoherences; }
+    let analyse, incoherences = [], verifs = null;
+    try { const r = await calculerAnalyseTarif(true); analyse = r.analyse; incoherences = r.incoherences; verifs = r.verifications; }
     catch (e) { console.error('Scanner tarifaire:', e); indispo('Impossible de lire les registres tarifaires.'); return; }
     if (!analyse.lignes.length) { indispo('Aucune donnée tarifaire pour ce site'); return; }
-    const etat = { analyse, role: employee.role, filtres: {}, incoherences, ouverte: null, toutes: false, site: ((document.querySelector('.nexus-nom-commerce') || {}).textContent || ''), icone, estCreateur: !!employee.estCreateur };
+    const etat = { analyse, verifications: verifs || [], historiqueDispo: !!verifs, filtreHisto: 'actifs', histoOuverte: null, role: employee.role, filtres: {}, incoherences, ouverte: null, toutes: false, site: ((document.querySelector('.nexus-nom-commerce') || {}).textContent || ''), icone, estCreateur: !!employee.estCreateur };
     // Repère Marge+ (niveau 3) : calcul T1 inchangé (scannerMarge), visible sans seuil validé ni fiche A2, jamais compté dans un gain.
     const blocMargePlus = () => {
       const MG = scannerMarge(), M = MG && MG.affichage, TM = NexusScannerTarifaire.TEXTES.marge;
@@ -1748,6 +1756,8 @@ nexusRequireAuth().then(async employee => {
       corps.querySelectorAll('textarea.pt-verif-com').forEach(t => t.addEventListener('input', () => { const n = t.parentNode.querySelector('[data-com-compteur]'); if (n) n.textContent = String(t.value.trim().length) + ' / ' + E.LIMITE_COMMENTAIRE; }));
       corps.querySelectorAll('[data-verifier]').forEach(b => b.addEventListener('click', () => marquerVerifie(b)));
       corps.querySelectorAll('select[data-filtre]').forEach(s => s.addEventListener('change', () => { etat.filtres[s.dataset.filtre] = s.value || undefined; etat.toutes = false; rendre(); }));
+      corps.querySelectorAll('select[data-filtre-histo]').forEach(s => s.addEventListener('change', () => { etat.filtreHisto = s.value || 'actifs'; etat.histoOuverte = null; rendre(); }));
+      corps.querySelectorAll('[data-histo-info]').forEach(b => b.addEventListener('click', () => { etat.histoOuverte = etat.histoOuverte === b.dataset.histoInfo ? null : b.dataset.histoInfo; rendre(); }));
       corps.querySelectorAll('[data-effacer]').forEach(b => b.addEventListener('click', () => { delete etat.filtres[b.dataset.effacer]; rendre(); }));
       const plus = corps.querySelector('[data-plus]'); if (plus) plus.addEventListener('click', () => { etat.toutes = true; rendre(); });
       const aller = f => { etat.filtres = f; etat.toutes = false; rendre(); const t = corps.querySelector('.sc-tout'); if (t && t.scrollIntoView) t.scrollIntoView({ behavior: 'smooth', block: 'start' }); };

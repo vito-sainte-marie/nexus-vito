@@ -486,6 +486,63 @@
         '<button type="button" class="detail-btn" data-controle-liste="' + c.code + '">Voir dans la liste</button>' : '<p class="sc-note">Aucune référence concernée.</p>') +
       '<p class="sc-methode">' + esc(c.methode) + '</p></details>';
   }
+  // ---------- Historique des vérifications (lecture des deux tables ; la RLS filtre par site) ----------
+  var CYCLES_ACTIFS = ['nouvelle', 'persistante', 'aggravee'];
+  var LIB_CYCLE = { nouvelle: 'Nouveau', persistante: 'Persistant', aggravee: 'Aggravé', verifiee: 'Vérifié', resolue: 'Résolu' };
+  var FILTRES_HISTO = [['actifs', 'Nouveau, persistant, aggravé'], ['verifiee', 'Vérifiés'], ['resolue', 'Résolus'], ['tous', 'Tous']];
+  async function chargerVerifications(client, site) {
+    var v = await client.from('tarif_anomalies_verifications').select('id, article, code_barres, cause, empreinte, gravite, fichier_hash, date_releve, commentaire, saisi_par, saisi_le, cle').eq('site', site).is('annule_le', null).order('saisi_le', { ascending: false }).range(0, 4999);
+    if (v.error) throw v.error;
+    var r = await client.from('tarif_anomalies_reevaluations').select('verification_id, etat, fichier_hash, date_releve, saisi_le').eq('site', site).is('annule_le', null).order('saisi_le', { ascending: false }).range(0, 4999);
+    if (r.error) throw r.error;
+    var noms = {}, ids = {};
+    (v.data || []).forEach(function (x) { if (x.saisi_par) ids[x.saisi_par] = 1; });
+    try {
+      var e = Object.keys(ids).length ? await client.from('employees').select('id, nom').in('id', Object.keys(ids)) : { data: [] };
+      (e.data || []).forEach(function (x) { noms[x.id] = x.nom; });
+    } catch (err) { /* nom non lisible : « un responsable » */ }
+    var reeval = {};
+    (r.data || []).forEach(function (x) { if (!reeval[x.verification_id]) reeval[x.verification_id] = x; });
+    var lignes = (v.data || []).map(function (x) {
+      return { id: x.id, code: x.cause, cle: x.cle, article: x.article, empreinte: x.empreinte, gravite: x.gravite, verifie_le: x.saisi_le,
+        identiteDonnees: { fichierHash: x.fichier_hash, dateReleve: x.date_releve }, commentaire: x.commentaire || null,
+        auteur: noms[x.saisi_par] || null, reevaluation: reeval[x.id] || null };
+    });
+    return { verifications: lignes };
+  }
+  function historiqueLignes(analyse, verifications, filtre) {
+    var f = filtre || 'actifs', out = [];
+    var derniere = function (code, cle) {
+      return (verifications || []).filter(function (v) { return v.code === code && v.cle === cle; }).sort(function (a, b) { return String(b.verifie_le).localeCompare(String(a.verifie_le)); })[0] || null;
+    };
+    (analyse.lignes || []).forEach(function (l) {
+      (l.anomalies || []).forEach(function (a) { out.push({ article: l.article, code: a.code, cle: a.cle, cycle: a.cycle || 'nouvelle', verif: derniere(a.code, a.cle) }); });
+      (l.anomaliesResolues || []).forEach(function (a) { out.push({ article: l.article, code: a.code, cle: a.cle, cycle: 'resolue', verif: derniere(a.code, a.cle) }); });
+    });
+    return out.filter(function (x) { return f === 'tous' ? true : f === 'actifs' ? CYCLES_ACTIFS.indexOf(x.cycle) >= 0 : x.cycle === f; });
+  }
+  function htmlDetailHistorique(x) {
+    var v = x.verif;
+    if (!v) return '<p class="sc-note">Jamais vérifié.</p>';
+    var re = v.reevaluation, LR = { persistante: 'persistante', aggravee: 'aggravée', resolue: 'résolue' };
+    return '<p class="sc-note">Vérifié le ' + esc(jourFr(String(v.verifie_le).slice(0, 10))) + ' par ' + esc(v.auteur || 'un responsable') + '.' +
+      (v.commentaire ? ' Commentaire : ' + esc(v.commentaire) : ' Aucun commentaire.') +
+      (re ? ' Réévaluation : ' + esc(LR[re.etat] || re.etat) + ' au relevé du ' + esc(jourFr(String(re.date_releve || re.saisi_le).slice(0, 10))) + '.' : ' Pas encore réévalué.') + '</p>';
+  }
+  function htmlHistorique(etat) {
+    if (!etat.historiqueDispo) return '';
+    var AL = A_LIB(), f = etat.filtreHisto || 'actifs';
+    var L = historiqueLignes(etat.analyse, etat.verifications || [], f);
+    var sel = '<label class="pt-f"><span class="sc-methode">Historique</span><select data-filtre-histo="1">' + FILTRES_HISTO.map(function (o) { return '<option value="' + o[0] + '"' + (f === o[0] ? ' selected' : '') + '>' + esc(o[1]) + '</option>'; }).join('') + '</select></label>';
+    var li = L.slice(0, 50).map(function (x) {
+      var k = x.code + '|' + x.article, ouvert = etat.histoOuverte === k;
+      return '<li class="vp-ligne pt-histo-li"><strong>' + esc(x.article) + '</strong> · ' + esc((AL.codes[x.code] || {}).titre || x.code) + ' · <span class="nbe-qualif" data-axe="cycle">' + esc(LIB_CYCLE[x.cycle] || x.cycle) + '</span> ' +
+        '<button type="button" class="detail-btn pt-histo-i" data-histo-info="' + esc(k) + '" aria-expanded="' + (ouvert ? 'true' : 'false') + '" aria-label="Détail de la vérification de ' + esc(x.article) + '">(i)</button>' + (ouvert ? htmlDetailHistorique(x) : '') + '</li>';
+    }).join('');
+    return '<div class="vp-bloc pt-historique" data-historique="1"><h3>Historique des vérifications</h3>' + sel +
+      '<ul class="vp-liste">' + (li || '<li class="vp-ligne">Aucune anomalie dans cette vue.</li>') + '</ul>' + (L.length > 50 ? '<p class="sc-note">' + esc(String(L.length - 50)) + ' autres : affinez avec le filtre.</p>' : '') + '</div>';
+  }
+
   function htmlPage(etat) {
     // etat : { analyse, role, filtres, incoherences, ouverte, toutes, site, icone }
     var a = etat.analyse, f = etat.filtres || {}, s = a.synthese;
@@ -515,6 +572,7 @@
         (fa.id === 'exceptions' ? '<p class="sc-note">Décisions du gérant : elles ne sont pas des anomalies.</p>' : '') +
         '<div class="sc-cartes">' + fa.cartes.map(function (x) { return htmlControle(x, etat.icone); }).join('') + '</div>' + (fa.id === 'decisions' && etat.margePlus ? etat.margePlus : '') + '</section>';
     });
+    h += htmlHistorique(etat);
     h += '<div class="vp-bloc sc-tout"><h3>Toutes les références</h3><div class="vp-filtres"><label class="pt-f pt-f-rech"><span class="sc-methode">Recherche</span><input type="search" id="ptRecherche" placeholder="Nom ou code-barres" value="' + esc(f.recherche || '') + '"></label>' +
       lab('Famille', 'famille', opts(vf.famille, f.famille)) + lab('Rayon', 'rayon', opts(vf.rayon, f.rayon)) +
       lab('Statut', 'statut', opts(Object.keys(LIB_STATUT), f.statut, LIB_STATUT)) +
@@ -581,7 +639,7 @@
   var API = { cartes: cartes, scenarios: scenarios, alertesCartes: alertesCartes, trier: trier, filtrer: filtrer, valeursFiltres: valeursFiltres,
     preuves: preuves, conseiller: conseiller, fiche: fiche, etatAcces: etatAcces, peutVoirOnglet: peutVoirOnglet, filtrerSite: filtrerSite,
     regimeDe: regimeDe, contexteDeclaratif: contexteDeclaratif, construireContexteTarif: construireContexteTarif, stockParLibelle: stockParLibelle, controle: controle, familles: familles, avertissementRegime: avertissementRegime, infoRegime: infoRegime, badgeRegime: badgeRegime, badgeLigne: badgeLigne, blocFiche: blocFiche,
-    chargerRegistres: chargerRegistres, chargerVentes: chargerVentes, lireCompte: lireCompte, libellePeriode: libellePeriode,
+    chargerRegistres: chargerRegistres, chargerVerifications: chargerVerifications, historiqueLignes: historiqueLignes, htmlHistorique: htmlHistorique, chargerVentes: chargerVentes, lireCompte: lireCompte, libellePeriode: libellePeriode,
     htmlPage: htmlPage, htmlLigne: htmlLigne, htmlControle: htmlControle, htmlFiche: htmlFiche, carteMarge: carteMarge, htmlMarge: htmlMarge, ficheMarge: ficheMarge, peutVerifier: peutVerifier, commentaireValide: commentaireValide, messageApresEcriture: messageApresEcriture, messageErreurEcriture: messageErreurEcriture, payloadVerification: payloadVerification, LIMITE_COMMENTAIRE: LIMITE_COMMENTAIRE, graviteLigne: graviteLigne, CSS: CSS };
   global.NexusPolitiqueTarifaireEcran = API;
   if (typeof module !== 'undefined' && module.exports) module.exports = API;

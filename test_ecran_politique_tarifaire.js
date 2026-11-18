@@ -298,4 +298,19 @@ ok('commentaire : libellé visible, compteur n / 500, message traduit', () => {
   if (/pt-verif-com/.test(h)) assert.ok(/<label[^>]*for=/.test(h) && /0 \/ 500/.test(h));
 });
 
+ok('historique : filtre par défaut Nouveau/Persistant/Aggravé, détail (i), lecture seule', () => {
+  const analyse = { lignes: [
+    { article: 'A', anomalies: [{ code: 'S2', cle: 'k1', cycle: 'nouvelle' }], anomaliesResolues: [] },
+    { article: 'B', anomalies: [{ code: 'S3', cle: 'k2', cycle: 'verifiee' }], anomaliesResolues: [{ code: 'S1', cle: 'k3' }] },
+    { article: 'C', anomalies: [{ code: 'S2', cle: 'k4', cycle: 'aggravee' }], anomaliesResolues: [] }] };
+  const verifs = [{ code: 'S3', cle: 'k2', verifie_le: '2030-03-05T10:00:00Z', auteur: 'Alex Test', commentaire: 'vu en rayon', reevaluation: null }];
+  assert.strictEqual(E.historiqueLignes(analyse, verifs).length, 2);
+  assert.strictEqual(E.historiqueLignes(analyse, verifs, 'verifiee').length, 1);
+  assert.strictEqual(E.historiqueLignes(analyse, verifs, 'resolue').length, 1);
+  assert.strictEqual(E.historiqueLignes(analyse, verifs, 'tous').length, 4);
+  const h = E.htmlHistorique({ analyse, verifications: verifs, historiqueDispo: true, filtreHisto: 'verifiee', histoOuverte: 'S3|B' });
+  assert.ok(/data-filtre-histo/.test(h) && /Alex Test/.test(h) && /vu en rayon/.test(h) && /05\/03\/2030/.test(h) && /Pas encore réévalué/.test(h));
+  assert.strictEqual(E.htmlHistorique({ analyse, historiqueDispo: false }), '');
+});
+
 console.log('test_ecran_politique_tarifaire : ' + n + ' épreuves OK');
