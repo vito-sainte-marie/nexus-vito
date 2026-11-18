@@ -607,6 +607,24 @@ ok('bout en bout : même import = Vérifié sans appel ; nouvel import = Persist
   assert.ok(/>Résolu au nouvel import</.test(vue(rs.r)), 'Résolu au nouvel import affiché');
   assert.ok(/>Vérifié</.test(vue(m.r)), 'Vérifié affiché sans nouvel import');
 });
+ok('bout en bout : Persistant, puis vérifié sur l\'import courant (nouvelle ligne en base) = Vérifié, aucune réévaluation', async () => {
+  const ctxN = { periode: { debut: '2026-10-01', fin: '2026-10-31' }, fichierHash: 'hash-nouveau', dateReleve: '2026-11-10' };
+  const l0 = { article: 'ARTICLE FICTIF', code_barres: '3000000000001', regime: 'libre', taux: 0.3, pv_ht: 1, variationCout: null, variationPv: null, alertes: [], fiabilite: { raisons: [] }, prixDecide: null, tva: { etat: 'coherente', taux: 5.5 },
+    margeEstimee: { cout: { valeur: 0.73 }, controle: { paNetHtReleve: 0.46, ecart: 0.27 } } };
+  const an = MA.anomaliesLigne(l0, ctxN).find(a => a.code === 'S2');
+  const base = { article: l0.article, code_barres: l0.code_barres, cause: 'S2', cle: an.cle, empreinte: an.empreinte, gravite: an.gravite, commentaire: null, saisi_par: null };
+  // Ancienne vérification (ancien import) puis nouvelle vérification de la même empreinte sur l'import courant : l'index unique (… fichier_hash) les garde toutes deux.
+  const rows = [Object.assign({ id: 'v-ancienne', fichier_hash: 'hash-v', date_releve: '2026-10-05', saisi_le: '2026-10-06T08:00:00Z' }, base),
+    Object.assign({ id: 'v-courante', fichier_hash: 'hash-nouveau', date_releve: '2026-11-10', saisi_le: '2026-11-11T09:00:00Z' }, base)];
+  const { verifications } = await E.chargerVerifications(clientLecture(rows), 'site-fictif-1');
+  assert.strictEqual(verifications.length, 2);
+  const r = MA.cycleDeVie(MA.anomaliesLigne(l0, ctxN).filter(a => a.code === 'S2'), verifications.filter(v => v.cle === MA.cle(l0)), { fichierHash: ctxN.fichierHash, dateReleve: ctxN.dateReleve });
+  const analyse = { lignes: [{ article: l0.article, anomalies: r.anomalies, anomaliesResolues: r.resolues }] };
+  const client = faux();
+  const bilan = await E.enregistrerReevaluations(client, 'gerant', false, analyse, verifications, { fichierHash: ctxN.fichierHash, dateReleve: ctxN.dateReleve });
+  assert.deepStrictEqual(E.historiqueLignes(analyse, verifications, 'tous').map(x => x.cycle), ['verifiee']);
+  assert.strictEqual(client.appels.length, 0); assert.strictEqual(bilan.statut, 'aucune');
+});
 Promise.all(PROMESSES).then(() => {
 console.log('test_ecran_politique_tarifaire : ' + n + ' épreuves OK');
 });
