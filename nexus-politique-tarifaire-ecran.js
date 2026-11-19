@@ -133,6 +133,10 @@
     return AR.contexteDepuisRegistres(S.registres, base);
   }
 
+  // Démarque (périmé ou casse) : libellé préfixé d'une date jj-mm-aaaa. Règle d'affichage seulement, le moteur n'est pas modifié.
+  var LIB_DEMARQUE = 'Démarque : périmé ou casse';
+  function estDemarque(l) { return !!l && /^\d{2}-\d{2}-\d{4}\s/.test(String(l.article || '')); }
+  function sansDemarque(L) { return (L || []).filter(function (l) { return !estDemarque(l); }); }
   function alerteDe(l, code) { return (l.alertes || []).filter(function (a) { return a.code === code; })[0] || null; }
   function lignesAlerte(L, code) { return L.filter(function (l) { return !!alerteDe(l, code); }); }
   function montantAlerte(l, code) { var a = alerteDe(l, code); return a && a.consequence ? num(a.consequence.montant) : null; }
@@ -142,13 +146,13 @@
     var s = analyse.synthese, g = analyse.gains, L = analyse.lignes;
     var per = libellePeriode(s.periode);
     var minimum = g.decisionnels.minimum;
-    var a3 = lignesAlerte(L, 'A3').filter(function (l) { return !l.nature; }), nbPertes = 0, nbNulles = 0, sansJust = 0, pertes = 0;
+    var a3 = lignesAlerte(sansDemarque(L), 'A3').filter(function (l) { return !l.nature; }), nbPertes = 0, nbNulles = 0, sansJust = 0, pertes = 0;
     a3.forEach(function (l) {
       var m = montantAlerte(l, 'A3'), a = alerteDe(l, 'A3');
       if (m !== null && m > 0) { nbPertes++; pertes += m; } else nbNulles++;
       if (!(a.donnees && a.donnees.justification)) sansJust++;
     });
-    var aVerifier = L.filter(function (l) {
+    var aVerifier = sansDemarque(L).filter(function (l) {
       return l.fiabilite.niveau === 'insuffisante' || ETATS_REGL_OUVERTS.indexOf(l.conformite.etat) >= 0;
     });
     var nonConstates = L.filter(function (l) { return l.prixDecide && ETATS_PRIX_NON_CONSTATES.indexOf(l.prixDecide.etat) >= 0; }).length;
@@ -184,7 +188,8 @@
 
   // ---------- Alertes ----------
   function alertesCartes(analyse) {
-    var table = T.ALERTES, comptes = analyse.synthese.alertes || {};
+    var table = T.ALERTES, comptes = Object.assign({}, analyse.synthese.alertes || {}), hors = sansDemarque(analyse.lignes);
+    comptes.A3 = lignesAlerte(hors, 'A3').length; comptes.A5 = lignesAlerte(hors, 'A5').length;
     return Object.keys(table).sort().map(function (code) {
       var a = table[code];
       return { code: code, libelle: a.libelle, gravite: a.gravite, action: a.action, nombre: comptes[code] || 0 };
@@ -230,7 +235,7 @@
 
   // Preuves techniques : références de fiabilité insuffisante, derrière un seul chevron.
   function preuves(analyse) {
-    return analyse.lignes.filter(function (l) { return l.fiabilite.niveau === 'insuffisante'; })
+    return sansDemarque(analyse.lignes).filter(function (l) { return l.fiabilite.niveau === 'insuffisante'; })
       .map(function (l) { return { article: l.article, raisons: l.fiabilite.raisons || [], mention: 'donnée à corriger' }; });
   }
 
@@ -241,12 +246,25 @@
     ((analyse && analyse.lignes) || []).forEach(function (l) { (l.anomalies || []).forEach(function (x) { if (['nouvelle', 'persistante', 'aggravee'].indexOf(x.cycle || 'nouvelle') >= 0) n++; }); });
     return n;
   }
+  // L5 : phrase courte du Conseiller, bâtie sur le premier contrôle du tri « gravité décroissante » (aucun chiffre écrit en dur).
+  function texteCourtControle(analyse) {
+    var L = [];
+    ((analyse && analyse.lignes) || []).forEach(function (l) { (l.anomalies || []).forEach(function (x) { if (['nouvelle', 'persistante', 'aggravee'].indexOf(x.cycle || 'nouvelle') >= 0) L.push({ l: l, a: x }); }); });
+    L.sort(function (x, y) { return (y.a.gravite || 0) - (x.a.gravite || 0) || String(x.l.article).localeCompare(String(y.l.article), 'fr'); });
+    if (!L.length) return null;
+    var v = L[0].a.valeurs || {}, c = L[0].a.code, f = null;
+    if (c === 'S2') f = ['écart', v.ecart]; else if (c === 'S3') f = ['variation du coût', v.variationCout]; else if (c === 'S6') f = ['variation du prix', v.variationPv];
+    return 'Commencer par le plus grave : ' + L[0].l.article + (f && num(f[1]) !== null ? ', ' + f[0] + ' ' + pct(f[1]) : '');
+  }
   function conseiller(analyse, role) {
-    var c = analyse.synthese.alertes || {}, st = analyse.synthese.statuts || {};
+    var c = Object.assign({}, analyse.synthese.alertes || {}), st = analyse.synthese.statuts || {};
+    // Les références en démarque ne comptent ni dans les ventes à marge négative ni dans les sources qui se contredisent.
+    var hors = sansDemarque(analyse.lignes);
+    c.A3 = lignesAlerte(hors, 'A3').length; c.A5 = lignesAlerte(hors, 'A5').length;
     var gerant = role === 'gerant' || role === 'createur';
     var pas;
     if (c.A3) pas = { code: 'A3', filtre: { alerte: 'A3' }, quoi: plur(c.A3, 'référence vendue', 'références vendues') + ' à marge négative', pourquoi: 'chaque vente creuse la caisse tant que le prix ou le coût n\'est pas vérifié' };
-    else if (controlesActifs(analyse) > 0) { var nc = controlesActifs(analyse); pas = { code: 'CTRL', filtre: null, bloc: 'controles', quoi: plur(nc, 'contrôle', 'contrôles') + ' à comparer avec Decenium', pourquoi: 'aucune vente n\'est à marge négative ; la liste des contrôles est le premier point à regarder. Un contrôle n\'est pas une erreur constatée' }; }
+    else if (controlesActifs(analyse) > 0) { var nc = controlesActifs(analyse); pas = { court: texteCourtControle(analyse),  code: 'CTRL', filtre: null, bloc: 'controles', quoi: plur(nc, 'contrôle', 'contrôles') + ' à comparer avec Decenium', pourquoi: 'aucune vente n\'est à marge négative ; la liste des contrôles est le premier point à regarder. Un contrôle n\'est pas une erreur constatée' }; }
     else if (c.A8) pas = { code: 'A8', filtre: { alerte: 'A8' }, quoi: plur(c.A8, 'contrôle réglementaire ouvert', 'contrôles réglementaires ouverts'), pourquoi: 'ils bloquent toute proposition de prix sur ces références' };
     else if (st.proposition_a_valider) pas = { code: 'PROP', filtre: { statut: 'proposition_a_valider' }, quoi: plur(st.proposition_a_valider, 'proposition', 'propositions') + ' à valider', pourquoi: 'c\'est là que se trouve le gain le plus net' };
     else if (c.A5 || c.A4 || c.A7) pas = { code: 'VERIF', filtre: { statut: 'a_verifier' }, quoi: 'les références signalées à vérifier', pourquoi: 'des sources se contredisent ou une variation sort de l\'ordinaire' };
@@ -255,6 +273,7 @@
     var texte = gerant
       ? 'Je vous conseille de commencer par ' + pas.quoi + ' : ' + pas.pourquoi + '.'
       : 'Priorité du jour : ' + pas.quoi + '. Raison : ' + pas.pourquoi + '.';
+    if (pas.court) return { code: pas.code, texte: pas.court, detail: texte, filtre: pas.filtre, bloc: pas.bloc || null };
     return { code: pas.code, texte: texte, filtre: pas.filtre, bloc: pas.bloc || null };
   }
 
@@ -317,9 +336,9 @@
     return { alerte: code };
   }
   function lignesControle(L, code) {
-    if (code === 'FI') return L.filter(function (l) { return l.fiabilite.niveau === 'insuffisante'; });
+    if (code === 'FI') return sansDemarque(L).filter(function (l) { return l.fiabilite.niveau === 'insuffisante'; });
     if (code === 'EX') return L.filter(function (l) { return l.statut === 'a_surveiller' && l.exception; });
-    var r = lignesAlerte(L, code);
+    var r = lignesAlerte(code === 'A3' || code === 'A5' ? sansDemarque(L) : L, code);
     if (code === 'A1' || code === 'A2') r = r.filter(function (l) { return l.fiabilite.niveau !== 'insuffisante'; });
     return r;
   }
@@ -374,6 +393,7 @@
   // Ligne épurée : seuls « À vérifier » et « Proposition à valider » restent visibles, en étiquette discrète.
   // Les autres statuts (Conforme, À surveiller, Sans seuil validé, Aucune action de prix) sont dits dans le (i).
   function badgeLigne(l) {
+    if (estDemarque(l)) return '';
     var codes = (l.alertes || []).map(function (a) { return a.code; });
     if (l.statut === 'a_verifier' || codes.indexOf('A4') >= 0 || codes.indexOf('A5') >= 0) return '<span class="nbe-qualif" data-axe="statut">' + esc(LIB_STATUT.a_verifier) + '</span>';
     if (l.statut === 'proposition_a_valider') return '<span class="nbe-qualif" data-axe="statut">' + esc(LIB_STATUT.proposition_a_valider) + '</span>';
@@ -400,13 +420,22 @@
   // Deux niveaux : « Marge estimée : 9,8 % » (principal) puis « 2,59 € HT/unité » (secondaire). Non calculable : dit, raison dans le (i).
   function htmlMarge(l) {
     var m = l.margeEstimee;
+    if (estDemarque(l)) return '<span class="pt-marge-l1"><span class="nbe-qualif" data-axe="demarque">' + esc(LIB_DEMARQUE) + '</span></span>';
     if (!m) return 'Marge ' + esc(pct(l.taux));
     if (m.etat === 'non_calculable' || m.taux === null || m.taux === undefined) return '<span class="pt-marge-l1">Marge estimée : ' + B.qualification('non-calculable') + '</span>';
     return '<span class="pt-marge-l1">Marge estimée : <span class="pt-mono pt-marge-prin">' + esc(pct(m.taux)) + '</span> ' + badgeMarge(l) + '</span>' +
       (num(m.margeUnitaireHt) !== null ? '<span class="pt-marge-sec pt-mono">' + esc(eur(m.margeUnitaireHt)) + ' HT/unité</span>' : '');
   }
+  // Une ligne ne porte jamais deux étiquettes de même texte : si la marge dit déjà « À vérifier », l'étiquette de statut ne le répète pas.
+  function htmlLigneChiffres(l) {
+    var hm = htmlMarge(l), bl = badgeLigne(l);
+    var txt = function (h) { var m = /<span class="nbe-qualif"[^>]*>([^<]*)<\/span>/.exec(h || ''); return m ? m[1] : null; };
+    var tm = (hm.match(/<span class="nbe-qualif"[^>]*>[^<]*<\/span>/g) || []).map(txt), tl = txt(bl);
+    return hm + (bl && tm.indexOf(tl) < 0 ? ' ' + bl : '');
+  }
   function ficheMarge(l) {
     var m = l.margeEstimee, T0 = V.margeEstimee, li = function (k, v) { return '<div class="pt-pol-l"><span class="sc-lib">' + esc(k) + '</span><span>' + esc(v) + '</span></div>'; };
+    if (estDemarque(l)) return '<div class="sc-carte pt-marge-fiche" data-marge-fiche="' + esc(l.article) + '"><div class="sc-nom">' + esc(LIB_DEMARQUE) + '</div><p class="sc-note">Aucune marge n\'est affichée pour une référence en démarque.</p></div>';
     if (!m) return '';
     var c = m.cout || {}, h = '<div class="sc-carte pt-marge-fiche" data-marge-fiche="' + esc(l.article) + '"><div class="sc-nom">Marge estimée : ' + esc(T0.etats[m.etat] || m.etat) + '</div>';
     if (estReglemente(l)) h += '<p class="sc-note">Prix fixé par un tiers : aucune variation de coût ni recommandation de prix.</p>';
@@ -425,7 +454,7 @@
 
 
   function carteMarge(analyse) {
-    var L = analyse.lignes, n = { estimation: 0, a_verifier: 0, non_calculable: 0 }, regl = 0;
+    var L = sansDemarque(analyse.lignes), n = { estimation: 0, a_verifier: 0, non_calculable: 0 }, regl = 0;
     L.forEach(function (l) { if (l.margeEstimee) n[l.margeEstimee.etat] = (n[l.margeEstimee.etat] || 0) + 1; if (estReglemente(l)) regl++; });
     var calc = n.estimation + n.a_verifier, E = V.margeEstimee.etats;
     return { id: 'marge_estimee', titre: 'Marge estimée', valeur: calc + ' sur ' + L.length,
@@ -440,9 +469,19 @@
   function commentaireValide(t) { return String(t == null ? '' : t).trim().length <= LIMITE_COMMENTAIRE; }
   var LIB_NIVEAU = { demontree: 'Démontré', a_verifier: 'À vérifier' };
   // Valeurs à comparer, dans un ordre fixe par cause (Decenium d'un côté, relevé de l'autre).
-  function valeursAComparer(an) {
+  // A1 : perte unitaire HT lue sur la ligne (PV HT et coût HT), sans toucher aux valeurs de S1 (l'empreinte reste stable).
+  function perteUnitaire(l) {
+    var pv = l ? num(l.pv_ht) : null, c = l && l.margeEstimee && l.margeEstimee.cout ? num(l.margeEstimee.cout.valeur) : null;
+    if (pv === null || c === null || !(pv >= 0) || !(c > pv)) return null;
+    return { perte: c - pv, pv: pv, cout: c };
+  }
+  function valeursAComparer(an, l) {
     var v = an.valeurs || {}, c = an.code;
-    if (c === 'S1') return 'Marge : ' + pct(v.taux);
+    if (c === 'S1') {
+      var pu = perteUnitaire(l);
+      if (pu) return 'Perte de ' + eur(pu.perte) + ' HT par unité : vendu ' + eur(pu.pv) + ', coût ' + eur(pu.cout);
+      return 'Marge : ' + pct(v.taux);
+    }
     if (c === 'S2') return 'Écart : ' + pct(v.ecart) + ' · PA net HT du relevé de stock : ' + eur(v.paNetHtReleve);
     if (c === 'S3') return 'Variation du coût : ' + pct(v.variationCout);
     if (c === 'S4') return 'Unités par colis : ' + (v.unites === undefined || v.unites === null ? 'n/d' : v.unites) + ' · rapport du relevé : ' + (num(v.rapportReleve) === null ? 'n/d' : v.rapportReleve) + ' · rapport du prix de vente : ' + (num(v.rapportPv) === null ? 'n/d' : v.rapportPv);
@@ -451,7 +490,7 @@
     if (c === 'S7') return 'Taux de TVA : ' + (v.tva === undefined || v.tva === null ? 'n/d' : v.tva + ' %') + ' · état : ' + (v.etat === 'a_verifier' ? 'à confirmer' : esc(v.etat || 'n/d'));
     return '';
   }
-  function htmlVerification(an, l, droits, etat) {
+  function htmlVerification(an, l, droits, etat, suivant) {
     var code = an.code, idc = 'ptc-' + String(l.article).replace(/[^A-Za-z0-9_-]/g, '_') + '-' + code;
     var fiable = !!(an.identiteDonnees || {}).fichierHash;
     if (!droits || an.cycle === 'verifiee') return '';
@@ -462,23 +501,60 @@
         '<div class="pt-verif-zone"><textarea id="' + idc + '" class="pt-verif-com" rows="2" data-com-article="' + esc(l.article) + '" data-com-code="' + esc(code) + '" aria-describedby="' + idc + '-n"></textarea>' +
         '<span id="' + idc + '-n" class="sc-note pt-verif-n" data-com-compteur="1">0 / ' + LIMITE_COMMENTAIRE + '</span></div></div>'
       : '<button type="button" class="pt-com-lien" data-com-ouvrir="' + esc(cleC) + '">Ajouter un commentaire</button>';
-    return com + '<button type="button" class="detail-btn pt-verifier" data-verifier="' + esc(code) + '" data-ver-article="' + esc(l.article) + '">✓ Marquer comme vérifié</button>';
+    var bouton = '<button type="button" class="detail-btn pt-verifier" data-verifier="' + esc(code) + '" data-ver-article="' + esc(l.article) + '">✓ Marquer comme vérifié</button>';
+    return suivant === undefined ? com + bouton : com + '<div class="pt-actions" data-ctl-actions="1">' + suivant + bouton + '</div>';
+  }
+  // L2 : pièces communes d'un contrôle. La consigne est toujours visible (plus de (i)) ; la source et le calcul sont dans un bloc natif replié.
+  function pieceControle(an, l) {
+    var AL = A_LIB(), code = an.code, cd = AL.codes[code] || {};
+    var s1Contredit = code === 'S1' && (l.anomalies || []).some(function (x) { return x.code === 'S2'; });
+    var niveauAff = s1Contredit ? 'a_verifier' : an.niveau;
+    var cycle = AL.cycles[an.cycle] || '';
+    return { AL: AL, code: code, cd: cd, s1Contredit: s1Contredit, niveau: LIB_NIVEAU[niveauAff] || '',
+      statut: an.cycle === 'verifiee' ? 'Vérifié' : an.cycle === 'nouvelle' ? 'Nouveau' : cycle,
+      chiffres: valeursAComparer(an, l) + (s1Contredit ? ' · coût de l\'export contredit par le relevé de stock' : '') };
+  }
+  function htmlCorpsControle(an, l, droits, etat, pc, suivant) {
+    var AL = pc.AL, code = pc.code;
+    var masque = (an.peutExpliquerAussi || []).length ? '<p class="sc-note">' + esc(AL.masque) + ' ' + esc(an.peutExpliquerAussi.map(function (c) { return (AL.codes[c] || {}).titre || c; }).join(', ')) + '</p>' : '';
+    var marge = code === 'S1' && perteUnitaire(l) ? '<p class="sc-note" data-s1-pct="1">Marge : ' + esc(pct((an.valeurs || {}).taux)) + '</p>' : '';
+    return '<p class="pt-ctl-3 sc-note">' + esc(pc.cd.controle || '') + '</p>' + marge + masque +
+      '<details class="pt-sources-calcul" data-sources-calcul="1"><summary>Sources et calcul</summary>' + (suivant === undefined ? '<p class="pt-ctl-2 sc-methode">' + pc.chiffres + '</p>' : '') +
+      '<p class="sc-methode">' + esc(AL.explication || 'Un contrôle indique où comparer avec Decenium. Ce n\'est pas une erreur constatée.') + '</p></details>' +
+      htmlVerificationOuBarre(an, l, droits, etat, suivant);
+  }
+  // L3 : la barre d'action du détail (Suivant, Marquer comme vérifié) existe aussi quand la ligne est en lecture seule ou déjà vérifiée.
+  function htmlVerificationOuBarre(an, l, droits, etat, suivant) {
+    var v = htmlVerification(an, l, droits, etat, suivant);
+    if (suivant === undefined || v.indexOf('data-ctl-actions') >= 0) return v;
+    return v + '<div class="pt-actions" data-ctl-actions="1">' + suivant + '</div>';
   }
   function htmlAnomalie(an, l, droits, etat, avecProduit) {
-    var AL = A_LIB(), code = an.code, cd = AL.codes[code] || {};
-    var cycle = AL.cycles[an.cycle] || '';
-    var statut = an.cycle === 'verifiee' ? 'Vérifié' : an.cycle === 'nouvelle' ? 'Nouveau' : cycle;
-    var cle = code + '|' + l.article, ouvert = !!(etat && etat.ctlInfo === cle);
-    var masque = (an.peutExpliquerAussi || []).length ? '<p class="sc-note">' + esc(AL.masque) + ' ' + esc(an.peutExpliquerAussi.map(function (c) { return (AL.codes[c] || {}).titre || c; }).join(', ')) + '</p>' : '';
-    var info = '<button type="button" class="info-btn pt-info" data-ctl-info="' + esc(cle) + '" aria-expanded="' + (ouvert ? 'true' : 'false') + '" aria-label="Information : ' + esc(cd.titre || code) + ' pour ' + esc(l.article) + '">i</button>';
-    var detail = ouvert ? '<p class="sc-methode">' + esc(AL.explication || 'Un contrôle indique où comparer avec Decenium. Ce n\'est pas une erreur constatée.') + '</p>' + masque : '';
-    return '<li class="pt-anomalie pt-ctl" data-anomalie="' + esc(code) + '">' +
+    var pc = pieceControle(an, l);
+    return '<li class="pt-anomalie pt-ctl" data-anomalie="' + esc(pc.code) + '">' +
       '<div class="pt-ctl-1">' + (avecProduit ? '<button type="button" class="vp-ligne-prod pt-ctl-prod" data-article="' + esc(l.article) + '"><span class="vp-nom">' + esc(l.article) + '</span></button>' : '') +
-      '<span class="sc-nom">' + esc(cd.titre || code) + '</span> <span class="nbe-qualif" data-axe="niveau">' + esc(LIB_NIVEAU[an.niveau] || '') + '</span> ' +
-      '<span class="nbe-qualif" data-axe="cycle">' + esc(statut) + '</span> ' + info + '</div>' +
-      '<p class="pt-ctl-2 sc-methode">' + valeursAComparer(an) + '</p>' +
-      '<p class="pt-ctl-3 sc-note">' + esc(cd.controle || '') + '</p>' + detail +
-      htmlVerification(an, l, droits, etat) + '</li>';
+      '<span class="sc-nom">' + esc(pc.cd.titre || pc.code) + '</span> <span class="nbe-qualif" data-axe="niveau">' + esc(pc.niveau) + '</span> ' +
+      '<span class="nbe-qualif" data-axe="cycle">' + esc(pc.statut) + '</span></div>' +
+      htmlCorpsControle(an, l, droits, etat, pc) + '</li>';
+  }
+  // L2 : une ligne compacte par contrôle (article, cause, chiffre clé, un seul niveau) ; le détail s'affiche dans le panneau.
+  function cleControle(x) { return x.a.code + '|' + x.l.article; }
+  function htmlLigneCompacte(x, choisi) {
+    var pc = pieceControle(x.a, x.l), cle = cleControle(x);
+    return '<li class="pt-ctl-item" data-anomalie="' + esc(pc.code) + '"><button type="button" class="pt-ctl-ligne" data-ctl-ligne="1" data-ctl-sel="' + esc(cle) + '"' +
+      (choisi ? ' aria-current="true" tabindex="0"' : ' tabindex="-1"') + '>' +
+      '<span class="vp-nom pt-l-art">' + esc(x.l.article) + '</span><span class="nbe-qualif pt-l-tag" data-axe="niveau">' + esc(pc.niveau) + '</span>' +
+      '<span class="pt-l-sec"><span class="pt-l-cause">' + esc(pc.cd.titre || pc.code) + '</span> <span class="pt-l-chiffre">' + pc.chiffres + '</span></span></button></li>';
+  }
+  function htmlDetailControle(x, droits, etat, nav, avecSuivi) {
+    var pc = pieceControle(x.a, x.l), n = nav || { restants: 0, suivant: false };
+    var retour = '<button type="button" class="detail-btn pt-ctl-retour" data-ctl-retour="1">‹ Retour à la liste (' + n.restants + (n.restants > 1 ? ' restants' : ' restant') + ')</button>';
+    var pos = n.total ? '<span class="pt-ctl-pos" data-ctl-pos="1">' + n.pos + ' / ' + n.total + '</span>' : '';
+    var suiv = '<button type="button" class="detail-btn pt-ctl-suivant" data-ctl-suivant="1"' + (n.suivant ? '' : ' disabled') + '>Suivant</button>';
+    return '<section class="pt-detail" data-ctl-detail="1" aria-label="Détail du contrôle"><div class="pt-ctl-entete">' + retour + pos + '</div>' + (avecSuivi ? htmlSuiviVerif(etat, droits) : '') + '<div class="pt-ctl-1"><button type="button" class="vp-ligne-prod pt-ctl-prod" data-article="' + esc(x.l.article) + '"><span class="vp-nom">' + esc(x.l.article) + '</span></button> ' +
+      '<span class="sc-nom">' + esc(pc.cd.titre || pc.code) + '</span> <span class="nbe-qualif" data-axe="cycle">' + esc(pc.statut) + '</span></div>' +
+      '<p class="pt-ctl-2 pt-ctl-chiffre" data-ctl-chiffre="1"><span class="pt-mono">' + pc.chiffres + '</span> <span class="nbe-qualif" data-axe="niveau">' + esc(pc.niveau) + '</span></p>' +
+      htmlCorpsControle(x.a, x.l, droits, etat, pc, suiv) + '</section>';
   }
   function htmlControlesAFaire(l, droits, etat) {
     var L = l.anomalies || [];
@@ -502,6 +578,25 @@
     else L.sort(function (x, y) { return (y.a.gravite || 0) - (x.a.gravite || 0) || String(x.l.article).localeCompare(String(y.l.article), 'fr'); });
     return L;
   }
+  // L4 : confirmation, annulation et erreurs. Affichées dans le détail quand il est ouvert (plein écran à 375 px), sinon au-dessus de la liste.
+  function htmlSuiviVerif(etat, droits) {
+    var r = '';
+    r += '<div class="pt-live" aria-live="polite" data-ctl-live="1">';
+    if (etat.messageVerif) r += '<p class="sc-note pt-verif-msg" role="status" data-verif-ok="1">' + esc(etat.messageVerif) + '</p>';
+    if (etat.messageAnnul) r += '<p class="sc-note pt-verif-msg" role="status" data-annul-ok="1">' + esc(etat.messageAnnul) + '</p>';
+    r += '</div>';
+    var dv = etat.derniereVerif;
+    if (dv && droits && etat.messageVerif) {
+      if (!etat.annulOuverte) r += '<button type="button" class="pt-com-lien" data-ctl-annuler="1">Annuler</button>';
+      else r += '<div class="pt-verif-champ" data-ctl-annul-zone="1"><label class="sc-lib" for="ptAnnulMotif">Motif de l\'annulation (obligatoire)</label>' +
+        '<div class="pt-verif-zone"><textarea id="ptAnnulMotif" class="pt-verif-com" rows="2" maxlength="' + LIMITE_MOTIF + '" required aria-describedby="ptAnnulN" data-annul-motif="1">' + esc(etat.annulMotif || '') + '</textarea>' +
+        '<span id="ptAnnulN" class="sc-note pt-verif-n" data-annul-compteur="1">' + String(etat.annulMotif || '').length + ' / ' + LIMITE_MOTIF + '</span></div>' +
+        '<div class="pt-actions"><button type="button" class="detail-btn" data-annul-confirmer="1">Confirmer l\'annulation</button> <button type="button" class="pt-com-lien" data-annul-garder="1">Garder la vérification</button></div></div>';
+    }
+    if (etat.erreurAnnul) r += '<p class="sc-note pt-erreur" role="alert" data-annul-erreur="1">' + esc(etat.erreurAnnul) + '</p>';
+    if (etat.erreurEcriture) r += '<p class="sc-note pt-erreur" role="alert" data-ctl-erreur="1">' + esc(etat.erreurEcriture) + '</p>';
+    return r;
+  }
   function htmlBlocControles(etat) {
     var a = etat.analyse, droits = peutVerifier(etat.role, etat.estCreateur), tous = tousControles(a);
     var actifs = tous.filter(function (x) { return CYCLES_ACTIFS.indexOf(x.a.cycle || 'nouvelle') >= 0; });
@@ -511,22 +606,29 @@
       var id = a.identiteDonnees || S.identiteDonnees || {};
       return h + '<p class="sc-note" data-ctl-vide="1">Aucune anomalie à vérifier sur cet import' + (id.dateReleve ? ' (relevé du ' + esc(jourFr(String(id.dateReleve).slice(0, 10))) + ')' : '') + (id.fichierHash ? ', empreinte ' + esc(String(id.fichierHash).slice(0, 8)) : '') + '.</p></details>';
     }
-    if (etat.messageVerif) h += '<p class="sc-note pt-verif-msg" role="status" data-verif-ok="1">' + esc(etat.messageVerif) + '</p>';
-    if (etat.erreurEcriture) h += '<p class="sc-note pt-erreur" role="alert" data-ctl-erreur="1">' + esc(etat.erreurEcriture) + '</p>';
-    h += '<p class="sc-methode pt-ctl-expl" data-ctl-expl="1">' + esc(AL.explication || 'Un contrôle indique où comparer avec Decenium. Ce n\'est pas une erreur constatée : comparez les valeurs, puis marquez la ligne comme vérifiée.') + '</p>';
+    var L0 = controlesFiltres(etat);
+    var enDetail = !!(etat.ctlDetail && L0.length);
+    if (!enDetail) h += htmlSuiviVerif(etat, droits);
+    var aideCtl = esc(AL.explication || 'Un contrôle indique où comparer avec Decenium. Ce n\'est pas une erreur constatée : comparez les valeurs, puis marquez la ligne comme vérifiée.');
     if (!droits) h += '<p class="sc-note" data-ctl-lecture="1">Lecture seule : seuls le gérant et le manager marquent un contrôle comme vérifié.</p>';
     var L = controlesFiltres(etat);
     if (tous.length > SEUIL_OUTILS) {
       var cy = etat.ctlCycles || CYCLES_DEFAUT;
       h += '<div class="vp-filtres pt-ctl-outils"><label class="pt-f pt-f-rech"><span class="sc-methode">Recherche</span><input type="search" id="ptCtlRecherche" placeholder="Nom du produit" value="' + esc(etat.ctlRecherche || '') + '"></label>' +
         '<label class="pt-f"><span class="sc-methode">Tri</span><select data-ctl-tri="1">' + TRI_CTL.map(function (o) { return '<option value="' + o[0] + '"' + ((etat.ctlTri || 'gravite') === o[0] ? ' selected' : '') + '>' + esc(o[1]) + '</option>'; }).join('') + '</select></label>' +
-        '<fieldset class="pt-ctl-cycles"><legend class="sc-methode">Historique</legend>' + ['nouvelle', 'persistante', 'aggravee', 'verifiee', 'resolue'].map(function (k) {
+        '<details class="pt-ctl-aide" data-ctl-expl="1"><summary class="info-btn" aria-label="Comment lire un contrôle" role="button">i</summary><p class="sc-methode">' + aideCtl + '</p></details>' + '<fieldset class="pt-ctl-cycles"><legend class="sc-methode">Historique</legend>' + ['nouvelle', 'persistante', 'aggravee', 'verifiee', 'resolue'].map(function (k) {
           return '<label class="pt-chk"><input type="checkbox" data-ctl-cycle="' + k + '"' + (cy.indexOf(k) >= 0 ? ' checked' : '') + '> ' + esc(LIB_CYCLE[k]) + '</label>'; }).join('') + '</fieldset></div>';
     }
+    if (tous.length <= SEUIL_OUTILS) h += '<details class="pt-ctl-aide" data-ctl-expl="1"><summary class="info-btn" aria-label="Comment lire un contrôle" role="button">i</summary><p class="sc-methode">' + aideCtl + '</p></details>';
     var vis = etat.ctlToutes || tous.length <= SEUIL_OUTILS ? L : L.slice(0, SEUIL_OUTILS);
-    h += '<ul class="vp-liste pt-ctl-liste">' + vis.map(function (x) { return htmlAnomalie(x.a, x.l, droits, etat, true); }).join('') + '</ul>';
-    if (!L.length) h += '<p class="sc-note">Aucun contrôle ne correspond à ces filtres.</p>';
+    // Sélection : le contrôle choisi, sinon le premier de la vue (la ligne vérifiée quitte la vue, la suivante prend la place).
+    var sel = null; vis.forEach(function (x) { if (!sel && cleControle(x) === etat.ctlSel) sel = x; }); if (!sel) sel = vis[0] || null;
+    var iSel = vis.indexOf(sel), nav = { restants: Math.max(0, L.length - 1), suivant: iSel >= 0 && iSel < vis.length - 1, pos: L.indexOf(sel) + 1, total: L.length };
+    h += '<div class="pt-ctl-deux" data-mode="' + (sel && etat.ctlDetail ? 'detail' : 'liste') + '"><div class="pt-ctl-gauche"><ul class="vp-liste pt-ctl-liste" data-ctl-liste="1">' + vis.map(function (x) { return htmlLigneCompacte(x, x === sel); }).join('') + '</ul>';
+    if (!L.length && !actifs.length) h += '<p class="sc-note pt-traite" data-ctl-traite="1">Tout est traité pour cet import. Les contrôles vérifiés restent consultables dans l\'historique.</p>';
+    else if (!L.length) h += '<p class="sc-note">Aucun contrôle ne correspond à ces filtres.</p>';
     if (L.length > vis.length) h += '<button type="button" class="detail-btn vp-plus" data-ctl-plus="1">Afficher la suite (' + (L.length - vis.length) + ')</button>';
+    h += '</div>' + (sel ? '<div class="pt-ctl-droite">' + htmlDetailControle(sel, droits, etat, nav, enDetail) + '</div>' : '') + '</div>';
     return h + '</details>';
   }
   // Réévaluations à enregistrer : périmètre complet de l'import (jamais la vue filtrée), une ligne par anomalie dont le cycle change.
@@ -570,6 +672,15 @@
     if (m.indexOf('tarif_verif_commentaire_trop_long') >= 0) return 'Le commentaire dépasse ' + LIMITE_COMMENTAIRE + ' caractères. Raccourcissez-le puis réessayez.';
     return "L'enregistrement a échoué. Rien n'a été modifié, vous pouvez réessayer.";
   }
+  var MSG_VERIF_OK = 'Vérification enregistrée. Contrôle suivant ouvert.';
+  var MSG_ANNUL_OK = 'Vérification annulée. Le contrôle est revenu dans les contrôles à effectuer.';
+  var LIMITE_MOTIF = 500;
+  function motifAnnulationValide(m) { var t = String(m == null ? '' : m).trim(); return t.length >= 1 && t.length <= LIMITE_MOTIF; }
+  function messageErreurAnnulation(err) {
+    var m = String((err && (err.message || err)) || '');
+    if (/refus|denied|policy|permission|row-level|aucune ligne|droit/i.test(m)) return "Annulation refusée : seule la personne qui a saisi cette vérification, ou un gérant, peut l'annuler. Rien n'a été modifié.";
+    return "L'annulation a échoué. Rien n'a été modifié, vous pouvez réessayer.";
+  }
   function messageApresEcriture(info) {
     var d = jourFr(info.date), qui = info.auteur || 'un responsable';
     return 'Vérifié le ' + d + ' par ' + qui + '. Réévalué au prochain import.';
@@ -587,7 +698,7 @@
     return '<li class="pt-li"><button type="button" class="vp-ligne-prod" data-article="' + esc(l.article) + '">' +
       '<span class="vp-nom">' + esc(l.article) + ' ' + badgeRegime(l) + '</span>' +
       '<span class="vp-meta">' + esc(l.rayon || '') + ' · Fiabilité : ' + esc((LIB_FIABILITE[l.fiabilite.niveau] || l.fiabilite.niveau).toLowerCase()) + '</span>' +
-      '<span class="vp-chiffres">' + htmlMarge(l) + (badgeLigne(l) ? ' ' + badgeLigne(l) : '') + '</span></button>' + infoBouton(l.article, 'marge estimée de ' + l.article) + '</li>';
+      '<span class="vp-chiffres">' + htmlLigneChiffres(l) + '</span></button>' + infoBouton(l.article, 'marge estimée de ' + l.article) + '</li>';
   }
   function blocFiche(l) {
     var f = fiche(l), s = f.seuil, pd = l.prixDecide, w = avertissementRegime(l);
@@ -625,7 +736,7 @@
   // ---------- Historique des vérifications (lecture des deux tables ; la RLS filtre par site) ----------
   var CYCLES_ACTIFS = ['nouvelle', 'persistante', 'aggravee'];
   var LIB_CYCLE = { nouvelle: 'Nouveau', persistante: 'Persistant', aggravee: 'Aggravé', verifiee: 'Vérifié', resolue: 'Résolu au nouvel import' };
-  var FILTRES_HISTO = [['actifs', 'Nouveau, persistant, aggravé'], ['verifiee', 'Vérifiés'], ['resolue', 'Résolus'], ['tous', 'Tous']];
+  var FILTRES_HISTO = [['verifiee', 'Vérifiés'], ['persistante', 'Persistants'], ['aggravee', 'Aggravés'], ['resolue', 'Résolus'], ['tous', 'Tous']];
   async function chargerVerifications(client, site) {
     var v = await client.from('tarif_anomalies_verifications').select('id, article, code_barres, cause, empreinte, gravite, fichier_hash, date_releve, commentaire, saisi_par, saisi_le, cle').eq('site', site).is('annule_le', null).order('saisi_le', { ascending: false }).range(0, 4999);
     if (v.error) throw v.error;
@@ -666,9 +777,17 @@
       (re ? ' Réévaluation : ' + esc(LR[re.etat] || re.etat) + ' au relevé du ' + esc(jourFr(String(re.date_releve || re.saisi_le).slice(0, 10))) + '.' : ' Pas encore réévalué.') +
       (etat && etat.reevalNonEnregistree && CYCLES_REEVAL[x.cycle] ? ' Réévaluation calculée : ' + esc(LR[x.cycle] || x.cycle) + ', non encore enregistrée.' : '') + '</p>';
   }
+  // L5 : auteur, date, commentaire et import visibles sur la ligne elle-même (le (i) garde la réévaluation). Une vérification annulée n'est jamais chargée.
+  function htmlLigneSuivi(x) {
+    var v = x.verif;
+    if (!v) return '<span class="pt-histo-suivi sc-note" data-histo-suivi="1">Jamais vérifié.</span>';
+    var imp = v.identiteDonnees && v.identiteDonnees.dateReleve ? 'Import du ' + jourFr(String(v.identiteDonnees.dateReleve).slice(0, 10)) : 'Import non daté';
+    return '<span class="pt-histo-suivi sc-note" data-histo-suivi="1">Vérifié le ' + esc(jourFr(String(v.verifie_le).slice(0, 10))) + ' par ' + esc(v.auteur || 'un responsable') +
+      ' · ' + esc(imp) + ' · ' + (v.commentaire ? 'Commentaire : ' + esc(v.commentaire) : 'Aucun commentaire') + '</span>';
+  }
   function htmlHistorique(etat) {
     if (!etat.historiqueDispo) return '';
-    var AL = A_LIB(), f = etat.filtreHisto || 'actifs';
+    var AL = A_LIB(), f = etat.filtreHisto || 'verifiee';
     var L = historiqueLignes(etat.analyse, etat.verifications || [], f);
     var sel = '<label class="pt-f"><span class="sc-methode">Historique</span><select data-filtre-histo="1">' + FILTRES_HISTO.map(function (o) { return '<option value="' + o[0] + '"' + (f === o[0] ? ' selected' : '') + '>' + esc(o[1]) + '</option>'; }).join('') + '</select></label>';
     // Sections par cause (titre du lexique, jamais le code S1 à S7 dans le texte visible), tri par nombre de lignes décroissant.
@@ -680,14 +799,14 @@
       var xs = parCause[code], titre = (AL.codes[code] || {}).titre || 'Cause non référencée', n = xs.length, tout = !!plus[code], vis = tout ? xs : xs.slice(0, 10);
       var li = vis.map(function (x) {
         var k = x.code + '|' + x.article, ouvert = etat.histoOuverte === k;
-        return '<li class="vp-ligne pt-histo-li"><div class="pt-histo-t"><span class="pt-histo-txt"><strong>' + esc(x.article) + '</strong> · <span class="nbe-qualif" data-axe="cycle">' + esc(LIB_CYCLE[x.cycle] || x.cycle) + '</span></span>' +
+        return '<li class="vp-ligne pt-histo-li"><div class="pt-histo-t"><span class="pt-histo-txt"><strong>' + esc(x.article) + '</strong> · <span class="nbe-qualif" data-axe="cycle">' + esc(LIB_CYCLE[x.cycle] || x.cycle) + '</span>' + htmlLigneSuivi(x) + '</span>' +
           '<button type="button" class="detail-btn pt-histo-i" data-histo-info="' + esc(k) + '" aria-expanded="' + (ouvert ? 'true' : 'false') + '" aria-label="Détail de la vérification de ' + esc(x.article) + '">(i)</button></div>' + (ouvert ? htmlDetailHistorique(x, etat) : '') + '</li>';
       }).join('');
       return '<details class="sc-carte pt-histo-sec" data-histo-sec="' + esc(code) + '"' + (ouvertes.indexOf(code) >= 0 ? ' open' : '') + '><summary aria-label="' + esc(titre) + ' : ' + n + (n > 1 ? ' lignes' : ' ligne') + '"><span class="sc-nom">' + esc(titre) + ' (' + n + ')</span><span class="sc-chev"></span></summary>' +
         '<ul class="vp-liste">' + li + '</ul>' + (n > 10 && !tout ? '<button type="button" class="detail-btn pt-histo-plus" data-histo-plus="' + esc(code) + '">Afficher la suite (' + (n - 10) + ')</button>' : '') + '</details>';
     }).join('');
     return '<div class="vp-bloc pt-historique" data-historique="1"><h3>Historique des vérifications</h3>' + sel +
-      (sections || '<p class="sc-note">Aucune anomalie dans cette vue.</p>' + (f !== 'actifs' ? '<button type="button" class="detail-btn pt-histo-reset" data-histo-reset="1">Changer de statut</button>' : '')) + '</div>';
+      (sections || '<p class="sc-note">Aucune anomalie dans cette vue.</p>' + (f !== 'verifiee' ? '<button type="button" class="detail-btn pt-histo-reset" data-histo-reset="1">Changer de statut</button>' : '')) + '</div>';
   }
 
   function htmlCarteControles(a, s) {
@@ -697,13 +816,140 @@
     return '<button type="button" class="sc-ind sc-ambre pt-carte-ctl" data-carte="controles_a_effectuer" aria-label="Contrôles à effectuer : ' + n + ', ouvrir la liste"><span class="sc-ind-val">' + n + '</span><span class="sc-ind-lib">' + (n > 1 ? 'contrôles' : 'contrôle') + ' sur ' + m + (m > 1 ? ' références' : ' référence') + '</span><span class="sc-ind-sous">' + esc(libellePeriode(s.periode)) + ' · un contrôle n\'est pas une erreur constatée</span></button>';
   }
   // Câblage commun page et banc : ouverture du bloc des contrôles (carte, Conseiller) et du champ de commentaire. Aucune écriture.
+  // Effet commun d'une vérification enregistrée : la ligne passe « vérifiée » (elle quitte la liste active), message daté. Page et banc.
+  function effetVerificationEnregistree(an, etat, auteur, idVerif, extra) {
+    var cycleAvant = an.cycle || 'nouvelle', cleAn = null;
+    try { tousControles(etat.analyse).forEach(function (x) { if (x.a === an) cleAn = cleControle(x); }); } catch (e0) {}
+    if (etat.ctlDetail) {
+      // L3 : en détail plein écran, la ligne vérifiée quitte la vue ; on passe au contrôle suivant (sinon au précédent).
+      try {
+        var Lv = controlesFiltres(etat), iv = -1; Lv.forEach(function (x, i) { if (x.a === an) iv = i; });
+        var vo = iv >= 0 ? (Lv[iv + 1] || Lv[iv - 1]) : null; if (vo) etat.ctlSel = cleControle(vo);
+      } catch (e) {}
+    }
+    an.cycle = 'verifiee';
+    // L5 : la vérification est aussi inscrite dans l'état en mémoire, pour que Suivre ne dise pas « Jamais vérifié ».
+    if (idVerif && an) {
+      var ex = extra || {}, ligneAn = null;
+      try { tousControles(etat.analyse).forEach(function (x) { if (x.a === an) ligneAn = x.l; }); } catch (e1) {}
+      if (!Array.isArray(etat.verifications)) etat.verifications = [];
+      etat.verifications.push({ id: idVerif, code: an.code, cle: an.cle, article: ligneAn ? ligneAn.article : null,
+        code_barres: ligneAn ? (ligneAn.code_barres || null) : null, empreinte: an.empreinte || null, gravite: an.gravite || null,
+        verifie_le: ex.verifieLe || new Date().toISOString(), identiteDonnees: { fichierHash: (an.identiteDonnees || {}).fichierHash || ex.fichierHash || null, dateReleve: ex.dateReleve || (an.identiteDonnees || {}).dateReleve || null },
+        commentaire: ex.commentaire || null, auteur: auteur || null, reevaluation: null });
+    }
+    etat.messageVerif = MSG_VERIF_OK;
+    etat.erreurEcriture = null; etat.messageAnnul = null; etat.erreurAnnul = null; etat.annulOuverte = false; etat.annulMotif = '';
+    etat.derniereVerif = idVerif ? { an: an, id: idVerif, cle: cleAn, cycleAvant: cycleAvant } : null;
+  }
+  // Annulation tracée d'une vérification : la modification elle-même est faite par l'hôte (etat.surAnnulation), jamais par cet écran.
+  // Retourne { ok: true } ou { ok: false, message }. Rien ne change dans l'état en cas de refus.
+  async function annulerVerification(etat, motif) {
+    var dv = etat.derniereVerif;
+    if (!dv || !dv.id) return { ok: false, message: 'Aucune vérification récente à annuler.' };
+    if (!motifAnnulationValide(motif)) return { ok: false, message: 'Indiquez un motif de 1 à ' + LIMITE_MOTIF + ' caractères.' };
+    if (typeof etat.surAnnulation !== 'function') return { ok: false, message: messageErreurAnnulation(null) };
+    var r;
+    try { r = await etat.surAnnulation({ id: dv.id }, String(motif).trim()); } catch (e) { r = { ok: false, erreur: e }; }
+    if (!r || !r.ok) return { ok: false, message: (r && r.message) || messageErreurAnnulation(r && r.erreur) };
+    dv.an.cycle = dv.cycleAvant; if (dv.cle) etat.ctlSel = dv.cle;
+    if (Array.isArray(etat.verifications)) etat.verifications = etat.verifications.filter(function (v) { return v.id !== dv.id; });
+    etat.derniereVerif = null; etat.messageVerif = null; etat.annulOuverte = false; etat.annulMotif = ''; etat.erreurAnnul = null;
+    etat.messageAnnul = MSG_ANNUL_OK;
+    return { ok: true };
+  }
   function lierOuvertures(corps, etat, rendre) {
     function ouvrirControles() {
-      etat.ctlReplie = false; rendre();
+      etat.ctlReplie = false; etat.axe = 'controler'; memoriserAxe('controler'); rendre();
       var bl = corps.querySelector('[data-bloc-controles]');
       if (bl) { if (bl.scrollIntoView) bl.scrollIntoView({ block: 'start' }); var sm = bl.querySelector('summary'); if (sm) sm.focus(); }
     }
-    Array.prototype.forEach.call(corps.querySelectorAll('[data-carte="controles_a_effectuer"], [data-bloc-conseil="controles"]'), function (b) { b.addEventListener('click', ouvrirControles); });
+    // L5 : « Commencer par » ouvre le premier contrôle du tri « Gravité décroissante » (filtres remis par défaut). Aucune écriture.
+    function commencerPar() {
+      etat.ctlTri = 'gravite'; etat.ctlRecherche = ''; etat.ctlCycles = CYCLES_DEFAUT;
+      var L = controlesFiltres(etat), x = L[0] || null;
+      ouvrirControles();
+      if (x) { var cle = cleControle(x); if (etroit()) ouvrirDetail(cle); else choisirLigne(cle); }
+    }
+    // Axes : bascule sans rendu ni appel réseau, clavier complet (flèches, Début, Fin), dernier axe retenu.
+    var onglets = Array.prototype.slice.call(corps.querySelectorAll('[data-axe-onglet]'));
+    function choisirAxe(id, focus) {
+      etat.axe = id; memoriserAxe(id);
+      onglets.forEach(function (o) { var on = o.dataset.axeOnglet === id; o.classList.toggle('on', on); o.setAttribute('aria-selected', on ? 'true' : 'false'); o.setAttribute('tabindex', on ? '0' : '-1'); if (on && focus) o.focus(); });
+      Array.prototype.forEach.call(corps.querySelectorAll('[data-axe-panneau]'), function (pn) { pn.hidden = pn.dataset.axePanneau !== id; });
+    }
+    onglets.forEach(function (o, i) {
+      o.addEventListener('click', function () { choisirAxe(o.dataset.axeOnglet, false); });
+      o.addEventListener('keydown', function (ev) {
+        var n = onglets.length, k = ev.key, j = k === 'ArrowRight' || k === 'ArrowDown' ? (i + 1) % n : k === 'ArrowLeft' || k === 'ArrowUp' ? (i + n - 1) % n : k === 'Home' ? 0 : k === 'End' ? n - 1 : -1;
+        if (j < 0) return; ev.preventDefault(); choisirAxe(onglets[j].dataset.axeOnglet, true);
+      });
+    });
+    Array.prototype.forEach.call(corps.querySelectorAll('[data-carte="controles_a_effectuer"], [data-bloc-conseil="controles"]'), function (b) { b.addEventListener('click', (b.dataset && b.dataset.commencer) ? commencerPar : ouvrirControles); });
+    // Bloc des contrôles : (i), « Voir plus », tri, cycle, recherche. Câblage unique, page et banc.
+    // L2 : choix d'une ligne (clic, Entrée) et flèches haut/bas ; le focus suit la ligne choisie après le rendu.
+    var lignes = Array.prototype.slice.call(corps.querySelectorAll('[data-ctl-sel]'));
+    function choisirLigne(cle) { etat.ctlSel = cle; rendre(); var n = corps.querySelector('[data-ctl-sel][aria-current]'); if (n && n.focus) n.focus(); }
+    // L3 (écran étroit) : le détail passe en plein écran. Une entrée d'historique par ouverture (bouton Retour du navigateur),
+    // position de défilement et ligne gardées dans l'état, focus rendu à la ligne. Aucun appel réseau, aucune écriture.
+    var etroit = function () { return typeof matchMedia === 'function' && !matchMedia('(min-width:900px)').matches; };
+    function ouvrirDetail(cle) {
+      etat.ctlSel = cle; etat.ctlDetail = true; etat.ctlScroll = typeof window !== 'undefined' ? (window.pageYOffset || 0) : 0;
+      try { if (!etat.ctlHist && window.history && history.pushState) { history.pushState({ ptDetail: 1 }, ''); etat.ctlHist = true; } } catch (e) {}
+      rendre(); if (typeof window !== 'undefined' && window.scrollTo) window.scrollTo(0, 0);
+      var r = corps.querySelector('[data-ctl-retour]'); if (r && r.focus) r.focus();
+    }
+    function fermerDetailDirect() {
+      if (!etat.ctlDetail) return;
+      etat.ctlDetail = false; etat.ctlHist = false; rendre();
+      if (typeof window !== 'undefined' && window.scrollTo) window.scrollTo(0, etat.ctlScroll || 0);
+      var n = corps.querySelector('[data-ctl-sel][aria-current]'); if (n && n.focus) { try { n.focus({ preventScroll: true }); } catch (e) { n.focus(); } }
+    }
+    function demanderRetour() {
+      if (!etat.ctlDetail) return;
+      if (etat.ctlHist) { try { history.back(); return; } catch (e) {} }
+      fermerDetailDirect();
+    }
+    function suivant() {
+      var ls = Array.prototype.slice.call(corps.querySelectorAll('[data-ctl-sel]')), i = -1;
+      ls.forEach(function (b, k) { if (b.getAttribute('aria-current') === 'true') i = k; });
+      if (i < 0 || i >= ls.length - 1) return;
+      etat.ctlSel = ls[i + 1].dataset.ctlSel; rendre(); if (typeof window !== 'undefined' && window.scrollTo) window.scrollTo(0, 0);
+      var b = corps.querySelector('[data-ctl-suivant]'); if (b && b.focus) b.focus();
+    }
+    // Écouteurs globaux liés une seule fois ; ils appellent toujours les dernières fermetures.
+    etat.ctlRetourFn = demanderRetour; etat.ctlFermerDirect = fermerDetailDirect;
+    if (!etat.ctlGlobaux && typeof window !== 'undefined' && window.addEventListener) {
+      etat.ctlGlobaux = true;
+      window.addEventListener('popstate', function () { if (etat.ctlDetail && etat.ctlFermerDirect) etat.ctlFermerDirect(); });
+      document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape' && etat.ctlDetail && etroit() && etat.ctlRetourFn) { ev.preventDefault(); etat.ctlRetourFn(); } });
+    }
+    var bAnn = corps.querySelector('[data-ctl-annuler]');
+    if (bAnn) bAnn.addEventListener('click', function () { etat.annulOuverte = true; etat.erreurAnnul = null; rendre(); var t = corps.querySelector('#ptAnnulMotif'); if (t && t.focus) t.focus(); });
+    var tAnn = corps.querySelector('[data-annul-motif]');
+    if (tAnn) tAnn.addEventListener('input', function () { etat.annulMotif = tAnn.value; var c = corps.querySelector('[data-annul-compteur]'); if (c) c.textContent = tAnn.value.length + ' / ' + LIMITE_MOTIF; });
+    var bGarde = corps.querySelector('[data-annul-garder]');
+    if (bGarde) bGarde.addEventListener('click', function () { etat.annulOuverte = false; etat.erreurAnnul = null; rendre(); });
+    var bConf = corps.querySelector('[data-annul-confirmer]');
+    if (bConf) bConf.addEventListener('click', async function () {
+      bConf.disabled = true;
+      var r = await annulerVerification(etat, tAnn ? tAnn.value : etat.annulMotif);
+      if (!r.ok) etat.erreurAnnul = r.message;
+      rendre();
+    });
+    var bRetour = corps.querySelector('[data-ctl-retour]'); if (bRetour) bRetour.addEventListener('click', demanderRetour);
+    var bSuiv = corps.querySelector('[data-ctl-suivant]'); if (bSuiv) bSuiv.addEventListener('click', suivant);
+    lignes.forEach(function (b, i) {
+      b.addEventListener('click', function () { if (etroit()) ouvrirDetail(b.dataset.ctlSel); else choisirLigne(b.dataset.ctlSel); });
+      b.addEventListener('keydown', function (ev) {
+        var k = ev.key, j = k === 'ArrowDown' ? i + 1 : k === 'ArrowUp' ? i - 1 : k === 'Home' ? 0 : k === 'End' ? lignes.length - 1 : -1;
+        if (j < 0 || j >= lignes.length) return; ev.preventDefault(); choisirLigne(lignes[j].dataset.ctlSel);
+      });
+    });
+    var ctlPlus = corps.querySelector('[data-ctl-plus]'); if (ctlPlus) ctlPlus.addEventListener('click', function () { etat.ctlToutes = true; rendre(); });
+    var ctlTri = corps.querySelector('[data-ctl-tri]'); if (ctlTri) ctlTri.addEventListener('change', function () { etat.ctlTri = ctlTri.value; etat.ctlToutes = false; rendre(); });
+    Array.prototype.forEach.call(corps.querySelectorAll('[data-ctl-cycle]'), function (c) { c.addEventListener('change', function () { var cy = (etat.ctlCycles || ['nouvelle', 'persistante', 'aggravee']).filter(function (x) { return x !== c.dataset.ctlCycle; }); if (c.checked) cy.push(c.dataset.ctlCycle); etat.ctlCycles = cy; etat.ctlToutes = false; rendre(); }); });
+    var ctlRech = corps.querySelector('#ptCtlRecherche'); if (ctlRech) ctlRech.addEventListener('input', function () { etat.ctlRecherche = ctlRech.value; etat.ctlToutes = false; var p = ctlRech.selectionStart; rendre(); var n = corps.querySelector('#ptCtlRecherche'); if (n) { n.focus(); try { n.setSelectionRange(p, p); } catch (e) {} } });
     var pf = corps.querySelector('[data-filtres-panneau]');
     if (pf) {
       if (etat.filtresOuverts === undefined && typeof matchMedia === 'function' && matchMedia('(min-width:900px)').matches) { etat.filtresOuverts = true; pf.open = true; }
@@ -718,7 +964,7 @@
       });
     });
     Array.prototype.forEach.call(corps.querySelectorAll('[data-histo-reset]'), function (b) {
-      b.addEventListener('click', function () { etat.filtreHisto = 'actifs'; etat.histoOuverte = null; etat.histoOuvertes = null; rendre(); });
+      b.addEventListener('click', function () { etat.filtreHisto = 'verifiee'; etat.histoOuverte = null; etat.histoOuvertes = null; rendre(); });
     });
     Array.prototype.forEach.call(corps.querySelectorAll('[data-histo-plus]'), function (b) {
       b.addEventListener('click', function () { etat.histoPlus = Object.assign({}, etat.histoPlus || {}); etat.histoPlus[b.dataset.histoPlus] = true; rendre(); });
@@ -733,6 +979,27 @@
   }
   // Filtres actifs du panneau (la recherche et l'alerte du Conseiller restent visibles, hors compte).
   function nbFiltres(f) { return ['famille', 'rayon', 'statut', 'fiabilite', 'exception'].filter(function (k) { return !!f[k]; }).length; }
+  // ---------- Quatre axes : Contrôler, Analyser, Décider, Suivre. Affichage seul, aucun compteur écrit en dur. ----------
+  var AXES = [{ id: 'controler', nom: 'Contrôler' }, { id: 'analyser', nom: 'Analyser' }, { id: 'decider', nom: 'Décider' }, { id: 'suivre', nom: 'Suivre' }];
+  var NOTE_PISTES = 'Aucun seuil n\'est encore validé : aucune de ces pistes n\'est une décision tarifaire et aucune n\'est appliquée.';
+  var CLE_AXE = 'nexus_scanner_axe';
+  function axeValide(id) { return AXES.some(function (x) { return x.id === id; }); }
+  function lireAxeMemorise() { try { var v = window.localStorage.getItem(CLE_AXE); return axeValide(v) ? v : null; } catch (e) { return null; } }
+  function memoriserAxe(id) { try { window.localStorage.setItem(CLE_AXE, id); } catch (e) { /* stockage indisponible : l'axe reste en mémoire */ } }
+  function axeCourant(etat) { if (etat.axe && axeValide(etat.axe)) return etat.axe; var m = lireAxeMemorise(); return m || 'controler'; }
+  // Compteurs calculés depuis les données de l'analyse, jamais saisis.
+  function compteursAxes(a, etat) {
+    var actifs = tousControles(a).filter(function (x) { return CYCLES_ACTIFS.indexOf(x.a.cycle || 'nouvelle') >= 0; }).length;
+    var fa = familles(a), piste = 0;
+    fa.forEach(function (f) { if (f.id === 'decisions') f.cartes.forEach(function (c) { if (c.code === 'A1') piste += c.nombre || 0; }); });
+    var verifies = etat.historiqueDispo ? historiqueLignes(a, etat.verifications || [], 'verifiee').length : 0;
+    return {
+      controler: { valeur: String(actifs), lib: 'à examiner' },
+      analyser: { valeur: carteMarge(a).valeur, lib: 'marges estimées' },
+      decider: { valeur: String(piste), lib: piste > 1 ? 'pistes indicatives' : 'piste indicative' },
+      suivre: { valeur: etat.historiqueDispo ? String(verifies) : '-', lib: 'vérifiés sur cet import' }
+    };
+  }
   function htmlPage(etat) {
     // etat : { analyse, role, filtres, incoherences, ouverte, toutes, site, icone }
     var a = etat.analyse, f = etat.filtres || {}, s = a.synthese;
@@ -742,30 +1009,35 @@
     var lab = function (t, k, o) { return '<label class="pt-f"><span class="sc-methode">' + t + '</span><select data-filtre="' + k + '">' + o + '</select></label>'; };
     var h = '<div class="sc-entete">' + (etat.icone ? '<span class="sc-entete-ico">' + etat.icone('entete') + '</span>' : '') +
       '<div><h2 class="sc-h">Scanner tarifaire</h2><div class="sc-methode">' + esc((etat.site ? etat.site + ' · ' : '') + libellePeriode(s.periode) + ' · ' + s.references + ' références analysées') + '</div></div></div>';
+    // Visible quel que soit l'axe ouvert : sans relevé de stock, S2, S4 et S5 ne sont pas constatés, le manager doit le savoir dès Contrôler.
+    if (s.stockFourni === false) h += '<p class="sc-note pt-stock-absent" data-stock-absent="1"><b>Relevé de stock</b> : non fourni. Le coût des références n\'est pas comparé au PA net HT du stock.</p>';
     var c = conseiller(a, etat.role);
     h += '<div class="carte conseiller sc-conseiller"><img class="conseiller-avatar" src="assets/avatar/nexus-avatar-128.png" srcset="assets/avatar/nexus-avatar-64.png 64w, assets/avatar/nexus-avatar-96.png 96w, assets/avatar/nexus-avatar-128.png 128w, assets/avatar/nexus-avatar-256.png 256w" sizes="80px" alt="Conseiller NEXUS">' +
-      '<div class="conseiller-corps"><div class="conseiller-titre">Conseiller NEXUS</div><p class="sc-conseil">' + esc(c.texte) + '</p>' +
-      (c.filtre ? '<button type="button" class="detail-btn" data-conseil="1">Voir dans la liste</button>' : c.bloc ? '<button type="button" class="detail-btn" data-conseil="1" data-bloc-conseil="controles">Voir les contrôles</button>' : '') + '</div></div>';
+      '<div class="conseiller-corps sc-conseil-ligne"><p class="sc-conseil"><strong class="conseiller-titre">Conseiller NEXUS</strong> ' + esc(c.texte) + (c.detail ? ' <details class="sc-conseil-plus"><summary class="info-btn pt-info" aria-label="Pourquoi ce conseil">i</summary><span class="sc-methode" data-conseil-detail="1">' + esc(c.detail) + '</span></details>' : '') + '</p>' +
+      (c.filtre ? '<button type="button" class="detail-btn" data-conseil="1">Voir dans la liste</button>' : c.bloc ? '<button type="button" class="detail-btn" data-conseil="1" data-bloc-conseil="controles" data-commencer="1">Commencer par</button>' : '') + '</div></div>';
     var cs = cartes(a), couleur = { marge_negative: 'sc-rouge', propositions: 'sc-info', a_verifier: 'sc-ambre', non_constates: 'sc-gris' };
-    h += '<div class="sc-inds pt-inds">' + cs.map(function (c) {
-      return '<div class="sc-ind ' + couleur[c.id] + '" data-carte="' + c.id + '"><span class="sc-ind-val">' + esc(c.valeur) + '</span><span class="sc-ind-lib">' + esc(c.titre) + '</span><span class="sc-ind-sous">' + esc(c.secondaire) + '</span></div>';
-    }).join('') + '</div>';
-    var cm = carteMarge(a);
-    h += '<div class="sc-inds pt-inds"><div class="sc-ind sc-info" data-carte="marge_estimee"><span class="sc-ind-val">' + esc(cm.valeur) + '</span><span class="sc-ind-lib">' + esc(cm.titre) + ' : ' + esc(cm.unite) + '</span><span class="sc-ind-sous">' + esc(cm.secondaire) + '</span></div>' + htmlCarteControles(a, s) + '<p class="sc-note">' + esc(cm.limite) + '</p></div>';
-    if (s.stockFourni === false) h += '<p class="sc-note pt-stock-absent"><b>Relevé de stock</b> : non fourni. Le coût des références n\'est pas comparé au PA net HT du stock.</p>';
-    var sc = scenarios(a);
-    h += htmlBlocControles(etat);
-    h += '<details class="sc-carte pt-scenarios"><summary><span class="sc-nom">Scénarios de gain</span><span class="sc-chev"></span></summary><p class="sc-note">' + sc.map(function (x) { return esc(x.libelle) + ' : ' + esc(eur0(x.fiable)); }).join(' · ') + ' (scénarios alternatifs, jamais additionnés).</p></details>';
-    if (a.lignes.length && a.lignes.every(function (l) { return !l.regle; })) h += '<p class="sc-note">Aucun seuil validé : toutes les références restent sans seuil validé.</p>';
-    if (etat.messageReeval) h += '<p class="sc-note pt-reeval-msg" role="status" data-reeval-msg="1">' + esc(etat.messageReeval) + '</p>';
-    if (etat.role !== 'manager' && etat.incoherences && etat.incoherences.length) h += '<div class="pt-integrite sc-note" role="alert">Incohérence dans les registres tarifaires : ' + plur(etat.incoherences.length, 'ligne', 'lignes') + ' à corriger.</div>';
-    familles(a).forEach(function (fa) {
-      h += '<section class="vp-bloc pt-famille" data-famille="' + fa.id + '"><h3 class="nbe-groupe-titre">' + esc(fa.titre) + '</h3>' +
+    var carte = function (id) {
+      var c = cs.filter(function (x) { return x.id === id; })[0];
+      return c ? '<div class="sc-ind ' + couleur[c.id] + '" data-carte="' + c.id + '"><span class="sc-ind-val">' + esc(c.valeur) + '</span><span class="sc-ind-lib">' + esc(c.titre) + '</span><span class="sc-ind-sous">' + esc(c.secondaire) + '</span></div>' : '';
+    };
+    var cm = carteMarge(a), sc = scenarios(a);
+    var fam = {}; familles(a).forEach(function (fa) { fam[fa.id] = fa; });
+    var htmlFamille = function (id) {
+      var fa = fam[id]; if (!fa) return '';
+      return '<section class="vp-bloc pt-famille" data-famille="' + fa.id + '"><h3 class="nbe-groupe-titre">' + esc(fa.titre) + '</h3>' +
         (fa.id === 'exceptions' ? '<p class="sc-note">Décisions du gérant : elles ne sont pas des anomalies.</p>' : '') +
         '<div class="sc-cartes">' + fa.cartes.map(function (x) { return htmlControle(x, etat.icone); }).join('') + '</div>' + (fa.id === 'decisions' && etat.margePlus ? etat.margePlus : '') + '</section>';
-    });
-    h += htmlHistorique(etat);
-    h += '<div class="vp-bloc sc-tout"><h3>Toutes les références</h3><div class="vp-filtres"><label class="pt-f pt-f-rech"><span class="sc-methode">Recherche</span><input type="search" id="ptRecherche" placeholder="Nom ou code-barres" value="' + esc(f.recherche || '') + '"></label>' +
+    };
+    // Panneau Contrôler : ce qu'il reste à examiner.
+    var pC = '<div class="sc-inds pt-inds">' + carte('marge_negative') + carte('a_verifier') + '</div>';
+    pC += htmlBlocControles(etat);
+    if (etat.messageReeval) pC += '<p class="sc-note pt-reeval-msg" role="status" data-reeval-msg="1">' + esc(etat.messageReeval) + '</p>';
+    if (etat.role !== 'manager' && etat.incoherences && etat.incoherences.length) pC += '<div class="pt-integrite sc-note" role="alert">Incohérence dans les registres tarifaires : ' + plur(etat.incoherences.length, 'ligne', 'lignes') + ' à corriger.</div>';
+    pC += htmlFamille('pertes');
+    // Panneau Analyser : comprendre les chiffres et les références.
+    var pA = '<div class="sc-inds pt-inds"><div class="sc-ind sc-info" data-carte="marge_estimee"><span class="sc-ind-val">' + esc(cm.valeur) + '</span><span class="sc-ind-lib">' + esc(cm.titre) + ' : ' + esc(cm.unite) + '</span><span class="sc-ind-sous">' + esc(cm.secondaire) + '</span></div><p class="sc-note">' + esc(cm.limite) + '</p></div>';
+    pA += htmlFamille('fiabilite');
+    pA += '<div class="vp-bloc sc-tout"><h3>Toutes les références</h3><div class="vp-filtres"><label class="pt-f pt-f-rech"><span class="sc-methode">Recherche</span><input type="search" id="ptRecherche" placeholder="Nom ou code-barres" value="' + esc(f.recherche || '') + '"></label>' +
       '<details class="pt-filtres" data-filtres-panneau="1"' + (etat.filtresOuverts ? ' open' : '') + '><summary><span class="sc-nom">Filtres (' + nbFiltres(f) + ')</span><span class="sc-chev"></span></summary><div class="pt-filtres-corps">' +
       lab('Famille', 'famille', opts(vf.famille, f.famille)) + lab('Rayon', 'rayon', opts(vf.rayon, f.rayon)) +
       lab('Statut', 'statut', opts(Object.keys(LIB_STATUT), f.statut, LIB_STATUT)) +
@@ -773,22 +1045,43 @@
       lab('Exception', 'exception', '<option value="">Toutes</option><option value="avec"' + (f.exception === 'avec' ? ' selected' : '') + '>Avec exception</option><option value="sans"' + (f.exception === 'sans' ? ' selected' : '') + '>Sans exception</option>') +
       '</div></details>' +
       (f.alerte ? '<button type="button" class="detail-btn" data-effacer="alerte">Alerte ' + esc(f.alerte) + ' ×</button>' : '') + '</div>';
-    h += '<ul class="vp-liste">' + visibles.map(htmlLigne).join('') + '</ul>';
-    if (!toutes) h += '<div class="empty-panel">Aucune référence ne correspond à ces filtres.</div>';
-    if (toutes > visibles.length) h += '<button type="button" class="detail-btn vp-plus" data-plus="1">Voir les ' + (toutes - visibles.length) + ' autres références</button>';
-    h += '</div>';
+    pA += '<ul class="vp-liste">' + visibles.map(htmlLigne).join('') + '</ul>';
+    if (!toutes) pA += '<div class="empty-panel">Aucune référence ne correspond à ces filtres.</div>';
+    if (toutes > visibles.length) pA += '<button type="button" class="detail-btn vp-plus" data-plus="1">Voir les ' + (toutes - visibles.length) + ' autres références</button>';
+    pA += '</div>';
     var pr = preuves(a);
-    if (pr.length) h += '<details class="sc-carte pt-preuves"><summary><span class="sc-nom">Preuves techniques (' + pr.length + ')</span><span class="sc-chev"></span></summary>' + pr.map(function (p) { return '<div class="sc-methode">' + esc(p.article) + ' : ' + esc(p.mention) + (p.raisons.length ? ' (' + esc(p.raisons.join(', ')) + ')' : '') + '</div>'; }).join('') + '</details>';
-    h += '<details class="sc-carte pt-sources"><summary><span class="sc-nom">Sources et limites</span><span class="sc-chev"></span></summary>' + cs.map(function (x) {
+    if (pr.length) pA += '<details class="sc-carte pt-preuves"><summary><span class="sc-nom">Preuves techniques (' + pr.length + ')</span><span class="sc-chev"></span></summary>' + pr.map(function (p) { return '<div class="sc-methode">' + esc(p.article) + ' : ' + esc(p.mention) + (p.raisons.length ? ' (' + esc(p.raisons.join(', ')) + ')' : '') + '</div>'; }).join('') + '</details>';
+    pA += '<details class="sc-carte pt-sources"><summary><span class="sc-nom">Sources et limites</span><span class="sc-chev"></span></summary>' + cs.map(function (x) {
       return '<p class="sc-methode"><b>' + esc(x.titre) + '</b> : ' + esc(x.unite) + '. ' + esc(x.periode) + '. ' + esc(x.source) + ' ' + esc(x.limite) + '</p>';
     }).join('') + '</details>';
+    // Panneau Décider : pistes indicatives, jamais une décision tarifaire.
+    var pD = '<p class="sc-note pt-pistes" data-pistes="1"><b>Pistes indicatives</b>. ' + esc(NOTE_PISTES) + '</p>';
+    pD += '<div class="sc-inds pt-inds">' + carte('propositions') + carte('non_constates') + '</div>';
+    pD += '<details class="sc-carte pt-scenarios"><summary><span class="sc-nom">Scénarios de gain</span><span class="sc-chev"></span></summary><p class="sc-note">' + sc.map(function (x) { return esc(x.libelle) + ' : ' + esc(eur0(x.fiable)); }).join(' · ') + ' (scénarios alternatifs, jamais additionnés).</p></details>';
+    if (a.lignes.length && a.lignes.every(function (l) { return !l.regle; })) pD += '<p class="sc-note">Aucun seuil validé : toutes les références restent sans seuil validé.</p>';
+    pD += htmlFamille('decisions') + htmlFamille('exceptions');
+    // Panneau Suivre : historique des vérifications.
+    var pS = htmlHistorique(etat) || '<p class="sc-note">L\'historique des vérifications n\'est pas disponible.</p>';
+    var ax = axeCourant(etat), cpt = compteursAxes(a, etat), panneaux = { controler: pC, analyser: pA, decider: pD, suivre: pS };
+    h += '<div class="pt-axes" role="tablist" aria-label="Axes du Scanner" data-axes="1">' + AXES.map(function (x) {
+      var on = x.id === ax;
+      return '<button type="button" role="tab" class="pt-axe' + (on ? ' on' : '') + '" id="ptAxe_' + x.id + '" data-axe-onglet="' + x.id + '" aria-selected="' + (on ? 'true' : 'false') + '" aria-controls="ptPan_' + x.id + '" tabindex="' + (on ? '0' : '-1') + '">' +
+        '<span class="pt-axe-nom">' + x.nom + '</span><span class="pt-axe-n">' + esc(cpt[x.id].valeur) + '</span><span class="pt-axe-l">' + esc(cpt[x.id].lib) + '</span></button>';
+    }).join('') + '</div>';
+    h += AXES.map(function (x) {
+      return '<div class="pt-axe-pan" role="tabpanel" id="ptPan_' + x.id + '" data-axe-panneau="' + x.id + '" aria-labelledby="ptAxe_' + x.id + '"' + (x.id === ax ? '' : ' hidden') + '>' + panneaux[x.id] + '</div>';
+    }).join('');
     if (etat.ouverte) { var l = a.lignes.filter(function (x) { return x.article === etat.ouverte; })[0]; if (l) h += htmlFiche(l, etat); }
     return h;
   }
 
-  var CSS = '.vue-p1c .pt-inds{grid-template-columns:repeat(2,1fr)}@media (min-width:900px){.vue-p1c .pt-inds{grid-template-columns:repeat(4,1fr)}}' +
+  var CSS = '.vue-p1c .pt-axes{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:12px 0}.vue-p1c .pt-axe{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:2px;min-height:60px;padding:8px 10px;background:var(--t-panel);color:var(--t-text);border:1px solid var(--t-line);border-radius:14px;cursor:pointer;text-align:left;font:inherit}' +
+    '.vue-p1c .pt-axe.on{border:1.5px solid var(--t-text);background:rgba(34,211,238,.12)}.vue-p1c .pt-axe:focus-visible{outline:2px solid var(--t-text);outline-offset:2px}.vue-p1c .pt-axe-nom{font-weight:600;font-size:14px}.vue-p1c .pt-axe-n{font-size:18px;font-weight:700}.vue-p1c .pt-axe-l{font-size:11px;color:var(--t-mid)}.vue-p1c .pt-axe-pan[hidden]{display:none}' +
+    '@media (min-width:900px){.vue-p1c .pt-axes{grid-template-columns:repeat(4,1fr)}.vue-p1c .pt-axe{min-height:110px;padding:14px}}' +
+    '.vue-p1c .pt-inds{grid-template-columns:repeat(2,1fr)}@media (min-width:900px){.vue-p1c .pt-inds{grid-template-columns:repeat(4,1fr)}}' +
     '.vue-p1c .pt-badges{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}.vue-p1c .pt-pol{margin:8px 0}.vue-p1c .pt-pol-l{display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:2px 0}' +
-    '.vue-p1c details.pt-filtres[open]>summary .sc-chev{transform:rotate(45deg)}.vue-p1c details.pt-histo-sec[open]>summary .sc-chev{transform:rotate(45deg)}.vue-p1c .pt-histo-sec>summary{min-height:44px;display:flex;align-items:center;justify-content:space-between;cursor:pointer}.vue-p1c .pt-histo-reset{margin:6px 0}.vue-p1c .pt-histo-plus{margin:6px 0}.vue-p1c .pt-ctrl .vp-liste{margin:8px 0}.vue-p1c .pt-f{display:flex;flex-direction:column;gap:2px;min-width:0}.vue-p1c .pt-f select,.vue-p1c .pt-f input{min-height:44px;border-radius:8px;border:1px solid var(--t-line);background:var(--t-panel);color:var(--t-text);font:inherit;padding:0 8px}.vue-p1c .pt-f-rech{flex:1 1 100%}.vue-p1c .pt-f:not(.pt-f-rech){flex:1 1 140px}.vue-p1c .pt-scenarios{margin:8px 0}.vue-p1c .pt-aucun{margin:4px 0 0}.vue-p1c .sc-conseiller{margin:0 0 10px}.vue-p1c .pt-histo-t{display:flex;align-items:center;gap:6px}.vue-p1c .pt-histo-txt{flex:1;min-width:0}.vue-p1c .pt-li{display:flex;align-items:center;gap:6px}.vue-p1c .pt-li .vp-ligne-prod{flex:1;min-width:0}.vue-p1c .pt-li .pt-info{flex:none}.vue-p1c .pt-ctl{list-style:none;padding:10px 0;border-top:1px solid var(--t-line)}.vue-p1c .pt-ctl-2,.vue-p1c .pt-ctl-3{margin:4px 0}.vue-p1c .pt-ctl .pt-verifier{width:100%;min-height:44px;margin-top:8px}.vue-p1c .pt-ctl-titre{margin:0 0 8px}.vue-p1c .pt-controles-faire{margin:14px 0 10px}.vue-p1c .pt-bloc-controles{margin:10px 0}.vue-p1c .pt-ctl-outils{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}.vue-p1c .pt-ctl-cycles{border:0;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:4px 12px}.vue-p1c .pt-carte-ctl{text-align:left;font:inherit;cursor:pointer;width:100%;border:1px solid var(--t-line);background:var(--t-panel);color:var(--t-text);min-height:44px}.vue-p1c .pt-com-lien{background:none;border:0;padding:0 2px;min-height:44px;font:inherit;font-size:13px;color:var(--accent,inherit);text-decoration:underline;cursor:pointer}.vue-p1c input[type=checkbox]{accent-color:var(--accent)}.vue-p1c .pt-chk{display:inline-flex;align-items:center;gap:6px;min-height:44px}.vue-p1c .pt-verif-champ{margin-top:8px}.vue-p1c .pt-verif-zone{display:flex;flex-direction:column;gap:4px}.vue-p1c .pt-verif-com{width:100%;box-sizing:border-box;min-height:64px;border-radius:8px;border:1px solid var(--t-line);background:var(--t-panel);color:var(--t-text);font:inherit;padding:8px;resize:vertical}.vue-p1c .pt-verif-n{align-self:flex-end}.vue-p1c .pt-fond{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:40}.vue-p1c .pt-fiche{position:fixed;z-index:41;background:var(--t-panel);overflow:auto;box-sizing:border-box;left:0;right:0;bottom:0;max-height:85vh;border-radius:16px 16px 0 0;padding:12px 16px 24px}@media (min-width:900px){.vue-p1c .pt-fiche{left:auto;top:0;bottom:0;right:0;width:420px;max-height:none;border-radius:0}}.vue-p1c .pt-fiche-tete{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}.vue-p1c .pt-fermer{min-height:44px}.vue-p1c .pt-marge-l1{display:block;color:var(--t-text)}.vue-p1c .pt-marge-prin{color:var(--t-text);font-family:var(--t-mono);font-weight:700;font-size:17px}.vue-p1c .pt-marge-sec{display:block;color:var(--t-mid);font-family:var(--t-mono);font-size:12px}.vue-p1c .vp-filtres{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start}.vue-p1c .pt-filtres{flex:1 1 100%}.vue-p1c .pt-filtres>summary{min-height:44px;display:flex;align-items:center;justify-content:space-between;cursor:pointer}.vue-p1c .pt-filtres-corps{display:flex;flex-wrap:wrap;gap:8px}@media (min-width:900px){.vue-p1c .pt-filtres-corps{flex-wrap:wrap}.vue-p1c .pt-filtres-corps>.pt-f{flex:1 1 160px;min-width:0}}@media (max-width:599px){.vue-p1c .sc-conseiller .conseiller-avatar{width:48px;height:48px}.vue-p1c .sc-ind{padding:10px 12px}.vue-p1c .sc-ind-val{font-size:20px}}';
+    '.vue-p1c details.pt-filtres[open]>summary .sc-chev{transform:rotate(45deg)}.vue-p1c details.pt-histo-sec[open]>summary .sc-chev{transform:rotate(45deg)}.vue-p1c .pt-histo-sec>summary{min-height:44px;display:flex;align-items:center;justify-content:space-between;cursor:pointer}.vue-p1c .pt-histo-reset{margin:6px 0}.vue-p1c .pt-histo-plus{margin:6px 0}.vue-p1c .pt-ctrl .vp-liste{margin:8px 0}.vue-p1c .pt-f{display:flex;flex-direction:column;gap:2px;min-width:0}.vue-p1c .pt-f select,.vue-p1c .pt-f input{min-height:44px;border-radius:8px;border:1px solid var(--t-line);background:var(--t-panel);color:var(--t-text);font:inherit;padding:0 8px}.vue-p1c .pt-f-rech{flex:1 1 100%}.vue-p1c .pt-f:not(.pt-f-rech){flex:1 1 140px}.vue-p1c .pt-scenarios{margin:8px 0}.vue-p1c .pt-aucun{margin:4px 0 0}.vue-p1c .sc-conseiller{margin:0 0 10px}.vue-p1c .pt-histo-t{display:flex;align-items:center;gap:6px}.vue-p1c .sc-conseil-ligne{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px}.vue-p1c .sc-conseil-ligne .sc-conseil{margin:0;flex:1 1 220px;max-width:100%}.sc-conseil-plus{display:inline}.sc-conseil-plus>summary{display:inline-flex;list-style:none;cursor:pointer}.sc-conseil-plus>summary::-webkit-details-marker{display:none}.sc-conseil-plus[open]>span{display:block}.sc-conseiller .sc-conseil{overflow-wrap:anywhere}@media(min-width:900px){.sc-conseiller .sc-conseil:not(:has(details[open])){white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}.vue-p1c .sc-conseiller{padding-top:8px;padding-bottom:8px;align-items:center}.vue-p1c .sc-conseiller .conseiller-avatar{width:32px;height:32px}.vue-p1c .pt-histo-suivi{display:block;margin-top:2px}.vue-p1c .pt-histo-txt{flex:1;min-width:0}.vue-p1c .pt-li{display:flex;align-items:center;gap:6px}.vue-p1c .pt-li .vp-ligne-prod{flex:1;min-width:0}.vue-p1c .pt-li .pt-info{flex:none}.vue-p1c .pt-ctl{list-style:none;padding:10px 0;border-top:1px solid var(--t-line)}.vue-p1c .pt-ctl-2,.vue-p1c .pt-ctl-3{margin:4px 0}.vue-p1c .pt-ctl .pt-verifier{width:100%;min-height:44px;margin-top:8px}.vue-p1c .pt-ctl-titre{margin:0 0 8px}.vue-p1c .pt-controles-faire{margin:14px 0 10px}.vue-p1c .pt-bloc-controles{margin:10px 0}.vue-p1c .pt-ctl-outils{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}@media(min-width:900px){.vue-p1c .pt-ctl-outils{flex-wrap:nowrap;align-items:flex-end}.vue-p1c .pt-ctl-outils .pt-f-rech{flex:1 1 220px}.vue-p1c .pt-ctl-outils .pt-f:not(.pt-f-rech){flex:0 1 190px}.vue-p1c .pt-ctl-cycles{display:flex;flex-wrap:nowrap;align-items:center;gap:8px;border:0;padding:0;margin:0}.vue-p1c .pt-ctl-cycles legend{float:left;padding:0 4px 0 0}.vue-p1c .pt-ctl-aide{order:9}}.vue-p1c .pt-ctl-aide>summary{list-style:none;cursor:pointer}.vue-p1c .pt-ctl-aide>summary::-webkit-details-marker{display:none}.vue-p1c .pt-ctl-cycles{border:0;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:4px 12px}.vue-p1c .pt-carte-ctl{text-align:left;font:inherit;cursor:pointer;width:100%;border:1px solid var(--t-line);background:var(--t-panel);color:var(--t-text);min-height:44px}.vue-p1c .pt-com-lien{background:none;border:0;padding:0 2px;min-height:44px;font:inherit;font-size:13px;color:var(--accent,inherit);text-decoration:underline;cursor:pointer}.vue-p1c input[type=checkbox]{accent-color:var(--accent)}.vue-p1c .pt-chk{display:inline-flex;align-items:center;gap:6px;min-height:44px}.vue-p1c .pt-verif-champ{margin-top:8px}.vue-p1c .pt-verif-zone{display:flex;flex-direction:column;gap:4px}.vue-p1c .pt-verif-com{width:100%;box-sizing:border-box;min-height:64px;border-radius:8px;border:1px solid var(--t-line);background:var(--t-panel);color:var(--t-text);font:inherit;padding:8px;resize:vertical}.vue-p1c .pt-verif-n{align-self:flex-end}.vue-p1c .pt-fond{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:40}.vue-p1c .pt-fiche{position:fixed;z-index:41;background:var(--t-panel);overflow:auto;box-sizing:border-box;left:0;right:0;bottom:0;max-height:85vh;border-radius:16px 16px 0 0;padding:12px 16px 24px}@media (min-width:900px){.vue-p1c .pt-fiche{left:auto;top:0;bottom:0;right:0;width:420px;max-height:none;border-radius:0}}.vue-p1c .pt-fiche-tete{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}.vue-p1c .pt-fermer{min-height:44px}.vue-p1c .pt-marge-l1{display:block;color:var(--t-text)}.vue-p1c .pt-marge-prin{color:var(--t-text);font-family:var(--t-mono);font-weight:700;font-size:17px}.vue-p1c .pt-marge-sec{display:block;color:var(--t-mid);font-family:var(--t-mono);font-size:12px}.vue-p1c .vp-filtres{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start}.vue-p1c .pt-filtres{flex:1 1 100%}.vue-p1c .pt-filtres>summary{min-height:44px;display:flex;align-items:center;justify-content:space-between;cursor:pointer}.vue-p1c .pt-filtres-corps{display:flex;flex-wrap:wrap;gap:8px}@media (min-width:900px){.vue-p1c .pt-filtres-corps{flex-wrap:wrap}.vue-p1c .pt-filtres-corps>.pt-f{flex:1 1 160px;min-width:0}}@media (max-width:599px){.vue-p1c .sc-conseiller .conseiller-avatar{width:48px;height:48px}.vue-p1c .sc-ind{padding:10px 12px}.vue-p1c .sc-ind-val{font-size:20px}}';
+  CSS += '.vue-p1c .pt-ctl-deux{display:block}.vue-p1c .pt-ctl-liste{list-style:none;margin:0;padding:0}.vue-p1c .pt-ctl-item{margin:0;border-top:1px solid var(--t-line)}.vue-p1c .pt-ctl-ligne{display:flex;align-items:center;gap:8px;width:100%;min-height:44px;padding:6px 10px;background:transparent;color:var(--t-text);border:0;border-left:3px solid transparent;text-align:left;font:inherit;cursor:pointer}.vue-p1c .pt-ctl-ligne>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.vue-p1c .pt-ctl-ligne{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:8px;row-gap:2px;align-items:center}.vue-p1c .pt-ctl-ligne>.pt-l-tag{flex-shrink:0;overflow:visible;text-overflow:clip;white-space:nowrap;min-width:max-content;justify-self:end}.vue-p1c .pt-ctl-ligne>.pt-l-sec{grid-column:1 / -1;font-size:.85em;opacity:.85}.vue-p1c .pt-ctl-ligne[aria-current=true]{background:var(--t-panel);border-left-color:var(--t-text)}.vue-p1c .pt-ctl-ligne:focus-visible,.vue-p1c details.pt-sources-calcul>summary:focus-visible{outline:2px solid var(--t-text);outline-offset:2px}.vue-p1c .pt-ctl-ligne:focus-visible{outline-offset:-2px}.vue-p1c .pt-detail{margin-top:12px;padding:12px;border:1px solid var(--t-line);border-radius:14px;background:var(--t-panel)}.vue-p1c .pt-detail .pt-ctl-prod{background:none;border:0;padding:0;margin:0;color:var(--t-text);font:inherit;font-weight:700;text-align:left;cursor:pointer;min-height:44px}.vue-p1c .pt-detail .pt-ctl-prod:focus-visible{outline:2px solid var(--t-text);outline-offset:2px}.vue-p1c details.pt-sources-calcul>summary{min-height:44px;display:flex;align-items:center;cursor:pointer}@media (max-width:899.98px){.vue-p1c .pt-ctl-deux[data-mode=liste]>.pt-ctl-droite{display:none}.vue-p1c .pt-ctl-deux[data-mode=detail]>.pt-ctl-gauche{display:none}.vue-p1c .pt-ctl-deux[data-mode=detail]>.pt-ctl-droite{position:fixed;top:0;right:0;bottom:0;left:0;z-index:50;overflow-y:auto;overflow-x:hidden;background:var(--t-panel);-webkit-overflow-scrolling:touch}.vue-p1c .pt-ctl-deux[data-mode=detail] .pt-detail{margin:0;min-height:100%;display:flex;flex-direction:column;border:0;border-radius:0;padding:12px 16px 0;box-sizing:border-box;max-width:100%;overflow-wrap:anywhere}.vue-p1c .pt-ctl-entete{display:flex;align-items:center;justify-content:space-between;gap:8px}.vue-p1c .pt-ctl-pos{white-space:nowrap;color:var(--t-text)}.vue-p1c .pt-ctl-retour,.vue-p1c .pt-ctl-suivant{min-height:44px;min-width:44px;margin:0 0 8px}.vue-p1c .pt-ctl-suivant[disabled]{opacity:.5}.vue-p1c .pt-actions{position:sticky;bottom:0;display:flex;gap:8px;padding:8px 0 calc(8px + env(safe-area-inset-bottom,0px));margin-top:auto;background:var(--t-panel);border-top:1px solid var(--t-line)}.vue-p1c .pt-actions>button{flex:1 1 0;min-height:44px}.vue-p1c .pt-ctl-retour:focus-visible,.vue-p1c .pt-actions>button:focus-visible{outline:2px solid var(--t-text);outline-offset:2px}}@media (min-width:900px){.vue-p1c .pt-ctl-retour,.vue-p1c .pt-ctl-suivant{display:none}.vue-p1c .pt-actions{display:block}.vue-p1c .pt-ctl-deux{display:grid;grid-template-columns:46% 1fr;gap:16px;align-items:start}.vue-p1c .pt-ctl-ligne{min-height:52px;padding:4px 10px}.vue-p1c .pt-ctl-deux>.pt-ctl-droite{position:sticky;top:8px;align-self:start;max-height:calc(100vh - 16px);overflow-y:auto}.vue-p1c .pt-detail{margin-top:0}}';
 
   // ---------- Montage : lecture seule, session de la personne connectée, clé publique, aucun paramètre de site ----------
   var VUES = { familles: 'v_tarif_familles_actifs', rattachements: 'v_tarif_rattachements_actifs', seuils: 'v_tarif_seuils_actifs', reglages: 'v_tarif_reglages_actifs',
@@ -872,11 +1165,11 @@
       return { fourni: true, lignes: lignesStockDepuisLot(rows), lot: { id: lot.id, dateReleve: lot.date_releve ? String(lot.date_releve).slice(0, 10) : null, fichierHash: lot.fichier_hash || null } };
     } catch (e) { return { fourni: false, erreur: true }; }
   }
-  var API = { nombreReleve: nombreReleve, lotStockPublie: lotStockPublie, lignesStockDepuisLot: lignesStockDepuisLot, chargerStockPublie: chargerStockPublie, TVA_CONFIRMATIONS_PILOTE: TVA_CONFIRMATIONS_PILOTE, cartes: cartes, scenarios: scenarios, alertesCartes: alertesCartes, trier: trier, filtrer: filtrer, valeursFiltres: valeursFiltres,
-    preuves: preuves, conseiller: conseiller, lierOuvertures: lierOuvertures, fiche: fiche, etatAcces: etatAcces, peutVoirOnglet: peutVoirOnglet, filtrerSite: filtrerSite,
+  var API = { estDemarque: estDemarque, lignesControle: lignesControle, nombreReleve: nombreReleve, lotStockPublie: lotStockPublie, lignesStockDepuisLot: lignesStockDepuisLot, chargerStockPublie: chargerStockPublie, TVA_CONFIRMATIONS_PILOTE: TVA_CONFIRMATIONS_PILOTE, cartes: cartes, scenarios: scenarios, alertesCartes: alertesCartes, trier: trier, filtrer: filtrer, valeursFiltres: valeursFiltres,
+    preuves: preuves, conseiller: conseiller, lierOuvertures: lierOuvertures, effetVerificationEnregistree: effetVerificationEnregistree, annulerVerification: annulerVerification, motifAnnulationValide: motifAnnulationValide, messageErreurAnnulation: messageErreurAnnulation, fiche: fiche, etatAcces: etatAcces, peutVoirOnglet: peutVoirOnglet, filtrerSite: filtrerSite,
     regimeDe: regimeDe, contexteDeclaratif: contexteDeclaratif, construireContexteTarif: construireContexteTarif, stockParLibelle: stockParLibelle, controle: controle, familles: familles, avertissementRegime: avertissementRegime, infoRegime: infoRegime, badgeRegime: badgeRegime, badgeLigne: badgeLigne, blocFiche: blocFiche,
     chargerRegistres: chargerRegistres, chargerVerifications: chargerVerifications, historiqueLignes: historiqueLignes, htmlHistorique: htmlHistorique, chargerVentes: chargerVentes, lireCompte: lireCompte, libellePeriode: libellePeriode,
-    reevaluationsAEcrire: reevaluationsAEcrire, enregistrerReevaluations: enregistrerReevaluations, htmlPage: htmlPage, htmlControlesAFaire: htmlControlesAFaire, htmlDetailHistorique: htmlDetailHistorique, htmlLigne: htmlLigne, htmlControle: htmlControle, htmlFiche: htmlFiche, carteMarge: carteMarge, htmlMarge: htmlMarge, ficheMarge: ficheMarge, peutVerifier: peutVerifier, commentaireValide: commentaireValide, messageApresEcriture: messageApresEcriture, messageErreurEcriture: messageErreurEcriture, payloadVerification: payloadVerification, LIMITE_COMMENTAIRE: LIMITE_COMMENTAIRE, graviteLigne: graviteLigne, CSS: CSS };
+    reevaluationsAEcrire: reevaluationsAEcrire, enregistrerReevaluations: enregistrerReevaluations, htmlPage: htmlPage, htmlControlesAFaire: htmlControlesAFaire, htmlDetailHistorique: htmlDetailHistorique, htmlLigne: htmlLigne, htmlControle: htmlControle, htmlFiche: htmlFiche, carteMarge: carteMarge, AXES: AXES, NOTE_PISTES: NOTE_PISTES, axeCourant: axeCourant, compteursAxes: compteursAxes, htmlMarge: htmlMarge, ficheMarge: ficheMarge, peutVerifier: peutVerifier, commentaireValide: commentaireValide, messageApresEcriture: messageApresEcriture, messageErreurEcriture: messageErreurEcriture, payloadVerification: payloadVerification, LIMITE_COMMENTAIRE: LIMITE_COMMENTAIRE, graviteLigne: graviteLigne, CSS: CSS };
   global.NexusPolitiqueTarifaireEcran = API;
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
 })(typeof window !== 'undefined' ? window : globalThis);

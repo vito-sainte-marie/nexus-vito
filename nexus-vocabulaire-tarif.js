@@ -37,7 +37,7 @@
     masque: 'peut expliquer aussi :',
     codes: {
       S1: { titre: 'Marge négative ou nulle', controle: 'Vérifier le coût de revient et le prix de vente dans Decenium.' },
-      S2: { titre: 'Coût écarté du relevé de stock', controle: 'Comparer à la dernière facture fournisseur (prix brut, remise) ; une remise mal prise en compte est une cause possible, jamais une conclusion.' },
+      S2: { titre: 'Coût écarté du relevé de stock', controle: 'Comparer à la dernière facture fournisseur (prix brut, remise).' },
       S3: { titre: 'Coût en variation', controle: 'Vérifier la dernière réception : prix, remise, quantité ; une remise mal prise en compte est une cause possible, jamais une conclusion.' },
       S4: { titre: 'Conditionnement suspect', controle: 'Vérifier l’unité d’achat et le colisage de la fiche.' },
       S5: { titre: 'Correspondance incertaine', controle: 'Vérifier la référence et ses doublons.' },

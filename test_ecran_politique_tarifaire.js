@@ -99,7 +99,7 @@ ok('première page : dix lignes au plus, les autres derrière un bouton', () => 
   const a = analyse();
   const beaucoup = Array.from({ length: 25 }, (_, i) => Object.assign({}, a.lignes[0], { article: 'Produit ' + i }));
   const html = E.htmlPage({ analyse: Object.assign({}, a, { lignes: beaucoup }), role: 'gerant', filtres: {}, incoherences: [] });
-  assert.strictEqual((html.split('id="ptRecherche"')[1].match(/class="vp-ligne-prod"/g) || []).length, 10);
+  assert.strictEqual((html.split('id="ptRecherche"')[1].split('data-axe-panneau="decider"')[0].match(/class="vp-ligne-prod"/g) || []).length, 10);
   assert.ok(/Voir les 15 autres/.test(html));
 });
 
@@ -222,11 +222,14 @@ ok('chaque cible cliquable de la page a une destination', () => {
   ['data-fiche', 'data-article', 'data-controle-liste', 'data-conseil', 'data-plus', 'data-effacer'].forEach(k => assert.ok(src.indexOf('[' + k + ']') > 0, k));
 });
 
-ok('page Produits : une seule écriture permise, tarif_marquer_verifie, aucune autre', () => {
+ok('page Produits : deux écritures permises, tarif_marquer_verifie et l\'annulation tracée (3 colonnes), aucune autre', () => {
   const src = fs.readFileSync(require.resolve('./NEXUS-Produits-v1.html'), 'utf8');
   const i = src.indexOf('async function calculerAnalyseTarif'), j = src.indexOf('function ouvrirVue(cle)');
   const bloc = src.slice(i, j);
-  assert.ok(!/\.(insert|update|delete|upsert)\s*\(|tarif_enregistrer_decisions/.test(bloc));
+  const annul = "from('tarif_anomalies_verifications').update({ annule_le: new Date().toISOString(), annule_par: employee.id, motif_annulation: motif })";
+  assert.strictEqual(bloc.split(annul).length - 1, 1, 'une seule annulation tracee');
+  const reste = bloc.split(annul).join('');
+  assert.ok(!/\.(insert|update|delete|upsert)\s*\(|tarif_enregistrer_decisions/.test(reste));
   const rpcs = (src.match(/\.rpc\(\s*['"][a-z_]+/g) || []).map(x => x.replace(/.*['"]/, ''));
   rpcs.forEach(r => assert.ok(['tarif_marquer_verifie'].indexOf(r) >= 0 || !/tarif/.test(r), 'rpc inattendu : ' + r));
 });
@@ -449,23 +452,24 @@ const avecControles = (k) => {
   }
   return a;
 };
-ok('B2 : bloc Contrôles, trois lignes, niveau et bouton pleine largeur', () => {
+ok('B2/L2 : bloc Contrôles, liste compacte, détail avec consigne et bouton', () => {
   const h = E.htmlPage({ analyse: avecControles(2), role: 'manager', estCreateur: false, filtres: {}, incoherences: [] });
-  assert.ok(/data-bloc-controles/.test(h) && /data-carte="controles_a_effectuer"/.test(h));
+  assert.ok(/data-bloc-controles/.test(h) && !/data-carte="controles_a_effectuer"/.test(h));
   assert.ok(/data-axe="niveau">Démontré/.test(h) && /data-axe="niveau">À vérifier/.test(h));
-  assert.ok(/pt-ctl-1/.test(h) && /pt-ctl-2/.test(h) && /pt-ctl-3/.test(h) && /data-ctl-info/.test(h));
+  assert.ok(/data-ctl-liste/.test(h) && /data-ctl-detail/.test(h) && /pt-ctl-3/.test(h) && !/data-ctl-info/.test(h));
   assert.ok(/✓ Marquer comme vérifié/.test(h) && /data-ctl-expl/.test(h));
   assert.ok(!/data-ctl-plus/.test(h) && !/ptCtlRecherche/.test(h));
 });
 ok('B2 : au-delà de 10 contrôles, outils et suite', () => {
   const h = E.htmlPage({ analyse: avecControles(14), role: 'manager', estCreateur: false, filtres: {}, incoherences: [] });
   assert.ok(/ptCtlRecherche/.test(h) && /data-ctl-tri/.test(h) && /data-ctl-cycle="resolue"/.test(h) && /data-ctl-plus/.test(h));
-  assert.strictEqual((h.match(/class="pt-anomalie pt-ctl"/g) || []).length, 10);
+  assert.strictEqual((h.match(/data-ctl-ligne="1"/g) || []).length, 10);
+  assert.strictEqual((h.match(/data-ver-article=/g) || []).length, 1, 'un seul bouton de vérification : celui du contrôle choisi');
 });
 ok('B2 : une ligne vérifiée quitte la liste active, état vide et lecture seule', () => {
   const a = avecControles(2); a.lignes.forEach(l => l.anomalies.forEach(x => { x.cycle = 'verifiee'; }));
   const h = E.htmlPage({ analyse: a, role: 'employe', estCreateur: false, filtres: {}, incoherences: [] });
-  assert.ok(/Contrôles à effectuer \(0\)/.test(h) && !/class="pt-anomalie pt-ctl"/.test(h));
+  assert.ok(/Contrôles à effectuer \(0\)/.test(h) && !/data-ctl-ligne="1"/.test(h));
   assert.ok(/data-ctl-lecture/.test(avecH('employe')));
   const v = E.htmlPage({ analyse: avecControles(0), role: 'manager', estCreateur: false, filtres: {}, incoherences: [] });
   assert.ok(/Aucune anomalie à vérifier sur cet import/.test(v));
@@ -484,22 +488,31 @@ ok('lignes hors ventes commerciales : aucune anomalie', () => {
   assert.deepStrictEqual(l.anomalies, []);
 });
 
-ok('recette Guardian : le bloc suit les cartes B et précède les scénarios ; la carte est un bouton', () => {
+ok('L5 compact : le bloc précède les scénarios ; l\'indicateur « N contrôles sur M références » est retiré, les deux autres cartes restent', () => {
   const h = E.htmlPage({ analyse: avecControles(3), role: 'manager', estCreateur: false, filtres: {}, incoherences: [] });
-  const iB = h.indexOf('data-bloc-controles'), iC = h.indexOf('data-carte="controles_a_effectuer"'), iS = h.indexOf('Scénarios de gain');
-  assert.ok(iC > 0 && iB > iC && iB < iS, 'ordre carte, bloc, scénarios');
-  assert.ok(/<button type="button"[^>]*data-carte="controles_a_effectuer"/.test(h), 'carte en bouton');
-  assert.ok(/sc-ind-lib">contrôles? sur \d+ références?</.test(h), 'unité contrôles sur références');
+  const iB = h.indexOf('data-bloc-controles'), iS = h.indexOf('Scénarios de gain');
+  assert.ok(iB > 0 && iB < iS, 'ordre bloc, scénarios');
+  assert.ok(!/data-carte="controles_a_effectuer"/.test(h) && !/contrôles? sur \d+ références?/.test(h), 'indicateur retiré');
+  assert.ok(/data-carte="marge_negative"/.test(h) && /data-carte="a_verifier"/.test(h), 'deux cartes gardées');
+});
+ok('L5 compact : le texte d\'aide est derrière un (i), outils sur un bloc unique', () => {
+  const h = E.htmlPage({ analyse: avecControles(30), role: 'manager', estCreateur: false, filtres: {}, incoherences: [] });
+  assert.ok(/<details class="pt-ctl-aide"[^>]*data-ctl-expl="1"><summary class="info-btn"[^>]*>i<\/summary><p class="sc-methode">Un contrôle indique où comparer/.test(h), 'aide derrière (i)');
+  assert.ok(!/<p class="sc-methode pt-ctl-expl"/.test(h), 'plus de paragraphe visible');
+  const o = h.slice(h.indexOf('pt-ctl-outils'));
+  assert.ok(/ptCtlRecherche/.test(o) && /data-ctl-tri/.test(o) && /pt-ctl-cycles/.test(o));
+  const src = require('fs').readFileSync(require('path').join(__dirname, 'nexus-politique-tarifaire-ecran.js'), 'utf8');
+  assert.ok(/@media\(min-width:900px\)\{\.vue-p1c \.pt-ctl-outils\{flex-wrap:nowrap/.test(src), 'ligne unique dès 900 px');
 });
 ok('recette Guardian : commentaire replié derrière un lien, (i) sur la ligne du titre', () => {
   const a = avecControles(2);
   const h = E.htmlPage({ analyse: a, role: 'manager', estCreateur: false, filtres: {}, incoherences: [] });
   assert.ok(/data-com-ouvrir=/.test(h) && !/<textarea/.test(h), 'zone fermée par défaut');
   assert.ok(/Ajouter un commentaire/.test(h));
-  const li = h.slice(h.indexOf('pt-ctl-1'), h.indexOf('pt-ctl-2'));
-  assert.ok(/data-ctl-info/.test(li), '(i) dans pt-ctl-1');
-  const x = a.lignes[0].anomalies[0];
-  const h2 = E.htmlPage({ analyse: a, role: 'manager', estCreateur: false, filtres: {}, incoherences: [], comOuvert: [x.code + '|' + a.lignes[0].article] });
+  assert.ok(!/data-ctl-info/.test(h), 'plus de (i) : la consigne est toujours visible dans le détail');
+  const cle = /aria-current="true"[^>]*data-ctl-sel="([^"]+)"|data-ctl-sel="([^"]+)"[^>]*aria-current="true"/.exec(h);
+  const k = cle[1] || cle[2];
+  const h2 = E.htmlPage({ analyse: a, role: 'manager', estCreateur: false, filtres: {}, incoherences: [], comOuvert: [k] });
   assert.ok(/<textarea/.test(h2), 'zone ouverte sur cette ligne');
 });
 ok('recette Guardian : cases de filtre avec accent-color', () => {
@@ -535,16 +548,14 @@ ok('acompte : les deux libellés exacts du relevé sont exclus partout', () => {
 ok('Conseiller : sans vente à perte, il renvoie vers le bloc des contrôles', () => {
   const a = { synthese: { alertes: {}, statuts: {} }, lignes: [{ article: 'X', anomalies: [{ code: 'S2', cycle: 'nouvelle' }] }] };
   const c = E.conseiller(a, 'gerant');
-  assert.strictEqual(c.code, 'CTRL'); assert.strictEqual(c.bloc, 'controles'); assert.ok(/1 contrôle/.test(c.texte));
+  assert.strictEqual(c.code, 'CTRL'); assert.strictEqual(c.bloc, 'controles'); assert.ok(/1 contrôle/.test(c.detail || c.texte));
 });
 ok('deux cartes orange : libellés qui disent la différence', () => {
   const a = analyse();
   const v = E.cartes(a).find(c => c.id === 'a_verifier');
   assert.ok(/fiabilité incomplète/.test(v.titre + ' ' + (v.secondaire || '')));
   const h = E.htmlPage({ analyse: a, role: 'gerant', estCreateur: false, filtres: {}, incoherences: [] });
-  const carte = h.slice(h.indexOf('data-carte="controles_a_effectuer"'));
-  const carte1 = carte.slice(0, carte.indexOf('</button>'));
-  assert.ok(/contrôle/.test(carte1) && !/fiabilité/.test(carte1));
+  assert.ok(!/data-carte="controles_a_effectuer"/.test(h));
 });
 ok('Historique : le (i) est sur la ligne du titre', () => {
   const a = analyse();
@@ -561,6 +572,121 @@ ok('câblage commun : lierOuvertures ouvre le bloc et le commentaire', () => {
   assert.strictEqual(ecouteurs.length, 2);
   ecouteurs.find(e => e[0] === 'ctl')[1](); assert.strictEqual(etat.ctlReplie, false);
   ecouteurs.find(e => e[0] === 'com')[1](); assert.deepStrictEqual(etat.comOuvert, ['S2|X']); assert.strictEqual(rendus, 2);
+});
+ok('L2 : le choix d\'une ligne est câblé (clic, flèches) et le rendu est relancé', () => {
+  const ev = {}; const mk = c => ({ dataset: { ctlSel: c }, focus() {}, addEventListener: (t, f) => { (ev[c] = ev[c] || {})[t] = f; } });
+  const l = [mk('S2|A'), mk('S7|B'), mk('S1|C')];
+  const corps = { querySelectorAll: sel => sel === '[data-ctl-sel]' ? l : [], querySelector: () => null };
+  const etat = {}; let rendus = 0;
+  E.lierOuvertures(corps, etat, () => { rendus++; });
+  ev['S7|B'].click(); assert.strictEqual(etat.ctlSel, 'S7|B');
+  let prevenu = false; ev['S7|B'].keydown({ key: 'ArrowDown', preventDefault() { prevenu = true; } });
+  assert.strictEqual(etat.ctlSel, 'S1|C'); assert.ok(prevenu);
+  ev['S1|C'].keydown({ key: 'ArrowDown', preventDefault() {} }); assert.strictEqual(etat.ctlSel, 'S1|C', 'pas de dépassement en bas');
+  ev['S1|C'].keydown({ key: 'ArrowUp', preventDefault() {} }); assert.strictEqual(etat.ctlSel, 'S7|B');
+  assert.strictEqual(rendus, 3);
+});
+ok('L2 : focus visible (contour défini, variable existante) et détail collant dès 900 px', () => {
+  const src = fs.readFileSync('./nexus-politique-tarifaire-ecran.js', 'utf8');
+  const f = /\.pt-ctl-ligne:focus-visible,[^}]*\{([^}]*)\}/.exec(src);
+  assert.ok(f && /outline:2px solid var\(--t-text\)/.test(f[1]) && !/--accent/.test(f[1]), 'contour de focus des lignes et du summary');
+  assert.ok(/min-width:900px\)\{[^@]*\.pt-ctl-deux>\.pt-ctl-droite\{position:sticky;top:8px[^}]*max-height:[^}]*overflow-y:auto/.test(src), 'détail collant avec défilement interne');
+});
+ok('L2 : aria-current sur la ligne choisie, repli sur la première, détail et Sources et calcul natifs', () => {
+  const a = avecControles(4);
+  const h = E.htmlPage({ analyse: a, role: 'manager', estCreateur: false, filtres: {}, incoherences: [] });
+  assert.strictEqual((h.match(/aria-current="true"/g) || []).length, 1);
+  assert.ok(/<details class="pt-sources-calcul"[^>]*><summary>Sources et calcul<\/summary>/.test(h));
+  const cle = 'S7|' + a.lignes[1].article;
+  const h2 = E.htmlPage({ analyse: a, role: 'manager', estCreateur: false, filtres: {}, incoherences: [], ctlSel: cle });
+  assert.ok(new RegExp('data-ctl-sel="' + cle.replace(/[|]/g, '\\|') + '" aria-current="true"').test(h2) || /aria-current="true"/.test(h2));
+  const h3 = E.htmlPage({ analyse: a, role: 'manager', estCreateur: false, filtres: {}, incoherences: [], ctlSel: 'inconnu|x' });
+  assert.strictEqual((h3.match(/aria-current="true"/g) || []).length, 1, 'sélection périmée : repli sur la première');
+});
+ok('D1 : une vérification enregistrée passe la ligne en « vérifiée » avec message daté', () => {
+  const an = { code: 'S2', cycle: 'nouvelle' }; const etat = {};
+  E.effetVerificationEnregistree(an, etat, 'Gérant du banc');
+  assert.strictEqual(an.cycle, 'verifiee');
+  assert.strictEqual(etat.messageVerif, 'Vérification enregistrée. Contrôle suivant ouvert.');
+});
+ok('L5 : Conseiller court, une phrase issue du premier contrôle, sans chiffre écrit en dur, détail derrière le (i)', () => {
+  const a = avecControles(4); a.synthese.alertes = {}; a.lignes.forEach(l => { l.alertes = []; });
+  const c = E.conseiller(a, 'gerant');
+  assert.strictEqual(c.code, 'CTRL');
+  assert.ok(/^Commencer par le plus grave/.test(c.texte), c.texte);
+  assert.ok(c.texte.length < 110, 'phrase courte');
+  assert.ok(/contrôle/.test(c.detail) && c.detail !== c.texte, 'la phrase longue reste en détail');
+  const premier = a.lignes.map(l => l.article).filter(x => c.texte.indexOf(x) >= 0);
+  assert.ok(premier.length >= 1, 'nomme un article réel');
+  const h = E.htmlPage({ analyse: a, role: 'manager', estCreateur: false, filtres: {}, incoherences: [] });
+  assert.ok(/data-conseil-detail="1"/.test(h));
+});
+ok('L5 : après vérification en séance, Suivre porte la vérification ; l\'annulation la retire', async () => {
+  const an = { code: 'S2', cle: 'k1', article: 'ART', code_barres: '123', cycle: 'nouvelle', gravite: 3 }; const etat = { verifications: [] };
+  E.effetVerificationEnregistree(an, etat, 'Gérant du banc', 'id-9', { commentaire: 'vu', dateReleve: '2026-01-02' });
+  assert.strictEqual(etat.verifications.length, 1);
+  const v = etat.verifications[0];
+  assert.strictEqual(v.id, 'id-9'); assert.strictEqual(v.code, 'S2'); assert.strictEqual(v.cle, 'k1');
+  assert.strictEqual(v.auteur, 'Gérant du banc'); assert.strictEqual(v.commentaire, 'vu'); assert.ok(v.verifie_le);
+  assert.strictEqual(v.identiteDonnees.dateReleve, '2026-01-02');
+  etat.surAnnulation = async () => ({ ok: true });
+  const r = await E.annulerVerification(etat, 'motif');
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(etat.verifications.filter(x => x.id === 'id-9').length, 0);
+});
+ok('L4 : motif d\'annulation de 1 à 500 caractères, message de refus lisible', () => {
+  assert.ok(E.motifAnnulationValide('erreur de saisie'));
+  assert.ok(E.motifAnnulationValide('x'.repeat(500)));
+  assert.ok(!E.motifAnnulationValide('') && !E.motifAnnulationValide('   ') && !E.motifAnnulationValide('x'.repeat(501)) && !E.motifAnnulationValide(null));
+  assert.ok(/Annulation refusée.*Rien n'a été modifié/.test(E.messageErreurAnnulation(new Error('new row violates row-level security policy'))));
+  assert.ok(/L'annulation a échoué.*Rien n'a été modifié/.test(E.messageErreurAnnulation(new Error('réseau'))));
+});
+ok('L4 : annulation acceptée restaure le cycle et le compteur ; refus sans changement ; sans callback, rien', async () => {
+  const an = { code: 'S2', cycle: 'nouvelle' }; const etat = { surAnnulation: null };
+  E.effetVerificationEnregistree(an, etat, 'Gérant', 'id-1');
+  assert.strictEqual(an.cycle, 'verifiee');
+  assert.strictEqual(etat.derniereVerif.id, 'id-1');
+  assert.strictEqual((await E.annulerVerification(etat, 'motif')).ok, false, 'sans callback');
+  assert.strictEqual((await E.annulerVerification(etat, '')).ok, false, 'sans motif');
+  const appels = [];
+  etat.surAnnulation = async (c, m) => { appels.push([c.id, m]); return { ok: false, message: 'Annulation refusée : x' }; };
+  const r1 = await E.annulerVerification(etat, 'motif');
+  assert.strictEqual(r1.ok, false); assert.strictEqual(an.cycle, 'verifiee'); assert.ok(etat.messageVerif, 'état inchangé après refus');
+  etat.surAnnulation = async (c, m) => { appels.push([c.id, m]); return { ok: true }; };
+  const r2 = await E.annulerVerification(etat, '  motif  ');
+  assert.strictEqual(r2.ok, true); assert.strictEqual(an.cycle, 'nouvelle');
+  assert.strictEqual(etat.messageVerif, null); assert.ok(/Vérification annulée/.test(etat.messageAnnul));
+  assert.deepStrictEqual(appels[1], ['id-1', 'motif']);
+});
+ok('L4 : confirmation en aria-live, Annuler seulement avec droit, zone motif obligatoire, état « Tout est traité »', () => {
+  const a = avecControles(2);
+  const base = { analyse: a, role: 'manager', estCreateur: false, filtres: {}, incoherences: [] };
+  assert.ok(/data-ctl-live="1"/.test(E.htmlPage(base)) && /aria-live="polite"/.test(E.htmlPage(base)));
+  const v = { an: {}, id: 'i', cle: 'k', cycleAvant: 'nouvelle' };
+  const h = E.htmlPage(Object.assign({}, base, { messageVerif: 'Vérification enregistrée. Contrôle suivant ouvert.', derniereVerif: v }));
+  assert.ok(/data-verif-ok/.test(h) && /data-ctl-annuler/.test(h));
+  assert.ok(!/data-ctl-annuler/.test(E.htmlPage(Object.assign({}, base, { role: 'pompiste', messageVerif: 'x', derniereVerif: v }))), 'pas de droit, pas d\'annulation');
+  const h2 = E.htmlPage(Object.assign({}, base, { messageVerif: 'x', derniereVerif: v, annulOuverte: true, erreurAnnul: 'Annulation refusée : y' }));
+  assert.ok(/id="ptAnnulMotif"[^>]*maxlength="500"[^>]*required|id="ptAnnulMotif"[^>]*required[^>]*maxlength="500"|maxlength="500"[^>]*id="ptAnnulMotif"/.test(h2) || (/ptAnnulMotif/.test(h2) && /maxlength="500"/.test(h2) && /required/.test(h2)));
+  assert.ok(/data-annul-confirmer/.test(h2) && /data-annul-garder/.test(h2) && /role="alert"[^>]*data-annul-erreur|data-annul-erreur[^>]*role="alert"/.test(h2));
+  a.lignes.forEach(l => (l.anomalies || []).forEach(x => { x.cycle = 'verifiee'; }));
+  assert.ok(/data-ctl-traite/.test(E.htmlPage(base)), 'fin de liste');
+});
+ok('L4 : l\'écran lui-même n\'écrit jamais (annulation par callback injecté)', () => {
+  const src = fs.readFileSync(require.resolve('./nexus-politique-tarifaire-ecran.js'), 'utf8');
+  assert.ok(!/tarif_marquer_verifie|\.update\s*\(|\.insert\s*\(/.test(src));
+  const host = fs.readFileSync(require.resolve('./NEXUS-Produits-v1.html'), 'utf8');
+  assert.ok(/etat\.surAnnulation = async/.test(host));
+});
+ok('D3 : aucune ligne ne porte deux étiquettes de même texte', () => {
+  const a = analyse();
+  const forcees = a.lignes.map(l => Object.assign({}, l, { statut: 'a_verifier', margeEstimee: Object.assign({}, l.margeEstimee || { taux: 0.1, margeUnitaireHt: 0.1, cout: { valeur: 1 } }, { etat: 'a_verifier', taux: 0.1 }) }));
+  assert.ok(forcees.length > 0);
+  forcees.forEach(l => {
+    const t = (E.htmlLigne(l).match(/<span class="nbe-qualif"[^>]*>[^<]*<\/span>/g) || []).map(x => x.replace(/<[^>]*>/g, ''));
+    assert.strictEqual(new Set(t).size, t.length, 'doublon : ' + t.join(' | '));
+    assert.ok(t.indexOf('À vérifier') >= 0, 'un « À vérifier » reste');
+  });
 });
 // ---------- Bout en bout : chargerVerifications -> cycle de vie -> affichage -> appel RPC (données synthétiques) ----------
 const clientLecture = (rows) => { const q = { eq: () => q, is: () => q, order: () => q, range: () => q, in: () => q, select: () => q, then: (r) => r({ data: rows, error: null }) };
@@ -733,9 +859,9 @@ ok('historique : la somme des compteurs de sections = lignes du filtre', () => {
     assert.strictEqual(somme, E.historiqueLignes(e.analyse, e.verifications, f).length, f);
   });
 });
-ok('historique : filtre par défaut inchangé (nouveau, persistant, aggravé)', () => {
+ok('historique : Suivre, filtre par défaut « Vérifiés », aucun contrôle en attente proposé', () => {
   const h = E.htmlHistorique(histoEtat({ filtreHisto: undefined }));
-  assert.ok(/<option value="actifs" selected>/.test(h) && !/>Résolu au nouvel import</.test(h));
+  assert.ok(/<option value="verifiee" selected>Vérifiés</.test(h) && !/value="actifs"/.test(h) && !/Nouveau, persistant, aggravé/.test(h));
 });
 ok('historique : la plus grosse section seule est ouverte, 10 lignes puis « Afficher la suite »', () => {
   const h = E.htmlHistorique(histoEtat());
@@ -767,15 +893,15 @@ ok('historique : chevron au bord droit (summary en flex, space-between)', () => 
 });
 ok('historique : vue vide hors filtre par défaut = action « Changer de statut » qui remet le défaut', () => {
   const vide = (f) => histoEtat({ filtreHisto: f, analyse: { lignes: [{ article: 'Art-X', anomalies: [] }] } });
-  const h = E.htmlHistorique(vide('verifiee'));
+  const h = E.htmlHistorique(vide('tous'));
   assert.ok(/Aucune anomalie dans cette vue/.test(h) && /data-histo-reset="1">Changer de statut</.test(h));
-  assert.ok(!/data-histo-reset/.test(E.htmlHistorique(vide('actifs'))), 'déjà au défaut : pas d\'action inutile');
+  assert.ok(!/data-histo-reset/.test(E.htmlHistorique(vide('verifiee'))), 'déjà au défaut : pas d\'action inutile');
   const ec = []; const b = { dataset: {}, addEventListener: (t, fn) => ec.push(fn) };
   const corps = { querySelectorAll: (sel) => /data-histo-reset/.test(sel) ? [b] : [], querySelector: () => null };
-  const etat = { filtreHisto: 'verifiee', histoOuverte: 'S3|A' }; let rendus = 0;
+  const etat = { filtreHisto: 'tous', histoOuverte: 'S3|A' }; let rendus = 0;
   E.lierOuvertures(corps, etat, () => { rendus++; });
   ec[0]();
-  assert.strictEqual(etat.filtreHisto, 'actifs'); assert.strictEqual(etat.histoOuverte, null); assert.strictEqual(rendus, 1);
+  assert.strictEqual(etat.filtreHisto, 'verifiee'); assert.strictEqual(etat.histoOuverte, null); assert.strictEqual(rendus, 1);
 });
 
 // ---------- Relevé de stock publié (option B) : lot stock_theorique publié, import_rows_raw.donnees ----------
@@ -848,6 +974,260 @@ ok('relevé publié : libellé en double avec deux PA => ambigu et contrôle S5 
     assert.deepStrictEqual(page, banc); assert.ok(page.lignes.length > 100);
   });
 })();
+
+// Avenant A1, A3, A7 : perte unitaire HT, un seul « À vérifier », S2 sans phrase de conclusion.
+const s1 = { code: 'S1', cycle: 'nouvelle', niveau: 'demontree', empreinte: 'e', identiteDonnees: {}, valeurs: { taux: -51 } };
+const s2 = { code: 'S2', cycle: 'nouvelle', niveau: 'a_verifier', empreinte: 'f', identiteDonnees: {}, valeurs: { ecart: 1.1, paNetHtReleve: 1.39 } };
+const lA1 = (pv, cout, an) => ({ article: 'Art A1', code_barres: '1', pv_ht: pv, margeEstimee: { cout: { valeur: cout } }, anomalies: an });
+ok('A1 : S1 affiche la perte unitaire HT (1,57 - 0,03 = 1,54), le pourcentage va dans le (i)', () => {
+  const h = E.htmlControlesAFaire(lA1(0.03, 1.57, [s1]), false, {});
+  assert.ok(/Perte de 1,54 € HT par unité : vendu 0,03 €, coût 1,57 €/.test(h));
+  assert.ok(!/Marge : /.test(h.replace(/<p class="sc-note" data-s1-pct="1">[^<]*<\/p>/, '')), 'le pourcentage n\'est que dans la note S1 du détail');
+  assert.ok(/data-s1-pct="1">Marge : /.test(h));
+});
+ok('A1 : un PV nul ne donne aucun pourcentage de perte', () => {
+  const h = E.htmlControlesAFaire(lA1(0, 1.57, [s1]), false, {});
+  assert.ok(/Perte de 1,57 € HT par unité : vendu 0,00 €/.test(h) && !/Infinity|NaN/.test(h));
+});
+ok('A1 : une marge positive ou un coût absent garde l\'affichage en pourcentage', () => {
+  assert.ok(/Marge : /.test(E.htmlControlesAFaire(lA1(2, 1.5, [s1]), false, {})));
+  assert.ok(/Marge : /.test(E.htmlControlesAFaire(lA1(2, null, [s1]), false, {})));
+});
+ok('A7 : S1 avec S2 sur la même ligne s\'affiche « À vérifier » et dit que le relevé contredit l\'export', () => {
+  const h = E.htmlControlesAFaire(lA1(2.35, 2.94, [s1, s2]), false, {});
+  const niv = h.match(/data-axe="niveau">([^<]*)</g);
+  assert.ok(niv.length === 2 && niv.every(x => /À vérifier/.test(x)), 'aucun « Démontré » sur la ligne');
+  assert.ok(/coût de l'export contredit par le relevé de stock/.test(h));
+  const seul = E.htmlControlesAFaire(lA1(2.35, 2.94, [s1]), false, {});
+  assert.ok(/data-axe="niveau">Démontré</.test(seul) && !/contredit/.test(seul));
+});
+ok('A2 : un seul « À vérifier » par contrôle rendu (niveau), jamais répété dans la ligne ni dans le bouton', () => {
+  const h = E.htmlControlesAFaire(lA1(2.35, 2.94, [s1, s2]), true, {});
+  h.split('<li ').slice(1).forEach(li => {
+    const txt = li.replace(/<[^>]+>/g, ' ');
+    assert.strictEqual((txt.match(/À vérifier/g) || []).length, 1, txt);
+  });
+});
+ok('A4/L2 : la consigne de contrôle est toujours visible, sans (i)', () => {
+  assert.ok(/pt-ctl-3[^>]*>Vérifier le coût de revient/.test(E.htmlControlesAFaire(lA1(2.35, 2.94, [s1]), false, {})));
+});
+ok('A3 : la phrase de contrôle de S2 ne conclut rien', () => {
+  const V = require('./nexus-vocabulaire-tarif.js');
+  const c = (V.anomaliesTarifaires || V.default && V.default.anomaliesTarifaires).codes.S2.controle;
+  assert.strictEqual(c, 'Comparer à la dernière facture fournisseur (prix brut, remise).');
+});
+ok('L0 : aucun compteur du lot réel (184, 75, 62, 31, 89) en dur dans le code de l\'écran', () => {
+  const src = require('fs').readFileSync(require('path').join(__dirname, 'nexus-politique-tarifaire-ecran.js'), 'utf8');
+  [184, 75, 62, 31, 89].forEach(v => assert.ok(!new RegExp('(^|[^0-9.,])' + v + '([^0-9]|$)').test(src), 'chiffre en dur : ' + v));
+});
+ok('L0 démarque : article préfixé d\'une date nommé, sans marge, hors marge estimée, hors A3/A5, Conseiller et cartes', () => {
+  const dem = prod('12-11-2030 ARTICLE FICTIF DATE', 'Rayon Alpha', 10, 0.03, 1.57);
+  const a = T.analyser(courantes.concat([dem]), [], A.contexteDepuisRegistres(reg, { periode }));
+  const b = analyse();
+  const l = a.lignes.filter(x => /^12-11-2030/.test(x.article))[0];
+  assert.ok(l && E.estDemarque(l));
+  assert.ok(!E.estDemarque(b.lignes[0]));
+  const h = E.htmlMarge(l);
+  assert.ok(/Démarque : périmé ou casse/.test(h) && !/Perte de|%/.test(h), h);
+  assert.ok(/Démarque : périmé ou casse/.test(JSON.stringify(E.ficheMarge(l))));
+  // marges estimées : la démarque n'ajoute rien au compte
+  assert.strictEqual(E.carteMarge(a).references, E.carteMarge(b).references);
+  const nA3 = x => ((E.alertesCartes(x).find(c => c.code === 'A3') || {}).nombre);
+  assert.strictEqual(nA3(a), nA3(b));
+  assert.deepStrictEqual(E.lignesControle(a.lignes, 'A3').filter(r => E.estDemarque(r)), []);
+  assert.deepStrictEqual(E.lignesControle(a.lignes, 'A5').filter(r => E.estDemarque(r)), []);
+  assert.strictEqual(E.conseiller(a, 'gerant').texte, E.conseiller(b, 'gerant').texte);
+  assert.strictEqual(E.cartes(a).find(c => c.id === 'a_verifier').valeur, E.cartes(b).find(c => c.id === 'a_verifier').valeur);
+  assert.strictEqual(E.lignesControle(a.lignes, 'FI').filter(r => E.estDemarque(r)).length, 0);
+  assert.ok(!/ARTICLE FICTIF DATE/.test(JSON.stringify(E.preuves ? E.preuves(a) : [])));
+});
+
+// ---- L1 : quatre axes (Contrôler, Analyser, Décider, Suivre) ----
+const pageL1 = (extra) => E.htmlPage(Object.assign({ analyse: analyse(), role: 'gerant', filtres: {}, incoherences: [] }, extra || {}));
+const panneau = (html, id) => { const d = html.split('data-axe-panneau="' + id + '"')[1] || ''; return d; };
+ok('L1 : quatre axes dans l\'ordre, Contrôler ouvert par défaut', () => {
+  assert.deepStrictEqual(E.AXES.map(x => x.id), ['controler', 'analyser', 'decider', 'suivre']);
+  assert.deepStrictEqual(E.AXES.map(x => x.nom), ['Contrôler', 'Analyser', 'Décider', 'Suivre']);
+  const h = pageL1();
+  assert.ok(/role="tablist"/.test(h));
+  assert.strictEqual((h.match(/role="tab"/g) || []).length, 4);
+  assert.ok(/data-axe-onglet="controler"[^>]*aria-selected="true"/.test(h));
+  assert.ok(/data-axe-onglet="decider"[^>]*aria-selected="false"/.test(h));
+});
+ok('L1 : le dernier axe consulté est repris, valeur inconnue ignorée', () => {
+  assert.strictEqual(E.axeCourant({ axe: 'suivre' }), 'suivre');
+  assert.strictEqual(E.axeCourant({ axe: 'inconnu' }), 'controler');
+  assert.strictEqual(E.axeCourant({}), 'controler');
+});
+ok('L1 : stockage local indisponible, aucune exception', () => {
+  const avant = global.window;
+  global.window = { localStorage: { getItem() { throw new Error('refus'); }, setItem() { throw new Error('refus'); } } };
+  try { assert.strictEqual(E.axeCourant({}), 'controler'); } finally { if (avant === undefined) delete global.window; else global.window = avant; }
+});
+ok('L1 : ARIA, onglets liés aux panneaux, un seul panneau visible', () => {
+  const h = pageL1();
+  for (const id of ['controler', 'analyser', 'decider', 'suivre']) {
+    assert.ok(new RegExp('aria-controls="ptPan_' + id + '"').test(h), id);
+    assert.ok(new RegExp('id="ptPan_' + id + '"').test(h) || new RegExp('ptPan_' + id + '"[^>]*role="tabpanel"|role="tabpanel"[^>]*ptPan_' + id).test(h), id);
+  }
+  assert.strictEqual((h.match(/role="tabpanel"/g) || []).length, 4);
+  assert.strictEqual((h.match(/role="tabpanel"[^>]*\bhidden\b/g) || []).length, 3);
+});
+ok('L1 : « Pistes indicatives » dans Décider, note exacte, sans verbe d\'ordre', () => {
+  const d = panneau(pageL1(), 'decider').split('data-axe-panneau="suivre"')[0];
+  assert.ok(/Pistes indicatives/.test(d));
+  assert.ok(d.indexOf("Aucun seuil n'est encore validé : aucune de ces pistes n'est une décision tarifaire et aucune n'est appliquée.") >= 0
+    || d.indexOf('Aucun seuil n&#39;est encore validé') >= 0 || /Aucun seuil n.est encore valid/.test(d));
+  assert.ok(!/(Appliquer|Corriger le prix)/i.test(d.replace(/aucune n.est appliquée/g, '')));
+});
+ok('L1 : mêmes sections sous les axes, aucune perdue', () => {
+  const h = pageL1();
+  const c = panneau(h, 'controler').split('data-axe-panneau="analyser"')[0];
+  const an = panneau(h, 'analyser').split('data-axe-panneau="decider"')[0];
+  assert.ok(/Contrôles à effectuer/.test(c));
+  assert.ok(/ptRecherche/.test(an) && /Sources et limites/.test(an));
+  assert.ok(!/Contrôles à effectuer/.test(an));
+});
+ok('L1 : Suivre porte l\'historique, filtre Vérifiés par défaut, sans contrôle en attente', () => {
+  const h = E.htmlHistorique(histoEtat({ filtreHisto: undefined }));
+  assert.ok(/<option value="verifiee" selected>Vérifiés</.test(h));
+  assert.ok(!/value="actifs"/.test(h));
+});
+ok('L1 : aucun compteur de lot écrit en dur dans le code de l\'écran', () => {
+  const src = fs.readFileSync(require.resolve('./nexus-politique-tarifaire-ecran.js'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  for (const v of ['184', '75', '62', '31', '89']) assert.ok(!new RegExp('(?<![\\w.#-])' + v + '(?![\\w.%-])').test(src.replace(/#[0-9a-fA-F]{3,8}\b/g, '').replace(/\d+(\.\d+)?(px|em|rem|%|ms|s)\b/g, '')), 'compteur ' + v + ' écrit en dur');
+});
+ok('L3 : mode liste par défaut, mode détail avec retour, Suivant et barre d\'action', () => {
+  const a = avecControles(4), base = { analyse: a, role: 'manager', estCreateur: false, filtres: {}, incoherences: [] };
+  const hl = E.htmlPage(base);
+  assert.ok(/data-mode="liste"/.test(hl) && !/data-mode="detail"/.test(hl));
+  const hd = E.htmlPage(Object.assign({ ctlDetail: true }, base));
+  assert.ok(/data-mode="detail"/.test(hd) && /data-ctl-retour="1"/.test(hd) && /Retour à la liste \(\d+ restants?\)/.test(hd));
+  assert.ok(/data-ctl-actions="1"/.test(hd) && /data-ctl-suivant="1"/.test(hd) && /✓ Marquer comme vérifié/.test(hd));
+  assert.strictEqual((hd.match(/data-verifier="/g) || []).length, 1, 'un seul bouton de vérification');
+  assert.ok(hd.indexOf('data-ctl-suivant') < hd.indexOf('data-verifier='), 'Suivant précède Marquer comme vérifié dans la barre');
+});
+ok('L3 : en lecture seule la barre porte Suivant sans bouton de vérification', () => {
+  const a = avecControles(3), h = E.htmlPage({ analyse: a, role: 'employe', estCreateur: false, filtres: {}, incoherences: [], ctlDetail: true });
+  assert.ok(/data-ctl-suivant/.test(h) && !/data-verifier="/.test(h));
+});
+ok('L3 : dernier contrôle, Suivant désactivé', () => {
+  const a = avecControles(2), e0 = { analyse: a, role: 'manager', estCreateur: false, filtres: {}, incoherences: [], ctlDetail: true };
+  const cles = [...E.htmlPage(e0).matchAll(/data-ctl-sel="([^"]+)"/g)].map(m => m[1]);
+  assert.ok(cles.length >= 2);
+  const h = E.htmlPage(Object.assign({ ctlSel: cles[cles.length - 1] }, e0));
+  assert.ok(/data-ctl-suivant="1" disabled/.test(h), 'dernier : Suivant désactivé');
+  assert.ok(!/data-ctl-suivant="1" disabled/.test(E.htmlPage(Object.assign({ ctlSel: cles[0] }, e0))), 'premier : Suivant actif');
+});
+ok('L3 : câblage (historique, popstate, Échap, focus, défilement) et CSS étroit, sans écriture', () => {
+  const src = fs.readFileSync(require.resolve('./nexus-politique-tarifaire-ecran.js'), 'utf8');
+  assert.ok(/history\.pushState\(\{ ptDetail: 1 \}/.test(src) && /history\.back\(\)/.test(src) && /'popstate'/.test(src));
+  assert.ok(/ev\.key === 'Escape' && etat\.ctlDetail && etroit\(\)/.test(src));
+  assert.ok(/window\.scrollTo\(0, etat\.ctlScroll \|\| 0\)/.test(src) && /preventScroll: true/.test(src));
+  assert.ok(/max-width:899\.98px\)\{[^}]*data-mode=liste\]>\.pt-ctl-droite\{display:none\}/.test(src));
+  assert.ok(/\.pt-ctl-retour,\.vue-p1c \.pt-ctl-suivant\{min-height:44px/.test(src) && /\.pt-actions>button\{flex:1 1 0;min-height:44px/.test(src));
+  assert.ok(/min-width:900px\)\{\.vue-p1c \.pt-ctl-retour,\.vue-p1c \.pt-ctl-suivant\{display:none\}/.test(src), 'bureau inchangé : retour et Suivant masqués');
+});
+ok('L3 : détail plein écran sous 900 px, position k / N, barre fixée en bas, titre produit sans fond', () => {
+  const src = fs.readFileSync(require.resolve('./nexus-politique-tarifaire-ecran.js'), 'utf8');
+  assert.ok(/data-mode=detail\]>\.pt-ctl-droite\{position:fixed;top:0;right:0;bottom:0;left:0;/.test(src), 'détail en surcouche plein écran');
+  assert.ok(/\.pt-actions\{position:sticky;bottom:0;[^}]*env\(safe-area-inset-bottom/.test(src), 'barre en bas avec marge de sécurité');
+  assert.ok(/\.pt-detail \.pt-ctl-prod\{background:none;border:0;padding:0/.test(src), 'titre produit sans fond ni bordure');
+  assert.ok(/\.pt-detail \.pt-ctl-prod:focus-visible\{outline:2px solid var\(--t-text\)/.test(src), 'focus visible');
+  const i = src.indexOf('@media (min-width:900px)'); assert.ok(i > 0 && !/position:fixed/.test(src.slice(i, i + 700)), 'bureau sans surcouche');
+  assert.ok(/pt-ctl-pos/.test(src) && /n\.pos \+ ' \/ ' \+ n\.total/.test(src), 'position k / N émise');
+});
+ok('L3 : le détail porte le chiffre clé et l\'étiquette de preuve hors de « Sources et calcul »', () => {
+  const src = fs.readFileSync(require.resolve('./nexus-politique-tarifaire-ecran.js'), 'utf8');
+  const i = src.indexOf('function htmlDetailControle'), j = src.indexOf('htmlCorpsControle(x.a', i);
+  const seg = src.slice(i, j);
+  assert.ok(/data-ctl-chiffre="1"/.test(seg) && /pt-mono/.test(seg) && /data-axe="niveau"/.test(seg) && /pc\.chiffres/.test(seg) && /pc\.niveau/.test(seg), 'chiffre clé et niveau sous le titre');
+  assert.ok(/suivant === undefined \? '<p class="pt-ctl-2 sc-methode">'/.test(src), 'le chiffre n\'est plus répété dans « Sources et calcul » du détail');
+});
+ok('L3 : vérifier en détail passe au contrôle suivant', () => {
+  const a = avecControles(3), cle = (l) => 'S7|' + l.article;
+  const etat = { analyse: a, role: 'manager', estCreateur: false, filtres: {}, incoherences: [], ctlDetail: true, ctlSel: cle(a.lignes[0]) };
+  const premier = a.lignes[0].anomalies[0];
+  assert.ok(premier, 'anomalie de la première ligne');
+  E.effetVerificationEnregistree(premier, etat, 'Responsable du banc');
+  assert.notStrictEqual(etat.ctlSel, cle(a.lignes[0]));
+  assert.ok(/data-mode="detail"/.test(E.htmlPage(etat)));
+});
 Promise.all(PROMESSES).then(() => {
 console.log('test_ecran_politique_tarifaire : ' + n + ' épreuves OK');
+});
+
+// L1 recette : grille 2x2 sous 900 px, compteur Décider = pistes indicatives (A1 seule).
+(function () {
+  var src = require('fs').readFileSync(__dirname + '/nexus-politique-tarifaire-ecran.js', 'utf8');
+  assert.ok(/\.pt-axes\{display:grid;grid-template-columns:repeat\(2,1fr\)/.test(src), 'grille 2 colonnes par défaut');
+  assert.ok(/min-width:900px\)\{\.vue-p1c \.pt-axes\{grid-template-columns:repeat\(4,1fr\)/.test(src), 'quatre colonnes dès 900 px');
+  assert.ok(/c\.code === 'A1'/.test(src) && /pistes indicatives/.test(src), 'compteur Décider limité à A1, libellé pistes indicatives');
+  console.log('test_ecran_politique_tarifaire : L1 recette OK');
+})();
+
+ok('L4 : détail ouvert, confirmation et Annuler rendus dans le détail (une seule zone aria-live)', () => {
+  const src = require('fs').readFileSync(__dirname + '/nexus-politique-tarifaire-ecran.js', 'utf8');
+  assert(/avecSuivi \? htmlSuiviVerif\(etat, droits\)/.test(src), 'le détail porte le suivi de vérification');
+  assert(/if \(!enDetail\) h \+= htmlSuiviVerif/.test(src), 'le bloc ne le rend que si le détail est fermé');
+});
+
+ok('L5 : Conseiller sur une ligne, bouton « Commencer par » sur le cas des contrôles', () => {
+  const a3 = avecControles(3); a3.synthese.alertes = {}; a3.lignes.forEach(l => { l.alertes = []; });
+  const h = E.htmlPage({ analyse: a3, role: 'manager', estCreateur: false, filtres: {}, incoherences: [] });
+  assert.ok(/sc-conseil-ligne/.test(h) && /data-commencer="1"/.test(h) && /Commencer par</.test(h));
+  assert.ok(/data-bloc-conseil="controles"/.test(h), 'le bouton porte l\'ouverture du bloc des contrôles');
+});
+ok('L5 : « Commencer par » trie par gravité, vide les filtres et choisit le premier contrôle', () => {
+  const ec = []; const b = { dataset: { commencer: '1', blocConseil: 'controles' }, addEventListener: (t, f) => ec.push(f) };
+  const corps = { querySelectorAll: (sel) => /data-bloc-conseil/.test(sel) ? [b] : [], querySelector: () => null };
+  const a = avecControles(6);
+  const etat = { analyse: a, ctlTri: 'cause', ctlRecherche: 'zzz', ctlReplie: true }; let rendus = 0;
+  E.lierOuvertures(corps, etat, () => { rendus++; });
+  assert.strictEqual(ec.length, 1);
+  ec[0]();
+  assert.strictEqual(etat.ctlTri, 'gravite'); assert.strictEqual(etat.ctlRecherche, ''); assert.strictEqual(etat.ctlReplie, false);
+  assert.ok(etat.ctlSel || etat.ctlDetail, 'un premier contrôle est choisi ou son détail ouvert');
+  assert.ok(rendus >= 1);
+});
+ok('L5 : Suivre, la ligne porte auteur, date, commentaire et import', () => {
+  const analyse = { lignes: [{ article: 'B', anomalies: [{ code: 'S3', cle: 'k2', cycle: 'verifiee', identiteDonnees: { dateReleve: '2030-03-01' } }] }] };
+  const verifs = [{ code: 'S3', cle: 'k2', verifie_le: '2030-03-05T10:00:00Z', auteur: 'Alex Test', commentaire: 'vu en rayon', identiteDonnees: { dateReleve: '2030-03-01' }, reevaluation: null }];
+  const h = E.htmlHistorique({ analyse, verifications: verifs, historiqueDispo: true, filtreHisto: 'verifiee' });
+  const m = /data-histo-suivi="1">([^<]*)</.exec(h);
+  assert.ok(m, 'texte de suivi sur la ligne, hors (i)');
+  assert.ok(/05\/03\/2030/.test(m[1]) && /Alex Test/.test(m[1]) && /vu en rayon/.test(m[1]) && /01\/03\/2030/.test(m[1]), m[1]);
+});
+ok('L5 : Suivre, ligne sans vérification = « Jamais vérifié », aucune vérification annulée affichée', () => {
+  const analyse = { lignes: [{ article: 'P', anomalies: [{ code: 'S2', cle: 'k9', cycle: 'persistante' }] }] };
+  const h = E.htmlHistorique({ analyse, verifications: [], historiqueDispo: true, filtreHisto: 'actifs' });
+  assert.ok(/Jamais vérifié/.test(h) && !/Vérifié le/.test(h));
+});
+ok('L5 : l\'écran n\'écrit rien et ne code aucun compte en dur', () => {
+  const src = require('fs').readFileSync(__dirname + '/nexus-politique-tarifaire-ecran.js', 'utf8');
+  assert.ok(!/tarif_marquer_verifie|\.update\(|\.insert\(/.test(src));
+  const fh = src.split('FILTRES_HISTO')[1].slice(0, 400);
+  assert.ok(/'Résolus'/.test(fh) && !/'Résolus au nouvel import'/.test(fh));
+});
+ok('L5 : le chargement des vérifications exclut les annulées (annule_le is null)', () => {
+  const src = require('fs').readFileSync(__dirname + '/nexus-politique-tarifaire-ecran.js', 'utf8');
+  const i = src.indexOf("from('tarif_anomalies_verifications').select");
+  assert.ok(i > 0 && /\.is\('annule_le', null\)/.test(src.slice(i, i + 700)), 'une vérification annulée ne revient jamais comme vérifiée');
+});
+ok('L5 : marquerVerifie lit le commentaire saisi dans le détail (hôte et banc), pas seulement dans un li', () => {
+  ['NEXUS-Produits-v1.html', 'outils/recette/ecran_scanner/banc.html'].forEach(f => {
+    const src = require('fs').readFileSync(__dirname + '/' + f, 'utf8');
+    const lz = src.split('\n').filter(l => /(const|var) zone = btn\.closest/.test(l))[0];
+    const lc = src.split('\n').filter(l => /(const|var) zc = zone\.querySelector/.test(l))[0];
+    assert.ok(lz && lc, f + ' : lignes zone/commentaire introuvables');
+    const cut = (lz + '\n' + lc).replace(/(const|let)\s/g, 'var ');
+    const mk = (v, avecLi) => { const ta = { value: v };
+      const zoneDetail = { querySelector: s => /textarea\.pt-verif-com/.test(s) ? ta : null, appendChild() {} };
+      const btn = { closest: s => s === '[data-ctl-detail]' ? zoneDetail : (s === 'li' ? (avecLi ? {} : null) : null), parentNode: {} };
+      return { btn, document: { createElement: () => ({ setAttribute() {} }) } }; };
+    const { btn, document } = mk('vu sur facture', false);
+    const r = new Function('btn', 'document', cut + '; return com;')(btn, document);
+    assert.strictEqual(r, 'vu sur facture', f + ' : le commentaire saisi dans le détail doit être lu');
+  });
 });

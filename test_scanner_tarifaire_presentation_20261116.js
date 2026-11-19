@@ -82,8 +82,10 @@ function jeu(site) {
   for (const id of ['marge_negative', 'propositions', 'a_verifier', 'non_constates']) assert.ok(c.includes(`data-carte="${id}"`), 'carte ' + id);
   // Lot A (accord Guardian 6984645857, point 4) : la carte « Marge estimée » s'ajoute aux quatre cartes de synthèse.
   assert.ok(c.includes('data-carte="marge_estimee"'), 'carte marge estimée');
-  assert.strictEqual((c.match(/data-carte="/g) || []).length, 6, 'quatre cartes de synthèse + marge estimée + contrôles à effectuer');
-assert.ok(c.includes('data-carte="controles_a_effectuer"'), 'la carte des contrôles est présente');
+  assert.strictEqual((c.match(/data-carte="/g) || []).length, 5, 'quatre cartes de synthèse + marge estimée (indicateur des contrôles retiré en L5)');
+// Décision du pilote (L5) : l'indicateur « N contrôles à effectuer » est retiré ; la donnée reste visible dans le bloc des contrôles.
+// L5 : l'indicateur « contrôles à effectuer » est retiré ; le bloc des contrôles porte le compte.
+assert.ok(!c.includes('data-carte="controles_a_effectuer"') && c.includes('data-bloc-controles'), 'indicateur retiré, bloc des contrôles présent');
   for (const id of ['pertes', 'couts', 'marges', 'regl', 'verif']) assert.ok(!c.includes(`data-carte="${id}"`), 'carte T1 ' + id + ' remplacée');
   // Matrice « Familles de contrôle » : quatre familles (bloc D) ; ventes à perte → A3, prix réglementés → A8, coûts → A4.
   for (const t of ['Pertes et conformité', 'Fiabilité des données', 'Décisions de prix', 'Exceptions validées']) assert.ok(c.includes(t), 'famille ' + t);

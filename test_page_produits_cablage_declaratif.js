@@ -53,7 +53,11 @@ ok('sans stock : aucun constat par référence, une seule limite écrite', () =>
   });
   const hp = E.htmlPage({ analyse: a, role: 'gerant', filtres: {}, incoherences: [] });
   assert.strictEqual((hp.match(/Relevé de stock<\/b> : non fourni/g) || []).length, 1, 'dit une seule fois');
-  assert.ok(hp.indexOf('Relevé de stock</b> : non fourni') < hp.indexOf('<details'), 'visible avant les blocs repliés');
+  // Disposition remplacée par L1 (quatre axes en onglets, décision du pilote) : la note n'est plus avant le premier details de la page, mais reste visible, hors de tout bloc replié.
+  const posNote = hp.indexOf('Relevé de stock</b> : non fourni'), avant = hp.slice(0, posNote);
+  assert.strictEqual((avant.match(/<details/g) || []).length, (avant.match(/<\/details>/g) || []).length, 'visible : hors de tout bloc replié');
+  // Défaut relevé par le Guardian (7011506501) : un panneau d'axe masqué n'est pas un bloc replié. La note doit précéder le premier panneau d'axe, donc rester visible quel que soit l'axe ouvert.
+  assert.ok(posNote >= 0 && posNote < hp.indexOf('data-axe-panneau='), 'visible : hors de tout panneau d\'axe');
 });
 
 ok('la page appelle l\'assistant déclaratif', () => {

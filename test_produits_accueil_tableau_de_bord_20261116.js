@@ -39,7 +39,9 @@ function banc(ctx) {
   // Actualisation : dates permanentes, rapprochement derrière un chevron.
   assert.ok(/Dernières ventes : /.test(c) && /Dernier relevé de stock théorique : /.test(c));
   const d = c.slice(c.indexOf('<details class="sa-details"'));
-  assert.ok(/<summary>Dernière actualisation des données<\/summary>/.test(d), 'chevron');
+  assert.ok(/<summary>Sources et limites<\/summary>/.test(d), 'chevron renommé (A5)');
+  assert.ok(/<h2 class="sa-titre">Dernière actualisation<\/h2>/.test(c), 'titre visible (A5)');
+  assert.ok(!/<details class="sa-details"[^>]* open/.test(c), 'fermé par défaut (A5)');
   assert.ok(/CA analytique .* \+ opérations de caisse .* = CA importé/.test(d), 'rapprochement dans le chevron');
   assert.ok(!/em dash|—/.test(c), 'pas de tiret cadratin');
   console.log('OK  quatre cartes, période, actualisation');
@@ -95,7 +97,7 @@ function banc(ctx) {
   assert.ok(!/<p id="conseillerAccueil">/.test(htmlC.slice(0, htmlC.indexOf('function afficherSyntheseAccueil'))), 'plus de Conseiller statique sous la synthèse');
   assert.ok(!/Recherchez un produit ci-dessus/.test(htmlC), 'ancienne phrase générique retirée');
   const zh = b.z.innerHTML;
-  const ip = zh.indexOf('Performance commerciale'), ic = zh.indexOf('id="conseillerAccueil"'), iv = zh.indexOf('Points de vigilance'), ia = zh.indexOf('Dernière actualisation des données');
+  const ip = zh.indexOf('Performance commerciale'), ic = zh.indexOf('id="conseillerAccueil"'), iv = zh.indexOf('Points de vigilance'), ia = zh.indexOf('Dernière actualisation');
   assert.ok(ip > -1 && ip < ic && ic < ia, 'canevas B puis C : Conseiller après Performance commerciale, avant la dernière actualisation');
   assert.ok(iv === -1 || ic < iv, 'Conseiller avant les points de vigilance');
   assert.ok(zh.indexOf('id="conseillerAccueil"') < zh.indexOf('data-vue='), 'Conseiller avant les cartes de navigation');
@@ -104,3 +106,14 @@ function banc(ctx) {
   console.log('OK  corrections de recette 16/11');
   process.exit(0);
 })().catch(e => { console.error(e); process.exit(1); });
+
+// A8 : libellé « TVA à vérifier (catalogue) » et (i), sans chiffre codé en dur.
+(function () {
+  const src = require('fs').readFileSync(require('path').join(__dirname, 'NEXUS-Produits-v1.html'), 'utf8');
+  const assert = require('assert');
+  assert.ok(src.includes("titre: 'TVA à vérifier (catalogue)'"), 'A8 carte');
+  assert.ok(src.includes('TVA à vérifier (catalogue) · <button'), 'A8 ligne À compléter');
+  assert.ok(src.includes('Le Scanner applique en plus les confirmations du pilote.'), 'A8 (i) sans nombre');
+  assert.ok(!/Scanner applique[^'`]*\d/.test(src.match(/info: '[^']*'/)[0]), 'A8 aucun chiffre codé en dur');
+  console.log('OK  A8 libellé et (i) TVA catalogue');
+})();

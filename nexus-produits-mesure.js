@@ -171,6 +171,7 @@
     produit_commercial: 'Produit commercial',
     service_commercial: 'Service commercial',
     operation_caisse: 'Opération de caisse',
+    demarque_perime_casse: 'Démarque : périmé ou casse',
     a_identifier: 'À identifier',
   };
   const MOTIFS_JUSTIFICATION = {
@@ -231,11 +232,20 @@
     const k = normaliserNom(article).replace(/^\s*\d{1,2}[-\/.]\d{1,2}[-\/.]\d{2,4}\s*[-:]?\s*/, '').toUpperCase();
     return ARTICLES_CAISSE_HORS_CATALOGUE.some(mot => k === mot || (k.startsWith(mot) && !/^[\p{L}\p{N}_]/u.test(k.slice(mot.length))));
   }
+  // Libellé daté : JJ-MM-AAAA suivi d'au moins un mot qui n'est pas ACOMPTE (règle du pilote, 18/11/2026) = sortie de stock par bon de livraison,
+  // compte périmé et casse. Date en tête seulement, jamais au milieu ; une date seule ou suivie d'ACOMPTE n'en relève pas.
+  function libelleDateDemarque(article) {
+    const m = normaliserNom(article).match(/^\s*\d{1,2}[-\/.]\d{1,2}[-\/.]\d{2,4}\s*[-:]?\s*(.*)$/u);
+    if (!m) return false;
+    const reste = m[1].trim();
+    return /[\p{L}\p{N}]/u.test(reste) && !articleCaisseHorsCatalogue(article);
+  }
   // Déclaration d'un responsable en priorité ; à défaut, la règle NEXUS (objet marqué regle: true, sans id).
   function natureDe(natures, row, nomUnique) {
     const d = trouverDeclaration(natures, row, nomUnique);
     if (d && NATURES[d.nature]) return d;
     if (articleCaisseHorsCatalogue(row.article)) return { nature: 'operation_caisse', regle: true, declare_par: 'règle NEXUS', declare_le: null, commentaire: 'Article de caisse hors catalogue', id: null };
+    if (libelleDateDemarque(row.article)) return { nature: 'demarque_perime_casse', regle: true, declare_par: 'règle NEXUS', declare_le: null, commentaire: 'Libellé daté : sortie de stock par bon de livraison, compte périmé et casse (règle du pilote, 18/11/2026).', id: null };
     return null;
   }
 
@@ -429,6 +439,6 @@
     return l;
   }
 
-  global.NexusProduitsMesure = { NATURES, MOTIFS_JUSTIFICATION, etatTva, actives, trouverDeclaration, QUALIFICATIONS, RAISONS_NON_COMPARABLE, mesurer, classer, normaliserNom, indexerParNom, natureDe, articleCaisseHorsCatalogue, ARTICLES_CAISSE_HORS_CATALOGUE, jours, phrase, explication };
+  global.NexusProduitsMesure = { NATURES, MOTIFS_JUSTIFICATION, etatTva, actives, trouverDeclaration, QUALIFICATIONS, RAISONS_NON_COMPARABLE, mesurer, classer, normaliserNom, indexerParNom, natureDe, articleCaisseHorsCatalogue, libelleDateDemarque, ARTICLES_CAISSE_HORS_CATALOGUE, jours, phrase, explication };
   if (typeof module !== 'undefined' && module.exports) module.exports = global.NexusProduitsMesure;
 })(typeof window !== 'undefined' ? window : globalThis);
