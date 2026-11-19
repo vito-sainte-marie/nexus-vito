@@ -1726,6 +1726,15 @@ nexusRequireAuth().then(async employee => {
     catch (e) { console.error('Scanner tarifaire:', e); indispo('Impossible de lire les registres tarifaires.'); return; }
     if (!analyse.lignes.length) { indispo('Aucune donnée tarifaire pour ce site'); return; }
     const etat = { analyse, verifications: verifs || [], historiqueDispo: !!verifs, filtreHisto: 'verifiee', histoOuverte: null, role: employee.role, filtres: {}, incoherences, ouverte: null, toutes: false, site: ((document.querySelector('.nexus-nom-commerce') || {}).textContent || ''), icone, estCreateur: !!employee.estCreateur };
+    // Annulation tracée d'une vérification : update des trois seules colonnes autorisées (aucune RPC, aucune migration).
+    etat.surAnnulation = async ({ id }, motif) => {
+      try {
+        const { data, error } = await nexusClient.from('tarif_anomalies_verifications').update({ annule_le: new Date().toISOString(), annule_par: employee.id, motif_annulation: motif }).eq('id', id).is('annule_le', null).select('id');
+        if (error) return { ok: false, message: E.messageErreurAnnulation(error) };
+        if (!data || !data.length) return { ok: false, message: E.messageErreurAnnulation(new Error('aucune ligne')) };
+        return { ok: true };
+      } catch (e) { return { ok: false, message: E.messageErreurAnnulation(e) }; }
+    };
     // Repère Marge+ (niveau 3) : calcul T1 inchangé (scannerMarge), visible sans seuil validé ni fiche A2, jamais compté dans un gain.
     const blocMargePlus = () => {
       const MG = scannerMarge(), M = MG && MG.affichage, TM = NexusScannerTarifaire.TEXTES.marge;
@@ -1747,7 +1756,7 @@ nexusRequireAuth().then(async employee => {
       const E2 = E, art = btn.dataset.verArticle, code = btn.dataset.verifier;
       const l = analyse.lignes.filter(x => x.article === art)[0]; const an = l && (l.anomalies || []).filter(x => x.code === code)[0];
       const zone = btn.closest('li') || btn.parentNode;
-      const dire = (t) => { let m = zone.querySelector('.pt-verif-msg'); if (!m) { m = document.createElement('p'); m.className = 'sc-note pt-verif-msg'; m.setAttribute('role', 'status'); zone.appendChild(m); } m.textContent = t; };
+      const dire = (t, erreur) => { let m = zone.querySelector('.pt-verif-msg'); if (!m) { m = document.createElement('p'); m.className = 'sc-note pt-verif-msg'; zone.appendChild(m); } m.setAttribute('role', erreur ? 'alert' : 'status'); m.textContent = t; };
       if (!an || !E2.peutVerifier(employee.role, !!employee.estCreateur)) { dire('Action réservée au gérant et au manager.'); return; }
       const zc = zone.querySelector('textarea.pt-verif-com'); const com = zc ? zc.value : '';
       if (!E2.commentaireValide(com)) { dire(E2.messageErreurEcriture('tarif_verif_commentaire_trop_long')); return; }
@@ -1756,10 +1765,10 @@ nexusRequireAuth().then(async employee => {
         const { data: lots, error: e1 } = await nexusClient.from('import_batches').select('id, fichier_hash').eq('site', SITE_ACTUEL).eq('fichier_hash', (an.identiteDonnees || {}).fichierHash || '').order('cree_le', { ascending: false }).limit(1);
         if (e1 || !lots || !lots.length) throw new Error('lot');
         const v = E2.payloadVerification(an, l, { importBatchId: lots[0].id, moteurVersion: window.NexusPolitiqueTarifaire.VERSION_MOTEUR, commentaire: com });
-        const { error } = await nexusClient.rpc('tarif_marquer_verifie', { p_lignes: [v] });
+        const { data: retour, error } = await nexusClient.rpc('tarif_marquer_verifie', { p_lignes: [v] });
         if (error) throw error;
-        E2.effetVerificationEnregistree(an, etat, employee.nom); rendre(); return;
-      } catch (e) { console.error('Marquer vérifié:', e); btn.disabled = false; dire(E2.messageErreurEcriture(e)); }
+        E2.effetVerificationEnregistree(an, etat, employee.nom, retour && retour[0] ? retour[0].o_id : null); rendre(); return;
+      } catch (e) { console.error('Marquer vérifié:', e); btn.disabled = false; dire(E2.messageErreurEcriture(e), true); }
     };
     const versFiche = a => choisirSuggestion(a);
     const fermerFiche = () => { const a = etat.retourFocus; etat.ouverte = null; etat.messageVerif = null; rendre(); const b = a && Array.from(corps.querySelectorAll('[data-article]')).filter(x => x.dataset.article === a)[0]; if (b) b.focus(); };

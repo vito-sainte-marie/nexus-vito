@@ -576,7 +576,19 @@
       var id = a.identiteDonnees || S.identiteDonnees || {};
       return h + '<p class="sc-note" data-ctl-vide="1">Aucune anomalie à vérifier sur cet import' + (id.dateReleve ? ' (relevé du ' + esc(jourFr(String(id.dateReleve).slice(0, 10))) + ')' : '') + (id.fichierHash ? ', empreinte ' + esc(String(id.fichierHash).slice(0, 8)) : '') + '.</p></details>';
     }
+    h += '<div class="pt-live" aria-live="polite" data-ctl-live="1">';
     if (etat.messageVerif) h += '<p class="sc-note pt-verif-msg" role="status" data-verif-ok="1">' + esc(etat.messageVerif) + '</p>';
+    if (etat.messageAnnul) h += '<p class="sc-note pt-verif-msg" role="status" data-annul-ok="1">' + esc(etat.messageAnnul) + '</p>';
+    h += '</div>';
+    var dv = etat.derniereVerif;
+    if (dv && droits && etat.messageVerif) {
+      if (!etat.annulOuverte) h += '<button type="button" class="pt-com-lien" data-ctl-annuler="1">Annuler</button>';
+      else h += '<div class="pt-verif-champ" data-ctl-annul-zone="1"><label class="sc-lib" for="ptAnnulMotif">Motif de l\'annulation (obligatoire)</label>' +
+        '<div class="pt-verif-zone"><textarea id="ptAnnulMotif" class="pt-verif-com" rows="2" maxlength="' + LIMITE_MOTIF + '" required aria-describedby="ptAnnulN" data-annul-motif="1">' + esc(etat.annulMotif || '') + '</textarea>' +
+        '<span id="ptAnnulN" class="sc-note pt-verif-n" data-annul-compteur="1">' + String(etat.annulMotif || '').length + ' / ' + LIMITE_MOTIF + '</span></div>' +
+        '<div class="pt-actions"><button type="button" class="detail-btn" data-annul-confirmer="1">Confirmer l\'annulation</button> <button type="button" class="pt-com-lien" data-annul-garder="1">Garder la vérification</button></div></div>';
+    }
+    if (etat.erreurAnnul) h += '<p class="sc-note pt-erreur" role="alert" data-annul-erreur="1">' + esc(etat.erreurAnnul) + '</p>';
     if (etat.erreurEcriture) h += '<p class="sc-note pt-erreur" role="alert" data-ctl-erreur="1">' + esc(etat.erreurEcriture) + '</p>';
     h += '<p class="sc-methode pt-ctl-expl" data-ctl-expl="1">' + esc(AL.explication || 'Un contrôle indique où comparer avec Decenium. Ce n\'est pas une erreur constatée : comparez les valeurs, puis marquez la ligne comme vérifiée.') + '</p>';
     if (!droits) h += '<p class="sc-note" data-ctl-lecture="1">Lecture seule : seuls le gérant et le manager marquent un contrôle comme vérifié.</p>';
@@ -593,7 +605,8 @@
     var sel = null; vis.forEach(function (x) { if (!sel && cleControle(x) === etat.ctlSel) sel = x; }); if (!sel) sel = vis[0] || null;
     var iSel = vis.indexOf(sel), nav = { restants: Math.max(0, L.length - 1), suivant: iSel >= 0 && iSel < vis.length - 1, pos: L.indexOf(sel) + 1, total: L.length };
     h += '<div class="pt-ctl-deux" data-mode="' + (sel && etat.ctlDetail ? 'detail' : 'liste') + '"><div class="pt-ctl-gauche"><ul class="vp-liste pt-ctl-liste" data-ctl-liste="1">' + vis.map(function (x) { return htmlLigneCompacte(x, x === sel); }).join('') + '</ul>';
-    if (!L.length) h += '<p class="sc-note">Aucun contrôle ne correspond à ces filtres.</p>';
+    if (!L.length && !actifs.length) h += '<p class="sc-note pt-traite" data-ctl-traite="1">Tout est traité pour cet import. Les contrôles vérifiés restent consultables dans l\'historique.</p>';
+    else if (!L.length) h += '<p class="sc-note">Aucun contrôle ne correspond à ces filtres.</p>';
     if (L.length > vis.length) h += '<button type="button" class="detail-btn vp-plus" data-ctl-plus="1">Afficher la suite (' + (L.length - vis.length) + ')</button>';
     h += '</div>' + (sel ? '<div class="pt-ctl-droite">' + htmlDetailControle(sel, droits, etat, nav) + '</div>' : '') + '</div>';
     return h + '</details>';
@@ -638,6 +651,15 @@
     var m = String((err && (err.message || err)) || '');
     if (m.indexOf('tarif_verif_commentaire_trop_long') >= 0) return 'Le commentaire dépasse ' + LIMITE_COMMENTAIRE + ' caractères. Raccourcissez-le puis réessayez.';
     return "L'enregistrement a échoué. Rien n'a été modifié, vous pouvez réessayer.";
+  }
+  var MSG_VERIF_OK = 'Vérification enregistrée. Contrôle suivant ouvert.';
+  var MSG_ANNUL_OK = 'Vérification annulée. Le contrôle est revenu dans les contrôles à effectuer.';
+  var LIMITE_MOTIF = 500;
+  function motifAnnulationValide(m) { var t = String(m == null ? '' : m).trim(); return t.length >= 1 && t.length <= LIMITE_MOTIF; }
+  function messageErreurAnnulation(err) {
+    var m = String((err && (err.message || err)) || '');
+    if (/refus|denied|policy|permission|row-level|aucune ligne|droit/i.test(m)) return "Annulation refusée : seule la personne qui a saisi cette vérification, ou un gérant, peut l'annuler. Rien n'a été modifié.";
+    return "L'annulation a échoué. Rien n'a été modifié, vous pouvez réessayer.";
   }
   function messageApresEcriture(info) {
     var d = jourFr(info.date), qui = info.auteur || 'un responsable';
@@ -767,7 +789,9 @@
   }
   // Câblage commun page et banc : ouverture du bloc des contrôles (carte, Conseiller) et du champ de commentaire. Aucune écriture.
   // Effet commun d'une vérification enregistrée : la ligne passe « vérifiée » (elle quitte la liste active), message daté. Page et banc.
-  function effetVerificationEnregistree(an, etat, auteur) {
+  function effetVerificationEnregistree(an, etat, auteur, idVerif) {
+    var cycleAvant = an.cycle || 'nouvelle', cleAn = null;
+    try { tousControles(etat.analyse).forEach(function (x) { if (x.a === an) cleAn = cleControle(x); }); } catch (e0) {}
     if (etat.ctlDetail) {
       // L3 : en détail plein écran, la ligne vérifiée quitte la vue ; on passe au contrôle suivant (sinon au précédent).
       try {
@@ -776,7 +800,24 @@
       } catch (e) {}
     }
     an.cycle = 'verifiee';
-    etat.messageVerif = messageApresEcriture({ date: new Date().toISOString().slice(0, 10), auteur: auteur });
+    etat.messageVerif = MSG_VERIF_OK;
+    etat.erreurEcriture = null; etat.messageAnnul = null; etat.erreurAnnul = null; etat.annulOuverte = false; etat.annulMotif = '';
+    etat.derniereVerif = idVerif ? { an: an, id: idVerif, cle: cleAn, cycleAvant: cycleAvant } : null;
+  }
+  // Annulation tracée d'une vérification : la modification elle-même est faite par l'hôte (etat.surAnnulation), jamais par cet écran.
+  // Retourne { ok: true } ou { ok: false, message }. Rien ne change dans l'état en cas de refus.
+  async function annulerVerification(etat, motif) {
+    var dv = etat.derniereVerif;
+    if (!dv || !dv.id) return { ok: false, message: 'Aucune vérification récente à annuler.' };
+    if (!motifAnnulationValide(motif)) return { ok: false, message: 'Indiquez un motif de 1 à ' + LIMITE_MOTIF + ' caractères.' };
+    if (typeof etat.surAnnulation !== 'function') return { ok: false, message: messageErreurAnnulation(null) };
+    var r;
+    try { r = await etat.surAnnulation({ id: dv.id }, String(motif).trim()); } catch (e) { r = { ok: false, erreur: e }; }
+    if (!r || !r.ok) return { ok: false, message: (r && r.message) || messageErreurAnnulation(r && r.erreur) };
+    dv.an.cycle = dv.cycleAvant; if (dv.cle) etat.ctlSel = dv.cle;
+    etat.derniereVerif = null; etat.messageVerif = null; etat.annulOuverte = false; etat.annulMotif = ''; etat.erreurAnnul = null;
+    etat.messageAnnul = MSG_ANNUL_OK;
+    return { ok: true };
   }
   function lierOuvertures(corps, etat, rendre) {
     function ouvrirControles() {
@@ -837,6 +878,19 @@
       window.addEventListener('popstate', function () { if (etat.ctlDetail && etat.ctlFermerDirect) etat.ctlFermerDirect(); });
       document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape' && etat.ctlDetail && etroit() && etat.ctlRetourFn) { ev.preventDefault(); etat.ctlRetourFn(); } });
     }
+    var bAnn = corps.querySelector('[data-ctl-annuler]');
+    if (bAnn) bAnn.addEventListener('click', function () { etat.annulOuverte = true; etat.erreurAnnul = null; rendre(); var t = corps.querySelector('#ptAnnulMotif'); if (t && t.focus) t.focus(); });
+    var tAnn = corps.querySelector('[data-annul-motif]');
+    if (tAnn) tAnn.addEventListener('input', function () { etat.annulMotif = tAnn.value; var c = corps.querySelector('[data-annul-compteur]'); if (c) c.textContent = tAnn.value.length + ' / ' + LIMITE_MOTIF; });
+    var bGarde = corps.querySelector('[data-annul-garder]');
+    if (bGarde) bGarde.addEventListener('click', function () { etat.annulOuverte = false; etat.erreurAnnul = null; rendre(); });
+    var bConf = corps.querySelector('[data-annul-confirmer]');
+    if (bConf) bConf.addEventListener('click', async function () {
+      bConf.disabled = true;
+      var r = await annulerVerification(etat, tAnn ? tAnn.value : etat.annulMotif);
+      if (!r.ok) etat.erreurAnnul = r.message;
+      rendre();
+    });
     var bRetour = corps.querySelector('[data-ctl-retour]'); if (bRetour) bRetour.addEventListener('click', demanderRetour);
     var bSuiv = corps.querySelector('[data-ctl-suivant]'); if (bSuiv) bSuiv.addEventListener('click', suivant);
     lignes.forEach(function (b, i) {
@@ -1065,7 +1119,7 @@
     } catch (e) { return { fourni: false, erreur: true }; }
   }
   var API = { estDemarque: estDemarque, lignesControle: lignesControle, nombreReleve: nombreReleve, lotStockPublie: lotStockPublie, lignesStockDepuisLot: lignesStockDepuisLot, chargerStockPublie: chargerStockPublie, TVA_CONFIRMATIONS_PILOTE: TVA_CONFIRMATIONS_PILOTE, cartes: cartes, scenarios: scenarios, alertesCartes: alertesCartes, trier: trier, filtrer: filtrer, valeursFiltres: valeursFiltres,
-    preuves: preuves, conseiller: conseiller, lierOuvertures: lierOuvertures, effetVerificationEnregistree: effetVerificationEnregistree, fiche: fiche, etatAcces: etatAcces, peutVoirOnglet: peutVoirOnglet, filtrerSite: filtrerSite,
+    preuves: preuves, conseiller: conseiller, lierOuvertures: lierOuvertures, effetVerificationEnregistree: effetVerificationEnregistree, annulerVerification: annulerVerification, motifAnnulationValide: motifAnnulationValide, messageErreurAnnulation: messageErreurAnnulation, fiche: fiche, etatAcces: etatAcces, peutVoirOnglet: peutVoirOnglet, filtrerSite: filtrerSite,
     regimeDe: regimeDe, contexteDeclaratif: contexteDeclaratif, construireContexteTarif: construireContexteTarif, stockParLibelle: stockParLibelle, controle: controle, familles: familles, avertissementRegime: avertissementRegime, infoRegime: infoRegime, badgeRegime: badgeRegime, badgeLigne: badgeLigne, blocFiche: blocFiche,
     chargerRegistres: chargerRegistres, chargerVerifications: chargerVerifications, historiqueLignes: historiqueLignes, htmlHistorique: htmlHistorique, chargerVentes: chargerVentes, lireCompte: lireCompte, libellePeriode: libellePeriode,
     reevaluationsAEcrire: reevaluationsAEcrire, enregistrerReevaluations: enregistrerReevaluations, htmlPage: htmlPage, htmlControlesAFaire: htmlControlesAFaire, htmlDetailHistorique: htmlDetailHistorique, htmlLigne: htmlLigne, htmlControle: htmlControle, htmlFiche: htmlFiche, carteMarge: carteMarge, AXES: AXES, NOTE_PISTES: NOTE_PISTES, axeCourant: axeCourant, compteursAxes: compteursAxes, htmlMarge: htmlMarge, ficheMarge: ficheMarge, peutVerifier: peutVerifier, commentaireValide: commentaireValide, messageApresEcriture: messageApresEcriture, messageErreurEcriture: messageErreurEcriture, payloadVerification: payloadVerification, LIMITE_COMMENTAIRE: LIMITE_COMMENTAIRE, graviteLigne: graviteLigne, CSS: CSS };

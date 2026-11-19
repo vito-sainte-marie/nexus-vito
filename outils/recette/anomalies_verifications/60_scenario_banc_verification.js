@@ -87,9 +87,9 @@ function verif(nom, cond, detail) { if (cond) { ok++; console.log('OK  ' + nom);
       const article = await boutons.first().getAttribute('data-ver-article');
       await boutons.first().click();
       await page.waitForTimeout(400);
-      // 1) La confirmation « Vérifié le … par … » se lit dans Contrôler, juste après le clic (.pt-verif-msg).
-      const msg = await page.locator('#vueCorps .pt-verif-msg').first().innerText().catch(() => '');
-      verif(tag + ' Contrôler : confirmation « Vérifié le … par … » juste après le clic', /Vérifié le .+ par /.test(msg), msg);
+      // 1) La confirmation immédiate (écriture déjà réussie) se lit dans la zone aria-live de Contrôler.
+      const msg = await page.locator('#vueCorps [data-ctl-live] [data-verif-ok]').first().innerText().catch(() => '');
+      verif(tag + ' Contrôler : confirmation « Vérification enregistrée. Contrôle suivant ouvert. » après le clic', /Vérification enregistrée\. Contrôle suivant ouvert\./.test(msg), msg);
       const apres = await total();
       verif(tag + ' le total des contrôles à effectuer baisse de 1 (comptage sur les données)', apres === avant - 1, avant + ' -> ' + apres);
       // 2) Dans Suivre, la ligne de l'article porte « Vérifié ». Sous 900 px le détail couvre l'écran : retour à la liste d'abord.

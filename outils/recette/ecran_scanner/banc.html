@@ -50,7 +50,7 @@
 <script>
 (async function () {
   'use strict';
-  var SCENARIOS = ['gerant', 'manager', 'pompiste', 'vide', 'nonfiable', 'erreur_ecriture', 'erreur_lecture', 'historique', 'gaz', 'cas_production'];
+  var SCENARIOS = ['gerant', 'manager', 'pompiste', 'vide', 'nonfiable', 'erreur_ecriture', 'annulation_refusee', 'erreur_lecture', 'historique', 'gaz', 'cas_production'];
   var DOSSIER = 'docs/reference/scanner-tarifaire-dossiers/01-T1-moteur/t1/';
   var SITE = 'site-banc';
   var q = new URLSearchParams(location.search);
@@ -140,12 +140,12 @@
     }
     var refus = function (nom) { return function () { log('ÉCRITURE REFUSÉE par le banc : ' + nom); return Promise.resolve({ data: null, error: { message: 'écriture directe refusée par le banc' } }); }; };
     return {
-      from: function (t) { var c = chaine(t); ['insert', 'update', 'upsert', 'delete'].forEach(function (k) { c[k] = refus(t + '.' + k); }); return c; },
+      from: function (t) { var c = chaine(t); ['insert', 'update', 'upsert', 'delete'].forEach(function (k) { c[k] = refus(t + '.' + k); }); if (t === 'tarif_anomalies_verifications') { c.update = function (vals) { var cles = Object.keys(vals || {}).sort().join(','); var ok = cles === 'annule_le,annule_par,motif_annulation' && scenario !== 'annulation_refusee'; log('update ' + t + ' (' + cles + ') : ' + (ok ? 'acceptée en mémoire' : 'REFUSÉE par le banc')); var r = ok ? { data: [{ id: 'verif-banc' }], error: null } : { data: null, error: { message: 'new row violates row-level security policy (refus simulé)' } }; var u = { eq: function () { return u; }, is: function () { return u; }, select: function () { return Promise.resolve(r); } }; return u; }; } return c; },
       rpc: function (nom, args) {
         if (scenario === 'erreur_ecriture') { log('rpc ' + nom + ' : erreur simulée'); return Promise.resolve({ data: null, error: { message: 'erreur simulée' } }); }
         if (persistance && nom === 'tarif_marquer_verifie') { var cur = lireVerifs(); ((args && args.p_lignes) || []).forEach(function (r) { cur.push(Object.assign({}, r, { cle: (window.NexusAnomaliesTarifaires && window.NexusAnomaliesTarifaires.cle ? window.NexusAnomaliesTarifaires.cle({ code_barres: r.code_barres, article: r.article }) : null), id: 'pv' + (cur.length + 1), saisi_par: null, saisi_le: new Date().toISOString() })); }); try { sessionStorage.setItem('banc_verifs', JSON.stringify(cur)); } catch (e) {} }
         compteurRpc++; log('rpc ' + nom + ' : ' + ((args && args.p_lignes && args.p_lignes.length) || 0) + ' ligne(s), acceptée en mémoire (#' + compteurRpc + ')');
-        return Promise.resolve({ data: null, error: null });
+        return Promise.resolve({ data: nom === 'tarif_marquer_verifie' ? [{ o_id: 'verif-banc-' + compteurRpc, o_cle: 'banc', o_deja: false }] : null, error: null });
       },
       auth: { getSession: function () { return Promise.resolve({ data: { session: null }, error: null }); } },
       storage: { from: function () { return { upload: refus('storage'), getPublicUrl: function () { return { data: { publicUrl: '' } }; } }; } },
@@ -191,6 +191,7 @@
     if (!analyse.lignes.length) { corps.innerHTML = '<div class="vp-ligne">Aucune donnée tarifaire pour ce site</div>'; return; }
     etat = { analyse: analyse, verifications: verifs || [], historiqueDispo: !!verifs, filtreHisto: 'verifiee', histoOuverte: null, role: role, filtres: corpsGaz ? { rayon: 'Gaz' } : {},
       incoherences: ctx.incoherences || [], ouverte: null, toutes: false, site: 'Banc de recette', icone: icone, estCreateur: false };
+    etat.surAnnulation = async function (cible, motif) { var r = await nexusClient.from('tarif_anomalies_verifications').update({ annule_le: new Date().toISOString(), annule_par: 'banc', motif_annulation: motif }).eq('id', cible.id).is('annule_le', null).select('id'); if (r.error) return { ok: false, message: E.messageErreurAnnulation(r.error) }; if (!r.data || !r.data.length) return { ok: false, message: E.messageErreurAnnulation(new Error('aucune ligne')) }; return { ok: true }; };
     if (verifs) {
       var rr = await E.enregistrerReevaluations(nexusClient, role, false, analyse, verifs, identite);
       if (rr.statut === 'droits') etat.reevalNonEnregistree = true;
@@ -216,7 +217,7 @@
     var l = etat.analyse.lignes.filter(function (x) { return x.article === art; })[0];
     var an = l && (l.anomalies || []).filter(function (x) { return x.code === code; })[0];
     var zone = btn.closest('li') || btn.parentNode;
-    var dire = function (t) { var m = zone.querySelector('.pt-verif-msg'); if (!m) { m = document.createElement('p'); m.className = 'sc-note pt-verif-msg'; m.setAttribute('role', 'status'); zone.appendChild(m); } m.textContent = t; };
+    var dire = function (t, erreur) { var m = zone.querySelector('.pt-verif-msg'); if (!m) { m = document.createElement('p'); m.className = 'sc-note pt-verif-msg'; zone.appendChild(m); } m.setAttribute('role', erreur ? 'alert' : 'status'); m.textContent = t; };
     if (!an || !E.peutVerifier(role, false)) { dire('Action réservée au gérant et au manager.'); return; }
     var zc = zone.querySelector('textarea.pt-verif-com'); var com = zc ? zc.value : '';
     if (!E.commentaireValide(com)) { dire(E.messageErreurEcriture('tarif_verif_commentaire_trop_long')); return; }
@@ -227,8 +228,8 @@
       var v = E.payloadVerification(an, l, { importBatchId: r.data[0].id, moteurVersion: T.VERSION_MOTEUR, commentaire: com });
       var w = await nexusClient.rpc('tarif_marquer_verifie', { p_lignes: [v] });
       if (w.error) throw w.error;
-      E.effetVerificationEnregistree(an, etat, 'Responsable du banc'); rendre(); return;
-    } catch (e) { btn.disabled = false; dire(E.messageErreurEcriture(e)); }
+      E.effetVerificationEnregistree(an, etat, 'Responsable du banc', w.data && w.data[0] ? w.data[0].o_id : null); rendre(); return;
+    } catch (e) { btn.disabled = false; dire(E.messageErreurEcriture(e), true); }
   }
   function rendre() { corps.innerHTML = E.htmlPage(etat); lier(); }
   function lier() {

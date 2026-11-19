@@ -222,11 +222,14 @@ ok('chaque cible cliquable de la page a une destination', () => {
   ['data-fiche', 'data-article', 'data-controle-liste', 'data-conseil', 'data-plus', 'data-effacer'].forEach(k => assert.ok(src.indexOf('[' + k + ']') > 0, k));
 });
 
-ok('page Produits : une seule écriture permise, tarif_marquer_verifie, aucune autre', () => {
+ok('page Produits : deux écritures permises, tarif_marquer_verifie et l\'annulation tracée (3 colonnes), aucune autre', () => {
   const src = fs.readFileSync(require.resolve('./NEXUS-Produits-v1.html'), 'utf8');
   const i = src.indexOf('async function calculerAnalyseTarif'), j = src.indexOf('function ouvrirVue(cle)');
   const bloc = src.slice(i, j);
-  assert.ok(!/\.(insert|update|delete|upsert)\s*\(|tarif_enregistrer_decisions/.test(bloc));
+  const annul = "from('tarif_anomalies_verifications').update({ annule_le: new Date().toISOString(), annule_par: employee.id, motif_annulation: motif })";
+  assert.strictEqual(bloc.split(annul).length - 1, 1, 'une seule annulation tracee');
+  const reste = bloc.split(annul).join('');
+  assert.ok(!/\.(insert|update|delete|upsert)\s*\(|tarif_enregistrer_decisions/.test(reste));
   const rpcs = (src.match(/\.rpc\(\s*['"][a-z_]+/g) || []).map(x => x.replace(/.*['"]/, ''));
   rpcs.forEach(r => assert.ok(['tarif_marquer_verifie'].indexOf(r) >= 0 || !/tarif/.test(r), 'rpc inattendu : ' + r));
 });
@@ -597,7 +600,51 @@ ok('D1 : une vérification enregistrée passe la ligne en « vérifiée » avec 
   const an = { code: 'S2', cycle: 'nouvelle' }; const etat = {};
   E.effetVerificationEnregistree(an, etat, 'Gérant du banc');
   assert.strictEqual(an.cycle, 'verifiee');
-  assert.ok(/Vérifié le .* par Gérant du banc/.test(etat.messageVerif));
+  assert.strictEqual(etat.messageVerif, 'Vérification enregistrée. Contrôle suivant ouvert.');
+});
+ok('L4 : motif d\'annulation de 1 à 500 caractères, message de refus lisible', () => {
+  assert.ok(E.motifAnnulationValide('erreur de saisie'));
+  assert.ok(E.motifAnnulationValide('x'.repeat(500)));
+  assert.ok(!E.motifAnnulationValide('') && !E.motifAnnulationValide('   ') && !E.motifAnnulationValide('x'.repeat(501)) && !E.motifAnnulationValide(null));
+  assert.ok(/Annulation refusée.*Rien n'a été modifié/.test(E.messageErreurAnnulation(new Error('new row violates row-level security policy'))));
+  assert.ok(/L'annulation a échoué.*Rien n'a été modifié/.test(E.messageErreurAnnulation(new Error('réseau'))));
+});
+ok('L4 : annulation acceptée restaure le cycle et le compteur ; refus sans changement ; sans callback, rien', async () => {
+  const an = { code: 'S2', cycle: 'nouvelle' }; const etat = { surAnnulation: null };
+  E.effetVerificationEnregistree(an, etat, 'Gérant', 'id-1');
+  assert.strictEqual(an.cycle, 'verifiee');
+  assert.strictEqual(etat.derniereVerif.id, 'id-1');
+  assert.strictEqual((await E.annulerVerification(etat, 'motif')).ok, false, 'sans callback');
+  assert.strictEqual((await E.annulerVerification(etat, '')).ok, false, 'sans motif');
+  const appels = [];
+  etat.surAnnulation = async (c, m) => { appels.push([c.id, m]); return { ok: false, message: 'Annulation refusée : x' }; };
+  const r1 = await E.annulerVerification(etat, 'motif');
+  assert.strictEqual(r1.ok, false); assert.strictEqual(an.cycle, 'verifiee'); assert.ok(etat.messageVerif, 'état inchangé après refus');
+  etat.surAnnulation = async (c, m) => { appels.push([c.id, m]); return { ok: true }; };
+  const r2 = await E.annulerVerification(etat, '  motif  ');
+  assert.strictEqual(r2.ok, true); assert.strictEqual(an.cycle, 'nouvelle');
+  assert.strictEqual(etat.messageVerif, null); assert.ok(/Vérification annulée/.test(etat.messageAnnul));
+  assert.deepStrictEqual(appels[1], ['id-1', 'motif']);
+});
+ok('L4 : confirmation en aria-live, Annuler seulement avec droit, zone motif obligatoire, état « Tout est traité »', () => {
+  const a = avecControles(2);
+  const base = { analyse: a, role: 'manager', estCreateur: false, filtres: {}, incoherences: [] };
+  assert.ok(/data-ctl-live="1"/.test(E.htmlPage(base)) && /aria-live="polite"/.test(E.htmlPage(base)));
+  const v = { an: {}, id: 'i', cle: 'k', cycleAvant: 'nouvelle' };
+  const h = E.htmlPage(Object.assign({}, base, { messageVerif: 'Vérification enregistrée. Contrôle suivant ouvert.', derniereVerif: v }));
+  assert.ok(/data-verif-ok/.test(h) && /data-ctl-annuler/.test(h));
+  assert.ok(!/data-ctl-annuler/.test(E.htmlPage(Object.assign({}, base, { role: 'pompiste', messageVerif: 'x', derniereVerif: v }))), 'pas de droit, pas d\'annulation');
+  const h2 = E.htmlPage(Object.assign({}, base, { messageVerif: 'x', derniereVerif: v, annulOuverte: true, erreurAnnul: 'Annulation refusée : y' }));
+  assert.ok(/id="ptAnnulMotif"[^>]*maxlength="500"[^>]*required|id="ptAnnulMotif"[^>]*required[^>]*maxlength="500"|maxlength="500"[^>]*id="ptAnnulMotif"/.test(h2) || (/ptAnnulMotif/.test(h2) && /maxlength="500"/.test(h2) && /required/.test(h2)));
+  assert.ok(/data-annul-confirmer/.test(h2) && /data-annul-garder/.test(h2) && /role="alert"[^>]*data-annul-erreur|data-annul-erreur[^>]*role="alert"/.test(h2));
+  a.lignes.forEach(l => (l.anomalies || []).forEach(x => { x.cycle = 'verifiee'; }));
+  assert.ok(/data-ctl-traite/.test(E.htmlPage(base)), 'fin de liste');
+});
+ok('L4 : l\'écran lui-même n\'écrit jamais (annulation par callback injecté)', () => {
+  const src = fs.readFileSync(require.resolve('./nexus-politique-tarifaire-ecran.js'), 'utf8');
+  assert.ok(!/tarif_marquer_verifie|\.update\s*\(|\.insert\s*\(/.test(src));
+  const host = fs.readFileSync(require.resolve('./NEXUS-Produits-v1.html'), 'utf8');
+  assert.ok(/etat\.surAnnulation = async/.test(host));
 });
 ok('D3 : aucune ligne ne porte deux étiquettes de même texte', () => {
   const a = analyse();
