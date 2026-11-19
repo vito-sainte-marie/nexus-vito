@@ -22,8 +22,51 @@ function verif(nom, cond, detail) { if (cond) { ok++; console.log('OK  ' + nom);
     const ctx = await nav.newContext({ viewport: { width: vp.w, height: vp.h } });
     const page = await ctx.newPage();
     await page.goto(URL_BANC + '?scenario=gerant&theme=jour');
-    await page.waitForSelector('#vueCorps button[data-verifier]', { timeout: 15000 });
+    await page.waitForSelector('#vueCorps button[data-verifier]', { state: 'attached', timeout: 15000 });
     const tag = vp.w + 'px';
+
+    // L3 : à 375 px la liste est seule à l'écran ; le détail s'ouvre en plein écran au toucher d'une ligne.
+    if (vp.w < 900) {
+      const lignes = page.locator('#vueCorps [data-ctl-sel]');
+      verif(tag + ' L3 : mode liste par défaut, détail masqué', await page.locator('#vueCorps .pt-ctl-deux[data-mode="liste"]').count() === 1 && !(await page.locator('#vueCorps [data-ctl-detail]').first().isVisible()));
+      const cle0 = await lignes.nth(1).getAttribute('data-ctl-sel');
+      await page.evaluate(() => window.scrollTo(0, 300));
+      const y0 = await page.evaluate(() => Math.round(window.pageYOffset));
+      await lignes.nth(1).click(); await page.waitForTimeout(250);
+      verif(tag + ' L3 : toucher une ligne ouvre le détail', await page.locator('#vueCorps .pt-ctl-deux[data-mode="detail"]').count() === 1 && await page.locator('#vueCorps [data-ctl-detail]').first().isVisible());
+      const cibles = await page.evaluate(() => ['[data-ctl-retour]', '[data-ctl-suivant]', '.pt-actions button'].map(q => [...document.querySelectorAll('#vueCorps ' + q)].filter(e => e.offsetParent).map(e => Math.round(e.getBoundingClientRect().height))).flat());
+      verif(tag + ' L3 : cibles d\'au moins 44 px', cibles.length >= 3 && cibles.every(h => h >= 44), cibles.join(','));
+      verif(tag + ' L3 : aucun débordement horizontal', await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1));
+      const barre = await page.evaluate(() => { const b = document.querySelector('#vueCorps .pt-actions'); if (!b) return null; const r = b.getBoundingClientRect(); return { bas: r.bottom, h: innerHeight, t: b.textContent }; });
+      verif(tag + ' L3 : barre d\'action en bas avec Suivant et Marquer comme vérifié', !!barre && barre.bas <= barre.h + 1 && /Suivant/.test(barre.t) && /Marquer comme vérifié/.test(barre.t), barre ? JSON.stringify(barre) : 'absente');
+      if (dossier) await page.screenshot({ path: dossier + '/l3_detail_' + vp.w + '.png', fullPage: false });
+      // Retour par le bouton de l'écran : même ligne, même défilement, focus sur la ligne.
+      await page.locator('#vueCorps [data-ctl-retour]').click(); await page.waitForTimeout(250);
+      const foc = await page.evaluate(() => { const a = document.activeElement; return a && a.getAttribute ? a.getAttribute('data-ctl-sel') : null; });
+      const y1 = await page.evaluate(() => Math.round(window.pageYOffset));
+      verif(tag + ' L3 : retour (bouton) vers la liste, focus sur la même ligne', foc === cle0, String(foc));
+      verif(tag + ' L3 : retour (bouton) au même défilement', Math.abs(y1 - y0) <= 2, y0 + ' -> ' + y1);
+      verif(tag + ' L3 : retour (bouton) garde la ligne choisie', await page.locator('#vueCorps [data-ctl-sel][aria-current="true"]').first().getAttribute('data-ctl-sel') === cle0);
+      // Retour du navigateur.
+      await page.locator('#vueCorps [data-ctl-sel]').nth(1).click(); await page.waitForTimeout(250);
+      await page.goBack(); await page.waitForTimeout(250);
+      const foc2 = await page.evaluate(() => { const a = document.activeElement; return a && a.getAttribute ? a.getAttribute('data-ctl-sel') : null; });
+      verif(tag + ' L3 : retour du navigateur ferme le détail, focus sur la ligne', await page.locator('#vueCorps .pt-ctl-deux[data-mode="liste"]').count() === 1 && foc2 === cle0, String(foc2));
+      verif(tag + ' L3 : retour du navigateur au même défilement', Math.abs(await page.evaluate(() => Math.round(window.pageYOffset)) - y0) <= 2);
+      // Échap ferme le détail.
+      await page.locator('#vueCorps [data-ctl-sel]').nth(1).click(); await page.waitForTimeout(250);
+      await page.keyboard.press('Escape'); await page.waitForTimeout(250);
+      verif(tag + ' L3 : Échap ferme le détail', await page.locator('#vueCorps .pt-ctl-deux[data-mode="liste"]').count() === 1);
+      // Suivant passe au contrôle suivant, la barre reste en bas.
+      await page.locator('#vueCorps [data-ctl-sel]').nth(0).click(); await page.waitForTimeout(250);
+      const avantS = await page.locator('#vueCorps [data-ctl-sel][aria-current="true"]').first().getAttribute('data-ctl-sel');
+      await page.locator('#vueCorps [data-ctl-suivant]').click(); await page.waitForTimeout(250);
+      const apresS = await page.locator('#vueCorps [data-ctl-sel][aria-current="true"]').first().getAttribute('data-ctl-sel');
+      verif(tag + ' L3 : Suivant sélectionne un autre contrôle', !!apresS && apresS !== avantS, avantS + ' -> ' + apresS);
+      await page.keyboard.press('Escape'); await page.waitForTimeout(250);
+      // On rouvre une ligne pour la suite du scénario (vérification en détail).
+      await page.locator('#vueCorps [data-ctl-sel]').nth(0).click(); await page.waitForTimeout(250);
+    }
 
     // L2 : la consigne est toujours visible dans le détail ; « Sources et calcul » est un <details> natif.
     verif(tag + ' détail : consigne de contrôle visible', await page.locator('#vueCorps [data-ctl-detail] .pt-ctl-3').first().isVisible());

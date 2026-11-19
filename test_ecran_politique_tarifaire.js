@@ -1019,6 +1019,46 @@ ok('L1 : aucun compteur de lot écrit en dur dans le code de l\'écran', () => {
     .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
   for (const v of ['184', '75', '62', '31', '89']) assert.ok(!new RegExp('(?<![\\w.#-])' + v + '(?![\\w.%-])').test(src.replace(/#[0-9a-fA-F]{3,8}\b/g, '').replace(/\d+(\.\d+)?(px|em|rem|%|ms|s)\b/g, '')), 'compteur ' + v + ' écrit en dur');
 });
+ok('L3 : mode liste par défaut, mode détail avec retour, Suivant et barre d\'action', () => {
+  const a = avecControles(4), base = { analyse: a, role: 'manager', estCreateur: false, filtres: {}, incoherences: [] };
+  const hl = E.htmlPage(base);
+  assert.ok(/data-mode="liste"/.test(hl) && !/data-mode="detail"/.test(hl));
+  const hd = E.htmlPage(Object.assign({ ctlDetail: true }, base));
+  assert.ok(/data-mode="detail"/.test(hd) && /data-ctl-retour="1"/.test(hd) && /Retour à la liste \(\d+ restants?\)/.test(hd));
+  assert.ok(/data-ctl-actions="1"/.test(hd) && /data-ctl-suivant="1"/.test(hd) && /✓ Marquer comme vérifié/.test(hd));
+  assert.strictEqual((hd.match(/data-verifier="/g) || []).length, 1, 'un seul bouton de vérification');
+  assert.ok(hd.indexOf('data-ctl-suivant') < hd.indexOf('data-verifier='), 'Suivant précède Marquer comme vérifié dans la barre');
+});
+ok('L3 : en lecture seule la barre porte Suivant sans bouton de vérification', () => {
+  const a = avecControles(3), h = E.htmlPage({ analyse: a, role: 'employe', estCreateur: false, filtres: {}, incoherences: [], ctlDetail: true });
+  assert.ok(/data-ctl-suivant/.test(h) && !/data-verifier="/.test(h));
+});
+ok('L3 : dernier contrôle, Suivant désactivé', () => {
+  const a = avecControles(2), e0 = { analyse: a, role: 'manager', estCreateur: false, filtres: {}, incoherences: [], ctlDetail: true };
+  const cles = [...E.htmlPage(e0).matchAll(/data-ctl-sel="([^"]+)"/g)].map(m => m[1]);
+  assert.ok(cles.length >= 2);
+  const h = E.htmlPage(Object.assign({ ctlSel: cles[cles.length - 1] }, e0));
+  assert.ok(/data-ctl-suivant="1" disabled/.test(h), 'dernier : Suivant désactivé');
+  assert.ok(!/data-ctl-suivant="1" disabled/.test(E.htmlPage(Object.assign({ ctlSel: cles[0] }, e0))), 'premier : Suivant actif');
+});
+ok('L3 : câblage (historique, popstate, Échap, focus, défilement) et CSS étroit, sans écriture', () => {
+  const src = fs.readFileSync(require.resolve('./nexus-politique-tarifaire-ecran.js'), 'utf8');
+  assert.ok(/history\.pushState\(\{ ptDetail: 1 \}/.test(src) && /history\.back\(\)/.test(src) && /'popstate'/.test(src));
+  assert.ok(/ev\.key === 'Escape' && etat\.ctlDetail && etroit\(\)/.test(src));
+  assert.ok(/window\.scrollTo\(0, etat\.ctlScroll \|\| 0\)/.test(src) && /preventScroll: true/.test(src));
+  assert.ok(/max-width:899\.98px\)\{[^}]*data-mode=liste\]>\.pt-ctl-droite\{display:none\}/.test(src));
+  assert.ok(/\.pt-ctl-retour,\.vue-p1c \.pt-ctl-suivant\{min-height:44px/.test(src) && /\.pt-actions>button\{flex:1 1 0;min-height:44px/.test(src));
+  assert.ok(/min-width:900px\)\{\.vue-p1c \.pt-ctl-retour,\.vue-p1c \.pt-ctl-suivant\{display:none\}/.test(src), 'bureau inchangé : retour et Suivant masqués');
+});
+ok('L3 : vérifier en détail passe au contrôle suivant', () => {
+  const a = avecControles(3), cle = (l) => 'S7|' + l.article;
+  const etat = { analyse: a, role: 'manager', estCreateur: false, filtres: {}, incoherences: [], ctlDetail: true, ctlSel: cle(a.lignes[0]) };
+  const premier = a.lignes[0].anomalies[0];
+  assert.ok(premier, 'anomalie de la première ligne');
+  E.effetVerificationEnregistree(premier, etat, 'Responsable du banc');
+  assert.notStrictEqual(etat.ctlSel, cle(a.lignes[0]));
+  assert.ok(/data-mode="detail"/.test(E.htmlPage(etat)));
+});
 Promise.all(PROMESSES).then(() => {
 console.log('test_ecran_politique_tarifaire : ' + n + ' épreuves OK');
 });

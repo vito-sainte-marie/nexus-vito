@@ -479,7 +479,7 @@
     if (c === 'S7') return 'Taux de TVA : ' + (v.tva === undefined || v.tva === null ? 'n/d' : v.tva + ' %') + ' · état : ' + (v.etat === 'a_verifier' ? 'à confirmer' : esc(v.etat || 'n/d'));
     return '';
   }
-  function htmlVerification(an, l, droits, etat) {
+  function htmlVerification(an, l, droits, etat, suivant) {
     var code = an.code, idc = 'ptc-' + String(l.article).replace(/[^A-Za-z0-9_-]/g, '_') + '-' + code;
     var fiable = !!(an.identiteDonnees || {}).fichierHash;
     if (!droits || an.cycle === 'verifiee') return '';
@@ -490,7 +490,8 @@
         '<div class="pt-verif-zone"><textarea id="' + idc + '" class="pt-verif-com" rows="2" data-com-article="' + esc(l.article) + '" data-com-code="' + esc(code) + '" aria-describedby="' + idc + '-n"></textarea>' +
         '<span id="' + idc + '-n" class="sc-note pt-verif-n" data-com-compteur="1">0 / ' + LIMITE_COMMENTAIRE + '</span></div></div>'
       : '<button type="button" class="pt-com-lien" data-com-ouvrir="' + esc(cleC) + '">Ajouter un commentaire</button>';
-    return com + '<button type="button" class="detail-btn pt-verifier" data-verifier="' + esc(code) + '" data-ver-article="' + esc(l.article) + '">✓ Marquer comme vérifié</button>';
+    var bouton = '<button type="button" class="detail-btn pt-verifier" data-verifier="' + esc(code) + '" data-ver-article="' + esc(l.article) + '">✓ Marquer comme vérifié</button>';
+    return suivant === undefined ? com + bouton : com + '<div class="pt-actions" data-ctl-actions="1">' + suivant + bouton + '</div>';
   }
   // L2 : pièces communes d'un contrôle. La consigne est toujours visible (plus de (i)) ; la source et le calcul sont dans un bloc natif replié.
   function pieceControle(an, l) {
@@ -502,14 +503,20 @@
       statut: an.cycle === 'verifiee' ? 'Vérifié' : an.cycle === 'nouvelle' ? 'Nouveau' : cycle,
       chiffres: valeursAComparer(an, l) + (s1Contredit ? ' · coût de l\'export contredit par le relevé de stock' : '') };
   }
-  function htmlCorpsControle(an, l, droits, etat, pc) {
+  function htmlCorpsControle(an, l, droits, etat, pc, suivant) {
     var AL = pc.AL, code = pc.code;
     var masque = (an.peutExpliquerAussi || []).length ? '<p class="sc-note">' + esc(AL.masque) + ' ' + esc(an.peutExpliquerAussi.map(function (c) { return (AL.codes[c] || {}).titre || c; }).join(', ')) + '</p>' : '';
     var marge = code === 'S1' && perteUnitaire(l) ? '<p class="sc-note" data-s1-pct="1">Marge : ' + esc(pct((an.valeurs || {}).taux)) + '</p>' : '';
     return '<p class="pt-ctl-3 sc-note">' + esc(pc.cd.controle || '') + '</p>' + marge + masque +
       '<details class="pt-sources-calcul" data-sources-calcul="1"><summary>Sources et calcul</summary><p class="pt-ctl-2 sc-methode">' + pc.chiffres + '</p>' +
       '<p class="sc-methode">' + esc(AL.explication || 'Un contrôle indique où comparer avec Decenium. Ce n\'est pas une erreur constatée.') + '</p></details>' +
-      htmlVerification(an, l, droits, etat);
+      htmlVerificationOuBarre(an, l, droits, etat, suivant);
+  }
+  // L3 : la barre d'action du détail (Suivant, Marquer comme vérifié) existe aussi quand la ligne est en lecture seule ou déjà vérifiée.
+  function htmlVerificationOuBarre(an, l, droits, etat, suivant) {
+    var v = htmlVerification(an, l, droits, etat, suivant);
+    if (suivant === undefined || v.indexOf('data-ctl-actions') >= 0) return v;
+    return v + '<div class="pt-actions" data-ctl-actions="1">' + suivant + '</div>';
   }
   function htmlAnomalie(an, l, droits, etat, avecProduit) {
     var pc = pieceControle(an, l);
@@ -528,11 +535,13 @@
       '<span class="vp-nom pt-l-art">' + esc(x.l.article) + '</span><span class="pt-l-cause">' + esc(pc.cd.titre || pc.code) + '</span>' +
       '<span class="pt-l-chiffre">' + pc.chiffres + '</span><span class="nbe-qualif" data-axe="niveau">' + esc(pc.niveau) + '</span></button></li>';
   }
-  function htmlDetailControle(x, droits, etat) {
-    var pc = pieceControle(x.a, x.l);
-    return '<section class="pt-detail" data-ctl-detail="1" aria-label="Détail du contrôle"><div class="pt-ctl-1"><button type="button" class="vp-ligne-prod pt-ctl-prod" data-article="' + esc(x.l.article) + '"><span class="vp-nom">' + esc(x.l.article) + '</span></button> ' +
+  function htmlDetailControle(x, droits, etat, nav) {
+    var pc = pieceControle(x.a, x.l), n = nav || { restants: 0, suivant: false };
+    var retour = '<button type="button" class="detail-btn pt-ctl-retour" data-ctl-retour="1">‹ Retour à la liste (' + n.restants + (n.restants > 1 ? ' restants' : ' restant') + ')</button>';
+    var suiv = '<button type="button" class="detail-btn pt-ctl-suivant" data-ctl-suivant="1"' + (n.suivant ? '' : ' disabled') + '>Suivant</button>';
+    return '<section class="pt-detail" data-ctl-detail="1" aria-label="Détail du contrôle">' + retour + '<div class="pt-ctl-1"><button type="button" class="vp-ligne-prod pt-ctl-prod" data-article="' + esc(x.l.article) + '"><span class="vp-nom">' + esc(x.l.article) + '</span></button> ' +
       '<span class="sc-nom">' + esc(pc.cd.titre || pc.code) + '</span> <span class="nbe-qualif" data-axe="cycle">' + esc(pc.statut) + '</span></div>' +
-      htmlCorpsControle(x.a, x.l, droits, etat, pc) + '</section>';
+      htmlCorpsControle(x.a, x.l, droits, etat, pc, suiv) + '</section>';
   }
   function htmlControlesAFaire(l, droits, etat) {
     var L = l.anomalies || [];
@@ -580,10 +589,11 @@
     var vis = etat.ctlToutes || tous.length <= SEUIL_OUTILS ? L : L.slice(0, SEUIL_OUTILS);
     // Sélection : le contrôle choisi, sinon le premier de la vue (la ligne vérifiée quitte la vue, la suivante prend la place).
     var sel = null; vis.forEach(function (x) { if (!sel && cleControle(x) === etat.ctlSel) sel = x; }); if (!sel) sel = vis[0] || null;
-    h += '<div class="pt-ctl-deux"><div class="pt-ctl-gauche"><ul class="vp-liste pt-ctl-liste" data-ctl-liste="1">' + vis.map(function (x) { return htmlLigneCompacte(x, x === sel); }).join('') + '</ul>';
+    var iSel = vis.indexOf(sel), nav = { restants: Math.max(0, L.length - 1), suivant: iSel >= 0 && iSel < vis.length - 1 };
+    h += '<div class="pt-ctl-deux" data-mode="' + (sel && etat.ctlDetail ? 'detail' : 'liste') + '"><div class="pt-ctl-gauche"><ul class="vp-liste pt-ctl-liste" data-ctl-liste="1">' + vis.map(function (x) { return htmlLigneCompacte(x, x === sel); }).join('') + '</ul>';
     if (!L.length) h += '<p class="sc-note">Aucun contrôle ne correspond à ces filtres.</p>';
     if (L.length > vis.length) h += '<button type="button" class="detail-btn vp-plus" data-ctl-plus="1">Afficher la suite (' + (L.length - vis.length) + ')</button>';
-    h += '</div>' + (sel ? '<div class="pt-ctl-droite">' + htmlDetailControle(sel, droits, etat) + '</div>' : '') + '</div>';
+    h += '</div>' + (sel ? '<div class="pt-ctl-droite">' + htmlDetailControle(sel, droits, etat, nav) + '</div>' : '') + '</div>';
     return h + '</details>';
   }
   // Réévaluations à enregistrer : périmètre complet de l'import (jamais la vue filtrée), une ligne par anomalie dont le cycle change.
@@ -756,6 +766,13 @@
   // Câblage commun page et banc : ouverture du bloc des contrôles (carte, Conseiller) et du champ de commentaire. Aucune écriture.
   // Effet commun d'une vérification enregistrée : la ligne passe « vérifiée » (elle quitte la liste active), message daté. Page et banc.
   function effetVerificationEnregistree(an, etat, auteur) {
+    if (etat.ctlDetail) {
+      // L3 : en détail plein écran, la ligne vérifiée quitte la vue ; on passe au contrôle suivant (sinon au précédent).
+      try {
+        var Lv = controlesFiltres(etat), iv = -1; Lv.forEach(function (x, i) { if (x.a === an) iv = i; });
+        var vo = iv >= 0 ? (Lv[iv + 1] || Lv[iv - 1]) : null; if (vo) etat.ctlSel = cleControle(vo);
+      } catch (e) {}
+    }
     an.cycle = 'verifiee';
     etat.messageVerif = messageApresEcriture({ date: new Date().toISOString().slice(0, 10), auteur: auteur });
   }
@@ -784,8 +801,44 @@
     // L2 : choix d'une ligne (clic, Entrée) et flèches haut/bas ; le focus suit la ligne choisie après le rendu.
     var lignes = Array.prototype.slice.call(corps.querySelectorAll('[data-ctl-sel]'));
     function choisirLigne(cle) { etat.ctlSel = cle; rendre(); var n = corps.querySelector('[data-ctl-sel][aria-current]'); if (n && n.focus) n.focus(); }
+    // L3 (écran étroit) : le détail passe en plein écran. Une entrée d'historique par ouverture (bouton Retour du navigateur),
+    // position de défilement et ligne gardées dans l'état, focus rendu à la ligne. Aucun appel réseau, aucune écriture.
+    var etroit = function () { return typeof matchMedia === 'function' && !matchMedia('(min-width:900px)').matches; };
+    function ouvrirDetail(cle) {
+      etat.ctlSel = cle; etat.ctlDetail = true; etat.ctlScroll = typeof window !== 'undefined' ? (window.pageYOffset || 0) : 0;
+      try { if (!etat.ctlHist && window.history && history.pushState) { history.pushState({ ptDetail: 1 }, ''); etat.ctlHist = true; } } catch (e) {}
+      rendre(); if (typeof window !== 'undefined' && window.scrollTo) window.scrollTo(0, 0);
+      var r = corps.querySelector('[data-ctl-retour]'); if (r && r.focus) r.focus();
+    }
+    function fermerDetailDirect() {
+      if (!etat.ctlDetail) return;
+      etat.ctlDetail = false; etat.ctlHist = false; rendre();
+      if (typeof window !== 'undefined' && window.scrollTo) window.scrollTo(0, etat.ctlScroll || 0);
+      var n = corps.querySelector('[data-ctl-sel][aria-current]'); if (n && n.focus) { try { n.focus({ preventScroll: true }); } catch (e) { n.focus(); } }
+    }
+    function demanderRetour() {
+      if (!etat.ctlDetail) return;
+      if (etat.ctlHist) { try { history.back(); return; } catch (e) {} }
+      fermerDetailDirect();
+    }
+    function suivant() {
+      var ls = Array.prototype.slice.call(corps.querySelectorAll('[data-ctl-sel]')), i = -1;
+      ls.forEach(function (b, k) { if (b.getAttribute('aria-current') === 'true') i = k; });
+      if (i < 0 || i >= ls.length - 1) return;
+      etat.ctlSel = ls[i + 1].dataset.ctlSel; rendre(); if (typeof window !== 'undefined' && window.scrollTo) window.scrollTo(0, 0);
+      var b = corps.querySelector('[data-ctl-suivant]'); if (b && b.focus) b.focus();
+    }
+    // Écouteurs globaux liés une seule fois ; ils appellent toujours les dernières fermetures.
+    etat.ctlRetourFn = demanderRetour; etat.ctlFermerDirect = fermerDetailDirect;
+    if (!etat.ctlGlobaux && typeof window !== 'undefined' && window.addEventListener) {
+      etat.ctlGlobaux = true;
+      window.addEventListener('popstate', function () { if (etat.ctlDetail && etat.ctlFermerDirect) etat.ctlFermerDirect(); });
+      document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape' && etat.ctlDetail && etroit() && etat.ctlRetourFn) { ev.preventDefault(); etat.ctlRetourFn(); } });
+    }
+    var bRetour = corps.querySelector('[data-ctl-retour]'); if (bRetour) bRetour.addEventListener('click', demanderRetour);
+    var bSuiv = corps.querySelector('[data-ctl-suivant]'); if (bSuiv) bSuiv.addEventListener('click', suivant);
     lignes.forEach(function (b, i) {
-      b.addEventListener('click', function () { choisirLigne(b.dataset.ctlSel); });
+      b.addEventListener('click', function () { if (etroit()) ouvrirDetail(b.dataset.ctlSel); else choisirLigne(b.dataset.ctlSel); });
       b.addEventListener('keydown', function (ev) {
         var k = ev.key, j = k === 'ArrowDown' ? i + 1 : k === 'ArrowUp' ? i - 1 : k === 'Home' ? 0 : k === 'End' ? lignes.length - 1 : -1;
         if (j < 0 || j >= lignes.length) return; ev.preventDefault(); choisirLigne(lignes[j].dataset.ctlSel);
@@ -925,7 +978,7 @@
     '.vue-p1c .pt-inds{grid-template-columns:repeat(2,1fr)}@media (min-width:900px){.vue-p1c .pt-inds{grid-template-columns:repeat(4,1fr)}}' +
     '.vue-p1c .pt-badges{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}.vue-p1c .pt-pol{margin:8px 0}.vue-p1c .pt-pol-l{display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:2px 0}' +
     '.vue-p1c details.pt-filtres[open]>summary .sc-chev{transform:rotate(45deg)}.vue-p1c details.pt-histo-sec[open]>summary .sc-chev{transform:rotate(45deg)}.vue-p1c .pt-histo-sec>summary{min-height:44px;display:flex;align-items:center;justify-content:space-between;cursor:pointer}.vue-p1c .pt-histo-reset{margin:6px 0}.vue-p1c .pt-histo-plus{margin:6px 0}.vue-p1c .pt-ctrl .vp-liste{margin:8px 0}.vue-p1c .pt-f{display:flex;flex-direction:column;gap:2px;min-width:0}.vue-p1c .pt-f select,.vue-p1c .pt-f input{min-height:44px;border-radius:8px;border:1px solid var(--t-line);background:var(--t-panel);color:var(--t-text);font:inherit;padding:0 8px}.vue-p1c .pt-f-rech{flex:1 1 100%}.vue-p1c .pt-f:not(.pt-f-rech){flex:1 1 140px}.vue-p1c .pt-scenarios{margin:8px 0}.vue-p1c .pt-aucun{margin:4px 0 0}.vue-p1c .sc-conseiller{margin:0 0 10px}.vue-p1c .pt-histo-t{display:flex;align-items:center;gap:6px}.vue-p1c .pt-histo-txt{flex:1;min-width:0}.vue-p1c .pt-li{display:flex;align-items:center;gap:6px}.vue-p1c .pt-li .vp-ligne-prod{flex:1;min-width:0}.vue-p1c .pt-li .pt-info{flex:none}.vue-p1c .pt-ctl{list-style:none;padding:10px 0;border-top:1px solid var(--t-line)}.vue-p1c .pt-ctl-2,.vue-p1c .pt-ctl-3{margin:4px 0}.vue-p1c .pt-ctl .pt-verifier{width:100%;min-height:44px;margin-top:8px}.vue-p1c .pt-ctl-titre{margin:0 0 8px}.vue-p1c .pt-controles-faire{margin:14px 0 10px}.vue-p1c .pt-bloc-controles{margin:10px 0}.vue-p1c .pt-ctl-outils{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}.vue-p1c .pt-ctl-cycles{border:0;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:4px 12px}.vue-p1c .pt-carte-ctl{text-align:left;font:inherit;cursor:pointer;width:100%;border:1px solid var(--t-line);background:var(--t-panel);color:var(--t-text);min-height:44px}.vue-p1c .pt-com-lien{background:none;border:0;padding:0 2px;min-height:44px;font:inherit;font-size:13px;color:var(--accent,inherit);text-decoration:underline;cursor:pointer}.vue-p1c input[type=checkbox]{accent-color:var(--accent)}.vue-p1c .pt-chk{display:inline-flex;align-items:center;gap:6px;min-height:44px}.vue-p1c .pt-verif-champ{margin-top:8px}.vue-p1c .pt-verif-zone{display:flex;flex-direction:column;gap:4px}.vue-p1c .pt-verif-com{width:100%;box-sizing:border-box;min-height:64px;border-radius:8px;border:1px solid var(--t-line);background:var(--t-panel);color:var(--t-text);font:inherit;padding:8px;resize:vertical}.vue-p1c .pt-verif-n{align-self:flex-end}.vue-p1c .pt-fond{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:40}.vue-p1c .pt-fiche{position:fixed;z-index:41;background:var(--t-panel);overflow:auto;box-sizing:border-box;left:0;right:0;bottom:0;max-height:85vh;border-radius:16px 16px 0 0;padding:12px 16px 24px}@media (min-width:900px){.vue-p1c .pt-fiche{left:auto;top:0;bottom:0;right:0;width:420px;max-height:none;border-radius:0}}.vue-p1c .pt-fiche-tete{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}.vue-p1c .pt-fermer{min-height:44px}.vue-p1c .pt-marge-l1{display:block;color:var(--t-text)}.vue-p1c .pt-marge-prin{color:var(--t-text);font-family:var(--t-mono);font-weight:700;font-size:17px}.vue-p1c .pt-marge-sec{display:block;color:var(--t-mid);font-family:var(--t-mono);font-size:12px}.vue-p1c .vp-filtres{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start}.vue-p1c .pt-filtres{flex:1 1 100%}.vue-p1c .pt-filtres>summary{min-height:44px;display:flex;align-items:center;justify-content:space-between;cursor:pointer}.vue-p1c .pt-filtres-corps{display:flex;flex-wrap:wrap;gap:8px}@media (min-width:900px){.vue-p1c .pt-filtres-corps{flex-wrap:wrap}.vue-p1c .pt-filtres-corps>.pt-f{flex:1 1 160px;min-width:0}}@media (max-width:599px){.vue-p1c .sc-conseiller .conseiller-avatar{width:48px;height:48px}.vue-p1c .sc-ind{padding:10px 12px}.vue-p1c .sc-ind-val{font-size:20px}}';
-  CSS += '.vue-p1c .pt-ctl-deux{display:block}.vue-p1c .pt-ctl-liste{list-style:none;margin:0;padding:0}.vue-p1c .pt-ctl-item{margin:0;border-top:1px solid var(--t-line)}.vue-p1c .pt-ctl-ligne{display:flex;align-items:center;gap:8px;width:100%;min-height:44px;padding:6px 10px;background:transparent;color:var(--t-text);border:0;border-left:3px solid transparent;text-align:left;font:inherit;cursor:pointer}.vue-p1c .pt-ctl-ligne>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.vue-p1c .pt-ctl-ligne[aria-current=true]{background:var(--t-panel);border-left-color:var(--t-text)}.vue-p1c .pt-ctl-ligne:focus-visible,.vue-p1c details.pt-sources-calcul>summary:focus-visible{outline:2px solid var(--t-text);outline-offset:2px}.vue-p1c .pt-ctl-ligne:focus-visible{outline-offset:-2px}.vue-p1c .pt-detail{margin-top:12px;padding:12px;border:1px solid var(--t-line);border-radius:14px;background:var(--t-panel)}.vue-p1c details.pt-sources-calcul>summary{min-height:44px;display:flex;align-items:center;cursor:pointer}@media (min-width:900px){.vue-p1c .pt-ctl-deux{display:grid;grid-template-columns:46% 1fr;gap:16px;align-items:start}.vue-p1c .pt-ctl-ligne{min-height:36px;padding:4px 10px}.vue-p1c .pt-ctl-deux>.pt-ctl-droite{position:sticky;top:8px;align-self:start;max-height:calc(100vh - 16px);overflow-y:auto}.vue-p1c .pt-detail{margin-top:0}}';
+  CSS += '.vue-p1c .pt-ctl-deux{display:block}.vue-p1c .pt-ctl-liste{list-style:none;margin:0;padding:0}.vue-p1c .pt-ctl-item{margin:0;border-top:1px solid var(--t-line)}.vue-p1c .pt-ctl-ligne{display:flex;align-items:center;gap:8px;width:100%;min-height:44px;padding:6px 10px;background:transparent;color:var(--t-text);border:0;border-left:3px solid transparent;text-align:left;font:inherit;cursor:pointer}.vue-p1c .pt-ctl-ligne>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.vue-p1c .pt-ctl-ligne[aria-current=true]{background:var(--t-panel);border-left-color:var(--t-text)}.vue-p1c .pt-ctl-ligne:focus-visible,.vue-p1c details.pt-sources-calcul>summary:focus-visible{outline:2px solid var(--t-text);outline-offset:2px}.vue-p1c .pt-ctl-ligne:focus-visible{outline-offset:-2px}.vue-p1c .pt-detail{margin-top:12px;padding:12px;border:1px solid var(--t-line);border-radius:14px;background:var(--t-panel)}.vue-p1c details.pt-sources-calcul>summary{min-height:44px;display:flex;align-items:center;cursor:pointer}@media (max-width:899.98px){.vue-p1c .pt-ctl-deux[data-mode=liste]>.pt-ctl-droite{display:none}.vue-p1c .pt-ctl-deux[data-mode=detail]>.pt-ctl-gauche{display:none}.vue-p1c .pt-ctl-deux[data-mode=detail] .pt-detail{margin-top:0;padding-bottom:0;box-sizing:border-box;max-width:100%;overflow-wrap:anywhere}.vue-p1c .pt-ctl-retour,.vue-p1c .pt-ctl-suivant{min-height:44px;min-width:44px;margin:0 0 8px}.vue-p1c .pt-ctl-suivant[disabled]{opacity:.5}.vue-p1c .pt-actions{position:sticky;bottom:0;display:flex;gap:8px;padding:8px 0;margin-top:12px;background:var(--t-panel);border-top:1px solid var(--t-line)}.vue-p1c .pt-actions>button{flex:1 1 0;min-height:44px}.vue-p1c .pt-ctl-retour:focus-visible,.vue-p1c .pt-actions>button:focus-visible{outline:2px solid var(--t-text);outline-offset:2px}}@media (min-width:900px){.vue-p1c .pt-ctl-retour,.vue-p1c .pt-ctl-suivant{display:none}.vue-p1c .pt-actions{display:block}.vue-p1c .pt-ctl-deux{display:grid;grid-template-columns:46% 1fr;gap:16px;align-items:start}.vue-p1c .pt-ctl-ligne{min-height:36px;padding:4px 10px}.vue-p1c .pt-ctl-deux>.pt-ctl-droite{position:sticky;top:8px;align-self:start;max-height:calc(100vh - 16px);overflow-y:auto}.vue-p1c .pt-detail{margin-top:0}}';
 
   // ---------- Montage : lecture seule, session de la personne connectée, clé publique, aucun paramètre de site ----------
   var VUES = { familles: 'v_tarif_familles_actifs', rattachements: 'v_tarif_rattachements_actifs', seuils: 'v_tarif_seuils_actifs', reglages: 'v_tarif_reglages_actifs',
