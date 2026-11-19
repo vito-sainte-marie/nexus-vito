@@ -1059,6 +1059,13 @@ ok('L3 : détail plein écran sous 900 px, position k / N, barre fixée en bas, 
   const i = src.indexOf('@media (min-width:900px)'); assert.ok(i > 0 && !/position:fixed/.test(src.slice(i, i + 700)), 'bureau sans surcouche');
   assert.ok(/pt-ctl-pos/.test(src) && /n\.pos \+ ' \/ ' \+ n\.total/.test(src), 'position k / N émise');
 });
+ok('L3 : le détail porte le chiffre clé et l\'étiquette de preuve hors de « Sources et calcul »', () => {
+  const src = fs.readFileSync(require.resolve('./nexus-politique-tarifaire-ecran.js'), 'utf8');
+  const i = src.indexOf('function htmlDetailControle'), j = src.indexOf('htmlCorpsControle(x.a', i);
+  const seg = src.slice(i, j);
+  assert.ok(/data-ctl-chiffre="1"/.test(seg) && /pt-mono/.test(seg) && /data-axe="niveau"/.test(seg) && /pc\.chiffres/.test(seg) && /pc\.niveau/.test(seg), 'chiffre clé et niveau sous le titre');
+  assert.ok(/suivant === undefined \? '<p class="pt-ctl-2 sc-methode">'/.test(src), 'le chiffre n\'est plus répété dans « Sources et calcul » du détail');
+});
 ok('L3 : vérifier en détail passe au contrôle suivant', () => {
   const a = avecControles(3), cle = (l) => 'S7|' + l.article;
   const etat = { analyse: a, role: 'manager', estCreateur: false, filtres: {}, incoherences: [], ctlDetail: true, ctlSel: cle(a.lignes[0]) };

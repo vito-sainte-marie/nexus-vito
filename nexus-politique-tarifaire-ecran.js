@@ -508,7 +508,7 @@
     var masque = (an.peutExpliquerAussi || []).length ? '<p class="sc-note">' + esc(AL.masque) + ' ' + esc(an.peutExpliquerAussi.map(function (c) { return (AL.codes[c] || {}).titre || c; }).join(', ')) + '</p>' : '';
     var marge = code === 'S1' && perteUnitaire(l) ? '<p class="sc-note" data-s1-pct="1">Marge : ' + esc(pct((an.valeurs || {}).taux)) + '</p>' : '';
     return '<p class="pt-ctl-3 sc-note">' + esc(pc.cd.controle || '') + '</p>' + marge + masque +
-      '<details class="pt-sources-calcul" data-sources-calcul="1"><summary>Sources et calcul</summary><p class="pt-ctl-2 sc-methode">' + pc.chiffres + '</p>' +
+      '<details class="pt-sources-calcul" data-sources-calcul="1"><summary>Sources et calcul</summary>' + (suivant === undefined ? '<p class="pt-ctl-2 sc-methode">' + pc.chiffres + '</p>' : '') +
       '<p class="sc-methode">' + esc(AL.explication || 'Un contrôle indique où comparer avec Decenium. Ce n\'est pas une erreur constatée.') + '</p></details>' +
       htmlVerificationOuBarre(an, l, droits, etat, suivant);
   }
@@ -542,6 +542,7 @@
     var suiv = '<button type="button" class="detail-btn pt-ctl-suivant" data-ctl-suivant="1"' + (n.suivant ? '' : ' disabled') + '>Suivant</button>';
     return '<section class="pt-detail" data-ctl-detail="1" aria-label="Détail du contrôle"><div class="pt-ctl-entete">' + retour + pos + '</div><div class="pt-ctl-1"><button type="button" class="vp-ligne-prod pt-ctl-prod" data-article="' + esc(x.l.article) + '"><span class="vp-nom">' + esc(x.l.article) + '</span></button> ' +
       '<span class="sc-nom">' + esc(pc.cd.titre || pc.code) + '</span> <span class="nbe-qualif" data-axe="cycle">' + esc(pc.statut) + '</span></div>' +
+      '<p class="pt-ctl-2 pt-ctl-chiffre" data-ctl-chiffre="1"><span class="pt-mono">' + pc.chiffres + '</span> <span class="nbe-qualif" data-axe="niveau">' + esc(pc.niveau) + '</span></p>' +
       htmlCorpsControle(x.a, x.l, droits, etat, pc, suiv) + '</section>';
   }
   function htmlControlesAFaire(l, droits, etat) {
