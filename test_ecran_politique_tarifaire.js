@@ -1140,3 +1140,46 @@ ok('L4 : détail ouvert, confirmation et Annuler rendus dans le détail (une seu
   assert(/avecSuivi \? htmlSuiviVerif\(etat, droits\)/.test(src), 'le détail porte le suivi de vérification');
   assert(/if \(!enDetail\) h \+= htmlSuiviVerif/.test(src), 'le bloc ne le rend que si le détail est fermé');
 });
+
+ok('L5 : Conseiller sur une ligne, bouton « Commencer par » sur le cas des contrôles', () => {
+  const a3 = avecControles(3); a3.synthese.alertes = {}; a3.lignes.forEach(l => { l.alertes = []; });
+  const h = E.htmlPage({ analyse: a3, role: 'manager', estCreateur: false, filtres: {}, incoherences: [] });
+  assert.ok(/sc-conseil-ligne/.test(h) && /data-commencer="1"/.test(h) && /Commencer par</.test(h));
+  assert.ok(/data-bloc-conseil="controles"/.test(h), 'le bouton porte l\'ouverture du bloc des contrôles');
+});
+ok('L5 : « Commencer par » trie par gravité, vide les filtres et choisit le premier contrôle', () => {
+  const ec = []; const b = { dataset: { commencer: '1', blocConseil: 'controles' }, addEventListener: (t, f) => ec.push(f) };
+  const corps = { querySelectorAll: (sel) => /data-bloc-conseil/.test(sel) ? [b] : [], querySelector: () => null };
+  const a = avecControles(6);
+  const etat = { analyse: a, ctlTri: 'cause', ctlRecherche: 'zzz', ctlReplie: true }; let rendus = 0;
+  E.lierOuvertures(corps, etat, () => { rendus++; });
+  assert.strictEqual(ec.length, 1);
+  ec[0]();
+  assert.strictEqual(etat.ctlTri, 'gravite'); assert.strictEqual(etat.ctlRecherche, ''); assert.strictEqual(etat.ctlReplie, false);
+  assert.ok(etat.ctlSel || etat.ctlDetail, 'un premier contrôle est choisi ou son détail ouvert');
+  assert.ok(rendus >= 1);
+});
+ok('L5 : Suivre, la ligne porte auteur, date, commentaire et import', () => {
+  const analyse = { lignes: [{ article: 'B', anomalies: [{ code: 'S3', cle: 'k2', cycle: 'verifiee', identiteDonnees: { dateReleve: '2030-03-01' } }] }] };
+  const verifs = [{ code: 'S3', cle: 'k2', verifie_le: '2030-03-05T10:00:00Z', auteur: 'Alex Test', commentaire: 'vu en rayon', identiteDonnees: { dateReleve: '2030-03-01' }, reevaluation: null }];
+  const h = E.htmlHistorique({ analyse, verifications: verifs, historiqueDispo: true, filtreHisto: 'verifiee' });
+  const m = /data-histo-suivi="1">([^<]*)</.exec(h);
+  assert.ok(m, 'texte de suivi sur la ligne, hors (i)');
+  assert.ok(/05\/03\/2030/.test(m[1]) && /Alex Test/.test(m[1]) && /vu en rayon/.test(m[1]) && /01\/03\/2030/.test(m[1]), m[1]);
+});
+ok('L5 : Suivre, ligne sans vérification = « Jamais vérifié », aucune vérification annulée affichée', () => {
+  const analyse = { lignes: [{ article: 'P', anomalies: [{ code: 'S2', cle: 'k9', cycle: 'persistante' }] }] };
+  const h = E.htmlHistorique({ analyse, verifications: [], historiqueDispo: true, filtreHisto: 'actifs' });
+  assert.ok(/Jamais vérifié/.test(h) && !/Vérifié le/.test(h));
+});
+ok('L5 : l\'écran n\'écrit rien et ne code aucun compte en dur', () => {
+  const src = require('fs').readFileSync(__dirname + '/nexus-politique-tarifaire-ecran.js', 'utf8');
+  assert.ok(!/tarif_marquer_verifie|\.update\(|\.insert\(/.test(src));
+  const fh = src.split('FILTRES_HISTO')[1].slice(0, 400);
+  assert.ok(/'Résolus'/.test(fh) && !/'Résolus au nouvel import'/.test(fh));
+});
+ok('L5 : le chargement des vérifications exclut les annulées (annule_le is null)', () => {
+  const src = require('fs').readFileSync(__dirname + '/nexus-politique-tarifaire-ecran.js', 'utf8');
+  const i = src.indexOf("from('tarif_anomalies_verifications').select");
+  assert.ok(i > 0 && /\.is\('annule_le', null\)/.test(src.slice(i, i + 700)), 'une vérification annulée ne revient jamais comme vérifiée');
+});
