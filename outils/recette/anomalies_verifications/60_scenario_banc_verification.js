@@ -31,14 +31,16 @@ function verif(nom, cond, detail) { if (cond) { ok++; console.log('OK  ' + nom);
     if (dossier) await page.screenshot({ path: dossier + '/ctl_info_' + vp.w + '.png', fullPage: false });
 
     // Étape 5 : marquer vérifié sort la ligne des contrôles à effectuer et l'inscrit à l'historique.
+    // Comptage sur les données : le total de l'en-tête « Contrôles à effectuer (N) », pas les 10 lignes visibles.
+    const total = async () => { const m = /Contrôles à effectuer \((\d+)\)/.exec(await page.locator('#vueCorps summary:has-text("Contrôles à effectuer")').first().innerText()); return m ? +m[1] : -1; };
     const boutons = page.locator('#vueCorps button[data-verifier][data-ver-article]');
-    const avant = await boutons.count();
+    const avant = await total();
     verif(tag + ' au moins un contrôle à vérifier', avant > 0);
     if (avant > 0) {
       await boutons.first().click();
       await page.waitForTimeout(400);
-      const apres = await page.locator('#vueCorps button[data-verifier][data-ver-article]').count();
-      verif(tag + ' la ligne quitte les contrôles à effectuer', apres === avant - 1, avant + ' -> ' + apres);
+      const apres = await total();
+      verif(tag + ' le total des contrôles à effectuer baisse de 1 (comptage sur les données)', apres === avant - 1, avant + ' -> ' + apres);
       const texte = await page.locator('#vueCorps').innerText();
       verif(tag + ' historique : « Vérifié le » avec auteur et date', /Vérifié le .+ par /.test(texte));
     }
@@ -71,16 +73,17 @@ function verif(nom, cond, detail) { if (cond) { ok++; console.log('OK  ' + nom);
     // Article ciblé : on suit l'article du premier bouton, pas « les 10 premières lignes visibles ».
     const cible = await page.locator(BTN).first().getAttribute('data-ver-article');
     verif('suite : article ciblé identifié', !!cible);
-    const avantA = await page.locator(BTN + '[data-ver-article="' + cible.replace(/"/g, '\\"') + '"]').count();
+    const totalPersist = async () => { const m = /Contrôles à effectuer \((\d+)\)/.exec(await page.locator('#vueCorps summary:has-text("Contrôles à effectuer")').first().innerText()); return m ? +m[1] : -1; };
+    const avantA = await totalPersist();
     await page.locator(BTN + '[data-ver-article="' + cible.replace(/"/g, '\\"') + '"]').first().click();
     await page.waitForTimeout(400);
-    const apresA = await page.locator(BTN + '[data-ver-article="' + cible.replace(/"/g, '\\"') + '"]').count();
+    const apresA = await totalPersist();
     verif('suite : la vérification retire le contrôle de l\'article ciblé', apresA === avantA - 1, avantA + ' -> ' + apresA);
     // Réimport au même fichier_hash : la ligne ne revient pas.
     await page.goto(URL_BANC + '?scenario=gerant&theme=jour&persist=1&lot=hash-lot-A');
     await page.waitForSelector('#vueCorps', { timeout: 15000 });
     await page.waitForTimeout(500);
-    const memeLot = await page.locator(BTN + '[data-ver-article="' + cible.replace(/"/g, '\\"') + '"]').count();
+    const memeLot = await totalPersist();
     verif('suite : même fichier_hash, le contrôle vérifié ne revient pas', memeLot === apresA, memeLot + ' attendu ' + apresA);
     // Nouveau lot où l'anomalie persiste : la ligne revient, qualifiée « Persistant ».
     await page.goto(URL_BANC + '?scenario=gerant&theme=jour&persist=1&lot=hash-lot-B');

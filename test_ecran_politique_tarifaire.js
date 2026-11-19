@@ -918,6 +918,10 @@ ok('A3 : la phrase de contrôle de S2 ne conclut rien', () => {
   const c = (V.anomaliesTarifaires || V.default && V.default.anomaliesTarifaires).codes.S2.controle;
   assert.strictEqual(c, 'Comparer à la dernière facture fournisseur (prix brut, remise).');
 });
+ok('L0 : aucun compteur du lot réel (184, 75, 62, 31, 89) en dur dans le code de l\'écran', () => {
+  const src = require('fs').readFileSync(require('path').join(__dirname, 'nexus-politique-tarifaire-ecran.js'), 'utf8');
+  [184, 75, 62, 31, 89].forEach(v => assert.ok(!new RegExp('(^|[^0-9.,])' + v + '([^0-9]|$)').test(src), 'chiffre en dur : ' + v));
+});
 Promise.all(PROMESSES).then(() => {
 console.log('test_ecran_politique_tarifaire : ' + n + ' épreuves OK');
 });
