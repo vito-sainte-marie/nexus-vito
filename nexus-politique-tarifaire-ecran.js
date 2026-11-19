@@ -830,7 +830,49 @@
       return { actif: r.data.actif };
     } catch (e) { return { erreur: true }; }
   }
-  var API = { TVA_CONFIRMATIONS_PILOTE: TVA_CONFIRMATIONS_PILOTE, cartes: cartes, scenarios: scenarios, alertesCartes: alertesCartes, trier: trier, filtrer: filtrer, valeursFiltres: valeursFiltres,
+  // ---------- Relevé de stock publié (option B du pilote) : lot import_batches stock_theorique publié le plus récent, lignes import_rows_raw.donnees ----------
+  // Nombre lu dans un export : virgule décimale, espaces (y compris insécables), vide ou texte non numérique => null.
+  function nombreReleve(v) {
+    if (v === null || v === undefined) return null;
+    if (typeof v === 'number') return isFinite(v) ? v : null;
+    var t = String(v).replace(/[\s\u00a0\u202f]/g, '').replace(',', '.');
+    if (t === '' || !/^[-+]?(\d+\.?\d*|\.\d+)$/.test(t)) return null;
+    return Number(t);
+  }
+  // Lot retenu : intention stock_theorique ET statut published, le plus récent (cree_le). Un lot brouillon est ignoré.
+  function lotStockPublie(lots) {
+    var L = (lots || []).filter(function (l) { return l && l.intention === 'stock_theorique' && l.statut === 'published'; });
+    L.sort(function (a, b) { return String(b.cree_le || '') < String(a.cree_le || '') ? -1 : String(b.cree_le || '') > String(a.cree_le || '') ? 1 : 0; });
+    return L[0] || null;
+  }
+  // Lignes du lot -> [{libelle, pa_net_ht, quantite}] ; quantite : null si Stock actuel vide ou non numérique.
+  function lignesStockDepuisLot(rows) {
+    return (rows || []).map(function (r) {
+      var d = (r && r.donnees) || {};
+      return { libelle: d['Libellé'], pa_net_ht: nombreReleve(d['PA net HT']), quantite: nombreReleve(d['Stock actuel']) };
+    });
+  }
+  // Lecture seule (la RLS limite au gérant et au manager du site). Retour : { fourni:false } sans lot publié ou en cas d'erreur
+  // (alors stockFourni=false, aucun faux contrôle) ; sinon { fourni:true, lignes, lot:{id, dateReleve, fichierHash} }.
+  async function chargerStockPublie(client, site, taillePage) {
+    var T = taillePage || 1000;
+    try {
+      var r1 = await client.from('import_batches').select('id, fichier_hash, date_releve, cree_le, intention, statut').eq('site', site).eq('intention', 'stock_theorique').eq('statut', 'published').order('cree_le', { ascending: false }).limit(1);
+      if (r1.error) return { fourni: false, erreur: true };
+      var lot = lotStockPublie(r1.data);
+      if (!lot) return { fourni: false };
+      var rows = [];
+      for (var from = 0; ; from += T) {
+        var r2 = await client.from('import_rows_raw').select('donnees').eq('batch_id', lot.id).order('numero_ligne', { ascending: true }).range(from, from + T - 1);
+        if (r2.error) return { fourni: false, erreur: true };
+        var d = r2.data || []; rows = rows.concat(d);
+        if (d.length < T) break;
+      }
+      if (!rows.length) return { fourni: false };
+      return { fourni: true, lignes: lignesStockDepuisLot(rows), lot: { id: lot.id, dateReleve: lot.date_releve ? String(lot.date_releve).slice(0, 10) : null, fichierHash: lot.fichier_hash || null } };
+    } catch (e) { return { fourni: false, erreur: true }; }
+  }
+  var API = { nombreReleve: nombreReleve, lotStockPublie: lotStockPublie, lignesStockDepuisLot: lignesStockDepuisLot, chargerStockPublie: chargerStockPublie, TVA_CONFIRMATIONS_PILOTE: TVA_CONFIRMATIONS_PILOTE, cartes: cartes, scenarios: scenarios, alertesCartes: alertesCartes, trier: trier, filtrer: filtrer, valeursFiltres: valeursFiltres,
     preuves: preuves, conseiller: conseiller, lierOuvertures: lierOuvertures, fiche: fiche, etatAcces: etatAcces, peutVoirOnglet: peutVoirOnglet, filtrerSite: filtrerSite,
     regimeDe: regimeDe, contexteDeclaratif: contexteDeclaratif, construireContexteTarif: construireContexteTarif, stockParLibelle: stockParLibelle, controle: controle, familles: familles, avertissementRegime: avertissementRegime, infoRegime: infoRegime, badgeRegime: badgeRegime, badgeLigne: badgeLigne, blocFiche: blocFiche,
     chargerRegistres: chargerRegistres, chargerVerifications: chargerVerifications, historiqueLignes: historiqueLignes, htmlHistorique: htmlHistorique, chargerVentes: chargerVentes, lireCompte: lireCompte, libellePeriode: libellePeriode,

@@ -331,8 +331,8 @@ const anom = (o) => Object.assign({ code: 'S2', cle: 'k1', empreinte: 'e2', grav
 const faux = () => { const appels = []; return { appels, rpc: async (nom, args) => { appels.push([nom, args]); return { error: null }; } }; };
 const id2 = { fichierHash: 'h2', dateReleve: '2030-03-15' };
 
-ok('page : ctx.stockDate vient de SYNTHESE_STOCK_DATE, relu puis transmis en date_releve à l\'écriture', () => {
-  assert.ok(/ctx\.stockDate\s*=\s*String\(SYNTHESE_STOCK_DATE\)/.test(page));
+ok('page : ctx.stockDate et fichierHash viennent du lot de relevé publié, transmis en date_releve à l\'écriture', () => {
+  assert.ok(/ctx\.stockDate\s*=\s*RS\.lot\.dateReleve/.test(page) && /ctx\.fichierHash\s*=\s*RS\.lot\.fichierHash/.test(page));
   assert.ok(/identite:\s*\{\s*fichierHash:[^}]*dateReleve:\s*ctx\.stockDate/.test(page));
   const p = E.payloadVerification({ code: 'S2', empreinte: 'e', gravite: 5, niveau: 2, identiteDonnees: { fichierHash: 'h', dateReleve: '2030-03-15' } }, { article: 'A' }, { importBatchId: 'b', moteurVersion: 'm' });
   assert.strictEqual(p.date_releve, '2030-03-15');
@@ -777,6 +777,65 @@ ok('historique : vue vide hors filtre par défaut = action « Changer de statut 
   ec[0]();
   assert.strictEqual(etat.filtreHisto, 'actifs'); assert.strictEqual(etat.histoOuverte, null); assert.strictEqual(rendus, 1);
 });
+
+// ---------- Relevé de stock publié (option B) : lot stock_theorique publié, import_rows_raw.donnees ----------
+const clientStock = (lots, rowsParLot, opts) => {
+  opts = opts || {};
+  return { from: (table) => {
+    const f = {}; let eqs = {}, rng = null;
+    const c = { select: () => c, eq: (k, v) => { eqs[k] = v; return c; }, order: () => c, limit: () => c, range: (a, b) => { rng = [a, b]; return c; },
+      then: (ok, ko) => {
+        if (opts.erreur) return Promise.resolve({ data: null, error: { message: 'x' } }).then(ok, ko);
+        if (table === 'import_batches') {
+          const L = lots.filter(l => Object.keys(eqs).every(k => k === 'site' ? l.site === eqs[k] : l[k] === eqs[k])).sort((a, b) => String(b.cree_le).localeCompare(String(a.cree_le))).slice(0, 1);
+          return Promise.resolve({ data: L, error: null }).then(ok, ko);
+        }
+        const R = (rowsParLot[eqs.batch_id] || []).slice(rng[0], rng[1] + 1);
+        return Promise.resolve({ data: R, error: null }).then(ok, ko);
+      } };
+    return c;
+  } };
+};
+const rowD = (lib, pa, q) => ({ donnees: { 'Catégorie': 'Rayon Alpha', 'Libellé': lib, 'Mouvements': '', 'PA net HT': pa, 'Stock actuel': q, 'Stock date': '10/11/2030', 'Valeur stock HT': '' } });
+const lot = (id, statut, cree, extra) => Object.assign({ id, site: 'S', intention: 'stock_theorique', statut, cree_le: cree, fichier_hash: 'h-' + id, date_releve: '2030-03-10' }, extra || {});
+ok('relevé publié : formats de nombres (virgule décimale, vide, texte non numérique, espaces)', () => {
+  assert.strictEqual(E.nombreReleve('1,94'), 1.94); assert.strictEqual(E.nombreReleve('1 234,50'), 1234.5); assert.strictEqual(E.nombreReleve(3.2), 3.2);
+  assert.strictEqual(E.nombreReleve(''), null); assert.strictEqual(E.nombreReleve(null), null); assert.strictEqual(E.nombreReleve('n/d'), null); assert.strictEqual(E.nombreReleve('0'), 0);
+  const l = E.lignesStockDepuisLot([rowD('A', '1,5', '12'), rowD('B', '', ''), rowD('C', 'abc', '0')]);
+  assert.deepStrictEqual(l.map(x => [x.pa_net_ht, x.quantite]), [[1.5, 12], [null, null], [null, 0]]);
+  assert.strictEqual(E.stockParLibelle(l).lignes.length, 1, 'une ligne sans PA exploitable ne crée pas de coût');
+});
+ok('relevé publié : un lot brouillon est ignoré, le publié le plus récent gagne, relevé lu par pages', async () => {
+  const lots = [lot('p1', 'published', '2030-03-01T00:00:00Z'), lot('p2', 'published', '2030-03-05T00:00:00Z'), lot('d1', 'draft', '2030-03-09T00:00:00Z'), lot('v1', 'published', '2030-03-09T00:00:00Z', { intention: 'ventes' })];
+  const rows = { p1: [rowD('Ancien', '9', '1')], p2: [rowD('A', '1,5', '2'), rowD('B', '2', '0'), rowD('C', '3', '5')], d1: [rowD('Brouillon', '8', '1')] };
+  const r = await E.chargerStockPublie(clientStock(lots, rows), 'S', 2);
+  assert.strictEqual(r.fourni, true); assert.strictEqual(r.lot.id, 'p2'); assert.strictEqual(r.lot.fichierHash, 'h-p2'); assert.strictEqual(r.lot.dateReleve, '2030-03-10');
+  assert.deepStrictEqual(r.lignes.map(x => x.libelle), ['A', 'B', 'C']);
+  assert.strictEqual((await E.chargerStockPublie(clientStock(lots, rows), 'autre-site')).fourni, false);
+});
+ok('relevé publié : aucun lot publié, lot vide ou lecture en erreur => stockFourni=false, sans faux contrôle', async () => {
+  const brouillon = [lot('d1', 'draft', '2030-03-09T00:00:00Z')];
+  assert.strictEqual((await E.chargerStockPublie(clientStock(brouillon, { d1: [rowD('A', '1', '1')] }), 'S')).fourni, false);
+  assert.strictEqual((await E.chargerStockPublie(clientStock([lot('p', 'published', '2030-03-01T00:00:00Z')], { p: [] }), 'S')).fourni, false);
+  const e = await E.chargerStockPublie(clientStock([lot('p', 'published', '2030-03-01T00:00:00Z')], { p: [rowD('A', '1', '1')] }, { erreur: true }), 'S');
+  assert.strictEqual(e.fourni, false);
+  const ctx = E.construireContexteTarif({ site: 'S', registres: reg, declarations: {}, lignes: courantes, periode, stock: e.fourni ? e.lignes : null });
+  assert.strictEqual(ctx.stockFourni, false);
+  const ctx2 = E.construireContexteTarif({ site: 'S', registres: reg, declarations: {}, lignes: courantes, periode, stock: [{ libelle: 'Produit A', pa_net_ht: 1 }], stockSource: 'relevé de stock publié du 10/03/2030, colonne « PA net HT »' });
+  assert.strictEqual(ctx2.stockFourni, true); assert.ok(/relevé de stock publié du 10\/03\/2030/.test(ctx2.stockSource));
+});
+(function parite() {
+  const dossier = __dirname + '/docs/reference/scanner-tarifaire-dossiers/01-T1-moteur/t1/donnees/stock_pa_net_ht_20261110.json';
+  if (!fs.existsSync(dossier)) { console.log('parité banc/page : relevé T1 absent (hors dépôt), épreuve non jouée'); return; }
+  ok('parité banc/page : le relevé lu depuis des lignes import_rows_raw simulées donne le même stock que le banc (T1)', async () => {
+    const stk = JSON.parse(fs.readFileSync(dossier, 'utf8')); const src = stk.lignes || stk;
+    const rows = src.map(r => rowD(r.article, String(r.pa_net_ht).replace('.', ','), '3'));
+    const r = await E.chargerStockPublie(clientStock([lot('t1', 'published', '2030-03-01T00:00:00Z')], { t1: rows }), 'S', 1000);
+    const banc = E.stockParLibelle(src.map(x => ({ libelle: x.article, pa_net_ht: x.pa_net_ht })));
+    const page = E.stockParLibelle(r.lignes);
+    assert.deepStrictEqual(page, banc); assert.ok(page.lignes.length > 100);
+  });
+})();
 Promise.all(PROMESSES).then(() => {
 console.log('test_ecran_politique_tarifaire : ' + n + ' épreuves OK');
 });
