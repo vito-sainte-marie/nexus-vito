@@ -1684,15 +1684,17 @@ nexusRequireAuth().then(async employee => {
     if (!forcer && ANALYSE_TARIF) return ANALYSE_TARIF;
     const reg = E.filtrerSite(await E.chargerRegistres(nexusClient), SITE_ACTUEL);
     const exclusions = new Set(((LECTURES_MARGE && LECTURES_MARGE.marge_exceptions) || []).map(r => r.article));
+    // Relevé de stock : lot stock_theorique publié le plus récent du site (import_rows_raw), sinon « relevé non fourni » (aucun faux contrôle).
+    const RS = await E.chargerStockPublie(nexusClient, SITE_ACTUEL);
+    const dRel = RS.fourni && RS.lot.dateReleve ? RS.lot.dateReleve.split('-').reverse().join('/') : null;
     const ctx = E.construireContexteTarif({ site: SITE_ACTUEL, registres: reg, declarations: DECLARATIONS_PRODUITS, lignes: MESURES_PRODUITS.map(x => x.row), periode: PERIODE_DONNEES, articlesComposes: ARTICLES_COMPOSES,
+      stock: RS.fourni ? RS.lignes : null, stockSource: RS.fourni ? 'relevé de stock publié' + (dRel ? ' du ' + dRel : '') + ', colonne « PA net HT »' : undefined,
       exclusions, famille: (cat, art, ex) => (window.NexusMarge && NexusMarge.familleMarge ? NexusMarge.familleMarge(cat, art, ex) : { exclue: false }) });
     // Cycle de vie des anomalies : dernier import du site + historique des vérifications (lecture seule ; la RLS filtre par site).
     let VERIFS = null;
     try {
-      const { data: lots } = await nexusClient.from('import_batches').select('fichier_hash').eq('site', SITE_ACTUEL).order('cree_le', { ascending: false }).limit(1);
-      if (lots && lots.length) ctx.fichierHash = lots[0].fichier_hash;
-      // Date du relevé de stock réellement utilisé pour le calcul (sans relevé : marge non calculable, pas de S2/S4/S5).
-      if (SYNTHESE_STOCK_DATE) ctx.stockDate = String(SYNTHESE_STOCK_DATE).slice(0, 10);
+      // Identité des données = lot de relevé réellement utilisé (pas le dernier lot de toute intention, qui peut être un import de ventes).
+      if (RS.fourni) { ctx.fichierHash = RS.lot.fichierHash; if (RS.lot.dateReleve) ctx.stockDate = RS.lot.dateReleve; }
       VERIFS = (await E.chargerVerifications(nexusClient, SITE_ACTUEL)).verifications;
       ctx.verifications = VERIFS;
     } catch (e) { console.warn('Historique des vérifications indisponible', e); VERIFS = null; }
