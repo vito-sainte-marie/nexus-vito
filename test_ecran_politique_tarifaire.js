@@ -1050,6 +1050,15 @@ ok('L3 : câblage (historique, popstate, Échap, focus, défilement) et CSS étr
   assert.ok(/\.pt-ctl-retour,\.vue-p1c \.pt-ctl-suivant\{min-height:44px/.test(src) && /\.pt-actions>button\{flex:1 1 0;min-height:44px/.test(src));
   assert.ok(/min-width:900px\)\{\.vue-p1c \.pt-ctl-retour,\.vue-p1c \.pt-ctl-suivant\{display:none\}/.test(src), 'bureau inchangé : retour et Suivant masqués');
 });
+ok('L3 : détail plein écran sous 900 px, position k / N, barre fixée en bas, titre produit sans fond', () => {
+  const src = fs.readFileSync(require.resolve('./nexus-politique-tarifaire-ecran.js'), 'utf8');
+  assert.ok(/data-mode=detail\]>\.pt-ctl-droite\{position:fixed;top:0;right:0;bottom:0;left:0;/.test(src), 'détail en surcouche plein écran');
+  assert.ok(/\.pt-actions\{position:sticky;bottom:0;[^}]*env\(safe-area-inset-bottom/.test(src), 'barre en bas avec marge de sécurité');
+  assert.ok(/\.pt-detail \.pt-ctl-prod\{background:none;border:0;padding:0/.test(src), 'titre produit sans fond ni bordure');
+  assert.ok(/\.pt-detail \.pt-ctl-prod:focus-visible\{outline:2px solid var\(--t-text\)/.test(src), 'focus visible');
+  const i = src.indexOf('@media (min-width:900px)'); assert.ok(i > 0 && !/position:fixed/.test(src.slice(i, i + 700)), 'bureau sans surcouche');
+  assert.ok(/pt-ctl-pos/.test(src) && /n\.pos \+ ' \/ ' \+ n\.total/.test(src), 'position k / N émise');
+});
 ok('L3 : vérifier en détail passe au contrôle suivant', () => {
   const a = avecControles(3), cle = (l) => 'S7|' + l.article;
   const etat = { analyse: a, role: 'manager', estCreateur: false, filtres: {}, incoherences: [], ctlDetail: true, ctlSel: cle(a.lignes[0]) };
