@@ -1134,3 +1134,9 @@ console.log('test_ecran_politique_tarifaire : ' + n + ' épreuves OK');
   assert.ok(/c\.code === 'A1'/.test(src) && /pistes indicatives/.test(src), 'compteur Décider limité à A1, libellé pistes indicatives');
   console.log('test_ecran_politique_tarifaire : L1 recette OK');
 })();
+
+ok('L4 : détail ouvert, confirmation et Annuler rendus dans le détail (une seule zone aria-live)', () => {
+  const src = require('fs').readFileSync(__dirname + '/nexus-politique-tarifaire-ecran.js', 'utf8');
+  assert(/avecSuivi \? htmlSuiviVerif\(etat, droits\)/.test(src), 'le détail porte le suivi de vérification');
+  assert(/if \(!enDetail\) h \+= htmlSuiviVerif/.test(src), 'le bloc ne le rend que si le détail est fermé');
+});

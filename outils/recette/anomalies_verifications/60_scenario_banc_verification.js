@@ -92,6 +92,24 @@ function verif(nom, cond, detail) { if (cond) { ok++; console.log('OK  ' + nom);
       verif(tag + ' Contrôler : confirmation « Vérification enregistrée. Contrôle suivant ouvert. » après le clic', /Vérification enregistrée\. Contrôle suivant ouvert\./.test(msg), msg);
       const apres = await total();
       verif(tag + ' le total des contrôles à effectuer baisse de 1 (comptage sur les données)', apres === avant - 1, avant + ' -> ' + apres);
+      // 1 bis) L4, 375 px : confirmation et « Annuler » sont dans le détail plein écran. Motif vide refusé, puis motif saisi : annulation acceptée.
+      if (vp.w < 900) {
+        const det = page.locator('#vueCorps [data-ctl-detail]');
+        verif(tag + ' L4 : la confirmation est dans le détail', await det.locator('[data-ctl-live] [data-verif-ok]').count() > 0);
+        await det.locator('[data-ctl-annuler]').first().click();
+        await page.locator('#vueCorps [data-annul-confirmer]').first().click();
+        const refus = await page.locator('#vueCorps [data-annul-erreur]').first().innerText().catch(() => '');
+        verif(tag + ' L4 : motif vide refusé', /motif/i.test(refus), refus);
+        await page.locator('#ptAnnulMotif').fill('Vérification faite par erreur de pointage');
+        await page.locator('#vueCorps [data-annul-confirmer]').first().click();
+        await page.waitForTimeout(400);
+        const retab = await total();
+        verif(tag + ' L4 : annulation acceptée, le total revient à sa valeur de départ', retab === avant, avant + ' -> ' + retab);
+        // On revérifie pour la suite du scénario.
+        await boutons.first().click();
+        await page.waitForTimeout(400);
+        verif(tag + ' L4 : revérification après annulation', await total() === avant - 1);
+      }
       // 2) Dans Suivre, la ligne de l'article porte « Vérifié ». Sous 900 px le détail couvre l'écran : retour à la liste d'abord.
       const retourListe = page.locator('#vueCorps [data-ctl-retour]');
       if (vp.w < 900 && await retourListe.count() && await retourListe.first().isVisible()) { await retourListe.first().click(); await page.waitForTimeout(200); }
