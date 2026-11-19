@@ -93,12 +93,12 @@ function verif(nom, cond, detail) { if (cond) { ok++; console.log('OK  ' + nom);
     verif('suite : nouveau lot, l\'anomalie persistante revient « Persistant »', /Persistant/.test(texteB));
     // Pas deux étiquettes de même texte, y compris dans « Toutes les références ».
     verif('suite : aucune étiquette en double (vue par défaut)', (await doublons(page)).length === 0, (await doublons(page)).join(' ; '));
-    const toutes = page.locator('#vueCorps [data-ctl-tout], #vueCorps button:has-text("Toutes les références")').first();
-    if (await toutes.count()) {
-      await toutes.click(); await page.waitForTimeout(400);
+    const plus = page.locator('#vueCorps button[data-plus]').first();
+    if (await plus.count()) {
+      await plus.click(); await page.waitForTimeout(400);
       const d = await doublons(page);
-      verif('suite : aucune étiquette en double (Toutes les références)', d.length === 0, d.join(' ; '));
-    } else verif('suite : bouton « Toutes les références » trouvé', false);
+      verif('suite : aucune étiquette en double (liste dépliée, « Voir les N autres références »)', d.length === 0, d.join(' ; '));
+    } else verif('suite : bouton « Voir les N autres références » trouvé', false);
     await ctx.close();
   }
   {
@@ -113,6 +113,15 @@ function verif(nom, cond, detail) { if (cond) { ok++; console.log('OK  ' + nom);
     verif('cas_production : S1 et S2 sur la même ligne, « À vérifier » et raison « contredit »', /À vérifier/.test(t) && /contredit/.test(t));
     verif('cas_production : marge négative extrême « Perte de … € HT par unité »', /Perte de .+ € HT par unité/.test(t));
     verif('cas_production : aucune étiquette en double', (await doublons(page)).length === 0);
+    // Démarque : article préfixé d'une date, nommé, sans marge, hors marge estimée, hors « Sources qui se contredisent ».
+    const lignesDem = await page.evaluate(() => [...document.querySelectorAll('#vueCorps li, #vueCorps tr, #vueCorps .pt-ligne')].filter(e => e.querySelector('[data-axe="demarque"]')).map(e => e.textContent));
+    verif('cas_production : la démarque est nommée « Démarque : périmé ou casse » et sans marge', lignesDem.length > 0 && lignesDem.every(x => !/Perte de|Marge\s*[-+]?\d/.test(x)));
+    const art = await page.evaluate(() => (window.__banc && window.__banc.analyse ? window.__banc.analyse.lignes : []).filter(l => /^\d{2}-\d{2}-\d{4}\s/.test(l.article)).length);
+    const nMarge = /marges estimées sur (\d+)/.exec(t);
+    const totalLignes = await page.evaluate(() => (window.__banc && window.__banc.analyse ? window.__banc.analyse.lignes.length : -1));
+    verif('cas_production : démarque hors « marges estimées sur N »', !!nMarge && (totalLignes < 0 || +nMarge[1] <= totalLignes - art), nMarge ? nMarge[0] + ' ; lignes ' + totalLignes + ' ; démarque ' + art : 'compteur introuvable');
+    const sources = await page.evaluate(() => { const e = [...document.querySelectorAll('#vueCorps details, #vueCorps section')].filter(x => /Sources qui se contredisent/.test(x.textContent)); return e.map(x => x.textContent).join(' '); });
+    verif('cas_production : démarque hors « Sources qui se contredisent »', !/ARTICLE FICTIF DATE/.test(sources));
     if (dossier) await page.screenshot({ path: dossier + '/cas_production.png', fullPage: true });
     await ctx.close();
   }

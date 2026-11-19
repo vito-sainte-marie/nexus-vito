@@ -922,6 +922,24 @@ ok('L0 : aucun compteur du lot réel (184, 75, 62, 31, 89) en dur dans le code d
   const src = require('fs').readFileSync(require('path').join(__dirname, 'nexus-politique-tarifaire-ecran.js'), 'utf8');
   [184, 75, 62, 31, 89].forEach(v => assert.ok(!new RegExp('(^|[^0-9.,])' + v + '([^0-9]|$)').test(src), 'chiffre en dur : ' + v));
 });
+ok('L0 démarque : article préfixé d\'une date nommé, sans marge, hors marge estimée, hors A3/A5, Conseiller et cartes', () => {
+  const dem = prod('12-11-2030 ARTICLE FICTIF DATE', 'Rayon Alpha', 10, 0.03, 1.57);
+  const a = T.analyser(courantes.concat([dem]), [], A.contexteDepuisRegistres(reg, { periode }));
+  const b = analyse();
+  const l = a.lignes.filter(x => /^12-11-2030/.test(x.article))[0];
+  assert.ok(l && E.estDemarque(l));
+  assert.ok(!E.estDemarque(b.lignes[0]));
+  const h = E.htmlMarge(l);
+  assert.ok(/Démarque : périmé ou casse/.test(h) && !/Perte de|%/.test(h), h);
+  assert.ok(/Démarque : périmé ou casse/.test(JSON.stringify(E.ficheMarge(l))));
+  // marges estimées : la démarque n'ajoute rien au compte
+  assert.strictEqual(E.carteMarge(a).references, E.carteMarge(b).references);
+  const nA3 = x => ((E.alertesCartes(x).find(c => c.code === 'A3') || {}).nombre);
+  assert.strictEqual(nA3(a), nA3(b));
+  assert.deepStrictEqual(E.lignesControle(a.lignes, 'A3').filter(r => E.estDemarque(r)), []);
+  assert.deepStrictEqual(E.lignesControle(a.lignes, 'A5').filter(r => E.estDemarque(r)), []);
+  assert.strictEqual(E.conseiller(a, 'gerant').texte, E.conseiller(b, 'gerant').texte);
+});
 Promise.all(PROMESSES).then(() => {
 console.log('test_ecran_politique_tarifaire : ' + n + ' épreuves OK');
 });

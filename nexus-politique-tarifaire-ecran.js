@@ -133,6 +133,10 @@
     return AR.contexteDepuisRegistres(S.registres, base);
   }
 
+  // Démarque (périmé ou casse) : libellé préfixé d'une date jj-mm-aaaa. Règle d'affichage seulement, le moteur n'est pas modifié.
+  var LIB_DEMARQUE = 'Démarque : périmé ou casse';
+  function estDemarque(l) { return !!l && /^\d{2}-\d{2}-\d{4}\s/.test(String(l.article || '')); }
+  function sansDemarque(L) { return (L || []).filter(function (l) { return !estDemarque(l); }); }
   function alerteDe(l, code) { return (l.alertes || []).filter(function (a) { return a.code === code; })[0] || null; }
   function lignesAlerte(L, code) { return L.filter(function (l) { return !!alerteDe(l, code); }); }
   function montantAlerte(l, code) { var a = alerteDe(l, code); return a && a.consequence ? num(a.consequence.montant) : null; }
@@ -142,7 +146,7 @@
     var s = analyse.synthese, g = analyse.gains, L = analyse.lignes;
     var per = libellePeriode(s.periode);
     var minimum = g.decisionnels.minimum;
-    var a3 = lignesAlerte(L, 'A3').filter(function (l) { return !l.nature; }), nbPertes = 0, nbNulles = 0, sansJust = 0, pertes = 0;
+    var a3 = lignesAlerte(sansDemarque(L), 'A3').filter(function (l) { return !l.nature; }), nbPertes = 0, nbNulles = 0, sansJust = 0, pertes = 0;
     a3.forEach(function (l) {
       var m = montantAlerte(l, 'A3'), a = alerteDe(l, 'A3');
       if (m !== null && m > 0) { nbPertes++; pertes += m; } else nbNulles++;
@@ -184,7 +188,8 @@
 
   // ---------- Alertes ----------
   function alertesCartes(analyse) {
-    var table = T.ALERTES, comptes = analyse.synthese.alertes || {};
+    var table = T.ALERTES, comptes = Object.assign({}, analyse.synthese.alertes || {}), hors = sansDemarque(analyse.lignes);
+    comptes.A3 = lignesAlerte(hors, 'A3').length; comptes.A5 = lignesAlerte(hors, 'A5').length;
     return Object.keys(table).sort().map(function (code) {
       var a = table[code];
       return { code: code, libelle: a.libelle, gravite: a.gravite, action: a.action, nombre: comptes[code] || 0 };
@@ -242,7 +247,10 @@
     return n;
   }
   function conseiller(analyse, role) {
-    var c = analyse.synthese.alertes || {}, st = analyse.synthese.statuts || {};
+    var c = Object.assign({}, analyse.synthese.alertes || {}), st = analyse.synthese.statuts || {};
+    // Les références en démarque ne comptent ni dans les ventes à marge négative ni dans les sources qui se contredisent.
+    var hors = sansDemarque(analyse.lignes);
+    c.A3 = lignesAlerte(hors, 'A3').length; c.A5 = lignesAlerte(hors, 'A5').length;
     var gerant = role === 'gerant' || role === 'createur';
     var pas;
     if (c.A3) pas = { code: 'A3', filtre: { alerte: 'A3' }, quoi: plur(c.A3, 'référence vendue', 'références vendues') + ' à marge négative', pourquoi: 'chaque vente creuse la caisse tant que le prix ou le coût n\'est pas vérifié' };
@@ -319,7 +327,7 @@
   function lignesControle(L, code) {
     if (code === 'FI') return L.filter(function (l) { return l.fiabilite.niveau === 'insuffisante'; });
     if (code === 'EX') return L.filter(function (l) { return l.statut === 'a_surveiller' && l.exception; });
-    var r = lignesAlerte(L, code);
+    var r = lignesAlerte(code === 'A3' || code === 'A5' ? sansDemarque(L) : L, code);
     if (code === 'A1' || code === 'A2') r = r.filter(function (l) { return l.fiabilite.niveau !== 'insuffisante'; });
     return r;
   }
@@ -374,6 +382,7 @@
   // Ligne épurée : seuls « À vérifier » et « Proposition à valider » restent visibles, en étiquette discrète.
   // Les autres statuts (Conforme, À surveiller, Sans seuil validé, Aucune action de prix) sont dits dans le (i).
   function badgeLigne(l) {
+    if (estDemarque(l)) return '';
     var codes = (l.alertes || []).map(function (a) { return a.code; });
     if (l.statut === 'a_verifier' || codes.indexOf('A4') >= 0 || codes.indexOf('A5') >= 0) return '<span class="nbe-qualif" data-axe="statut">' + esc(LIB_STATUT.a_verifier) + '</span>';
     if (l.statut === 'proposition_a_valider') return '<span class="nbe-qualif" data-axe="statut">' + esc(LIB_STATUT.proposition_a_valider) + '</span>';
@@ -400,6 +409,7 @@
   // Deux niveaux : « Marge estimée : 9,8 % » (principal) puis « 2,59 € HT/unité » (secondaire). Non calculable : dit, raison dans le (i).
   function htmlMarge(l) {
     var m = l.margeEstimee;
+    if (estDemarque(l)) return '<span class="pt-marge-l1"><span class="nbe-qualif" data-axe="demarque">' + esc(LIB_DEMARQUE) + '</span></span>';
     if (!m) return 'Marge ' + esc(pct(l.taux));
     if (m.etat === 'non_calculable' || m.taux === null || m.taux === undefined) return '<span class="pt-marge-l1">Marge estimée : ' + B.qualification('non-calculable') + '</span>';
     return '<span class="pt-marge-l1">Marge estimée : <span class="pt-mono pt-marge-prin">' + esc(pct(m.taux)) + '</span> ' + badgeMarge(l) + '</span>' +
@@ -414,6 +424,7 @@
   }
   function ficheMarge(l) {
     var m = l.margeEstimee, T0 = V.margeEstimee, li = function (k, v) { return '<div class="pt-pol-l"><span class="sc-lib">' + esc(k) + '</span><span>' + esc(v) + '</span></div>'; };
+    if (estDemarque(l)) return '<div class="sc-carte pt-marge-fiche" data-marge-fiche="' + esc(l.article) + '"><div class="sc-nom">' + esc(LIB_DEMARQUE) + '</div><p class="sc-note">Aucune marge n\'est affichée pour une référence en démarque.</p></div>';
     if (!m) return '';
     var c = m.cout || {}, h = '<div class="sc-carte pt-marge-fiche" data-marge-fiche="' + esc(l.article) + '"><div class="sc-nom">Marge estimée : ' + esc(T0.etats[m.etat] || m.etat) + '</div>';
     if (estReglemente(l)) h += '<p class="sc-note">Prix fixé par un tiers : aucune variation de coût ni recommandation de prix.</p>';
@@ -432,7 +443,7 @@
 
 
   function carteMarge(analyse) {
-    var L = analyse.lignes, n = { estimation: 0, a_verifier: 0, non_calculable: 0 }, regl = 0;
+    var L = sansDemarque(analyse.lignes), n = { estimation: 0, a_verifier: 0, non_calculable: 0 }, regl = 0;
     L.forEach(function (l) { if (l.margeEstimee) n[l.margeEstimee.etat] = (n[l.margeEstimee.etat] || 0) + 1; if (estReglemente(l)) regl++; });
     var calc = n.estimation + n.a_verifier, E = V.margeEstimee.etats;
     return { id: 'marge_estimee', titre: 'Marge estimée', valeur: calc + ' sur ' + L.length,
@@ -904,7 +915,7 @@
       return { fourni: true, lignes: lignesStockDepuisLot(rows), lot: { id: lot.id, dateReleve: lot.date_releve ? String(lot.date_releve).slice(0, 10) : null, fichierHash: lot.fichier_hash || null } };
     } catch (e) { return { fourni: false, erreur: true }; }
   }
-  var API = { nombreReleve: nombreReleve, lotStockPublie: lotStockPublie, lignesStockDepuisLot: lignesStockDepuisLot, chargerStockPublie: chargerStockPublie, TVA_CONFIRMATIONS_PILOTE: TVA_CONFIRMATIONS_PILOTE, cartes: cartes, scenarios: scenarios, alertesCartes: alertesCartes, trier: trier, filtrer: filtrer, valeursFiltres: valeursFiltres,
+  var API = { estDemarque: estDemarque, lignesControle: lignesControle, nombreReleve: nombreReleve, lotStockPublie: lotStockPublie, lignesStockDepuisLot: lignesStockDepuisLot, chargerStockPublie: chargerStockPublie, TVA_CONFIRMATIONS_PILOTE: TVA_CONFIRMATIONS_PILOTE, cartes: cartes, scenarios: scenarios, alertesCartes: alertesCartes, trier: trier, filtrer: filtrer, valeursFiltres: valeursFiltres,
     preuves: preuves, conseiller: conseiller, lierOuvertures: lierOuvertures, effetVerificationEnregistree: effetVerificationEnregistree, fiche: fiche, etatAcces: etatAcces, peutVoirOnglet: peutVoirOnglet, filtrerSite: filtrerSite,
     regimeDe: regimeDe, contexteDeclaratif: contexteDeclaratif, construireContexteTarif: construireContexteTarif, stockParLibelle: stockParLibelle, controle: controle, familles: familles, avertissementRegime: avertissementRegime, infoRegime: infoRegime, badgeRegime: badgeRegime, badgeLigne: badgeLigne, blocFiche: blocFiche,
     chargerRegistres: chargerRegistres, chargerVerifications: chargerVerifications, historiqueLignes: historiqueLignes, htmlHistorique: htmlHistorique, chargerVentes: chargerVentes, lireCompte: lireCompte, libellePeriode: libellePeriode,

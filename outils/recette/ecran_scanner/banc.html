@@ -96,7 +96,7 @@
   if (scenario === 'cas_production') {
     // Trois cas du terrain rejoués sur des lignes ENTIÈREMENT fictives (aucun libellé réel, aucune donnée T1).
     var fic = function (article, pv, pa) { return { article: article, categorie: 'Rayon fictif', quantite: 10, prix_vente: pv, prix_achat: pa, tva: 20, code_barres: '' }; };
-    cfg = { contexte: { periode: { debut: '2030-03-01', fin: '2030-03-30' }, tva: { explications: {} } } };
+    cfg = { contexte: { periode: { debut: '2030-03-01', fin: '2030-03-30' }, tva: { explications: [] } } };
     P1 = [];
     P2 = [fic('12-11-2026 ARTICLE FICTIF DATE', 0.03, 1.57), fic('ARTICLE FICTIF DEUX CONTROLES', 0.5, 1.0), fic('ARTICLE FICTIF PERTE EXTREME', 0.5, 3.0), fic('ARTICLE FICTIF SAIN', 3.0, 1.5)];
     stock = [{ libelle: 'ARTICLE FICTIF DEUX CONTROLES', pa_net_ht: 2.0 }, { libelle: 'ARTICLE FICTIF PERTE EXTREME', pa_net_ht: 3.0 }, { libelle: 'ARTICLE FICTIF SAIN', pa_net_ht: 1.5 }];
@@ -143,7 +143,7 @@
       from: function (t) { var c = chaine(t); ['insert', 'update', 'upsert', 'delete'].forEach(function (k) { c[k] = refus(t + '.' + k); }); return c; },
       rpc: function (nom, args) {
         if (scenario === 'erreur_ecriture') { log('rpc ' + nom + ' : erreur simulée'); return Promise.resolve({ data: null, error: { message: 'erreur simulée' } }); }
-        if (persistance && nom === 'tarif_marquer_verifie') { var cur = lireVerifs(); ((args && args.p_lignes) || []).forEach(function (r) { cur.push(Object.assign({}, r, { id: 'pv' + (cur.length + 1), saisi_par: null, saisi_le: new Date().toISOString() })); }); try { sessionStorage.setItem('banc_verifs', JSON.stringify(cur)); } catch (e) {} }
+        if (persistance && nom === 'tarif_marquer_verifie') { var cur = lireVerifs(); ((args && args.p_lignes) || []).forEach(function (r) { cur.push(Object.assign({}, r, { cle: (window.NexusAnomaliesTarifaires && window.NexusAnomaliesTarifaires.cle ? window.NexusAnomaliesTarifaires.cle({ code_barres: r.code_barres, article: r.article }) : null), id: 'pv' + (cur.length + 1), saisi_par: null, saisi_le: new Date().toISOString() })); }); try { sessionStorage.setItem('banc_verifs', JSON.stringify(cur)); } catch (e) {} }
         compteurRpc++; log('rpc ' + nom + ' : ' + ((args && args.p_lignes && args.p_lignes.length) || 0) + ' ligne(s), acceptée en mémoire (#' + compteurRpc + ')');
         return Promise.resolve({ data: null, error: null });
       },
