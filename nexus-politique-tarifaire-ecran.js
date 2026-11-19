@@ -440,9 +440,19 @@
   function commentaireValide(t) { return String(t == null ? '' : t).trim().length <= LIMITE_COMMENTAIRE; }
   var LIB_NIVEAU = { demontree: 'Démontré', a_verifier: 'À vérifier' };
   // Valeurs à comparer, dans un ordre fixe par cause (Decenium d'un côté, relevé de l'autre).
-  function valeursAComparer(an) {
+  // A1 : perte unitaire HT lue sur la ligne (PV HT et coût HT), sans toucher aux valeurs de S1 (l'empreinte reste stable).
+  function perteUnitaire(l) {
+    var pv = l ? num(l.pv_ht) : null, c = l && l.margeEstimee && l.margeEstimee.cout ? num(l.margeEstimee.cout.valeur) : null;
+    if (pv === null || c === null || !(pv >= 0) || !(c > pv)) return null;
+    return { perte: c - pv, pv: pv, cout: c };
+  }
+  function valeursAComparer(an, l) {
     var v = an.valeurs || {}, c = an.code;
-    if (c === 'S1') return 'Marge : ' + pct(v.taux);
+    if (c === 'S1') {
+      var pu = perteUnitaire(l);
+      if (pu) return 'Perte de ' + eur(pu.perte) + ' HT par unité : vendu ' + eur(pu.pv) + ', coût ' + eur(pu.cout);
+      return 'Marge : ' + pct(v.taux);
+    }
     if (c === 'S2') return 'Écart : ' + pct(v.ecart) + ' · PA net HT du relevé de stock : ' + eur(v.paNetHtReleve);
     if (c === 'S3') return 'Variation du coût : ' + pct(v.variationCout);
     if (c === 'S4') return 'Unités par colis : ' + (v.unites === undefined || v.unites === null ? 'n/d' : v.unites) + ' · rapport du relevé : ' + (num(v.rapportReleve) === null ? 'n/d' : v.rapportReleve) + ' · rapport du prix de vente : ' + (num(v.rapportPv) === null ? 'n/d' : v.rapportPv);
@@ -467,17 +477,21 @@
   function htmlAnomalie(an, l, droits, etat, avecProduit) {
     var AL = A_LIB(), code = an.code, cd = AL.codes[code] || {};
     var cycle = AL.cycles[an.cycle] || '';
+    // A7 : S1 sur une ligne où S2 est aussi émise s'affiche « À vérifier » (affichage seul, niveau moteur inchangé).
+    var s1Contredit = code === 'S1' && (l.anomalies || []).some(function (x) { return x.code === 'S2'; });
+    var niveauAff = s1Contredit ? 'a_verifier' : an.niveau;
     var statut = an.cycle === 'verifiee' ? 'Vérifié' : an.cycle === 'nouvelle' ? 'Nouveau' : cycle;
     var cle = code + '|' + l.article, ouvert = !!(etat && etat.ctlInfo === cle);
     var masque = (an.peutExpliquerAussi || []).length ? '<p class="sc-note">' + esc(AL.masque) + ' ' + esc(an.peutExpliquerAussi.map(function (c) { return (AL.codes[c] || {}).titre || c; }).join(', ')) + '</p>' : '';
     var info = '<button type="button" class="info-btn pt-info" data-ctl-info="' + esc(cle) + '" aria-expanded="' + (ouvert ? 'true' : 'false') + '" aria-label="Information : ' + esc(cd.titre || code) + ' pour ' + esc(l.article) + '">i</button>';
-    var detail = ouvert ? '<p class="sc-methode">' + esc(AL.explication || 'Un contrôle indique où comparer avec Decenium. Ce n\'est pas une erreur constatée.') + '</p>' + masque : '';
+    var detail = ouvert ? (code === 'S1' && perteUnitaire(l) ? '<p class="sc-note" data-s1-pct="1">Marge : ' + esc(pct((an.valeurs || {}).taux)) + '</p>' : '') + '<p class="sc-methode">' + esc(AL.explication || 'Un contrôle indique où comparer avec Decenium. Ce n\'est pas une erreur constatée.') + '</p>' + masque : '';
     return '<li class="pt-anomalie pt-ctl" data-anomalie="' + esc(code) + '">' +
       '<div class="pt-ctl-1">' + (avecProduit ? '<button type="button" class="vp-ligne-prod pt-ctl-prod" data-article="' + esc(l.article) + '"><span class="vp-nom">' + esc(l.article) + '</span></button>' : '') +
-      '<span class="sc-nom">' + esc(cd.titre || code) + '</span> <span class="nbe-qualif" data-axe="niveau">' + esc(LIB_NIVEAU[an.niveau] || '') + '</span> ' +
+      '<span class="sc-nom">' + esc(cd.titre || code) + '</span> <span class="nbe-qualif" data-axe="niveau">' + esc(LIB_NIVEAU[niveauAff] || '') + '</span> ' +
       '<span class="nbe-qualif" data-axe="cycle">' + esc(statut) + '</span> ' + info + '</div>' +
-      '<p class="pt-ctl-2 sc-methode">' + valeursAComparer(an) + '</p>' +
-      '<p class="pt-ctl-3 sc-note">' + esc(cd.controle || '') + '</p>' + detail +
+      '<p class="pt-ctl-2 sc-methode">' + valeursAComparer(an, l) + (s1Contredit ? ' · coût de l\'export contredit par le relevé de stock' : '') + '</p>' +
+      // A4 : à 375 px, titre, niveau et une ligne de chiffres ; la consigne de contrôle passe dans le (i).
+      (ouvert ? '<p class="pt-ctl-3 sc-note">' + esc(cd.controle || '') + '</p>' : '') + detail +
       htmlVerification(an, l, droits, etat) + '</li>';
   }
   function htmlControlesAFaire(l, droits, etat) {

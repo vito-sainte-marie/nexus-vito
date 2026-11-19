@@ -453,7 +453,7 @@ ok('B2 : bloc Contrôles, trois lignes, niveau et bouton pleine largeur', () => 
   const h = E.htmlPage({ analyse: avecControles(2), role: 'manager', estCreateur: false, filtres: {}, incoherences: [] });
   assert.ok(/data-bloc-controles/.test(h) && /data-carte="controles_a_effectuer"/.test(h));
   assert.ok(/data-axe="niveau">Démontré/.test(h) && /data-axe="niveau">À vérifier/.test(h));
-  assert.ok(/pt-ctl-1/.test(h) && /pt-ctl-2/.test(h) && /pt-ctl-3/.test(h) && /data-ctl-info/.test(h));
+  assert.ok(/pt-ctl-1/.test(h) && /pt-ctl-2/.test(h) && !/pt-ctl-3/.test(h) && /data-ctl-info/.test(h));
   assert.ok(/✓ Marquer comme vérifié/.test(h) && /data-ctl-expl/.test(h));
   assert.ok(!/data-ctl-plus/.test(h) && !/ptCtlRecherche/.test(h));
 });
@@ -848,6 +848,50 @@ ok('relevé publié : libellé en double avec deux PA => ambigu et contrôle S5 
     assert.deepStrictEqual(page, banc); assert.ok(page.lignes.length > 100);
   });
 })();
+
+// Avenant A1, A3, A7 : perte unitaire HT, un seul « À vérifier », S2 sans phrase de conclusion.
+const s1 = { code: 'S1', cycle: 'nouvelle', niveau: 'demontree', empreinte: 'e', identiteDonnees: {}, valeurs: { taux: -51 } };
+const s2 = { code: 'S2', cycle: 'nouvelle', niveau: 'a_verifier', empreinte: 'f', identiteDonnees: {}, valeurs: { ecart: 1.1, paNetHtReleve: 1.39 } };
+const lA1 = (pv, cout, an) => ({ article: 'Art A1', code_barres: '1', pv_ht: pv, margeEstimee: { cout: { valeur: cout } }, anomalies: an });
+ok('A1 : S1 affiche la perte unitaire HT (1,57 - 0,03 = 1,54), le pourcentage va dans le (i)', () => {
+  const h = E.htmlControlesAFaire(lA1(0.03, 1.57, [s1]), false, {});
+  assert.ok(/Perte de 1,54 € HT par unité : vendu 0,03 €, coût 1,57 €/.test(h));
+  assert.ok(!/Marge : /.test(h));
+  const ouvert = E.htmlControlesAFaire(lA1(0.03, 1.57, [s1]), false, { ctlInfo: 'S1|Art A1' });
+  assert.ok(/data-s1-pct="1">Marge : /.test(ouvert));
+});
+ok('A1 : un PV nul ne donne aucun pourcentage de perte', () => {
+  const h = E.htmlControlesAFaire(lA1(0, 1.57, [s1]), false, {});
+  assert.ok(/Perte de 1,57 € HT par unité : vendu 0,00 €/.test(h) && !/Infinity|NaN/.test(h));
+});
+ok('A1 : une marge positive ou un coût absent garde l\'affichage en pourcentage', () => {
+  assert.ok(/Marge : /.test(E.htmlControlesAFaire(lA1(2, 1.5, [s1]), false, {})));
+  assert.ok(/Marge : /.test(E.htmlControlesAFaire(lA1(2, null, [s1]), false, {})));
+});
+ok('A7 : S1 avec S2 sur la même ligne s\'affiche « À vérifier » et dit que le relevé contredit l\'export', () => {
+  const h = E.htmlControlesAFaire(lA1(2.35, 2.94, [s1, s2]), false, {});
+  const niv = h.match(/data-axe="niveau">([^<]*)</g);
+  assert.ok(niv.length === 2 && niv.every(x => /À vérifier/.test(x)), 'aucun « Démontré » sur la ligne');
+  assert.ok(/coût de l'export contredit par le relevé de stock/.test(h));
+  const seul = E.htmlControlesAFaire(lA1(2.35, 2.94, [s1]), false, {});
+  assert.ok(/data-axe="niveau">Démontré</.test(seul) && !/contredit/.test(seul));
+});
+ok('A2 : un seul « À vérifier » par contrôle rendu (niveau), jamais répété dans la ligne ni dans le bouton', () => {
+  const h = E.htmlControlesAFaire(lA1(2.35, 2.94, [s1, s2]), true, {});
+  h.split('<li ').slice(1).forEach(li => {
+    const txt = li.replace(/<[^>]+>/g, ' ');
+    assert.strictEqual((txt.match(/À vérifier/g) || []).length, 1, txt);
+  });
+});
+ok('A4 : la consigne de contrôle est dans le (i), pas sur la ligne repliée', () => {
+  assert.ok(!/pt-ctl-3/.test(E.htmlControlesAFaire(lA1(2.35, 2.94, [s1]), false, {})));
+  assert.ok(/pt-ctl-3[^>]*>Vérifier le coût de revient/.test(E.htmlControlesAFaire(lA1(2.35, 2.94, [s1]), false, { ctlInfo: 'S1|Art A1' })));
+});
+ok('A3 : la phrase de contrôle de S2 ne conclut rien', () => {
+  const V = require('./nexus-vocabulaire-tarif.js');
+  const c = (V.anomaliesTarifaires || V.default && V.default.anomaliesTarifaires).codes.S2.controle;
+  assert.strictEqual(c, 'Comparer à la dernière facture fournisseur (prix brut, remise).');
+});
 Promise.all(PROMESSES).then(() => {
 console.log('test_ecran_politique_tarifaire : ' + n + ' épreuves OK');
 });

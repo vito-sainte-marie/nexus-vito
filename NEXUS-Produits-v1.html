@@ -397,11 +397,11 @@ body.nexus-desktop #resultSection > *{margin-bottom:12px;}
 <script src="nexus-icones.js?v=20260904-0104"></script>
 <script src="nexus-desktop.js?v=20260904-0104"></script>
 <script src="nexus-vocabulaire.js?v=20260904-0104"></script>
-<script src="nexus-vocabulaire-tarif.js?v=20261118-1"></script>
+<script src="nexus-vocabulaire-tarif.js?v=20261118-2"></script>
 <script src="nexus-periodes.js?v=20260904-0104"></script>
 <script src="nexus-conseiller.js?v=20260904-0104"></script>
 <script src="nexus-marge.js"></script>
-<script src="nexus-produits-mesure.js?v=20261115-1"></script>
+<script src="nexus-produits-mesure.js?v=20261118-1"></script>
 <script src="nexus-campagne-outils.js?v=20261116-1"></script>
 <script src="nexus-campagne-ventes.js?v=20261114-1900"></script>
 <script src="nexus-produits-vues.js?v=20261116-1"></script>
@@ -411,7 +411,7 @@ body.nexus-desktop #resultSection > *{margin-bottom:12px;}
 <script src="nexus-anomalies-tarifaires.js"></script>
 <script src="nexus-politique-tarifaire.js"></script>
 <script src="nexus-politique-tarifaire-registres.js"></script>
-<script src="nexus-politique-tarifaire-ecran.js"></script>
+<script src="nexus-politique-tarifaire-ecran.js?v=20261118-1"></script>
 <script src="nexus-produits-securite.js"></script>
 </head>
 <body>
@@ -1860,7 +1860,7 @@ nexusRequireAuth().then(async employee => {
         ${bloc('Produits à étudier', aet, e => ligne(e, 'qualification « À étudier »', 'mesures P1-A', false))}
         <div class="vp-bloc"><h3>À compléter</h3>
           <div class="vp-ligne">${v.nbAIdentifier} référence${v.nbAIdentifier > 1 ? 's' : ''} à identifier · <button type="button" class="btn-decl" id="lienAIdentifier">Voir dans Mes produits</button></div>
-          <div class="vp-ligne">${v.nbTvaAVerifier} référence${v.nbTvaAVerifier > 1 ? 's' : ''} avec une TVA à vérifier · <button type="button" class="btn-decl" id="lienTva">Voir dans Mes produits</button></div></div>`;
+          <div class="vp-ligne">${v.nbTvaAVerifier} référence${v.nbTvaAVerifier > 1 ? 's' : ''} avec une TVA à vérifier (catalogue) · <button type="button" class="btn-decl" id="lienTva">Voir dans Mes produits</button></div></div>`;
       corps.querySelectorAll('button[data-r],button[data-just]').forEach(bt => bt.addEventListener('click', () => choisirSuggestion(reg[Number(bt.dataset.r !== undefined ? bt.dataset.r : bt.dataset.just)].article)));
       const versProduits = (id, val) => { ouvrirVue('produits'); const f = document.getElementById(id); if (f) { f.value = val; f.dispatchEvent(new Event('change')); } };
       corps.querySelector('#lienAIdentifier').addEventListener('click', () => versProduits('fNature', 'a_identifier'));
@@ -1956,7 +1956,7 @@ nexusRequireAuth().then(async employee => {
     if (I.dormants.length > 0) L.push({ id: 'dormants', n: I.dormants.length, titre: 'Produits dormants', sous: pl(I.dormants.length, 'référence'), ton: 'info' });
     if (I.nbIdent > 0) L.push({ id: 'identifier', n: I.nbIdent, titre: 'Références à identifier', sous: pl(I.nbIdent, 'référence'), ton: 'ambre' });
     if (I.R && I.R.perte.non_justifiees > 0) L.push({ id: 'pertes', n: I.R.perte.non_justifiees, titre: 'Ventes à perte non justifiées', sous: pl(I.R.perte.non_justifiees, 'référence'), ton: 'rouge' });
-    if (I.nbTva > 0) L.push({ id: 'tva', n: I.nbTva, titre: 'TVA à vérifier', sous: pl(I.nbTva, 'référence'), ton: 'ambre' });
+    if (I.nbTva > 0) L.push({ id: 'tva', n: I.nbTva, titre: 'TVA à vérifier (catalogue)', sous: pl(I.nbTva, 'référence'), ton: 'ambre', info: 'Compte du catalogue, sans les confirmations du pilote. Le Scanner applique en plus les confirmations du pilote.' });
     return L;
   }
   // Synthèse du Conseiller de l'accueil : uniquement des résultats déjà calculés, sans tendance ni urgence.
@@ -1981,7 +1981,7 @@ nexusRequireAuth().then(async employee => {
     const per = PERIODE_DONNEES ? `du ${fmtDate(PERIODE_DONNEES.debut)} au ${fmtDate(PERIODE_DONNEES.fin)}, ${I.jours} jour${I.jours > 1 ? 's' : ''}` : null;
     const ind = (lib, val, sous) => `<div class="sc-ind sc-info"><span class="sc-ind-val">${esc(val)}</span><span class="sc-ind-lib">${esc(lib)}</span>${sous ? `<span class="sc-ind-sous">${esc(sous)}</span>` : ''}</div>`;
     const L = pointsVigilance(I);
-    const carteV = c => `<button type="button" class="tuile disponible sa-vig sc-${c.ton}" data-vig="${c.id}"><span class="sa-vig-n">${c.n}</span><span class="t-titre">${esc(c.titre)}</span></button>`;
+    const carteV = c => `<button type="button" class="tuile disponible sa-vig sc-${c.ton}" data-vig="${c.id}"><span class="sa-vig-n">${c.n}</span><span class="t-titre">${esc(c.titre)}</span>${c.info ? `<span class="sa-vig-info" title="${esc(c.info)}" aria-label="${esc(c.info)}">(i)</span>` : ''}</button>`;
     z.innerHTML = `<section class="card sa-perf" aria-label="Performance commerciale">
       <h2 class="sa-titre">Performance commerciale</h2>
       ${per ? `<div class="sa-ligne">Période : ${esc(per)}</div>` : ''}
@@ -1989,10 +1989,10 @@ nexusRequireAuth().then(async employee => {
     </section>
     <div class="carte conseiller"> <img class="conseiller-avatar" src="assets/avatar/nexus-avatar-128.png" srcset="assets/avatar/nexus-avatar-64.png 64w, assets/avatar/nexus-avatar-96.png 96w, assets/avatar/nexus-avatar-128.png 128w, assets/avatar/nexus-avatar-256.png 256w" sizes="80px" alt="Conseiller NEXUS"> <div class="conseiller-corps"> <div class="conseiller-titre">Conseiller NEXUS</div> <p id="conseillerAccueil">Recherchez un produit par son nom ou son code-barres.</p> </div> </div>
     ${L.length ? `<section class="card sa-vigilance" aria-label="Points de vigilance"><h2 class="sa-titre">Points de vigilance</h2><div class="sa-vigs">${L.map(carteV).join('')}</div></section>` : ''}
-    <section class="card sa-actu" aria-label="Dernière actualisation des données">
+    <section class="card sa-actu" aria-label="Dernière actualisation"><h2 class="sa-titre">Dernière actualisation</h2>
       <div class="sa-ligne">Dernières ventes : ${esc(PERIODE_DONNEES ? fmtDate(PERIODE_DONNEES.fin) : 'n.d.')}</div>
       <div class="sa-ligne">Dernier relevé de stock théorique : ${esc(SYNTHESE_STOCK_DATE ? fmtDate(SYNTHESE_STOCK_DATE) : 'n.d.')}</div>
-      <details class="sa-details"><summary>Dernière actualisation des données</summary>
+      <details class="sa-details"><summary>Sources et limites</summary>
         <div class="sa-ligne">CA analytique ${esc(fmtE(sy.ca_analytique))} + opérations de caisse ${esc(fmtE(sy.operations_caisse))} = CA importé ${esc(fmtE(sy.ca_importe))}</div>
         <div class="sa-ligne">Sources : import des ventes Decenium sur la période, mesures P1-A, stock théorique Decenium daté. La marge est estimée au prix moyen pondéré Decenium HT.</div>
         <div class="sa-ligne">Limites : les opérations de caisse sont hors des indicateurs commerciaux ; une marge négative justifiée reste comptée dans le CA et la marge, avec son motif dans la fiche produit.</div>
