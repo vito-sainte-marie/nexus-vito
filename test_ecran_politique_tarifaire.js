@@ -139,7 +139,9 @@ ok('droits de l\'onglet', () => {
 ok('Conseiller : deux tons, filtre associé', () => {
   const a = analyse();
   const g = E.conseiller(a, 'gerant'), m = E.conseiller(a, 'manager');
-  assert.ok(g.texte && m.texte && g.texte !== m.texte);
+  // Format court commun aux deux rôles ; le ton se lit dans le détail derrière le (i).
+  assert.ok(g.texte && m.texte && g.texte === m.texte);
+  assert.ok(g.detail && m.detail && g.detail !== m.detail);
   const rien = E.conseiller({ synthese: { alertes: {}, statuts: {} } }, 'gerant');
   assert.strictEqual(rien.code, 'RAS');
 });
@@ -1153,6 +1155,50 @@ ok('L3 : vérifier en détail passe au contrôle suivant', () => {
   E.effetVerificationEnregistree(premier, etat, 'Responsable du banc');
   assert.notStrictEqual(etat.ctlSel, cle(a.lignes[0]));
   assert.ok(/data-mode="detail"/.test(E.htmlPage(etat)));
+});
+// ---- Correction Guardian 7013684486 : Conseiller court (vente à perte), compte créateur, messages de refus ----
+ok('Conseiller : vente à perte, format court identique, cible la vente à perte', () => {
+  const a = T.analyser(courantes.concat([prod('Article perte test', 'Rayon Alpha', 10, 0.5, 3)]), [], A.contexteDepuisRegistres(reg, { periode }));
+  const c = E.conseiller(a, 'gerant');
+  assert.ok(/^Commencer par la vente à perte : Article perte test, perte 2,50\s€ HT\/u$/.test(c.texte), c.texte);
+  assert.ok(c.detail && c.detail.length > c.texte.length, 'texte long derrière le (i)');
+  assert.strictEqual(c.cible, 'S1|Article perte test');
+  assert.strictEqual(c.bloc, 'controles');
+  assert.ok(/data-cible="S1\|Article perte test"/.test(E.htmlPage({ analyse: a, role: 'gerant', estCreateur: false, filtres: {}, incoherences: [] })));
+});
+ok('Conseiller : aucune branche ne dépasse le format court', () => {
+  [avecControles(0), avecControles(2), analyse()].forEach(a => ['gerant', 'manager'].forEach(r => {
+    const c = E.conseiller(a, r);
+    assert.ok(c.texte.length <= 110, c.code + ' : ' + c.texte.length + ' caractères');
+  }));
+});
+ok('Créateur : pas de bouton « Marquer comme vérifié », mention lecture seule', () => {
+  const a = avecControles(2);
+  const h = E.htmlPage({ analyse: a, role: 'manager', estCreateur: true, filtres: {}, incoherences: [], ouverte: null });
+  assert.ok(!/data-verifier=/.test(h), 'aucun bouton');
+  assert.ok(!E.peutVerifier('manager', true));
+  const sel = E.htmlPage({ analyse: a, role: 'manager', estCreateur: true, filtres: {}, incoherences: [], ctlSel: 'S7|' + a.lignes[0].article, mode: 'detail' });
+  assert.ok(!/data-verifier=/.test(sel));
+});
+ok('Hôte : lit employee.est_createur (et estCreateur)', () => {
+  const src = fs.readFileSync(__dirname + '/NEXUS-Produits-v1.html', 'utf8');
+  assert.ok(/employee\.est_createur \|\| employee\.estCreateur/.test(src));
+  assert.ok(!/estCreateur: !!employee\.estCreateur/.test(src));
+});
+[
+  ['tarif_verif_createur_lecture_seule : le créateur ne vérifie pas', /compte créateur est en lecture seule/],
+  ['tarif_verif_reservee_manager_gerant : réservé', /réservée au manager et au gérant/],
+  ['tarif_verif_compte_inactif : compte désactivé', /compte est désactivé/],
+  ['tarif_verif_session_absente : aucune personne connectée', /session a expiré/],
+  ['tarif_verif_lot_import_incoherent : lot', /lot d'import ne correspond plus/],
+  ['tarif_verif_reference_absente : code-barres', /ni code-barres ni libellé/],
+].forEach(([brut, motif]) => ok('Refus RPC traduit : ' + brut.split(' ')[0], () => {
+  const m = E.messageErreurEcriture({ message: brut });
+  assert.ok(motif.test(m), m);
+  assert.ok(!/tarif_verif_/.test(m), 'pas de code technique');
+}));
+ok('Refus RPC inconnu : message générique', () => {
+  assert.ok(/L'enregistrement a échoué/.test(E.messageErreurEcriture({ message: 'boom' })));
 });
 Promise.all(PROMESSES).then(() => {
 console.log('test_ecran_politique_tarifaire : ' + n + ' épreuves OK');

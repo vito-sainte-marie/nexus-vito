@@ -239,6 +239,37 @@ function verif(nom, cond, detail) { if (cond) { ok++; console.log('OK  ' + nom);
     const sources = await page.evaluate(() => { const e = [...document.querySelectorAll('#vueCorps details.pt-ctrl')].filter(x => /^\s*Quelles sources se contredisent/.test((x.querySelector('summary') || {}).textContent || '')); return e.map(x => x.textContent).join(' '); });
     verif('cas_production : démarque hors « Sources qui se contredisent »', !/ARTICLE FICTIF DATE/.test(sources));
     if (dossier) await page.screenshot({ path: dossier + '/cas_production.png', fullPage: true });
+    // Conseiller : une seule ligne à 1280 px, deux au plus à 375 px, et « Commencer par » ouvre la vente à perte.
+    for (const vp of [{ w: 1280, h: 800, max: 1 }, { w: 375, h: 812, max: 2 }]) {
+      await page.setViewportSize({ width: vp.w, height: vp.h });
+      await page.waitForTimeout(150);
+      const cons = await page.evaluate(() => {
+        const e = document.querySelector('#vueCorps .sc-conseil');
+        if (!e) return null;
+        const cs = getComputedStyle(e), lh = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.4;
+        return { texte: e.textContent.trim(), lignes: Math.round(e.getBoundingClientRect().height / lh) };
+      });
+      verif('Conseiller (vente à perte) à ' + vp.w + ' px : au plus ' + vp.max + ' ligne(s)', !!cons && cons.lignes <= vp.max, cons ? cons.lignes + ' ligne(s) : ' + cons.texte.slice(0, 80) : 'bloc Conseiller introuvable');
+      if (cons && vp.w === 1280) verif('Conseiller : « Commencer par la vente à perte : … perte … HT/u »', /Commencer par la vente à perte : .+, perte .+ HT\/u/.test(cons.texte), cons.texte.slice(0, 120));
+    }
+    await ctx.close();
+  }
+  {
+    // createur : compte en lecture seule, aucun bouton « Marquer comme vérifié », mention visible.
+    const ctx = await nav.newContext({ viewport: { width: 1280, height: 800 } });
+    const page = await ctx.newPage();
+    await page.goto(URL_BANC + '?scenario=createur&theme=jour');
+    await page.waitForSelector('#vueCorps', { timeout: 15000 });
+    await page.waitForTimeout(500);
+    await axe(page, 'controler');
+    const nb = await page.locator('#vueCorps [data-verifier]').count();
+    verif('createur : aucun bouton « Marquer comme vérifié »', nb === 0, nb + ' bouton(s)');
+    const ouv = await page.locator('#vueCorps [data-controle-ouvrir], #vueCorps details.pt-ctrl > summary, #vueCorps [data-ctl-ligne]').first();
+    if (await ouv.count()) await ouv.click().catch(() => {});
+    await page.waitForTimeout(150);
+    const mention = await page.locator('#vueCorps [data-lecture-seule-createur]').count();
+    const txt = mention ? await page.locator('#vueCorps [data-lecture-seule-createur]').first().innerText() : '';
+    verif('createur : mention « Lecture seule : le compte créateur ne vérifie pas. » présente', mention > 0 && /Lecture seule : le compte créateur ne vérifie pas\./.test(txt), mention + ' mention(s)');
     await ctx.close();
   }
   await nav.close();

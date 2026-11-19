@@ -1725,7 +1725,7 @@ nexusRequireAuth().then(async employee => {
     try { const r = await calculerAnalyseTarif(true); analyse = r.analyse; incoherences = r.incoherences; verifs = r.verifications; identite = r.identite; }
     catch (e) { console.error('Scanner tarifaire:', e); indispo('Impossible de lire les registres tarifaires.'); return; }
     if (!analyse.lignes.length) { indispo('Aucune donnée tarifaire pour ce site'); return; }
-    const etat = { analyse, verifications: verifs || [], historiqueDispo: !!verifs, filtreHisto: 'verifiee', histoOuverte: null, role: employee.role, filtres: {}, incoherences, ouverte: null, toutes: false, site: ((document.querySelector('.nexus-nom-commerce') || {}).textContent || ''), icone, estCreateur: !!employee.estCreateur };
+    const etat = { analyse, verifications: verifs || [], historiqueDispo: !!verifs, filtreHisto: 'verifiee', histoOuverte: null, role: employee.role, filtres: {}, incoherences, ouverte: null, toutes: false, site: ((document.querySelector('.nexus-nom-commerce') || {}).textContent || ''), icone, estCreateur: !!(employee.est_createur || employee.estCreateur) };
     // Annulation tracée d'une vérification : update des trois seules colonnes autorisées (aucune RPC, aucune migration).
     etat.surAnnulation = async ({ id }, motif) => {
       try {
@@ -1745,7 +1745,7 @@ nexusRequireAuth().then(async employee => {
     };
     // Réévaluations : périmètre complet de l'import (analyse.lignes, jamais la vue filtrée). Rien n'est écrit sans nouvel import ni sans droits.
     if (verifs) {
-      const rr = await E.enregistrerReevaluations(nexusClient, employee.role, !!employee.estCreateur, analyse, verifs, identite);
+      const rr = await E.enregistrerReevaluations(nexusClient, employee.role, !!(employee.est_createur || employee.estCreateur), analyse, verifs, identite);
       if (rr.statut === 'droits') etat.reevalNonEnregistree = true;
       else if (rr.statut === 'ecrit') { try { etat.verifications = (await E.chargerVerifications(nexusClient, SITE_ACTUEL)).verifications; } catch (e) { /* relecture facultative */ } }
       else if (rr.statut === 'erreur') { console.warn('Réévaluations non enregistrées', rr.erreur); etat.messageReeval = "Les réévaluations n'ont pas pu être enregistrées. L'écran reste à jour, l'enregistrement sera retenté à la prochaine ouverture."; }
@@ -1757,7 +1757,7 @@ nexusRequireAuth().then(async employee => {
       const l = analyse.lignes.filter(x => x.article === art)[0]; const an = l && (l.anomalies || []).filter(x => x.code === code)[0];
       const zone = btn.closest('[data-ctl-detail]') || btn.closest('li') || btn.parentNode;
       const dire = (t, erreur) => { let m = zone.querySelector('.pt-verif-msg'); if (!m) { m = document.createElement('p'); m.className = 'sc-note pt-verif-msg'; zone.appendChild(m); } m.setAttribute('role', erreur ? 'alert' : 'status'); m.textContent = t; };
-      if (!an || !E2.peutVerifier(employee.role, !!employee.estCreateur)) { dire('Action réservée au gérant et au manager.'); return; }
+      if (!an || !E2.peutVerifier(employee.role, !!(employee.est_createur || employee.estCreateur))) { dire('Action réservée au gérant et au manager.'); return; }
       const zc = zone.querySelector('textarea.pt-verif-com[data-com-article]'); const com = zc ? zc.value : '';
       if (!E2.commentaireValide(com)) { dire(E2.messageErreurEcriture('tarif_verif_commentaire_trop_long')); return; }
       btn.disabled = true; dire('Enregistrement…');

@@ -256,6 +256,18 @@
     if (c === 'S2') f = ['écart', v.ecart]; else if (c === 'S3') f = ['variation du coût', v.variationCout]; else if (c === 'S6') f = ['variation du prix', v.variationPv];
     return 'Commencer par le plus grave : ' + L[0].l.article + (f && num(f[1]) !== null ? ', ' + f[0] + ' ' + pct(f[1]) : '');
   }
+  // Branche « marge négative » : même format court que l'autre branche. L'article est celui dont la perte unitaire HT est la plus forte ;
+  // le bouton « Commencer par » ouvre le contrôle de cette cause (S1) sur cet article, pas la ligne la plus grave du tri.
+  function texteCourtVentePerte(analyse) {
+    var hors = lignesAlerte(sansDemarque((analyse && analyse.lignes) || []), 'A3'), best = null;
+    hors.forEach(function (l) {
+      var pu = perteUnitaire(l);
+      if (!best || (pu && (!best.pu || pu.perte > best.pu.perte)) || (!pu && !best.pu && String(l.article).localeCompare(String(best.l.article), 'fr') < 0)) best = { l: l, pu: pu };
+    });
+    if (!best) return null;
+    var s1 = (best.l.anomalies || []).filter(function (x) { return x.code === 'S1' && ['nouvelle', 'persistante', 'aggravee'].indexOf(x.cycle || 'nouvelle') >= 0; })[0];
+    return { texte: 'Commencer par la vente à perte : ' + best.l.article + (best.pu ? ', perte ' + eur(best.pu.perte) + ' HT/u' : ''), cible: s1 ? 'S1|' + best.l.article : null };
+  }
   function conseiller(analyse, role) {
     var c = Object.assign({}, analyse.synthese.alertes || {}), st = analyse.synthese.statuts || {};
     // Les références en démarque ne comptent ni dans les ventes à marge négative ni dans les sources qui se contredisent.
@@ -263,17 +275,17 @@
     c.A3 = lignesAlerte(hors, 'A3').length; c.A5 = lignesAlerte(hors, 'A5').length;
     var gerant = role === 'gerant' || role === 'createur';
     var pas;
-    if (c.A3) pas = { code: 'A3', filtre: { alerte: 'A3' }, quoi: plur(c.A3, 'référence vendue', 'références vendues') + ' à marge négative', pourquoi: 'chaque vente creuse la caisse tant que le prix ou le coût n\'est pas vérifié' };
+    if (c.A3) pas = { court: (texteCourtVentePerte(analyse) || {}).texte || null, cible: (texteCourtVentePerte(analyse) || {}).cible || null, bloc: 'controles', code: 'A3', filtre: null, quoi: plur(c.A3, 'référence vendue', 'références vendues') + ' à marge négative', pourquoi: 'chaque vente creuse la caisse tant que le prix ou le coût n\'est pas vérifié' };
     else if (controlesActifs(analyse) > 0) { var nc = controlesActifs(analyse); pas = { court: texteCourtControle(analyse),  code: 'CTRL', filtre: null, bloc: 'controles', quoi: plur(nc, 'contrôle', 'contrôles') + ' à comparer avec Decenium', pourquoi: 'aucune vente n\'est à marge négative ; la liste des contrôles est le premier point à regarder. Un contrôle n\'est pas une erreur constatée' }; }
-    else if (c.A8) pas = { code: 'A8', filtre: { alerte: 'A8' }, quoi: plur(c.A8, 'contrôle réglementaire ouvert', 'contrôles réglementaires ouverts'), pourquoi: 'ils bloquent toute proposition de prix sur ces références' };
-    else if (st.proposition_a_valider) pas = { code: 'PROP', filtre: { statut: 'proposition_a_valider' }, quoi: plur(st.proposition_a_valider, 'proposition', 'propositions') + ' à valider', pourquoi: 'c\'est là que se trouve le gain le plus net' };
-    else if (c.A5 || c.A4 || c.A7) pas = { code: 'VERIF', filtre: { statut: 'a_verifier' }, quoi: 'les références signalées à vérifier', pourquoi: 'des sources se contredisent ou une variation sort de l\'ordinaire' };
+    else if (c.A8) pas = { court: 'Commencer par les contrôles réglementaires : ' + c.A8 + (c.A8 > 1 ? ' ouverts' : ' ouvert'), code: 'A8', filtre: { alerte: 'A8' }, quoi: plur(c.A8, 'contrôle réglementaire ouvert', 'contrôles réglementaires ouverts'), pourquoi: 'ils bloquent toute proposition de prix sur ces références' };
+    else if (st.proposition_a_valider) pas = { court: 'Commencer par les propositions : ' + st.proposition_a_valider + ' à valider', code: 'PROP', filtre: { statut: 'proposition_a_valider' }, quoi: plur(st.proposition_a_valider, 'proposition', 'propositions') + ' à valider', pourquoi: 'c\'est là que se trouve le gain le plus net' };
+    else if (c.A5 || c.A4 || c.A7) pas = { court: 'Commencer par les références à vérifier', code: 'VERIF', filtre: { statut: 'a_verifier' }, quoi: 'les références signalées à vérifier', pourquoi: 'des sources se contredisent ou une variation sort de l\'ordinaire' };
     else pas = null;
-    if (!pas) return { code: 'RAS', texte: gerant ? 'Rien d\'urgent : aucune alerte forte sur cette période. Vous pouvez surveiller les prix décidés.' : 'Rien d\'urgent sur cette période.', filtre: null };
+    if (!pas) return gerant ? { code: 'RAS', texte: 'Rien d\'urgent sur cette période.', detail: 'Aucune alerte forte sur cette période. Vous pouvez surveiller les prix décidés.', filtre: null } : { code: 'RAS', texte: 'Rien d\'urgent sur cette période.', filtre: null };
     var texte = gerant
       ? 'Je vous conseille de commencer par ' + pas.quoi + ' : ' + pas.pourquoi + '.'
       : 'Priorité du jour : ' + pas.quoi + '. Raison : ' + pas.pourquoi + '.';
-    if (pas.court) return { code: pas.code, texte: pas.court, detail: texte, filtre: pas.filtre, bloc: pas.bloc || null };
+    if (pas.court) return { code: pas.code, texte: pas.court, detail: texte, filtre: pas.filtre, bloc: pas.bloc || null, cible: pas.cible || null };
     return { code: pas.code, texte: texte, filtre: pas.filtre, bloc: pas.bloc || null };
   }
 
@@ -493,6 +505,7 @@
   function htmlVerification(an, l, droits, etat, suivant) {
     var code = an.code, idc = 'ptc-' + String(l.article).replace(/[^A-Za-z0-9_-]/g, '_') + '-' + code;
     var fiable = !!(an.identiteDonnees || {}).fichierHash;
+    if (etat && etat.estCreateur && an.cycle !== 'verifiee') return '<p class="sc-note pt-lecture-seule" data-lecture-seule-createur="1">Lecture seule : le compte créateur ne vérifie pas.</p>';
     if (!droits || an.cycle === 'verifiee') return '';
     if (!fiable) return '<p class="sc-note pt-verif-indispo" data-verif-indispo="1">Donnée non fiable : l\'import de référence est introuvable, la vérification n\'est pas possible.</p>';
     var cleC = code + '|' + l.article, comOuvert = !!(etat && etat.comOuvert && etat.comOuvert.indexOf(cleC) >= 0);
@@ -670,6 +683,15 @@
   function messageErreurEcriture(err) {
     var m = String((err && (err.message || err)) || '');
     if (m.indexOf('tarif_verif_commentaire_trop_long') >= 0) return 'Le commentaire dépasse ' + LIMITE_COMMENTAIRE + ' caractères. Raccourcissez-le puis réessayez.';
+    var refus = [
+      ['tarif_verif_createur_lecture_seule', 'Le compte créateur est en lecture seule : il ne peut pas marquer un contrôle comme vérifié.'],
+      ['tarif_verif_reservee_manager_gerant', 'Cette action est réservée au manager et au gérant. Votre rôle ne permet pas de vérifier.'],
+      ['tarif_verif_compte_inactif', 'Votre compte est désactivé : la vérification n\'est pas possible.'],
+      ['tarif_verif_session_absente', 'Votre session a expiré. Reconnectez-vous puis réessayez.'],
+      ['tarif_verif_lot_import_incoherent', "Le lot d'import ne correspond plus à ce fichier. Rechargez la page puis réessayez."],
+      ['tarif_verif_reference_absente', "Cette ligne n'a ni code-barres ni libellé : la vérification n'est pas possible."]
+    ];
+    for (var i = 0; i < refus.length; i++) if (m.indexOf(refus[i][0]) >= 0) return refus[i][1] + " Rien n'a été modifié.";
     return "L'enregistrement a échoué. Rien n'a été modifié, vous pouvez réessayer.";
   }
   var MSG_VERIF_OK = 'Vérification enregistrée. Contrôle suivant ouvert.';
@@ -865,9 +887,9 @@
       if (bl) { if (bl.scrollIntoView) bl.scrollIntoView({ block: 'start' }); var sm = bl.querySelector('summary'); if (sm) sm.focus(); }
     }
     // L5 : « Commencer par » ouvre le premier contrôle du tri « Gravité décroissante » (filtres remis par défaut). Aucune écriture.
-    function commencerPar() {
+    function commencerPar(cible) {
       etat.ctlTri = 'gravite'; etat.ctlRecherche = ''; etat.ctlCycles = CYCLES_DEFAUT;
-      var L = controlesFiltres(etat), x = L[0] || null;
+      var L = controlesFiltres(etat), x = (cible && L.filter(function (y) { return cleControle(y) === cible; })[0]) || L[0] || null;
       ouvrirControles();
       if (x) { var cle = cleControle(x); if (etroit()) ouvrirDetail(cle); else choisirLigne(cle); }
     }
@@ -885,7 +907,7 @@
         if (j < 0) return; ev.preventDefault(); choisirAxe(onglets[j].dataset.axeOnglet, true);
       });
     });
-    Array.prototype.forEach.call(corps.querySelectorAll('[data-carte="controles_a_effectuer"], [data-bloc-conseil="controles"]'), function (b) { b.addEventListener('click', (b.dataset && b.dataset.commencer) ? commencerPar : ouvrirControles); });
+    Array.prototype.forEach.call(corps.querySelectorAll('[data-carte="controles_a_effectuer"], [data-bloc-conseil="controles"]'), function (b) { b.addEventListener('click', (b.dataset && b.dataset.commencer) ? function () { commencerPar(b.dataset.cible || null); } : ouvrirControles); });
     // Bloc des contrôles : (i), « Voir plus », tri, cycle, recherche. Câblage unique, page et banc.
     // L2 : choix d'une ligne (clic, Entrée) et flèches haut/bas ; le focus suit la ligne choisie après le rendu.
     var lignes = Array.prototype.slice.call(corps.querySelectorAll('[data-ctl-sel]'));
@@ -1014,7 +1036,7 @@
     var c = conseiller(a, etat.role);
     h += '<div class="carte conseiller sc-conseiller"><img class="conseiller-avatar" src="assets/avatar/nexus-avatar-128.png" srcset="assets/avatar/nexus-avatar-64.png 64w, assets/avatar/nexus-avatar-96.png 96w, assets/avatar/nexus-avatar-128.png 128w, assets/avatar/nexus-avatar-256.png 256w" sizes="80px" alt="Conseiller NEXUS">' +
       '<div class="conseiller-corps sc-conseil-ligne"><p class="sc-conseil"><strong class="conseiller-titre">Conseiller NEXUS</strong> ' + esc(c.texte) + (c.detail ? ' <details class="sc-conseil-plus"><summary class="info-btn pt-info" aria-label="Pourquoi ce conseil">i</summary><span class="sc-methode" data-conseil-detail="1">' + esc(c.detail) + '</span></details>' : '') + '</p>' +
-      (c.filtre ? '<button type="button" class="detail-btn" data-conseil="1">Voir dans la liste</button>' : c.bloc ? '<button type="button" class="detail-btn" data-conseil="1" data-bloc-conseil="controles" data-commencer="1">Commencer par</button>' : '') + '</div></div>';
+      (c.filtre ? '<button type="button" class="detail-btn" data-conseil="1">Voir dans la liste</button>' : c.bloc ? '<button type="button" class="detail-btn" data-conseil="1" data-bloc-conseil="controles" data-commencer="1"' + (c.cible ? ' data-cible="' + esc(c.cible) + '"' : '') + '>Commencer par</button>' : '') + '</div></div>';
     var cs = cartes(a), couleur = { marge_negative: 'sc-rouge', propositions: 'sc-info', a_verifier: 'sc-ambre', non_constates: 'sc-gris' };
     var carte = function (id) {
       var c = cs.filter(function (x) { return x.id === id; })[0];
