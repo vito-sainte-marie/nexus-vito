@@ -22,14 +22,13 @@ function verif(nom, cond, detail) { if (cond) { ok++; console.log('OK  ' + nom);
     const ctx = await nav.newContext({ viewport: { width: vp.w, height: vp.h } });
     const page = await ctx.newPage();
     await page.goto(URL_BANC + '?scenario=gerant&theme=jour');
-    await page.waitForSelector('#vueCorps [data-ctl-info], #vueCorps button[data-verifier]', { timeout: 15000 });
+    await page.waitForSelector('#vueCorps button[data-verifier]', { timeout: 15000 });
     const tag = vp.w + 'px';
 
-    // Étape 2 : le (i) ouvre la phrase de contrôle, fermée par défaut (avenant A4).
-    verif(tag + ' contrôle fermé : pas de phrase de contrôle', await page.locator('#vueCorps .pt-ctl-3').count() === 0);
-    const info = page.locator('#vueCorps [data-ctl-info]').first();
-    await info.click();
-    verif(tag + ' (i) ouvert : phrase de contrôle visible', await page.locator('#vueCorps .pt-ctl-3').first().isVisible());
+    // L2 : la consigne est toujours visible dans le détail ; « Sources et calcul » est un <details> natif.
+    verif(tag + ' détail : consigne de contrôle visible', await page.locator('#vueCorps [data-ctl-detail] .pt-ctl-3').first().isVisible());
+    verif(tag + ' détail : « Sources et calcul » en <details> natif', await page.locator('#vueCorps [data-ctl-detail] details.pt-sources-calcul > summary:has-text("Sources et calcul")').count() === 1);
+    verif(tag + ' liste : une seule ligne porte aria-current', await page.locator('#vueCorps [data-ctl-sel][aria-current="true"]').count() === 1);
     if (dossier) await page.screenshot({ path: dossier + '/ctl_info_' + vp.w + '.png', fullPage: false });
 
     // Étape 5 : marquer vérifié sort la ligne des contrôles à effectuer et l'inscrit à l'historique.
@@ -39,14 +38,18 @@ function verif(nom, cond, detail) { if (cond) { ok++; console.log('OK  ' + nom);
     const avant = await total();
     verif(tag + ' au moins un contrôle à vérifier', avant > 0);
     if (avant > 0) {
+      const article = await boutons.first().getAttribute('data-ver-article');
       await boutons.first().click();
       await page.waitForTimeout(400);
+      // 1) La confirmation « Vérifié le … par … » se lit dans Contrôler, juste après le clic (.pt-verif-msg).
+      const msg = await page.locator('#vueCorps .pt-verif-msg').first().innerText().catch(() => '');
+      verif(tag + ' Contrôler : confirmation « Vérifié le … par … » juste après le clic', /Vérifié le .+ par /.test(msg), msg);
       const apres = await total();
-      await axe(page, 'suivre');
       verif(tag + ' le total des contrôles à effectuer baisse de 1 (comptage sur les données)', apres === avant - 1, avant + ' -> ' + apres);
+      // 2) Dans Suivre, la ligne de l'article porte « Vérifié ».
       await axe(page, 'suivre');
-      const texte = await page.locator('#vueCorps').innerText();
-      verif(tag + ' historique : « Vérifié le » avec auteur et date', /Vérifié le .+ par /.test(texte));
+      const ligneSuivre = await page.evaluate(a => [...document.querySelectorAll('#vueCorps [data-axe-pan="suivre"] li, #vueCorps .pt-axe-pan:not([hidden]) li')].filter(e => e.textContent.includes(a)).map(e => e.textContent).join(' | '), article);
+      verif(tag + ' Suivre : la ligne de l\'article porte « Vérifié »', /Vérifié/.test(ligneSuivre), ligneSuivre.slice(0, 120));
     }
     // Étape 8 : filtre Vérifiés présent dans l'historique.
     await axe(page, 'suivre');

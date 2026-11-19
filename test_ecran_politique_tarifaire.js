@@ -449,23 +449,24 @@ const avecControles = (k) => {
   }
   return a;
 };
-ok('B2 : bloc Contrôles, trois lignes, niveau et bouton pleine largeur', () => {
+ok('B2/L2 : bloc Contrôles, liste compacte, détail avec consigne et bouton', () => {
   const h = E.htmlPage({ analyse: avecControles(2), role: 'manager', estCreateur: false, filtres: {}, incoherences: [] });
   assert.ok(/data-bloc-controles/.test(h) && /data-carte="controles_a_effectuer"/.test(h));
   assert.ok(/data-axe="niveau">Démontré/.test(h) && /data-axe="niveau">À vérifier/.test(h));
-  assert.ok(/pt-ctl-1/.test(h) && /pt-ctl-2/.test(h) && !/pt-ctl-3/.test(h) && /data-ctl-info/.test(h));
+  assert.ok(/data-ctl-liste/.test(h) && /data-ctl-detail/.test(h) && /pt-ctl-3/.test(h) && !/data-ctl-info/.test(h));
   assert.ok(/✓ Marquer comme vérifié/.test(h) && /data-ctl-expl/.test(h));
   assert.ok(!/data-ctl-plus/.test(h) && !/ptCtlRecherche/.test(h));
 });
 ok('B2 : au-delà de 10 contrôles, outils et suite', () => {
   const h = E.htmlPage({ analyse: avecControles(14), role: 'manager', estCreateur: false, filtres: {}, incoherences: [] });
   assert.ok(/ptCtlRecherche/.test(h) && /data-ctl-tri/.test(h) && /data-ctl-cycle="resolue"/.test(h) && /data-ctl-plus/.test(h));
-  assert.strictEqual((h.match(/class="pt-anomalie pt-ctl"/g) || []).length, 10);
+  assert.strictEqual((h.match(/data-ctl-ligne="1"/g) || []).length, 10);
+  assert.strictEqual((h.match(/data-ver-article=/g) || []).length, 1, 'un seul bouton de vérification : celui du contrôle choisi');
 });
 ok('B2 : une ligne vérifiée quitte la liste active, état vide et lecture seule', () => {
   const a = avecControles(2); a.lignes.forEach(l => l.anomalies.forEach(x => { x.cycle = 'verifiee'; }));
   const h = E.htmlPage({ analyse: a, role: 'employe', estCreateur: false, filtres: {}, incoherences: [] });
-  assert.ok(/Contrôles à effectuer \(0\)/.test(h) && !/class="pt-anomalie pt-ctl"/.test(h));
+  assert.ok(/Contrôles à effectuer \(0\)/.test(h) && !/data-ctl-ligne="1"/.test(h));
   assert.ok(/data-ctl-lecture/.test(avecH('employe')));
   const v = E.htmlPage({ analyse: avecControles(0), role: 'manager', estCreateur: false, filtres: {}, incoherences: [] });
   assert.ok(/Aucune anomalie à vérifier sur cet import/.test(v));
@@ -496,10 +497,10 @@ ok('recette Guardian : commentaire replié derrière un lien, (i) sur la ligne d
   const h = E.htmlPage({ analyse: a, role: 'manager', estCreateur: false, filtres: {}, incoherences: [] });
   assert.ok(/data-com-ouvrir=/.test(h) && !/<textarea/.test(h), 'zone fermée par défaut');
   assert.ok(/Ajouter un commentaire/.test(h));
-  const li = h.slice(h.indexOf('pt-ctl-1'), h.indexOf('pt-ctl-2'));
-  assert.ok(/data-ctl-info/.test(li), '(i) dans pt-ctl-1');
-  const x = a.lignes[0].anomalies[0];
-  const h2 = E.htmlPage({ analyse: a, role: 'manager', estCreateur: false, filtres: {}, incoherences: [], comOuvert: [x.code + '|' + a.lignes[0].article] });
+  assert.ok(!/data-ctl-info/.test(h), 'plus de (i) : la consigne est toujours visible dans le détail');
+  const cle = /aria-current="true"[^>]*data-ctl-sel="([^"]+)"|data-ctl-sel="([^"]+)"[^>]*aria-current="true"/.exec(h);
+  const k = cle[1] || cle[2];
+  const h2 = E.htmlPage({ analyse: a, role: 'manager', estCreateur: false, filtres: {}, incoherences: [], comOuvert: [k] });
   assert.ok(/<textarea/.test(h2), 'zone ouverte sur cette ligne');
 });
 ok('recette Guardian : cases de filtre avec accent-color', () => {
@@ -562,15 +563,29 @@ ok('câblage commun : lierOuvertures ouvre le bloc et le commentaire', () => {
   ecouteurs.find(e => e[0] === 'ctl')[1](); assert.strictEqual(etat.ctlReplie, false);
   ecouteurs.find(e => e[0] === 'com')[1](); assert.deepStrictEqual(etat.comOuvert, ['S2|X']); assert.strictEqual(rendus, 2);
 });
-ok('D2 : le (i) d\'un contrôle est câblé par le câblage commun (ouvre, puis referme)', () => {
-  const ec = [];
-  const b = { dataset: { ctlInfo: 'S2|X' }, addEventListener: (t, f) => ec.push(f) };
-  const corps = { querySelectorAll: sel => sel === '[data-ctl-info]' ? [b] : [], querySelector: () => null };
+ok('L2 : le choix d\'une ligne est câblé (clic, flèches) et le rendu est relancé', () => {
+  const ev = {}; const mk = c => ({ dataset: { ctlSel: c }, focus() {}, addEventListener: (t, f) => { (ev[c] = ev[c] || {})[t] = f; } });
+  const l = [mk('S2|A'), mk('S7|B'), mk('S1|C')];
+  const corps = { querySelectorAll: sel => sel === '[data-ctl-sel]' ? l : [], querySelector: () => null };
   const etat = {}; let rendus = 0;
   E.lierOuvertures(corps, etat, () => { rendus++; });
-  assert.strictEqual(ec.length, 1);
-  ec[0](); assert.strictEqual(etat.ctlInfo, 'S2|X');
-  ec[0](); assert.strictEqual(etat.ctlInfo, null); assert.strictEqual(rendus, 2);
+  ev['S7|B'].click(); assert.strictEqual(etat.ctlSel, 'S7|B');
+  let prevenu = false; ev['S7|B'].keydown({ key: 'ArrowDown', preventDefault() { prevenu = true; } });
+  assert.strictEqual(etat.ctlSel, 'S1|C'); assert.ok(prevenu);
+  ev['S1|C'].keydown({ key: 'ArrowDown', preventDefault() {} }); assert.strictEqual(etat.ctlSel, 'S1|C', 'pas de dépassement en bas');
+  ev['S1|C'].keydown({ key: 'ArrowUp', preventDefault() {} }); assert.strictEqual(etat.ctlSel, 'S7|B');
+  assert.strictEqual(rendus, 3);
+});
+ok('L2 : aria-current sur la ligne choisie, repli sur la première, détail et Sources et calcul natifs', () => {
+  const a = avecControles(4);
+  const h = E.htmlPage({ analyse: a, role: 'manager', estCreateur: false, filtres: {}, incoherences: [] });
+  assert.strictEqual((h.match(/aria-current="true"/g) || []).length, 1);
+  assert.ok(/<details class="pt-sources-calcul"[^>]*><summary>Sources et calcul<\/summary>/.test(h));
+  const cle = 'S7|' + a.lignes[1].article;
+  const h2 = E.htmlPage({ analyse: a, role: 'manager', estCreateur: false, filtres: {}, incoherences: [], ctlSel: cle });
+  assert.ok(new RegExp('data-ctl-sel="' + cle.replace(/[|]/g, '\\|') + '" aria-current="true"').test(h2) || /aria-current="true"/.test(h2));
+  const h3 = E.htmlPage({ analyse: a, role: 'manager', estCreateur: false, filtres: {}, incoherences: [], ctlSel: 'inconnu|x' });
+  assert.strictEqual((h3.match(/aria-current="true"/g) || []).length, 1, 'sélection périmée : repli sur la première');
 });
 ok('D1 : une vérification enregistrée passe la ligne en « vérifiée » avec message daté', () => {
   const an = { code: 'S2', cycle: 'nouvelle' }; const etat = {};
@@ -882,9 +897,8 @@ const lA1 = (pv, cout, an) => ({ article: 'Art A1', code_barres: '1', pv_ht: pv,
 ok('A1 : S1 affiche la perte unitaire HT (1,57 - 0,03 = 1,54), le pourcentage va dans le (i)', () => {
   const h = E.htmlControlesAFaire(lA1(0.03, 1.57, [s1]), false, {});
   assert.ok(/Perte de 1,54 € HT par unité : vendu 0,03 €, coût 1,57 €/.test(h));
-  assert.ok(!/Marge : /.test(h));
-  const ouvert = E.htmlControlesAFaire(lA1(0.03, 1.57, [s1]), false, { ctlInfo: 'S1|Art A1' });
-  assert.ok(/data-s1-pct="1">Marge : /.test(ouvert));
+  assert.ok(!/Marge : /.test(h.replace(/<p class="sc-note" data-s1-pct="1">[^<]*<\/p>/, '')), 'le pourcentage n\'est que dans la note S1 du détail');
+  assert.ok(/data-s1-pct="1">Marge : /.test(h));
 });
 ok('A1 : un PV nul ne donne aucun pourcentage de perte', () => {
   const h = E.htmlControlesAFaire(lA1(0, 1.57, [s1]), false, {});
@@ -909,9 +923,8 @@ ok('A2 : un seul « À vérifier » par contrôle rendu (niveau), jamais répét
     assert.strictEqual((txt.match(/À vérifier/g) || []).length, 1, txt);
   });
 });
-ok('A4 : la consigne de contrôle est dans le (i), pas sur la ligne repliée', () => {
-  assert.ok(!/pt-ctl-3/.test(E.htmlControlesAFaire(lA1(2.35, 2.94, [s1]), false, {})));
-  assert.ok(/pt-ctl-3[^>]*>Vérifier le coût de revient/.test(E.htmlControlesAFaire(lA1(2.35, 2.94, [s1]), false, { ctlInfo: 'S1|Art A1' })));
+ok('A4/L2 : la consigne de contrôle est toujours visible, sans (i)', () => {
+  assert.ok(/pt-ctl-3[^>]*>Vérifier le coût de revient/.test(E.htmlControlesAFaire(lA1(2.35, 2.94, [s1]), false, {})));
 });
 ok('A3 : la phrase de contrôle de S2 ne conclut rien', () => {
   const V = require('./nexus-vocabulaire-tarif.js');

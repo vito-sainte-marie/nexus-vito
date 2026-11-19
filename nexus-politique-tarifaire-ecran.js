@@ -492,25 +492,47 @@
       : '<button type="button" class="pt-com-lien" data-com-ouvrir="' + esc(cleC) + '">Ajouter un commentaire</button>';
     return com + '<button type="button" class="detail-btn pt-verifier" data-verifier="' + esc(code) + '" data-ver-article="' + esc(l.article) + '">✓ Marquer comme vérifié</button>';
   }
-  function htmlAnomalie(an, l, droits, etat, avecProduit) {
+  // L2 : pièces communes d'un contrôle. La consigne est toujours visible (plus de (i)) ; la source et le calcul sont dans un bloc natif replié.
+  function pieceControle(an, l) {
     var AL = A_LIB(), code = an.code, cd = AL.codes[code] || {};
-    var cycle = AL.cycles[an.cycle] || '';
-    // A7 : S1 sur une ligne où S2 est aussi émise s'affiche « À vérifier » (affichage seul, niveau moteur inchangé).
     var s1Contredit = code === 'S1' && (l.anomalies || []).some(function (x) { return x.code === 'S2'; });
     var niveauAff = s1Contredit ? 'a_verifier' : an.niveau;
-    var statut = an.cycle === 'verifiee' ? 'Vérifié' : an.cycle === 'nouvelle' ? 'Nouveau' : cycle;
-    var cle = code + '|' + l.article, ouvert = !!(etat && etat.ctlInfo === cle);
+    var cycle = AL.cycles[an.cycle] || '';
+    return { AL: AL, code: code, cd: cd, s1Contredit: s1Contredit, niveau: LIB_NIVEAU[niveauAff] || '',
+      statut: an.cycle === 'verifiee' ? 'Vérifié' : an.cycle === 'nouvelle' ? 'Nouveau' : cycle,
+      chiffres: valeursAComparer(an, l) + (s1Contredit ? ' · coût de l\'export contredit par le relevé de stock' : '') };
+  }
+  function htmlCorpsControle(an, l, droits, etat, pc) {
+    var AL = pc.AL, code = pc.code;
     var masque = (an.peutExpliquerAussi || []).length ? '<p class="sc-note">' + esc(AL.masque) + ' ' + esc(an.peutExpliquerAussi.map(function (c) { return (AL.codes[c] || {}).titre || c; }).join(', ')) + '</p>' : '';
-    var info = '<button type="button" class="info-btn pt-info" data-ctl-info="' + esc(cle) + '" aria-expanded="' + (ouvert ? 'true' : 'false') + '" aria-label="Information : ' + esc(cd.titre || code) + ' pour ' + esc(l.article) + '">i</button>';
-    var detail = ouvert ? (code === 'S1' && perteUnitaire(l) ? '<p class="sc-note" data-s1-pct="1">Marge : ' + esc(pct((an.valeurs || {}).taux)) + '</p>' : '') + '<p class="sc-methode">' + esc(AL.explication || 'Un contrôle indique où comparer avec Decenium. Ce n\'est pas une erreur constatée.') + '</p>' + masque : '';
-    return '<li class="pt-anomalie pt-ctl" data-anomalie="' + esc(code) + '">' +
+    var marge = code === 'S1' && perteUnitaire(l) ? '<p class="sc-note" data-s1-pct="1">Marge : ' + esc(pct((an.valeurs || {}).taux)) + '</p>' : '';
+    return '<p class="pt-ctl-3 sc-note">' + esc(pc.cd.controle || '') + '</p>' + marge + masque +
+      '<details class="pt-sources-calcul" data-sources-calcul="1"><summary>Sources et calcul</summary><p class="pt-ctl-2 sc-methode">' + pc.chiffres + '</p>' +
+      '<p class="sc-methode">' + esc(AL.explication || 'Un contrôle indique où comparer avec Decenium. Ce n\'est pas une erreur constatée.') + '</p></details>' +
+      htmlVerification(an, l, droits, etat);
+  }
+  function htmlAnomalie(an, l, droits, etat, avecProduit) {
+    var pc = pieceControle(an, l);
+    return '<li class="pt-anomalie pt-ctl" data-anomalie="' + esc(pc.code) + '">' +
       '<div class="pt-ctl-1">' + (avecProduit ? '<button type="button" class="vp-ligne-prod pt-ctl-prod" data-article="' + esc(l.article) + '"><span class="vp-nom">' + esc(l.article) + '</span></button>' : '') +
-      '<span class="sc-nom">' + esc(cd.titre || code) + '</span> <span class="nbe-qualif" data-axe="niveau">' + esc(LIB_NIVEAU[niveauAff] || '') + '</span> ' +
-      '<span class="nbe-qualif" data-axe="cycle">' + esc(statut) + '</span> ' + info + '</div>' +
-      '<p class="pt-ctl-2 sc-methode">' + valeursAComparer(an, l) + (s1Contredit ? ' · coût de l\'export contredit par le relevé de stock' : '') + '</p>' +
-      // A4 : à 375 px, titre, niveau et une ligne de chiffres ; la consigne de contrôle passe dans le (i).
-      (ouvert ? '<p class="pt-ctl-3 sc-note">' + esc(cd.controle || '') + '</p>' : '') + detail +
-      htmlVerification(an, l, droits, etat) + '</li>';
+      '<span class="sc-nom">' + esc(pc.cd.titre || pc.code) + '</span> <span class="nbe-qualif" data-axe="niveau">' + esc(pc.niveau) + '</span> ' +
+      '<span class="nbe-qualif" data-axe="cycle">' + esc(pc.statut) + '</span></div>' +
+      htmlCorpsControle(an, l, droits, etat, pc) + '</li>';
+  }
+  // L2 : une ligne compacte par contrôle (article, cause, chiffre clé, un seul niveau) ; le détail s'affiche dans le panneau.
+  function cleControle(x) { return x.a.code + '|' + x.l.article; }
+  function htmlLigneCompacte(x, choisi) {
+    var pc = pieceControle(x.a, x.l), cle = cleControle(x);
+    return '<li class="pt-ctl-item" data-anomalie="' + esc(pc.code) + '"><button type="button" class="pt-ctl-ligne" data-ctl-ligne="1" data-ctl-sel="' + esc(cle) + '"' +
+      (choisi ? ' aria-current="true" tabindex="0"' : ' tabindex="-1"') + '>' +
+      '<span class="vp-nom pt-l-art">' + esc(x.l.article) + '</span><span class="pt-l-cause">' + esc(pc.cd.titre || pc.code) + '</span>' +
+      '<span class="pt-l-chiffre">' + pc.chiffres + '</span><span class="nbe-qualif" data-axe="niveau">' + esc(pc.niveau) + '</span></button></li>';
+  }
+  function htmlDetailControle(x, droits, etat) {
+    var pc = pieceControle(x.a, x.l);
+    return '<section class="pt-detail" data-ctl-detail="1" aria-label="Détail du contrôle"><div class="pt-ctl-1"><button type="button" class="vp-ligne-prod pt-ctl-prod" data-article="' + esc(x.l.article) + '"><span class="vp-nom">' + esc(x.l.article) + '</span></button> ' +
+      '<span class="sc-nom">' + esc(pc.cd.titre || pc.code) + '</span> <span class="nbe-qualif" data-axe="cycle">' + esc(pc.statut) + '</span></div>' +
+      htmlCorpsControle(x.a, x.l, droits, etat, pc) + '</section>';
   }
   function htmlControlesAFaire(l, droits, etat) {
     var L = l.anomalies || [];
@@ -556,9 +578,12 @@
           return '<label class="pt-chk"><input type="checkbox" data-ctl-cycle="' + k + '"' + (cy.indexOf(k) >= 0 ? ' checked' : '') + '> ' + esc(LIB_CYCLE[k]) + '</label>'; }).join('') + '</fieldset></div>';
     }
     var vis = etat.ctlToutes || tous.length <= SEUIL_OUTILS ? L : L.slice(0, SEUIL_OUTILS);
-    h += '<ul class="vp-liste pt-ctl-liste">' + vis.map(function (x) { return htmlAnomalie(x.a, x.l, droits, etat, true); }).join('') + '</ul>';
+    // Sélection : le contrôle choisi, sinon le premier de la vue (la ligne vérifiée quitte la vue, la suivante prend la place).
+    var sel = null; vis.forEach(function (x) { if (!sel && cleControle(x) === etat.ctlSel) sel = x; }); if (!sel) sel = vis[0] || null;
+    h += '<div class="pt-ctl-deux"><div class="pt-ctl-gauche"><ul class="vp-liste pt-ctl-liste" data-ctl-liste="1">' + vis.map(function (x) { return htmlLigneCompacte(x, x === sel); }).join('') + '</ul>';
     if (!L.length) h += '<p class="sc-note">Aucun contrôle ne correspond à ces filtres.</p>';
     if (L.length > vis.length) h += '<button type="button" class="detail-btn vp-plus" data-ctl-plus="1">Afficher la suite (' + (L.length - vis.length) + ')</button>';
+    h += '</div>' + (sel ? '<div class="pt-ctl-droite">' + htmlDetailControle(sel, droits, etat) + '</div>' : '') + '</div>';
     return h + '</details>';
   }
   // Réévaluations à enregistrer : périmètre complet de l'import (jamais la vue filtrée), une ligne par anomalie dont le cycle change.
@@ -756,7 +781,16 @@
     });
     Array.prototype.forEach.call(corps.querySelectorAll('[data-carte="controles_a_effectuer"], [data-bloc-conseil="controles"]'), function (b) { b.addEventListener('click', ouvrirControles); });
     // Bloc des contrôles : (i), « Voir plus », tri, cycle, recherche. Câblage unique, page et banc.
-    Array.prototype.forEach.call(corps.querySelectorAll('[data-ctl-info]'), function (b) { b.addEventListener('click', function () { etat.ctlInfo = etat.ctlInfo === b.dataset.ctlInfo ? null : b.dataset.ctlInfo; rendre(); }); });
+    // L2 : choix d'une ligne (clic, Entrée) et flèches haut/bas ; le focus suit la ligne choisie après le rendu.
+    var lignes = Array.prototype.slice.call(corps.querySelectorAll('[data-ctl-sel]'));
+    function choisirLigne(cle) { etat.ctlSel = cle; rendre(); var n = corps.querySelector('[data-ctl-sel][aria-current]'); if (n && n.focus) n.focus(); }
+    lignes.forEach(function (b, i) {
+      b.addEventListener('click', function () { choisirLigne(b.dataset.ctlSel); });
+      b.addEventListener('keydown', function (ev) {
+        var k = ev.key, j = k === 'ArrowDown' ? i + 1 : k === 'ArrowUp' ? i - 1 : k === 'Home' ? 0 : k === 'End' ? lignes.length - 1 : -1;
+        if (j < 0 || j >= lignes.length) return; ev.preventDefault(); choisirLigne(lignes[j].dataset.ctlSel);
+      });
+    });
     var ctlPlus = corps.querySelector('[data-ctl-plus]'); if (ctlPlus) ctlPlus.addEventListener('click', function () { etat.ctlToutes = true; rendre(); });
     var ctlTri = corps.querySelector('[data-ctl-tri]'); if (ctlTri) ctlTri.addEventListener('change', function () { etat.ctlTri = ctlTri.value; etat.ctlToutes = false; rendre(); });
     Array.prototype.forEach.call(corps.querySelectorAll('[data-ctl-cycle]'), function (c) { c.addEventListener('change', function () { var cy = (etat.ctlCycles || ['nouvelle', 'persistante', 'aggravee']).filter(function (x) { return x !== c.dataset.ctlCycle; }); if (c.checked) cy.push(c.dataset.ctlCycle); etat.ctlCycles = cy; etat.ctlToutes = false; rendre(); }); });
@@ -891,6 +925,7 @@
     '.vue-p1c .pt-inds{grid-template-columns:repeat(2,1fr)}@media (min-width:900px){.vue-p1c .pt-inds{grid-template-columns:repeat(4,1fr)}}' +
     '.vue-p1c .pt-badges{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}.vue-p1c .pt-pol{margin:8px 0}.vue-p1c .pt-pol-l{display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:2px 0}' +
     '.vue-p1c details.pt-filtres[open]>summary .sc-chev{transform:rotate(45deg)}.vue-p1c details.pt-histo-sec[open]>summary .sc-chev{transform:rotate(45deg)}.vue-p1c .pt-histo-sec>summary{min-height:44px;display:flex;align-items:center;justify-content:space-between;cursor:pointer}.vue-p1c .pt-histo-reset{margin:6px 0}.vue-p1c .pt-histo-plus{margin:6px 0}.vue-p1c .pt-ctrl .vp-liste{margin:8px 0}.vue-p1c .pt-f{display:flex;flex-direction:column;gap:2px;min-width:0}.vue-p1c .pt-f select,.vue-p1c .pt-f input{min-height:44px;border-radius:8px;border:1px solid var(--t-line);background:var(--t-panel);color:var(--t-text);font:inherit;padding:0 8px}.vue-p1c .pt-f-rech{flex:1 1 100%}.vue-p1c .pt-f:not(.pt-f-rech){flex:1 1 140px}.vue-p1c .pt-scenarios{margin:8px 0}.vue-p1c .pt-aucun{margin:4px 0 0}.vue-p1c .sc-conseiller{margin:0 0 10px}.vue-p1c .pt-histo-t{display:flex;align-items:center;gap:6px}.vue-p1c .pt-histo-txt{flex:1;min-width:0}.vue-p1c .pt-li{display:flex;align-items:center;gap:6px}.vue-p1c .pt-li .vp-ligne-prod{flex:1;min-width:0}.vue-p1c .pt-li .pt-info{flex:none}.vue-p1c .pt-ctl{list-style:none;padding:10px 0;border-top:1px solid var(--t-line)}.vue-p1c .pt-ctl-2,.vue-p1c .pt-ctl-3{margin:4px 0}.vue-p1c .pt-ctl .pt-verifier{width:100%;min-height:44px;margin-top:8px}.vue-p1c .pt-ctl-titre{margin:0 0 8px}.vue-p1c .pt-controles-faire{margin:14px 0 10px}.vue-p1c .pt-bloc-controles{margin:10px 0}.vue-p1c .pt-ctl-outils{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}.vue-p1c .pt-ctl-cycles{border:0;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:4px 12px}.vue-p1c .pt-carte-ctl{text-align:left;font:inherit;cursor:pointer;width:100%;border:1px solid var(--t-line);background:var(--t-panel);color:var(--t-text);min-height:44px}.vue-p1c .pt-com-lien{background:none;border:0;padding:0 2px;min-height:44px;font:inherit;font-size:13px;color:var(--accent,inherit);text-decoration:underline;cursor:pointer}.vue-p1c input[type=checkbox]{accent-color:var(--accent)}.vue-p1c .pt-chk{display:inline-flex;align-items:center;gap:6px;min-height:44px}.vue-p1c .pt-verif-champ{margin-top:8px}.vue-p1c .pt-verif-zone{display:flex;flex-direction:column;gap:4px}.vue-p1c .pt-verif-com{width:100%;box-sizing:border-box;min-height:64px;border-radius:8px;border:1px solid var(--t-line);background:var(--t-panel);color:var(--t-text);font:inherit;padding:8px;resize:vertical}.vue-p1c .pt-verif-n{align-self:flex-end}.vue-p1c .pt-fond{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:40}.vue-p1c .pt-fiche{position:fixed;z-index:41;background:var(--t-panel);overflow:auto;box-sizing:border-box;left:0;right:0;bottom:0;max-height:85vh;border-radius:16px 16px 0 0;padding:12px 16px 24px}@media (min-width:900px){.vue-p1c .pt-fiche{left:auto;top:0;bottom:0;right:0;width:420px;max-height:none;border-radius:0}}.vue-p1c .pt-fiche-tete{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}.vue-p1c .pt-fermer{min-height:44px}.vue-p1c .pt-marge-l1{display:block;color:var(--t-text)}.vue-p1c .pt-marge-prin{color:var(--t-text);font-family:var(--t-mono);font-weight:700;font-size:17px}.vue-p1c .pt-marge-sec{display:block;color:var(--t-mid);font-family:var(--t-mono);font-size:12px}.vue-p1c .vp-filtres{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start}.vue-p1c .pt-filtres{flex:1 1 100%}.vue-p1c .pt-filtres>summary{min-height:44px;display:flex;align-items:center;justify-content:space-between;cursor:pointer}.vue-p1c .pt-filtres-corps{display:flex;flex-wrap:wrap;gap:8px}@media (min-width:900px){.vue-p1c .pt-filtres-corps{flex-wrap:wrap}.vue-p1c .pt-filtres-corps>.pt-f{flex:1 1 160px;min-width:0}}@media (max-width:599px){.vue-p1c .sc-conseiller .conseiller-avatar{width:48px;height:48px}.vue-p1c .sc-ind{padding:10px 12px}.vue-p1c .sc-ind-val{font-size:20px}}';
+  CSS += '.vue-p1c .pt-ctl-deux{display:block}.vue-p1c .pt-ctl-liste{list-style:none;margin:0;padding:0}.vue-p1c .pt-ctl-item{margin:0;border-top:1px solid var(--t-line)}.vue-p1c .pt-ctl-ligne{display:flex;align-items:center;gap:8px;width:100%;min-height:44px;padding:6px 10px;background:transparent;color:var(--t-text);border:0;border-left:3px solid transparent;text-align:left;font:inherit;cursor:pointer}.vue-p1c .pt-ctl-ligne>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.vue-p1c .pt-ctl-ligne[aria-current=true]{background:var(--t-panel);border-left-color:var(--accent)}.vue-p1c .pt-ctl-ligne:focus-visible,.vue-p1c details.pt-sources-calcul>summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.vue-p1c .pt-detail{margin-top:12px;padding:12px;border:1px solid var(--t-line);border-radius:14px;background:var(--t-panel)}.vue-p1c details.pt-sources-calcul>summary{min-height:44px;display:flex;align-items:center;cursor:pointer}@media (min-width:900px){.vue-p1c .pt-ctl-deux{display:grid;grid-template-columns:46% 1fr;gap:16px;align-items:start}.vue-p1c .pt-ctl-ligne{min-height:36px;padding:4px 10px}.vue-p1c .pt-ctl-droite{position:sticky;top:8px}.vue-p1c .pt-detail{margin-top:0}}';
 
   // ---------- Montage : lecture seule, session de la personne connectée, clé publique, aucun paramètre de site ----------
   var VUES = { familles: 'v_tarif_familles_actifs', rattachements: 'v_tarif_rattachements_actifs', seuils: 'v_tarif_seuils_actifs', reglages: 'v_tarif_reglages_actifs',
