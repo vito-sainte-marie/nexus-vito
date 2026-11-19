@@ -1009,6 +1009,8 @@
     var lab = function (t, k, o) { return '<label class="pt-f"><span class="sc-methode">' + t + '</span><select data-filtre="' + k + '">' + o + '</select></label>'; };
     var h = '<div class="sc-entete">' + (etat.icone ? '<span class="sc-entete-ico">' + etat.icone('entete') + '</span>' : '') +
       '<div><h2 class="sc-h">Scanner tarifaire</h2><div class="sc-methode">' + esc((etat.site ? etat.site + ' · ' : '') + libellePeriode(s.periode) + ' · ' + s.references + ' références analysées') + '</div></div></div>';
+    // Visible quel que soit l'axe ouvert : sans relevé de stock, S2, S4 et S5 ne sont pas constatés, le manager doit le savoir dès Contrôler.
+    if (s.stockFourni === false) h += '<p class="sc-note pt-stock-absent" data-stock-absent="1"><b>Relevé de stock</b> : non fourni. Le coût des références n\'est pas comparé au PA net HT du stock.</p>';
     var c = conseiller(a, etat.role);
     h += '<div class="carte conseiller sc-conseiller"><img class="conseiller-avatar" src="assets/avatar/nexus-avatar-128.png" srcset="assets/avatar/nexus-avatar-64.png 64w, assets/avatar/nexus-avatar-96.png 96w, assets/avatar/nexus-avatar-128.png 128w, assets/avatar/nexus-avatar-256.png 256w" sizes="80px" alt="Conseiller NEXUS">' +
       '<div class="conseiller-corps sc-conseil-ligne"><p class="sc-conseil"><strong class="conseiller-titre">Conseiller NEXUS</strong> ' + esc(c.texte) + (c.detail ? ' <details class="sc-conseil-plus"><summary class="info-btn pt-info" aria-label="Pourquoi ce conseil">i</summary><span class="sc-methode" data-conseil-detail="1">' + esc(c.detail) + '</span></details>' : '') + '</p>' +
@@ -1034,7 +1036,6 @@
     pC += htmlFamille('pertes');
     // Panneau Analyser : comprendre les chiffres et les références.
     var pA = '<div class="sc-inds pt-inds"><div class="sc-ind sc-info" data-carte="marge_estimee"><span class="sc-ind-val">' + esc(cm.valeur) + '</span><span class="sc-ind-lib">' + esc(cm.titre) + ' : ' + esc(cm.unite) + '</span><span class="sc-ind-sous">' + esc(cm.secondaire) + '</span></div><p class="sc-note">' + esc(cm.limite) + '</p></div>';
-    if (s.stockFourni === false) pA += '<p class="sc-note pt-stock-absent"><b>Relevé de stock</b> : non fourni. Le coût des références n\'est pas comparé au PA net HT du stock.</p>';
     pA += htmlFamille('fiabilite');
     pA += '<div class="vp-bloc sc-tout"><h3>Toutes les références</h3><div class="vp-filtres"><label class="pt-f pt-f-rech"><span class="sc-methode">Recherche</span><input type="search" id="ptRecherche" placeholder="Nom ou code-barres" value="' + esc(f.recherche || '') + '"></label>' +
       '<details class="pt-filtres" data-filtres-panneau="1"' + (etat.filtresOuverts ? ' open' : '') + '><summary><span class="sc-nom">Filtres (' + nbFiltres(f) + ')</span><span class="sc-chev"></span></summary><div class="pt-filtres-corps">' +
