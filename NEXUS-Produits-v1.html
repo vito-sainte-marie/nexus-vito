@@ -1755,10 +1755,10 @@ nexusRequireAuth().then(async employee => {
     const marquerVerifie = async (btn) => {
       const E2 = E, art = btn.dataset.verArticle, code = btn.dataset.verifier;
       const l = analyse.lignes.filter(x => x.article === art)[0]; const an = l && (l.anomalies || []).filter(x => x.code === code)[0];
-      const zone = btn.closest('li') || btn.parentNode;
+      const zone = btn.closest('[data-ctl-detail]') || btn.closest('li') || btn.parentNode;
       const dire = (t, erreur) => { let m = zone.querySelector('.pt-verif-msg'); if (!m) { m = document.createElement('p'); m.className = 'sc-note pt-verif-msg'; zone.appendChild(m); } m.setAttribute('role', erreur ? 'alert' : 'status'); m.textContent = t; };
       if (!an || !E2.peutVerifier(employee.role, !!employee.estCreateur)) { dire('Action réservée au gérant et au manager.'); return; }
-      const zc = zone.querySelector('textarea.pt-verif-com'); const com = zc ? zc.value : '';
+      const zc = zone.querySelector('textarea.pt-verif-com[data-com-article]'); const com = zc ? zc.value : '';
       if (!E2.commentaireValide(com)) { dire(E2.messageErreurEcriture('tarif_verif_commentaire_trop_long')); return; }
       btn.disabled = true; dire('Enregistrement…');
       try {

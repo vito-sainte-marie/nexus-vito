@@ -216,10 +216,10 @@
     var art = btn.dataset.verArticle, code = btn.dataset.verifier;
     var l = etat.analyse.lignes.filter(function (x) { return x.article === art; })[0];
     var an = l && (l.anomalies || []).filter(function (x) { return x.code === code; })[0];
-    var zone = btn.closest('li') || btn.parentNode;
+    var zone = btn.closest('[data-ctl-detail]') || btn.closest('li') || btn.parentNode;
     var dire = function (t, erreur) { var m = zone.querySelector('.pt-verif-msg'); if (!m) { m = document.createElement('p'); m.className = 'sc-note pt-verif-msg'; zone.appendChild(m); } m.setAttribute('role', erreur ? 'alert' : 'status'); m.textContent = t; };
     if (!an || !E.peutVerifier(role, false)) { dire('Action réservée au gérant et au manager.'); return; }
-    var zc = zone.querySelector('textarea.pt-verif-com'); var com = zc ? zc.value : '';
+    var zc = zone.querySelector('textarea.pt-verif-com[data-com-article]'); var com = zc ? zc.value : '';
     if (!E.commentaireValide(com)) { dire(E.messageErreurEcriture('tarif_verif_commentaire_trop_long')); return; }
     btn.disabled = true; dire('Enregistrement…');
     try {

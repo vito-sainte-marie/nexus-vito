@@ -85,6 +85,13 @@ function verif(nom, cond, detail) { if (cond) { ok++; console.log('OK  ' + nom);
     verif(tag + ' au moins un contrôle à vérifier', avant > 0);
     if (avant > 0) {
       const article = await boutons.first().getAttribute('data-ver-article');
+      // L5 : un commentaire saisi dans le détail doit partir avec la vérification.
+      const commenter = async () => {
+        const ouvrir = page.locator('#vueCorps [data-com-ouvrir]').first();
+        if (await ouvrir.count() && await ouvrir.isVisible()) await ouvrir.click();
+        await page.locator('#vueCorps textarea.pt-verif-com[data-com-article]').first().fill('vu sur facture');
+      };
+      await commenter();
       await boutons.first().click();
       await page.waitForTimeout(400);
       // 1) La confirmation immédiate (écriture déjà réussie) se lit dans la zone aria-live de Contrôler.
@@ -106,11 +113,14 @@ function verif(nom, cond, detail) { if (cond) { ok++; console.log('OK  ' + nom);
         const retab = await total();
         verif(tag + ' L4 : annulation acceptée, le total revient à sa valeur de départ', retab === avant, avant + ' -> ' + retab);
         // L5 : après annulation, la ligne n'est plus dans Suivre comme vérifiée.
+        const rl = page.locator('#vueCorps [data-ctl-retour]');
+        if (await rl.count() && await rl.first().isVisible()) { await rl.first().click(); await page.waitForTimeout(200); }
         await axe(page, 'suivre');
         const sansLigne = await page.evaluate(x => [...document.querySelectorAll('#vueCorps li')].filter(e => e.textContent.includes(x) && /Vérifié le/.test(e.textContent)).length, article);
         verif(tag + ' L5 : après annulation, la ligne quitte Suivre', sansLigne === 0, String(sansLigne));
         await axe(page, 'controler');
         // On revérifie pour la suite du scénario.
+        await commenter();
         await boutons.first().click();
         await page.waitForTimeout(400);
         verif(tag + ' L4 : revérification après annulation', await total() === avant - 1);
@@ -121,6 +131,7 @@ function verif(nom, cond, detail) { if (cond) { ok++; console.log('OK  ' + nom);
       await axe(page, 'suivre');
       const ligneSuivre = await page.evaluate(a => [...document.querySelectorAll('#vueCorps [data-axe-pan="suivre"] li, #vueCorps .pt-axe-pan:not([hidden]) li')].filter(e => e.textContent.includes(a)).map(e => e.textContent).join(' | '), article);
       verif(tag + ' Suivre : la ligne de l\'article porte « Vérifié »', /Vérifié/.test(ligneSuivre), ligneSuivre.slice(0, 120));
+      verif(tag + ' L5 : le commentaire saisi dans le détail apparaît dans Suivre (« Commentaire : vu sur facture »)', /Commentaire : vu sur facture/.test(ligneSuivre), ligneSuivre.slice(0, 160));
       verif(tag + ' L5 : Suivre affiche « Vérifié le JJ/MM/AAAA par … » dans la séance, pas « Jamais vérifié »', /Vérifié le \d{2}\/\d{2}\/\d{4} par \S+/.test(ligneSuivre) && !/Jamais vérifié/.test(ligneSuivre), ligneSuivre.slice(0, 160));
     }
     // Étape 8 : filtre Vérifiés présent dans l'historique.

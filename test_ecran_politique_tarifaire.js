@@ -1215,3 +1215,19 @@ ok('L5 : le chargement des vérifications exclut les annulées (annule_le is nul
   const i = src.indexOf("from('tarif_anomalies_verifications').select");
   assert.ok(i > 0 && /\.is\('annule_le', null\)/.test(src.slice(i, i + 700)), 'une vérification annulée ne revient jamais comme vérifiée');
 });
+ok('L5 : marquerVerifie lit le commentaire saisi dans le détail (hôte et banc), pas seulement dans un li', () => {
+  ['NEXUS-Produits-v1.html', 'outils/recette/ecran_scanner/banc.html'].forEach(f => {
+    const src = require('fs').readFileSync(__dirname + '/' + f, 'utf8');
+    const lz = src.split('\n').filter(l => /(const|var) zone = btn\.closest/.test(l))[0];
+    const lc = src.split('\n').filter(l => /(const|var) zc = zone\.querySelector/.test(l))[0];
+    assert.ok(lz && lc, f + ' : lignes zone/commentaire introuvables');
+    const cut = (lz + '\n' + lc).replace(/(const|let)\s/g, 'var ');
+    const mk = (v, avecLi) => { const ta = { value: v };
+      const zoneDetail = { querySelector: s => /textarea\.pt-verif-com/.test(s) ? ta : null, appendChild() {} };
+      const btn = { closest: s => s === '[data-ctl-detail]' ? zoneDetail : (s === 'li' ? (avecLi ? {} : null) : null), parentNode: {} };
+      return { btn, document: { createElement: () => ({ setAttribute() {} }) } }; };
+    const { btn, document } = mk('vu sur facture', false);
+    const r = new Function('btn', 'document', cut + '; return com;')(btn, document);
+    assert.strictEqual(r, 'vu sur facture', f + ' : le commentaire saisi dans le détail doit être lu');
+  });
+});
