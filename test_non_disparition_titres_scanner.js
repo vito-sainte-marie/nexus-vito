@@ -42,6 +42,47 @@ const apres = titres(E.htmlPage({ analyse, role: 'gerant', filtres: {}, incohere
 // Base de référence : titres de la page en Production avant le lot L7. Ajouter un titre est libre ; en retirer un exige une décision.
 const BASE = JSON.parse(process.env.NEXUS_TITRES_BASE_TEST || 'null') || require('./test_non_disparition_titres_scanner_base.json');
 
+// ---- Éléments structurels et axe attendu (demande du Guardian, lot L7) ----
+// Un élément = « type:identifiant » ; son axe = le panneau (data-axe-panneau) qui le contient ('entete' avant le premier panneau).
+// Un élément de la base qui manque, ou qui change d'axe, échoue sauf s'il figure dans RETRAITS_ELEMENTS_DECIDES (décision écrite du pilote).
+const RETRAITS_ELEMENTS_DECIDES = [];
+function elements(html) {
+  const out = {};
+  let axe = 'entete', m;
+  const re = /data-axe-panneau="(\w+)"|data-carte="([^"]+)"|data-filtre="([^"]+)"|data-historique="1"|data-filtre-histo="1">([\s\S]*?)<\/select>|conseiller-titre|data-commencer="1"|data-stock-absent="1"|data-ctl-causes="1"|Repère statistique : écart à la médiane/g;
+  while ((m = re.exec(html))) {
+    if (m[1]) axe = m[1];
+    else if (m[2]) out['carte:' + m[2]] = axe;
+    else if (m[3]) out['filtre:' + m[3]] = axe;
+    else if (m[0] === 'data-historique="1"') out['historique'] = axe;
+    else if (m[4] !== undefined) { out['historique-filtre'] = axe; (m[4].match(/value="([^"]+)"/g) || []).forEach(v => { out['historique-vue:' + v.slice(7, -1)] = axe; }); }
+    else if (m[0] === 'conseiller-titre') out['conseiller'] = axe;
+    else if (m[0] === 'data-commencer="1"') out['bouton-commencer-par'] = axe;
+    else if (m[0] === 'data-stock-absent="1"') out['note-releve-stock-non-fourni'] = axe;
+    else if (m[0] === 'data-ctl-causes="1"') out['pastilles-par-cause'] = axe;
+    else out['repere-statistique-ecart-mediane'] = axe;
+  }
+  return out;
+}
+function ecartsElements(base, apres, retraits) {
+  const decides = new Set((retraits || RETRAITS_ELEMENTS_DECIDES).map(r => r.element));
+  const d = [];
+  Object.keys(base).forEach(k => {
+    if (decides.has(k)) return;
+    if (!(k in apres)) d.push(k + ' : absent (axe attendu ' + base[k] + ')');
+    else if (apres[k] !== base[k]) d.push(k + ' : axe ' + apres[k] + ' au lieu de ' + base[k]);
+  });
+  return d;
+}
+const pageAvec = (extra, a) => E.htmlPage(Object.assign({ analyse: a || analyse, role: 'gerant', filtres: {}, incoherences: [] }, extra));
+const sansStock = Object.assign({}, analyse, { synthese: Object.assign({}, analyse.synthese, { stockFourni: false }) });
+const stubMarge = '<details class="sc-carte pt-marge" data-marge-plus="repere"><summary><span class="sc-nom">Repère statistique : écart à la médiane</span></summary></details>';
+const elementsApres = Object.assign({},
+  elements(pageAvec({ historiqueDispo: true, verifications: [], margePlus: stubMarge })),
+  elements(pageAvec({}, sansStock)).hasOwnProperty('note-releve-stock-non-fourni') ? { 'note-releve-stock-non-fourni': elements(pageAvec({}, sansStock))['note-releve-stock-non-fourni'] } : {});
+if (process.argv[2] === '--elements') { console.log(JSON.stringify(elementsApres, null, 1)); process.exit(0); }
+const BASE_ELEMENTS = require('./test_non_disparition_elements_scanner_base.json');
+
 let n = 0;
 const ok = (nom, f) => { f(); n++; };
 ok('aucun titre de la base ne disparaît sans décision', () => {
@@ -60,6 +101,27 @@ ok('un retrait décidé n\'est pas signalé, et il est daté et motivé', () => 
 ok('chaque retrait décidé figure dans la base (liste sans reste)', () => {
   RETRAITS_DECIDES.forEach(r => assert.ok(BASE.indexOf(r.titre) >= 0, 'retrait inconnu de la base : ' + r.titre));
 });
+ok('aucun élément structurel de la base ne manque ni ne change d\'axe sans décision', () => {
+  assert.deepStrictEqual(ecartsElements(BASE_ELEMENTS, elementsApres), []);
+});
+ok('la base couvre les éléments demandés : cartes, historique et ses cinq vues, Conseiller, Commencer par, relevé de stock, repère statistique, filtres, pastilles par cause', () => {
+  ['carte:marge_negative', 'carte:a_verifier', 'carte:marge_estimee', 'carte:propositions', 'carte:non_constates', 'historique',
+    'historique-vue:verifiee', 'historique-vue:persistante', 'historique-vue:aggravee', 'historique-vue:resolue', 'historique-vue:tous',
+    'conseiller', 'bouton-commencer-par', 'note-releve-stock-non-fourni', 'repere-statistique-ecart-mediane',
+    'filtre:famille', 'filtre:rayon', 'filtre:statut', 'filtre:fiabilite', 'filtre:exception', 'pastilles-par-cause'
+  ].forEach(k => assert.ok(k in BASE_ELEMENTS, 'absent de la base : ' + k));
+});
+ok('l\'épreuve mord sur les éléments : un élément retiré ou déplacé d\'axe est détecté', () => {
+  const cle = 'filtre:statut', sans = Object.assign({}, elementsApres); delete sans[cle];
+  assert.strictEqual(ecartsElements(BASE_ELEMENTS, sans).length, 1);
+  const deplace = Object.assign({}, elementsApres, { 'carte:propositions': 'controler' });
+  assert.strictEqual(ecartsElements(BASE_ELEMENTS, deplace).length, 1);
+  assert.deepStrictEqual(ecartsElements(BASE_ELEMENTS, sans, [{ element: cle, raison: 'x' }]), []);
+});
+ok('le repère statistique est bien fabriqué par la page hôte', () => {
+  const hote = require('fs').readFileSync(require('path').join(__dirname, 'NEXUS-Produits-v1.html'), 'utf8');
+  assert.ok(hote.indexOf('Repère statistique : écart à la médiane') >= 0 && hote.indexOf('margePlus') >= 0);
+});
 console.log('test_non_disparition_titres_scanner : ' + n + ' épreuves OK');
-module.exports = { titres, disparus };
+module.exports = { titres, disparus, elements, ecartsElements };
 if (process.argv[2] === '--base') console.log(JSON.stringify(apres, null, 1));
