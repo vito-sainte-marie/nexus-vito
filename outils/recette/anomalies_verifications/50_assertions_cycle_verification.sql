@@ -99,11 +99,11 @@ insert into ids(k, v) select 'v1', id::text from tarif_anomalies_verifications w
 
 -- A02 : l'historique est lisible par le manager et par le gérant du site A, avec auteur et date.
 select pg_temp.comme('authenticated', pg_temp.u('mA'));
-select pg_temp.note('A02 manager lit l historique (1 ligne, auteur, date)', '1|t|' || pg_temp.u('mA')::text,
+select pg_temp.note('A02 manager lit l historique (1 ligne, auteur, date)', '1|true|' || pg_temp.u('mA')::text,
   pg_temp.val($q$select count(*)::text || '|' || bool_and(saisi_le is not null and saisi_par is not null)::text || '|' || min(saisi_par::text) from tarif_anomalies_verifications where article='essai-1'$q$));
 reset role;
 select pg_temp.comme('authenticated', pg_temp.u('gA'));
-select pg_temp.note('A02 gerant lit l historique (1 ligne, auteur, date)', '1|t|' || pg_temp.u('mA')::text,
+select pg_temp.note('A02 gerant lit l historique (1 ligne, auteur, date)', '1|true|' || pg_temp.u('mA')::text,
   pg_temp.val($q$select count(*)::text || '|' || bool_and(saisi_le is not null and saisi_par is not null)::text || '|' || min(saisi_par::text) from tarif_anomalies_verifications where article='essai-1'$q$));
 reset role;
 

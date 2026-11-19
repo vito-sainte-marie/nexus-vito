@@ -89,7 +89,7 @@ function verif(nom, cond, detail) { if (cond) { ok++; console.log('OK  ' + nom);
       const commenter = async () => {
         const ouvrir = page.locator('#vueCorps [data-com-ouvrir]').first();
         if (await ouvrir.count() && await ouvrir.isVisible()) await ouvrir.click();
-        await page.locator('#vueCorps textarea.pt-verif-com[data-com-article]').first().fill('vu sur facture');
+        await page.locator('#vueCorps [data-ctl-detail] textarea.pt-verif-com').first().fill('vu sur facture');
       };
       await commenter();
       await boutons.first().click();
