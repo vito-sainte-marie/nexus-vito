@@ -987,7 +987,7 @@ ok('L1 : mêmes sections sous les axes, aucune perdue', () => {
   const c = panneau(h, 'controler').split('data-axe-panneau="analyser"')[0];
   const an = panneau(h, 'analyser').split('data-axe-panneau="decider"')[0];
   assert.ok(/Contrôles à effectuer/.test(c));
-  assert.ok(/ptRecherche/.test(an) && /Sources et calcul/.test(an));
+  assert.ok(/ptRecherche/.test(an) && /Sources et limites/.test(an));
   assert.ok(!/Contrôles à effectuer/.test(an));
 });
 ok('L1 : Suivre porte l\'historique, filtre Vérifiés par défaut, sans contrôle en attente', () => {
@@ -1003,3 +1003,12 @@ ok('L1 : aucun compteur de lot écrit en dur dans le code de l\'écran', () => {
 Promise.all(PROMESSES).then(() => {
 console.log('test_ecran_politique_tarifaire : ' + n + ' épreuves OK');
 });
+
+// L1 recette : grille 2x2 sous 900 px, compteur Décider = pistes indicatives (A1 seule).
+(function () {
+  var src = require('fs').readFileSync(__dirname + '/nexus-politique-tarifaire-ecran.js', 'utf8');
+  assert.ok(/\.pt-axes\{display:grid;grid-template-columns:repeat\(2,1fr\)/.test(src), 'grille 2 colonnes par défaut');
+  assert.ok(/min-width:900px\)\{\.vue-p1c \.pt-axes\{grid-template-columns:repeat\(4,1fr\)/.test(src), 'quatre colonnes dès 900 px');
+  assert.ok(/c\.code === 'A1'/.test(src) && /pistes indicatives/.test(src), 'compteur Décider limité à A1, libellé pistes indicatives');
+  console.log('test_ecran_politique_tarifaire : L1 recette OK');
+})();

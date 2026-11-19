@@ -44,6 +44,7 @@ function verif(nom, cond, detail) { if (cond) { ok++; console.log('OK  ' + nom);
       const apres = await total();
       await axe(page, 'suivre');
       verif(tag + ' le total des contrôles à effectuer baisse de 1 (comptage sur les données)', apres === avant - 1, avant + ' -> ' + apres);
+      await axe(page, 'suivre');
       const texte = await page.locator('#vueCorps').innerText();
       verif(tag + ' historique : « Vérifié le » avec auteur et date', /Vérifié le .+ par /.test(texte));
     }
