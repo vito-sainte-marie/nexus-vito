@@ -189,7 +189,7 @@
     var analyse = T.analyser(lignes, precedentes, ctx);
     identite = { fichierHash: ctx.fichierHash || null, dateReleve: ctx.stockDate || null };
     if (!analyse.lignes.length) { corps.innerHTML = '<div class="vp-ligne">Aucune donnée tarifaire pour ce site</div>'; return; }
-    etat = { analyse: analyse, verifications: verifs || [], historiqueDispo: !!verifs, filtreHisto: 'actifs', histoOuverte: null, role: role, filtres: corpsGaz ? { rayon: 'Gaz' } : {},
+    etat = { analyse: analyse, verifications: verifs || [], historiqueDispo: !!verifs, filtreHisto: 'verifiee', histoOuverte: null, role: role, filtres: corpsGaz ? { rayon: 'Gaz' } : {},
       incoherences: ctx.incoherences || [], ouverte: null, toutes: false, site: 'Banc de recette', icone: icone, estCreateur: false };
     if (verifs) {
       var rr = await E.enregistrerReevaluations(nexusClient, role, false, analyse, verifs, identite);
@@ -238,7 +238,7 @@
     corps.querySelectorAll('textarea.pt-verif-com').forEach(function (t) { t.addEventListener('input', function () { var n = t.parentNode.querySelector('[data-com-compteur]'); if (n) n.textContent = String(t.value.trim().length) + ' / ' + E.LIMITE_COMMENTAIRE; }); });
     corps.querySelectorAll('[data-verifier]').forEach(function (b) { b.addEventListener('click', function () { marquerVerifie(b); }); });
     corps.querySelectorAll('select[data-filtre]').forEach(function (s) { s.addEventListener('change', function () { etat.filtres[s.dataset.filtre] = s.value || undefined; etat.toutes = false; rendre(); }); });
-    corps.querySelectorAll('select[data-filtre-histo]').forEach(function (s) { s.addEventListener('change', function () { etat.filtreHisto = s.value || 'actifs'; etat.histoOuverte = null; rendre(); }); });
+    corps.querySelectorAll('select[data-filtre-histo]').forEach(function (s) { s.addEventListener('change', function () { etat.filtreHisto = s.value || 'verifiee'; etat.histoOuverte = null; rendre(); }); });
     corps.querySelectorAll('[data-histo-info]').forEach(function (b) { b.addEventListener('click', function () { etat.histoOuverte = etat.histoOuverte === b.dataset.histoInfo ? null : b.dataset.histoInfo; rendre(); }); });
     corps.querySelectorAll('[data-effacer]').forEach(function (b) { b.addEventListener('click', function () { delete etat.filtres[b.dataset.effacer]; rendre(); }); });
     var plus = corps.querySelector('[data-plus]'); if (plus) plus.addEventListener('click', function () { etat.toutes = true; rendre(); });

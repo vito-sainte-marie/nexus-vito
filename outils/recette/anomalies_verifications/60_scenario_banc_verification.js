@@ -12,6 +12,8 @@ const URL_BANC = base + '/outils/recette/ecran_scanner/banc.html';
 let chromium; try { ({ chromium } = require('playwright')); } catch (e) { console.error('Playwright absent : scénario non joué.'); process.exit(2); }
 
 let ok = 0, ko = 0;
+// L1 : les panneaux inactifs sont masqués (hidden) : on ouvre l'axe avant de lire ou cliquer.
+async function axe(page, id) { await page.locator('#vueCorps [data-axe-onglet="' + id + '"]').click(); await page.waitForTimeout(150); }
 function verif(nom, cond, detail) { if (cond) { ok++; console.log('OK  ' + nom); } else { ko++; console.log('KO  ' + nom + (detail ? ' : ' + detail : '')); } }
 
 (async () => {
@@ -40,11 +42,13 @@ function verif(nom, cond, detail) { if (cond) { ok++; console.log('OK  ' + nom);
       await boutons.first().click();
       await page.waitForTimeout(400);
       const apres = await total();
+      await axe(page, 'suivre');
       verif(tag + ' le total des contrôles à effectuer baisse de 1 (comptage sur les données)', apres === avant - 1, avant + ' -> ' + apres);
       const texte = await page.locator('#vueCorps').innerText();
       verif(tag + ' historique : « Vérifié le » avec auteur et date', /Vérifié le .+ par /.test(texte));
     }
     // Étape 8 : filtre Vérifiés présent dans l'historique.
+    await axe(page, 'suivre');
     verif(tag + ' filtre « Vérifiés » disponible', /Vérifiés/.test(await page.locator('#vueCorps').innerText()));
     if (dossier) await page.screenshot({ path: dossier + '/apres_verif_' + vp.w + '.png', fullPage: true });
     await ctx.close();
@@ -89,10 +93,12 @@ function verif(nom, cond, detail) { if (cond) { ok++; console.log('OK  ' + nom);
     await page.goto(URL_BANC + '?scenario=gerant&theme=jour&persist=1&lot=hash-lot-B');
     await page.waitForSelector('#vueCorps', { timeout: 15000 });
     await page.waitForTimeout(500);
+    await axe(page, 'suivre');
     const texteB = await page.locator('#vueCorps').innerText();
     verif('suite : nouveau lot, l\'anomalie persistante revient « Persistant »', /Persistant/.test(texteB));
     // Pas deux étiquettes de même texte, y compris dans « Toutes les références ».
     verif('suite : aucune étiquette en double (vue par défaut)', (await doublons(page)).length === 0, (await doublons(page)).join(' ; '));
+    await axe(page, 'analyser');
     const plus = page.locator('#vueCorps button[data-plus]').first();
     if (await plus.count()) {
       await plus.click(); await page.waitForTimeout(400);
@@ -108,7 +114,9 @@ function verif(nom, cond, detail) { if (cond) { ok++; console.log('OK  ' + nom);
     await page.goto(URL_BANC + '?scenario=cas_production&theme=jour');
     await page.waitForSelector('#vueCorps', { timeout: 15000 });
     await page.waitForTimeout(500);
-    const t = await page.locator('#vueCorps').innerText();
+    // L1 : le texte visible dépend de l'axe ouvert ; on lit les trois axes qui portent ces constats.
+    let t = '';
+    for (const id of ['controler', 'analyser', 'decider']) { await axe(page, id); t += '\n' + await page.locator('#vueCorps').innerText(); }
     verif('cas_production : article daté vendu près de 0 affiché « Démarque »', /Démarque/.test(t));
     verif('cas_production : S1 et S2 sur la même ligne, « À vérifier » et raison « contredit »', /À vérifier/.test(t) && /contredit/.test(t));
     verif('cas_production : marge négative extrême « Perte de … € HT par unité »', /Perte de .+ € HT par unité/.test(t));

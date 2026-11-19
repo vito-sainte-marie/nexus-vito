@@ -1725,7 +1725,7 @@ nexusRequireAuth().then(async employee => {
     try { const r = await calculerAnalyseTarif(true); analyse = r.analyse; incoherences = r.incoherences; verifs = r.verifications; identite = r.identite; }
     catch (e) { console.error('Scanner tarifaire:', e); indispo('Impossible de lire les registres tarifaires.'); return; }
     if (!analyse.lignes.length) { indispo('Aucune donnée tarifaire pour ce site'); return; }
-    const etat = { analyse, verifications: verifs || [], historiqueDispo: !!verifs, filtreHisto: 'actifs', histoOuverte: null, role: employee.role, filtres: {}, incoherences, ouverte: null, toutes: false, site: ((document.querySelector('.nexus-nom-commerce') || {}).textContent || ''), icone, estCreateur: !!employee.estCreateur };
+    const etat = { analyse, verifications: verifs || [], historiqueDispo: !!verifs, filtreHisto: 'verifiee', histoOuverte: null, role: employee.role, filtres: {}, incoherences, ouverte: null, toutes: false, site: ((document.querySelector('.nexus-nom-commerce') || {}).textContent || ''), icone, estCreateur: !!employee.estCreateur };
     // Repère Marge+ (niveau 3) : calcul T1 inchangé (scannerMarge), visible sans seuil validé ni fiche A2, jamais compté dans un gain.
     const blocMargePlus = () => {
       const MG = scannerMarge(), M = MG && MG.affichage, TM = NexusScannerTarifaire.TEXTES.marge;
@@ -1774,7 +1774,7 @@ nexusRequireAuth().then(async employee => {
       corps.querySelectorAll('[data-verifier]').forEach(b => b.addEventListener('click', () => marquerVerifie(b)));
       E.lierOuvertures(corps, etat, rendre);
       corps.querySelectorAll('select[data-filtre]').forEach(s => s.addEventListener('change', () => { etat.filtres[s.dataset.filtre] = s.value || undefined; etat.toutes = false; rendre(); }));
-      corps.querySelectorAll('select[data-filtre-histo]').forEach(s => s.addEventListener('change', () => { etat.filtreHisto = s.value || 'actifs'; etat.histoOuverte = null; rendre(); }));
+      corps.querySelectorAll('select[data-filtre-histo]').forEach(s => s.addEventListener('change', () => { etat.filtreHisto = s.value || 'verifiee'; etat.histoOuverte = null; rendre(); }));
       corps.querySelectorAll('[data-histo-info]').forEach(b => b.addEventListener('click', () => { etat.histoOuverte = etat.histoOuverte === b.dataset.histoInfo ? null : b.dataset.histoInfo; rendre(); }));
       corps.querySelectorAll('[data-effacer]').forEach(b => b.addEventListener('click', () => { delete etat.filtres[b.dataset.effacer]; rendre(); }));
       const plus = corps.querySelector('[data-plus]'); if (plus) plus.addEventListener('click', () => { etat.toutes = true; rendre(); });

@@ -657,7 +657,7 @@
   // ---------- Historique des vérifications (lecture des deux tables ; la RLS filtre par site) ----------
   var CYCLES_ACTIFS = ['nouvelle', 'persistante', 'aggravee'];
   var LIB_CYCLE = { nouvelle: 'Nouveau', persistante: 'Persistant', aggravee: 'Aggravé', verifiee: 'Vérifié', resolue: 'Résolu au nouvel import' };
-  var FILTRES_HISTO = [['actifs', 'Nouveau, persistant, aggravé'], ['verifiee', 'Vérifiés'], ['resolue', 'Résolus'], ['tous', 'Tous']];
+  var FILTRES_HISTO = [['verifiee', 'Vérifiés'], ['persistante', 'Persistants'], ['aggravee', 'Aggravés'], ['resolue', 'Résolus au nouvel import'], ['tous', 'Tous']];
   async function chargerVerifications(client, site) {
     var v = await client.from('tarif_anomalies_verifications').select('id, article, code_barres, cause, empreinte, gravite, fichier_hash, date_releve, commentaire, saisi_par, saisi_le, cle').eq('site', site).is('annule_le', null).order('saisi_le', { ascending: false }).range(0, 4999);
     if (v.error) throw v.error;
@@ -700,7 +700,7 @@
   }
   function htmlHistorique(etat) {
     if (!etat.historiqueDispo) return '';
-    var AL = A_LIB(), f = etat.filtreHisto || 'actifs';
+    var AL = A_LIB(), f = etat.filtreHisto || 'verifiee';
     var L = historiqueLignes(etat.analyse, etat.verifications || [], f);
     var sel = '<label class="pt-f"><span class="sc-methode">Historique</span><select data-filtre-histo="1">' + FILTRES_HISTO.map(function (o) { return '<option value="' + o[0] + '"' + (f === o[0] ? ' selected' : '') + '>' + esc(o[1]) + '</option>'; }).join('') + '</select></label>';
     // Sections par cause (titre du lexique, jamais le code S1 à S7 dans le texte visible), tri par nombre de lignes décroissant.
@@ -719,7 +719,7 @@
         '<ul class="vp-liste">' + li + '</ul>' + (n > 10 && !tout ? '<button type="button" class="detail-btn pt-histo-plus" data-histo-plus="' + esc(code) + '">Afficher la suite (' + (n - 10) + ')</button>' : '') + '</details>';
     }).join('');
     return '<div class="vp-bloc pt-historique" data-historique="1"><h3>Historique des vérifications</h3>' + sel +
-      (sections || '<p class="sc-note">Aucune anomalie dans cette vue.</p>' + (f !== 'actifs' ? '<button type="button" class="detail-btn pt-histo-reset" data-histo-reset="1">Changer de statut</button>' : '')) + '</div>';
+      (sections || '<p class="sc-note">Aucune anomalie dans cette vue.</p>' + (f !== 'verifiee' ? '<button type="button" class="detail-btn pt-histo-reset" data-histo-reset="1">Changer de statut</button>' : '')) + '</div>';
   }
 
   function htmlCarteControles(a, s) {
@@ -736,10 +736,24 @@
   }
   function lierOuvertures(corps, etat, rendre) {
     function ouvrirControles() {
-      etat.ctlReplie = false; rendre();
+      etat.ctlReplie = false; etat.axe = 'controler'; memoriserAxe('controler'); rendre();
       var bl = corps.querySelector('[data-bloc-controles]');
       if (bl) { if (bl.scrollIntoView) bl.scrollIntoView({ block: 'start' }); var sm = bl.querySelector('summary'); if (sm) sm.focus(); }
     }
+    // Axes : bascule sans rendu ni appel réseau, clavier complet (flèches, Début, Fin), dernier axe retenu.
+    var onglets = Array.prototype.slice.call(corps.querySelectorAll('[data-axe-onglet]'));
+    function choisirAxe(id, focus) {
+      etat.axe = id; memoriserAxe(id);
+      onglets.forEach(function (o) { var on = o.dataset.axeOnglet === id; o.classList.toggle('on', on); o.setAttribute('aria-selected', on ? 'true' : 'false'); o.setAttribute('tabindex', on ? '0' : '-1'); if (on && focus) o.focus(); });
+      Array.prototype.forEach.call(corps.querySelectorAll('[data-axe-panneau]'), function (pn) { pn.hidden = pn.dataset.axePanneau !== id; });
+    }
+    onglets.forEach(function (o, i) {
+      o.addEventListener('click', function () { choisirAxe(o.dataset.axeOnglet, false); });
+      o.addEventListener('keydown', function (ev) {
+        var n = onglets.length, k = ev.key, j = k === 'ArrowRight' || k === 'ArrowDown' ? (i + 1) % n : k === 'ArrowLeft' || k === 'ArrowUp' ? (i + n - 1) % n : k === 'Home' ? 0 : k === 'End' ? n - 1 : -1;
+        if (j < 0) return; ev.preventDefault(); choisirAxe(onglets[j].dataset.axeOnglet, true);
+      });
+    });
     Array.prototype.forEach.call(corps.querySelectorAll('[data-carte="controles_a_effectuer"], [data-bloc-conseil="controles"]'), function (b) { b.addEventListener('click', ouvrirControles); });
     // Bloc des contrôles : (i), « Voir plus », tri, cycle, recherche. Câblage unique, page et banc.
     Array.prototype.forEach.call(corps.querySelectorAll('[data-ctl-info]'), function (b) { b.addEventListener('click', function () { etat.ctlInfo = etat.ctlInfo === b.dataset.ctlInfo ? null : b.dataset.ctlInfo; rendre(); }); });
@@ -761,7 +775,7 @@
       });
     });
     Array.prototype.forEach.call(corps.querySelectorAll('[data-histo-reset]'), function (b) {
-      b.addEventListener('click', function () { etat.filtreHisto = 'actifs'; etat.histoOuverte = null; etat.histoOuvertes = null; rendre(); });
+      b.addEventListener('click', function () { etat.filtreHisto = 'verifiee'; etat.histoOuverte = null; etat.histoOuvertes = null; rendre(); });
     });
     Array.prototype.forEach.call(corps.querySelectorAll('[data-histo-plus]'), function (b) {
       b.addEventListener('click', function () { etat.histoPlus = Object.assign({}, etat.histoPlus || {}); etat.histoPlus[b.dataset.histoPlus] = true; rendre(); });
@@ -776,6 +790,27 @@
   }
   // Filtres actifs du panneau (la recherche et l'alerte du Conseiller restent visibles, hors compte).
   function nbFiltres(f) { return ['famille', 'rayon', 'statut', 'fiabilite', 'exception'].filter(function (k) { return !!f[k]; }).length; }
+  // ---------- Quatre axes : Contrôler, Analyser, Décider, Suivre. Affichage seul, aucun compteur écrit en dur. ----------
+  var AXES = [{ id: 'controler', nom: 'Contrôler' }, { id: 'analyser', nom: 'Analyser' }, { id: 'decider', nom: 'Décider' }, { id: 'suivre', nom: 'Suivre' }];
+  var NOTE_PISTES = 'Aucun seuil n\'est encore validé : aucune de ces pistes n\'est une décision tarifaire et aucune n\'est appliquée.';
+  var CLE_AXE = 'nexus_scanner_axe';
+  function axeValide(id) { return AXES.some(function (x) { return x.id === id; }); }
+  function lireAxeMemorise() { try { var v = window.localStorage.getItem(CLE_AXE); return axeValide(v) ? v : null; } catch (e) { return null; } }
+  function memoriserAxe(id) { try { window.localStorage.setItem(CLE_AXE, id); } catch (e) { /* stockage indisponible : l'axe reste en mémoire */ } }
+  function axeCourant(etat) { if (etat.axe && axeValide(etat.axe)) return etat.axe; var m = lireAxeMemorise(); return m || 'controler'; }
+  // Compteurs calculés depuis les données de l'analyse, jamais saisis.
+  function compteursAxes(a, etat) {
+    var actifs = tousControles(a).filter(function (x) { return CYCLES_ACTIFS.indexOf(x.a.cycle || 'nouvelle') >= 0; }).length;
+    var fa = familles(a), piste = 0;
+    fa.forEach(function (f) { if (f.id === 'decisions') f.cartes.forEach(function (c) { piste += c.nombre || 0; }); });
+    var verifies = etat.historiqueDispo ? historiqueLignes(a, etat.verifications || [], 'verifiee').length : 0;
+    return {
+      controler: { valeur: String(actifs), lib: 'à examiner' },
+      analyser: { valeur: carteMarge(a).valeur, lib: 'marges estimées' },
+      decider: { valeur: String(piste), lib: piste > 1 ? 'pistes' : 'piste' },
+      suivre: { valeur: etat.historiqueDispo ? String(verifies) : '-', lib: 'vérifiés sur cet import' }
+    };
+  }
   function htmlPage(etat) {
     // etat : { analyse, role, filtres, incoherences, ouverte, toutes, site, icone }
     var a = etat.analyse, f = etat.filtres || {}, s = a.synthese;
@@ -790,25 +825,29 @@
       '<div class="conseiller-corps"><div class="conseiller-titre">Conseiller NEXUS</div><p class="sc-conseil">' + esc(c.texte) + '</p>' +
       (c.filtre ? '<button type="button" class="detail-btn" data-conseil="1">Voir dans la liste</button>' : c.bloc ? '<button type="button" class="detail-btn" data-conseil="1" data-bloc-conseil="controles">Voir les contrôles</button>' : '') + '</div></div>';
     var cs = cartes(a), couleur = { marge_negative: 'sc-rouge', propositions: 'sc-info', a_verifier: 'sc-ambre', non_constates: 'sc-gris' };
-    h += '<div class="sc-inds pt-inds">' + cs.map(function (c) {
-      return '<div class="sc-ind ' + couleur[c.id] + '" data-carte="' + c.id + '"><span class="sc-ind-val">' + esc(c.valeur) + '</span><span class="sc-ind-lib">' + esc(c.titre) + '</span><span class="sc-ind-sous">' + esc(c.secondaire) + '</span></div>';
-    }).join('') + '</div>';
-    var cm = carteMarge(a);
-    h += '<div class="sc-inds pt-inds"><div class="sc-ind sc-info" data-carte="marge_estimee"><span class="sc-ind-val">' + esc(cm.valeur) + '</span><span class="sc-ind-lib">' + esc(cm.titre) + ' : ' + esc(cm.unite) + '</span><span class="sc-ind-sous">' + esc(cm.secondaire) + '</span></div>' + htmlCarteControles(a, s) + '<p class="sc-note">' + esc(cm.limite) + '</p></div>';
-    if (s.stockFourni === false) h += '<p class="sc-note pt-stock-absent"><b>Relevé de stock</b> : non fourni. Le coût des références n\'est pas comparé au PA net HT du stock.</p>';
-    var sc = scenarios(a);
-    h += htmlBlocControles(etat);
-    h += '<details class="sc-carte pt-scenarios"><summary><span class="sc-nom">Scénarios de gain</span><span class="sc-chev"></span></summary><p class="sc-note">' + sc.map(function (x) { return esc(x.libelle) + ' : ' + esc(eur0(x.fiable)); }).join(' · ') + ' (scénarios alternatifs, jamais additionnés).</p></details>';
-    if (a.lignes.length && a.lignes.every(function (l) { return !l.regle; })) h += '<p class="sc-note">Aucun seuil validé : toutes les références restent sans seuil validé.</p>';
-    if (etat.messageReeval) h += '<p class="sc-note pt-reeval-msg" role="status" data-reeval-msg="1">' + esc(etat.messageReeval) + '</p>';
-    if (etat.role !== 'manager' && etat.incoherences && etat.incoherences.length) h += '<div class="pt-integrite sc-note" role="alert">Incohérence dans les registres tarifaires : ' + plur(etat.incoherences.length, 'ligne', 'lignes') + ' à corriger.</div>';
-    familles(a).forEach(function (fa) {
-      h += '<section class="vp-bloc pt-famille" data-famille="' + fa.id + '"><h3 class="nbe-groupe-titre">' + esc(fa.titre) + '</h3>' +
+    var carte = function (id) {
+      var c = cs.filter(function (x) { return x.id === id; })[0];
+      return c ? '<div class="sc-ind ' + couleur[c.id] + '" data-carte="' + c.id + '"><span class="sc-ind-val">' + esc(c.valeur) + '</span><span class="sc-ind-lib">' + esc(c.titre) + '</span><span class="sc-ind-sous">' + esc(c.secondaire) + '</span></div>' : '';
+    };
+    var cm = carteMarge(a), sc = scenarios(a);
+    var fam = {}; familles(a).forEach(function (fa) { fam[fa.id] = fa; });
+    var htmlFamille = function (id) {
+      var fa = fam[id]; if (!fa) return '';
+      return '<section class="vp-bloc pt-famille" data-famille="' + fa.id + '"><h3 class="nbe-groupe-titre">' + esc(fa.titre) + '</h3>' +
         (fa.id === 'exceptions' ? '<p class="sc-note">Décisions du gérant : elles ne sont pas des anomalies.</p>' : '') +
         '<div class="sc-cartes">' + fa.cartes.map(function (x) { return htmlControle(x, etat.icone); }).join('') + '</div>' + (fa.id === 'decisions' && etat.margePlus ? etat.margePlus : '') + '</section>';
-    });
-    h += htmlHistorique(etat);
-    h += '<div class="vp-bloc sc-tout"><h3>Toutes les références</h3><div class="vp-filtres"><label class="pt-f pt-f-rech"><span class="sc-methode">Recherche</span><input type="search" id="ptRecherche" placeholder="Nom ou code-barres" value="' + esc(f.recherche || '') + '"></label>' +
+    };
+    // Panneau Contrôler : ce qu'il reste à examiner.
+    var pC = '<div class="sc-inds pt-inds">' + carte('marge_negative') + carte('a_verifier') + htmlCarteControles(a, s) + '</div>';
+    pC += htmlBlocControles(etat);
+    if (etat.messageReeval) pC += '<p class="sc-note pt-reeval-msg" role="status" data-reeval-msg="1">' + esc(etat.messageReeval) + '</p>';
+    if (etat.role !== 'manager' && etat.incoherences && etat.incoherences.length) pC += '<div class="pt-integrite sc-note" role="alert">Incohérence dans les registres tarifaires : ' + plur(etat.incoherences.length, 'ligne', 'lignes') + ' à corriger.</div>';
+    pC += htmlFamille('pertes');
+    // Panneau Analyser : comprendre les chiffres et les références.
+    var pA = '<div class="sc-inds pt-inds"><div class="sc-ind sc-info" data-carte="marge_estimee"><span class="sc-ind-val">' + esc(cm.valeur) + '</span><span class="sc-ind-lib">' + esc(cm.titre) + ' : ' + esc(cm.unite) + '</span><span class="sc-ind-sous">' + esc(cm.secondaire) + '</span></div><p class="sc-note">' + esc(cm.limite) + '</p></div>';
+    if (s.stockFourni === false) pA += '<p class="sc-note pt-stock-absent"><b>Relevé de stock</b> : non fourni. Le coût des références n\'est pas comparé au PA net HT du stock.</p>';
+    pA += htmlFamille('fiabilite');
+    pA += '<div class="vp-bloc sc-tout"><h3>Toutes les références</h3><div class="vp-filtres"><label class="pt-f pt-f-rech"><span class="sc-methode">Recherche</span><input type="search" id="ptRecherche" placeholder="Nom ou code-barres" value="' + esc(f.recherche || '') + '"></label>' +
       '<details class="pt-filtres" data-filtres-panneau="1"' + (etat.filtresOuverts ? ' open' : '') + '><summary><span class="sc-nom">Filtres (' + nbFiltres(f) + ')</span><span class="sc-chev"></span></summary><div class="pt-filtres-corps">' +
       lab('Famille', 'famille', opts(vf.famille, f.famille)) + lab('Rayon', 'rayon', opts(vf.rayon, f.rayon)) +
       lab('Statut', 'statut', opts(Object.keys(LIB_STATUT), f.statut, LIB_STATUT)) +
@@ -816,20 +855,40 @@
       lab('Exception', 'exception', '<option value="">Toutes</option><option value="avec"' + (f.exception === 'avec' ? ' selected' : '') + '>Avec exception</option><option value="sans"' + (f.exception === 'sans' ? ' selected' : '') + '>Sans exception</option>') +
       '</div></details>' +
       (f.alerte ? '<button type="button" class="detail-btn" data-effacer="alerte">Alerte ' + esc(f.alerte) + ' ×</button>' : '') + '</div>';
-    h += '<ul class="vp-liste">' + visibles.map(htmlLigne).join('') + '</ul>';
-    if (!toutes) h += '<div class="empty-panel">Aucune référence ne correspond à ces filtres.</div>';
-    if (toutes > visibles.length) h += '<button type="button" class="detail-btn vp-plus" data-plus="1">Voir les ' + (toutes - visibles.length) + ' autres références</button>';
-    h += '</div>';
+    pA += '<ul class="vp-liste">' + visibles.map(htmlLigne).join('') + '</ul>';
+    if (!toutes) pA += '<div class="empty-panel">Aucune référence ne correspond à ces filtres.</div>';
+    if (toutes > visibles.length) pA += '<button type="button" class="detail-btn vp-plus" data-plus="1">Voir les ' + (toutes - visibles.length) + ' autres références</button>';
+    pA += '</div>';
     var pr = preuves(a);
-    if (pr.length) h += '<details class="sc-carte pt-preuves"><summary><span class="sc-nom">Preuves techniques (' + pr.length + ')</span><span class="sc-chev"></span></summary>' + pr.map(function (p) { return '<div class="sc-methode">' + esc(p.article) + ' : ' + esc(p.mention) + (p.raisons.length ? ' (' + esc(p.raisons.join(', ')) + ')' : '') + '</div>'; }).join('') + '</details>';
-    h += '<details class="sc-carte pt-sources"><summary><span class="sc-nom">Sources et limites</span><span class="sc-chev"></span></summary>' + cs.map(function (x) {
+    if (pr.length) pA += '<details class="sc-carte pt-preuves"><summary><span class="sc-nom">Preuves techniques (' + pr.length + ')</span><span class="sc-chev"></span></summary>' + pr.map(function (p) { return '<div class="sc-methode">' + esc(p.article) + ' : ' + esc(p.mention) + (p.raisons.length ? ' (' + esc(p.raisons.join(', ')) + ')' : '') + '</div>'; }).join('') + '</details>';
+    pA += '<details class="sc-carte pt-sources"><summary><span class="sc-nom">Sources et calcul</span><span class="sc-chev"></span></summary>' + cs.map(function (x) {
       return '<p class="sc-methode"><b>' + esc(x.titre) + '</b> : ' + esc(x.unite) + '. ' + esc(x.periode) + '. ' + esc(x.source) + ' ' + esc(x.limite) + '</p>';
     }).join('') + '</details>';
+    // Panneau Décider : pistes indicatives, jamais une décision tarifaire.
+    var pD = '<p class="sc-note pt-pistes" data-pistes="1"><b>Pistes indicatives</b>. ' + esc(NOTE_PISTES) + '</p>';
+    pD += '<div class="sc-inds pt-inds">' + carte('propositions') + carte('non_constates') + '</div>';
+    pD += '<details class="sc-carte pt-scenarios"><summary><span class="sc-nom">Scénarios de gain</span><span class="sc-chev"></span></summary><p class="sc-note">' + sc.map(function (x) { return esc(x.libelle) + ' : ' + esc(eur0(x.fiable)); }).join(' · ') + ' (scénarios alternatifs, jamais additionnés).</p></details>';
+    if (a.lignes.length && a.lignes.every(function (l) { return !l.regle; })) pD += '<p class="sc-note">Aucun seuil validé : toutes les références restent sans seuil validé.</p>';
+    pD += htmlFamille('decisions') + htmlFamille('exceptions');
+    // Panneau Suivre : historique des vérifications.
+    var pS = htmlHistorique(etat) || '<p class="sc-note">L\'historique des vérifications n\'est pas disponible.</p>';
+    var ax = axeCourant(etat), cpt = compteursAxes(a, etat), panneaux = { controler: pC, analyser: pA, decider: pD, suivre: pS };
+    h += '<div class="pt-axes" role="tablist" aria-label="Axes du Scanner" data-axes="1">' + AXES.map(function (x) {
+      var on = x.id === ax;
+      return '<button type="button" role="tab" class="pt-axe' + (on ? ' on' : '') + '" id="ptAxe_' + x.id + '" data-axe-onglet="' + x.id + '" aria-selected="' + (on ? 'true' : 'false') + '" aria-controls="ptPan_' + x.id + '" tabindex="' + (on ? '0' : '-1') + '">' +
+        '<span class="pt-axe-nom">' + x.nom + '</span><span class="pt-axe-n">' + esc(cpt[x.id].valeur) + '</span><span class="pt-axe-l">' + esc(cpt[x.id].lib) + '</span></button>';
+    }).join('') + '</div>';
+    h += AXES.map(function (x) {
+      return '<div class="pt-axe-pan" role="tabpanel" id="ptPan_' + x.id + '" data-axe-panneau="' + x.id + '" aria-labelledby="ptAxe_' + x.id + '"' + (x.id === ax ? '' : ' hidden') + '>' + panneaux[x.id] + '</div>';
+    }).join('');
     if (etat.ouverte) { var l = a.lignes.filter(function (x) { return x.article === etat.ouverte; })[0]; if (l) h += htmlFiche(l, etat); }
     return h;
   }
 
-  var CSS = '.vue-p1c .pt-inds{grid-template-columns:repeat(2,1fr)}@media (min-width:900px){.vue-p1c .pt-inds{grid-template-columns:repeat(4,1fr)}}' +
+  var CSS = '.vue-p1c .pt-axes{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:12px 0}.vue-p1c .pt-axe{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:2px;min-height:60px;padding:8px 10px;background:var(--t-panel);color:var(--t-text);border:1px solid var(--t-line);border-radius:14px;cursor:pointer;text-align:left;font:inherit}' +
+    '.vue-p1c .pt-axe.on{border:1.5px solid var(--t-text);background:rgba(34,211,238,.12)}.vue-p1c .pt-axe:focus-visible{outline:2px solid var(--t-text);outline-offset:2px}.vue-p1c .pt-axe-nom{font-weight:600;font-size:14px}.vue-p1c .pt-axe-n{font-size:18px;font-weight:700}.vue-p1c .pt-axe-l{font-size:11px;color:var(--t-mid)}.vue-p1c .pt-axe-pan[hidden]{display:none}' +
+    '@media (min-width:900px){.vue-p1c .pt-axe{min-height:110px;padding:14px}}' +
+    '.vue-p1c .pt-inds{grid-template-columns:repeat(2,1fr)}@media (min-width:900px){.vue-p1c .pt-inds{grid-template-columns:repeat(4,1fr)}}' +
     '.vue-p1c .pt-badges{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}.vue-p1c .pt-pol{margin:8px 0}.vue-p1c .pt-pol-l{display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:2px 0}' +
     '.vue-p1c details.pt-filtres[open]>summary .sc-chev{transform:rotate(45deg)}.vue-p1c details.pt-histo-sec[open]>summary .sc-chev{transform:rotate(45deg)}.vue-p1c .pt-histo-sec>summary{min-height:44px;display:flex;align-items:center;justify-content:space-between;cursor:pointer}.vue-p1c .pt-histo-reset{margin:6px 0}.vue-p1c .pt-histo-plus{margin:6px 0}.vue-p1c .pt-ctrl .vp-liste{margin:8px 0}.vue-p1c .pt-f{display:flex;flex-direction:column;gap:2px;min-width:0}.vue-p1c .pt-f select,.vue-p1c .pt-f input{min-height:44px;border-radius:8px;border:1px solid var(--t-line);background:var(--t-panel);color:var(--t-text);font:inherit;padding:0 8px}.vue-p1c .pt-f-rech{flex:1 1 100%}.vue-p1c .pt-f:not(.pt-f-rech){flex:1 1 140px}.vue-p1c .pt-scenarios{margin:8px 0}.vue-p1c .pt-aucun{margin:4px 0 0}.vue-p1c .sc-conseiller{margin:0 0 10px}.vue-p1c .pt-histo-t{display:flex;align-items:center;gap:6px}.vue-p1c .pt-histo-txt{flex:1;min-width:0}.vue-p1c .pt-li{display:flex;align-items:center;gap:6px}.vue-p1c .pt-li .vp-ligne-prod{flex:1;min-width:0}.vue-p1c .pt-li .pt-info{flex:none}.vue-p1c .pt-ctl{list-style:none;padding:10px 0;border-top:1px solid var(--t-line)}.vue-p1c .pt-ctl-2,.vue-p1c .pt-ctl-3{margin:4px 0}.vue-p1c .pt-ctl .pt-verifier{width:100%;min-height:44px;margin-top:8px}.vue-p1c .pt-ctl-titre{margin:0 0 8px}.vue-p1c .pt-controles-faire{margin:14px 0 10px}.vue-p1c .pt-bloc-controles{margin:10px 0}.vue-p1c .pt-ctl-outils{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}.vue-p1c .pt-ctl-cycles{border:0;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:4px 12px}.vue-p1c .pt-carte-ctl{text-align:left;font:inherit;cursor:pointer;width:100%;border:1px solid var(--t-line);background:var(--t-panel);color:var(--t-text);min-height:44px}.vue-p1c .pt-com-lien{background:none;border:0;padding:0 2px;min-height:44px;font:inherit;font-size:13px;color:var(--accent,inherit);text-decoration:underline;cursor:pointer}.vue-p1c input[type=checkbox]{accent-color:var(--accent)}.vue-p1c .pt-chk{display:inline-flex;align-items:center;gap:6px;min-height:44px}.vue-p1c .pt-verif-champ{margin-top:8px}.vue-p1c .pt-verif-zone{display:flex;flex-direction:column;gap:4px}.vue-p1c .pt-verif-com{width:100%;box-sizing:border-box;min-height:64px;border-radius:8px;border:1px solid var(--t-line);background:var(--t-panel);color:var(--t-text);font:inherit;padding:8px;resize:vertical}.vue-p1c .pt-verif-n{align-self:flex-end}.vue-p1c .pt-fond{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:40}.vue-p1c .pt-fiche{position:fixed;z-index:41;background:var(--t-panel);overflow:auto;box-sizing:border-box;left:0;right:0;bottom:0;max-height:85vh;border-radius:16px 16px 0 0;padding:12px 16px 24px}@media (min-width:900px){.vue-p1c .pt-fiche{left:auto;top:0;bottom:0;right:0;width:420px;max-height:none;border-radius:0}}.vue-p1c .pt-fiche-tete{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}.vue-p1c .pt-fermer{min-height:44px}.vue-p1c .pt-marge-l1{display:block;color:var(--t-text)}.vue-p1c .pt-marge-prin{color:var(--t-text);font-family:var(--t-mono);font-weight:700;font-size:17px}.vue-p1c .pt-marge-sec{display:block;color:var(--t-mid);font-family:var(--t-mono);font-size:12px}.vue-p1c .vp-filtres{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start}.vue-p1c .pt-filtres{flex:1 1 100%}.vue-p1c .pt-filtres>summary{min-height:44px;display:flex;align-items:center;justify-content:space-between;cursor:pointer}.vue-p1c .pt-filtres-corps{display:flex;flex-wrap:wrap;gap:8px}@media (min-width:900px){.vue-p1c .pt-filtres-corps{flex-wrap:wrap}.vue-p1c .pt-filtres-corps>.pt-f{flex:1 1 160px;min-width:0}}@media (max-width:599px){.vue-p1c .sc-conseiller .conseiller-avatar{width:48px;height:48px}.vue-p1c .sc-ind{padding:10px 12px}.vue-p1c .sc-ind-val{font-size:20px}}';
 
@@ -919,7 +978,7 @@
     preuves: preuves, conseiller: conseiller, lierOuvertures: lierOuvertures, effetVerificationEnregistree: effetVerificationEnregistree, fiche: fiche, etatAcces: etatAcces, peutVoirOnglet: peutVoirOnglet, filtrerSite: filtrerSite,
     regimeDe: regimeDe, contexteDeclaratif: contexteDeclaratif, construireContexteTarif: construireContexteTarif, stockParLibelle: stockParLibelle, controle: controle, familles: familles, avertissementRegime: avertissementRegime, infoRegime: infoRegime, badgeRegime: badgeRegime, badgeLigne: badgeLigne, blocFiche: blocFiche,
     chargerRegistres: chargerRegistres, chargerVerifications: chargerVerifications, historiqueLignes: historiqueLignes, htmlHistorique: htmlHistorique, chargerVentes: chargerVentes, lireCompte: lireCompte, libellePeriode: libellePeriode,
-    reevaluationsAEcrire: reevaluationsAEcrire, enregistrerReevaluations: enregistrerReevaluations, htmlPage: htmlPage, htmlControlesAFaire: htmlControlesAFaire, htmlDetailHistorique: htmlDetailHistorique, htmlLigne: htmlLigne, htmlControle: htmlControle, htmlFiche: htmlFiche, carteMarge: carteMarge, htmlMarge: htmlMarge, ficheMarge: ficheMarge, peutVerifier: peutVerifier, commentaireValide: commentaireValide, messageApresEcriture: messageApresEcriture, messageErreurEcriture: messageErreurEcriture, payloadVerification: payloadVerification, LIMITE_COMMENTAIRE: LIMITE_COMMENTAIRE, graviteLigne: graviteLigne, CSS: CSS };
+    reevaluationsAEcrire: reevaluationsAEcrire, enregistrerReevaluations: enregistrerReevaluations, htmlPage: htmlPage, htmlControlesAFaire: htmlControlesAFaire, htmlDetailHistorique: htmlDetailHistorique, htmlLigne: htmlLigne, htmlControle: htmlControle, htmlFiche: htmlFiche, carteMarge: carteMarge, AXES: AXES, NOTE_PISTES: NOTE_PISTES, axeCourant: axeCourant, compteursAxes: compteursAxes, htmlMarge: htmlMarge, ficheMarge: ficheMarge, peutVerifier: peutVerifier, commentaireValide: commentaireValide, messageApresEcriture: messageApresEcriture, messageErreurEcriture: messageErreurEcriture, payloadVerification: payloadVerification, LIMITE_COMMENTAIRE: LIMITE_COMMENTAIRE, graviteLigne: graviteLigne, CSS: CSS };
   global.NexusPolitiqueTarifaireEcran = API;
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
 })(typeof window !== 'undefined' ? window : globalThis);

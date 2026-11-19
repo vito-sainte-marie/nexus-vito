@@ -99,7 +99,7 @@ ok('première page : dix lignes au plus, les autres derrière un bouton', () => 
   const a = analyse();
   const beaucoup = Array.from({ length: 25 }, (_, i) => Object.assign({}, a.lignes[0], { article: 'Produit ' + i }));
   const html = E.htmlPage({ analyse: Object.assign({}, a, { lignes: beaucoup }), role: 'gerant', filtres: {}, incoherences: [] });
-  assert.strictEqual((html.split('id="ptRecherche"')[1].match(/class="vp-ligne-prod"/g) || []).length, 10);
+  assert.strictEqual((html.split('id="ptRecherche"')[1].split('data-axe-panneau="decider"')[0].match(/class="vp-ligne-prod"/g) || []).length, 10);
   assert.ok(/Voir les 15 autres/.test(html));
 });
 
@@ -759,9 +759,9 @@ ok('historique : la somme des compteurs de sections = lignes du filtre', () => {
     assert.strictEqual(somme, E.historiqueLignes(e.analyse, e.verifications, f).length, f);
   });
 });
-ok('historique : filtre par défaut inchangé (nouveau, persistant, aggravé)', () => {
+ok('historique : Suivre, filtre par défaut « Vérifiés », aucun contrôle en attente proposé', () => {
   const h = E.htmlHistorique(histoEtat({ filtreHisto: undefined }));
-  assert.ok(/<option value="actifs" selected>/.test(h) && !/>Résolu au nouvel import</.test(h));
+  assert.ok(/<option value="verifiee" selected>Vérifiés</.test(h) && !/value="actifs"/.test(h) && !/Nouveau, persistant, aggravé/.test(h));
 });
 ok('historique : la plus grosse section seule est ouverte, 10 lignes puis « Afficher la suite »', () => {
   const h = E.htmlHistorique(histoEtat());
@@ -793,15 +793,15 @@ ok('historique : chevron au bord droit (summary en flex, space-between)', () => 
 });
 ok('historique : vue vide hors filtre par défaut = action « Changer de statut » qui remet le défaut', () => {
   const vide = (f) => histoEtat({ filtreHisto: f, analyse: { lignes: [{ article: 'Art-X', anomalies: [] }] } });
-  const h = E.htmlHistorique(vide('verifiee'));
+  const h = E.htmlHistorique(vide('tous'));
   assert.ok(/Aucune anomalie dans cette vue/.test(h) && /data-histo-reset="1">Changer de statut</.test(h));
-  assert.ok(!/data-histo-reset/.test(E.htmlHistorique(vide('actifs'))), 'déjà au défaut : pas d\'action inutile');
+  assert.ok(!/data-histo-reset/.test(E.htmlHistorique(vide('verifiee'))), 'déjà au défaut : pas d\'action inutile');
   const ec = []; const b = { dataset: {}, addEventListener: (t, fn) => ec.push(fn) };
   const corps = { querySelectorAll: (sel) => /data-histo-reset/.test(sel) ? [b] : [], querySelector: () => null };
-  const etat = { filtreHisto: 'verifiee', histoOuverte: 'S3|A' }; let rendus = 0;
+  const etat = { filtreHisto: 'tous', histoOuverte: 'S3|A' }; let rendus = 0;
   E.lierOuvertures(corps, etat, () => { rendus++; });
   ec[0]();
-  assert.strictEqual(etat.filtreHisto, 'actifs'); assert.strictEqual(etat.histoOuverte, null); assert.strictEqual(rendus, 1);
+  assert.strictEqual(etat.filtreHisto, 'verifiee'); assert.strictEqual(etat.histoOuverte, null); assert.strictEqual(rendus, 1);
 });
 
 // ---------- Relevé de stock publié (option B) : lot stock_theorique publié, import_rows_raw.donnees ----------
@@ -942,6 +942,63 @@ ok('L0 démarque : article préfixé d\'une date nommé, sans marge, hors marge 
   assert.strictEqual(E.cartes(a).find(c => c.id === 'a_verifier').valeur, E.cartes(b).find(c => c.id === 'a_verifier').valeur);
   assert.strictEqual(E.lignesControle(a.lignes, 'FI').filter(r => E.estDemarque(r)).length, 0);
   assert.ok(!/ARTICLE FICTIF DATE/.test(JSON.stringify(E.preuves ? E.preuves(a) : [])));
+});
+
+// ---- L1 : quatre axes (Contrôler, Analyser, Décider, Suivre) ----
+const pageL1 = (extra) => E.htmlPage(Object.assign({ analyse: analyse(), role: 'gerant', filtres: {}, incoherences: [] }, extra || {}));
+const panneau = (html, id) => { const d = html.split('data-axe-panneau="' + id + '"')[1] || ''; return d; };
+ok('L1 : quatre axes dans l\'ordre, Contrôler ouvert par défaut', () => {
+  assert.deepStrictEqual(E.AXES.map(x => x.id), ['controler', 'analyser', 'decider', 'suivre']);
+  assert.deepStrictEqual(E.AXES.map(x => x.nom), ['Contrôler', 'Analyser', 'Décider', 'Suivre']);
+  const h = pageL1();
+  assert.ok(/role="tablist"/.test(h));
+  assert.strictEqual((h.match(/role="tab"/g) || []).length, 4);
+  assert.ok(/data-axe-onglet="controler"[^>]*aria-selected="true"/.test(h));
+  assert.ok(/data-axe-onglet="decider"[^>]*aria-selected="false"/.test(h));
+});
+ok('L1 : le dernier axe consulté est repris, valeur inconnue ignorée', () => {
+  assert.strictEqual(E.axeCourant({ axe: 'suivre' }), 'suivre');
+  assert.strictEqual(E.axeCourant({ axe: 'inconnu' }), 'controler');
+  assert.strictEqual(E.axeCourant({}), 'controler');
+});
+ok('L1 : stockage local indisponible, aucune exception', () => {
+  const avant = global.window;
+  global.window = { localStorage: { getItem() { throw new Error('refus'); }, setItem() { throw new Error('refus'); } } };
+  try { assert.strictEqual(E.axeCourant({}), 'controler'); } finally { if (avant === undefined) delete global.window; else global.window = avant; }
+});
+ok('L1 : ARIA, onglets liés aux panneaux, un seul panneau visible', () => {
+  const h = pageL1();
+  for (const id of ['controler', 'analyser', 'decider', 'suivre']) {
+    assert.ok(new RegExp('aria-controls="ptPan_' + id + '"').test(h), id);
+    assert.ok(new RegExp('id="ptPan_' + id + '"').test(h) || new RegExp('ptPan_' + id + '"[^>]*role="tabpanel"|role="tabpanel"[^>]*ptPan_' + id).test(h), id);
+  }
+  assert.strictEqual((h.match(/role="tabpanel"/g) || []).length, 4);
+  assert.strictEqual((h.match(/role="tabpanel"[^>]*\bhidden\b/g) || []).length, 3);
+});
+ok('L1 : « Pistes indicatives » dans Décider, note exacte, sans verbe d\'ordre', () => {
+  const d = panneau(pageL1(), 'decider').split('data-axe-panneau="suivre"')[0];
+  assert.ok(/Pistes indicatives/.test(d));
+  assert.ok(d.indexOf("Aucun seuil n'est encore validé : aucune de ces pistes n'est une décision tarifaire et aucune n'est appliquée.") >= 0
+    || d.indexOf('Aucun seuil n&#39;est encore validé') >= 0 || /Aucun seuil n.est encore valid/.test(d));
+  assert.ok(!/(Appliquer|Corriger le prix)/i.test(d.replace(/aucune n.est appliquée/g, '')));
+});
+ok('L1 : mêmes sections sous les axes, aucune perdue', () => {
+  const h = pageL1();
+  const c = panneau(h, 'controler').split('data-axe-panneau="analyser"')[0];
+  const an = panneau(h, 'analyser').split('data-axe-panneau="decider"')[0];
+  assert.ok(/Contrôles à effectuer/.test(c));
+  assert.ok(/ptRecherche/.test(an) && /Sources et calcul/.test(an));
+  assert.ok(!/Contrôles à effectuer/.test(an));
+});
+ok('L1 : Suivre porte l\'historique, filtre Vérifiés par défaut, sans contrôle en attente', () => {
+  const h = E.htmlHistorique(histoEtat({ filtreHisto: undefined }));
+  assert.ok(/<option value="verifiee" selected>Vérifiés</.test(h));
+  assert.ok(!/value="actifs"/.test(h));
+});
+ok('L1 : aucun compteur de lot écrit en dur dans le code de l\'écran', () => {
+  const src = fs.readFileSync(require.resolve('./nexus-politique-tarifaire-ecran.js'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  for (const v of ['184', '75', '62', '31', '89']) assert.ok(!new RegExp('(?<![\\w.#-])' + v + '(?![\\w.%-])').test(src.replace(/#[0-9a-fA-F]{3,8}\b/g, '').replace(/\d+(\.\d+)?(px|em|rem|%|ms|s)\b/g, '')), 'compteur ' + v + ' écrit en dur');
 });
 Promise.all(PROMESSES).then(() => {
 console.log('test_ecran_politique_tarifaire : ' + n + ' épreuves OK');
