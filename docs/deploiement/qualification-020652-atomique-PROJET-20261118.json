@@ -1,5 +1,5 @@
 {
-  "_statut": "PROJET, NON VALIDE. Ne remplace pas docs/deploiement/qualification-ordre-migration-code.json tant que le pilote n'a pas donne son accord (#160, Guardian 6995287999). Entree proposee pour la migration 20261117020652 uniquement ; les cinq autres entrees validees ne changent pas.",
+  "_statut": "VALIDE ET INSERE dans qualification-ordre-migration-code.json (validation du pilote, #160, Guardian 6995657101, 2026-11-19T00:20:00Z). Fichier conserve pour trace.",
   "migrations": {
     "20261117020652": {
       "etat": "atomique_ou_procedure_speciale",
@@ -14,8 +14,9 @@
         "verdict": "NON APPLIQUEE : aucun objet tarif_% ni v_tarif_%, aucune fonction tarif_%, estampille absente",
         "blob_migration": "dedffe348ddd7b1898848dba574f2930fd0a9476"
       },
-      "valide_par": null,
-      "valide_le": null
+      "valide_par": "pilote",
+      "valide_le": "2026-11-19T00:20:00Z",
+      "trace_validation": "#160, commentaire Guardian 6995657101 (validation du pilote, classement atomique_ou_procedure_speciale)"
     }
   }
 }
