@@ -1278,31 +1278,21 @@
       "trace": "#160, validation transmise par Guardian, commentaire 6995017878"
     },
     "20261117020652": {
-      "etat": "additive_compatible_avant_code",
-      "justification": "Migration additive du lot registres tarifaires (#331) : 4 fonctions de controle SECURITY INVOKER, 3 triggers, RLS. Absente de Production, aucun code deploye ne la lit tant que #332 n est pas fusionne ; appliquer avant le code (l inverse donne des erreurs PGRST).",
+      "etat": "atomique_ou_procedure_speciale",
+      "procedure": "docs/deploiement/procedure-tarif-registres-anomalies-production-20261118.md",
+      "justification": "La garde refuse cette migration pour trois motifs, tous reels : (1) drop_trigger:dynamique, un drop trigger if exists %I construit par format() dont le nom est inconnaissable a la lecture ; il est suivi du create trigger correspondant, mais la garde ne peut pas le verifier ; (2) drop_fonction:tarif_statut_exception et (3) drop_fonction:tarif_etat_controle, deux fonctions d une version 1 du lot jamais allee en Production. Ces suppressions ne retirent rien en Production : la mesure de Guardian du 2026-11-18 a 23:12 (#160, 6994400466) ne trouve aucune fonction tarif_% en Production. La garde a raison de les compter comme destructives ; la migration releve donc de la procedure speciale : appliquee selon la procedure #333, par. 5 a 7, avant le code, dans l ordre des six. Les declencheurs supprimes dynamiquement portent sur des tables creees par la migration 1 : ils ne peuvent donc pas exister en Production avant son application.",
       "mesure": {
         "source": "catalogue",
         "le": "2026-11-18T23:12:00Z",
         "cible": "uzhjpqpctpvxytxpxoqz",
         "par": "guardian",
         "outil": "requetes de catalogue en lecture seule sur Production, rapportees par Guardian dans #160 6994400466 ; reprises ici sans nouvelle lecture",
-        "verdict": "NON APPLIQUEE, PRECONDITION SATISFAITE : aucun objet tarif_% ni v_tarif_%, aucune fonction tarif_%, estampille absente (registre 340, derniere 20261115233331) ; sites, employees, import_batches presents, colonnes identiques a Test",
+        "verdict": "NON APPLIQUEE : aucun objet tarif_% ni v_tarif_%, aucune fonction tarif_%, estampille absente",
         "blob_migration": "dedffe348ddd7b1898848dba574f2930fd0a9476"
       },
-      "objets_crees": [
-        "function tarif_controle_version",
-        "function tarif_controle_retrogradation",
-        "function tarif_controle_famille",
-        "function tarif_controle_application",
-        "trigger tarif_rattachements_famille",
-        "trigger tarif_seuils_famille",
-        "trigger tarif_prix_application_controle",
-        "RLS forcee sur les tables tarif_* du lot",
-        "policy lecture_meme_site, insertion_roles_meme_site, annulation_roles_meme_site (par table)"
-      ],
       "valide_par": "pilote",
-      "valide_le": "2026-11-18T23:45:00Z",
-      "trace": "#160, validation transmise par Guardian, commentaire 6995017878"
+      "valide_le": "2026-11-19T00:20:00Z",
+      "trace": "#160, commentaire Guardian 6995657101 (validation du pilote, classement atomique_ou_procedure_speciale)"
     },
     "20261117020851": {
       "etat": "additive_compatible_avant_code",

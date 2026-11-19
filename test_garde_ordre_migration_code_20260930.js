@@ -151,6 +151,28 @@ MESURE_BONNE.blob_migration = BLOB_65;
   ok('A5 — drop column, et NOT NULL sans défaut distingué de NOT NULL avec défaut');
 }
 
+// A6. Analyse lexicale : les commentaires ne comptent pas, le vrai code oui.
+{
+  const d = sql => extraireObjets(sql).destructifs;
+  assert.deepStrictEqual(d('select 1; -- truncate t;\nselect 2;'), [], 'truncate en commentaire -- accepté');
+  assert.deepStrictEqual(d('select 1; /* truncate t; */ select 2;'), [], 'truncate en commentaire /* */ accepté');
+  assert.ok(d('truncate t;').includes('truncate'), 'vrai truncate refusé');
+  assert.ok(d('create function f() returns void language plpgsql as $$ begin truncate t; end $$;').includes('truncate'),
+    'truncate dans le corps d une fonction refusé');
+  assert.ok(d("select '--'; truncate t;").includes('truncate'), "select '--'; truncate t; refusé");
+  assert.ok(d('$x$ -- $x$; truncate t;').includes('truncate'), '$x$ -- $x$; truncate t; refusé');
+  assert.ok(d("select E'\\'--'; truncate t;").includes('truncate'), "chaîne E'' avec échappement : refusé");
+  assert.ok(d('select 1; /* a /* b */ truncate t; */ select 2;').length === 0, 'commentaire imbriqué accepté');
+  assert.ok(d('select 1; -- x\ntruncate t;').includes('truncate'), 'truncate après un commentaire de ligne refusé');
+  ok('A6 — commentaires retirés par analyse lexicale ; chaînes et blocs $tag$ conservés');
+
+  const dyn = d("execute format('drop trigger if exists %I on t', n); execute format('create trigger %I before insert on t', n);");
+  assert.ok(dyn.includes('drop_trigger:dynamique'), 'drop trigger dynamique : code clair, ' + dyn.join(','));
+  assert.ok(!dyn.some(x => x === 'drop_trigger:if'), 'plus de lecture de « if » comme nom');
+  assert.ok(d('drop function if exists tarif_x(uuid);').includes('drop_fonction:tarif_x'), 'drop function réel toujours refusé');
+  ok('A7 — drop trigger dynamique : drop_trigger:dynamique, « if » n est plus un nom');
+}
+
 // ------------------------------------------------------------------
 // B. L'ensemble des migrations : différence de refs, jamais un cardinal.
 //    Le 30/09, « 277 contre 276 » avait laissé croire à un écart d'un
