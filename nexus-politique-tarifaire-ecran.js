@@ -87,8 +87,9 @@
       var pa = num(r.pa_net_ht), lib = PM.normaliserNom(r.libelle), k = lib.toLowerCase(); // le moteur rapproche sans tenir compte de la casse
       if (!k || pa === null) return;
       var e = par.get(k);
-      if (!e) par.set(k, { article: lib, pa_net_ht: pa, n: 1, min: pa, max: pa });
-      else { e.n++; if (pa < e.min) e.min = pa; if (pa > e.max) e.max = pa; }
+      var qte = (r.quantite === undefined || r.quantite === null || r.quantite === '') ? null : num(r.quantite);
+      if (!e) par.set(k, { article: lib, pa_net_ht: pa, n: 1, min: pa, max: pa, quantite: qte });
+      else { if (qte !== null) e.quantite = (e.quantite === null ? 0 : e.quantite) + qte; e.n++; if (pa < e.min) e.min = pa; if (pa > e.max) e.max = pa; }
     });
     var lignes = [];
     par.forEach(function (e) {
@@ -97,8 +98,8 @@
         var f = function (x) { return String(Math.round(x * 100) / 100).replace('.', ','); };
         var motif = 'coût ambigu dans le relevé : ' + e.n + ' lignes, PA de ' + f(e.min) + ' à ' + f(e.max);
         ambigus.push({ article: e.article, motif: motif });
-        lignes.push({ article: e.article, pa_net_ht: null, ambigu: motif });
-      } else lignes.push({ article: e.article, pa_net_ht: e.pa_net_ht });
+        lignes.push({ article: e.article, pa_net_ht: null, ambigu: motif, quantite: e.quantite });
+      } else lignes.push({ article: e.article, pa_net_ht: e.pa_net_ht, quantite: e.quantite });
     });
     return { lignes: lignes, conflits: conflits, ambigus: ambigus, libelles: par.size };
   }
@@ -127,6 +128,8 @@
       var st = stockParLibelle(S.stock);
       base.stock = st.lignes; base.stockFourni = true; base.stockSource = S.stockSource || 'valorisation du stock Decenium, colonne « PA net HT »';
     } else base.stockFourni = false;
+    // Articles composés déclarés (table articles_composes) : liste fournie = classification active ; absente = aucun changement.
+    if (S.articlesComposes) base.articlesComposes = S.articlesComposes;
     if (S.motifsDivergents) base.motifsDivergents = S.motifsDivergents;
     if (S.site === SITE_PILOTE) base.tva = Object.assign({}, base.tva, { confirmations: ((base.tva && base.tva.confirmations) || []).concat(TVA_CONFIRMATIONS_PILOTE) });
     if (S.tvaExplications) base.tva = Object.assign({}, base.tva, { explications: S.tvaExplications });
@@ -407,7 +410,8 @@
   }
   function ficheMarge(l) {
     var m = l.margeEstimee, T0 = V.margeEstimee, li = function (k, v) { return '<div class="pt-pol-l"><span class="sc-lib">' + esc(k) + '</span><span>' + esc(v) + '</span></div>'; };
-    if (!m) return '';
+    if (!m && !l.compose) return '';
+    if (!m) return '<div class="sc-carte pt-marge-fiche" data-marge-fiche="' + esc(l.article) + '">' + textesCompose(l).map(function (t) { return '<p class="sc-note" data-compose-info="1">' + esc(t) + '</p>'; }).join('') + '</div>';
     var c = m.cout || {}, h = '<div class="sc-carte pt-marge-fiche" data-marge-fiche="' + esc(l.article) + '"><div class="sc-nom">Marge estimée : ' + esc(T0.etats[m.etat] || m.etat) + '</div>';
     if (estReglemente(l)) h += '<p class="sc-note">Prix fixé par un tiers : aucune variation de coût ni recommandation de prix.</p>';
     else if (typeOf(l) === 'a_qualifier') h += '<p class="sc-note">Régime de prix à qualifier : le prix de ce format peut être fixé par un tiers. Aucune recommandation de prix tant que le régime n\'est pas décidé.</p>';
@@ -419,6 +423,7 @@
       li('Méthode', c.methode || T0.methode);
     if (m.controle) h += li('Écart au relevé', 'PA net HT du relevé ' + eur(m.controle.paNetHtReleve) + ' (' + pct(m.controle.ecart) + ')');
     (m.raisons || []).forEach(function (r) { h += '<p class="sc-note">' + esc(typeof r === 'string' ? r : (r.texte || r.code || '')) + '</p>'; });
+    textesCompose(l).forEach(function (t) { h += '<p class="sc-note" data-compose-info="1">' + esc(t) + '</p>'; });
     h += '<p class="sc-methode">' + esc(T0.limites.remises) + ' ' + esc(T0.limites.decision) + '</p></div>';
     return h;
   }
@@ -582,10 +587,30 @@
     return v;
   }
 
+  // ---------- Article composé : étiquette neutre (texte seul) et textes du (i) ----------
+  function estComposeConfirme(l) { return !!(l.compose && (l.compose.etat === 'confirme' || l.compose.etat === 'confirme_quantite_inconnue')); }
+  function margeReduite(l) {
+    var t = num(l.taux), s = null;
+    try { s = fiche(l).seuil; } catch (e) { s = null; }
+    return t !== null && !!s && num(s.minimum) !== null && t < num(s.minimum);
+  }
+  function badgeCompose(l) {
+    if (!estComposeConfirme(l)) return '';
+    return '<span class="nbe-qualif" data-axe="compose" aria-label="Article composé">Article composé</span>';
+  }
+  function textesCompose(l) {
+    var c = l.compose, out = [];
+    if (!c) return out;
+    if (c.etat === 'confirme' && c.absent) out.push('Absent du relevé de stock : article composé déclaré.');
+    if (c.etat === 'confirme_quantite_inconnue') out.push('Stock non renseigné au relevé.');
+    if (estComposeConfirme(l) && margeReduite(l)) out.push('Marge volontairement réduite : article composé, ventes croisées.');
+    if (c.etat === 'a_verifier') out.push('Article déclaré composé avec un stock au relevé : quantité ' + c.quantite + (c.date_releve ? ', relevé du ' + jourFr(c.date_releve) : '') + (c.declaration ? ', déclaré le ' + jourFr(String(c.declaration).slice(0, 10)) : '') + '.');
+    return out;
+  }
   // ---------- Rendu ----------
   function htmlLigne(l) {
     return '<li class="pt-li"><button type="button" class="vp-ligne-prod" data-article="' + esc(l.article) + '">' +
-      '<span class="vp-nom">' + esc(l.article) + ' ' + badgeRegime(l) + '</span>' +
+      '<span class="vp-nom">' + esc(l.article) + ' ' + badgeRegime(l) + (badgeCompose(l) ? ' ' + badgeCompose(l) : '') + '</span>' +
       '<span class="vp-meta">' + esc(l.rayon || '') + ' · Fiabilité : ' + esc((LIB_FIABILITE[l.fiabilite.niveau] || l.fiabilite.niveau).toLowerCase()) + '</span>' +
       '<span class="vp-chiffres">' + htmlMarge(l) + (badgeLigne(l) ? ' ' + badgeLigne(l) : '') + '</span></button>' + infoBouton(l.article, 'marge estimée de ' + l.article) + '</li>';
   }
