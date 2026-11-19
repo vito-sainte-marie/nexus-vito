@@ -80,6 +80,15 @@
     }
     return moduleAnomalies;
   }
+  let moduleComposes;
+  function composesModule() {
+    if (global.NexusArticlesComposes) return global.NexusArticlesComposes;
+    if (moduleComposes === undefined) {
+      moduleComposes = null;
+      if (typeof require === 'function') { try { moduleComposes = require('./nexus-articles-composes.js'); } catch (e) { moduleComposes = null; } }
+    }
+    return moduleComposes;
+  }
   const jjmm = d => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(d || '')); return m ? m[3] + '/' + m[2] : ''; };
   const eur = n => (n === null || n === undefined) ? '' : (Math.round(n * 100) / 100).toFixed(2).replace('.', ',');
 
@@ -199,7 +208,10 @@
     const cout = { ...COUT_DEFAUT, ...(ctx.cout || {}) };
     const methodeEtablie = !!cout.methode;
     const prec = indexer(precedentes);
-    const stock = indexer((ctx.stock || []).map(s => ({ article: s.article, code_barres: s.code_barres || '', pa: num(s.pa_net_ht), ambigu: s.ambigu || null })));
+    const stock = indexer((ctx.stock || []).map(s => ({ article: s.article, code_barres: s.code_barres || '', pa: num(s.pa_net_ht), ambigu: s.ambigu || null, quantite: (s.quantite === undefined || s.quantite === null) ? null : num(s.quantite) })));
+    // Articles composés déclarés (additif) : sans liste fournie, aucune classification et aucun champ compose.
+    const MC = composesModule();
+    const composes = (MC && ctx.articlesComposes !== undefined && ctx.articlesComposes !== null) ? MC.ensemble(ctx.articlesComposes) : null;
     // Un seul PA au relevé : la marge estimée ne reprend le PA net HT que si le libellé (ou le code-barres) n'en porte qu'un.
     const paDistincts = new Map();
     for (const s of ctx.stock || []) {
@@ -412,7 +424,9 @@
         raisons: raisonsM, limites: limitesM,
       };
 
+      const compose = composes ? MC.classer(row.article, st ? { quantite: st.quantite } : undefined, ctx.stockFourni !== false, composes) : null;
       lignes.push({
+        compose,
         article: row.article, code_barres: cb(row), rayon: row.categorie, famille: fam.famille, sourceFamille: fam.source, noteFamille: fam.motif,
         quantite: q, pv_ht: pv, pv_ttc: pvTtc, ca_ht: ca, tva, cout: coutLigne, taux, tauxPrecedent: tauxP, variationCout: varCout, variationPv: varPv,
         historique: !!p, nature, regime,
@@ -431,6 +445,8 @@
       for (const l of lignes) {
         // Une ligne hors ventes commerciales (acompte, opération de caisse, sortie déclarée) n'est pas analysée.
         if (l.nature) { l.anomalies = []; l.anomaliesResolues = []; continue; }
+        // Article composé confirmé : aucun contrôle S1 à S7 (marge volontairement réduite, absence au relevé attendue).
+        if (l.compose && (l.compose.etat === 'confirme' || l.compose.etat === 'confirme_quantite_inconnue')) { l.anomalies = []; l.anomaliesResolues = []; continue; }
         const an = MA.anomaliesLigne(l, cx);
         if (ctx.verifications) {
           const cyc = MA.cycleDeVie(an, ctx.verifications.filter(v => v.cle === MA.cle(l)), { fichierHash: cx.fichierHash, dateReleve: cx.dateReleve });

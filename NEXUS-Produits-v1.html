@@ -813,6 +813,12 @@ nexusRequireAuth().then(async employee => {
           decl[t] = r.error ? [] : (r.data || []);
         } catch (e) { decl[t] = []; }
       }
+      // Articles composés déclarés (lecture seule). Table absente ou refusée : liste vide, aucune classification.
+      ARTICLES_COMPOSES = null;
+      try {
+        const rc = await nexusClient.from('articles_composes').select('nom, date_releve, saisi_le').eq('site', SITE_ACTUEL).is('annule_le', null);
+        if (!rc.error && rc.data) ARTICLES_COMPOSES = rc.data;
+      } catch (e) { ARTICLES_COMPOSES = null; }
       DECLARATIONS_PRODUITS = decl;
       // S2 : Marge+ R5 en lecture seule (produits d'appel, exceptions, décisions). Table absente ou refusée = liste vide.
       const margeLect = {};
@@ -888,7 +894,7 @@ nexusRequireAuth().then(async employee => {
   let PROMOTIONS_BRUTES = null;
   let COMPTAGES_PRODUITS = new Map();
   let LIGNES_PRECEDENTES = [], SCANNER_CACHE = null, LECTURES_MARGE = null, SCANNER_CARTE_FORCEE = null;
-  let SYNTHESE_PRODUITS = null, RESUME_PRODUITS = null, MESURES_PRODUITS = [], DECLARATIONS_PRODUITS = null, SYNTHESE_STOCK_DATE = null;
+  let SYNTHESE_PRODUITS = null, RESUME_PRODUITS = null, MESURES_PRODUITS = [], DECLARATIONS_PRODUITS = null, ARTICLES_COMPOSES = null, SYNTHESE_STOCK_DATE = null;
   const ACCUEIL_HTML = document.getElementById('resultSection').innerHTML;
 
   if (APERCU) {
@@ -1678,7 +1684,7 @@ nexusRequireAuth().then(async employee => {
     if (!forcer && ANALYSE_TARIF) return ANALYSE_TARIF;
     const reg = E.filtrerSite(await E.chargerRegistres(nexusClient), SITE_ACTUEL);
     const exclusions = new Set(((LECTURES_MARGE && LECTURES_MARGE.marge_exceptions) || []).map(r => r.article));
-    const ctx = E.construireContexteTarif({ site: SITE_ACTUEL, registres: reg, declarations: DECLARATIONS_PRODUITS, lignes: MESURES_PRODUITS.map(x => x.row), periode: PERIODE_DONNEES,
+    const ctx = E.construireContexteTarif({ site: SITE_ACTUEL, registres: reg, declarations: DECLARATIONS_PRODUITS, lignes: MESURES_PRODUITS.map(x => x.row), periode: PERIODE_DONNEES, articlesComposes: ARTICLES_COMPOSES,
       exclusions, famille: (cat, art, ex) => (window.NexusMarge && NexusMarge.familleMarge ? NexusMarge.familleMarge(cat, art, ex) : { exclue: false }) });
     // Cycle de vie des anomalies : dernier import du site + historique des vérifications (lecture seule ; la RLS filtre par site).
     let VERIFS = null;
