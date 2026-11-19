@@ -75,6 +75,16 @@ function verif(nom, cond, detail) { if (cond) { ok++; console.log('OK  ' + nom);
     verif(tag + ' détail : consigne de contrôle visible', await page.locator('#vueCorps [data-ctl-detail] .pt-ctl-3').first().isVisible());
     verif(tag + ' détail : « Sources et calcul » en <details> natif', await page.locator('#vueCorps [data-ctl-detail] details.pt-sources-calcul > summary:has-text("Sources et calcul")').count() === 1);
     verif(tag + ' liste : une seule ligne porte aria-current', await page.locator('#vueCorps [data-ctl-sel][aria-current="true"]').count() === 1);
+    if (vp.w >= 900) {
+      const lisible = await page.evaluate(() => {
+        const l = document.querySelector('#vueCorps [data-ctl-sel]');
+        if (!l) return null;
+        const art = l.querySelector('.pt-l-art'), tag = l.querySelector('.pt-l-tag');
+        return { art: !!art && art.scrollWidth <= art.clientWidth, tag: !!tag && tag.scrollWidth <= tag.clientWidth, h: Math.round(l.getBoundingClientRect().height) };
+      });
+      verif(tag + ' L5 : nom de l\'article entier dans la première ligne (scrollWidth <= clientWidth)', !!lisible && lisible.art, JSON.stringify(lisible));
+      verif(tag + ' L5 : étiquette de preuve entière dans la première ligne', !!lisible && lisible.tag, JSON.stringify(lisible));
+    }
     if (dossier) await page.screenshot({ path: dossier + '/ctl_info_' + vp.w + '.png', fullPage: false });
 
     // Étape 5 : marquer vérifié sort la ligne des contrôles à effectuer et l'inscrit à l'historique.
