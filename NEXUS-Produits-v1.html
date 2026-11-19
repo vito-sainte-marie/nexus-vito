@@ -1758,7 +1758,7 @@ nexusRequireAuth().then(async employee => {
         const v = E2.payloadVerification(an, l, { importBatchId: lots[0].id, moteurVersion: window.NexusPolitiqueTarifaire.VERSION_MOTEUR, commentaire: com });
         const { error } = await nexusClient.rpc('tarif_marquer_verifie', { p_lignes: [v] });
         if (error) throw error;
-        an.cycle = 'verifiee'; etat.messageVerif = E2.messageApresEcriture({ date: new Date().toISOString().slice(0, 10), auteur: employee.nom }); rendre(); return;
+        E2.effetVerificationEnregistree(an, etat, employee.nom); rendre(); return;
       } catch (e) { console.error('Marquer vérifié:', e); btn.disabled = false; dire(E2.messageErreurEcriture(e)); }
     };
     const versFiche = a => choisirSuggestion(a);
@@ -1768,11 +1768,6 @@ nexusRequireAuth().then(async employee => {
       corps.querySelectorAll('[data-fiche]').forEach(b => b.addEventListener('click', () => versFiche(b.dataset.fiche)));
       corps.querySelectorAll('[data-article]').forEach(b => b.addEventListener('click', () => { etat.ouverte = b.dataset.article; etat.retourFocus = b.dataset.article; etat.messageVerif = null; etat.ficheFraiche = true; rendre(); }));
       corps.querySelectorAll('[data-fermer]').forEach(b => b.addEventListener('click', () => fermerFiche()));
-      corps.querySelectorAll('[data-ctl-info]').forEach(b => b.addEventListener('click', () => { etat.ctlInfo = etat.ctlInfo === b.dataset.ctlInfo ? null : b.dataset.ctlInfo; rendre(); }));
-      const ctlPlus = corps.querySelector('[data-ctl-plus]'); if (ctlPlus) ctlPlus.addEventListener('click', () => { etat.ctlToutes = true; rendre(); });
-      const ctlTri = corps.querySelector('[data-ctl-tri]'); if (ctlTri) ctlTri.addEventListener('change', () => { etat.ctlTri = ctlTri.value; etat.ctlToutes = false; rendre(); });
-      corps.querySelectorAll('[data-ctl-cycle]').forEach(c => c.addEventListener('change', () => { const cy = (etat.ctlCycles || ['nouvelle', 'persistante', 'aggravee']).filter(x => x !== c.dataset.ctlCycle); if (c.checked) cy.push(c.dataset.ctlCycle); etat.ctlCycles = cy; etat.ctlToutes = false; rendre(); }));
-      const ctlRech = corps.querySelector('#ptCtlRecherche'); if (ctlRech) ctlRech.addEventListener('input', () => { etat.ctlRecherche = ctlRech.value; etat.ctlToutes = false; const p = ctlRech.selectionStart; rendre(); const n = corps.querySelector('#ptCtlRecherche'); if (n) { n.focus(); try { n.setSelectionRange(p, p); } catch (e) {} } });
       const fi = corps.querySelector('[data-fiche-ouverte]'); if (fi && etat.ficheFraiche) { etat.ficheFraiche = false; fi.focus(); }
       corps.querySelectorAll('[data-info-marge]').forEach(b => b.addEventListener('click', () => { etat.ouverte = b.dataset.infoMarge; rendre(); const f = corps.querySelector('[data-marge-fiche]'); if (f && f.scrollIntoView) f.scrollIntoView({ block: 'start' }); }));
       corps.querySelectorAll('textarea.pt-verif-com').forEach(t => t.addEventListener('input', () => { const n = t.parentNode.querySelector('[data-com-compteur]'); if (n) n.textContent = String(t.value.trim().length) + ' / ' + E.LIMITE_COMMENTAIRE; }));

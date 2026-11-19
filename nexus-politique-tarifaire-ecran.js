@@ -405,6 +405,13 @@
     return '<span class="pt-marge-l1">Marge estimée : <span class="pt-mono pt-marge-prin">' + esc(pct(m.taux)) + '</span> ' + badgeMarge(l) + '</span>' +
       (num(m.margeUnitaireHt) !== null ? '<span class="pt-marge-sec pt-mono">' + esc(eur(m.margeUnitaireHt)) + ' HT/unité</span>' : '');
   }
+  // Une ligne ne porte jamais deux étiquettes de même texte : si la marge dit déjà « À vérifier », l'étiquette de statut ne le répète pas.
+  function htmlLigneChiffres(l) {
+    var hm = htmlMarge(l), bl = badgeLigne(l);
+    var txt = function (h) { var m = /<span class="nbe-qualif"[^>]*>([^<]*)<\/span>/.exec(h || ''); return m ? m[1] : null; };
+    var tm = (hm.match(/<span class="nbe-qualif"[^>]*>[^<]*<\/span>/g) || []).map(txt), tl = txt(bl);
+    return hm + (bl && tm.indexOf(tl) < 0 ? ' ' + bl : '');
+  }
   function ficheMarge(l) {
     var m = l.margeEstimee, T0 = V.margeEstimee, li = function (k, v) { return '<div class="pt-pol-l"><span class="sc-lib">' + esc(k) + '</span><span>' + esc(v) + '</span></div>'; };
     if (!m) return '';
@@ -601,7 +608,7 @@
     return '<li class="pt-li"><button type="button" class="vp-ligne-prod" data-article="' + esc(l.article) + '">' +
       '<span class="vp-nom">' + esc(l.article) + ' ' + badgeRegime(l) + '</span>' +
       '<span class="vp-meta">' + esc(l.rayon || '') + ' · Fiabilité : ' + esc((LIB_FIABILITE[l.fiabilite.niveau] || l.fiabilite.niveau).toLowerCase()) + '</span>' +
-      '<span class="vp-chiffres">' + htmlMarge(l) + (badgeLigne(l) ? ' ' + badgeLigne(l) : '') + '</span></button>' + infoBouton(l.article, 'marge estimée de ' + l.article) + '</li>';
+      '<span class="vp-chiffres">' + htmlLigneChiffres(l) + '</span></button>' + infoBouton(l.article, 'marge estimée de ' + l.article) + '</li>';
   }
   function blocFiche(l) {
     var f = fiche(l), s = f.seuil, pd = l.prixDecide, w = avertissementRegime(l);
@@ -711,6 +718,11 @@
     return '<button type="button" class="sc-ind sc-ambre pt-carte-ctl" data-carte="controles_a_effectuer" aria-label="Contrôles à effectuer : ' + n + ', ouvrir la liste"><span class="sc-ind-val">' + n + '</span><span class="sc-ind-lib">' + (n > 1 ? 'contrôles' : 'contrôle') + ' sur ' + m + (m > 1 ? ' références' : ' référence') + '</span><span class="sc-ind-sous">' + esc(libellePeriode(s.periode)) + ' · un contrôle n\'est pas une erreur constatée</span></button>';
   }
   // Câblage commun page et banc : ouverture du bloc des contrôles (carte, Conseiller) et du champ de commentaire. Aucune écriture.
+  // Effet commun d'une vérification enregistrée : la ligne passe « vérifiée » (elle quitte la liste active), message daté. Page et banc.
+  function effetVerificationEnregistree(an, etat, auteur) {
+    an.cycle = 'verifiee';
+    etat.messageVerif = messageApresEcriture({ date: new Date().toISOString().slice(0, 10), auteur: auteur });
+  }
   function lierOuvertures(corps, etat, rendre) {
     function ouvrirControles() {
       etat.ctlReplie = false; rendre();
@@ -718,6 +730,12 @@
       if (bl) { if (bl.scrollIntoView) bl.scrollIntoView({ block: 'start' }); var sm = bl.querySelector('summary'); if (sm) sm.focus(); }
     }
     Array.prototype.forEach.call(corps.querySelectorAll('[data-carte="controles_a_effectuer"], [data-bloc-conseil="controles"]'), function (b) { b.addEventListener('click', ouvrirControles); });
+    // Bloc des contrôles : (i), « Voir plus », tri, cycle, recherche. Câblage unique, page et banc.
+    Array.prototype.forEach.call(corps.querySelectorAll('[data-ctl-info]'), function (b) { b.addEventListener('click', function () { etat.ctlInfo = etat.ctlInfo === b.dataset.ctlInfo ? null : b.dataset.ctlInfo; rendre(); }); });
+    var ctlPlus = corps.querySelector('[data-ctl-plus]'); if (ctlPlus) ctlPlus.addEventListener('click', function () { etat.ctlToutes = true; rendre(); });
+    var ctlTri = corps.querySelector('[data-ctl-tri]'); if (ctlTri) ctlTri.addEventListener('change', function () { etat.ctlTri = ctlTri.value; etat.ctlToutes = false; rendre(); });
+    Array.prototype.forEach.call(corps.querySelectorAll('[data-ctl-cycle]'), function (c) { c.addEventListener('change', function () { var cy = (etat.ctlCycles || ['nouvelle', 'persistante', 'aggravee']).filter(function (x) { return x !== c.dataset.ctlCycle; }); if (c.checked) cy.push(c.dataset.ctlCycle); etat.ctlCycles = cy; etat.ctlToutes = false; rendre(); }); });
+    var ctlRech = corps.querySelector('#ptCtlRecherche'); if (ctlRech) ctlRech.addEventListener('input', function () { etat.ctlRecherche = ctlRech.value; etat.ctlToutes = false; var p = ctlRech.selectionStart; rendre(); var n = corps.querySelector('#ptCtlRecherche'); if (n) { n.focus(); try { n.setSelectionRange(p, p); } catch (e) {} } });
     var pf = corps.querySelector('[data-filtres-panneau]');
     if (pf) {
       if (etat.filtresOuverts === undefined && typeof matchMedia === 'function' && matchMedia('(min-width:900px)').matches) { etat.filtresOuverts = true; pf.open = true; }
@@ -887,7 +905,7 @@
     } catch (e) { return { fourni: false, erreur: true }; }
   }
   var API = { nombreReleve: nombreReleve, lotStockPublie: lotStockPublie, lignesStockDepuisLot: lignesStockDepuisLot, chargerStockPublie: chargerStockPublie, TVA_CONFIRMATIONS_PILOTE: TVA_CONFIRMATIONS_PILOTE, cartes: cartes, scenarios: scenarios, alertesCartes: alertesCartes, trier: trier, filtrer: filtrer, valeursFiltres: valeursFiltres,
-    preuves: preuves, conseiller: conseiller, lierOuvertures: lierOuvertures, fiche: fiche, etatAcces: etatAcces, peutVoirOnglet: peutVoirOnglet, filtrerSite: filtrerSite,
+    preuves: preuves, conseiller: conseiller, lierOuvertures: lierOuvertures, effetVerificationEnregistree: effetVerificationEnregistree, fiche: fiche, etatAcces: etatAcces, peutVoirOnglet: peutVoirOnglet, filtrerSite: filtrerSite,
     regimeDe: regimeDe, contexteDeclaratif: contexteDeclaratif, construireContexteTarif: construireContexteTarif, stockParLibelle: stockParLibelle, controle: controle, familles: familles, avertissementRegime: avertissementRegime, infoRegime: infoRegime, badgeRegime: badgeRegime, badgeLigne: badgeLigne, blocFiche: blocFiche,
     chargerRegistres: chargerRegistres, chargerVerifications: chargerVerifications, historiqueLignes: historiqueLignes, htmlHistorique: htmlHistorique, chargerVentes: chargerVentes, lireCompte: lireCompte, libellePeriode: libellePeriode,
     reevaluationsAEcrire: reevaluationsAEcrire, enregistrerReevaluations: enregistrerReevaluations, htmlPage: htmlPage, htmlControlesAFaire: htmlControlesAFaire, htmlDetailHistorique: htmlDetailHistorique, htmlLigne: htmlLigne, htmlControle: htmlControle, htmlFiche: htmlFiche, carteMarge: carteMarge, htmlMarge: htmlMarge, ficheMarge: ficheMarge, peutVerifier: peutVerifier, commentaireValide: commentaireValide, messageApresEcriture: messageApresEcriture, messageErreurEcriture: messageErreurEcriture, payloadVerification: payloadVerification, LIMITE_COMMENTAIRE: LIMITE_COMMENTAIRE, graviteLigne: graviteLigne, CSS: CSS };

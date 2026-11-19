@@ -47,6 +47,72 @@ function verif(nom, cond, detail) { if (cond) { ok++; console.log('OK  ' + nom);
     if (dossier) await page.screenshot({ path: dossier + '/apres_verif_' + vp.w + '.png', fullPage: true });
     await ctx.close();
   }
+  // Suite : article ciblé, réimport au même fichier_hash, nouveau lot où l'anomalie persiste, doublons d'étiquettes, cas_production.
+  // Le banc garde les vérifications « écrites » dans sessionStorage quand ?persist=1 ; ?lot=<nom> change le fichier_hash du lot.
+  const BTN = '#vueCorps button[data-verifier][data-ver-article]';
+  async function doublons(page) {
+    // Aucune ligne ne porte deux étiquettes .nbe-qualif de même texte.
+    return page.evaluate(() => {
+      const mauvais = [];
+      document.querySelectorAll('#vueCorps .pt-ligne, #vueCorps .vp-ligne, #vueCorps li, #vueCorps tr').forEach(r => {
+        const t = [...r.querySelectorAll('.nbe-qualif')].map(e => e.textContent.trim());
+        if (new Set(t).size !== t.length) mauvais.push(t.join(' / '));
+      });
+      return mauvais;
+    });
+  }
+  {
+    const ctx = await nav.newContext({ viewport: { width: 1280, height: 800 } });
+    const page = await ctx.newPage();
+    await page.goto(URL_BANC + '?scenario=gerant&theme=jour&persist=1&lot=hash-lot-A');
+    await page.evaluate(() => { try { sessionStorage.removeItem('banc_verifs'); } catch (e) {} });
+    await page.reload();
+    await page.waitForSelector(BTN, { timeout: 15000 });
+    // Article ciblé : on suit l'article du premier bouton, pas « les 10 premières lignes visibles ».
+    const cible = await page.locator(BTN).first().getAttribute('data-ver-article');
+    verif('suite : article ciblé identifié', !!cible);
+    const avantA = await page.locator(BTN + '[data-ver-article="' + cible.replace(/"/g, '\\"') + '"]').count();
+    await page.locator(BTN + '[data-ver-article="' + cible.replace(/"/g, '\\"') + '"]').first().click();
+    await page.waitForTimeout(400);
+    const apresA = await page.locator(BTN + '[data-ver-article="' + cible.replace(/"/g, '\\"') + '"]').count();
+    verif('suite : la vérification retire le contrôle de l\'article ciblé', apresA === avantA - 1, avantA + ' -> ' + apresA);
+    // Réimport au même fichier_hash : la ligne ne revient pas.
+    await page.goto(URL_BANC + '?scenario=gerant&theme=jour&persist=1&lot=hash-lot-A');
+    await page.waitForSelector('#vueCorps', { timeout: 15000 });
+    await page.waitForTimeout(500);
+    const memeLot = await page.locator(BTN + '[data-ver-article="' + cible.replace(/"/g, '\\"') + '"]').count();
+    verif('suite : même fichier_hash, le contrôle vérifié ne revient pas', memeLot === apresA, memeLot + ' attendu ' + apresA);
+    // Nouveau lot où l'anomalie persiste : la ligne revient, qualifiée « Persistant ».
+    await page.goto(URL_BANC + '?scenario=gerant&theme=jour&persist=1&lot=hash-lot-B');
+    await page.waitForSelector('#vueCorps', { timeout: 15000 });
+    await page.waitForTimeout(500);
+    const texteB = await page.locator('#vueCorps').innerText();
+    verif('suite : nouveau lot, l\'anomalie persistante revient « Persistant »', /Persistant/.test(texteB));
+    // Pas deux étiquettes de même texte, y compris dans « Toutes les références ».
+    verif('suite : aucune étiquette en double (vue par défaut)', (await doublons(page)).length === 0, (await doublons(page)).join(' ; '));
+    const toutes = page.locator('#vueCorps [data-ctl-tout], #vueCorps button:has-text("Toutes les références")').first();
+    if (await toutes.count()) {
+      await toutes.click(); await page.waitForTimeout(400);
+      const d = await doublons(page);
+      verif('suite : aucune étiquette en double (Toutes les références)', d.length === 0, d.join(' ; '));
+    } else verif('suite : bouton « Toutes les références » trouvé', false);
+    await ctx.close();
+  }
+  {
+    // cas_production : lignes fictives, sans libellé réel.
+    const ctx = await nav.newContext({ viewport: { width: 1280, height: 800 } });
+    const page = await ctx.newPage();
+    await page.goto(URL_BANC + '?scenario=cas_production&theme=jour');
+    await page.waitForSelector('#vueCorps', { timeout: 15000 });
+    await page.waitForTimeout(500);
+    const t = await page.locator('#vueCorps').innerText();
+    verif('cas_production : article daté vendu près de 0 affiché « Démarque »', /Démarque/.test(t));
+    verif('cas_production : S1 et S2 sur la même ligne, « À vérifier » et raison « contredit »', /À vérifier/.test(t) && /contredit/.test(t));
+    verif('cas_production : marge négative extrême « Perte de … € HT par unité »', /Perte de .+ € HT par unité/.test(t));
+    verif('cas_production : aucune étiquette en double', (await doublons(page)).length === 0);
+    if (dossier) await page.screenshot({ path: dossier + '/cas_production.png', fullPage: true });
+    await ctx.close();
+  }
   await nav.close();
   console.log(ok + ' OK, ' + ko + ' KO');
   process.exit(ko ? 1 : 0);

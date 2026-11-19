@@ -562,6 +562,32 @@ ok('câblage commun : lierOuvertures ouvre le bloc et le commentaire', () => {
   ecouteurs.find(e => e[0] === 'ctl')[1](); assert.strictEqual(etat.ctlReplie, false);
   ecouteurs.find(e => e[0] === 'com')[1](); assert.deepStrictEqual(etat.comOuvert, ['S2|X']); assert.strictEqual(rendus, 2);
 });
+ok('D2 : le (i) d\'un contrôle est câblé par le câblage commun (ouvre, puis referme)', () => {
+  const ec = [];
+  const b = { dataset: { ctlInfo: 'S2|X' }, addEventListener: (t, f) => ec.push(f) };
+  const corps = { querySelectorAll: sel => sel === '[data-ctl-info]' ? [b] : [], querySelector: () => null };
+  const etat = {}; let rendus = 0;
+  E.lierOuvertures(corps, etat, () => { rendus++; });
+  assert.strictEqual(ec.length, 1);
+  ec[0](); assert.strictEqual(etat.ctlInfo, 'S2|X');
+  ec[0](); assert.strictEqual(etat.ctlInfo, null); assert.strictEqual(rendus, 2);
+});
+ok('D1 : une vérification enregistrée passe la ligne en « vérifiée » avec message daté', () => {
+  const an = { code: 'S2', cycle: 'nouvelle' }; const etat = {};
+  E.effetVerificationEnregistree(an, etat, 'Gérant du banc');
+  assert.strictEqual(an.cycle, 'verifiee');
+  assert.ok(/Vérifié le .* par Gérant du banc/.test(etat.messageVerif));
+});
+ok('D3 : aucune ligne ne porte deux étiquettes de même texte', () => {
+  const a = analyse();
+  const forcees = a.lignes.map(l => Object.assign({}, l, { statut: 'a_verifier', margeEstimee: Object.assign({}, l.margeEstimee || { taux: 0.1, margeUnitaireHt: 0.1, cout: { valeur: 1 } }, { etat: 'a_verifier', taux: 0.1 }) }));
+  assert.ok(forcees.length > 0);
+  forcees.forEach(l => {
+    const t = (E.htmlLigne(l).match(/<span class="nbe-qualif"[^>]*>[^<]*<\/span>/g) || []).map(x => x.replace(/<[^>]*>/g, ''));
+    assert.strictEqual(new Set(t).size, t.length, 'doublon : ' + t.join(' | '));
+    assert.ok(t.indexOf('À vérifier') >= 0, 'un « À vérifier » reste');
+  });
+});
 // ---------- Bout en bout : chargerVerifications -> cycle de vie -> affichage -> appel RPC (données synthétiques) ----------
 const clientLecture = (rows) => { const q = { eq: () => q, is: () => q, order: () => q, range: () => q, in: () => q, select: () => q, then: (r) => r({ data: rows, error: null }) };
   return { from: (t) => (t === 'tarif_anomalies_verifications' ? q : Object.assign({}, q, { then: (r) => r({ data: [], error: null }) })) }; };

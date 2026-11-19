@@ -43,10 +43,10 @@ insert into ids(k, v) values ('gA','00000000-0000-4000-8000-0000000e0101'),('mA'
 
 create function pg_temp.u(p_k text) returns uuid language sql as $$ select v::uuid from pg_temp.ids where k = p_k $$;
 grant execute on function pg_temp.u(text) to public;
--- note : l'attendu peut proposer deux formes séparées par « | » (la première qui figure dans l'obtenu suffit).
+-- note : l'attendu peut proposer deux formes séparées par « ~ » (la première qui figure dans l'obtenu suffit).
 create function pg_temp.note(p_cas text, p_attendu text, p_obtenu text) returns void language sql as $$
   insert into pg_temp.journal(cas, attendu, obtenu, ok) values (p_cas, p_attendu,  p_obtenu,
-    exists (select 1 from unnest(string_to_array(p_attendu, '|')) a where position(a in coalesce(p_obtenu,'')) > 0));
+    exists (select 1 from unnest(string_to_array(p_attendu, '~')) a where position(a in coalesce(p_obtenu,'')) > 0));
 $$;
 grant execute on function pg_temp.note(text, text, text) to public;
 create function pg_temp.comme(p_role text, p_uid uuid) returns void language plpgsql as $$
@@ -145,26 +145,26 @@ select pg_temp.note('A07 gerant annule la saisie d un manager', 'ok n=1', pg_tem
 reset role;
 select pg_temp.comme('authenticated', pg_temp.u('pA'));
 select pg_temp.note('A07 pompiste refuse', 'tarif_verif_reservee_manager_gerant', pg_temp.tente(pg_temp.marque(pg_temp.js('essai-x1','00000000-0000-4000-8000-00000000f101','H1'))));
-select pg_temp.note('A07 pompiste n annule rien (0 ligne)', 'ok n=0|permission denied', pg_temp.tente(format($q$update tarif_anomalies_verifications set annule_le=now(), annule_par=%L, motif_annulation='essai' where article='essai-1'$q$, pg_temp.u('pA'))));
+select pg_temp.note('A07 pompiste n annule rien (0 ligne)', 'ok n=0~permission denied', pg_temp.tente(format($q$update tarif_anomalies_verifications set annule_le=now(), annule_par=%L, motif_annulation='essai' where article='essai-1'$q$, pg_temp.u('pA'))));
 reset role;
 select pg_temp.comme('authenticated', pg_temp.u('kA'));
 select pg_temp.note('A07 caissier refuse', 'tarif_verif_reservee_manager_gerant', pg_temp.tente(pg_temp.marque(pg_temp.js('essai-x2','00000000-0000-4000-8000-00000000f101','H1'))));
 reset role;
 select pg_temp.comme('authenticated', pg_temp.u('iA'));
-select pg_temp.note('A07 compte desactive refuse', 'tarif_verif_compte_inactif|tarif_verif_compte_illisible', pg_temp.tente(pg_temp.marque(pg_temp.js('essai-x3','00000000-0000-4000-8000-00000000f101','H1'))));
+select pg_temp.note('A07 compte desactive refuse', 'tarif_verif_compte_inactif~tarif_verif_compte_illisible', pg_temp.tente(pg_temp.marque(pg_temp.js('essai-x3','00000000-0000-4000-8000-00000000f101','H1'))));
 reset role;
 select pg_temp.comme('authenticated', pg_temp.u('cA'));
-select pg_temp.note('A07 createur sans role de manager refuse', 'tarif_verif_createur_lecture_seule|tarif_verif_reservee_manager_gerant', pg_temp.tente(pg_temp.marque(pg_temp.js('essai-x4','00000000-0000-4000-8000-00000000f101','H1'))));
+select pg_temp.note('A07 createur sans role de manager refuse', 'tarif_verif_createur_lecture_seule~tarif_verif_reservee_manager_gerant', pg_temp.tente(pg_temp.marque(pg_temp.js('essai-x4','00000000-0000-4000-8000-00000000f101','H1'))));
 reset role;
 select pg_temp.comme('anon', null);
-select pg_temp.note('A07 anonyme refuse', 'permission denied|tarif_verif_session_absente', pg_temp.tente(pg_temp.marque(pg_temp.js('essai-x5','00000000-0000-4000-8000-00000000f101','H1'))));
+select pg_temp.note('A07 anonyme refuse', 'permission denied~tarif_verif_session_absente', pg_temp.tente(pg_temp.marque(pg_temp.js('essai-x5','00000000-0000-4000-8000-00000000f101','H1'))));
 reset role;
 
 -- A08 : isolation entre sites.
 select pg_temp.comme('authenticated', pg_temp.u('mB'));
 select pg_temp.note('A08 manager du site B ne voit aucune verification de A', '0', pg_temp.val($q$select count(*)::text from tarif_anomalies_verifications where site='site-fantome-test'$q$));
 select pg_temp.note('A08 manager du site B ne voit aucune reevaluation de A', '0', pg_temp.val($q$select count(*)::text from tarif_anomalies_reevaluations where site='site-fantome-test'$q$));
-select pg_temp.note('A08 B ne cite pas une verification de A', 'tarif_reeval_|23503', pg_temp.tente(pg_temp.reeval(pg_temp.rj2('v1','essai-1','persistante','H9','2026-11-20','3.5'))));
+select pg_temp.note('A08 B ne cite pas une verification de A', 'tarif_reeval_~23503', pg_temp.tente(pg_temp.reeval(pg_temp.rj2('v1','essai-1','persistante','H9','2026-11-20','3.5'))));
 select pg_temp.note('A08 B ne cite pas un lot de A', 'tarif_verif_lot', pg_temp.tente(pg_temp.marque(pg_temp.js('essai-b1','00000000-0000-4000-8000-00000000f101','H1'))));
 reset role;
 
