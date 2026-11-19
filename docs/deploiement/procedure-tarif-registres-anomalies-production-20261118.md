@@ -87,8 +87,8 @@ Aucun import de données dans les tables `tarif_*` n'est fait par ces migrations
 
 ## 6. Vérifications après chaque migration (lecture seule)
 
-- **Après 1** : les 10 tables et la fonction existent ; RLS activée sur chacune (`relrowsecurity`) ; `anon` sans droit sur `tarif_cle_reference` (`has_function_privilege('anon', …, 'execute') = false`).
-- **Après 2** : 3 déclencheurs présents (`tgenabled = 'O'`) ; 4 fonctions de contrôle sans `SECURITY DEFINER` (`prosecdef = false`) ; politiques d'isolation par site présentes sur chaque registre.
+- **Après 1** : les 10 tables et la fonction existent (la RLS est activée par la migration 2, elle n'est pas encore à contrôler ici) ; `anon` sans droit sur `tarif_cle_reference` (`has_function_privilege('anon', …, 'execute') = false`).
+- **Après 2** : RLS activée sur chacune des tables (`relrowsecurity`) ; 3 déclencheurs présents (`tgenabled = 'O'`) ; 4 fonctions de contrôle sans `SECURITY DEFINER` (`prosecdef = false`) ; politiques d'isolation par site présentes sur chaque registre.
 - **Après 3** : 3 vues avec `security_invoker=true` (`reloptions`) ; `anon` et `public` sans droit (`has_table_privilege`).
 - **Après 4** : une politique `compte_actif_obligatoire`, `permissive = false` (restrictive), par registre ; `v_tarif_exceptions_effectives` filtre les comptes actifs.
 - **Après 5** : `tarif_enregistrer_decisions(jsonb)` est `SECURITY INVOKER`, `EXECUTE` réservé à `authenticated`, pas à `anon` ; colonne `prix_decide_id` et index unique présents.
