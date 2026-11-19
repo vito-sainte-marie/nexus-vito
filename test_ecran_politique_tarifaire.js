@@ -576,6 +576,12 @@ ok('L2 : le choix d\'une ligne est câblé (clic, flèches) et le rendu est rela
   ev['S1|C'].keydown({ key: 'ArrowUp', preventDefault() {} }); assert.strictEqual(etat.ctlSel, 'S7|B');
   assert.strictEqual(rendus, 3);
 });
+ok('L2 : focus visible (contour défini, variable existante) et détail collant dès 900 px', () => {
+  const src = fs.readFileSync('./nexus-politique-tarifaire-ecran.js', 'utf8');
+  const f = /\.pt-ctl-ligne:focus-visible,[^}]*\{([^}]*)\}/.exec(src);
+  assert.ok(f && /outline:2px solid var\(--t-text\)/.test(f[1]) && !/--accent/.test(f[1]), 'contour de focus des lignes et du summary');
+  assert.ok(/min-width:900px\)\{[^@]*\.pt-ctl-deux>\.pt-ctl-droite\{position:sticky;top:8px[^}]*max-height:[^}]*overflow-y:auto/.test(src), 'détail collant avec défilement interne');
+});
 ok('L2 : aria-current sur la ligne choisie, repli sur la première, détail et Sources et calcul natifs', () => {
   const a = avecControles(4);
   const h = E.htmlPage({ analyse: a, role: 'manager', estCreateur: false, filtres: {}, incoherences: [] });
