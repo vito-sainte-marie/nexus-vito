@@ -197,6 +197,16 @@ function verif(nom, cond, detail) { if (cond) { ok++; console.log('OK  ' + nom);
     verif('cas_production : S1 et S2 sur la même ligne, « À vérifier » et raison « contredit »', /À vérifier/.test(t) && /contredit/.test(t));
     verif('cas_production : marge négative extrême « Perte de … € HT par unité »', /Perte de .+ € HT par unité/.test(t));
     verif('cas_production : aucune étiquette en double', (await doublons(page)).length === 0);
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await axe(page, 'controler');
+    const ctlT = await page.locator('#vueCorps [data-axe-panneau="controler"]').innerText().catch(() => '');
+    verif('L5 compact : plus d\'indicateur « N contrôles sur M références »', !/contrôles? sur \d+ références?/.test(ctlT));
+    const haut = await page.evaluate(() => {
+      const c = document.querySelector('#vueCorps .vp-scanner, #vueCorps .sc-carte, #vueCorps');
+      const l = document.querySelector('#vueCorps [data-bloc-controles] [data-ctl-ligne], #vueCorps [data-bloc-controles] li, #vueCorps [data-bloc-controles] button');
+      return c && l ? { carte: Math.round(c.getBoundingClientRect().top), liste: Math.round(l.getBoundingClientRect().top) } : null;
+    });
+    verif('L5 compact : première ligne de contrôle visible à 1280 x 800 (liste mesurée contre le haut de la carte Scanner)', !!haut && haut.liste < 800, haut ? 'carte ' + haut.carte + ' px, liste ' + haut.liste + ' px, écart ' + (haut.liste - haut.carte) + ' px' : 'non mesuré');
     // Démarque : article préfixé d'une date, nommé, sans marge, hors marge estimée, hors « Sources qui se contredisent ».
     const lignesDem = await page.evaluate(() => [...document.querySelectorAll('#vueCorps li, #vueCorps tr, #vueCorps .pt-ligne')].filter(e => e.querySelector('[data-axe="demarque"]')).map(e => e.textContent));
     verif('cas_production : la démarque est nommée « Démarque : périmé ou casse » et sans marge', lignesDem.length > 0 && lignesDem.every(x => !/Perte de|Marge\s*[-+]?\d/.test(x)));

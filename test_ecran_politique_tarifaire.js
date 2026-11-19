@@ -454,7 +454,7 @@ const avecControles = (k) => {
 };
 ok('B2/L2 : bloc Contrôles, liste compacte, détail avec consigne et bouton', () => {
   const h = E.htmlPage({ analyse: avecControles(2), role: 'manager', estCreateur: false, filtres: {}, incoherences: [] });
-  assert.ok(/data-bloc-controles/.test(h) && /data-carte="controles_a_effectuer"/.test(h));
+  assert.ok(/data-bloc-controles/.test(h) && !/data-carte="controles_a_effectuer"/.test(h));
   assert.ok(/data-axe="niveau">Démontré/.test(h) && /data-axe="niveau">À vérifier/.test(h));
   assert.ok(/data-ctl-liste/.test(h) && /data-ctl-detail/.test(h) && /pt-ctl-3/.test(h) && !/data-ctl-info/.test(h));
   assert.ok(/✓ Marquer comme vérifié/.test(h) && /data-ctl-expl/.test(h));
@@ -488,12 +488,21 @@ ok('lignes hors ventes commerciales : aucune anomalie', () => {
   assert.deepStrictEqual(l.anomalies, []);
 });
 
-ok('recette Guardian : le bloc suit les cartes B et précède les scénarios ; la carte est un bouton', () => {
+ok('L5 compact : le bloc précède les scénarios ; l\'indicateur « N contrôles sur M références » est retiré, les deux autres cartes restent', () => {
   const h = E.htmlPage({ analyse: avecControles(3), role: 'manager', estCreateur: false, filtres: {}, incoherences: [] });
-  const iB = h.indexOf('data-bloc-controles'), iC = h.indexOf('data-carte="controles_a_effectuer"'), iS = h.indexOf('Scénarios de gain');
-  assert.ok(iC > 0 && iB > iC && iB < iS, 'ordre carte, bloc, scénarios');
-  assert.ok(/<button type="button"[^>]*data-carte="controles_a_effectuer"/.test(h), 'carte en bouton');
-  assert.ok(/sc-ind-lib">contrôles? sur \d+ références?</.test(h), 'unité contrôles sur références');
+  const iB = h.indexOf('data-bloc-controles'), iS = h.indexOf('Scénarios de gain');
+  assert.ok(iB > 0 && iB < iS, 'ordre bloc, scénarios');
+  assert.ok(!/data-carte="controles_a_effectuer"/.test(h) && !/contrôles? sur \d+ références?/.test(h), 'indicateur retiré');
+  assert.ok(/data-carte="marge_negative"/.test(h) && /data-carte="a_verifier"/.test(h), 'deux cartes gardées');
+});
+ok('L5 compact : le texte d\'aide est derrière un (i), outils sur un bloc unique', () => {
+  const h = E.htmlPage({ analyse: avecControles(30), role: 'manager', estCreateur: false, filtres: {}, incoherences: [] });
+  assert.ok(/<details class="pt-ctl-aide"[^>]*data-ctl-expl="1"><summary class="info-btn"[^>]*>i<\/summary><p class="sc-methode">Un contrôle indique où comparer/.test(h), 'aide derrière (i)');
+  assert.ok(!/<p class="sc-methode pt-ctl-expl"/.test(h), 'plus de paragraphe visible');
+  const o = h.slice(h.indexOf('pt-ctl-outils'));
+  assert.ok(/ptCtlRecherche/.test(o) && /data-ctl-tri/.test(o) && /pt-ctl-cycles/.test(o));
+  const src = require('fs').readFileSync(require('path').join(__dirname, 'nexus-politique-tarifaire-ecran.js'), 'utf8');
+  assert.ok(/@media\(min-width:900px\)\{\.vue-p1c \.pt-ctl-outils\{flex-wrap:nowrap/.test(src), 'ligne unique dès 900 px');
 });
 ok('recette Guardian : commentaire replié derrière un lien, (i) sur la ligne du titre', () => {
   const a = avecControles(2);
@@ -546,9 +555,7 @@ ok('deux cartes orange : libellés qui disent la différence', () => {
   const v = E.cartes(a).find(c => c.id === 'a_verifier');
   assert.ok(/fiabilité incomplète/.test(v.titre + ' ' + (v.secondaire || '')));
   const h = E.htmlPage({ analyse: a, role: 'gerant', estCreateur: false, filtres: {}, incoherences: [] });
-  const carte = h.slice(h.indexOf('data-carte="controles_a_effectuer"'));
-  const carte1 = carte.slice(0, carte.indexOf('</button>'));
-  assert.ok(/contrôle/.test(carte1) && !/fiabilité/.test(carte1));
+  assert.ok(!/data-carte="controles_a_effectuer"/.test(h));
 });
 ok('Historique : le (i) est sur la ligne du titre', () => {
   const a = analyse();
