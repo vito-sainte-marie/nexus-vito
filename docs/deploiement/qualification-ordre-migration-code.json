@@ -1248,141 +1248,161 @@
       "reserve": "Cette qualification n autorise ni la fusion ni le deploiement ; elle constate seulement l ordre migration/code."
     },
     "20261117020430": {
-      "etat": "additive_compatible_avant_code",
-      "justification": "Migration additive du lot registres tarifaires (#331) : fonction tarif_cle_reference, 10 tables tarif_*, 1 index. Absente de Production, aucun code deploye ne la lit tant que #332 n est pas fusionne ; appliquer avant le code (l inverse donne des erreurs PGRST).",
+      "etat": "migration_deja_appliquee",
+      "justification": "Migration 1 du lot registres tarifaires (#331) appliquee en Production par Guardian le 2026-11-19 (estampille 20261119010015, registre 340 a 346), apres autorisation distincte du pilote. Qualification preparee, non validee : le pilote la valide. Elle n autorise ni fusion ni deploiement.",
       "mesure": {
         "source": "catalogue",
-        "le": "2026-11-18T23:12:00Z",
+        "le": "2026-11-19T01:20:42Z",
         "cible": "uzhjpqpctpvxytxpxoqz",
         "par": "guardian",
-        "outil": "requetes de catalogue en lecture seule sur Production, rapportees par Guardian dans #160 6994400466 ; reprises ici sans nouvelle lecture",
-        "verdict": "NON APPLIQUEE, PRECONDITION SATISFAITE : aucun objet tarif_% ni v_tarif_%, aucune fonction tarif_%, estampille absente (registre 340, derniere 20261115233331) ; sites, employees, import_batches presents, colonnes identiques a Test",
+        "outil": "empreintes md5 du catalogue de Production et de prosrc, controlees par Guardian, rapportees dans #160 6996717860 ; reprises ici sans nouvelle lecture",
+        "verdict": "APPLIQUEE : empreinte md5 du catalogue de Production identique a celle de Test apres la migration (SHA-256 022666fc)",
         "blob_migration": "faddd1fcbae32c74fc105f651f06e75ca181b909"
       },
-      "objets_crees": [
-        "function tarif_cle_reference",
-        "table tarif_familles",
-        "table tarif_rattachements",
-        "table tarif_seuils",
-        "table tarif_reglages",
-        "table tarif_exceptions",
-        "table tarif_prix_decides",
-        "table tarif_prix_application",
-        "table tarif_regimes_prix",
-        "table tarif_controles_reglementaires",
-        "table tarif_decisions",
-        "index tarif_prix_application_pd_idx"
+      "objets_constates": [
+        "tarif_prix_application_meme_site_fk",
+        "tarif_decisions_seuil_meme_site_fk",
+        "tarif_cle_reference",
+        "tarif_familles",
+        "tarif_rattachements",
+        "tarif_seuils",
+        "tarif_reglages",
+        "tarif_exceptions",
+        "tarif_prix_decides",
+        "tarif_prix_application",
+        "tarif_regimes_prix",
+        "tarif_controles_reglementaires",
+        "tarif_decisions"
       ],
-      "valide_par": "pilote",
-      "valide_le": "2026-11-18T23:45:00Z",
-      "trace": "#160, validation transmise par Guardian, commentaire 6995017878"
+      "estampille_production": "20261119010015",
+      "valide_par": null,
+      "valide_le": null,
+      "trace": "#160, mesure de Guardian 6996717860 ; validation du pilote en attente"
     },
     "20261117020652": {
-      "etat": "atomique_ou_procedure_speciale",
-      "procedure": "docs/deploiement/procedure-tarif-registres-anomalies-production-20261118.md",
-      "justification": "La garde refuse cette migration pour trois motifs, tous reels : (1) drop_trigger:dynamique, un drop trigger if exists %I construit par format() dont le nom est inconnaissable a la lecture ; il est suivi du create trigger correspondant, mais la garde ne peut pas le verifier ; (2) drop_fonction:tarif_statut_exception et (3) drop_fonction:tarif_etat_controle, deux fonctions d une version 1 du lot jamais allee en Production. Ces suppressions ne retirent rien en Production : la mesure de Guardian du 2026-11-18 a 23:12 (#160, 6994400466) ne trouve aucune fonction tarif_% en Production. La garde a raison de les compter comme destructives ; la migration releve donc de la procedure speciale : appliquee selon la procedure #333, par. 5 a 7, avant le code, dans l ordre des six. Les declencheurs supprimes dynamiquement portent sur des tables creees par la migration 1 : ils ne peuvent donc pas exister en Production avant son application.",
+      "etat": "migration_deja_appliquee",
+      "justification": "Migration 2 du lot registres tarifaires (#331) appliquee en Production par Guardian le 2026-11-19 (estampille 20261119010230, registre 340 a 346), apres autorisation distincte du pilote. Qualification preparee, non validee : le pilote la valide. Elle n autorise ni fusion ni deploiement.",
       "mesure": {
         "source": "catalogue",
-        "le": "2026-11-18T23:12:00Z",
+        "le": "2026-11-19T01:20:42Z",
         "cible": "uzhjpqpctpvxytxpxoqz",
         "par": "guardian",
-        "outil": "requetes de catalogue en lecture seule sur Production, rapportees par Guardian dans #160 6994400466 ; reprises ici sans nouvelle lecture",
-        "verdict": "NON APPLIQUEE : aucun objet tarif_% ni v_tarif_%, aucune fonction tarif_%, estampille absente",
+        "outil": "empreintes md5 du catalogue de Production et de prosrc, controlees par Guardian, rapportees dans #160 6996717860 ; reprises ici sans nouvelle lecture",
+        "verdict": "APPLIQUEE : empreinte md5 du catalogue de Production identique a celle de Test apres la migration (SHA-256 fd44166b)",
         "blob_migration": "dedffe348ddd7b1898848dba574f2930fd0a9476"
       },
-      "valide_par": "pilote",
-      "valide_le": "2026-11-19T00:20:00Z",
-      "trace": "#160, commentaire Guardian 6995657101 (validation du pilote, classement atomique_ou_procedure_speciale)"
+      "objets_constates": [
+        "tarif_controle_version",
+        "tarif_controle_retrogradation",
+        "tarif_controle_famille",
+        "tarif_controle_application",
+        "tarif_rattachements_famille",
+        "tarif_seuils_famille",
+        "tarif_prix_application_controle",
+        "lecture_meme_site",
+        "insertion_roles_meme_site",
+        "annulation_roles_meme_site"
+      ],
+      "estampille_production": "20261119010230",
+      "valide_par": null,
+      "valide_le": null,
+      "trace": "#160, mesure de Guardian 6996717860 ; validation du pilote en attente",
+      "procedure": "docs/deploiement/procedure-tarif-registres-anomalies-production-20261118.md"
     },
     "20261117020851": {
-      "etat": "additive_compatible_avant_code",
-      "justification": "Migration additive du lot registres tarifaires (#331) : 3 vues security_invoker. Absente de Production, aucun code deploye ne la lit tant que #332 n est pas fusionne ; appliquer avant le code (l inverse donne des erreurs PGRST).",
+      "etat": "migration_deja_appliquee",
+      "justification": "Migration 3 du lot registres tarifaires (#331) appliquee en Production par Guardian le 2026-11-19 (estampille 20261119010402, registre 340 a 346), apres autorisation distincte du pilote. Qualification preparee, non validee : le pilote la valide. Elle n autorise ni fusion ni deploiement.",
       "mesure": {
         "source": "catalogue",
-        "le": "2026-11-18T23:12:00Z",
+        "le": "2026-11-19T01:20:42Z",
         "cible": "uzhjpqpctpvxytxpxoqz",
         "par": "guardian",
-        "outil": "requetes de catalogue en lecture seule sur Production, rapportees par Guardian dans #160 6994400466 ; reprises ici sans nouvelle lecture",
-        "verdict": "NON APPLIQUEE, PRECONDITION SATISFAITE : aucun objet tarif_% ni v_tarif_%, aucune fonction tarif_%, estampille absente (registre 340, derniere 20261115233331) ; sites, employees, import_batches presents, colonnes identiques a Test",
+        "outil": "empreintes md5 du catalogue de Production et de prosrc, controlees par Guardian, rapportees dans #160 6996717860 ; reprises ici sans nouvelle lecture",
+        "verdict": "APPLIQUEE : empreinte md5 du catalogue de Production identique a celle de Test apres la migration (SHA-256 15a75b36)",
         "blob_migration": "1253c5899b13542e711ba4bbf2ec2e1b3a9f7669"
       },
-      "objets_crees": [
-        "view v_tarif_prix_application_actifs",
-        "view v_tarif_exceptions_effectives",
-        "view v_tarif_incoherences"
+      "objets_constates": [
+        "v_tarif_prix_application_actifs",
+        "v_tarif_exceptions_effectives",
+        "v_tarif_incoherences"
       ],
-      "valide_par": "pilote",
-      "valide_le": "2026-11-18T23:45:00Z",
-      "trace": "#160, validation transmise par Guardian, commentaire 6995017878"
+      "estampille_production": "20261119010402",
+      "valide_par": null,
+      "valide_le": null,
+      "trace": "#160, mesure de Guardian 6996717860 ; validation du pilote en attente"
     },
     "20261117021059": {
-      "etat": "additive_compatible_avant_code",
-      "justification": "Migration additive du lot registres tarifaires (#331) : policy RESTRICTIVE compte_actif_obligatoire, vue recreee. Absente de Production, aucun code deploye ne la lit tant que #332 n est pas fusionne ; appliquer avant le code (l inverse donne des erreurs PGRST).",
+      "etat": "migration_deja_appliquee",
+      "justification": "Migration 4 du lot registres tarifaires (#331) appliquee en Production par Guardian le 2026-11-19 (estampille 20261119011709, registre 340 a 346), apres autorisation distincte du pilote. Qualification preparee, non validee : le pilote la valide. Elle n autorise ni fusion ni deploiement.",
       "mesure": {
         "source": "catalogue",
-        "le": "2026-11-18T23:12:00Z",
+        "le": "2026-11-19T01:20:42Z",
         "cible": "uzhjpqpctpvxytxpxoqz",
         "par": "guardian",
-        "outil": "requetes de catalogue en lecture seule sur Production, rapportees par Guardian dans #160 6994400466 ; reprises ici sans nouvelle lecture",
-        "verdict": "NON APPLIQUEE, PRECONDITION SATISFAITE : aucun objet tarif_% ni v_tarif_%, aucune fonction tarif_%, estampille absente (registre 340, derniere 20261115233331) ; sites, employees, import_batches presents, colonnes identiques a Test",
+        "outil": "empreintes md5 du catalogue de Production et de prosrc, controlees par Guardian, rapportees dans #160 6996717860 ; reprises ici sans nouvelle lecture",
+        "verdict": "APPLIQUEE : empreinte md5 du catalogue de Production identique a celle de Test apres la migration (SHA-256 7d6ea18e)",
         "blob_migration": "687e08216ee363c2695ea09f47dedff7b0ef50c5"
       },
-      "objets_crees": [
-        "policy compte_actif_obligatoire (restrictive, par table tarif_* du lot)",
-        "view v_tarif_exceptions_effectives (recreee)"
+      "objets_constates": [
+        "v_tarif_exceptions_effectives",
+        "compte_actif_obligatoire"
       ],
-      "valide_par": "pilote",
-      "valide_le": "2026-11-18T23:45:00Z",
-      "trace": "#160, validation transmise par Guardian, commentaire 6995017878"
+      "estampille_production": "20261119011709",
+      "valide_par": null,
+      "valide_le": null,
+      "trace": "#160, mesure de Guardian 6996717860 ; validation du pilote en attente"
     },
     "20261117161325": {
-      "etat": "additive_compatible_avant_code",
-      "justification": "Migration additive du lot registres tarifaires (#331) : colonne prix_decide_id, index unique, trigger, RPC tarif_enregistrer_decisions. Absente de Production, aucun code deploye ne la lit tant que #332 n est pas fusionne ; appliquer avant le code (l inverse donne des erreurs PGRST).",
+      "etat": "migration_deja_appliquee",
+      "justification": "Migration 5 du lot registres tarifaires (#331) appliquee en Production par Guardian le 2026-11-19 (estampille 20261119011757, registre 340 a 346), apres autorisation distincte du pilote. Qualification preparee, non validee : le pilote la valide. Elle n autorise ni fusion ni deploiement.",
       "mesure": {
         "source": "catalogue",
-        "le": "2026-11-18T23:12:00Z",
+        "le": "2026-11-19T01:20:42Z",
         "cible": "uzhjpqpctpvxytxpxoqz",
         "par": "guardian",
-        "outil": "requetes de catalogue en lecture seule sur Production, rapportees par Guardian dans #160 6994400466 ; reprises ici sans nouvelle lecture",
-        "verdict": "NON APPLIQUEE, PRECONDITION SATISFAITE : aucun objet tarif_% ni v_tarif_%, aucune fonction tarif_%, estampille absente (registre 340, derniere 20261115233331) ; sites, employees, import_batches presents, colonnes identiques a Test",
+        "outil": "empreintes md5 du catalogue de Production et de prosrc, controlees par Guardian, rapportees dans #160 6996717860 ; reprises ici sans nouvelle lecture",
+        "verdict": "APPLIQUEE : empreinte md5 du catalogue de Production identique a celle de Test apres la migration (SHA-256 7715490e)",
         "blob_migration": "0145fc50078fd706e97aeb68271ee1050d4dbc17"
       },
-      "objets_crees": [
-        "index tarif_decisions_prix_decide_uq",
-        "function tarif_controle_decision_lien",
-        "trigger tarif_decisions_lien",
-        "function tarif_enregistrer_decisions",
-        "colonne tarif_decisions.prix_decide_id"
+      "objets_constates": [
+        "prix_decide_id",
+        "tarif_decisions_prix_meme_site_fk",
+        "tarif_controle_decision_lien",
+        "tarif_enregistrer_decisions",
+        "tarif_decisions_lien"
       ],
-      "valide_par": "pilote",
-      "valide_le": "2026-11-18T23:45:00Z",
-      "trace": "#160, validation transmise par Guardian, commentaire 6995017878"
+      "estampille_production": "20261119011757",
+      "valide_par": null,
+      "valide_le": null,
+      "trace": "#160, mesure de Guardian 6996717860 ; validation du pilote en attente"
     },
     "20261118120000": {
-      "etat": "additive_compatible_avant_code",
-      "justification": "Migration additive du lot registres tarifaires (#331) : 2 tables, 3 index, RPC tarif_marquer_verifie et tarif_enregistrer_reevaluations. Absente de Production, aucun code deploye ne la lit tant que #332 n est pas fusionne ; appliquer avant le code (l inverse donne des erreurs PGRST).",
+      "etat": "migration_deja_appliquee",
+      "justification": "Migration 6 du lot registres tarifaires (#331) appliquee en Production par Guardian le 2026-11-19 (estampille 20261119012012, registre 340 a 346), apres autorisation distincte du pilote. Qualification preparee, non validee : le pilote la valide. Elle n autorise ni fusion ni deploiement.",
       "mesure": {
         "source": "catalogue",
-        "le": "2026-11-18T23:12:00Z",
+        "le": "2026-11-19T01:20:42Z",
         "cible": "uzhjpqpctpvxytxpxoqz",
         "par": "guardian",
-        "outil": "requetes de catalogue en lecture seule sur Production, rapportees par Guardian dans #160 6994400466 ; reprises ici sans nouvelle lecture",
-        "verdict": "NON APPLIQUEE, PRECONDITION SATISFAITE : aucun objet tarif_% ni v_tarif_%, aucune fonction tarif_%, estampille absente (registre 340, derniere 20261115233331) ; sites, employees, import_batches presents, colonnes identiques a Test",
+        "outil": "empreintes md5 du catalogue de Production et de prosrc, controlees par Guardian, rapportees dans #160 6996717860 ; reprises ici sans nouvelle lecture",
+        "verdict": "APPLIQUEE : md5 de prosrc des deux RPC et des deux commentaires de table identiques au fichier (SHA-256 c1df723f)",
         "blob_migration": "3c2f3124fa4870a8e2e85af4c0aea59cb9663108"
       },
-      "objets_crees": [
-        "table tarif_anomalies_verifications",
-        "index tarif_anom_verif_active_uq",
-        "index tarif_anom_verif_site_cle",
-        "table tarif_anomalies_reevaluations",
-        "index tarif_anom_reeval_active_uq",
-        "policy lot_import_meme_site",
-        "function tarif_marquer_verifie",
-        "function tarif_enregistrer_reevaluations"
+      "objets_constates": [
+        "tarif_marquer_verifie",
+        "tarif_enregistrer_reevaluations",
+        "tarif_anomalies_verifications",
+        "tarif_anomalies_reevaluations",
+        "lecture_meme_site",
+        "insertion_roles_meme_site",
+        "annulation_roles_meme_site",
+        "compte_actif_obligatoire",
+        "lot_import_meme_site"
       ],
-      "valide_par": "pilote",
-      "valide_le": "2026-11-18T23:45:00Z",
-      "trace": "#160, validation transmise par Guardian, commentaire 6995017878"
+      "estampille_production": "20261119012012",
+      "valide_par": null,
+      "valide_le": null,
+      "trace": "#160, mesure de Guardian 6996717860 ; validation du pilote en attente"
     }
   },
   "prochaine_action": "Axe SS4 migration -> code : LEVE pour 20260919103000 (13/13 objets constates sur le catalogue le 01/10/2026) et pour 20261001160000 (ACL constatee fermee le 03/10/2026). Ces qualifications restent acquises tant que leur fichier de migration ne change pas : la garde compare mesure.blob_migration a l'empreinte du candidat, et une migration retouchee fait tomber sa qualification. Il n'y a plus d'echeance horaire (l'ancienne fraicheur de 72 h aurait fait retomber l'axe le 04/10/2026 sans que rien ne bouge). CE QUE LA GARDE NE VOIT PAS : une base modifiee sans que le depot bouge - c'est exactement ce que la relecture du 03/10 a trouve pour 20261001160000. Toute procedure d'application relit donc la base avant d'ecrire. CE QUE CELA N'AUTORISE PAS : aucune fusion ni aucun deploiement ; chacun reste un GO distinct de Frederic. RESTE A FAIRE, separement : (1) les 11 migrations du rail toujours non qualifiees ; (2) le cablage de garde-ordre-migration-code.js dans deploiement-production.yml. Lecture du verdict et table de decision : SS18.4 ; recit de la mesure : SS20. MISE A JOUR DU 04/10/2026 : les 13 migrations du candidat rebuild/fdj-62-20260922 sont qualifiees (12 atomiques en serie avant le code, 20261004120000 code d abord) ; ordre et gestes dans docs/deploiement/procedure-fdj-62-production.md."
