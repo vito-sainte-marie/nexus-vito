@@ -1,0 +1,21 @@
+{
+  "_statut": "PROJET, NON VALIDE. Ne remplace pas docs/deploiement/qualification-ordre-migration-code.json tant que le pilote n'a pas donne son accord (#160, Guardian 6995287999). Entree proposee pour la migration 20261117020652 uniquement ; les cinq autres entrees validees ne changent pas.",
+  "migrations": {
+    "20261117020652": {
+      "etat": "atomique_ou_procedure_speciale",
+      "procedure": "docs/deploiement/procedure-tarif-registres-anomalies-production-20261118.md",
+      "justification": "La garde refuse cette migration pour trois motifs, tous reels : (1) drop_trigger:dynamique, un drop trigger if exists %I construit par format() dont le nom est inconnaissable a la lecture ; il est suivi du create trigger correspondant, mais la garde ne peut pas le verifier ; (2) drop_fonction:tarif_statut_exception et (3) drop_fonction:tarif_etat_controle, deux fonctions d une version 1 du lot jamais allee en Production. Ces suppressions ne retirent rien en Production : la mesure de Guardian du 2026-11-18 a 23:12 (#160, 6994400466) ne trouve aucune fonction tarif_% en Production. La garde a raison de les compter comme destructives ; la migration releve donc de la procedure speciale, qui l applique avec le lot et non avant le code seul.",
+      "mesure": {
+        "source": "catalogue",
+        "le": "2026-11-18T23:12:00Z",
+        "cible": "uzhjpqpctpvxytxpxoqz",
+        "par": "guardian",
+        "outil": "requetes de catalogue en lecture seule sur Production, rapportees par Guardian dans #160 6994400466 ; reprises ici sans nouvelle lecture",
+        "verdict": "NON APPLIQUEE : aucun objet tarif_% ni v_tarif_%, aucune fonction tarif_%, estampille absente",
+        "blob_migration": "dedffe348ddd7b1898848dba574f2930fd0a9476"
+      },
+      "valide_par": null,
+      "valide_le": null
+    }
+  }
+}
