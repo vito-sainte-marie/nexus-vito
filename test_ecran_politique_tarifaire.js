@@ -615,7 +615,7 @@ ok('L5 : Conseiller court, une phrase issue du premier contrôle, sans chiffre �
   const a = avecControles(4); a.synthese.alertes = {}; a.lignes.forEach(l => { l.alertes = []; });
   const c = E.conseiller(a, 'gerant');
   assert.strictEqual(c.code, 'CTRL');
-  assert.ok(/^Commencer par le plus grave/.test(c.texte), c.texte);
+  assert.ok(/^Le plus grave : /.test(c.texte) && /^Le plus grave : /.test(c.art), c.texte);
   assert.ok(c.texte.length < 110, 'phrase courte');
   assert.ok(/contrôle/.test(c.detail) && c.detail !== c.texte, 'la phrase longue reste en détail');
   const premier = a.lignes.map(l => l.article).filter(x => c.texte.indexOf(x) >= 0);
@@ -1160,11 +1160,28 @@ ok('L3 : vérifier en détail passe au contrôle suivant', () => {
 ok('Conseiller : vente à perte, format court identique, cible la vente à perte', () => {
   const a = T.analyser(courantes.concat([prod('Article perte test', 'Rayon Alpha', 10, 0.5, 3)]), [], A.contexteDepuisRegistres(reg, { periode }));
   const c = E.conseiller(a, 'gerant');
-  assert.ok(/^Commencer par la vente à perte : Article perte test, perte 2,50\s€ HT\/u$/.test(c.texte), c.texte);
+  assert.ok(/^Vente à perte : Article perte test, perte 2,50\s€ HT\/u$/.test(c.texte), c.texte);
+  assert.strictEqual(c.art, 'Vente à perte : Article perte test');
+  assert.ok(/^perte 2,50\s€ HT\/u$/.test(c.sous), c.sous);
+  assert.ok(/Article : Article perte test\./.test(c.detail), 'nom complet dans le détail');
   assert.ok(c.detail && c.detail.length > c.texte.length, 'texte long derrière le (i)');
   assert.strictEqual(c.cible, 'S1|Article perte test');
   assert.strictEqual(c.bloc, 'controles');
   assert.ok(/data-cible="S1\|Article perte test"/.test(E.htmlPage({ analyse: a, role: 'gerant', estCreateur: false, filtres: {}, incoherences: [] })));
+});
+ok('Conseiller : deux lignes, nom long sur la ligne 1 seul, chiffre sur la ligne 2, nom complet dans le détail', () => {
+  const nom = 'Sachet Menthe Bleue DURMINT 100g - 12P - Lot promotionnel';
+  assert.ok(nom.length >= 40);
+  const a = T.analyser(courantes.concat([prod(nom, 'Rayon Alpha', 10, 0.5, 3)]), [], A.contexteDepuisRegistres(reg, { periode }));
+  const c = E.conseiller(a, 'gerant');
+  assert.strictEqual(c.art, 'Vente à perte : ' + nom);
+  assert.ok(/^perte /.test(c.sous) && !/perte/.test(c.art.replace('Vente à perte : ', '')));
+  assert.ok(c.detail.indexOf('Article : ' + nom) === 0, 'nom complet en tête du détail');
+  const h = E.htmlPage({ analyse: a, role: 'gerant', estCreateur: false, filtres: {}, incoherences: [] });
+  assert.ok(/class="sc-conseil-art">Vente à perte : /.test(h) && /class="sc-conseil-sous">perte /.test(h), 'rendu en deux spans');
+  const g = E.conseiller(avecControles(2), 'gerant');
+  assert.ok(/^(Le plus grave|Vente à perte) : /.test(g.art || ''), 'chaque branche à contrôle porte la ligne 1 : ' + g.code + ' ' + g.texte);
+  assert.ok(typeof g.sous === 'string');
 });
 ok('Conseiller : aucune branche ne dépasse le format court', () => {
   [avecControles(0), avecControles(2), analyse()].forEach(a => ['gerant', 'manager'].forEach(r => {

@@ -249,8 +249,9 @@ function verif(nom, cond, detail) { if (cond) { ok++; console.log('OK  ' + nom);
         const cs = getComputedStyle(e), lh = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.4;
         return { texte: e.textContent.trim(), lignes: Math.round(e.getBoundingClientRect().height / lh) };
       });
+      verif('Conseiller : libellé de test d\'au moins 40 caractères (' + vp.w + ' px)', !!cons && /ARTICLE FICTIF PERTE EXTREME SACHET MENTHE BLEUE/.test(cons.texte), cons ? cons.texte.slice(0, 120) : 'bloc introuvable');
       verif('Conseiller (vente à perte) à ' + vp.w + ' px : au plus ' + vp.max + ' ligne(s)', !!cons && cons.lignes <= vp.max, cons ? cons.lignes + ' ligne(s) : ' + cons.texte.slice(0, 80) : 'bloc Conseiller introuvable');
-      if (cons && vp.w === 1280) verif('Conseiller : « Commencer par la vente à perte : … perte … HT/u »', /Commencer par la vente à perte : .+, perte .+ HT\/u/.test(cons.texte), cons.texte.slice(0, 120));
+      if (cons && vp.w === 1280) verif('Conseiller : « Vente à perte : <article> » puis « perte … HT/u »', /Vente à perte : .+perte .+ HT\/u/.test(cons.texte), cons.texte.slice(0, 120));
     }
     await ctx.close();
   }
