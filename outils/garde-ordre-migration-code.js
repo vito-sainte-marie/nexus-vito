@@ -171,7 +171,66 @@ const MOTIFS_DESTRUCTIFS = [
   ['delete_from',   /\bdelete\s+from\b/i],
 ];
 
-function extraireObjets(sql) {
+// Retire les commentaires `--` et `/* */` du SQL, par une vraie lecture lexicale :
+// un `--` dans une chaîne '...' (y compris E'...'), un identifiant "...", ou un bloc
+// $tag$ ... $tag$ n'ouvre pas de commentaire. Le contenu des chaînes et des blocs est
+// conservé tel quel : un TRUNCATE dans le corps d'une fonction reste visible.
+function retirerCommentaires(sql) {
+  let out = '';
+  let i = 0;
+  const n = sql.length;
+  while (i < n) {
+    const c = sql[i];
+    const d = sql[i + 1];
+    if (c === '-' && d === '-') {
+      while (i < n && sql[i] !== '\n') i++;
+      continue;
+    }
+    if (c === '/' && d === '*') {
+      let prof = 1;
+      i += 2;
+      while (i < n && prof > 0) {
+        if (sql[i] === '/' && sql[i + 1] === '*') { prof++; i += 2; }
+        else if (sql[i] === '*' && sql[i + 1] === '/') { prof--; i += 2; }
+        else i++;
+      }
+      out += ' ';
+      continue;
+    }
+    if (c === "'" || c === '"') {
+      const echappe = c === "'" && i > 0 && /[eE]/.test(sql[i - 1]) && !/[a-z0-9_]/i.test(sql[i - 2] || ' ');
+      let j = i + 1;
+      while (j < n) {
+        if (echappe && sql[j] === '\\') { j += 2; continue; }
+        if (sql[j] === c) {
+          if (sql[j + 1] === c) { j += 2; continue; }
+          break;
+        }
+        j++;
+      }
+      out += sql.slice(i, Math.min(j + 1, n));
+      i = j + 1;
+      continue;
+    }
+    if (c === '$') {
+      const m = /^\$([A-Za-z_][A-Za-z0-9_]*)?\$/.exec(sql.slice(i, i + 80));
+      const precede = i > 0 && /[A-Za-z0-9_]/.test(sql[i - 1]);
+      if (m && !precede) {
+        const fin = sql.indexOf(m[0], i + m[0].length);
+        const stop = fin < 0 ? n : fin + m[0].length;
+        out += sql.slice(i, stop);
+        i = stop;
+        continue;
+      }
+    }
+    out += c;
+    i++;
+  }
+  return out;
+}
+
+function extraireObjets(sqlBrut) {
+  const sql = retirerCommentaires(sqlBrut);
   const objets = [];
   for (const [genre, motif] of MOTIFS_OBJETS) {
     // Un littéral global porte son `lastIndex` : on le reconstruit à chaque
@@ -192,9 +251,11 @@ function extraireObjets(sql) {
   }
   for (const genre of ['trigger', 'policy', 'fonction', 'vue']) {
     const re = new RegExp('\\bdrop\\s+' + (genre === 'fonction' ? 'function' : genre === 'vue' ? 'view' : genre)
-      + '\\s+(?:if\\s+exists\\s+)?(?:public\\.)?([a-z_][a-z0-9_]*)', 'gi');
+      + '\\s+(?:if\\s+exists\\s+)?(?:public\\.)?(%[a-zA-Z]|[a-z_][a-z0-9_]*)', 'gi');
     let m;
     while ((m = re.exec(sql)) !== null) {
+      // Un nom porté par un format() (%I, %s...) est inconnaissable : refus explicite.
+      if (m[1][0] === '%') { destructifs.push('drop_' + genre + ':dynamique'); continue; }
       if (!recrees.has(m[1].toLowerCase())) destructifs.push('drop_' + genre + ':' + m[1]);
     }
   }
