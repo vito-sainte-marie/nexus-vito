@@ -824,6 +824,18 @@ ok('relevé publié : aucun lot publié, lot vide ou lecture en erreur => stockF
   const ctx2 = E.construireContexteTarif({ site: 'S', registres: reg, declarations: {}, lignes: courantes, periode, stock: [{ libelle: 'Produit A', pa_net_ht: 1 }], stockSource: 'relevé de stock publié du 10/03/2030, colonne « PA net HT »' });
   assert.strictEqual(ctx2.stockFourni, true); assert.ok(/relevé de stock publié du 10\/03\/2030/.test(ctx2.stockSource));
 });
+ok('relevé publié : libellé en double avec deux PA => ambigu et contrôle S5 ; même libellé avec un seul PA => rien', async () => {
+  const lots = [lot('p', 'published', '2030-03-01T00:00:00Z')];
+  const rows = { p: [rowD('Produit A', '0,00', '4'), rowD('Produit A', '1', '4'), rowD('Produit B', '1,5', '2'), rowD('Produit B', '1,5', '3')] };
+  const r = await E.chargerStockPublie(clientStock(lots, rows), 'S');
+  const st = E.stockParLibelle(r.lignes);
+  assert.strictEqual(st.ambigus.length, 1); assert.strictEqual(st.ambigus[0].article, 'Produit A');
+  const ctx = E.construireContexteTarif({ site: S, registres: reg, declarations: {}, periode, stock: r.lignes });
+  const res = T.analyser(courantes, [], ctx);
+  const codes = (nom) => ((res.lignes.filter(l => l.article === nom)[0] || {}).anomalies || []).map(a => a.code);
+  assert.ok(codes('Produit A').includes('S5'), 'A : S5 attendu, obtenu ' + JSON.stringify(codes('Produit A')));
+  assert.ok(!codes('Produit B').includes('S5') && !codes('Produit B').includes('S2'), 'B : aucun S5 ni S2');
+});
 (function parite() {
   const dossier = __dirname + '/docs/reference/scanner-tarifaire-dossiers/01-T1-moteur/t1/donnees/stock_pa_net_ht_20261110.json';
   if (!fs.existsSync(dossier)) { console.log('parité banc/page : relevé T1 absent (hors dépôt), épreuve non jouée'); return; }
