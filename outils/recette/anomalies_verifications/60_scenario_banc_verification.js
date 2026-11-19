@@ -87,7 +87,7 @@ function verif(nom, cond, detail) { if (cond) { ok++; console.log('OK  ' + nom);
       const article = await boutons.first().getAttribute('data-ver-article');
       // L5 : un commentaire saisi dans le détail doit partir avec la vérification.
       const commenter = async () => {
-        const ouvrir = page.locator('#vueCorps [data-com-ouvrir]').first();
+        const ouvrir = page.locator('#vueCorps [data-ctl-detail] [data-com-ouvrir]').first();
         if (await ouvrir.count() && await ouvrir.isVisible()) await ouvrir.click();
         await page.locator('#vueCorps [data-ctl-detail] textarea.pt-verif-com').first().fill('vu sur facture');
       };
@@ -120,6 +120,7 @@ function verif(nom, cond, detail) { if (cond) { ok++; console.log('OK  ' + nom);
         verif(tag + ' L5 : après annulation, la ligne quitte Suivre', sansLigne === 0, String(sansLigne));
         await axe(page, 'controler');
         // On revérifie pour la suite du scénario.
+        if (vp.w < 900) { await page.locator('#vueCorps [data-ctl-sel]').first().click(); await page.waitForTimeout(250); }
         await commenter();
         await boutons.first().click();
         await page.waitForTimeout(400);
