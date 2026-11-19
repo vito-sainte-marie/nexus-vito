@@ -1767,7 +1767,7 @@ nexusRequireAuth().then(async employee => {
         const v = E2.payloadVerification(an, l, { importBatchId: lots[0].id, moteurVersion: window.NexusPolitiqueTarifaire.VERSION_MOTEUR, commentaire: com });
         const { data: retour, error } = await nexusClient.rpc('tarif_marquer_verifie', { p_lignes: [v] });
         if (error) throw error;
-        E2.effetVerificationEnregistree(an, etat, employee.nom, retour && retour[0] ? retour[0].o_id : null); rendre(); return;
+        E2.effetVerificationEnregistree(an, etat, employee.nom, retour && retour[0] ? retour[0].o_id : null, { commentaire: com || null, dateReleve: (an.identiteDonnees || {}).dateReleve || null }); rendre(); return;
       } catch (e) { console.error('Marquer vérifié:', e); btn.disabled = false; dire(E2.messageErreurEcriture(e), true); }
     };
     const versFiche = a => choisirSuggestion(a);

@@ -539,7 +539,7 @@ ok('acompte : les deux libellés exacts du relevé sont exclus partout', () => {
 ok('Conseiller : sans vente à perte, il renvoie vers le bloc des contrôles', () => {
   const a = { synthese: { alertes: {}, statuts: {} }, lignes: [{ article: 'X', anomalies: [{ code: 'S2', cycle: 'nouvelle' }] }] };
   const c = E.conseiller(a, 'gerant');
-  assert.strictEqual(c.code, 'CTRL'); assert.strictEqual(c.bloc, 'controles'); assert.ok(/1 contrôle/.test(c.texte));
+  assert.strictEqual(c.code, 'CTRL'); assert.strictEqual(c.bloc, 'controles'); assert.ok(/1 contrôle/.test(c.detail || c.texte));
 });
 ok('deux cartes orange : libellés qui disent la différence', () => {
   const a = analyse();
@@ -601,6 +601,31 @@ ok('D1 : une vérification enregistrée passe la ligne en « vérifiée » avec 
   E.effetVerificationEnregistree(an, etat, 'Gérant du banc');
   assert.strictEqual(an.cycle, 'verifiee');
   assert.strictEqual(etat.messageVerif, 'Vérification enregistrée. Contrôle suivant ouvert.');
+});
+ok('L5 : Conseiller court, une phrase issue du premier contrôle, sans chiffre écrit en dur, détail derrière le (i)', () => {
+  const a = avecControles(4); a.synthese.alertes = {}; a.lignes.forEach(l => { l.alertes = []; });
+  const c = E.conseiller(a, 'gerant');
+  assert.strictEqual(c.code, 'CTRL');
+  assert.ok(/^Commencer par le plus grave/.test(c.texte), c.texte);
+  assert.ok(c.texte.length < 110, 'phrase courte');
+  assert.ok(/contrôle/.test(c.detail) && c.detail !== c.texte, 'la phrase longue reste en détail');
+  const premier = a.lignes.map(l => l.article).filter(x => c.texte.indexOf(x) >= 0);
+  assert.ok(premier.length >= 1, 'nomme un article réel');
+  const h = E.htmlPage({ analyse: a, role: 'manager', estCreateur: false, filtres: {}, incoherences: [] });
+  assert.ok(/data-conseil-detail="1"/.test(h));
+});
+ok('L5 : après vérification en séance, Suivre porte la vérification ; l\'annulation la retire', async () => {
+  const an = { code: 'S2', cle: 'k1', article: 'ART', code_barres: '123', cycle: 'nouvelle', gravite: 3 }; const etat = { verifications: [] };
+  E.effetVerificationEnregistree(an, etat, 'Gérant du banc', 'id-9', { commentaire: 'vu', dateReleve: '2026-01-02' });
+  assert.strictEqual(etat.verifications.length, 1);
+  const v = etat.verifications[0];
+  assert.strictEqual(v.id, 'id-9'); assert.strictEqual(v.code, 'S2'); assert.strictEqual(v.cle, 'k1');
+  assert.strictEqual(v.auteur, 'Gérant du banc'); assert.strictEqual(v.commentaire, 'vu'); assert.ok(v.verifie_le);
+  assert.strictEqual(v.identiteDonnees.dateReleve, '2026-01-02');
+  etat.surAnnulation = async () => ({ ok: true });
+  const r = await E.annulerVerification(etat, 'motif');
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(etat.verifications.filter(x => x.id === 'id-9').length, 0);
 });
 ok('L4 : motif d\'annulation de 1 à 500 caractères, message de refus lisible', () => {
   assert.ok(E.motifAnnulationValide('erreur de saisie'));

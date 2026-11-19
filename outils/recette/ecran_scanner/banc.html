@@ -228,7 +228,7 @@
       var v = E.payloadVerification(an, l, { importBatchId: r.data[0].id, moteurVersion: T.VERSION_MOTEUR, commentaire: com });
       var w = await nexusClient.rpc('tarif_marquer_verifie', { p_lignes: [v] });
       if (w.error) throw w.error;
-      E.effetVerificationEnregistree(an, etat, 'Responsable du banc', w.data && w.data[0] ? w.data[0].o_id : null); rendre(); return;
+      E.effetVerificationEnregistree(an, etat, 'Responsable du banc', w.data && w.data[0] ? w.data[0].o_id : null, { commentaire: com || null, dateReleve: (an.identiteDonnees || {}).dateReleve || null }); rendre(); return;
     } catch (e) { btn.disabled = false; dire(E.messageErreurEcriture(e), true); }
   }
   function rendre() { corps.innerHTML = E.htmlPage(etat); lier(); }

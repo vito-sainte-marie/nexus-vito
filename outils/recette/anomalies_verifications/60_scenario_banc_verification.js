@@ -105,6 +105,11 @@ function verif(nom, cond, detail) { if (cond) { ok++; console.log('OK  ' + nom);
         await page.waitForTimeout(400);
         const retab = await total();
         verif(tag + ' L4 : annulation acceptée, le total revient à sa valeur de départ', retab === avant, avant + ' -> ' + retab);
+        // L5 : après annulation, la ligne n'est plus dans Suivre comme vérifiée.
+        await axe(page, 'suivre');
+        const sansLigne = await page.evaluate(x => [...document.querySelectorAll('#vueCorps li')].filter(e => e.textContent.includes(x) && /Vérifié le/.test(e.textContent)).length, article);
+        verif(tag + ' L5 : après annulation, la ligne quitte Suivre', sansLigne === 0, String(sansLigne));
+        await axe(page, 'controler');
         // On revérifie pour la suite du scénario.
         await boutons.first().click();
         await page.waitForTimeout(400);
@@ -116,6 +121,7 @@ function verif(nom, cond, detail) { if (cond) { ok++; console.log('OK  ' + nom);
       await axe(page, 'suivre');
       const ligneSuivre = await page.evaluate(a => [...document.querySelectorAll('#vueCorps [data-axe-pan="suivre"] li, #vueCorps .pt-axe-pan:not([hidden]) li')].filter(e => e.textContent.includes(a)).map(e => e.textContent).join(' | '), article);
       verif(tag + ' Suivre : la ligne de l\'article porte « Vérifié »', /Vérifié/.test(ligneSuivre), ligneSuivre.slice(0, 120));
+      verif(tag + ' L5 : Suivre affiche « Vérifié le JJ/MM/AAAA par … » dans la séance, pas « Jamais vérifié »', /Vérifié le \d{2}\/\d{2}\/\d{4} par \S+/.test(ligneSuivre) && !/Jamais vérifié/.test(ligneSuivre), ligneSuivre.slice(0, 160));
     }
     // Étape 8 : filtre Vérifiés présent dans l'historique.
     await axe(page, 'suivre');
