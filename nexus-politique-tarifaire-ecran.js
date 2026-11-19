@@ -254,7 +254,22 @@
     if (!L.length) return null;
     var v = L[0].a.valeurs || {}, c = L[0].a.code, f = null;
     if (c === 'S2') f = ['écart', v.ecart]; else if (c === 'S3') f = ['variation du coût', v.variationCout]; else if (c === 'S6') f = ['variation du prix', v.variationPv];
-    return 'Commencer par le plus grave : ' + L[0].l.article + (f && num(f[1]) !== null ? ', ' + f[0] + ' ' + pct(f[1]) : '');
+    var sous = f && num(f[1]) !== null ? f[0] + ' ' + pct(f[1]) : '';
+    // Deux lignes : « Le plus grave : <article> » (coupé par « … » si long), puis le chiffre. Le nom complet reste dans le détail.
+    return { art: 'Le plus grave : ' + L[0].l.article, sous: sous, article: L[0].l.article, texte: 'Le plus grave : ' + L[0].l.article + (sous ? ', ' + sous : '') };
+  }
+  // Branche « marge négative » : même format court que l'autre branche. L'article est celui dont la perte unitaire HT est la plus forte ;
+  // le bouton « Commencer par » ouvre le contrôle de cette cause (S1) sur cet article, pas la ligne la plus grave du tri.
+  function texteCourtVentePerte(analyse) {
+    var hors = lignesAlerte(sansDemarque((analyse && analyse.lignes) || []), 'A3'), best = null;
+    hors.forEach(function (l) {
+      var pu = perteUnitaire(l);
+      if (!best || (pu && (!best.pu || pu.perte > best.pu.perte)) || (!pu && !best.pu && String(l.article).localeCompare(String(best.l.article), 'fr') < 0)) best = { l: l, pu: pu };
+    });
+    if (!best) return null;
+    var s1 = (best.l.anomalies || []).filter(function (x) { return x.code === 'S1' && ['nouvelle', 'persistante', 'aggravee'].indexOf(x.cycle || 'nouvelle') >= 0; })[0];
+    var sousP = best.pu ? 'perte ' + eur(best.pu.perte) + ' HT/u' : '';
+    return { art: 'Vente à perte : ' + best.l.article, sous: sousP, article: best.l.article, texte: 'Vente à perte : ' + best.l.article + (sousP ? ', ' + sousP : ''), cible: s1 ? 'S1|' + best.l.article : null };
   }
   function conseiller(analyse, role) {
     var c = Object.assign({}, analyse.synthese.alertes || {}), st = analyse.synthese.statuts || {};
@@ -263,17 +278,18 @@
     c.A3 = lignesAlerte(hors, 'A3').length; c.A5 = lignesAlerte(hors, 'A5').length;
     var gerant = role === 'gerant' || role === 'createur';
     var pas;
-    if (c.A3) pas = { code: 'A3', filtre: { alerte: 'A3' }, quoi: plur(c.A3, 'référence vendue', 'références vendues') + ' à marge négative', pourquoi: 'chaque vente creuse la caisse tant que le prix ou le coût n\'est pas vérifié' };
-    else if (controlesActifs(analyse) > 0) { var nc = controlesActifs(analyse); pas = { court: texteCourtControle(analyse),  code: 'CTRL', filtre: null, bloc: 'controles', quoi: plur(nc, 'contrôle', 'contrôles') + ' à comparer avec Decenium', pourquoi: 'aucune vente n\'est à marge négative ; la liste des contrôles est le premier point à regarder. Un contrôle n\'est pas une erreur constatée' }; }
-    else if (c.A8) pas = { code: 'A8', filtre: { alerte: 'A8' }, quoi: plur(c.A8, 'contrôle réglementaire ouvert', 'contrôles réglementaires ouverts'), pourquoi: 'ils bloquent toute proposition de prix sur ces références' };
-    else if (st.proposition_a_valider) pas = { code: 'PROP', filtre: { statut: 'proposition_a_valider' }, quoi: plur(st.proposition_a_valider, 'proposition', 'propositions') + ' à valider', pourquoi: 'c\'est là que se trouve le gain le plus net' };
-    else if (c.A5 || c.A4 || c.A7) pas = { code: 'VERIF', filtre: { statut: 'a_verifier' }, quoi: 'les références signalées à vérifier', pourquoi: 'des sources se contredisent ou une variation sort de l\'ordinaire' };
+    var vp = c.A3 ? (texteCourtVentePerte(analyse) || {}) : {};
+    if (c.A3) pas = { court: vp.texte || null, deux: vp.art ? vp : null, cible: vp.cible || null, bloc: 'controles', code: 'A3', filtre: null, quoi: plur(c.A3, 'référence vendue', 'références vendues') + ' à marge négative', pourquoi: 'chaque vente creuse la caisse tant que le prix ou le coût n\'est pas vérifié' };
+    else if (controlesActifs(analyse) > 0) { var nc = controlesActifs(analyse); var tc = texteCourtControle(analyse); pas = { court: tc && tc.texte, deux: tc, code: 'CTRL', filtre: null, bloc: 'controles', quoi: plur(nc, 'contrôle', 'contrôles') + ' à comparer avec Decenium', pourquoi: 'aucune vente n\'est à marge négative ; la liste des contrôles est le premier point à regarder. Un contrôle n\'est pas une erreur constatée' }; }
+    else if (c.A8) pas = { court: 'Commencer par les contrôles réglementaires : ' + c.A8 + (c.A8 > 1 ? ' ouverts' : ' ouvert'), code: 'A8', filtre: { alerte: 'A8' }, quoi: plur(c.A8, 'contrôle réglementaire ouvert', 'contrôles réglementaires ouverts'), pourquoi: 'ils bloquent toute proposition de prix sur ces références' };
+    else if (st.proposition_a_valider) pas = { court: 'Commencer par les propositions : ' + st.proposition_a_valider + ' à valider', code: 'PROP', filtre: { statut: 'proposition_a_valider' }, quoi: plur(st.proposition_a_valider, 'proposition', 'propositions') + ' à valider', pourquoi: 'c\'est là que se trouve le gain le plus net' };
+    else if (c.A5 || c.A4 || c.A7) pas = { court: 'Commencer par les références à vérifier', code: 'VERIF', filtre: { statut: 'a_verifier' }, quoi: 'les références signalées à vérifier', pourquoi: 'des sources se contredisent ou une variation sort de l\'ordinaire' };
     else pas = null;
-    if (!pas) return { code: 'RAS', texte: gerant ? 'Rien d\'urgent : aucune alerte forte sur cette période. Vous pouvez surveiller les prix décidés.' : 'Rien d\'urgent sur cette période.', filtre: null };
+    if (!pas) return gerant ? { code: 'RAS', texte: 'Rien d\'urgent sur cette période.', detail: 'Aucune alerte forte sur cette période. Vous pouvez surveiller les prix décidés.', filtre: null } : { code: 'RAS', texte: 'Rien d\'urgent sur cette période.', filtre: null };
     var texte = gerant
       ? 'Je vous conseille de commencer par ' + pas.quoi + ' : ' + pas.pourquoi + '.'
       : 'Priorité du jour : ' + pas.quoi + '. Raison : ' + pas.pourquoi + '.';
-    if (pas.court) return { code: pas.code, texte: pas.court, detail: texte, filtre: pas.filtre, bloc: pas.bloc || null };
+    if (pas.court) return { code: pas.code, texte: pas.court, detail: (pas.deux && pas.deux.article ? 'Article : ' + pas.deux.article + '. ' : '') + texte, filtre: pas.filtre, bloc: pas.bloc || null, cible: pas.cible || null, art: pas.deux ? pas.deux.art : null, sous: pas.deux ? pas.deux.sous : null };
     return { code: pas.code, texte: texte, filtre: pas.filtre, bloc: pas.bloc || null };
   }
 
@@ -493,6 +509,7 @@
   function htmlVerification(an, l, droits, etat, suivant) {
     var code = an.code, idc = 'ptc-' + String(l.article).replace(/[^A-Za-z0-9_-]/g, '_') + '-' + code;
     var fiable = !!(an.identiteDonnees || {}).fichierHash;
+    if (etat && etat.estCreateur && an.cycle !== 'verifiee') return '<p class="sc-note pt-lecture-seule" data-lecture-seule-createur="1">Lecture seule : le compte créateur ne vérifie pas.</p>';
     if (!droits || an.cycle === 'verifiee') return '';
     if (!fiable) return '<p class="sc-note pt-verif-indispo" data-verif-indispo="1">Donnée non fiable : l\'import de référence est introuvable, la vérification n\'est pas possible.</p>';
     var cleC = code + '|' + l.article, comOuvert = !!(etat && etat.comOuvert && etat.comOuvert.indexOf(cleC) >= 0);
@@ -670,6 +687,15 @@
   function messageErreurEcriture(err) {
     var m = String((err && (err.message || err)) || '');
     if (m.indexOf('tarif_verif_commentaire_trop_long') >= 0) return 'Le commentaire dépasse ' + LIMITE_COMMENTAIRE + ' caractères. Raccourcissez-le puis réessayez.';
+    var refus = [
+      ['tarif_verif_createur_lecture_seule', 'Le compte créateur est en lecture seule : il ne peut pas marquer un contrôle comme vérifié.'],
+      ['tarif_verif_reservee_manager_gerant', 'Cette action est réservée au manager et au gérant. Votre rôle ne permet pas de vérifier.'],
+      ['tarif_verif_compte_inactif', 'Votre compte est désactivé : la vérification n\'est pas possible.'],
+      ['tarif_verif_session_absente', 'Votre session a expiré. Reconnectez-vous puis réessayez.'],
+      ['tarif_verif_lot_import_incoherent', "Le lot d'import ne correspond plus à ce fichier. Rechargez la page puis réessayez."],
+      ['tarif_verif_reference_absente', "Cette ligne n'a ni code-barres ni libellé : la vérification n'est pas possible."]
+    ];
+    for (var i = 0; i < refus.length; i++) if (m.indexOf(refus[i][0]) >= 0) return refus[i][1] + " Rien n'a été modifié.";
     return "L'enregistrement a échoué. Rien n'a été modifié, vous pouvez réessayer.";
   }
   var MSG_VERIF_OK = 'Vérification enregistrée. Contrôle suivant ouvert.';
@@ -865,9 +891,9 @@
       if (bl) { if (bl.scrollIntoView) bl.scrollIntoView({ block: 'start' }); var sm = bl.querySelector('summary'); if (sm) sm.focus(); }
     }
     // L5 : « Commencer par » ouvre le premier contrôle du tri « Gravité décroissante » (filtres remis par défaut). Aucune écriture.
-    function commencerPar() {
+    function commencerPar(cible) {
       etat.ctlTri = 'gravite'; etat.ctlRecherche = ''; etat.ctlCycles = CYCLES_DEFAUT;
-      var L = controlesFiltres(etat), x = L[0] || null;
+      var L = controlesFiltres(etat), x = (cible && L.filter(function (y) { return cleControle(y) === cible; })[0]) || L[0] || null;
       ouvrirControles();
       if (x) { var cle = cleControle(x); if (etroit()) ouvrirDetail(cle); else choisirLigne(cle); }
     }
@@ -885,7 +911,7 @@
         if (j < 0) return; ev.preventDefault(); choisirAxe(onglets[j].dataset.axeOnglet, true);
       });
     });
-    Array.prototype.forEach.call(corps.querySelectorAll('[data-carte="controles_a_effectuer"], [data-bloc-conseil="controles"]'), function (b) { b.addEventListener('click', (b.dataset && b.dataset.commencer) ? commencerPar : ouvrirControles); });
+    Array.prototype.forEach.call(corps.querySelectorAll('[data-carte="controles_a_effectuer"], [data-bloc-conseil="controles"]'), function (b) { b.addEventListener('click', (b.dataset && b.dataset.commencer) ? function () { commencerPar(b.dataset.cible || null); } : ouvrirControles); });
     // Bloc des contrôles : (i), « Voir plus », tri, cycle, recherche. Câblage unique, page et banc.
     // L2 : choix d'une ligne (clic, Entrée) et flèches haut/bas ; le focus suit la ligne choisie après le rendu.
     var lignes = Array.prototype.slice.call(corps.querySelectorAll('[data-ctl-sel]'));
@@ -1013,8 +1039,8 @@
     if (s.stockFourni === false) h += '<p class="sc-note pt-stock-absent" data-stock-absent="1"><b>Relevé de stock</b> : non fourni. Le coût des références n\'est pas comparé au PA net HT du stock.</p>';
     var c = conseiller(a, etat.role);
     h += '<div class="carte conseiller sc-conseiller"><img class="conseiller-avatar" src="assets/avatar/nexus-avatar-128.png" srcset="assets/avatar/nexus-avatar-64.png 64w, assets/avatar/nexus-avatar-96.png 96w, assets/avatar/nexus-avatar-128.png 128w, assets/avatar/nexus-avatar-256.png 256w" sizes="80px" alt="Conseiller NEXUS">' +
-      '<div class="conseiller-corps sc-conseil-ligne"><p class="sc-conseil"><strong class="conseiller-titre">Conseiller NEXUS</strong> ' + esc(c.texte) + (c.detail ? ' <details class="sc-conseil-plus"><summary class="info-btn pt-info" aria-label="Pourquoi ce conseil">i</summary><span class="sc-methode" data-conseil-detail="1">' + esc(c.detail) + '</span></details>' : '') + '</p>' +
-      (c.filtre ? '<button type="button" class="detail-btn" data-conseil="1">Voir dans la liste</button>' : c.bloc ? '<button type="button" class="detail-btn" data-conseil="1" data-bloc-conseil="controles" data-commencer="1">Commencer par</button>' : '') + '</div></div>';
+      '<div class="conseiller-corps sc-conseil-ligne"><p class="sc-conseil' + (c.art ? ' sc-conseil-2l' : '') + '"><strong class="conseiller-titre">Conseiller NEXUS</strong> ' + (c.art ? '<span class="sc-conseil-art">' + esc(c.art) + '</span> <span class="sc-conseil-sous">' + esc(c.sous || '') + '</span>' : esc(c.texte)) + (c.detail ? ' <details class="sc-conseil-plus"><summary class="info-btn pt-info" aria-label="Pourquoi ce conseil">i</summary><span class="sc-methode" data-conseil-detail="1">' + esc(c.detail) + '</span></details>' : '') + '</p>' +
+      (c.filtre ? '<button type="button" class="detail-btn" data-conseil="1">Voir dans la liste</button>' : c.bloc ? '<button type="button" class="detail-btn" data-conseil="1" data-bloc-conseil="controles" data-commencer="1"' + (c.cible ? ' data-cible="' + esc(c.cible) + '"' : '') + '>Commencer par</button>' : '') + '</div></div>';
     var cs = cartes(a), couleur = { marge_negative: 'sc-rouge', propositions: 'sc-info', a_verifier: 'sc-ambre', non_constates: 'sc-gris' };
     var carte = function (id) {
       var c = cs.filter(function (x) { return x.id === id; })[0];
@@ -1081,6 +1107,7 @@
     '.vue-p1c .pt-inds{grid-template-columns:repeat(2,1fr)}@media (min-width:900px){.vue-p1c .pt-inds{grid-template-columns:repeat(4,1fr)}}' +
     '.vue-p1c .pt-badges{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}.vue-p1c .pt-pol{margin:8px 0}.vue-p1c .pt-pol-l{display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:2px 0}' +
     '.vue-p1c details.pt-filtres[open]>summary .sc-chev{transform:rotate(45deg)}.vue-p1c details.pt-histo-sec[open]>summary .sc-chev{transform:rotate(45deg)}.vue-p1c .pt-histo-sec>summary{min-height:44px;display:flex;align-items:center;justify-content:space-between;cursor:pointer}.vue-p1c .pt-histo-reset{margin:6px 0}.vue-p1c .pt-histo-plus{margin:6px 0}.vue-p1c .pt-ctrl .vp-liste{margin:8px 0}.vue-p1c .pt-f{display:flex;flex-direction:column;gap:2px;min-width:0}.vue-p1c .pt-f select,.vue-p1c .pt-f input{min-height:44px;border-radius:8px;border:1px solid var(--t-line);background:var(--t-panel);color:var(--t-text);font:inherit;padding:0 8px}.vue-p1c .pt-f-rech{flex:1 1 100%}.vue-p1c .pt-f:not(.pt-f-rech){flex:1 1 140px}.vue-p1c .pt-scenarios{margin:8px 0}.vue-p1c .pt-aucun{margin:4px 0 0}.vue-p1c .sc-conseiller{margin:0 0 10px}.vue-p1c .pt-histo-t{display:flex;align-items:center;gap:6px}.vue-p1c .sc-conseil-ligne{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px}.vue-p1c .sc-conseil-ligne .sc-conseil{margin:0;flex:1 1 220px;max-width:100%}.sc-conseil-plus{display:inline}.sc-conseil-plus>summary{display:inline-flex;list-style:none;cursor:pointer}.sc-conseil-plus>summary::-webkit-details-marker{display:none}.sc-conseil-plus[open]>span{display:block}.sc-conseiller .sc-conseil{overflow-wrap:anywhere}@media(min-width:900px){.sc-conseiller .sc-conseil:not(:has(details[open])){white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}.vue-p1c .sc-conseiller{padding-top:8px;padding-bottom:8px;align-items:center}.vue-p1c .sc-conseiller .conseiller-avatar{width:32px;height:32px}.vue-p1c .pt-histo-suivi{display:block;margin-top:2px}.vue-p1c .pt-histo-txt{flex:1;min-width:0}.vue-p1c .pt-li{display:flex;align-items:center;gap:6px}.vue-p1c .pt-li .vp-ligne-prod{flex:1;min-width:0}.vue-p1c .pt-li .pt-info{flex:none}.vue-p1c .pt-ctl{list-style:none;padding:10px 0;border-top:1px solid var(--t-line)}.vue-p1c .pt-ctl-2,.vue-p1c .pt-ctl-3{margin:4px 0}.vue-p1c .pt-ctl .pt-verifier{width:100%;min-height:44px;margin-top:8px}.vue-p1c .pt-ctl-titre{margin:0 0 8px}.vue-p1c .pt-controles-faire{margin:14px 0 10px}.vue-p1c .pt-bloc-controles{margin:10px 0}.vue-p1c .pt-ctl-outils{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}@media(min-width:900px){.vue-p1c .pt-ctl-outils{flex-wrap:nowrap;align-items:flex-end}.vue-p1c .pt-ctl-outils .pt-f-rech{flex:1 1 220px}.vue-p1c .pt-ctl-outils .pt-f:not(.pt-f-rech){flex:0 1 190px}.vue-p1c .pt-ctl-cycles{display:flex;flex-wrap:nowrap;align-items:center;gap:8px;border:0;padding:0;margin:0}.vue-p1c .pt-ctl-cycles legend{float:left;padding:0 4px 0 0}.vue-p1c .pt-ctl-aide{order:9}}.vue-p1c .pt-ctl-aide>summary{list-style:none;cursor:pointer}.vue-p1c .pt-ctl-aide>summary::-webkit-details-marker{display:none}.vue-p1c .pt-ctl-cycles{border:0;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:4px 12px}.vue-p1c .pt-carte-ctl{text-align:left;font:inherit;cursor:pointer;width:100%;border:1px solid var(--t-line);background:var(--t-panel);color:var(--t-text);min-height:44px}.vue-p1c .pt-com-lien{background:none;border:0;padding:0 2px;min-height:44px;font:inherit;font-size:13px;color:var(--accent,inherit);text-decoration:underline;cursor:pointer}.vue-p1c input[type=checkbox]{accent-color:var(--accent)}.vue-p1c .pt-chk{display:inline-flex;align-items:center;gap:6px;min-height:44px}.vue-p1c .pt-verif-champ{margin-top:8px}.vue-p1c .pt-verif-zone{display:flex;flex-direction:column;gap:4px}.vue-p1c .pt-verif-com{width:100%;box-sizing:border-box;min-height:64px;border-radius:8px;border:1px solid var(--t-line);background:var(--t-panel);color:var(--t-text);font:inherit;padding:8px;resize:vertical}.vue-p1c .pt-verif-n{align-self:flex-end}.vue-p1c .pt-fond{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:40}.vue-p1c .pt-fiche{position:fixed;z-index:41;background:var(--t-panel);overflow:auto;box-sizing:border-box;left:0;right:0;bottom:0;max-height:85vh;border-radius:16px 16px 0 0;padding:12px 16px 24px}@media (min-width:900px){.vue-p1c .pt-fiche{left:auto;top:0;bottom:0;right:0;width:420px;max-height:none;border-radius:0}}.vue-p1c .pt-fiche-tete{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}.vue-p1c .pt-fermer{min-height:44px}.vue-p1c .pt-marge-l1{display:block;color:var(--t-text)}.vue-p1c .pt-marge-prin{color:var(--t-text);font-family:var(--t-mono);font-weight:700;font-size:17px}.vue-p1c .pt-marge-sec{display:block;color:var(--t-mid);font-family:var(--t-mono);font-size:12px}.vue-p1c .vp-filtres{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start}.vue-p1c .pt-filtres{flex:1 1 100%}.vue-p1c .pt-filtres>summary{min-height:44px;display:flex;align-items:center;justify-content:space-between;cursor:pointer}.vue-p1c .pt-filtres-corps{display:flex;flex-wrap:wrap;gap:8px}@media (min-width:900px){.vue-p1c .pt-filtres-corps{flex-wrap:wrap}.vue-p1c .pt-filtres-corps>.pt-f{flex:1 1 160px;min-width:0}}@media (max-width:599px){.vue-p1c .sc-conseiller .conseiller-avatar{width:48px;height:48px}.vue-p1c .sc-ind{padding:10px 12px}.vue-p1c .sc-ind-val{font-size:20px}}';
+  CSS += '@media(max-width:599px){.sc-conseiller:has(.sc-conseil-2l){display:grid;grid-template-columns:32px minmax(0,1fr) auto;column-gap:8px;row-gap:6px;align-items:center}.sc-conseiller:has(.sc-conseil-2l) .conseiller-corps,.sc-conseiller:has(.sc-conseil-2l) .sc-conseil-2l{display:contents}.sc-conseiller:has(.sc-conseil-2l)>.conseiller-avatar{grid-area:1/1/2/2}.sc-conseiller:has(.sc-conseil-2l) .conseiller-titre{grid-area:1/2/2/4}.sc-conseil-2l .sc-conseil-art{grid-area:2/1/3/4;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}.sc-conseil-2l .sc-conseil-sous{grid-area:3/1/4/4;display:block}.sc-conseiller:has(.sc-conseil-2l) .detail-btn{grid-area:4/1/5/3;justify-self:start}.sc-conseil-2l .sc-conseil-plus{grid-area:4/3/5/4;justify-self:end}.sc-conseil-2l .sc-conseil-plus[open]{grid-area:5/1/6/4;justify-self:stretch}}';
   CSS += '.vue-p1c .pt-ctl-deux{display:block}.vue-p1c .pt-ctl-liste{list-style:none;margin:0;padding:0}.vue-p1c .pt-ctl-item{margin:0;border-top:1px solid var(--t-line)}.vue-p1c .pt-ctl-ligne{display:flex;align-items:center;gap:8px;width:100%;min-height:44px;padding:6px 10px;background:transparent;color:var(--t-text);border:0;border-left:3px solid transparent;text-align:left;font:inherit;cursor:pointer}.vue-p1c .pt-ctl-ligne>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.vue-p1c .pt-ctl-ligne{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:8px;row-gap:2px;align-items:center}.vue-p1c .pt-ctl-ligne>.pt-l-tag{flex-shrink:0;overflow:visible;text-overflow:clip;white-space:nowrap;min-width:max-content;justify-self:end}.vue-p1c .pt-ctl-ligne>.pt-l-sec{grid-column:1 / -1;font-size:.85em;opacity:.85}.vue-p1c .pt-ctl-ligne[aria-current=true]{background:var(--t-panel);border-left-color:var(--t-text)}.vue-p1c .pt-ctl-ligne:focus-visible,.vue-p1c details.pt-sources-calcul>summary:focus-visible{outline:2px solid var(--t-text);outline-offset:2px}.vue-p1c .pt-ctl-ligne:focus-visible{outline-offset:-2px}.vue-p1c .pt-detail{margin-top:12px;padding:12px;border:1px solid var(--t-line);border-radius:14px;background:var(--t-panel)}.vue-p1c .pt-detail .pt-ctl-prod{background:none;border:0;padding:0;margin:0;color:var(--t-text);font:inherit;font-weight:700;text-align:left;cursor:pointer;min-height:44px}.vue-p1c .pt-detail .pt-ctl-prod:focus-visible{outline:2px solid var(--t-text);outline-offset:2px}.vue-p1c details.pt-sources-calcul>summary{min-height:44px;display:flex;align-items:center;cursor:pointer}@media (max-width:899.98px){.vue-p1c .pt-ctl-deux[data-mode=liste]>.pt-ctl-droite{display:none}.vue-p1c .pt-ctl-deux[data-mode=detail]>.pt-ctl-gauche{display:none}.vue-p1c .pt-ctl-deux[data-mode=detail]>.pt-ctl-droite{position:fixed;top:0;right:0;bottom:0;left:0;z-index:50;overflow-y:auto;overflow-x:hidden;background:var(--t-panel);-webkit-overflow-scrolling:touch}.vue-p1c .pt-ctl-deux[data-mode=detail] .pt-detail{margin:0;min-height:100%;display:flex;flex-direction:column;border:0;border-radius:0;padding:12px 16px 0;box-sizing:border-box;max-width:100%;overflow-wrap:anywhere}.vue-p1c .pt-ctl-entete{display:flex;align-items:center;justify-content:space-between;gap:8px}.vue-p1c .pt-ctl-pos{white-space:nowrap;color:var(--t-text)}.vue-p1c .pt-ctl-retour,.vue-p1c .pt-ctl-suivant{min-height:44px;min-width:44px;margin:0 0 8px}.vue-p1c .pt-ctl-suivant[disabled]{opacity:.5}.vue-p1c .pt-actions{position:sticky;bottom:0;display:flex;gap:8px;padding:8px 0 calc(8px + env(safe-area-inset-bottom,0px));margin-top:auto;background:var(--t-panel);border-top:1px solid var(--t-line)}.vue-p1c .pt-actions>button{flex:1 1 0;min-height:44px}.vue-p1c .pt-ctl-retour:focus-visible,.vue-p1c .pt-actions>button:focus-visible{outline:2px solid var(--t-text);outline-offset:2px}}@media (min-width:900px){.vue-p1c .pt-ctl-retour,.vue-p1c .pt-ctl-suivant{display:none}.vue-p1c .pt-actions{display:block}.vue-p1c .pt-ctl-deux{display:grid;grid-template-columns:46% 1fr;gap:16px;align-items:start}.vue-p1c .pt-ctl-ligne{min-height:52px;padding:4px 10px}.vue-p1c .pt-ctl-deux>.pt-ctl-droite{position:sticky;top:8px;align-self:start;max-height:calc(100vh - 16px);overflow-y:auto}.vue-p1c .pt-detail{margin-top:0}}';
 
   // ---------- Montage : lecture seule, session de la personne connectée, clé publique, aucun paramètre de site ----------

@@ -14,7 +14,7 @@
   Ce qui appartient au banc : le pilote, le client simulé, le choix du scénario et la réplique du câblage
   de NEXUS-Produits-v1.html (lier, marquerVerifie). Ce qui sort des modules réels : le contexte, l'analyse,
   les écritures de réévaluation, la page (htmlPage), les droits (peutVoirOnglet, peutVerifier) et le CSS de l'écran.
-  Scénarios : ?scenario=gerant|manager|pompiste|vide|nonfiable|erreur_ecriture|erreur_lecture|historique|gaz|cas_production
+  Scénarios : ?scenario=gerant|manager|createur|pompiste|vide|nonfiable|erreur_ecriture|erreur_lecture|historique|gaz|cas_production
   Thème : ?theme=jour|nuit
 -->
 <style>
@@ -50,7 +50,7 @@
 <script>
 (async function () {
   'use strict';
-  var SCENARIOS = ['gerant', 'manager', 'pompiste', 'vide', 'nonfiable', 'erreur_ecriture', 'annulation_refusee', 'erreur_lecture', 'historique', 'gaz', 'cas_production'];
+  var SCENARIOS = ['gerant', 'manager', 'createur', 'pompiste', 'vide', 'nonfiable', 'erreur_ecriture', 'annulation_refusee', 'erreur_lecture', 'historique', 'gaz', 'cas_production'];
   var DOSSIER = 'docs/reference/scanner-tarifaire-dossiers/01-T1-moteur/t1/';
   var SITE = 'site-banc';
   var q = new URLSearchParams(location.search);
@@ -85,8 +85,9 @@
   var st = document.createElement('style'); st.id = 'styleTarif'; st.textContent = E.CSS; document.head.appendChild(st);
 
   // Rôle selon le scénario (la page réelle prend employee.role).
-  var role = scenario === 'manager' ? 'manager' : scenario === 'pompiste' ? 'pompiste' : 'gerant';
-  if (!E.peutVoirOnglet(role, false)) {
+  var role = scenario === 'manager' || scenario === 'createur' ? 'manager' : scenario === 'pompiste' ? 'pompiste' : 'gerant';
+  var estCreateur = scenario === 'createur'; // compte créateur : lecture seule, aucun bouton « Marquer comme vérifié »
+  if (!E.peutVoirOnglet(role, estCreateur)) {
     corps.innerHTML = '<div class="vp-ligne" role="status">Rôle « ' + esc(role) + ' » : l\'onglet Scanner tarifaire n\'est pas proposé (E.peutVoirOnglet = false). Rien à afficher.</div>';
     return;
   }
@@ -98,8 +99,8 @@
     var fic = function (article, pv, pa) { return { article: article, categorie: 'Rayon fictif', quantite: 10, prix_vente: pv, prix_achat: pa, tva: 20, code_barres: '' }; };
     cfg = { contexte: { periode: { debut: '2030-03-01', fin: '2030-03-30' }, tva: { explications: [] } } };
     P1 = [];
-    P2 = [fic('12-11-2026 ARTICLE FICTIF DATE', 0.03, 1.57), fic('ARTICLE FICTIF DEUX CONTROLES', 0.5, 1.0), fic('ARTICLE FICTIF PERTE EXTREME', 0.5, 3.0), fic('ARTICLE FICTIF SAIN', 3.0, 1.5)];
-    stock = [{ libelle: 'ARTICLE FICTIF DEUX CONTROLES', pa_net_ht: 2.0 }, { libelle: 'ARTICLE FICTIF PERTE EXTREME', pa_net_ht: 3.0 }, { libelle: 'ARTICLE FICTIF SAIN', pa_net_ht: 1.5 }];
+    P2 = [fic('12-11-2026 ARTICLE FICTIF DATE', 0.03, 1.57), fic('ARTICLE FICTIF DEUX CONTROLES', 0.5, 1.0), fic('ARTICLE FICTIF PERTE EXTREME SACHET MENTHE BLEUE 100G LOT 12P', 0.5, 3.0), fic('ARTICLE FICTIF SAIN', 3.0, 1.5)];
+    stock = [{ libelle: 'ARTICLE FICTIF DEUX CONTROLES', pa_net_ht: 2.0 }, { libelle: 'ARTICLE FICTIF PERTE EXTREME SACHET MENTHE BLEUE 100G LOT 12P', pa_net_ht: 3.0 }, { libelle: 'ARTICLE FICTIF SAIN', pa_net_ht: 1.5 }];
   } else try {
     var get = async function (f) { var r = await fetch(DOSSIER + f); if (!r.ok) throw new Error(f + ' : ' + r.status); return r; };
     var cfgTxt = await (await get('config_sainte_marie_t1.js')).text();
@@ -190,10 +191,10 @@
     identite = { fichierHash: ctx.fichierHash || null, dateReleve: ctx.stockDate || null };
     if (!analyse.lignes.length) { corps.innerHTML = '<div class="vp-ligne">Aucune donnée tarifaire pour ce site</div>'; return; }
     etat = { analyse: analyse, verifications: verifs || [], historiqueDispo: !!verifs, filtreHisto: 'verifiee', histoOuverte: null, role: role, filtres: corpsGaz ? { rayon: 'Gaz' } : {},
-      incoherences: ctx.incoherences || [], ouverte: null, toutes: false, site: 'Banc de recette', icone: icone, estCreateur: false };
+      incoherences: ctx.incoherences || [], ouverte: null, toutes: false, site: 'Banc de recette', icone: icone, estCreateur: estCreateur };
     etat.surAnnulation = async function (cible, motif) { var r = await nexusClient.from('tarif_anomalies_verifications').update({ annule_le: new Date().toISOString(), annule_par: 'banc', motif_annulation: motif }).eq('id', cible.id).is('annule_le', null).select('id'); if (r.error) return { ok: false, message: E.messageErreurAnnulation(r.error) }; if (!r.data || !r.data.length) return { ok: false, message: E.messageErreurAnnulation(new Error('aucune ligne')) }; return { ok: true }; };
     if (verifs) {
-      var rr = await E.enregistrerReevaluations(nexusClient, role, false, analyse, verifs, identite);
+      var rr = await E.enregistrerReevaluations(nexusClient, role, estCreateur, analyse, verifs, identite);
       if (rr.statut === 'droits') etat.reevalNonEnregistree = true;
       else if (rr.statut === 'ecrit') { try { etat.verifications = (await E.chargerVerifications(nexusClient, SITE)).verifications; } catch (e) { /* facultatif */ } }
       else if (rr.statut === 'erreur') etat.messageReeval = "Les réévaluations n'ont pas pu être enregistrées. L'écran reste à jour, l'enregistrement sera retenté à la prochaine ouverture.";
@@ -218,7 +219,7 @@
     var an = l && (l.anomalies || []).filter(function (x) { return x.code === code; })[0];
     var zone = btn.closest('[data-ctl-detail]') || btn.closest('li') || btn.parentNode;
     var dire = function (t, erreur) { var m = zone.querySelector('.pt-verif-msg'); if (!m) { m = document.createElement('p'); m.className = 'sc-note pt-verif-msg'; zone.appendChild(m); } m.setAttribute('role', erreur ? 'alert' : 'status'); m.textContent = t; };
-    if (!an || !E.peutVerifier(role, false)) { dire('Action réservée au gérant et au manager.'); return; }
+    if (!an || !E.peutVerifier(role, estCreateur)) { dire('Action réservée au gérant et au manager.'); return; }
     var zc = zone.querySelector('textarea.pt-verif-com[data-com-article]'); var com = zc ? zc.value : '';
     if (!E.commentaireValide(com)) { dire(E.messageErreurEcriture('tarif_verif_commentaire_trop_long')); return; }
     btn.disabled = true; dire('Enregistrement…');
