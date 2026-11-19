@@ -83,6 +83,7 @@ function jeu(site) {
   // Lot A (accord Guardian 6984645857, point 4) : la carte « Marge estimée » s'ajoute aux quatre cartes de synthèse.
   assert.ok(c.includes('data-carte="marge_estimee"'), 'carte marge estimée');
   assert.strictEqual((c.match(/data-carte="/g) || []).length, 5, 'quatre cartes de synthèse + marge estimée (indicateur des contrôles retiré en L5)');
+// Décision du pilote (L5) : l'indicateur « N contrôles à effectuer » est retiré ; la donnée reste visible dans le bloc des contrôles.
 // L5 : l'indicateur « contrôles à effectuer » est retiré ; le bloc des contrôles porte le compte.
 assert.ok(!c.includes('data-carte="controles_a_effectuer"') && c.includes('data-bloc-controles'), 'indicateur retiré, bloc des contrôles présent');
   for (const id of ['pertes', 'couts', 'marges', 'regl', 'verif']) assert.ok(!c.includes(`data-carte="${id}"`), 'carte T1 ' + id + ' remplacée');
