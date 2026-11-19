@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Maquette Scanner finition</title>
+<style>
+:root{--bg:#f4f1ea;--panel:#fff;--line:#d9d3c5;--text:#1f1d19;--mid:#6a6558;--accent:#0b6e4f;--warn:#a65b00;--bad:#a3261f;--ok:#0b6e4f}
+:root[data-theme=nuit]{--bg:#14161a;--panel:#1d2026;--line:#343944;--text:#ecebe6;--mid:#a3a79f;--accent:#4fc79a;--warn:#e0a24a;--bad:#f07a72;--ok:#4fc79a}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.4 system-ui,sans-serif;padding:16px}
+h1{font-size:18px;margin:0 0 4px}h2{font-size:15px;margin:24px 0 8px}p.n{color:var(--mid);margin:0 0 8px}
+.bar{display:flex;gap:8px;margin-bottom:12px}.bar button{min-height:44px;padding:0 14px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--text);font:inherit}
+.cadre{border:1px solid var(--line);border-radius:12px;background:var(--bg);overflow:hidden;margin-bottom:16px}
+.m375{width:375px;height:812px}.m1280{width:1280px;height:560px;max-width:100%}
+.resume{padding:12px 16px;border-bottom:1px solid var(--line);background:var(--panel);display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.resume b{font-size:16px}.prim{min-height:44px;padding:0 16px;border-radius:8px;border:0;background:var(--accent);color:#fff;font:inherit;font-weight:600}
+:root[data-theme=nuit] .prim{color:#06241a}
+.filtres{position:sticky;top:0;padding:8px 16px;background:var(--panel);border-bottom:1px solid var(--line);display:flex;gap:8px;flex-wrap:wrap}
+.filtres span{border:1px solid var(--line);border-radius:999px;padding:6px 12px;min-height:32px;box-sizing:border-box}
+.filtres .on{border-color:var(--accent);color:var(--accent)}
+.vue{display:flex;height:calc(100% - 96px)}.liste{flex:0 0 100%;overflow:auto}.m1280 .liste{flex:0 0 46%;border-right:1px solid var(--line)}
+.row{display:grid;grid-template-columns:1fr auto;gap:2px 8px;padding:10px 16px;border-bottom:1px solid var(--line);min-height:44px;background:var(--panel)}
+.row.sel{outline:2px solid var(--accent);outline-offset:-2px}.row .t{font-weight:600}.row .s{color:var(--mid);font-size:13px;grid-column:1}
+.et{font-size:12px;border:1px solid currentColor;border-radius:6px;padding:1px 6px;align-self:start}.et.d{color:var(--bad)}.et.v{color:var(--warn)}
+.chiffre{font-family:ui-monospace,monospace;font-size:13px;grid-column:1}
+.detail{flex:1;overflow:auto;padding:12px 16px;background:var(--panel)}.m375 .detail{flex:0 0 100%}
+.retour{min-height:44px;background:none;border:0;color:var(--accent);font:inherit;padding:0}
+.marge{font-family:ui-monospace,monospace;font-weight:700;font-size:17px}
+.just{color:var(--mid)}.tech{border-top:1px solid var(--line);margin-top:12px;padding-top:8px}.tech div{display:flex;justify-content:space-between;gap:8px;padding:2px 0;font-size:13px}
+.tech span:first-child{color:var(--mid)}
+.toast{margin:12px 0;padding:10px 12px;border-radius:8px;border:1px solid var(--accent);display:flex;justify-content:space-between;align-items:center;gap:8px}
+.toast button{min-height:44px;background:none;border:0;color:var(--accent);font:inherit;text-decoration:underline}
+.leg{font-size:12px;color:var(--mid)}
+</style></head><body>
+<h1>Scanner tarifaire : finition ergonomique (maquette, données fictives)</h1>
+<p class="n">Aucune ligne d'article réelle. « Référence A » à « Référence D » sont fictives. Le bouton Jour / Nuit change les jetons.</p>
+<div class="bar"><button onclick="document.documentElement.dataset.theme='jour'">Jour</button><button onclick="document.documentElement.dataset.theme='nuit'">Nuit</button></div>
+
+<h2>1280 : liste à gauche, fiche à droite, confirmation discrète après « Marquer comme vérifié »</h2>
+<div class="cadre m1280">
+ <div class="resume"><span><b>152 à examiner</b> · 3 vérifiés aujourd'hui</span><button class="prim">Commencer par le plus grave</button></div>
+ <div class="filtres"><span class="on">Nouveaux</span><span class="on">Persistants</span><span class="on">Aggravés</span><span>Vérifiés</span><span>Résolus</span><span>Tri : gravité</span><span>Recherche</span></div>
+ <div class="vue">
+  <div class="liste">
+   <div class="row sel"><span class="t">Référence A</span><span class="et d">Démontré</span><span class="s">Marge négative</span><span class="chiffre">PV 0,03 € · coût 1,57 €</span></div>
+   <div class="row"><span class="t">Référence B</span><span class="et v">À vérifier</span><span class="s">Coût différent du relevé de stock</span><span class="chiffre">écart 111 % · seuil 10 %</span></div>
+   <div class="row"><span class="t">Référence C</span><span class="et v">À vérifier</span><span class="s">TVA différente de la période précédente</span><span class="chiffre">5,5 % → 20 %</span></div>
+   <div class="row"><span class="t">Référence D</span><span class="et v">À confirmer</span><span class="s">Coût en hausse</span><span class="chiffre">+14 % · seuil 10 %</span></div>
+  </div>
+  <div class="detail">
+   <div class="marge">Référence A</div>
+   <div class="just">Marge estimée : négative. Le prix de vente est inférieur au coût de revient de l'export.</div>
+   <div class="toast" role="status"><span>Vérifié. Référence suivante affichée. Réévalué au prochain import.</span><button>Annuler (5 s)</button></div>
+   <button class="prim" style="width:100%">Marquer comme vérifié</button>
+   <div class="tech"><div><span>Source du coût</span><span>Coût de revient (export des ventes)</span></div><div><span>Relevé de stock</span><span>10/11</span></div><div><span>Écart</span><span>111 % (seuil 10 %)</span></div><div><span>Empreinte</span><span>a1b2c3d4</span></div></div>
+  </div>
+ </div>
+</div>
+
+<h2>375 : liste pleine largeur</h2>
+<div class="cadre m375">
+ <div class="resume"><span><b>152 à examiner</b></span><button class="prim" style="width:100%">Commencer par le plus grave</button></div>
+ <div class="filtres"><span class="on">Actifs</span><span>Tri : gravité</span><span>Recherche</span></div>
+ <div class="vue"><div class="liste">
+   <div class="row"><span class="t">Référence A</span><span class="et d">Démontré</span><span class="s">Marge négative</span><span class="chiffre">PV 0,03 € · coût 1,57 €</span></div>
+   <div class="row"><span class="t">Référence B</span><span class="et v">À vérifier</span><span class="s">Coût différent du relevé</span><span class="chiffre">écart 111 %</span></div>
+   <div class="row"><span class="t">Référence C</span><span class="et v">À vérifier</span><span class="s">TVA changée</span><span class="chiffre">5,5 % → 20 %</span></div>
+ </div></div>
+</div>
+
+<h2>375 : détail plein écran, retour vers la liste, confirmation et passage au suivant</h2>
+<div class="cadre m375">
+ <div class="resume"><button class="retour">‹ Retour à la liste (151 restants)</button></div>
+ <div class="vue"><div class="detail">
+   <div class="marge">Référence A</div>
+   <div class="just">Marge estimée : négative. Le prix de vente est inférieur au coût de revient de l'export.</div>
+   <div class="toast" role="status"><span>Vérifié. Suivant : Référence B.</span><button>Annuler (5 s)</button></div>
+   <button class="prim" style="width:100%">Marquer comme vérifié</button>
+   <div class="tech"><div><span>Source du coût</span><span>Coût de revient</span></div><div><span>Relevé de stock</span><span>10/11</span></div><div><span>Écart</span><span>111 % (seuil 10 %)</span></div><div><span>Empreinte</span><span>a1b2c3d4</span></div></div>
+   <p class="leg">Dernier contrôle traité : l'écran affiche « Tout est traité pour cet import » et le lien vers l'historique.</p>
+ </div></div>
+</div>
+</body></html>
