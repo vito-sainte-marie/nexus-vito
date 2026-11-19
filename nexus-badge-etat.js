@@ -5,7 +5,7 @@
 //  - gravité      (critique, a-verifier, information, conforme) : badge cerclé, couleur + pictogramme ;
 //  - traitement   (en-attente, exclu)                            : badge gris ;
 //  - action       (agir, decider, verifier, surveiller)          : pastille pleine neutre, « Agir » en accent ;
-//  - qualification (opportunite, recommandation)                 : étiquette grise cerclée, discrète ;
+//  - qualification (opportunite, recommandation, estimation, demontre, non-calculable) : étiquette grise cerclée, discrète ;
 //  - priorité     (rang)                                         : rang en Plex Mono, jamais une couleur.
 // Le sens est porté par le texte ; les pictogrammes SVG sont aria-hidden.
 // Une action cliquable est un <button> (cible tactile ≥ 44 px sur téléphone) ; une action sans geste
@@ -62,7 +62,7 @@
   var LIB_GRAVITE = { 'critique': 'Critique', 'a-verifier': 'À vérifier', 'information': 'Information', 'conforme': 'Conforme' };
   var LIB_TRAITEMENT = { 'en-attente': 'En attente', 'exclu': 'Exclu' };
   var LIB_ACTION = { agir: 'Agir', decider: 'Décider', verifier: 'Vérifier', surveiller: 'Surveiller' };
-  var LIB_QUALIF = { opportunite: 'Opportunité', recommandation: 'Recommandation' };
+  var LIB_QUALIF = { opportunite: 'Opportunité', recommandation: 'Recommandation', estimation: 'Estimation', demontre: 'Démontré', 'non-calculable': 'Non calculable' };
 
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   var has = function (o, k) { return Object.prototype.hasOwnProperty.call(o, k); };

@@ -100,11 +100,13 @@
   }
 
   // Correspondance d'une entrée de registre avec une ligne : code-barres si les deux en ont un, sinon libellé exact normalisé.
+  // Catégorie lue comme T1 : « Ã  » (accent mal encodé) devient « à », espaces réduits.
+  const catNorm = c => String(c == null ? '' : c).replace(/Ã\s+/g, 'à ').replace(/\s+/g, ' ').trim();
   function correspond(entree, row) {
     if (entree.code_barres && cb(row)) return String(entree.code_barres).trim() === cb(row);
     if (entree.article) return nom(entree.article) === nom(row.article);
-    if (entree.rayon && entree.motif) return entree.rayon === row.categorie && new RegExp(entree.motif, 'i').test(row.article || '');
-    if (entree.rayon) return entree.rayon === row.categorie;
+    if (entree.rayon && entree.motif) return catNorm(entree.rayon) === catNorm(row.categorie) && new RegExp(entree.motif, 'i').test(row.article || '');
+    if (entree.rayon) return catNorm(entree.rayon) === catNorm(row.categorie);
     return false;
   }
   const premier = (liste, row) => (liste || []).find(e => correspond(e, row)) || null;
@@ -154,7 +156,7 @@
     const expl = (ctx.tva && ctx.tva.explications || []).find(x => correspond(x, row) && (x.taux === undefined || x.taux === tva));
     const changee = tvaP !== null && tvaP !== tva;
     if (expl && !changee) return { taux: tva, etat: 'a_confirmer', raison: expl.raison };
-    if (e.etat === 'incoherente') return { taux: tva, etat: 'a_verifier', raison: e.raison };
+    if (e.etat === 'incoherente') return { taux: tva, etat: 'a_verifier', raison: e.raison, ...(conf ? { contreConfirmation: true, tauxConfirme: num(conf.taux_confirme) } : {}) };
     return { taux: tva, etat: 'coherente', raison: e.raison };
   }
 
@@ -427,6 +429,8 @@
     if (MA) {
       const cx = { periode: ctx.periode || null, fichierHash: ctx.fichierHash || null, dateReleve: ctx.stockDate || ctx.dateReleve || null, reglages: R };
       for (const l of lignes) {
+        // Une ligne hors ventes commerciales (acompte, opération de caisse, sortie déclarée) n'est pas analysée.
+        if (l.nature) { l.anomalies = []; l.anomaliesResolues = []; continue; }
         const an = MA.anomaliesLigne(l, cx);
         if (ctx.verifications) {
           const cyc = MA.cycleDeVie(an, ctx.verifications.filter(v => v.cle === MA.cle(l)), { fichierHash: cx.fichierHash, dateReleve: cx.dateReleve });

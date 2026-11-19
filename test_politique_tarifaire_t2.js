@@ -480,6 +480,20 @@ ok('stock : un libellé au coût ambigu est retenu sans PA, la référence passe
   assert.ok(!(r.lignes[0].alertes || []).some(a => a.code === 'A4'));
 });
 
+ok('gains décisionnels : aucune référence « fiable » sans PA de stock établi (absent, ambigu, nul)', () => {
+  const ventes = ['Produit A', 'Produit B', 'Produit C', 'Produit D'].map(a => L(a, { prix_vente: 1.5, prix_achat: 1 }));
+  const stock = [{ article: 'Produit A', pa_net_ht: 1 }, // PA établi : seule référence pouvant être fiable
+    { article: 'Produit B', pa_net_ht: null, ambigu: 'coût ambigu dans le relevé : 2 lignes, PA de 0.9 à 1' },
+    { article: 'Produit C', pa_net_ht: 0 }]; // Produit D : absent du relevé
+  const r = T.analyser(ventes, [], ctxBase({ stock }));
+  const fiables = r.lignes.filter(l => l.fiabilite.niveau === 'fiable');
+  fiables.forEach(l => assert.strictEqual(l.article, 'Produit A', 'fiable sans PA de stock établi : ' + l.article));
+  ['Produit B', 'Produit C', 'Produit D'].forEach(a => assert.notStrictEqual(un(r, a).fiabilite.niveau, 'fiable', a));
+  const g = r.gains.decisionnels;
+  [g.minimum, g.cible, g.prixDecides].forEach(x => assert.ok(x.fiable.references <= fiables.length));
+  assert.ok(g.minimum.fiable.references <= 1);
+});
+
 // ---- Lot A : marge estimée (additive, jamais décisionnelle)
 const ME = (res, art) => un(res, art).margeEstimee;
 const alertesDe = l => l.alertes.map(x => x.code);

@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<base href="../../../">
+<title>Banc de recette : écran Scanner tarifaire</title>
+<!--
+  Banc statique de recette de l'écran « Scanner tarifaire ».
+  Servi en local (npx http-server à la racine du dépôt, puis /outils/recette/ecran_scanner/banc.html).
+  - Modules RÉELS du dépôt, chargés par chemin relatif, aucune copie.
+  - Client Supabase SIMULÉ en mémoire : aucun réseau, aucune écriture, aucune connexion à Test ni à Production.
+  - Données : le jeu T1 (relevés extraits hors dépôt, lus par fetch). Aucune donnée n'est versionnée avec ce fichier.
+  Ce qui appartient au banc : le pilote, le client simulé, le choix du scénario et la réplique du câblage
+  de NEXUS-Produits-v1.html (lier, marquerVerifie). Ce qui sort des modules réels : le contexte, l'analyse,
+  les écritures de réévaluation, la page (htmlPage), les droits (peutVoirOnglet, peutVerifier) et le CSS de l'écran.
+  Scénarios : ?scenario=gerant|manager|pompiste|vide|nonfiable|erreur_ecriture|erreur_lecture|historique|gaz
+  Thème : ?theme=jour|nuit
+-->
+<style>
+  body{margin:0;padding:16px;background:var(--t-bg,#07131E);color:var(--t-text,#EDF1F5);font-family:"IBM Plex Sans",system-ui,sans-serif}
+  #bancBarre{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 12px;font-size:13px}
+  #bancBarre a{color:var(--t-cyan,#24D8E3);padding:4px 8px;border:1px solid var(--t-line,#254354);border-radius:6px;text-decoration:none}
+  #bancBarre a[aria-current="true"]{background:var(--t-cyan,#24D8E3);color:#07131E}
+  #bancNote{font-size:12px;opacity:.8;margin:0 0 12px}
+  #bancJournal{font:12px/1.4 "IBM Plex Mono",monospace;opacity:.85;margin:12px 0 0;white-space:pre-wrap}
+  .bancBloc{max-width:960px;margin:0 auto;flex:1;min-width:0}
+</style>
+</head>
+<body>
+<div class="bancBloc">
+  <nav id="bancBarre" aria-label="Scénarios"></nav>
+  <p id="bancNote" role="note"></p>
+  <section class="card vue-p1c" aria-label="Scanner tarifaire"><div id="vueCorps"></div></section>
+  <pre id="bancJournal" aria-live="polite"></pre>
+</div>
+
+<script src="nexus-theme.js"></script>
+<script src="nexus-vocabulaire.js"></script>
+<script src="nexus-vocabulaire-tarif.js"></script>
+<script src="nexus-marge.js"></script>
+<script src="nexus-produits-mesure.js"></script>
+<script src="nexus-scanner-tarifaire.js"></script>
+<script src="nexus-badge-etat.js"></script>
+<script src="nexus-composants-pilotage.js"></script>
+<script src="nexus-anomalies-tarifaires.js"></script>
+<script src="nexus-politique-tarifaire.js"></script>
+<script src="nexus-politique-tarifaire-registres.js"></script>
+<script src="nexus-politique-tarifaire-ecran.js"></script>
+<script>
+(async function () {
+  'use strict';
+  var SCENARIOS = ['gerant', 'manager', 'pompiste', 'vide', 'nonfiable', 'erreur_ecriture', 'erreur_lecture', 'historique', 'gaz'];
+  var DOSSIER = 'docs/reference/scanner-tarifaire-dossiers/01-T1-moteur/t1/';
+  var SITE = 'site-banc';
+  var q = new URLSearchParams(location.search);
+  var scenario = SCENARIOS.indexOf(q.get('scenario')) >= 0 ? q.get('scenario') : 'gerant';
+  var theme = q.get('theme') === 'nuit' ? 'nuit' : 'jour';
+  var corps = document.getElementById('vueCorps');
+  var journal = []; var jEl = document.getElementById('bancJournal');
+  function log(t) { journal.push(t); jEl.textContent = 'Journal du banc (mémoire, aucun réseau) :\n' + journal.join('\n'); }
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+
+  // Thème : jeton de la page réelle (nuit par défaut, jour = data-theme="jour").
+  if (theme === 'jour') document.documentElement.setAttribute('data-theme', 'jour'); else document.documentElement.removeAttribute('data-theme');
+
+  // Barre de scénarios
+  document.getElementById('bancBarre').innerHTML = SCENARIOS.map(function (s) {
+    return '<a href="?scenario=' + s + '&theme=' + theme + '"' + (s === scenario ? ' aria-current="true"' : '') + '>' + s + '</a>';
+  }).join('') + '<a href="?scenario=' + scenario + '&theme=' + (theme === 'jour' ? 'nuit' : 'jour') + '">thème : ' + (theme === 'jour' ? 'passer en nuit' : 'passer en jour') + '</a>';
+  document.getElementById('bancNote').textContent = 'Banc de recette. Modules réels, client Supabase simulé en mémoire (aucun réseau, aucune écriture). Scénario : ' + scenario + ', thème : ' + theme + '.';
+
+  // CSS réel de la page Produits (jetons :root et jour), lu à l'exécution : aucune copie.
+  try {
+    var html = await (await fetch('NEXUS-Produits-v1.html')).text();
+    var doc = new DOMParser().parseFromString(html, 'text/html');
+    doc.querySelectorAll('style').forEach(function (s) { var n = document.createElement('style'); n.textContent = s.textContent; document.head.appendChild(n); });
+  } catch (e) { log('CSS de Produits non lu : ' + e.message); }
+  // Polices et Fond : celles de la page réelle
+  var lf = document.createElement('link'); lf.rel = 'stylesheet';
+  lf.href = 'https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap'; document.head.appendChild(lf);
+
+  var E = window.NexusPolitiqueTarifaireEcran, T = window.NexusPolitiqueTarifaire;
+  if (!E || !T) { corps.innerHTML = '<div class="vp-ligne">Modules du scanner introuvables.</div>'; return; }
+  var st = document.createElement('style'); st.id = 'styleTarif'; st.textContent = E.CSS; document.head.appendChild(st);
+
+  // Rôle selon le scénario (la page réelle prend employee.role).
+  var role = scenario === 'manager' ? 'manager' : scenario === 'pompiste' ? 'pompiste' : 'gerant';
+  if (!E.peutVoirOnglet(role, false)) {
+    corps.innerHTML = '<div class="vp-ligne" role="status">Rôle « ' + esc(role) + ' » : l\'onglet Scanner tarifaire n\'est pas proposé (E.peutVoirOnglet = false). Rien à afficher.</div>';
+    return;
+  }
+
+  // ---------- Données T1 (hors dépôt) ----------
+  var cfg, P1, P2, stock;
+  try {
+    var get = async function (f) { var r = await fetch(DOSSIER + f); if (!r.ok) throw new Error(f + ' : ' + r.status); return r; };
+    var cfgTxt = await (await get('config_sainte_marie_t1.js')).text();
+    var m = { exports: {} }; new Function('module', 'exports', cfgTxt)(m, m.exports); cfg = m.exports;
+    var ventes = await (await get('donnees/ventes_decenium_2periodes.json')).json();
+    var stk = await (await get('donnees/stock_pa_net_ht_20261110.json')).json();
+    var norm = function (c) { return String(c || '').replace(/Ã /g, 'à').replace(/\s+/g, ' ').trim(); };
+    ventes.forEach(function (r) { r.categorie = norm(r.categorie); });
+    P1 = ventes.filter(function (r) { return r.periode_debut === '2026-09-19'; });
+    P2 = ventes.filter(function (r) { return r.periode_debut === '2026-10-05'; });
+    stock = (stk.lignes || stk).map(function (r) { return { libelle: r.article, pa_net_ht: r.pa_net_ht }; });
+  } catch (e) {
+    corps.innerHTML = '<div class="vp-ligne" role="alert">Données T1 absentes (' + esc(e.message) + '). Placez les relevés sous ' + esc(DOSSIER) + 'donnees/ (hors dépôt) puis rechargez.</div>';
+    return;
+  }
+
+  // ---------- Client Supabase simulé ----------
+  var verifsFictives = []; var compteurRpc = 0;
+  var estVue = function (t) { return /^v_tarif_/.test(t); };
+  function client() {
+    function chaine(table) {
+      var c = {};
+      ['select', 'eq', 'neq', 'in', 'is', 'not', 'gte', 'lte', 'gt', 'lt', 'like', 'ilike', 'order', 'limit', 'range', 'match', 'or', 'filter', 'contains'].forEach(function (k) { c[k] = function () { return c; }; });
+      var resoudre = function () {
+        if (estVue(table)) return scenario === 'erreur_lecture' ? { data: null, error: { message: 'lecture simulée en erreur' } } : { data: [], error: null };
+        if (table === 'import_batches') return { data: [{ id: 'lot-banc', fichier_hash: 'hash-banc-t1' }], error: null };
+        if (table === 'tarif_anomalies_verifications') return { data: scenario === 'historique' ? verifsFictives : [], error: null };
+        return { data: [], error: null };
+      };
+      c.maybeSingle = function () { var r = resoudre(); return Promise.resolve({ data: (r.data || [])[0] || null, error: r.error }); };
+      c.single = c.maybeSingle;
+      c.then = function (ok, ko) { return Promise.resolve(resoudre()).then(ok, ko); };
+      return c;
+    }
+    var refus = function (nom) { return function () { log('ÉCRITURE REFUSÉE par le banc : ' + nom); return Promise.resolve({ data: null, error: { message: 'écriture directe refusée par le banc' } }); }; };
+    return {
+      from: function (t) { var c = chaine(t); ['insert', 'update', 'upsert', 'delete'].forEach(function (k) { c[k] = refus(t + '.' + k); }); return c; },
+      rpc: function (nom, args) {
+        if (scenario === 'erreur_ecriture') { log('rpc ' + nom + ' : erreur simulée'); return Promise.resolve({ data: null, error: { message: 'erreur simulée' } }); }
+        compteurRpc++; log('rpc ' + nom + ' : ' + ((args && args.p_lignes && args.p_lignes.length) || 0) + ' ligne(s), acceptée en mémoire (#' + compteurRpc + ')');
+        return Promise.resolve({ data: null, error: null });
+      },
+      auth: { getSession: function () { return Promise.resolve({ data: { session: null }, error: null }); } },
+      storage: { from: function () { return { upload: refus('storage'), getPublicUrl: function () { return { data: { publicUrl: '' } }; } }; } },
+      functions: { invoke: refus('functions') }
+    };
+  }
+  var nexusClient = client();
+
+  // ---------- Contexte (recette validée contre T1 : 37 S2, 18 S5, 7 S6, 6 S7, 1 S3) ----------
+  var lignes = P2, precedentes = P1, stockUtilise = stock;
+  if (scenario === 'vide') { lignes = []; }
+  if (scenario === 'nonfiable') { stockUtilise = []; }
+  var corpsGaz = scenario === 'gaz';
+  var etat;
+  try {
+    var reg = E.filtrerSite(await E.chargerRegistres(nexusClient), SITE);
+    var ctx = E.construireContexteTarif({ site: 'vito-sainte-marie' /* le banc rejoue les données T1 du site pilote */, registres: reg, declarations: {}, lignes: lignes, periode: cfg.contexte.periode, stock: stockUtilise,
+      exclusions: new Set(), famille: function (cat, art, ex) { return NexusMarge.familleMarge(cat, art, ex); } /* comme la page réelle */ });
+    var natureCommune = ctx.natureDe;
+    Object.keys(cfg.contexte).forEach(function (k) { if (k !== 'tva' && k !== 'stock') ctx[k] = cfg.contexte[k]; });
+    // Le critère commun (acompte, opérations de caisse) passe d'abord, comme sur la page ; la config T1 ne fait que s'y ajouter.
+    var natureT1 = cfg.contexte.natureDe;
+    ctx.natureDe = function (r) { return (natureCommune && natureCommune(r)) || (natureT1 && natureT1(r)) || null; };
+    ctx.stockSource = cfg.contexte.stockSource;
+    if (scenario === 'nonfiable') { ctx.stockFourni = false; /* comme la page réelle : sans relevé, ni S2, ni S4, ni S5 */ }
+    ctx.tva = Object.assign({}, ctx.tva, { explications: cfg.contexte.tva.explications });
+    var verifs = null, identite = null;
+    var lots = await nexusClient.from('import_batches').select('fichier_hash').eq('site', SITE).order('cree_le', { ascending: false }).limit(1);
+    if (lots.data && lots.data.length) ctx.fichierHash = lots.data[0].fichier_hash;
+    ctx.stockDate = '2026-11-10';
+    if (scenario === 'historique') {
+      // Vérifications fictives (aucun nom de personne) construites sur les premières anomalies de l'analyse sans historique.
+      var pre = T.analyser(lignes, precedentes, ctx), n = 0;
+      pre.lignes.forEach(function (l) { (l.anomalies || []).forEach(function (a) {
+        if (n >= 6) return; n++;
+        verifsFictives.push({ id: 'v' + n, article: l.article, code_barres: l.code_barres || null, cause: a.code, empreinte: a.empreinte, cle: a.cle, gravite: a.gravite,
+          fichier_hash: 'hash-banc-ancien', date_releve: '2026-10-05', commentaire: n % 2 ? 'Contrôle fictif du banc' : null, saisi_par: null, saisi_le: '2026-10-20T09:00:00Z' });
+      }); });
+    }
+    try { verifs = (await E.chargerVerifications(nexusClient, SITE)).verifications; ctx.verifications = verifs; } catch (e) { verifs = null; }
+    var analyse = T.analyser(lignes, precedentes, ctx);
+    identite = { fichierHash: ctx.fichierHash || null, dateReleve: ctx.stockDate || null };
+    if (!analyse.lignes.length) { corps.innerHTML = '<div class="vp-ligne">Aucune donnée tarifaire pour ce site</div>'; return; }
+    etat = { analyse: analyse, verifications: verifs || [], historiqueDispo: !!verifs, filtreHisto: 'actifs', histoOuverte: null, role: role, filtres: corpsGaz ? { rayon: 'Gaz' } : {},
+      incoherences: ctx.incoherences || [], ouverte: null, toutes: false, site: 'Banc de recette', icone: icone, estCreateur: false };
+    if (verifs) {
+      var rr = await E.enregistrerReevaluations(nexusClient, role, false, analyse, verifs, identite);
+      if (rr.statut === 'droits') etat.reevalNonEnregistree = true;
+      else if (rr.statut === 'ecrit') { try { etat.verifications = (await E.chargerVerifications(nexusClient, SITE)).verifications; } catch (e) { /* facultatif */ } }
+      else if (rr.statut === 'erreur') etat.messageReeval = "Les réévaluations n'ont pas pu être enregistrées. L'écran reste à jour, l'enregistrement sera retenté à la prochaine ouverture.";
+    }
+  } catch (e) {
+    log('Erreur de chargement : ' + e.message);
+    corps.innerHTML = '<div class="vp-ligne">Impossible de lire les registres tarifaires.</div>';
+    return;
+  }
+
+  // Réplique de la fonction icone de la page Produits (images servies depuis le dépôt).
+  function icone(cle, cls) {
+    var i = cle === 'entete' ? 'produits-scanner-tarifaire' : ({ pertes: 'campagne-alerte-produit', fiabilite: 'campagne-rentabilite-non-mesurable', decisions: 'campagne-marge-commerciale', exceptions: 'campagne-a-retenir' }[cle] || 'campagne-alerte-produit');
+    var b = 'assets/icones/campagne/premium/' + i;
+    return '<img class="' + (cls || 'sc-photo sc-photo-ico') + '" src="' + b + '-96.webp" srcset="' + b + '-48.webp 48w, ' + b + '-96.webp 96w, ' + b + '-144.webp 144w" sizes="48px" width="48" height="48" alt="" onerror="this.onerror=null;this.src=\'assets/icones/campagne/premium/campagne-alerte-produit-96.webp\'">';
+  }
+
+  // ---------- Réplique du câblage de la page (lier, marquerVerifie) ----------
+  async function marquerVerifie(btn) {
+    var art = btn.dataset.verArticle, code = btn.dataset.verifier;
+    var l = etat.analyse.lignes.filter(function (x) { return x.article === art; })[0];
+    var an = l && (l.anomalies || []).filter(function (x) { return x.code === code; })[0];
+    var zone = btn.closest('li') || btn.parentNode;
+    var dire = function (t) { var m = zone.querySelector('.pt-verif-msg'); if (!m) { m = document.createElement('p'); m.className = 'sc-note pt-verif-msg'; m.setAttribute('role', 'status'); zone.appendChild(m); } m.textContent = t; };
+    if (!an || !E.peutVerifier(role, false)) { dire('Action réservée au gérant et au manager.'); return; }
+    var zc = zone.querySelector('textarea.pt-verif-com'); var com = zc ? zc.value : '';
+    if (!E.commentaireValide(com)) { dire(E.messageErreurEcriture('tarif_verif_commentaire_trop_long')); return; }
+    btn.disabled = true; dire('Enregistrement…');
+    try {
+      var r = await nexusClient.from('import_batches').select('id, fichier_hash').eq('site', SITE).eq('fichier_hash', (an.identiteDonnees || {}).fichierHash || '').order('cree_le', { ascending: false }).limit(1);
+      if (r.error || !r.data || !r.data.length) throw new Error('lot');
+      var v = E.payloadVerification(an, l, { importBatchId: r.data[0].id, moteurVersion: T.VERSION_MOTEUR, commentaire: com });
+      var w = await nexusClient.rpc('tarif_marquer_verifie', { p_lignes: [v] });
+      if (w.error) throw w.error;
+      dire(E.messageApresEcriture({ date: new Date().toISOString().slice(0, 10), auteur: 'Responsable du banc' }));
+    } catch (e) { btn.disabled = false; dire(E.messageErreurEcriture(e)); }
+  }
+  function rendre() { corps.innerHTML = E.htmlPage(etat); lier(); }
+  function lier() {
+    corps.querySelectorAll('[data-fiche]').forEach(function (b) { b.addEventListener('click', function () { log('Ouvrir la fiche produit (hors banc)'); }); });
+    corps.querySelectorAll('[data-article]').forEach(function (b) { b.addEventListener('click', function () { etat.ouverte = b.dataset.article; rendre(); }); });
+    corps.querySelectorAll('[data-info-marge]').forEach(function (b) { b.addEventListener('click', function () { etat.ouverte = b.dataset.infoMarge; rendre(); }); });
+    corps.querySelectorAll('textarea.pt-verif-com').forEach(function (t) { t.addEventListener('input', function () { var n = t.parentNode.querySelector('[data-com-compteur]'); if (n) n.textContent = String(t.value.trim().length) + ' / ' + E.LIMITE_COMMENTAIRE; }); });
+    corps.querySelectorAll('[data-verifier]').forEach(function (b) { b.addEventListener('click', function () { marquerVerifie(b); }); });
+    corps.querySelectorAll('select[data-filtre]').forEach(function (s) { s.addEventListener('change', function () { etat.filtres[s.dataset.filtre] = s.value || undefined; etat.toutes = false; rendre(); }); });
+    corps.querySelectorAll('select[data-filtre-histo]').forEach(function (s) { s.addEventListener('change', function () { etat.filtreHisto = s.value || 'actifs'; etat.histoOuverte = null; rendre(); }); });
+    corps.querySelectorAll('[data-histo-info]').forEach(function (b) { b.addEventListener('click', function () { etat.histoOuverte = etat.histoOuverte === b.dataset.histoInfo ? null : b.dataset.histoInfo; rendre(); }); });
+    corps.querySelectorAll('[data-effacer]').forEach(function (b) { b.addEventListener('click', function () { delete etat.filtres[b.dataset.effacer]; rendre(); }); });
+    var plus = corps.querySelector('[data-plus]'); if (plus) plus.addEventListener('click', function () { etat.toutes = true; rendre(); });
+    var aller = function (f) { etat.filtres = f; etat.toutes = false; rendre(); };
+    corps.querySelectorAll('[data-controle-liste]').forEach(function (b) { b.addEventListener('click', function () { aller(E.controle(etat.analyse, b.dataset.controleListe, '').filtre); }); });
+    E.lierOuvertures(corps, etat, rendre);
+    var cs = corps.querySelector('[data-conseil]:not([data-bloc-conseil])'); if (cs) cs.addEventListener('click', function () { var c = E.conseiller(etat.analyse, role); aller(c.filtre || {}); });
+    var r = corps.querySelector('#ptRecherche'); if (r) r.addEventListener('input', function () {
+      etat.filtres.recherche = r.value; etat.toutes = false; var p = r.selectionStart; rendre();
+      var n = corps.querySelector('#ptRecherche'); if (n) { n.focus(); try { n.setSelectionRange(p, p); } catch (e) {} }
+    });
+  }
+  rendre();
+  window.__banc = { scenario: scenario, theme: theme, nbLignes: etat.analyse.lignes.length, role: role };
+})();
+</script>
+</body>
+</html>

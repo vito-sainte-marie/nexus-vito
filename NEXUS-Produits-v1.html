@@ -23,7 +23,7 @@
     --boutique:#C47A55; --boutique-rgb:196,122,85; --piste:#3F6E94; --piste-rgb:63,110,148;
     --t-mono:'IBM Plex Mono',ui-monospace,monospace; --t-sans:'IBM Plex Sans',system-ui,sans-serif; --banniere-cadrage:70% 50%;
     /* passerelle vers les anciens noms de variables, pour ne rien casser */
-    --bg:var(--t-bg); --panel:var(--t-panel); --panel-raised:var(--t-raised); --hairline:var(--t-line);
+    --bg:var(--t-bg); --panel:var(--t-panel); --panel-raised:var(--t-raised); --hairline:var(--t-line); --line:var(--t-line); --mid:var(--t-text-mid, var(--text-mid)); --caps:var(--t-text-dim, var(--text-dim));
     --text:var(--t-text); --text-mid:var(--t-mid); --text-dim:var(--t-mid);
     --green:var(--t-green); --amber:var(--t-amber); --red:var(--t-red); --cyan:var(--t-cyan); --purple:#B794F6;
     --green-dim:color-mix(in srgb,var(--t-green) 16%,transparent); --amber-dim:color-mix(in srgb,var(--t-amber) 16%,transparent);
@@ -407,6 +407,11 @@ body.nexus-desktop #resultSection > *{margin-bottom:12px;}
 <script src="nexus-produits-vues.js?v=20261116-1"></script>
 <script src="nexus-scanner-tarifaire.js?v=20261116-3"></script>
 <script src="nexus-badge-etat.js"></script>
+<script src="nexus-composants-pilotage.js"></script>
+<script src="nexus-anomalies-tarifaires.js"></script>
+<script src="nexus-politique-tarifaire.js"></script>
+<script src="nexus-politique-tarifaire-registres.js"></script>
+<script src="nexus-politique-tarifaire-ecran.js"></script>
 <script src="nexus-produits-securite.js"></script>
 </head>
 <body>
@@ -1328,6 +1333,10 @@ nexusRequireAuth().then(async employee => {
       </details>
     `;
 
+    // Bloc « Politique tarifaire » : lecture seule, replié, rempli après coup.
+    const zonePol = document.createElement('div'); zonePol.id = 'zonePolitiqueTarif'; resultSection.appendChild(zonePol);
+    blocPolitiqueFiche(articleName);
+
     // Sections repliees sur mobile, ouvertes sur grand ecran ; les elements
     // restent dans le DOM dans tous les cas (les actions ne cassent pas).
     const grandEcran = (window.matchMedia && window.matchMedia('(min-width:768px)').matches) || document.body.classList.contains('nexus-desktop');
@@ -1661,113 +1670,129 @@ nexusRequireAuth().then(async employee => {
     return cmp ? L.slice().sort(cmp) : L;
   }
   window.NexusScannerPresentation = { texteConseillerScanner, filtrerListeScanner };
-  function ouvrirScanner(corps) {
-    const res = scannerResultat();
-    if (!res) { corps.innerHTML = '<div class="vp-ligne">Scanner indisponible : période précédente ou mesures absentes.</div>'; return; }
-    const T = NexusScannerTarifaire.TEXTES, A = NexusScannerTarifaire.affichage(res), R = res.resume, h = R.hausse;
-    const MG = scannerMarge(), M = MG && MG.affichage, MGERR = !!(MG && MG.erreur), TM = T.marge;
-    const reg = [];
-    const ICO = { perte: 'campagne-alerte-produit', cout: 'campagne-produits-a-revoir', marge: 'campagne-marge-commerciale', regl: 'campagne-a-retenir', verif: 'campagne-rentabilite-non-mesurable' };
-    const icone = (i, cls) => `<img class="${cls}" src="assets/icones/campagne/premium/${i}-96.webp" srcset="assets/icones/campagne/premium/${i}-48.webp 48w, assets/icones/campagne/premium/${i}-96.webp 96w, assets/icones/campagne/premium/${i}-144.webp 144w" sizes="48px" width="48" height="48" alt="" onerror="this.onerror=null;this.src='assets/icones/campagne/premium/campagne-alerte-produit-96.webp'">`;
-    const pluriel = (n, s, p) => `${n} ${n > 1 ? p : s}`;
-    const unites = q => `${esc(fmtN(q, 0))} ${q > 1 ? 'unités' : 'unité'}`;
-    const photoOuIcone = (l, ico) => {
-      const ph = PRODUCT_PHOTOS && PRODUCT_PHOTOS[l.categorie + '|' + l.article];
-      const img = ph && ph.photo_url ? imgSure(ph.photo_url, l.article, null, 'sc-photo') : '';
-      return img || icone(ico, 'sc-photo sc-photo-ico');
+  // Scanner tarifaire : consomme le moteur T2 (lecture seule, aucune écriture, aucune décision).
+  // Analyse T2 partagée par le Scanner et la fiche produit (lecture seule, mise en cache par site et période).
+  let ANALYSE_TARIF = null;
+  async function calculerAnalyseTarif(forcer) {
+    const E = window.NexusPolitiqueTarifaireEcran, TP = window.NexusPolitiqueTarifaire, AR = window.NexusPolitiqueTarifaireRegistres;
+    if (!forcer && ANALYSE_TARIF) return ANALYSE_TARIF;
+    const reg = E.filtrerSite(await E.chargerRegistres(nexusClient), SITE_ACTUEL);
+    const exclusions = new Set(((LECTURES_MARGE && LECTURES_MARGE.marge_exceptions) || []).map(r => r.article));
+    // Relevé de stock : lot stock_theorique publié le plus récent du site (import_rows_raw), sinon « relevé non fourni » (aucun faux contrôle).
+    const RS = await E.chargerStockPublie(nexusClient, SITE_ACTUEL);
+    const dRel = RS.fourni && RS.lot.dateReleve ? RS.lot.dateReleve.split('-').reverse().join('/') : null;
+    const ctx = E.construireContexteTarif({ site: SITE_ACTUEL, registres: reg, declarations: DECLARATIONS_PRODUITS, lignes: MESURES_PRODUITS.map(x => x.row), periode: PERIODE_DONNEES,
+      stock: RS.fourni ? RS.lignes : null, stockSource: RS.fourni ? 'relevé de stock publié' + (dRel ? ' du ' + dRel : '') + ', colonne « PA net HT »' : undefined,
+      exclusions, famille: (cat, art, ex) => (window.NexusMarge && NexusMarge.familleMarge ? NexusMarge.familleMarge(cat, art, ex) : { exclue: false }) });
+    // Cycle de vie des anomalies : dernier import du site + historique des vérifications (lecture seule ; la RLS filtre par site).
+    let VERIFS = null;
+    try {
+      // Identité des données = lot de relevé réellement utilisé (pas le dernier lot de toute intention, qui peut être un import de ventes).
+      if (RS.fourni) { ctx.fichierHash = RS.lot.fichierHash; if (RS.lot.dateReleve) ctx.stockDate = RS.lot.dateReleve; }
+      VERIFS = (await E.chargerVerifications(nexusClient, SITE_ACTUEL)).verifications;
+      ctx.verifications = VERIFS;
+    } catch (e) { console.warn('Historique des vérifications indisponible', e); VERIFS = null; }
+    ANALYSE_TARIF = { verifications: VERIFS, analyse: TP.analyser(MESURES_PRODUITS.map(x => x.row), LIGNES_PRECEDENTES, ctx), incoherences: (ctx && ctx.incoherences) || [],
+      identite: { fichierHash: ctx.fichierHash || null, dateReleve: ctx.stockDate || ctx.dateReleve || null } };
+    return ANALYSE_TARIF;
+  }
+  function ajouterStyleTarif() {
+    const E = window.NexusPolitiqueTarifaireEcran;
+    if (!E || document.getElementById('styleTarif')) return;
+    const st = document.createElement('style'); st.id = 'styleTarif'; st.textContent = E.CSS; document.head.appendChild(st);
+  }
+  async function blocPolitiqueFiche(articleName) {
+    const E = window.NexusPolitiqueTarifaireEcran, zone = document.getElementById('zonePolitiqueTarif');
+    if (!E || !zone || !window.NexusPolitiqueTarifaire || !window.NexusPolitiqueTarifaireRegistres || !LIGNES_PRECEDENTES.length || !MESURES_PRODUITS.length) return;
+    try {
+      const { analyse } = await calculerAnalyseTarif(false);
+      const l = analyse.lignes.find(x => x.article === articleName);
+      if (!l || document.getElementById('zonePolitiqueTarif') !== zone) return;
+      ajouterStyleTarif();
+      zone.innerHTML = E.blocFiche(l);
+    } catch (e) { console.error('Politique tarifaire (fiche):', e); }
+  }
+  async function ouvrirScanner(corps) {
+    const E = window.NexusPolitiqueTarifaireEcran, TP = window.NexusPolitiqueTarifaire, AR = window.NexusPolitiqueTarifaireRegistres;
+    const indispo = m => { corps.innerHTML = `<div class="vp-ligne">${esc(m)}</div>`; };
+    if (!E || !TP || !AR || !RESUME_PRODUITS || !PERIODE_DONNEES || !LIGNES_PRECEDENTES.length || !MESURES_PRODUITS.length) { indispo('Scanner indisponible : période précédente ou mesures absentes.'); return; }
+    const icone = (cle, cls) => {
+      const i = cle === 'entete' ? 'produits-scanner-tarifaire' : ({ pertes: 'campagne-alerte-produit', fiabilite: 'campagne-rentabilite-non-mesurable', decisions: 'campagne-marge-commerciale', exceptions: 'campagne-a-retenir' }[cle] || 'campagne-alerte-produit');
+      return `<img class="${cls || 'sc-photo sc-photo-ico'}" src="assets/icones/campagne/premium/${i}-96.webp" srcset="assets/icones/campagne/premium/${i}-48.webp 48w, assets/icones/campagne/premium/${i}-96.webp 96w, assets/icones/campagne/premium/${i}-144.webp 144w" sizes="48px" width="48" height="48" alt="" onerror="this.onerror=null;this.src='assets/icones/campagne/premium/campagne-alerte-produit-96.webp'">`;
     };
-    const champ = (lib, val) => `<div class="sc-champ"><span class="sc-lib">${esc(lib)}</span><span class="sc-val">${val}</span></div>`;
-    const pctVar = v => v === null || v === undefined ? 'n.d.' : (v >= 0 ? '+' : '−') + fmtN(Math.abs(v) * 100, 1) + ' %';
-    const OUVRIR = k => `<button type="button" class="detail-btn" data-s="${k}">Ouvrir la fiche produit ›</button>`;
-    // Fiche d'une ligne S1 ; `impact` = texte de la case « impact sur la période ».
-    const fiche = (l, ico, ton, impact, conseil) => {
-      const k = reg.length; reg.push(l.article);
-      const mu = l.pv !== null && l.pv !== undefined && l.pa !== null && l.pa !== undefined ? l.pv - l.pa : null;
-      return `<li class="sc-fiche sc-${ton}"><div class="sc-fiche-tete">${photoOuIcone(l, ico)}<div class="sc-fiche-nom"><span class="sc-nom">${esc(l.article)}</span><span class="sc-fam">${esc(l.categorie || '')}</span></div></div>
-        <div class="sc-champs">${champ('PMP Decenium HT', l.pa_precedent !== null && l.pa_precedent !== undefined ? `${esc(eurN(l.pa_precedent))} → ${esc(eurN(l.pa))}` : esc(eurN(l.pa)))}${champ('Variation', esc(pctVar(l.variation)))}${champ('PV', esc(eurN(l.pv)))}${champ('Marge unitaire', esc(eurN(mu)))}${champ('Volume vendu', unites(l.quantite))}${champ('Impact sur la période', impact)}</div>
-        ${conseil ? `<p class="sc-conseil">${conseil}</p>` : ''}<div class="pied-carte">${OUVRIR(k)}</div></li>`;
+    corps.innerHTML = '<div class="vp-ligne" role="status">Chargement du scanner tarifaire…</div>';
+    let analyse, incoherences = [], verifs = null, identite = null;
+    try { const r = await calculerAnalyseTarif(true); analyse = r.analyse; incoherences = r.incoherences; verifs = r.verifications; identite = r.identite; }
+    catch (e) { console.error('Scanner tarifaire:', e); indispo('Impossible de lire les registres tarifaires.'); return; }
+    if (!analyse.lignes.length) { indispo('Aucune donnée tarifaire pour ce site'); return; }
+    const etat = { analyse, verifications: verifs || [], historiqueDispo: !!verifs, filtreHisto: 'actifs', histoOuverte: null, role: employee.role, filtres: {}, incoherences, ouverte: null, toutes: false, site: ((document.querySelector('.nexus-nom-commerce') || {}).textContent || ''), icone, estCreateur: !!employee.estCreateur };
+    // Repère Marge+ (niveau 3) : calcul T1 inchangé (scannerMarge), visible sans seuil validé ni fiche A2, jamais compté dans un gain.
+    const blocMargePlus = () => {
+      const MG = scannerMarge(), M = MG && MG.affichage, TM = NexusScannerTarifaire.TEXTES.marge;
+      if (MG && MG.erreur) return '<details class="sc-carte pt-marge" data-marge-plus="erreur"><summary><span class="sc-nom">Repère statistique : écart à la médiane</span><span class="sc-chev"></span></summary><p class="vp-ligne">Le calcul des écarts de marge a échoué. Le reste du Scanner n\'est pas touché.</p></details>';
+      if (!M) return '';
+      const lignes = (M.premiers || []).map(e => `<li class="vp-ligne"><strong>${esc(e.article)}</strong> <span class="sc-fam">${esc(e.categorie || '')}</span> · taux de marge ${esc(fmtN(e.margePct, 1))} % · médiane du groupe ${esc(fmtN(e.medianeGroupe, 1))} % sur ${esc(String(e.tailleGroupe))} références · écart à la médiane ${esc(eurN(e.gainPotentiel))}${e.aussi_hausse_pa ? ' · ' + esc(TM.aussiHausse) : ''}</li>`).join('');
+      return `<details class="sc-carte pt-marge" data-marge-plus="repere"><summary><span class="sc-nom">Repère statistique : écart à la médiane</span><span class="sc-chev"></span></summary><p class="sc-note">Hypothèse à vérifier, jamais un gain.</p><p class="vp-ligne">${esc(TM.ecart)} : ${esc(eurN(M.ecart))} sur ${esc(String(M.total))} référence${M.total > 1 ? 's' : ''}. Ce repère n'entre dans aucun gain.</p><ul class="vp-liste sc-liste">${lignes || '<li class="vp-ligne">Aucun écart de marge.</li>'}</ul><a class="lien-scanner-nexus" href="NEXUS-Scanner-v1.html">${esc(TM.lien)}</a></details>`;
     };
-    const fPerte = l => fiche(l, ICO.perte, l.perte.justifiee ? 'info' : 'rouge', `perte ${esc(eurN(l.perte.montant))}`, l.perte.justifiee ? `Perte justifiée : ${esc(l.perte.motif || 'motif non précisé')}. La perte reste comptée.` : '');
-    const fSuspect = l => fiche(l, ICO.cout, 'ambre', l.hausse ? esc(eurN(l.hausse.impact)) : 'n.d.', esc(T.suspectMessage));
-    const fHausse = l => fiche(l, ICO.marge, 'ambre', `${T.niveaux[l.hausse.niveau] ? '<strong>' + esc(T.niveaux[l.hausse.niveau]) + '</strong> · ' : ''}${esc(eurN(l.hausse.impact))} (${esc(eurN(l.hausse.impact30))} / 30 j)`, l.cout_a_verifier ? esc(T.coutAVerifier) : 'Hausse de coût non répercutée sur le prix de vente.');
-    const fRegl = l => fiche(l, ICO.regl, 'info', `${esc(eurN(l.hausse.impact))}`, esc(T.reglemente.action));
-    const fVerif = l => { const v = l.a_verifier, m = [];
-      if (v.raisons.some(x => x.indexOf('identite_') === 0)) m.push(`${esc(T.identiteMessage)} Avant : ${esc(v.ancien_libelle || 'n.d.')}${v.ancien_code_barres ? ' (code-barres ' + esc(v.ancien_code_barres) + ')' : ''}.`);
-      if (v.raisons.includes('pv_egal_pa')) m.push(esc(T.pvEgalPaMessage));
-      return fiche(l, ICO.verif, 'ambre', 'n.d.', m.join(' ')); };
-    const fMarge = e => { const k = reg.length; reg.push(e.article);
-      return `<li class="sc-fiche sc-info"><div class="sc-fiche-tete">${photoOuIcone(e, ICO.marge)}<div class="sc-fiche-nom"><span class="sc-nom">${esc(e.article)}</span><span class="sc-fam">${esc(e.categorie || '')}</span></div></div>
-        <div class="sc-champs">${champ('Taux de marge', esc(fmtN(e.margePct, 1)) + ' %')}${champ('Médiane du groupe', esc(fmtN(e.medianeGroupe, 1)) + ' % sur ' + esc(String(e.tailleGroupe)) + ' références')}${champ('Écart à la médiane', esc(eurN(e.gainPotentiel)))}</div>
-        <p class="sc-conseil">${e.aussi_hausse_pa ? esc(TM.aussiHausse) + '. ' : ''}${esc(TM.ecart)} : hypothèse à vérifier.</p><div class="pied-carte"><a class="lien-scanner-nexus" href="NEXUS-Scanner-v1.html">${esc(TM.lien)}</a>${OUVRIR(k)}</div></li>`; };
-    const liste = (lignes, fn, vide) => `<ul class="vp-liste sc-liste">${lignes.map(fn).join('') || `<li class="vp-ligne">${vide}</li>`}</ul>`;
-    const voirTout = (cle, n) => n > 0 ? `<button type="button" class="btn-decl sc-voir" data-voir="${cle}">Voir les ${n} autre${n > 1 ? 's' : ''} dans la liste complète</button>` : '';
-    const groupe = (cle, g, fn, vide) => liste(g.premieres, fn, vide) + voirTout(cle, g.reste.nb + g.petites.nb);
-    const methode = txt => `<p class="vp-ligne sc-methode">${txt}</p>`;
-    const src = `Source : export Decenium de la période et de la période précédente, PMP Decenium HT. `;
-    // Les cinq cartes. `poids` ordonne la carte prioritaire (ouverte par défaut) : première non vide.
-    const nbMarge = A.hausses.total + (M ? M.total : 0);
-    const blocMarge = MGERR ? `<div class="sc-sous"><h4>Écarts Marge+ indisponibles</h4><div class="vp-ligne">Le calcul des écarts de marge a échoué. Les autres blocs ne sont pas touchés.</div></div>` : !M ? '' : `<div class="sc-sous"><h4>${esc(TM.titre)} (${M.total})</h4><div class="vp-ligne">${esc(TM.ecart)} : ${esc(eurN(M.ecart))}</div>${liste(M.premiers, fMarge, 'Aucun écart de marge.')}${voirTout('marges', M.reste.nb + M.valides.nb)}<div class="vp-ligne">${esc(TM.pied)}</div></div>`;
-    const CARTES = [
-      { id: 'pertes', ico: ICO.perte, titre: 'Mes ventes à perte', nb: A.pertes.length, montant: `marge négative ${esc(eurN(R.perte.montant))}`, prio: R.perte.non_justifiees > 0,
-        corps: (R.perte.non_justifiees > 0 ? '<p class="vp-ligne">Vente à perte non justifiée : vérifier le prix de vente ou justifier la perte dans la fiche produit.</p>' : '') + liste(A.pertes, fPerte, 'Aucune vente à perte.') + methode(src + 'Vente à perte : prix d\'achat supérieur ou égal au prix de vente. Une perte justifiée reste comptée et affiche son motif.') },
-      { id: 'couts', ico: ICO.cout, titre: 'Mes coûts à vérifier', nb: A.suspects.length, montant: 'coûts à vérifier', prio: A.suspects.length > 0,
-        corps: liste(A.suspects, fSuspect, 'Aucun coût suspect.') + methode(src + 'Variation importante ou suspecte du PMP, coût nul ou manquant : à vérifier, jamais une erreur avérée.') },
-      { id: 'marges', ico: ICO.marge, titre: 'Mes marges à surveiller', nb: nbMarge, montant: `${esc(T.impact.toLowerCase())} ${esc(eurN(A.hausses.impact))}${M ? ` · écart à la médiane ${esc(eurN(M.ecart))}` : ''}`, prio: A.hausses.total > 0,
-        corps: `<div class="sc-sous"><h4>${esc(T.hausses)} · prix libres (${A.hausses.total})</h4><div class="vp-ligne">${esc(T.impact)} : ${esc(eurN(A.hausses.impact))} sur la période</div>${groupe('marges', A.hausses, fHausse, 'Aucune hausse non répercutée.')}</div>${blocMarge}` + methode(src + 'Impact estimé à volume observé sur la période. L\'écart à la médiane du groupe est une hypothèse, ses montants ne s\'ajoutent pas aux hausses de coût.') },
-      { id: 'regl', ico: ICO.regl, titre: 'Mes prix réglementés', nb: A.reglementes.total, montant: `${esc(T.impact.toLowerCase())} ${esc(eurN(A.reglementes.impact))}`, prio: false,
-        corps: `<div class="vp-ligne">${esc(T.reglemente.sousTitre)}</div><div class="vp-ligne">${esc(T.reglemente.constat)}. ${esc(T.impact)} : ${esc(eurN(A.reglementes.impact))} sur la période.</div><div class="vp-ligne">${esc(T.reglemente.action)}</div>${groupe('regl', A.reglementes, fRegl, 'Aucune hausse enregistrée.')}<div class="vp-ligne">${esc(T.reglemente.pied)}</div>` + methode(src + 'Prix fixés par la réglementation : aucune suggestion de prix.') },
-      { id: 'verif', ico: ICO.verif, titre: 'Mes références à vérifier', nb: A.averifier.length, montant: 'identités et prix à vérifier', prio: false,
-        corps: liste(A.averifier, fVerif, 'Aucune référence.') + methode(src + 'Identité changée entre les deux périodes, ou prix de vente égal au prix d\'achat.') },
-    ];
-    const forcee = SCANNER_CARTE_FORCEE ? CARTES.findIndex(c => c.id === SCANNER_CARTE_FORCEE) : -1; SCANNER_CARTE_FORCEE = null;
-    const ouverte = forcee >= 0 ? forcee : CARTES.findIndex(c => c.prio && c.nb > 0) >= 0 ? CARTES.findIndex(c => c.prio && c.nb > 0) : CARTES.findIndex(c => c.nb > 0);
-    const carte = (c, i) => `<details class="sc-carte"${i === ouverte ? ' open' : ''} data-carte="${c.id}"><summary>${icone(c.ico, 'sc-ico')}<span class="sc-carte-txt"><span class="t-titre">${c.titre}</span><span class="t-sous">${pluriel(c.nb, 'référence', 'références')} · ${c.montant}</span></span><span class="sc-chev" aria-hidden="true"></span></summary><div class="sc-carte-corps">${c.corps}</div></details>`;
-    // Liste complète : une entrée par (contrôle, référence), avec recherche et tri.
-    const entries = [];
-    const ajoute = (ordre, ctrl, l, impact, variation) => { const k = reg.length; reg.push(l.article); entries.push({ cle: ['pertes', 'couts', 'marges', 'regl', 'verif'][ordre], article: l.article, categorie: l.categorie || '', controle: ctrl, ordre, impact, variation: variation === undefined ? null : variation, k }); };
-    A.pertes.forEach(l => ajoute(0, 'Vente à perte', l, l.perte.montant, l.variation));
-    A.suspects.forEach(l => ajoute(1, 'Coût à vérifier', l, l.hausse ? l.hausse.impact : null, l.variation));
-    [A.hausses.premieres, A.hausses.reste.lignes, A.hausses.petites.lignes].forEach(g => g.forEach(l => ajoute(2, 'Marge à surveiller', l, l.hausse.impact, l.variation)));
-    if (M) [M.premiers, M.reste.lignes, M.valides.lignes].forEach(g => g.forEach(e => ajoute(2, 'Marge à surveiller (écart à la médiane)', e, e.gainPotentiel, null)));
-    [A.reglementes.premieres, A.reglementes.reste.lignes, A.reglementes.petites.lignes].forEach(g => g.forEach(l => ajoute(3, 'Mes prix réglementés', l, l.hausse.impact, l.variation)));
-    A.averifier.forEach(l => ajoute(4, 'Référence à vérifier', l, null, l.variation));
-    const rowListe = e => `<li><button type="button" class="vp-ligne-prod" data-s="${e.k}"><span class="vp-nom">${esc(e.article)}</span><span class="vp-meta">${esc(e.controle)}${e.categorie ? ' · ' + esc(e.categorie) : ''}${e.variation !== null ? ' · ' + esc(pctVar(e.variation)) : ''}</span><span class="vp-chiffres">${e.impact !== null && e.impact !== undefined ? esc(eurN(e.impact)) : ''}</span></button></li>`;
-    const PAS_SC = 10;
-    let limiteSc = PAS_SC, ctrlSc = '';
-    const listeHtml = (L) => L.length ? `<ul class="vp-liste">${L.slice(0, limiteSc).map(rowListe).join('')}</ul>${L.length > limiteSc ? `<button type="button" class="btn-decl vp-plus" data-plus="1">Afficher ${Math.min(PAS_SC, L.length - limiteSc)} de plus (${L.length - limiteSc} restantes)</button>` : ''}` : '<div class="vp-ligne">Aucune référence ne correspond.</div>';
-    const per = PERIODE_DONNEES ? `du ${fmtDate(PERIODE_DONNEES.debut)} au ${fmtDate(PERIODE_DONNEES.fin)}${res.jours ? ', ' + res.jours + ' jours' : ''}` : '';
-    const stationEl = document.querySelector && document.querySelector('.nexus-nom-commerce');
-    const station = stationEl && stationEl.textContent ? stationEl.textContent + ' · ' : '';
-    const ind = (lib, val, ton, sous) => `<div class="sc-ind sc-${ton}"><span class="sc-ind-val">${val}</span><span class="sc-ind-lib">${esc(lib)}</span>${sous ? `<span class="sc-ind-sous">${sous}</span>` : ''}</div>`;
-    corps.innerHTML = `<div class="sc-entete">${icone('produits-scanner-tarifaire', 'sc-entete-ico')}<div><h2 class="sc-h">Scanner tarifaire</h2><div class="t-sous">Vos prix sous contrôle</div><div class="vp-ligne">${esc(station + per)}</div></div></div>
-      <div class="sc-inds">${ind('références analysées', esc(String(R.analysees)), 'info')}${ind('ventes à perte', esc(String(R.perte.nb)), R.perte.non_justifiees > 0 ? 'rouge' : 'info', `dont ${R.perte.non_justifiees} non justifiée${R.perte.non_justifiees > 1 ? 's' : ''}`)}${ind('marge négative', esc(eurN(R.perte.montant)), R.perte.non_justifiees > 0 ? 'rouge' : 'info')}${ind(T.impact.toLowerCase() + ' (hausses de PA)', esc(eurN(h.impact)), 'ambre')}${ind('hausses à examiner ou prioritaires', esc(String(h.a_examiner + h.prioritaire)), 'ambre')}${ind('sans période précédente', esc(String(R.absentes_precedente)), 'gris', 'limite de l\'analyse, pas une anomalie')}</div>
-      <p class="sc-note">Une référence peut figurer dans plusieurs contrôles ; les montants ne s'additionnent pas.</p>
-      <div class="carte conseiller sc-conseiller"><img class="conseiller-avatar" src="assets/avatar/nexus-avatar-128.png" srcset="assets/avatar/nexus-avatar-64.png 64w, assets/avatar/nexus-avatar-96.png 96w, assets/avatar/nexus-avatar-128.png 128w, assets/avatar/nexus-avatar-256.png 256w" sizes="80px" alt="Conseiller NEXUS"><div class="conseiller-corps"><div class="conseiller-titre">Conseiller NEXUS</div><p>${esc(texteConseillerScanner(R, A))}</p></div></div>
-      <div class="sc-cartes">${CARTES.map(carte).join('')}</div>
-      <section class="sc-tout" id="scTout" aria-label="Toutes les références"><h3>Toutes les références (${entries.length})</h3>
-        <div class="vp-filtres"><input type="search" id="scRech" placeholder="Rechercher un produit ou une famille" aria-label="Rechercher"><select id="scTri" aria-label="Trier"><option value="controle">Tri : contrôle</option><option value="impact">Tri : impact</option><option value="variation">Tri : variation</option><option value="nom">Tri : nom</option></select></div>
-        <div id="scFiltre"></div><div id="scListe">${listeHtml(filtrerListeScanner(entries, '', 'controle'))}</div></section>`;
-    const lier = zone => zone.querySelectorAll('button[data-s]').forEach(b => b.addEventListener('click', () => choisirSuggestion(reg[Number(b.dataset.s)])));
-    lier(corps);
-    const rech = corps.querySelector && corps.querySelector('#scRech'), tri = corps.querySelector && corps.querySelector('#scTri'), zone = corps.querySelector && corps.querySelector('#scListe'), puce = corps.querySelector && corps.querySelector('#scFiltre');
-    if (rech && tri && zone) {
-      const maj = () => {
-        const L = filtrerListeScanner(entries, rech.value, tri.value, ctrlSc);
-        zone.innerHTML = listeHtml(L); lier(zone);
-        const plus = zone.querySelector('[data-plus]'); if (plus) plus.addEventListener('click', () => { limiteSc += PAS_SC; maj(); });
-        if (puce) {
-          const nom = ctrlSc ? (entries.find(e => e.cle === ctrlSc) || {}).controle : '';
-          puce.innerHTML = ctrlSc ? `<div class="vp-ligne">Contrôle : ${esc(String(nom).replace(/ \(écart.*\)$/, ''))} <button type="button" class="btn-decl" id="scRetirer">Retirer le filtre</button></div>` : '';
-          const r = puce.querySelector('#scRetirer'); if (r) r.addEventListener('click', () => { ctrlSc = ''; limiteSc = PAS_SC; maj(); });
-        }
-      };
-      maj(); // premier rendu : pose l'écouteur du bouton « Afficher plus »
-      rech.addEventListener('input', () => { limiteSc = PAS_SC; maj(); }); tri.addEventListener('change', () => { limiteSc = PAS_SC; maj(); });
-      corps.querySelectorAll('[data-voir]').forEach(b => b.addEventListener('click', () => {
-        ctrlSc = b.dataset.voir; limiteSc = PAS_SC; maj();
-        const t = corps.querySelector('#scTout'); if (t && t.scrollIntoView) t.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }));
+    // Réévaluations : périmètre complet de l'import (analyse.lignes, jamais la vue filtrée). Rien n'est écrit sans nouvel import ni sans droits.
+    if (verifs) {
+      const rr = await E.enregistrerReevaluations(nexusClient, employee.role, !!employee.estCreateur, analyse, verifs, identite);
+      if (rr.statut === 'droits') etat.reevalNonEnregistree = true;
+      else if (rr.statut === 'ecrit') { try { etat.verifications = (await E.chargerVerifications(nexusClient, SITE_ACTUEL)).verifications; } catch (e) { /* relecture facultative */ } }
+      else if (rr.statut === 'erreur') { console.warn('Réévaluations non enregistrées', rr.erreur); etat.messageReeval = "Les réévaluations n'ont pas pu être enregistrées. L'écran reste à jour, l'enregistrement sera retenté à la prochaine ouverture."; }
     }
+    const rendre = () => { etat.margePlus = blocMargePlus(); corps.innerHTML = E.htmlPage(etat); lier(); };
+    // « Marquer comme vérifié » : écriture append-only par la fonction SQL ; le site n'est jamais envoyé ; message avec date et auteur (nom affiché).
+    const marquerVerifie = async (btn) => {
+      const E2 = E, art = btn.dataset.verArticle, code = btn.dataset.verifier;
+      const l = analyse.lignes.filter(x => x.article === art)[0]; const an = l && (l.anomalies || []).filter(x => x.code === code)[0];
+      const zone = btn.closest('li') || btn.parentNode;
+      const dire = (t) => { let m = zone.querySelector('.pt-verif-msg'); if (!m) { m = document.createElement('p'); m.className = 'sc-note pt-verif-msg'; m.setAttribute('role', 'status'); zone.appendChild(m); } m.textContent = t; };
+      if (!an || !E2.peutVerifier(employee.role, !!employee.estCreateur)) { dire('Action réservée au gérant et au manager.'); return; }
+      const zc = zone.querySelector('textarea.pt-verif-com'); const com = zc ? zc.value : '';
+      if (!E2.commentaireValide(com)) { dire(E2.messageErreurEcriture('tarif_verif_commentaire_trop_long')); return; }
+      btn.disabled = true; dire('Enregistrement…');
+      try {
+        const { data: lots, error: e1 } = await nexusClient.from('import_batches').select('id, fichier_hash').eq('site', SITE_ACTUEL).eq('fichier_hash', (an.identiteDonnees || {}).fichierHash || '').order('cree_le', { ascending: false }).limit(1);
+        if (e1 || !lots || !lots.length) throw new Error('lot');
+        const v = E2.payloadVerification(an, l, { importBatchId: lots[0].id, moteurVersion: window.NexusPolitiqueTarifaire.VERSION_MOTEUR, commentaire: com });
+        const { error } = await nexusClient.rpc('tarif_marquer_verifie', { p_lignes: [v] });
+        if (error) throw error;
+        an.cycle = 'verifiee'; etat.messageVerif = E2.messageApresEcriture({ date: new Date().toISOString().slice(0, 10), auteur: employee.nom }); rendre(); return;
+      } catch (e) { console.error('Marquer vérifié:', e); btn.disabled = false; dire(E2.messageErreurEcriture(e)); }
+    };
+    const versFiche = a => choisirSuggestion(a);
+    const fermerFiche = () => { const a = etat.retourFocus; etat.ouverte = null; etat.messageVerif = null; rendre(); const b = a && Array.from(corps.querySelectorAll('[data-article]')).filter(x => x.dataset.article === a)[0]; if (b) b.focus(); };
+    if (!window.__ptEchap) { window.__ptEchap = true; document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && etat.ouverte) { ev.preventDefault(); fermerFiche(); } }); }
+    const lier = () => {
+      corps.querySelectorAll('[data-fiche]').forEach(b => b.addEventListener('click', () => versFiche(b.dataset.fiche)));
+      corps.querySelectorAll('[data-article]').forEach(b => b.addEventListener('click', () => { etat.ouverte = b.dataset.article; etat.retourFocus = b.dataset.article; etat.messageVerif = null; etat.ficheFraiche = true; rendre(); }));
+      corps.querySelectorAll('[data-fermer]').forEach(b => b.addEventListener('click', () => fermerFiche()));
+      corps.querySelectorAll('[data-ctl-info]').forEach(b => b.addEventListener('click', () => { etat.ctlInfo = etat.ctlInfo === b.dataset.ctlInfo ? null : b.dataset.ctlInfo; rendre(); }));
+      const ctlPlus = corps.querySelector('[data-ctl-plus]'); if (ctlPlus) ctlPlus.addEventListener('click', () => { etat.ctlToutes = true; rendre(); });
+      const ctlTri = corps.querySelector('[data-ctl-tri]'); if (ctlTri) ctlTri.addEventListener('change', () => { etat.ctlTri = ctlTri.value; etat.ctlToutes = false; rendre(); });
+      corps.querySelectorAll('[data-ctl-cycle]').forEach(c => c.addEventListener('change', () => { const cy = (etat.ctlCycles || ['nouvelle', 'persistante', 'aggravee']).filter(x => x !== c.dataset.ctlCycle); if (c.checked) cy.push(c.dataset.ctlCycle); etat.ctlCycles = cy; etat.ctlToutes = false; rendre(); }));
+      const ctlRech = corps.querySelector('#ptCtlRecherche'); if (ctlRech) ctlRech.addEventListener('input', () => { etat.ctlRecherche = ctlRech.value; etat.ctlToutes = false; const p = ctlRech.selectionStart; rendre(); const n = corps.querySelector('#ptCtlRecherche'); if (n) { n.focus(); try { n.setSelectionRange(p, p); } catch (e) {} } });
+      const fi = corps.querySelector('[data-fiche-ouverte]'); if (fi && etat.ficheFraiche) { etat.ficheFraiche = false; fi.focus(); }
+      corps.querySelectorAll('[data-info-marge]').forEach(b => b.addEventListener('click', () => { etat.ouverte = b.dataset.infoMarge; rendre(); const f = corps.querySelector('[data-marge-fiche]'); if (f && f.scrollIntoView) f.scrollIntoView({ block: 'start' }); }));
+      corps.querySelectorAll('textarea.pt-verif-com').forEach(t => t.addEventListener('input', () => { const n = t.parentNode.querySelector('[data-com-compteur]'); if (n) n.textContent = String(t.value.trim().length) + ' / ' + E.LIMITE_COMMENTAIRE; }));
+      corps.querySelectorAll('[data-verifier]').forEach(b => b.addEventListener('click', () => marquerVerifie(b)));
+      E.lierOuvertures(corps, etat, rendre);
+      corps.querySelectorAll('select[data-filtre]').forEach(s => s.addEventListener('change', () => { etat.filtres[s.dataset.filtre] = s.value || undefined; etat.toutes = false; rendre(); }));
+      corps.querySelectorAll('select[data-filtre-histo]').forEach(s => s.addEventListener('change', () => { etat.filtreHisto = s.value || 'actifs'; etat.histoOuverte = null; rendre(); }));
+      corps.querySelectorAll('[data-histo-info]').forEach(b => b.addEventListener('click', () => { etat.histoOuverte = etat.histoOuverte === b.dataset.histoInfo ? null : b.dataset.histoInfo; rendre(); }));
+      corps.querySelectorAll('[data-effacer]').forEach(b => b.addEventListener('click', () => { delete etat.filtres[b.dataset.effacer]; rendre(); }));
+      const plus = corps.querySelector('[data-plus]'); if (plus) plus.addEventListener('click', () => { etat.toutes = true; rendre(); });
+      const aller = f => { etat.filtres = f; etat.toutes = false; rendre(); const t = corps.querySelector('.sc-tout'); if (t && t.scrollIntoView) t.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+      corps.querySelectorAll('[data-controle-liste]').forEach(b => b.addEventListener('click', () => aller(E.controle(analyse, b.dataset.controleListe, '').filtre)));
+      const cs = corps.querySelector('[data-conseil]:not([data-bloc-conseil])'); if (cs) cs.addEventListener('click', () => { const c = E.conseiller(analyse, employee.role); aller(c.filtre || {}); });
+      const r = corps.querySelector('#ptRecherche'); if (r) r.addEventListener('input', () => {
+        etat.filtres.recherche = r.value; etat.toutes = false; const p = r.selectionStart; rendre();
+        const n = corps.querySelector('#ptRecherche'); if (n) { n.focus(); try { n.setSelectionRange(p, p); } catch (e) {} }
+      });
+    };
+    ajouterStyleTarif();
+    rendre();
   }
   function ouvrirVue(cle) {
     const r = document.getElementById('resultSection');
