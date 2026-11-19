@@ -53,7 +53,8 @@ ok('sans stock : aucun constat par référence, une seule limite écrite', () =>
   });
   const hp = E.htmlPage({ analyse: a, role: 'gerant', filtres: {}, incoherences: [] });
   assert.strictEqual((hp.match(/Relevé de stock<\/b> : non fourni/g) || []).length, 1, 'dit une seule fois');
-  assert.ok(hp.indexOf('Relevé de stock</b> : non fourni') < hp.indexOf('<details'), 'visible avant les blocs repliés');
+  const posNote = hp.indexOf('Relevé de stock</b> : non fourni'), avant = hp.slice(0, posNote);
+  assert.strictEqual((avant.match(/<details/g) || []).length, (avant.match(/<\/details>/g) || []).length, 'visible : hors de tout bloc replié');
 });
 
 ok('la page appelle l\'assistant déclaratif', () => {

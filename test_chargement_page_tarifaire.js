@@ -54,7 +54,10 @@ PAGES.forEach(([nom, fichier]) => {
     assert.ok(a.lignes[0].anomalies && a.lignes[0].anomalies.length > 0, 'aucune anomalie détectée sur une marge négative');
     a.lignes[0].anomalies.forEach(x => { x.identiteDonnees = Object.assign({}, x.identiteDonnees, { fichierHash: 'h-fictif' }); });
     const html = E.htmlPage({ analyse: a, role: 'gerant', filtres: {}, incoherences: [], verifications: [], historiqueDispo: true, ouverte: a.lignes[0].article });
-    assert.ok(/data-historique="1"/.test(html) && /pt-histo-li/.test(html), 'historique vide');
+    // Depuis L1, les contrôles en attente ne figurent plus dans l'historique : il ne liste que les vérifications enregistrées.
+    const x0 = a.lignes[0].anomalies[0]; x0.cycle = 'verifiee';
+    const hv = E.htmlPage({ analyse: a, role: 'gerant', filtres: {}, incoherences: [], verifications: [{ code: x0.code, cle: x0.cle, verifie_le: '2030-03-05T10:00:00Z', auteur: 'Alex Test', commentaire: 'vu', identiteDonnees: x0.identiteDonnees, reevaluation: null }], historiqueDispo: true, ouverte: a.lignes[0].article });
+    assert.ok(/data-historique="1"/.test(hv) && /pt-histo-li/.test(hv), 'historique vide');
     assert.ok(/data-verifier=/.test(html), 'pas de bouton Marquer comme vérifié');
   });
 });
