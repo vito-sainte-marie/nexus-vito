@@ -152,7 +152,7 @@
       if (m !== null && m > 0) { nbPertes++; pertes += m; } else nbNulles++;
       if (!(a.donnees && a.donnees.justification)) sansJust++;
     });
-    var aVerifier = L.filter(function (l) {
+    var aVerifier = sansDemarque(L).filter(function (l) {
       return l.fiabilite.niveau === 'insuffisante' || ETATS_REGL_OUVERTS.indexOf(l.conformite.etat) >= 0;
     });
     var nonConstates = L.filter(function (l) { return l.prixDecide && ETATS_PRIX_NON_CONSTATES.indexOf(l.prixDecide.etat) >= 0; }).length;
@@ -235,7 +235,7 @@
 
   // Preuves techniques : références de fiabilité insuffisante, derrière un seul chevron.
   function preuves(analyse) {
-    return analyse.lignes.filter(function (l) { return l.fiabilite.niveau === 'insuffisante'; })
+    return sansDemarque(analyse.lignes).filter(function (l) { return l.fiabilite.niveau === 'insuffisante'; })
       .map(function (l) { return { article: l.article, raisons: l.fiabilite.raisons || [], mention: 'donnée à corriger' }; });
   }
 
@@ -325,7 +325,7 @@
     return { alerte: code };
   }
   function lignesControle(L, code) {
-    if (code === 'FI') return L.filter(function (l) { return l.fiabilite.niveau === 'insuffisante'; });
+    if (code === 'FI') return sansDemarque(L).filter(function (l) { return l.fiabilite.niveau === 'insuffisante'; });
     if (code === 'EX') return L.filter(function (l) { return l.statut === 'a_surveiller' && l.exception; });
     var r = lignesAlerte(code === 'A3' || code === 'A5' ? sansDemarque(L) : L, code);
     if (code === 'A1' || code === 'A2') r = r.filter(function (l) { return l.fiabilite.niveau !== 'insuffisante'; });

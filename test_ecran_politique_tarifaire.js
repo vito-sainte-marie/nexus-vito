@@ -939,6 +939,9 @@ ok('L0 démarque : article préfixé d\'une date nommé, sans marge, hors marge 
   assert.deepStrictEqual(E.lignesControle(a.lignes, 'A3').filter(r => E.estDemarque(r)), []);
   assert.deepStrictEqual(E.lignesControle(a.lignes, 'A5').filter(r => E.estDemarque(r)), []);
   assert.strictEqual(E.conseiller(a, 'gerant').texte, E.conseiller(b, 'gerant').texte);
+  assert.strictEqual(E.cartes(a).find(c => c.id === 'a_verifier').valeur, E.cartes(b).find(c => c.id === 'a_verifier').valeur);
+  assert.strictEqual(E.lignesControle(a.lignes, 'FI').filter(r => E.estDemarque(r)).length, 0);
+  assert.ok(!/ARTICLE FICTIF DATE/.test(JSON.stringify(E.preuves ? E.preuves(a) : [])));
 });
 Promise.all(PROMESSES).then(() => {
 console.log('test_ecran_politique_tarifaire : ' + n + ' épreuves OK');
