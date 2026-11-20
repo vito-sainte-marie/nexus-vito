@@ -1358,6 +1358,27 @@
       "valide_le": "2026-11-18T23:45:00Z",
       "trace": "#160, validation transmise par Guardian, commentaire 6995017878"
     },
+    "20261120124007": {
+      "etat": "additive_compatible_avant_code",
+      "justification": "Migration statique : une fonction et deux declencheurs BEFORE UPDATE qui fixent annule_le a now() a la premiere annulation. Aucun DDL destructif, aucune colonne ni politique modifiee, aucun code deploye ne depend de ces objets ; migration d abord.",
+      "mesure": {
+        "source": "catalogue",
+        "le": "2026-11-20T12:40:00Z",
+        "cible": "uzhjpqpctpvxytxpxoqz",
+        "par": "guardian",
+        "outil": "requetes de catalogue en lecture seule sur Production, rapportees par Guardian dans #160 7039779789 ; reprises ici sans nouvelle lecture",
+        "verdict": "APPLIQUEE le 20/11/2026 a 12 h 40 UTC sous la version 20261120124007 (registre 346 puis 347) ; avant : tables presentes, aucun objet du meme nom ; apres : deux declencheurs presents, EXECUTE ferme a authenticated, md5 du corps de la fonction identique au fichier",
+        "blob_migration": "79f5a66d488a4f9e26799938f8d8cda7329c8b25"
+      },
+      "objets_crees": [
+        "function tarif_annulation_heure_serveur",
+        "trigger tarif_verif_annulation_heure_serveur",
+        "trigger tarif_reeval_annulation_heure_serveur"
+      ],
+      "valide_par": "pilote",
+      "valide_le": "2026-11-20T12:40:00Z",
+      "trace": "#160, GO du pilote du 20/11 transmis par Guardian, commentaire 7039779789"
+    },
     "20261118120000": {
       "etat": "additive_compatible_avant_code",
       "justification": "Migration additive du lot registres tarifaires (#331) : 2 tables, 3 index, RPC tarif_marquer_verifie et tarif_enregistrer_reevaluations. Absente de Production, aucun code deploye ne la lit tant que #332 n est pas fusionne ; appliquer avant le code (l inverse donne des erreurs PGRST).",
