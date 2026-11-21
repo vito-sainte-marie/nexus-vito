@@ -522,6 +522,17 @@ ok('mise en page Contrôler : fil d\'Ariane, vignette de famille, pas de title s
   assert.ok(lignes.length >= 3 && lignes.every(b => !/\stitle=/.test(b)), 'aucune ligne ne porte de title');
   assert.ok(!/<li class="pt-ctl-item"[^>]*\stitle=/.test(h));
 });
+ok('en-tête Contrôler en tête de l\'axe : titre, sous-titre, pilule Estimations, avant les cartes, sans details', () => {
+  const h = E.htmlPage({ analyse: avecControles(3), role: 'manager', estCreateur: false, filtres: {}, incoherences: [] });
+  const i = h.indexOf('data-bloc-controles'), c = h.indexOf('pt-inds', i);
+  assert.ok(i > 0 && c > i && h.indexOf('<h2 class="pt-ctl-titre', i) < c, 'titre avant les cartes d\'axe');
+  assert.ok(/data-ctl-sous="1">[^<]*références/.test(h) && /data-ctl-estimations="1">Estimations</.test(h));
+  assert.ok(!/<details[^>]*data-bloc-controles/.test(h));
+});
+ok('détail Contrôler : bloc de deux indicateurs (chiffre clé en grand + niveau)', () => {
+  const h = E.htmlPage({ analyse: avecControles(2), role: 'manager', estCreateur: false, filtres: {}, incoherences: [] });
+  assert.ok(/data-ctl-indicateurs="1"/.test(h) && /pt-ind-cle/.test(h) && /pt-ind-niv/.test(h));
+});
 ok('recette Guardian : cases de filtre avec accent-color', () => {
   assert.ok(/input\[type=checkbox\]\{accent-color:var\(--accent\)/.test(E.CSS));
 });
