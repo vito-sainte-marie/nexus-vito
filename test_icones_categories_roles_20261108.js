@@ -48,20 +48,20 @@ t('les registres exposent exactement ces identifiants', () => {
 // ---- Catégories : nom → id ----
 const NOMS = {
   'Gaz': 'cat-gaz', 'Glaçons': 'cat-glacons', 'Glacons': 'cat-glacons', 'Huiles': 'cat-huiles', 'Boissons chaudes': 'cat-boissons',
-  'Bières': 'cat-boissons', 'Lave-glace & Liquide de refroidissement': 'cat-lave-glace', 'Viennoiserie': 'cat-viennoiserie',
+  'Bières': 'cat-bieres', 'Lave-glace & Liquide de refroidissement': 'cat-lave-glace', 'Viennoiserie': 'cat-viennoiserie',
   'Pains': 'cat-pains', 'Sandwichs': 'cat-pains', 'Journaux': 'cat-journaux', 'CBD': 'cat-cbd', 'Cigarettes': 'cat-cigarettes',
   'Petits articles caisse': 'cat-petits-articles', '  GAZ ': 'cat-gaz', 'Lave glace': 'cat-lave-glace',
 };
-t('11 catégories reconnues, casse, accents et espaces tolérés', () => {
+t('12 catégories reconnues, casse, accents et espaces tolérés', () => {
   Object.keys(NOMS).forEach(nom => assert.strictEqual(NI.idCategorie(nom), NOMS[nom], nom));
-  assert.strictEqual(new Set(Object.values(NOMS)).size, 11);
+  assert.strictEqual(new Set(Object.values(NOMS)).size, 12);
 });
 t('« Lave-glace » n\'est pas pris pour des glaçons (l\'ancienne règle « gla » se trompait)', () => {
   assert.strictEqual(NI.idCategorie('Lave-glace'), 'cat-lave-glace');
   assert.strictEqual(NI.idCategorie('Glaçons 5 kg'), 'cat-glacons');
 });
 t('catégorie inconnue, vide ou absente : null, la surface garde son pictogramme', () => {
-  ['Épicerie', '', null, undefined, 42].forEach(x => assert.strictEqual(NI.idCategorie(x), null, String(x)));
+  ['Rayon fictif sans règle', '', null, undefined, 42].forEach(x => assert.strictEqual(NI.idCategorie(x), null, String(x)));
   assert.strictEqual(NI.imgCategorie('cat-inconnue', 40, { ancien: '<svg>ancien</svg>' }), '<svg>ancien</svg>');
   assert.strictEqual(NI.imgCategorie(null, 40), '');
 });

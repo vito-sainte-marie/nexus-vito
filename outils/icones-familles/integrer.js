@@ -59,23 +59,28 @@ async function famille(dossierSrc, id, sortie) {
     }
     // PNG simplifié 24 px (≤ 24 px, les surfaces utilisent le simplifié)
     const p24 = await composer(fichier, 24, th);
-    fs.writeFileSync(path.join(dir, id + th.suffixe + '-24.png'), await p24.png().toBuffer());
+    const png24 = await p24.png().toBuffer();
+    fs.writeFileSync(path.join(dir, id + '-24' + th.suffixe + '.png'), png24);
+    // Le chargeur lit <id>-24[-jour].svg : on enveloppe le PNG 24 px dans un SVG de même taille.
+    fs.writeFileSync(path.join(dir, id + '-24' + th.suffixe + '.svg'),
+      '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><image width="24" height="24" href="data:image/png;base64,' + png24.toString('base64') + '"/></svg>\n');
   }
   return rapport;
 }
 
 // Planche de contrôle : toutes les familles à 16, 24, 48, 96 px, sur fond Nuit et Jour.
-async function planche(sortie, ids) {
+async function planche(sortie, ids, nom) {
+  const th = THEMES[nom], fondPlanche = nom === 'jour' ? '#F4F7FA' : '#0B0F14';
   const tailles = [16, 24, 48, 96], pas = 112, haut = 4 * 0 + 120;
   const larg = tailles.length * pas + 16, hauteur = ids.length * haut * 2 / 2 + 16;
   const couches = [];
   for (let i = 0; i < ids.length; i++) for (let j = 0; j < tailles.length; j++) {
     const cote = tailles[j];
-    const buf = await sharp(path.join(sortie, ids[i], ids[i] + '@3x.webp')).resize(cote, cote).png().toBuffer();
+    const buf = await sharp(path.join(sortie, ids[i], ids[i] + th.suffixe + '@3x.webp')).resize(cote, cote).png().toBuffer();
     couches.push({ input: buf, left: 16 + j * pas, top: 8 + i * haut });
   }
-  const fond = { create: { width: larg, height: Math.max(hauteur, 128), channels: 4, background: '#0B0F14' } };
-  await sharp(fond).composite(couches).png().toFile(path.join(sortie, 'planche-controle-familles.png'));
+  const fond = { create: { width: larg, height: Math.max(hauteur, 128), channels: 4, background: fondPlanche } };
+  await sharp(fond).composite(couches).png().toFile(path.join(sortie, 'planche-controle-familles-' + nom + '.png'));
 }
 
 (async () => {
@@ -86,7 +91,7 @@ async function planche(sortie, ids) {
   const manquantes = T.A_VENIR.filter(id => !ids.includes(id));
   if (!ids.length) { console.error('Aucune source trouvée dans ' + src); process.exit(1); }
   for (const id of ids) (await famille(src, id, sortie)).forEach(l => console.log(l));
-  await planche(sortie, ids);
+  await planche(sortie, ids, 'nuit'); await planche(sortie, ids, 'jour');
   console.log('\nFamilles intégrées (' + ids.length + ') : ' + ids.join(', '));
   if (manquantes.length) console.log('Encore sans image (icône neutre) : ' + manquantes.join(', '));
   if (process.argv.includes('--pret')) console.log('\nÀ ajouter à PRETES dans nexus-rayons-familles.js : ' + JSON.stringify(ids));

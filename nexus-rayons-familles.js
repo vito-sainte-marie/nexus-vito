@@ -9,12 +9,11 @@
   // Familles dont l'image existe dans assets/icones/v2. Une famille « à venir » y est ajoutée le jour où ses
   // fichiers sont déposés (le script outils/icones-familles/integrer.js les produit).
   var PRETES = ['cat-gaz', 'cat-glacons', 'cat-huiles', 'cat-boissons', 'cat-lave-glace', 'cat-viennoiserie',
-    'cat-pains', 'cat-journaux', 'cat-cbd', 'cat-cigarettes', 'cat-petits-articles'];
+    'cat-pains', 'cat-journaux', 'cat-cbd', 'cat-cigarettes', 'cat-petits-articles',
+    'cat-confiserie', 'cat-biscuits', 'cat-chips', 'cat-jus', 'cat-eaux', 'cat-bieres', 'cat-alcools',     'cat-tabac', 'cat-feuilles', 'cat-vape', 'cat-cartes', 'cat-glaces', 'cat-epicerie', 'cat-hygiene',     'cat-entretien', 'cat-auto', 'cat-electricite', 'cat-bricolage'];
 
   // Familles annoncées, images dessinées hors dépôt, à intégrer (identifiants figés par le Guardian).
-  var A_VENIR = ['cat-confiserie', 'cat-biscuits', 'cat-chips', 'cat-jus', 'cat-eaux', 'cat-bieres', 'cat-alcools',
-    'cat-tabac', 'cat-feuilles', 'cat-vape', 'cat-cartes', 'cat-glaces', 'cat-epicerie', 'cat-hygiene',
-    'cat-entretien', 'cat-auto', 'cat-electricite', 'cat-bricolage'];
+  var A_VENIR = [];
 
   // Motifs sur le libellé normalisé (sans accent, minuscules, espaces simples). Ordre significatif.
   var REGLES = [

@@ -26,9 +26,10 @@ t('huile moteur reste cat-huiles, gaz seul reste cat-gaz', () => {
   assert.strictEqual(T.familleCible('Gaz'), 'cat-gaz');
 });
 t('famille sans image : secours puis neutre, jamais d\'identifiant sans fichier', () => {
-  assert.strictEqual(T.familleAffichable('Bières'), 'cat-boissons');
-  assert.strictEqual(T.iconeRayon('Confiserie'), 'cat-petits-articles');
-  assert.strictEqual(T.familleAffichable('Confiserie'), null);
+  assert.strictEqual(T.familleAffichable('Bières'), 'cat-bieres');
+  assert.strictEqual(T.iconeRayon('Confiserie'), 'cat-confiserie');
+  assert.strictEqual(T.familleAffichable('Confiserie'), 'cat-confiserie');
+  assert.strictEqual(T.familleAffichable('Rayon fictif sans règle'), null);
 });
 t('rayon inconnu : icône neutre, et la liste des inconnus le nomme', () => {
   assert.strictEqual(T.iconeRayon('Rayon fictif sans règle'), T.NEUTRE);
@@ -37,8 +38,12 @@ t('rayon inconnu : icône neutre, et la liste des inconnus le nomme', () => {
 });
 t('chaque famille prête a ses fichiers, chaque famille à venir est nommée', () => {
   T.PRETES.forEach(id => assert.ok(fs.existsSync(path.join(__dirname, 'assets/icones/v2', id, id + '@1x.webp')), id));
-  assert.strictEqual(T.A_VENIR.length, 18);
-  assert.strictEqual(new Set(T.PRETES.concat(T.A_VENIR)).size, T.PRETES.length + 18);
+  assert.strictEqual(T.A_VENIR.length, 0);
+  assert.strictEqual(T.PRETES.length, 29);
+  assert.strictEqual(new Set(T.PRETES).size, 29);
+  T.PRETES.slice(11).forEach(id => ['-24.svg', '-24-jour.svg', '-24.png', '-24-jour.png', '-jour@1x.webp', '-jour@2x.webp', '-jour@3x.webp', '@2x.webp', '@3x.webp']
+    .forEach(suf => { const f = suf.charAt(0) === '-' && suf.indexOf('@') < 0 ? id + suf : (suf.charAt(0) === '@' ? id + suf : id + suf);
+      assert.ok(fs.existsSync(path.join(__dirname, 'assets/icones/v2', id, f)), id + ' ' + f); }));
 });
 t('chaque règle vise une famille connue', () => {
   const connues = new Set(T.PRETES.concat(T.A_VENIR));
