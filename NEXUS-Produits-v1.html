@@ -1726,7 +1726,7 @@ nexusRequireAuth().then(async employee => {
     try { const r = await calculerAnalyseTarif(true); analyse = r.analyse; incoherences = r.incoherences; verifs = r.verifications; identite = r.identite; }
     catch (e) { console.error('Scanner tarifaire:', e); indispo('Impossible de lire les registres tarifaires.'); return; }
     if (!analyse.lignes.length) { indispo('Aucune donnée tarifaire pour ce site'); return; }
-    const etat = { analyse, verifications: verifs || [], historiqueDispo: !!verifs, filtreHisto: 'verifiee', histoOuverte: null, role: employee.role, filtres: {}, incoherences, ouverte: null, toutes: false, site: ((document.querySelector('.nexus-nom-commerce') || {}).textContent || ''), icone, estCreateur: !!(employee.est_createur || employee.estCreateur) };
+    const etat = { analyse, verifications: verifs || [], historiqueDispo: !!verifs, filtreHisto: 'verifiee', histoOuverte: null, role: employee.role, userId: employee.id, filtres: {}, incoherences, ouverte: null, toutes: false, site: ((document.querySelector('.nexus-nom-commerce') || {}).textContent || ''), icone, estCreateur: !!(employee.est_createur || employee.estCreateur) };
     // Annulation tracée d'une vérification : update des trois seules colonnes autorisées (aucune RPC, aucune migration).
     etat.surAnnulation = async ({ id }, motif) => {
       try {
