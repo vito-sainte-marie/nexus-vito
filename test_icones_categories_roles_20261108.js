@@ -15,7 +15,7 @@ function garde(nom, src, regle, litteral, remplacement) {
     assert.ok(!regle(src.replace(litteral, remplacement)), 'la garde doit rougir sur la source mutée');
   });
 }
-function charger(src) { const ctx = { window: undefined }; ctx.globalThis = ctx; vm.runInNewContext(src, ctx); return ctx.NexusIcones; }
+function charger(src) { const ctx = { window: undefined }; ctx.globalThis = ctx; vm.runInNewContext(lire('nexus-rayons-familles.js'), ctx); vm.runInNewContext(src, ctx); return ctx.NexusIcones; }
 const SRC = lire('nexus-icones.js');
 const NI = charger(SRC);
 const dossier = id => path.join(__dirname, 'assets/icones/v2', id);
@@ -97,7 +97,7 @@ t('jusqu\'à 24 px : variante simplifiée -24.svg (et -24-jour.svg), sans srcset
 });
 t('thème lu sur html[data-theme] quand « jour » n\'est pas imposé', () => {
   const ctx = { document: { documentElement: { getAttribute: () => 'jour' } } };
-  ctx.globalThis = ctx; ctx.window = undefined; vm.runInNewContext(SRC, ctx);
+  ctx.globalThis = ctx; ctx.window = undefined; vm.runInNewContext(lire('nexus-rayons-familles.js'), ctx); vm.runInNewContext(SRC, ctx);
   assert.ok(/-jour@1x\.webp$/.test(ctx.NexusIcones.attributsCategorie('cat-gaz', 40).src));
 });
 t('décoratif : alt vide et aria-hidden ; sinon alt = libellé', () => {
