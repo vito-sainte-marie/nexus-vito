@@ -157,7 +157,7 @@ begin
     ) t;
 
   select count(*),
-         count(*) filter (where x.actif_id is null),
+         count(*) filter (where x.actif_id is null and x.dans_catalogue),
          count(*) filter (where x.actif_id is not null and x.actif_taux <> x.taux),
          count(*) filter (where x.actif_id is not null and x.actif_taux = x.taux),
          count(*) filter (where not x.dans_catalogue)

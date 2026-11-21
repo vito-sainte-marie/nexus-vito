@@ -60,6 +60,9 @@ ok(/est_createur/.test(code) && /v_nb_pilote <> 1/.test(code) && /compte_test = 
 ok(/remplace_id/.test(code) && /annule_le is null/.test(code), 'chaîne remplace_id et actives');
 ok(/insert into produits_tva_confirmations/.test(code), 'insertion dans produits_tva_confirmations');
 ok(/CIBLES_ABSENTES_DE_PRODUCTS/.test(code), 'refus si cible absente de products');
+ok(/count\(\*\) filter \(where x\.actif_id is null and x\.dans_catalogue\),/.test(code), 'a_inserer exclut les cibles absentes de products (APPLIQUER les refuse)');
+ok(!/count\(\*\) filter \(where x\.actif_id is null\),/.test(code), 'a_inserer : plus de comptage sans condition de catalogue');
+ok(/cibles=5, a_inserer=2, a_remplacer=1, deja_conformes=1, cibles_absentes_de_products=1/.test(epreuve), 'épreuve E1 : la cible absente n est pas comptée à insérer');
 ok(!/vito-sainte-marie.*(prenom|nom propre)/i.test(code), 'aucun nom de personne');
 
 // Corps identique entre Production et épreuve Test
