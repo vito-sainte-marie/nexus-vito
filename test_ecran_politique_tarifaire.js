@@ -660,6 +660,29 @@ ok('L4 : annulation acceptée restaure le cycle et le compteur ; refus sans chan
   assert.strictEqual(etat.messageVerif, null); assert.ok(/Vérification annulée/.test(etat.messageAnnul));
   assert.deepStrictEqual(appels[1], ['id-1', 'motif']);
 });
+ok('L4 piste 4 : A puis B, « Annuler » sur la confirmation de B n\'annule que B, avec son id ; un échec reste à l\'écran', async () => {
+  const anA = { code: 'S2', cycle: 'nouvelle' }; const anB = { code: 'S3', cycle: 'nouvelle' };
+  const etat = { surAnnulation: null };
+  E.effetVerificationEnregistree(anA, etat, 'Gérant', 'idA');
+  E.effetVerificationEnregistree(anB, etat, 'Gérant', 'idB');
+  assert.strictEqual(etat.derniereVerif.id, 'idB', 'la confirmation affichée est celle de B');
+  const appels = [];
+  etat.surAnnulation = async (c, m) => { appels.push([c.id, m]); return { ok: false, message: 'Annulation refusée : politique' }; };
+  const r1 = await E.annulerVerification(etat, 'Test');
+  assert.strictEqual(r1.ok, false);
+  assert.deepStrictEqual(appels, [['idB', 'Test']], 'seul B est visé');
+  assert.strictEqual(anA.cycle, 'verifiee'); assert.strictEqual(anB.cycle, 'verifiee', 'refus : rien ne change');
+  etat.erreurAnnul = r1.message; etat.annulOuverte = true;
+  const base = { analyse: avecControles(2), role: 'manager', estCreateur: false, filtres: {}, incoherences: [] };
+  const h = E.htmlPage(Object.assign({}, base, etat));
+  assert.ok(/data-annul-erreur/.test(h) && /Annulation refusée : politique/.test(h) && /role="alert"/.test(h), 'l\'échec reste affiché');
+  etat.surAnnulation = async (c, m) => { appels.push([c.id, m]); return { ok: true }; };
+  const r2 = await E.annulerVerification(etat, 'Test');
+  assert.strictEqual(r2.ok, true);
+  assert.deepStrictEqual(appels[1], ['idB', 'Test']);
+  assert.strictEqual(anB.cycle, 'nouvelle'); assert.strictEqual(anA.cycle, 'verifiee', 'A reste vérifiée');
+  assert.deepStrictEqual(etat.verifications.map(v => v.id), ['idA'], 'A reste dans l\'état');
+});
 ok('L4 : confirmation en aria-live, Annuler seulement avec droit, zone motif obligatoire, état « Tout est traité »', () => {
   const a = avecControles(2);
   const base = { analyse: a, role: 'manager', estCreateur: false, filtres: {}, incoherences: [] };
