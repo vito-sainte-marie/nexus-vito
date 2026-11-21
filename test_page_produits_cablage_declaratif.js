@@ -65,4 +65,9 @@ ok('la page appelle l\'assistant déclaratif', () => {
   assert.ok(/E\.construireContexteTarif\(\{[^}]*declarations: DECLARATIONS_PRODUITS/.test(h));
 });
 
+ok('la page hôte transmet l\'identifiant de l\'utilisateur à l\'écran (un manager n\'annule que sa propre saisie)', () => {
+  const h = fs.readFileSync(__dirname + '/NEXUS-Produits-v1.html', 'utf8');
+  assert.ok(/const etat = \{[^\n]*userId: employee\.id[^\n]*\}/.test(h), 'etat.userId absent de la page hôte');
+});
+
 console.log('test_page_produits_cablage_declaratif : ' + n + ' épreuves OK');

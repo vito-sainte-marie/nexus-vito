@@ -1240,6 +1240,79 @@ ok('Hôte : lit employee.est_createur (et estCreateur)', () => {
 ok('Refus RPC inconnu : message générique', () => {
   assert.ok(/L'enregistrement a échoué/.test(E.messageErreurEcriture({ message: 'boom' })));
 });
+ok('annulation par le créateur : peutAnnuler, bouton « Annuler » sur la ligne de l\'historique, jamais « Marquer comme vérifié »', () => {
+  assert.strictEqual(E.peutAnnuler('employe', true), true);
+  assert.strictEqual(E.peutAnnuler('gerant', false), true); assert.strictEqual(E.peutAnnuler('manager', false), true);
+  assert.strictEqual(E.peutAnnuler('employe', false), false); assert.strictEqual(E.peutAnnuler('pompiste', false), false);
+  assert.strictEqual(E.peutAnnuler(undefined, false), false);
+  assert.ok(!E.peutVerifier('employe', true) && !E.peutVerifier('gerant', true), 'le créateur ne vérifie toujours pas');
+  const x = { article: 'Art A', code: 'S2', cle: 'k1', cycle: 'verifiee', verif: vref({ id: 'v-7', auteur: 'Alex Test' }) };
+  const bouton = /data-histo-annuler="v-7"/;
+  for (const [role, cr, voit] of [['employe', true, true], ['gerant', false, true], ['manager', false, true], ['employe', false, false], ['pompiste', false, false]]) {
+    const h = E.htmlAnnulLigne(x, { role, estCreateur: cr });
+    assert.strictEqual(bouton.test(h), voit, role + '/' + cr);
+    assert.ok(!/Marquer comme vérifié/.test(h));
+    assert.ok(!bouton.test(E.htmlDetailHistorique(x, { role, estCreateur: cr })), 'plus de bouton dans le détail');
+  }
+  const ouvert = E.htmlAnnulLigne(x, { role: 'employe', estCreateur: true, annulCible: { id: 'v-7' }, annulOuverte: true, erreurAnnul: 'Annulation refusée : x' });
+  assert.ok(/data-annul-confirmer/.test(ouvert) && !bouton.test(ouvert));
+  assert.ok(/data-annul-erreur="1"/.test(ouvert) && /Annulation refusée : x/.test(ouvert), 'échec affiché à côté de la ligne');
+});
+const etatSuivre = (extra) => {
+  const analyse = { lignes: [
+    { article: 'Art A', anomalies: [{ code: 'S2', cle: 'kA', cycle: 'verifiee' }], anomaliesResolues: [] },
+    { article: 'Art B', anomalies: [{ code: 'S2', cle: 'kB', cycle: 'verifiee' }], anomaliesResolues: [] }] };
+  const verifications = [
+    { id: 'v-A', code: 'S2', cle: 'kA', verifie_le: '2030-03-05T10:00:00Z', auteur: 'Alex Test', saisiPar: 'u-1', commentaire: null, reevaluation: null },
+    { id: 'v-B', code: 'S2', cle: 'kB', verifie_le: '2030-03-06T10:00:00Z', auteur: 'Alex Test', saisiPar: 'u-2', commentaire: null, reevaluation: null }];
+  return Object.assign({ historiqueDispo: true, analyse, verifications, filtreHisto: 'verifiee', role: 'gerant', estCreateur: false }, extra || {});
+};
+ok('annulation depuis Suivre : un bouton par vérification active, avec le bon id', () => {
+  const h = E.htmlHistorique(etatSuivre());
+  assert.ok(/data-histo-annuler="v-A"/.test(h) && /data-histo-annuler="v-B"/.test(h));
+  assert.strictEqual((h.match(/data-histo-annuler=/g) || []).length, 2);
+  assert.ok(/aria-label="Annuler la vérification de Art A"/.test(h));
+  const ouvert = E.htmlHistorique(etatSuivre({ annulCible: { id: 'v-B' }, annulOuverte: true }));
+  assert.ok(/data-histo-annul-ligne="v-B"/.test(ouvert) && /data-annul-confirmer/.test(ouvert));
+  assert.ok(!/data-histo-annuler="v-A"/.test(ouvert), 'une seule annulation à la fois');
+});
+ok('annulation depuis Suivre : aucun bouton sans le droit', () => {
+  for (const [role, cr] of [['employe', false], ['pompiste', false], [undefined, false]]) {
+    assert.ok(!/data-histo-annuler/.test(E.htmlHistorique(etatSuivre({ role, estCreateur: cr }))), String(role));
+  }
+  const m = E.htmlHistorique(etatSuivre({ role: 'manager', userId: 'u-1' }));
+  assert.ok(/data-histo-annuler="v-A"/.test(m) && !/data-histo-annuler="v-B"/.test(m), 'un manager n\'annule que sa propre saisie');
+  assert.ok(/data-histo-annuler="v-B"/.test(E.htmlHistorique(etatSuivre({ role: 'employe', estCreateur: true }))));
+});
+ok('annulation depuis Suivre : la ligne quitte « Vérifiés » et le contrôle revient, avec l\'id de CETTE ligne', async () => {
+  const etat = etatSuivre({ annulCible: { id: 'v-B', an: null, cle: 'kB', cycleAvant: 'nouvelle' } });
+  const an = etat.analyse.lignes[1].anomalies[0];
+  etat.annulCible.an = an;
+  const appels = [];
+  etat.surAnnulation = async (c, m) => { appels.push([c.id, m]); return { ok: false, message: 'Annulation refusée : x' }; };
+  assert.strictEqual((await E.annulerVerification(etat, 'motif')).ok, false);
+  assert.strictEqual(E.historiqueLignes(etat.analyse, etat.verifications, 'verifiee').length, 2, 'échec : la vérification reste');
+  etat.surAnnulation = async (c, m) => { appels.push([c.id, m]); return { ok: true }; };
+  assert.strictEqual((await E.annulerVerification(etat, 'motif')).ok, true);
+  assert.deepStrictEqual(appels.map(a => a[0]), ['v-B', 'v-B']);
+  assert.deepStrictEqual(etat.verifications.map(v => v.id), ['v-A']);
+  assert.strictEqual(an.cycle, 'nouvelle');
+  assert.strictEqual(etat.ctlSel, 'kB');
+  assert.strictEqual(E.historiqueLignes(etat.analyse, etat.verifications, 'verifiee').length, 1);
+});
+ok('annulation par le créateur : annulCible envoie le bon id, retire la ligne ; un refus garde la vérification', async () => {
+  const etat = { role: 'employe', estCreateur: true, verifications: [{ id: 'v-7', code: 'S2', cle: 'k1' }, { id: 'v-8', code: 'S2', cle: 'k2' }], annulCible: { id: 'v-7' } };
+  const appels = [];
+  etat.surAnnulation = async (c, m) => { appels.push([c.id, m]); return { ok: false, message: 'Annulation refusée : x' }; };
+  const r1 = await E.annulerVerification(etat, 'motif');
+  assert.strictEqual(r1.ok, false); assert.strictEqual(etat.verifications.length, 2);
+  etat.surAnnulation = async (c, m) => { appels.push([c.id, m]); return { ok: true }; };
+  const r2 = await E.annulerVerification(etat, 'motif');
+  assert.strictEqual(r2.ok, true);
+  assert.deepStrictEqual(appels.map(a => a[0]), ['v-7', 'v-7']);
+  assert.deepStrictEqual(etat.verifications.map(v => v.id), ['v-8']);
+  assert.strictEqual(etat.annulCible, null);
+});
 Promise.all(PROMESSES).then(() => {
 console.log('test_ecran_politique_tarifaire : ' + n + ' épreuves OK');
 });
