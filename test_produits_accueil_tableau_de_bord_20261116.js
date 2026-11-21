@@ -118,13 +118,9 @@ function banc(ctx) {
   const info = src.match(/titre: 'TVA à vérifier \(catalogue\)'[^\n]*?info: '((?:[^'\\]|\\.)*)'/);
   assert.ok(info, 'A8 (i) présent');
   const t = info[1];
-  assert.ok(/décisions du gérant par rayon/.test(t), 'A8 (i) dit que les décisions du gérant sont appliquées comme dans le Scanner');
-  assert.ok(!/pilote/.test(t), 'A8 (i) parle à un manager de station : pas de « pilote »');
-  assert.ok(/taux absent/.test(t), 'A8 (i) cas 1 : taux absent');
-  assert.ok(/à 0 % alors que le rayon est taxé/.test(t), 'A8 (i) cas 2 : 0 % dans un rayon taxé');
-  assert.ok(/différent de la période précédente/.test(t), 'A8 (i) cas 3 : période précédente');
-  assert.ok(/ou du taux confirmé/.test(t), 'A8 (i) cas 4 : taux confirmé');
-  assert.ok(!/non confirmé/.test(t), 'A8 (i) ne cite pas un cas qui n\'est pas compté');
-  assert.ok(!/\d/.test(t.replace(/à 0 % alors/, '')), 'A8 (i) sans nombre : aucun chiffre codé en dur (hors le « 0 % » du cas cité)');
+  assert.ok(/confirmations/.test(t), 'A8 (i) mentionne les confirmations déjà déduites');
+  assert.ok(!/\d/.test(t), 'A8 (i) sans aucun chiffre');
+  assert.ok(t.length <= 80, 'A8 (i) 80 caractères au plus (' + t.length + ')');
+  assert.ok(!/pilote/i.test(t), 'A8 (i) parle à un manager de station : pas de « pilote »');
   console.log('OK  A8 libellé et (i) TVA catalogue');
 })();
