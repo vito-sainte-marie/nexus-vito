@@ -153,4 +153,10 @@ t('les 87 libellés de rayon du lot réel ont une famille ; seuls Divers et Joue
   assert.strictEqual(T.iconeRayon('Divers'), 'cat-petits-articles');
   assert.strictEqual(T.iconeRayon('Jouet'), 'cat-petits-articles');
 });
+t('arbitrages du Guardian du 21/11 (7066618174) : sept rayons corrigés', () => {
+  const att = { 'Additifs': 'cat-lave-glace', 'Courrier': 'cat-journaux', 'Kits et Packs': 'cat-vape',
+    'Accessoires': 'cat-bricolage', 'Autres': 'cat-huiles', 'maison deco': 'cat-entretien',
+    'Bois et dérivés - Charbon': 'cat-gaz', 'Carrosserie': 'cat-auto', 'Codes promo': 'cat-cartes' };
+  Object.keys(att).forEach(r => assert.strictEqual(T.iconeRayon(r), att[r], r));
+});
 console.log(n + ' épreuves OK');

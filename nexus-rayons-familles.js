@@ -53,15 +53,19 @@
     { motif: 'electri|pile|ampoule|batterie|chargeur', famille: 'cat-electricite' },
     { motif: 'bricolage|outil|quincaillerie', famille: 'cat-bricolage' },
     // Rayons du lot réel sans règle jusque-là (Guardian 7065506472) : choix à trancher par le Guardian.
-    { motif: 'additifs?|carrosserie|pneumatique|lavage|\\binterieur\\b', famille: 'cat-auto' },
+    { motif: 'additifs?', famille: 'cat-lave-glace' },
+    { motif: 'carrosserie|pneumatique|lavage|\\binterieur\\b', famille: 'cat-auto' },
     { motif: 'charcuterie|condiments?|farine', famille: 'cat-epicerie' },
     { motif: 'cigares?', famille: 'cat-tabac' },
-    { motif: 'codes? promo|courrier', famille: 'cat-cartes' },
+    { motif: 'codes? promo', famille: 'cat-cartes' },
+    { motif: 'courrier', famille: 'cat-journaux' },
     { motif: 'colles?\\b|jardinage', famille: 'cat-bricolage' },
     { motif: 'esthetique|capillaires?', famille: 'cat-hygiene' },
-    { motif: 'puffs?\\b', famille: 'cat-vape' },
-    { motif: 'vaisselle', famille: 'cat-entretien' },
-    { motif: '^accessoires$|^autres$|bois et derives|kits? et packs?|maison deco', famille: 'cat-petits-articles' },
+    { motif: 'puffs?\\b|kits? et packs?', famille: 'cat-vape' },
+    { motif: 'vaisselle|maison deco', famille: 'cat-entretien' },
+    { motif: '^accessoires$', famille: 'cat-bricolage' },
+    { motif: '^autres$', famille: 'cat-huiles' },
+    { motif: 'bois et derives', famille: 'cat-gaz' },
     { motif: 'petits? articles?', famille: 'cat-petits-articles' }
   ].map(function (r) { r.re = new RegExp(r.motif); return r; });
 
