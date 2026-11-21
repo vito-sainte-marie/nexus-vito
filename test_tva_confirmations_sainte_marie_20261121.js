@@ -11,6 +11,7 @@ function ok(c, m) { assert.ok(c, m); n++; }
 const dir = path.join(__dirname, 'outils', 'tva');
 const rows = JSON.parse(fs.readFileSync(path.join(dir, 'confirmations_sainte_marie_20261121.json'), 'utf8'));
 const sql = fs.readFileSync(path.join(dir, 'confirmations_sainte_marie_20261121.sql'), 'utf8');
+const epreuve = fs.readFileSync(path.join(dir, 'epreuve_confirmations_20261121.sql'), 'utf8');
 
 // Données
 ok(rows.length === 62, '62 lignes');
@@ -41,16 +42,32 @@ n++;
 const code = sql.split('\n').filter(l => !/^\s*--/.test(l)).join('\n').replace(/\$json\$[\s\S]*?\$json\$/, '');
 ok(!/\bupdate\b\s+\w+\s+set\b/i.test(code), 'aucun UPDATE de données');
 ok(!/\bdelete\s+from\b/i.test(code), 'aucun DELETE');
-ok(!/\btruncate\b|\bdrop\s+(table|schema|function|policy|column|view|index)\b/i.test(code), 'aucun TRUNCATE ni DROP');
+ok(!/\btruncate\b|\bdrop\s+(schema|function|policy|column|view|index)\b/i.test(code), 'aucun TRUNCATE ni DROP');
+ok((code.match(/\bdrop\s+table\b/gi) || []).length === 1 && /drop table if exists pg_temp\.tva_plan/.test(code), 'seul DROP : la table temporaire du plan');
 ok(!/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.test(code), 'aucun uuid en dur');
-ok(/v_mode constant text := 'RAPPORT'/.test(code), 'RAPPORT par défaut');
+ok(/select pg_temp\.tva_confirmations\('RAPPORT', 'vito-sainte-marie', false, \$json\$/.test(sql), 'appel : RAPPORT par défaut, site vito-sainte-marie, compte hors test');
+ok(/, 62\);/.test(sql), 'nombre de cibles attendu : 62');
 ok(code.includes("'RAPPORT'") && code.includes("'APPLIQUER'"), 'deux modes');
 ok(code.includes("raise exception 'RAPPORT_TVA"), 'RAPPORT se termine par une exception RAPPORT_TVA');
-ok(/est_createur/.test(code) && /v_nb_pilote <> 1/.test(code), 'confirme_par trouvé par requête, exactement un');
+ok(/est_createur/.test(code) && /v_nb_pilote <> 1/.test(code) && /compte_test = p_compte_test/.test(code), 'confirme_par trouvé par requête, exactement un');
 ok(/remplace_id/.test(code) && /annule_le is null/.test(code), 'chaîne remplace_id et actives');
 ok(/insert into produits_tva_confirmations/.test(code), 'insertion dans produits_tva_confirmations');
 ok(/CIBLES_ABSENTES_DE_PRODUCTS/.test(code), 'refus si cible absente de products');
 ok(!/vito-sainte-marie.*(prenom|nom propre)/i.test(code), 'aucun nom de personne');
+
+// Corps identique entre Production et épreuve Test
+const corps = t => { const a = t.indexOf('-- DEBUT_FONCTION_PARTAGEE'), b = t.indexOf('-- FIN_FONCTION_PARTAGEE'); ok(a >= 0 && b > a, 'marqueurs de fonction partagée'); return t.slice(a, b); };
+const cp = corps(sql), ce = corps(epreuve);
+ok(cp.length > 2000 && cp === ce, 'corps de la fonction identique octet pour octet : Production = épreuve');
+ok(/create or replace function pg_temp\.tva_confirmations/.test(cp), 'fonction temporaire pg_temp');
+const codeEp = epreuve.split('\n').filter(l => !/^\s*--/.test(l)).join('\n');
+ok(/raise exception 'RAPPORT_EPREUVE_TVA/.test(codeEp), 'épreuve terminée par RAPPORT_EPREUVE_TVA');
+ok(/7678069749886157684/.test(codeEp) && /garde_projet_test/.test(codeEp), 'garde projet Test');
+ok(!/\bdelete\s+from\b|\btruncate\b/i.test(codeEp.replace(cp, '')), 'épreuve : ni DELETE ni TRUNCATE');
+ok(!/\bupdate\s+(public\.)?\w+\s+set\b/i.test(codeEp), 'épreuve : aucun UPDATE');
+ok(!/vito-sainte-marie/.test(codeEp), 'épreuve : jamais le site de Production');
+ok(/'site-fantome-test'/.test(codeEp), 'épreuve : site d essai');
+['E1','E2','E3','E4','E5','E6','E7','E8','E9','E10','E11','E12'].forEach(e => ok(new RegExp("'" + e + ' ').test(codeEp), 'cas ' + e));
 
 // BUZZ Vodka : une confirmation à 8,5 % lève le contrôle « TVA différente sur la période précédente »
 const conf = { taux_confirme: 8.5, confirme_le: '2026-11-21T10:00:00Z' };
