@@ -105,17 +105,8 @@
   // Taux de TVA confirmés par le pilote le 18/11/2026. Données de paramétrage portées par le contexte, pas un registre :
   // le registre produits_tva_confirmations passe en premier s'il couvre la référence. Premier élément qui correspond gagne.
   // Recharges : Digicel Haïti à 0 % ; Digicel (hors Haïti), Orange, SFR à 8,5 % ; toute autre recharge à 0 %.
-  var SRC_PILOTE = 'pilote, 18/11/2026';
-  var HAITI = 'ha[iïí]ti';
-  var TVA_CONFIRMATIONS_PILOTE = [
-    { rayon: 'Cartes prépayées', motif: HAITI, taux_confirme: 0, source: SRC_PILOTE },
-    { rayon: 'Cartes prépayées', motif: 'digicel|orange|sfr', taux_confirme: 8.5, source: SRC_PILOTE },
-    { rayon: 'Cartes prépayées', taux_confirme: 0, source: SRC_PILOTE }
-  ].concat(['Cigarettes', 'Cigares', 'Tabac à rouler - 30g', 'Gaz'].map(function (r) {
-    return { rayon: r, taux_confirme: 0, source: SRC_PILOTE };
-  }));
-  // Ces confirmations valent pour le seul site du pilote, lu dans la session par l'appelant (S.site), jamais saisi librement.
-  var SITE_PILOTE = 'vito-sainte-marie';
+  var TR = global.NexusTvaReglesPilote || (typeof require === 'function' ? require('./nexus-tva-regles-pilote.js') : null);
+  var TVA_CONFIRMATIONS_PILOTE = TR.TVA_CONFIRMATIONS_PILOTE, SITE_PILOTE = TR.SITE_PILOTE;
   function construireContexteTarif(sources) {
     var S = sources || {};
     var base = { periode: S.periode };

@@ -401,7 +401,8 @@ body.nexus-desktop #resultSection > *{margin-bottom:12px;}
 <script src="nexus-periodes.js?v=20260904-0104"></script>
 <script src="nexus-conseiller.js?v=20260904-0104"></script>
 <script src="nexus-marge.js"></script>
-<script src="nexus-produits-mesure.js?v=20261118-1"></script>
+<script src="nexus-tva-regles-pilote.js?v=20261121-1"></script>
+<script src="nexus-produits-mesure.js?v=20261121-1"></script>
 <script src="nexus-campagne-outils.js?v=20261116-1"></script>
 <script src="nexus-campagne-ventes.js?v=20261114-1900"></script>
 <script src="nexus-produits-vues.js?v=20261116-1"></script>
@@ -1960,7 +1961,7 @@ nexusRequireAuth().then(async employee => {
     if (I.dormants.length > 0) L.push({ id: 'dormants', n: I.dormants.length, titre: 'Produits dormants', sous: pl(I.dormants.length, 'référence'), ton: 'info' });
     if (I.nbIdent > 0) L.push({ id: 'identifier', n: I.nbIdent, titre: 'Références à identifier', sous: pl(I.nbIdent, 'référence'), ton: 'ambre' });
     if (I.R && I.R.perte.non_justifiees > 0) L.push({ id: 'pertes', n: I.R.perte.non_justifiees, titre: 'Ventes à perte non justifiées', sous: pl(I.R.perte.non_justifiees, 'référence'), ton: 'rouge' });
-    if (I.nbTva > 0) L.push({ id: 'tva', n: I.nbTva, titre: 'TVA à vérifier (catalogue)', sous: pl(I.nbTva, 'référence'), ton: 'ambre', info: 'Compte du catalogue, sans les confirmations du pilote. Le Scanner applique en plus les confirmations du pilote.' });
+    if (I.nbTva > 0) L.push({ id: 'tva', n: I.nbTva, titre: 'TVA à vérifier (catalogue)', sous: pl(I.nbTva, 'référence'), ton: 'ambre', info: 'Taux à vérifier dans Decenium. Vos confirmations sont déjà déduites.' });
     return L;
   }
   // Synthèse du Conseiller de l'accueil : uniquement des résultats déjà calculés, sans tendance ni urgence.
