@@ -625,7 +625,7 @@
       if (!etat.annulOuverte) r += '<button type="button" class="pt-com-lien" data-ctl-annuler="1">Annuler</button>';
       else r += htmlZoneAnnulation(etat);
     }
-    if (etat.erreurAnnul) r += '<p class="sc-note pt-erreur" role="alert" data-annul-erreur="1">' + esc(etat.erreurAnnul) + '</p>';
+    if (etat.erreurAnnul && !etat.annulCible) r += '<p class="sc-note pt-erreur" role="alert" data-annul-erreur="1">' + esc(etat.erreurAnnul) + '</p>';
     if (etat.erreurEcriture) r += '<p class="sc-note pt-erreur" role="alert" data-ctl-erreur="1">' + esc(etat.erreurEcriture) + '</p>';
     return r;
   }
@@ -795,7 +795,7 @@
     var lignes = (v.data || []).map(function (x) {
       return { id: x.id, code: x.cause, cle: x.cle, article: x.article, code_barres: x.code_barres || null, empreinte: x.empreinte, gravite: x.gravite, verifie_le: x.saisi_le,
         identiteDonnees: { fichierHash: x.fichier_hash, dateReleve: x.date_releve }, commentaire: x.commentaire || null,
-        auteur: noms[x.saisi_par] || null, reevaluation: reeval[x.id] || null };
+        auteur: noms[x.saisi_par] || null, saisiPar: x.saisi_par || null, reevaluation: reeval[x.id] || null };
     });
     return { verifications: lignes };
   }
@@ -805,24 +805,38 @@
       return (verifications || []).filter(function (v) { return v.code === code && v.cle === cle; }).sort(function (a, b) { return String(b.verifie_le).localeCompare(String(a.verifie_le)); })[0] || null;
     };
     (analyse.lignes || []).forEach(function (l) {
-      (l.anomalies || []).forEach(function (a) { out.push({ article: l.article, code: a.code, cle: a.cle, cycle: a.cycle || 'nouvelle', verif: derniere(a.code, a.cle) }); });
+      (l.anomalies || []).forEach(function (a) { out.push({ article: l.article, code: a.code, cle: a.cle, cycle: a.cycle || 'nouvelle', verif: derniere(a.code, a.cle), an: a }); });
       (l.anomaliesResolues || []).forEach(function (a) { out.push({ article: l.article, code: a.code, cle: a.cle, cycle: 'resolue', verif: derniere(a.code, a.cle) }); });
     });
     return out.filter(function (x) { return f === 'tous' ? true : f === 'actifs' ? CYCLES_ACTIFS.indexOf(x.cycle) >= 0 : x.cycle === f; });
+  }
+  // Droit d'annuler une ligne précise : le rôle, et pour un manager non créateur sa propre saisie quand l'identifiant de l'utilisateur est connu (la base reste l'arbitre).
+  function peutAnnulerLigne(etat, v) {
+    if (!v || !v.id || !etat || !peutAnnuler(etat.role, etat.estCreateur)) return false;
+    if (!etat.estCreateur && etat.role === 'manager' && etat.userId && v.saisiPar && v.saisiPar !== etat.userId) return false;
+    return true;
+  }
+  // Annulation directement sur la ligne de l'historique : bouton, puis zone de motif et message d'échec à côté de CETTE ligne.
+  function htmlAnnulLigne(x, etat) {
+    var v = x.verif;
+    if (x.cycle !== 'verifiee' || !peutAnnulerLigne(etat, v)) return '';
+    var r = '';
+    if (etat.annulCible && etat.annulCible.id === v.id && etat.annulOuverte) {
+      r = htmlZoneAnnulation(etat);
+      if (etat.erreurAnnul) r += '<p class="sc-note pt-erreur" role="alert" data-annul-erreur="1">' + esc(etat.erreurAnnul) + '</p>';
+    } else if (!etat.annulCible) {
+      r = '<button type="button" class="pt-com-lien" data-histo-annuler="' + esc(v.id) + '" aria-label="Annuler la vérification de ' + esc(x.article) + '">Annuler</button>';
+    }
+    return r ? '<div class="pt-histo-annul" data-histo-annul-ligne="' + esc(v.id) + '">' + r + '</div>' : '';
   }
   function htmlDetailHistorique(x, etat) {
     var v = x.verif;
     if (!v) return '<p class="sc-note">Jamais vérifié.</p>';
     var re = v.reevaluation, LR = { persistante: 'persistante', aggravee: 'aggravée', resolue: 'résolue' };
-    var annul = '';
-    if (v.id && etat && peutAnnuler(etat.role, etat.estCreateur)) {
-      if (etat.annulCible && etat.annulCible.id === v.id && etat.annulOuverte) annul = htmlZoneAnnulation(etat);
-      else if (!etat.annulCible) annul = '<button type="button" class="pt-com-lien" data-histo-annuler="' + esc(v.id) + '">Annuler cette vérification</button>';
-    }
     return '<p class="sc-note">Vérifié le ' + esc(jourFr(String(v.verifie_le).slice(0, 10))) + ' par ' + esc(v.auteur || 'un responsable') + '.' +
       (v.commentaire ? ' Commentaire : ' + esc(v.commentaire) : ' Aucun commentaire.') +
       (re ? ' Réévaluation : ' + esc(LR[re.etat] || re.etat) + ' au relevé du ' + esc(jourFr(String(re.date_releve || re.saisi_le).slice(0, 10))) + '.' : ' Pas encore réévalué.') +
-      (etat && etat.reevalNonEnregistree && CYCLES_REEVAL[x.cycle] ? ' Réévaluation calculée : ' + esc(LR[x.cycle] || x.cycle) + ', non encore enregistrée.' : '') + '</p>' + annul;
+      (etat && etat.reevalNonEnregistree && CYCLES_REEVAL[x.cycle] ? ' Réévaluation calculée : ' + esc(LR[x.cycle] || x.cycle) + ', non encore enregistrée.' : '') + '</p>';
   }
   // L5 : auteur, date, commentaire et import visibles sur la ligne elle-même (le (i) garde la réévaluation). Une vérification annulée n'est jamais chargée.
   function htmlLigneSuivi(x) {
@@ -847,7 +861,7 @@
       var li = vis.map(function (x) {
         var k = x.code + '|' + x.article, ouvert = etat.histoOuverte === k;
         return '<li class="vp-ligne pt-histo-li"><div class="pt-histo-t"><span class="pt-histo-txt"><strong>' + esc(x.article) + '</strong> · <span class="nbe-qualif" data-axe="cycle">' + esc(LIB_CYCLE[x.cycle] || x.cycle) + '</span>' + htmlLigneSuivi(x) + '</span>' +
-          '<button type="button" class="detail-btn pt-histo-i" data-histo-info="' + esc(k) + '" aria-expanded="' + (ouvert ? 'true' : 'false') + '" aria-label="Détail de la vérification de ' + esc(x.article) + '">(i)</button></div>' + (ouvert ? htmlDetailHistorique(x, etat) : '') + '</li>';
+          '<button type="button" class="detail-btn pt-histo-i" data-histo-info="' + esc(k) + '" aria-expanded="' + (ouvert ? 'true' : 'false') + '" aria-label="Détail de la vérification de ' + esc(x.article) + '">(i)</button></div>' + (ouvert ? htmlDetailHistorique(x, etat) : '') + htmlAnnulLigne(x, etat) + '</li>';
       }).join('');
       return '<details class="sc-carte pt-histo-sec" data-histo-sec="' + esc(code) + '"' + (ouvertes.indexOf(code) >= 0 ? ' open' : '') + '><summary aria-label="' + esc(titre) + ' : ' + n + (n > 1 ? ' lignes' : ' ligne') + '"><span class="sc-nom">' + esc(titre) + ' (' + n + ')</span><span class="sc-chev"></span></summary>' +
         '<ul class="vp-liste">' + li + '</ul>' + (n > 10 && !tout ? '<button type="button" class="detail-btn pt-histo-plus" data-histo-plus="' + esc(code) + '">Afficher la suite (' + (n - 10) + ')</button>' : '') + '</details>';
@@ -986,7 +1000,7 @@
       document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape' && etat.ctlDetail && etroit() && etat.ctlRetourFn) { ev.preventDefault(); etat.ctlRetourFn(); } });
     }
     Array.prototype.forEach.call(corps.querySelectorAll('[data-histo-annuler]'), function (b) {
-      b.addEventListener('click', function () { etat.annulCible = { id: b.dataset.histoAnnuler }; etat.annulOuverte = true; etat.annulMotif = ''; etat.erreurAnnul = null; rendre(); var t = corps.querySelector('#ptAnnulMotif'); if (t && t.focus) t.focus(); });
+      b.addEventListener('click', function () { var lg = null; historiqueLignes(etat.analyse, etat.verifications || [], 'tous').forEach(function (x) { if (x.verif && x.verif.id === b.dataset.histoAnnuler) lg = x; }); etat.annulCible = { id: b.dataset.histoAnnuler, an: lg ? lg.an : null, cle: lg ? lg.cle : null, cycleAvant: 'nouvelle' }; etat.annulOuverte = true; etat.annulMotif = ''; etat.erreurAnnul = null; rendre(); var t = corps.querySelector('#ptAnnulMotif'); if (t && t.focus) t.focus(); });
     });
     var bAnn = corps.querySelector('[data-ctl-annuler]');
     if (bAnn) bAnn.addEventListener('click', function () { etat.annulOuverte = true; etat.erreurAnnul = null; rendre(); var t = corps.querySelector('#ptAnnulMotif'); if (t && t.focus) t.focus(); });
@@ -1243,7 +1257,7 @@
     preuves: preuves, conseiller: conseiller, lierOuvertures: lierOuvertures, effetVerificationEnregistree: effetVerificationEnregistree, commentaireDuControle: commentaireDuControle, annulerVerification: annulerVerification, peutAnnuler: peutAnnuler, motifAnnulationValide: motifAnnulationValide, messageErreurAnnulation: messageErreurAnnulation, fiche: fiche, etatAcces: etatAcces, peutVoirOnglet: peutVoirOnglet, filtrerSite: filtrerSite,
     regimeDe: regimeDe, contexteDeclaratif: contexteDeclaratif, construireContexteTarif: construireContexteTarif, stockParLibelle: stockParLibelle, controle: controle, familles: familles, avertissementRegime: avertissementRegime, infoRegime: infoRegime, badgeRegime: badgeRegime, badgeLigne: badgeLigne, blocFiche: blocFiche,
     chargerRegistres: chargerRegistres, chargerVerifications: chargerVerifications, historiqueLignes: historiqueLignes, htmlHistorique: htmlHistorique, chargerVentes: chargerVentes, lireCompte: lireCompte, libellePeriode: libellePeriode,
-    reevaluationsAEcrire: reevaluationsAEcrire, enregistrerReevaluations: enregistrerReevaluations, htmlPage: htmlPage, htmlControlesAFaire: htmlControlesAFaire, htmlDetailHistorique: htmlDetailHistorique, htmlLigne: htmlLigne, htmlControle: htmlControle, htmlFiche: htmlFiche, carteMarge: carteMarge, AXES: AXES, NOTE_PISTES: NOTE_PISTES, axeCourant: axeCourant, compteursAxes: compteursAxes, htmlMarge: htmlMarge, ficheMarge: ficheMarge, peutVerifier: peutVerifier, commentaireValide: commentaireValide, messageApresEcriture: messageApresEcriture, messageErreurEcriture: messageErreurEcriture, payloadVerification: payloadVerification, LIMITE_COMMENTAIRE: LIMITE_COMMENTAIRE, graviteLigne: graviteLigne, CSS: CSS };
+    reevaluationsAEcrire: reevaluationsAEcrire, enregistrerReevaluations: enregistrerReevaluations, htmlPage: htmlPage, htmlControlesAFaire: htmlControlesAFaire, htmlDetailHistorique: htmlDetailHistorique, htmlAnnulLigne: htmlAnnulLigne, peutAnnulerLigne: peutAnnulerLigne, htmlLigne: htmlLigne, htmlControle: htmlControle, htmlFiche: htmlFiche, carteMarge: carteMarge, AXES: AXES, NOTE_PISTES: NOTE_PISTES, axeCourant: axeCourant, compteursAxes: compteursAxes, htmlMarge: htmlMarge, ficheMarge: ficheMarge, peutVerifier: peutVerifier, commentaireValide: commentaireValide, messageApresEcriture: messageApresEcriture, messageErreurEcriture: messageErreurEcriture, payloadVerification: payloadVerification, LIMITE_COMMENTAIRE: LIMITE_COMMENTAIRE, graviteLigne: graviteLigne, CSS: CSS };
   global.NexusPolitiqueTarifaireEcran = API;
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
 })(typeof window !== 'undefined' ? window : globalThis);
