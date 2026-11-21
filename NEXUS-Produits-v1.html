@@ -1961,7 +1961,7 @@ nexusRequireAuth().then(async employee => {
     if (I.dormants.length > 0) L.push({ id: 'dormants', n: I.dormants.length, titre: 'Produits dormants', sous: pl(I.dormants.length, 'référence'), ton: 'info' });
     if (I.nbIdent > 0) L.push({ id: 'identifier', n: I.nbIdent, titre: 'Références à identifier', sous: pl(I.nbIdent, 'référence'), ton: 'ambre' });
     if (I.R && I.R.perte.non_justifiees > 0) L.push({ id: 'pertes', n: I.R.perte.non_justifiees, titre: 'Ventes à perte non justifiées', sous: pl(I.R.perte.non_justifiees, 'référence'), ton: 'rouge' });
-    if (I.nbTva > 0) L.push({ id: 'tva', n: I.nbTva, titre: 'TVA à vérifier (catalogue)', sous: pl(I.nbTva, 'référence'), ton: 'ambre', info: 'Références dont le taux de TVA reste à vérifier : taux absent, différent d\'une période à l\'autre ou non confirmé. Les confirmations enregistrées et les décisions du pilote par rayon sont déjà appliquées, comme dans le Scanner.' });
+    if (I.nbTva > 0) L.push({ id: 'tva', n: I.nbTva, titre: 'TVA à vérifier (catalogue)', sous: pl(I.nbTva, 'référence'), ton: 'ambre', info: 'Références dont le taux de TVA reste à vérifier : taux absent, à 0 % alors que le rayon est taxé, différent de la période précédente ou du taux confirmé. Les confirmations enregistrées et les décisions du gérant par rayon sont déjà appliquées, comme dans le Scanner.' });
     return L;
   }
   // Synthèse du Conseiller de l'accueil : uniquement des résultats déjà calculés, sans tendance ni urgence.
