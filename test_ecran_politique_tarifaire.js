@@ -1419,3 +1419,30 @@ ok('L5 : la confirmation cite l\'article vérifié et le commentaire enregistré
   E.effetVerificationEnregistree(cs[1].an, etat2, 'Gérant du banc', 'id2', {});
   assert.ok(/sans commentaire/.test(etat2.messageVerif) && etat2.messageVerif.indexOf(cs[1].l.article) >= 0, etat2.messageVerif);
 });
+
+// Lot design Contrôler : recherche par code-barres, libellés courts, lignes sans troncature.
+ok('Design Contrôler : la recherche de l\'axe trouve aussi par code-barres', () => {
+  const a = avecControles(14);
+  const l0 = a.lignes.filter(l => (l.anomalies || []).length)[0];
+  l0.code_barres = '3999000111222';
+  const h = E.htmlPage({ analyse: a, role: 'manager', estCreateur: false, filtres: {}, incoherences: [], ctlRecherche: '3999000111222' });
+  assert.strictEqual((h.match(/data-ctl-ligne="1"/g) || []).length, l0.anomalies.length);
+  const h2 = E.htmlPage({ analyse: a, role: 'manager', estCreateur: false, filtres: {}, incoherences: [], ctlRecherche: '3999000999' });
+  assert.strictEqual((h2.match(/data-ctl-ligne="1"/g) || []).length, 0);
+});
+ok('Design Contrôler : puces à libellé court, libellé complet en aria-label', () => {
+  const V = require('./nexus-vocabulaire-tarif.js').anomaliesTarifaires.codes;
+  assert.strictEqual(V.S2.court, 'Coût écarté du relevé');
+  assert.strictEqual(V.S6.court, 'Prix modifié sans décision');
+  const h = E.htmlPage({ analyse: avecControles(14), role: 'manager', estCreateur: false, filtres: {}, incoherences: [] });
+  assert.ok(/aria-label="Coût écarté du relevé de stock : \d+"/.test(h), 'libellé complet');
+  assert.ok(/data-ctl-cause="S2"[^>]*>Coût écarté du relevé <span/.test(h), 'libellé court affiché');
+});
+ok('Design Contrôler : aucune ellipse sur les lignes et aucun title croisé', () => {
+  const src = require('fs').readFileSync(require('path').join(__dirname, 'nexus-politique-tarifaire-ecran.js'), 'utf8');
+  const m = /\.pt-ctl-ligne>span\{([^}]*)\}/.exec(src);
+  assert.ok(m && !/text-overflow:ellipsis/.test(m[1]) && !/nowrap/.test(m[1]));
+  const h = E.htmlPage({ analyse: avecControles(14), role: 'manager', estCreateur: false, filtres: {}, incoherences: [] });
+  const bloc = h.slice(h.indexOf('data-ctl-liste'));
+  assert.ok(!/ title="/.test(bloc.slice(0, bloc.indexOf('data-ctl-detail') > 0 ? bloc.indexOf('data-ctl-detail') : bloc.length)), 'aucune info-bulle sur les lignes');
+});
