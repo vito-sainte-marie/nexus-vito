@@ -35,4 +35,13 @@ ep('le corps de 53 est présent après les migrations', () => {
 ep('la garde du projet Test précède les migrations', () => {
   assert.ok(exec.indexOf('7678069749886157684') < exec.indexOf('DEBUT migration ' + migs[0]));
 });
+ep('aucun identifiant de lot n\'est inséré deux fois dans le script', () => {
+  [exec, corps].forEach(txt => {
+    const blocs = txt.match(/insert into import_batches[^;]*;/g) || [];
+    const ids = [];
+    blocs.forEach(b => (b.match(/'00000000-0000-4000-8000-[0-9a-f]{12}'/g) || []).forEach(i => ids.push(i)));
+    const doublons = ids.filter((i, k) => ids.indexOf(i) !== k);
+    assert.deepStrictEqual(doublons, [], 'identifiant inséré deux fois : ' + doublons.join(','));
+  });
+});
 console.log(ok + ' épreuves OK');

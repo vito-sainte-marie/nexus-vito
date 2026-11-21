@@ -87,12 +87,6 @@ insert into import_batches(id, site, intention, fichier_hash) values
   ('00000000-0000-4000-8000-00000000f103', 'nexus-station-test', 'stock_theorique', 'H1'),
   ('00000000-0000-4000-8000-00000000f105', 'site-fantome-test', 'stock_theorique', 'H3');
 
-insert into import_batches(id, site, intention, fichier_hash) values
-  ('00000000-0000-4000-8000-00000000f101', 'site-fantome-test', 'stock_theorique', 'H1'),
-  ('00000000-0000-4000-8000-00000000f102', 'site-fantome-test', 'stock_theorique', 'H2'),
-  ('00000000-0000-4000-8000-00000000f103', 'nexus-station-test', 'stock_theorique', 'H1'),
-  ('00000000-0000-4000-8000-00000000f105', 'site-fantome-test', 'stock_theorique', 'H3');
-
 
 update sites set acces_createur_autorise = true where site_id = 'site-fantome-test';
 update sites set acces_createur_autorise = false where site_id = 'nexus-station-test';
