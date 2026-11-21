@@ -47,7 +47,7 @@ Contrainte : l'application d'un delta ne peut pas rendre la quantité consolidé
 Tournée :
 
 - Une tournée par semaine calendaire par défaut (lundi 00:00, heure de la Martinique), par station. Une tournée n'est jamais fermée : la suivante prend le relais.
-- Un manager, un gérant ou un créateur peut ouvrir une nouvelle tournée à la main (geste tracé, voir `matrice-permissions.md`). Proposition à valider par Guardian.
+- Un manager, un gérant ou un créateur peut ouvrir une nouvelle tournée à la main (geste tracé, voir `matrice-permissions.md`). L'écran demande une confirmation, car l'ouverture remet toutes les quantités actives à zéro. Proposition à valider par Guardian.
 - L'employé ne choisit rien : le relevé est rattaché à la tournée en cours par le serveur.
 
 Clé de groupe :
@@ -56,13 +56,14 @@ Clé de groupe :
 - Sans EAN : site + libellé normalisé + date limite. Une table de correspondance (section 3 bis) permet au manager de dire « même produit que… » quand un libellé change.
 - `normalized_products` est vide en Production : `external_product_id` ne peut pas servir de clé (constat de Guardian, voir `questions-metier.md`).
 
-Quantité consolidée d'un groupe :
+Quantité active d'un groupe :
 
 1. Dans la tournée en cours : somme des relevés non annulés de cette tournée. Les relevés d'une même tournée s'additionnent (4 au frigo + 3 en gondole = 7).
-2. Le premier relevé d'un groupe dans une nouvelle tournée remplace la quantité de la tournée précédente ; les relevés suivants de la même tournée s'y ajoutent.
-3. Un groupe non recompté dans la tournée en cours garde sa dernière quantité, affichée avec son âge (« relevé il y a 8 jours »). Il ne s'additionne jamais avec la tournée précédente.
-4. La tournée retenue est la dernière tournée où le groupe a été relevé. On ajoute les corrections non annulées et on soustrait les retraits physiques (section 4) dont l'heure du geste est postérieure au premier relevé de cette tournée retenue, plancher à zéro. Les gestes antérieurs restent dans l'historique, les retraits antérieurs restent dans « à comptabiliser », aucun ne touche la quantité. Exemple : semaine 1 = 8 ; lundi 9:00 de la semaine 2, un retrait de 3 ; 10:00, premier relevé de la semaine 2 à 5 ; quantité 5 et non 2.
-5. Calculée par vue ou fonction, jamais stockée comme vérité. Un éventuel cache est recalculable.
+2. On ajoute les corrections non annulées et on soustrait les retraits physiques (section 4) de la même tournée, plancher à zéro.
+3. Chaque tournée est un contrôle indépendant : à l'ouverture d'une tournée, toutes les quantités actives repartent de zéro. Les quantités des tournées précédentes restent consultables comme historique, jamais comme quantités actives, et ne s'additionnent jamais.
+4. Un relevé, une correction ou un retrait appartient à la tournée de l'heure de son geste (appareil, y compris hors ligne) et ne compte que dans celle-ci. Les gestes d'une tournée précédente restent dans l'historique ; un retrait reste dans « à comptabiliser ».
+5. Une date non revue dans la tournée en cours a une quantité active nulle : aucune alerte active, aucune demande de retrait, aucun mouvement écrit. Son absence n'est ni une vente, ni une destruction, ni une démarque.
+6. Calculée par vue ou fonction, jamais stockée comme vérité. Un éventuel cache est recalculable.
 
 Les relevés, corrections et retraits de toutes les tournées restent affichés sous le groupe.
 
@@ -83,7 +84,8 @@ Les relevés, corrections et retraits de toutes les tournées restent affichés 
 | auteur, cree_le, commentaire | trace |
 | annule_le, annule_par, motif_annulation | annulation tracée |
 
-- Le retrait physique diminue la quantité consolidée s'il est postérieur au premier relevé de la tournée retenue (section 3, point 4). C'est un mouvement à part entière, ni une correction ni une démarque : 8 relevés moins 3 retirés donnent 5, l'historique indique « 3 retirés par R1 à 10:05 ».
+- Le retrait physique diminue la quantité active de la tournée de son geste (section 3, point 4). C'est un mouvement à part entière, ni une correction ni une démarque : 8 relevés moins 3 retirés donnent 5, l'historique indique « 3 retirés par R1 à 10:05 ».
+- Geste « trouvé et retiré » : pour un retrait sans relevé préalable dans la tournée, un seul geste écrit un relevé de 3 et un retrait de 3 (deux lignes liées, même clé d'idempotence de geste). Quantité active zéro, 3 dans « à comptabiliser », aucun refus de plancher.
 - Les unités retirées alimentent la liste « à comptabiliser » du manager. L'état « démarque comptabilisée » exige manager, gérant ou créateur ; le renfort ne peut pas le poser. Aucune écriture comptable.
 - `inventaire_mouvements` n'est pas utilisée (`quart_id` obligatoire).
 
@@ -96,7 +98,7 @@ Un réglage booléen « accès caissière », fermé par défaut, modifiable par
 - États côté appareil : Enregistré, En attente, Refusé.
 - Une opération rejouée porte la même clé d'idempotence : le serveur renvoie le résultat de la première.
 - Refus du serveur (plancher, droits) : visible, jamais silencieux.
-- Chaque geste (relevé, correction, retrait) porte l'heure du geste relevée sur l'appareil, en plus de la clé d'idempotence. Le comptage de la section 3 utilise l'heure du geste, jamais l'heure de réception : un geste fait hors ligne le lundi 9:00 et reçu à 11:00 compte à 9:00. L'heure de réception est conservée pour la trace.
+- Chaque geste (relevé, correction, retrait) porte l'heure du geste relevée sur l'appareil, en plus de la clé d'idempotence. Le rattachement à la tournée utilise l'heure du geste, jamais l'heure de réception : un geste fait hors ligne le dimanche 23:50 et reçu le lundi 8:00 compte dans la tournée du dimanche. L'heure de réception est conservée pour la trace.
 
 ## 7. Droits sur les tables
 

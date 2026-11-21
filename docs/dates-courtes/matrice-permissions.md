@@ -14,6 +14,7 @@ Légende : O = autorisé, N = refusé par le serveur, A = autorisé seulement si
 | Voir le tableau d'alertes | O | O | O | N | N |
 | Signaler | O | O | O | N | N |
 | Confirmer le retrait physique | O | O | O | N | N |
+| Geste « trouvé et retiré » (hypothèse de travail) | O | O | O | N | N |
 | Comptabiliser la démarque | N | O | O | N | N |
 | Activer ou fermer l'accès caissière | N | O | O | N | N |
 | Ouvrir une nouvelle tournée | N | O | O | N | N |
@@ -23,8 +24,8 @@ Règles :
 
 - Accès caissière : fermé par défaut. Seuls manager, gérant et créateur peuvent l'activer. Une tentative par un renfort ou une caissière est refusée par le serveur. L'activation vaut pour la station concernée seulement.
 - Pompiste : aucun accès opérationnel.
-- Le renfort ne comptabilise jamais une démarque. Il peut confirmer le retrait physique, qui diminue la quantité consolidée.
-- Tournée : une par semaine par défaut ; seuls manager, gérant et créateur en ouvrent une à la main. Le renfort ne choisit jamais la tournée.
+- Le renfort ne comptabilise jamais une démarque. Il peut confirmer le retrait physique, qui diminue la quantité active de la tournée. Le geste « trouvé et retiré » suit la même règle (hypothèse à faire valider).
+- Tournée : une par semaine par défaut ; seuls manager, gérant et créateur en ouvrent une à la main, avec confirmation à l'écran et trace du geste, car l'ouverture remet toutes les quantités actives à zéro. Le renfort ne choisit jamais la tournée.
 - Aucune suppression pour aucun profil. Mise à jour limitée aux colonnes d'annulation.
 - Aucun accès `anon`.
 

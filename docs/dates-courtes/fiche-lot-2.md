@@ -12,7 +12,8 @@ Un employé circule librement, relève un produit en quelques gestes, d'une main
 2. Scanner l'EAN (caméra), ou chercher par nom ou EAN, ou saisir l'EAN à la main si la lecture échoue.
 3. Saisir la date limite (une seule date, sans type) puis la quantité.
 4. Enregistrer. L'écran revient prêt pour le produit suivant.
-5. Accès rapide aux produits déjà relevés et aux corrections. Un groupe non recompté dans la tournée en cours s'affiche avec son âge (« relevé il y a 8 jours »), sans que l'employé choisisse quoi que ce soit.
+5. Accès rapide aux produits déjà relevés et aux corrections. Chaque tournée repart de zéro : l'écran n'affiche en quantité active que ce qui a été relevé dans la tournée en cours, les chiffres des tournées précédentes étant présentés comme historique. Parcours libre, sans zones ni confirmation des anciennes dates.
+6. Geste « trouvé et retiré » pour un produit trouvé périmé avant tout relevé de la tournée : un seul geste, relevé et retrait de même quantité.
 
 Produit sans EAN : recherche rapide par nom à une main, suggestions dès les premières lettres sur le libellé normalisé, les produits sans EAN déjà relevés dans la station proposés en premier. EAN inconnu : entrée provisoire marquée « provisoire », avec un nom libre facultatif, sans création de référence.
 

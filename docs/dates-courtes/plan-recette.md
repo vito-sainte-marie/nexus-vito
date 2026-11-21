@@ -16,7 +16,7 @@ La date saisie est une seule « Date limite », sans type : aucune recette ne di
 | 6c | Manager rattache à la main une ligne provisoire à un produit sous un autre code | Rattachement accepté, tracé (auteur, date) ; renfort refusé | 1 |
 | 7 | Caissière sans habilitation | Refus par le serveur sur relevé, ajout et correction | 1 |
 | 8 | Pompiste | Refus par le serveur sur toute action | 1 |
-| 9 | Retrait physique de 3 sur un groupe de 8 relevés, puis renfort tente la démarque comptabilisée | Quantité consolidée 5, historique « 3 retirés par R1 à 10:05 » ; les 3 dans la liste « à comptabiliser » du manager, démarque non comptabilisée ; renfort refusé par le serveur sur la comptabilisation | 3 |
+| 9 | Retrait physique de 3 sur un groupe de 8 relevés, puis renfort tente la démarque comptabilisée | Quantité active 5, historique « 3 retirés par R1 à 10:05 » ; les 3 dans la liste « à comptabiliser » du manager, démarque non comptabilisée ; renfort refusé par le serveur sur la comptabilisation | 3 |
 | 10 | Changement de station | Aucun relevé de l'autre station visible ni modifiable | 1 |
 | 11 | Scan réel iPhone Safari, EAN de recette 3168930171683, y compris à 90 degrés | Lu et identifié, ou marqué « non fait » | 2 |
 | 12 | Accès caissière : manager, gérant ou créateur l'active | Accepté ; la caissière accède ensuite à cette station seulement | 1 |
@@ -30,14 +30,19 @@ La date saisie est une seule « Date limite », sans type : aucune recette ne di
 | 19 | Alerte : date limite à 59 puis 61 jours | 59 apparaît, 61 non | 3 |
 | 20 | Ordre du tableau d'alertes | Expiré, puis jours croissants, puis quantité décroissante | 3 |
 | 21 | Tournée, semaine 1 : relevés 6 puis 4 | Quantité 10 | 1 |
-| 22 | Tournée, semaine 2 : premier relevé 4 du même groupe | Quantité 4 et non 14 ; les relevés de la semaine 1 restent dans l'historique | 1 |
+| 22 | Tournée, semaine 2 : premier relevé 4 du même groupe | Quantité active 4 et non 14 ; les relevés de la semaine 1 restent dans l'historique | 1 |
 | 23 | Tournée, semaine 2 : second relevé 3 | Quantité 7 | 1 |
-| 24 | Groupe non recompté en semaine 2 | Quantité 10 conservée, affichée avec son âge (« relevé il y a 8 jours »), jamais additionnée | 1 et 2 |
+| 24 | Groupe relevé à 10 en semaine 1, non revu en semaine 2 | Quantité active 0 ; historique « tournée du … : 10 » ; aucune alerte, aucune demande de retrait, aucun mouvement | 1 et 3 |
 | 25 | Ouverture manuelle d'une nouvelle tournée par un manager, un gérant ou un créateur | Acceptée et tracée ; renfort et caissière refusés par le serveur | 1 |
 | 26 | Changement de tournée à lundi 00:00, heure de Martinique | Un relevé à dimanche 23:59 reste dans l'ancienne tournée, à lundi 00:00 dans la nouvelle | 1 |
-| 27 | Contre-exemple : semaine 1 = 8 ; lundi 9:00 de la semaine 2, R1 retire 3 ; 10:00, R2 relève le groupe pour la première fois en semaine 2 : 5 | Quantité 5 et non 2 ; le retrait de 9:00 reste dans l'historique et dans « à comptabiliser » | 1 et 3 |
-| 28 | Geste hors ligne : retrait fait à 9:00 sans réseau, reçu à 11:00, après un premier relevé de la tournée à 10:00 | Compté à 9:00 (heure du geste) : sans effet sur la quantité ; l'heure de réception est conservée pour la trace | 1 et 2 |
-| 29 | Groupe dont la date limite est passée, quantité supérieure à zéro | Affiché « signalé, à retirer » sans geste ; aucune ligne de retrait créée, quantité inchangée | 3 |
+| 27 | Semaine 1 = 8 ; lundi 9:00 de la semaine 2, un retrait de 3 sur la tournée de la semaine 1 (geste daté de la semaine 1) ; 10:00, premier relevé de la semaine 2 : 5 | Correction ou retrait d'une tournée précédente sans effet : quantité active 5 ; le retrait reste dans l'historique et dans « à comptabiliser » | 1 et 3 |
+| 28 | Geste hors ligne : retrait fait dimanche 23:50 sans réseau, reçu lundi 8:00 | Compté dans la tournée de son heure de geste (celle du dimanche) : sans effet sur la quantité active de la nouvelle tournée ; l'heure de réception est conservée pour la trace | 1 et 2 |
+| 29 | Groupe dont la date limite est passée, quantité active supérieure à zéro dans la tournée en cours | Affiché « signalé, à retirer » sans geste ; aucune ligne de retrait créée, quantité inchangée | 3 |
+| 30 | Date disparue : semaine 1, 15/12 relevé à 10 ; semaine 2, seul le 22/12 est relevé, à 6 | Actifs : 22/12 = 6, 15/12 = 0 ; aucune alerte ni demande de retrait sur le 15/12 ; historique de la semaine 1 intact | 1 et 3 |
+| 31 | Retrait le lundi avant tout relevé de la tournée : geste « trouvé et retiré » de 3 | Quantité active 0 ; 3 dans « à comptabiliser » ; aucun refus de plancher ; renfort autorisé (hypothèse) | 1 et 3 |
+| 32 | Ouverture manuelle d'une tournée | Refusée au renfort et à la caissière ; acceptée avec confirmation à l'écran et tracée pour manager, gérant et créateur ; toutes les quantités actives à 0 | 1 et 3 |
+| 33 | Tableau du manager en début de tournée | Affiche « Tournée du 23/11 : 0 produit relevé », et non une liste vide sans explication ; chiffres de la tournée précédente présentés comme historique | 3 |
+| 34 | Date passée dont la quantité vient seulement de la tournée précédente | Aucun état « à retirer » : il ne vaut que pour une quantité active de la tournée en cours | 3 |
 
 Autres preuves attendues au lot 2 et 3 : maquettes Jour et Nuit, captures à largeur iPhone, test de compréhension de Guardian, recette Safari iOS sur appareil réel.
 

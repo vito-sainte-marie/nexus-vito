@@ -24,24 +24,24 @@ Une seule date est saisie, la « Date limite », sans type : DLC et DDM sont tra
 
 Tournée (l'employé ne choisit rien, le serveur rattache le relevé à la tournée en cours) :
 
-- Les relevés d'un même groupe dans la même tournée s'additionnent : 4 au frigo et 3 en gondole donnent 7.
-- Le premier relevé d'un groupe dans une nouvelle tournée remplace la quantité de la tournée précédente ; les relevés suivants de la même tournée s'y ajoutent.
-- Un groupe non recompté dans la tournée en cours garde sa dernière quantité, affichée avec son âge (« relevé il y a 8 jours »). Il ne s'additionne jamais avec la tournée précédente.
-- Une tournée n'est jamais fermée. Par défaut, une par semaine calendaire (lundi 00:00, heure de la Martinique), par station. Un manager, un gérant ou un créateur peut en ouvrir une à la main (geste tracé). Proposition à valider par Guardian.
+- Les relevés d'un même groupe dans la même tournée s'additionnent : 4 au frigo et 3 en gondole donnent 7. Les saisies d'un même EAN et d'une même date limite se cumulent, avec corrections positives et négatives.
+- Chaque nouvelle tournée est un contrôle indépendant : toutes les quantités actives repartent de zéro. Les quantités de la tournée précédente restent consultables dans l'historique, présentées comme historique ; elles ne s'additionnent jamais à la nouvelle tournée.
+- Une date non revue dans la tournée en cours n'a ni alerte active ni demande de retrait. Son absence n'est ni une vente, ni une destruction, ni une démarque : aucun mouvement n'est écrit.
+- Parcours libre dans toute la boutique : pas de zones, pas de confirmation des anciennes dates.
+- Une tournée n'est jamais fermée. Par défaut, une par semaine calendaire (lundi 00:00, heure de la Martinique), par station. Un manager, un gérant ou un créateur peut en ouvrir une à la main : geste tracé, avec une confirmation intégrée à l'écran, car il remet toutes les quantités actives à zéro. Proposition à valider par Guardian.
 - « Corriger le relevé » reste réservé aux erreurs de saisie.
 
-Quantité consolidée d'un groupe : somme des relevés non annulés de la tournée retenue, plus les corrections non annulées comptées, moins les retraits physiques comptés, jamais inférieure à zéro.
+Quantité active d'un groupe : relevés non annulés, plus corrections non annulées, moins retraits physiques, de la tournée en cours seulement, jamais inférieure à zéro.
 
 Quels gestes comptent :
 
-- La tournée retenue est la dernière tournée où le groupe a été relevé.
-- Seuls comptent les corrections et les retraits dont l'heure du geste est postérieure au premier relevé de cette tournée retenue.
-- Les corrections et retraits antérieurs à ce premier relevé restent dans l'historique ; un retrait antérieur reste dans « à comptabiliser » ; aucun des deux ne touche la quantité.
+- Un relevé, une correction ou un retrait appartient à la tournée de son geste et ne compte que dans celle-ci.
 - Un geste fait hors ligne compte à l'heure du geste (relevée sur l'appareil), jamais à l'heure de réception par le serveur.
-- Contre-exemple : semaine 1, quantité 8. Lundi 9:00 de la semaine 2, R1 retire 3. À 10:00, R2 relève le groupe pour la première fois en semaine 2 : 5. La quantité est 5 et non 2, car le retrait de 9:00 précède ce premier relevé.
-
+- Une correction ou un retrait d'une tournée précédente n'a aucun effet sur la quantité active de la nouvelle tournée ; il reste dans l'historique, et un retrait reste dans « à comptabiliser ».
 - Exemple : 6 et 4 donnent 10 ; correction de moins 2 donne 8. Les deux relevés et la correction restent visibles.
-- Les relevés, corrections et retraits de toutes les tournées restent affichés sous le groupe.
+- Les relevés, corrections et retraits de toutes les tournées restent affichés sous le groupe, ceux des tournées précédentes comme historique.
+
+Geste « trouvé et retiré » : le lundi matin, un renfort trouve 3 articles périmés d'un produit pas encore relevé dans la tournée. La quantité active est zéro et le plancher refuserait un retrait seul. Un geste unique écrit un relevé de 3 et un retrait de 3 : quantité active zéro, 3 dans « à comptabiliser », aucun refus de plancher. Renfort autorisé, comme pour la confirmation d'un retrait physique (hypothèse à faire valider).
 
 ## 4. Corrections
 
@@ -87,11 +87,11 @@ EAN inconnu du catalogue :
 - `site_id` obligatoire sur chaque ligne ; politique de sécurité par ligne limitée au site de l'employé ; aucun accès `anon`.
 - Pas de suppression. Mise à jour limitée aux colonnes d'annulation.
 - Accès caissière : activé par réglage de station, seulement par manager, gérant ou créateur ; refusé par le serveur à toute autre personne, y compris renfort et caissière. Valable pour la station concernée uniquement. Portée de lecture (ses propres relevés) et emplacement du réglage : hypothèses de travail.
-- Ouverture manuelle d'une tournée, rattachement d'un produit provisoire et geste « même produit que… » : manager, gérant, créateur ; refusés au renfort et à la caissière.
+- Ouverture manuelle d'une tournée (avec confirmation à l'écran et trace du geste), rattachement d'un produit provisoire et geste « même produit que… » : manager, gérant, créateur ; refusés au renfort et à la caissière.
 
 ## 8. Recettes du lot
 
-Voir `plan-recette.md` : cas 1 à 5, 6b, 6c, 7, 8, 10, 12 à 17, 16b, 21 à 28 (et 6, 15, 24 pour la part lot 1).
+Voir `plan-recette.md` : cas 1 à 5, 6b, 6c, 7, 8, 10, 12 à 17, 16b, 21 à 32, 34 (et 6, 15 pour la part lot 1).
 
 ## 9. Limites
 
