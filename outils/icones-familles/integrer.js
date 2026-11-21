@@ -22,7 +22,7 @@ const ECHELLES = { '1x': 48, '2x': 96, '3x': 144 };
 const PLAFONDS = { '2x': 15 * 1024, '3x': 25 * 1024 };
 const SOURCE = 1024;
 const RAYON_TUILE = 0.22;   // part du côté, arrondi de la tuile
-const MARGE_OBJET = 0.14;   // part du côté laissée autour de l'objet
+const MARGE_OBJET = 0.10;   // objet à 80 % de la tuile (Guardian 7065355800)
 
 function tuileSvg(px, th) {
   const r = Math.round(px * RAYON_TUILE), e = Math.max(1, Math.round(px / 48));
