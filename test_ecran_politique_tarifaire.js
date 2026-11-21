@@ -1470,5 +1470,6 @@ ok('Retouches Guardian : pastille sans chasse fixe, vrai signe moins, bouton 16 
   assert.ok(/\.pt-l-chiffre\{font-family:inherit;font-variant-numeric:tabular-nums/.test(src) && !/\.pt-l-chiffre\{[^}]*t-mono/.test(src), 'pastille en police de l\u2019interface');
   assert.ok(/replace\(\/-\(\?=\\d\)\/g, '\\u2212'\)/.test(src), 'vrai signe moins');
   assert.ok(/\.pt-verifier\{[^}]*font-weight:700;font-size:16px/.test(src), 'bouton principal 16 px gras');
-  assert.ok(/data-ctl-filtres="1" aria-expanded="/.test(src) && /max-width:899px\)\{[^@]*pt-ctl-cycles-ferme\{display:none\}/.test(src), 'Filtres (n) sous 900 px seulement');
+  assert.ok(/data-ctl-filtres="1" aria-expanded="/.test(src) && /max-width:899px\)\{[^@]*pt-ctl-cycles-ferme\{display:none!important\}/.test(src), 'Filtres (n) sous 900 px seulement');
+  assert.ok(/moinsTypo\(pct\(/.test(src) && /'Marge : ' \+ moinsTypo/.test(src), 'le détail aussi porte le vrai moins');
 });

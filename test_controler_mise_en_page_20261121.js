@@ -38,6 +38,22 @@ if (!pw) { console.log('test_controler_mise_en_page_20261121 : géométrie NON E
       assert(m.tete, 'en-tête de l\'axe absent');
       await page.close();
     }
+    {
+      const page = await br.newPage({ viewport: { width: 375, height: 812 } });
+      await page.goto('http://localhost:' + port + '/outils/recette/ecran_scanner/banc.html?scenario=cas_production&theme=jour');
+      await page.waitForSelector('.pt-ctl-ligne .vp-nom', { timeout: 10000 });
+      const etat = () => page.evaluate(() => { const b = document.querySelector('[data-ctl-filtres]'), f = document.querySelector('.pt-ctl-cycles'); return { ex: b.getAttribute('aria-expanded'), vis: getComputedStyle(f).display !== 'none' && f.getBoundingClientRect().height > 0, focus: document.activeElement === b }; });
+      let e0 = await etat(); assert(e0.ex === 'false' && !e0.vis, 'Filtres fermé : cases visibles ou aria-expanded faux');
+      await page.click('[data-ctl-filtres]'); let e1 = await etat();
+      assert(e1.ex === 'true' && e1.vis && e1.focus, 'Filtres ouvert : cases masquées, aria-expanded ou focus incorrect');
+      await page.click('[data-ctl-filtres]'); let e2 = await etat();
+      assert(e2.ex === 'false' && !e2.vis && e2.focus, 'Filtres refermé : cases visibles, aria-expanded ou focus incorrect');
+      const g = await page.evaluate(() => { const r = s => document.querySelector(s).getBoundingClientRect(); const rech = r('.pt-ctl-outils .pt-f-rech'), tri = r('[data-ctl-tri]'), fb = r('[data-ctl-filtres]'), sel = document.querySelector('[data-ctl-tri]'); return { rech: rech, tri: tri, fb: fb, coupe: sel.scrollWidth > sel.clientWidth + 1 }; });
+      assert(g.tri.top >= g.rech.bottom - 1, 'tri sur la même ligne que la recherche');
+      assert(Math.abs(g.tri.top - g.fb.top) < 12 && g.fb.left > g.tri.left, 'tri et Filtres pas sur une même ligne');
+      assert(g.tri.width > 120 && g.fb.width > 120, 'tri ou Filtres trop étroit (' + Math.round(g.tri.width) + ', ' + Math.round(g.fb.width) + ')');
+      await page.close();
+    }
     console.log('test_controler_mise_en_page_20261121 : géométrie OK (375, 768, 1280 ; Jour, Nuit)');
   } finally { await br.close(); srv.close(); }
 })().catch(e => { console.error(e); process.exit(1); });
