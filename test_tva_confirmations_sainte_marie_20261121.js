@@ -1,0 +1,79 @@
+// Confirmations de TVA des 62 références « TVA à vérifier » de Sainte-Marie (décisions du pilote du 21/11/2026).
+// Vérifie le fichier de données, le script SQL (RAPPORT / APPLIQUER, append-only, sans identifiant en dur),
+// l'effet d'une confirmation à 8,5 % sur le contrôle BUZZ Vodka, et le libellé sans « le » orphelin.
+const assert = require('assert');
+const fs = require('fs');
+const path = require('path');
+const M = require('./nexus-produits-mesure.js');
+let n = 0;
+function ok(c, m) { assert.ok(c, m); n++; }
+
+const dir = path.join(__dirname, 'outils', 'tva');
+const rows = JSON.parse(fs.readFileSync(path.join(dir, 'confirmations_sainte_marie_20261121.json'), 'utf8'));
+const sql = fs.readFileSync(path.join(dir, 'confirmations_sainte_marie_20261121.sql'), 'utf8');
+
+// Données
+ok(rows.length === 62, '62 lignes');
+ok(rows.filter(r => r.taux === 8.5).length === 4, '4 lignes à 8,5 %');
+ok(rows.filter(r => r.taux === 0).length === 58, '58 lignes à 0 %');
+ok(rows.every(r => r.taux === 0 || r.taux === 8.5), 'taux 0 ou 8,5 seulement');
+const norm = s => String(s).toLowerCase().replace(/\s+/g, ' ').trim();
+const cle = r => (r.code_barres && String(r.code_barres).trim()) ? 'cb:' + String(r.code_barres).trim() : 'nom:' + norm(r.article);
+ok(new Set(rows.map(cle)).size === 62, 'aucune cible en double');
+ok(rows.every(r => typeof r.article === 'string' && r.article.trim().length > 0), 'article renseigné');
+ok(rows.every(r => typeof r.code_barres === 'string'), 'code_barres texte (vide permis)');
+ok(rows.every(r => r.commentaire && r.commentaire.startsWith('Décision du pilote du 21/11/2026')), 'commentaire repris tel quel');
+const a85 = rows.filter(r => r.taux === 8.5).map(r => r.code_barres).sort();
+['42214465', '5010891012063', '54012707', '762571305006'].forEach(cb => ok(a85.includes(cb), 'à 8,5 % : ' + cb));
+
+// Le SQL embarque exactement les mêmes lignes
+const m = sql.match(/\$json\$([\s\S]*?)\$json\$/);
+ok(m, 'bloc JSON dans le SQL');
+const dansSql = JSON.parse(m[1]);
+ok(dansSql.length === 62, '62 lignes dans le SQL');
+assert.deepStrictEqual(
+  dansSql.map(r => [r.article, r.code_barres, r.taux, r.commentaire]),
+  rows.map(r => [r.article, r.code_barres, r.taux, r.commentaire]),
+  'SQL identique au fichier de données');
+n++;
+
+// Script SQL : sans UPDATE ni DELETE de données, sans identifiant en dur, deux modes
+const code = sql.split('\n').filter(l => !/^\s*--/.test(l)).join('\n').replace(/\$json\$[\s\S]*?\$json\$/, '');
+ok(!/\bupdate\b\s+\w+\s+set\b/i.test(code), 'aucun UPDATE de données');
+ok(!/\bdelete\s+from\b/i.test(code), 'aucun DELETE');
+ok(!/\btruncate\b|\bdrop\s+(table|schema|function|policy|column|view|index)\b/i.test(code), 'aucun TRUNCATE ni DROP');
+ok(!/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.test(code), 'aucun uuid en dur');
+ok(/v_mode constant text := 'RAPPORT'/.test(code), 'RAPPORT par défaut');
+ok(code.includes("'RAPPORT'") && code.includes("'APPLIQUER'"), 'deux modes');
+ok(code.includes("raise exception 'RAPPORT_TVA"), 'RAPPORT se termine par une exception RAPPORT_TVA');
+ok(/est_createur/.test(code) && /v_nb_pilote <> 1/.test(code), 'confirme_par trouvé par requête, exactement un');
+ok(/remplace_id/.test(code) && /annule_le is null/.test(code), 'chaîne remplace_id et actives');
+ok(/insert into produits_tva_confirmations/.test(code), 'insertion dans produits_tva_confirmations');
+ok(/CIBLES_ABSENTES_DE_PRODUCTS/.test(code), 'refus si cible absente de products');
+ok(!/vito-sainte-marie.*(prenom|nom propre)/i.test(code), 'aucun nom de personne');
+
+// BUZZ Vodka : une confirmation à 8,5 % lève le contrôle « TVA différente sur la période précédente »
+const conf = { taux_confirme: 8.5, confirme_le: '2026-11-21T10:00:00Z' };
+const sans = M.etatTva(8.5, 0, false, null, '2026-11-15');
+ok(sans.etat === 'incoherente' && /période précédente/.test(sans.raison), 'sans confirmation : période précédente');
+const avec = M.etatTva(8.5, 0, false, conf, '2026-11-15');
+ok(avec.etat === 'confirmee' && avec.taux === 8.5, 'avec confirmation à 8,5 % : confirmée');
+ok(!/période précédente/.test(avec.raison), 'la raison ne parle plus de la période précédente');
+const apres = M.etatTva(8.5, 0, false, conf, '2026-12-01');
+ok(apres.etat === 'confirmee', 'import ultérieur au même taux : confirmée');
+ok(M.etatTva(0, 0, false, conf, '2026-12-01').etat === 'incoherente', 'import ultérieur à un autre taux : incohérente');
+
+// Libellé : jamais de « le » orphelin
+const bouts = [
+  M.etatTva(0, null, false, { taux_confirme: 0 }, null),
+  M.etatTva(0, null, false, { taux_confirme: 0, confirme_le: null }, null),
+  M.etatTva(0, null, false, { taux_confirme: 0, confirme_le: 'pas une date' }, null),
+  M.etatTva(5, null, false, { taux_confirme: 0, confirme_le: '' }, '2026-12-01'),
+  M.etatTva(5, null, false, { taux_confirme: 0 }, null)
+];
+bouts.forEach(r => { ok(!/\ble\s*$/.test(r.raison), 'pas de « le » en fin : ' + r.raison); ok(!/ le ·/.test(r.raison), 'pas de « le » avant « · » : ' + r.raison); });
+ok(bouts[0].raison === 'TVA confirmée à 0 %', 'sans date : « TVA confirmée à 0 % »');
+const datee = M.etatTva(0, null, false, { taux_confirme: 0, confirme_le: '2026-11-21T09:30:00Z' }, null);
+ok(datee.raison === 'TVA confirmée à 0 % le 21/11/2026', 'avec date : « le 21/11/2026 »');
+
+console.log('test_tva_confirmations_sainte_marie_20261121 : ' + n + ' vérifications OK');
