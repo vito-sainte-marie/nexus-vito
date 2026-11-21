@@ -1,31 +1,28 @@
-# Dates courtes, Lot 1 : rapport
+# Rapport lot 1 : Dates courtes (v4, en cours)
+
+Statut : documentation v4 rédigée. La migration, la recette et le retour arrière sont en cours de reprise sur le modèle v4. Aucun résultat v4 n'est annoncé. Rien sur Test ni en Production.
 
 ## Rôles vérifiés
-`employees.role` prend les valeurs `caissier`, `pompiste`, `renfort`, `manager`, `gerant`, `vacataire`.
-Une première annonce sur #160 écrivait `caissiere` et omettait `vacataire` : c'était une erreur de ma part, corrigée ici.
-« Créateur » n'est pas un rôle : c'est le drapeau `employees.est_createur`, valable seulement sur les stations où `sites.acces_createur_autorise` est vrai (helper `je_suis_createur()`). La migration reprend ce schéma tel quel.
 
-## Livrables
-- Migration `supabase/migrations/20261121120000_dates_courtes_lot1.sql` : 6 tables en ajout seul, 1 vue, 20 fonctions accordées à `authenticated` (les 3 fonctions de déclencheur `avant_*` ne le sont pas). Rien pour `anon`, aucune suppression, mises à jour limitées aux colonnes d'annulation. Garde ORDRE-MIGRATION-CODE : `additive_compatible_avant_code`.
-- Recette SQL `outils/recette/dates_courtes_lot1/01_recette_dates_courtes_lot1.sql` : un cas par transaction annulée, verdict OK ou KO avec valeur attendue et mesurée.
-- Retour arrière `docs/deploiement/retour-arriere-dates-courtes-lot1-20261121.sql`, testé à blanc (20 fonctions et 7 objets avant, 0 après).
+renfort, manager, gerant, caissier, pompiste, vacataire ; créateur par `est_createur`. Vacataire refusé en attente d'arbitrage du pilote. La coquille `caissiere` est corrigée.
 
-## Résultat mesuré
-Banc local pglite : 136 contrôles, 136 OK, 0 KO.
+## Livrables prévus
 
-## Choix techniques
-- Plancher à zéro calculé dans le déclencheur d'insertion, par tournée.
-- `provisoire` est calculé depuis le catalogue, jamais repris de la requête.
-- `heure_geste` bornée de 45 jours en arrière à 5 minutes en avant : choix de ma part, absent de la fiche.
-- Un retrait dont l'heure du geste tombe dans la tournée précédente est contrôlé contre cette tournée (cas c28 : il faut un relevé dans cette tournée).
+- 7 tables : relevés, corrections, retraits, tournées, certifications, demandes de correction, correspondances.
+- Vues ou fonctions : quantité d'un groupe, quantité courante, âge et étiquettes.
+- Réglage « accès caissier ».
+- Recette SQL et retour arrière.
+- Qualification décrite, non déposée avant la relecture de Guardian.
 
-## Écarts avec la fiche
-Les bornes d'`heure_geste` ci-dessus. Aucun autre écart connu.
+## Historique
+
+Le commit `31163058` porte l'ancien modèle hebdomadaire (136 contrôles, 0 KO). Il est obsolète et n'est pas présenté pour Test.
 
 ## Limites
-- Validé sur un stub pglite, pas sur Supabase réel. Le rôle pglite est superutilisateur : le contournement de FORCE RLS n'est donc pas éprouvé.
-- Le cas 5 (concurrence) est rejoué en séquence, pas en parallèle réel.
-- La garde d'identité Test est contournée sur le banc par un réglage explicite.
-- Les tables réelles `products`, `sites` et `auth.users` peuvent porter d'autres colonnes NOT NULL que le stub.
-- Non joués : cas 19, 20, 33 (Lot 3), 11 et 18 (Lot 2).
-- Rien appliqué sur Test ni en Production.
+
+- Banc pglite avec une doublure, pas un Supabase réel.
+- Un superutilisateur contourne FORCE RLS.
+- Concurrence testée en séquence.
+- Les vraies tables peuvent avoir d'autres colonnes NOT NULL.
+- Cas 11, 18, 19, 20 et 32 non joués.
+- Rien n'est appliqué.

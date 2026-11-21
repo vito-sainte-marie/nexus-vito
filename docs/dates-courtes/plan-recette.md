@@ -1,8 +1,8 @@
-# Plan de recette : Dates courtes
+# Plan de recette : Dates courtes (v4)
 
-Données fictives, stations pseudonymes (R1, R2), employés pseudonymes (M1 manager, R1 renfort). Seule exception : l'EAN de recette 3168930171683. Aucune recette n'est jouée sur Test sans accord ; rien en Production.
+Données fictives, stations pseudonymes (R1, R2), employés pseudonymes (M1 manager, R1 et R2 renforts). Seule exception : l'EAN de recette 3168930171683. Aucune recette n'est jouée sur Test sans accord ; rien en Production.
 
-La date saisie est une seule « Date limite », sans type : aucune recette ne distingue DLC et DDM.
+La date saisie est une seule « Date limite », sans type. Les quantités s'additionnent dans une tournée, jamais entre tournées : la tournée qui porte le dernier relevé effectif d'un article l'emporte.
 
 | # | Cas | Critère mesurable | Lot |
 |---|---|---|---|
@@ -10,40 +10,52 @@ La date saisie est une seule « Date limite », sans type : aucune recette ne di
 | 2 | Même EAN, deux dates limites | Deux groupes distincts, aucune fusion | 1 |
 | 3 | Correction de moins 2 sur un groupe de 10 | Total 8, relevés et correction visibles dans l'historique | 1 |
 | 4 | Renvoi réseau de la même opération | Une seule ligne créée, même résultat renvoyé | 1 |
-| 5 | Deux employés relèvent le même groupe en même temps | Total égal à la somme, aucun écart, aucun relevé perdu | 1 |
+| 5 | Deux envois simultanés vers la même tournée pour le même groupe | Total égal à la somme, aucun relevé perdu | 1 |
 | 6 | EAN inconnu du catalogue, `3168930171683` saisi avec nom libre facultatif | Entrée marquée « provisoire », aucune référence créée | 1 et 2 |
 | 6b | Même EAN `3168930171683` présent ensuite dans un import de test | Un seul groupe, historique intact, plus de marque « provisoire » | 1 |
-| 6c | Manager rattache à la main une ligne provisoire à un produit sous un autre code | Rattachement accepté, tracé (auteur, date) ; renfort refusé | 1 |
-| 7 | Caissière sans habilitation | Refus par le serveur sur relevé, ajout et correction | 1 |
+| 6c | Manager rattache à la main une ligne provisoire à un produit sous un autre code | Rattachement accepté, tracé ; renfort refusé ; l'âge de la ligne ne change pas | 1 |
+| 7 | Caissier sans habilitation | Refus par le serveur sur relevé, ajout et correction | 1 |
 | 8 | Pompiste | Refus par le serveur sur toute action | 1 |
-| 9 | Retrait physique de 3 sur un groupe de 8 relevés, puis renfort tente la démarque comptabilisée | Quantité active 5, historique « 3 retirés par R1 à 10:05 » ; les 3 dans la liste « à comptabiliser » du manager, démarque non comptabilisée ; renfort refusé par le serveur sur la comptabilisation | 3 |
+| 9 | Retrait physique de 3 sur un groupe de 8 relevés, puis renfort tente la démarque comptabilisée | Quantité 5 dans la tournée, 3 dans « à comptabiliser » ; renfort refusé sur la comptabilisation | 1 et 3 |
 | 10 | Changement de station | Aucun relevé de l'autre station visible ni modifiable | 1 |
 | 11 | Scan réel iPhone Safari, EAN de recette 3168930171683, y compris à 90 degrés | Lu et identifié, ou marqué « non fait » | 2 |
-| 12 | Accès caissière : manager, gérant ou créateur l'active | Accepté ; la caissière accède ensuite à cette station seulement | 1 |
-| 13 | Accès caissière : renfort ou caissière tente de l'activer | Refusé par le serveur | 1 |
+| 12 | Accès caissier : manager, gérant ou créateur l'active | Accepté ; le caissier accède ensuite à cette station seulement | 1 |
+| 13 | Accès caissier : renfort ou caissier tente de l'activer | Refusé par le serveur | 1 |
 | 14 | Activation sur la station R1 | Aucun effet sur R2 | 1 |
-| 15 | Produit sans EAN trouvé par nom, relevé deux fois (deux dates limites) | Un groupe par date, les deux relevés visibles, clé sur le libellé normalisé | 1 et 2 |
-| 16 | Même produit sans EAN avec une date en tête du libellé, casse ou espaces différents, après un nouvel import | Toujours le même groupe (libellé normalisé) | 1 |
-| 16b | Renommage d'un produit sans EAN (type « Pain Chocolat - 68P » vers « Pain Chocolat - 96P ») | Deux groupes tant que rien n'est fait ; le manager pose « même produit que… » : un groupe, historique intact, geste tracé ; renfort refusé | 1 |
-| 17 | Correction qui ferait passer sous zéro | Refus serveur visible, quantité inchangée | 1 |
+| 15 | Produit sans EAN trouvé par nom, relevé deux fois (deux dates limites) | Un groupe par date, clé sur le libellé normalisé | 1 et 2 |
+| 16 | Même produit sans EAN, casse ou espaces différents | Toujours le même groupe | 1 |
+| 16b | Renommage d'un produit sans EAN | Deux groupes tant que rien n'est fait ; « même produit que… » du manager : un groupe, historique intact ; renfort refusé | 1 |
+| 17 | Correction qui ferait passer sous zéro dans la tournée | Refus serveur visible, quantité inchangée | 1 |
 | 18 | Coupure réseau pendant la saisie puis reprise | État En attente puis Enregistré, aucun doublon | 2 |
 | 19 | Alerte : date limite à 59 puis 61 jours | 59 apparaît, 61 non | 3 |
 | 20 | Ordre du tableau d'alertes | Expiré, puis jours croissants, puis quantité décroissante | 3 |
-| 21 | Tournée, semaine 1 : relevés 6 puis 4 | Quantité 10 | 1 |
-| 22 | Tournée, semaine 2 : premier relevé 4 du même groupe | Quantité active 4 et non 14 ; les relevés de la semaine 1 restent dans l'historique | 1 |
-| 23 | Tournée, semaine 2 : second relevé 3 | Quantité 7 | 1 |
-| 24 | Groupe relevé à 10 en semaine 1, non revu en semaine 2 | Quantité active 0 ; historique « tournée du … : 10 » ; aucune alerte, aucune demande de retrait, aucun mouvement | 1 et 3 |
-| 25 | Ouverture manuelle d'une nouvelle tournée par un manager, un gérant ou un créateur | Acceptée et tracée ; renfort et caissière refusés par le serveur | 1 |
-| 26 | Changement de tournée à lundi 00:00, heure de Martinique | Un relevé à dimanche 23:59 reste dans l'ancienne tournée, à lundi 00:00 dans la nouvelle | 1 |
-| 27 | Semaine 1 = 8 ; lundi 9:00 de la semaine 2, un retrait de 3 sur la tournée de la semaine 1 (geste daté de la semaine 1) ; 10:00, premier relevé de la semaine 2 : 5 | Correction ou retrait d'une tournée précédente sans effet : quantité active 5 ; le retrait reste dans l'historique et dans « à comptabiliser » | 1 et 3 |
-| 28 | Geste hors ligne : retrait fait dimanche 23:50 sans réseau, reçu lundi 8:00 | Compté dans la tournée de son heure de geste (celle du dimanche) : sans effet sur la quantité active de la nouvelle tournée ; l'heure de réception est conservée pour la trace | 1 et 2 |
-| 29 | Groupe dont la date limite est passée, quantité active supérieure à zéro dans la tournée en cours | Affiché « signalé, à retirer » sans geste ; aucune ligne de retrait créée, quantité inchangée | 3 |
-| 30 | Date disparue : semaine 1, 15/12 relevé à 10 ; semaine 2, seul le 22/12 est relevé, à 6 | Actifs : 22/12 = 6, 15/12 = 0 ; aucune alerte ni demande de retrait sur le 15/12 ; historique de la semaine 1 intact | 1 et 3 |
-| 31 | Retrait le lundi avant tout relevé de la tournée : geste « trouvé et retiré » de 3 | Quantité active 0 ; 3 dans « à comptabiliser » ; aucun refus de plancher ; renfort autorisé | 1 et 3 |
-| 32 | Ouverture manuelle d'une tournée | Refusée au renfort et à la caissière ; acceptée avec confirmation à l'écran et tracée pour manager, gérant et créateur ; toutes les quantités actives à 0 | 1 et 3 |
-| 33 | Tableau du manager en début de tournée | Affiche « Tournée du 23/11 : 0 produit relevé », et non une liste vide sans explication ; chiffres de la tournée précédente présentés comme historique | 3 |
-| 34 | Date passée dont la quantité vient seulement de la tournée précédente | Aucun état « à retirer » : il ne vaut que pour une quantité active de la tournée en cours | 3 |
+| 21 | Tournées individuelles : R1 et R2 créent chacune une tournée dans la même station | Les deux ouvertes en même temps ; nom facultatif ; aucun produit exclu par le nom | 1 |
+| 22 | Addition dans une tournée : 6 puis 4 puis correction moins 2 | 8 | 1 |
+| 23 | Simultanées A et B sur le même article : A relève 6 à 10:00 et 4 à 10:30, B relève 5 à 10:15 | Courant : A = 10 ; B en historique ; mention « relevé aussi dans la tournée B (R2, 10:15), en historique » ; jamais 15 | 1 |
+| 24 | Remplacement par article entre tournées non simultanées : A relève 10, A est terminée, B relève ensuite 5 | Courant : B = 5 ; A en historique ; aucune addition | 1 |
+| 25 | Date non retrouvée dans la tournée gagnante : A relève 15/12 = 10 ; B relève ensuite seulement 22/12 = 6 | Courant : 22/12 = 6 ; 15/12 sans quantité courante, présente en historique | 1 |
+| 26 | Âge à 7, 8, 14 et 15 jours après le dernier relevé | 7 : courante ; 8 : « à vérifier » ; 14 : « à vérifier » ; 15 : « À recontrôler » | 1 et 3 |
+| 27 | Relevé à J, correction à J+5, certification à J+6 | À J+8 la ligne est « à vérifier » : ni la correction ni la certification ne rajeunissent | 1 |
+| 28 | Date dépassée, relevé de 10 jours | Étiquette « DLC dépassée, présence à vérifier » ; aucune demande de retrait | 1 et 3 |
+| 29 | Date dépassée, relevé de 3 jours | « à retirer » | 1 et 3 |
+| 30 | Quantité de plus de 7 jours | Aucune demande de retrait déclenchée | 1 et 3 |
+| 31 | Terminer ma tournée : enregistre auteur, heure, empreinte et dernière opération | État TERMINEE_A_CERTIFIER ; version identifiable ; terminer deux fois sans changement : même version | 1 |
+| 32 | Terminer avec une saisie en attente sur le téléphone | Bouton bloqué, message explicite (contrôle côté appareil) | 2 |
+| 33 | Saisie reçue après clôture mais faite avant | Rattachée à sa tournée, marquée « reçue après clôture » | 1 |
+| 34 | Saisie reçue après certification | La tournée repasse à certifier ; l'ancienne certification reste tracée | 1 |
+| 35 | Manager certifie une tournée | Enregistre tournée, manager, heure, version certifiée, observations, statut | 1 |
+| 36 | Renfort ou caissier tente de certifier | Refusé par le serveur | 1 |
+| 37 | Manager certifie sa propre tournée | Accepté, mention « réalisateur et certificateur identiques » | 1 |
+| 38 | Manager demande une correction sur des relevés visés avec motif | État CORRECTION_DEMANDEE ; le renfort répond ; la tournée repasse à certifier | 1 et 3 |
+| 39 | Rectification après certification | Tracée ; nouvelle certification requise | 1 |
+| 40 | Certification : effets sur les quantités | Aucune démarque, aucun blocage de la clôture, quantités « non certifiées » avant | 1 et 3 |
+| 41 | Renfort lit les tournées d'un autre employé | Refusé ; manager voit toutes les tournées de la station | 1 |
+| 42 | Vacataire | Refusé par le serveur sur toute action (en attente d'arbitrage du pilote) | 1 |
+| 43 | Retrait le premier jour d'une tournée : geste « trouvé et retiré » de 3 | Quantité courante 0 dans la tournée, 3 dans « à comptabiliser », aucun refus de plancher ; renfort autorisé | 1 et 3 |
+| 44 | Geste hors ligne reçu plus tard | Compté à l'heure du geste dans sa tournée ; heure de réception conservée | 1 et 2 |
 
-Autres preuves attendues au lot 2 et 3 : maquettes Jour et Nuit, captures à largeur iPhone, test de compréhension de Guardian, recette Safari iOS sur appareil réel.
+Les trois cas de résolution de conflit à trois choix sont retirés : il n'y a ni écran ni table de résolution.
 
-Limite : aucun de ces cas n'a été joué. Le plan décrit ce qu'il faudra démontrer.
+Autres preuves attendues aux lots 2 à 4 : maquettes Jour et Nuit, captures à largeur iPhone, recette Safari iOS sur appareil réel, exports.
+
+Limite : aucun de ces cas n'a été joué sur Test. Le plan décrit ce qu'il faudra démontrer.
