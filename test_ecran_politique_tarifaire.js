@@ -1473,3 +1473,11 @@ ok('Retouches Guardian : pastille sans chasse fixe, vrai signe moins, bouton 16 
   assert.ok(/data-ctl-filtres="1" aria-expanded="/.test(src) && /max-width:899px\)\{[^@]*pt-ctl-cycles-ferme\{display:none!important\}/.test(src), 'Filtres (n) sous 900 px seulement');
   assert.ok(/moinsTypo\(pct\(/.test(src) && /'Marge : ' \+ moinsTypo/.test(src), 'le détail aussi porte le vrai moins');
 });
+
+ok('Correctif cache : vignette de repli, en-tête du détail, majuscule', () => {
+  const src = fs.readFileSync(require.resolve('./nexus-politique-tarifaire-ecran.js'), 'utf8');
+  assert.ok(/cat-petits-articles/.test(src) && /identifiant de famille inconnu/.test(src), 'repli vers cat-petits-articles avec trace console');
+  assert.ok(/<div class="pt-ctl-1"><div class="pt-ctl-nom">.*<\/div>' \+\s*'<div class="pt-ctl-cause">/.test(src), 'nom seul sur sa ligne, cause et pastilles sur la suivante');
+  const voc = fs.readFileSync(require.resolve('./nexus-vocabulaire-tarif.js'), 'utf8');
+  assert.ok(/masque: 'Peut expliquer aussi :'/.test(voc), 'majuscule initiale');
+});
