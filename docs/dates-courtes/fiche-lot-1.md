@@ -30,7 +30,15 @@ Tournée (l'employé ne choisit rien, le serveur rattache le relevé à la tourn
 - Une tournée n'est jamais fermée. Par défaut, une par semaine calendaire (lundi 00:00, heure de la Martinique), par station. Un manager, un gérant ou un créateur peut en ouvrir une à la main (geste tracé). Proposition à valider par Guardian.
 - « Corriger le relevé » reste réservé aux erreurs de saisie.
 
-Quantité consolidée d'un groupe : somme des relevés non annulés de la tournée en cours, plus les corrections non annulées de la tournée, moins les retraits physiques, jamais inférieure à zéro.
+Quantité consolidée d'un groupe : somme des relevés non annulés de la tournée retenue, plus les corrections non annulées comptées, moins les retraits physiques comptés, jamais inférieure à zéro.
+
+Quels gestes comptent :
+
+- La tournée retenue est la dernière tournée où le groupe a été relevé.
+- Seuls comptent les corrections et les retraits dont l'heure du geste est postérieure au premier relevé de cette tournée retenue.
+- Les corrections et retraits antérieurs à ce premier relevé restent dans l'historique ; un retrait antérieur reste dans « à comptabiliser » ; aucun des deux ne touche la quantité.
+- Un geste fait hors ligne compte à l'heure du geste (relevée sur l'appareil), jamais à l'heure de réception par le serveur.
+- Contre-exemple : semaine 1, quantité 8. Lundi 9:00 de la semaine 2, R1 retire 3. À 10:00, R2 relève le groupe pour la première fois en semaine 2 : 5. La quantité est 5 et non 2, car le retrait de 9:00 précède ce premier relevé.
 
 - Exemple : 6 et 4 donnent 10 ; correction de moins 2 donne 8. Les deux relevés et la correction restent visibles.
 - Les relevés, corrections et retraits de toutes les tournées restent affichés sous le groupe.
@@ -83,7 +91,7 @@ EAN inconnu du catalogue :
 
 ## 8. Recettes du lot
 
-Voir `plan-recette.md` : cas 1 à 5, 6b, 6c, 7, 8, 10, 12 à 17, 16b, 21 à 26 (et 6, 15, 24 pour la part lot 1).
+Voir `plan-recette.md` : cas 1 à 5, 6b, 6c, 7, 8, 10, 12 à 17, 16b, 21 à 28 (et 6, 15, 24 pour la part lot 1).
 
 ## 9. Limites
 

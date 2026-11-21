@@ -35,6 +35,9 @@ La date saisie est une seule « Date limite », sans type : aucune recette ne di
 | 24 | Groupe non recompté en semaine 2 | Quantité 10 conservée, affichée avec son âge (« relevé il y a 8 jours »), jamais additionnée | 1 et 2 |
 | 25 | Ouverture manuelle d'une nouvelle tournée par un manager, un gérant ou un créateur | Acceptée et tracée ; renfort et caissière refusés par le serveur | 1 |
 | 26 | Changement de tournée à lundi 00:00, heure de Martinique | Un relevé à dimanche 23:59 reste dans l'ancienne tournée, à lundi 00:00 dans la nouvelle | 1 |
+| 27 | Contre-exemple : semaine 1 = 8 ; lundi 9:00 de la semaine 2, R1 retire 3 ; 10:00, R2 relève le groupe pour la première fois en semaine 2 : 5 | Quantité 5 et non 2 ; le retrait de 9:00 reste dans l'historique et dans « à comptabiliser » | 1 et 3 |
+| 28 | Geste hors ligne : retrait fait à 9:00 sans réseau, reçu à 11:00, après un premier relevé de la tournée à 10:00 | Compté à 9:00 (heure du geste) : sans effet sur la quantité ; l'heure de réception est conservée pour la trace | 1 et 2 |
+| 29 | Groupe dont la date limite est passée, quantité supérieure à zéro | Affiché « signalé, à retirer » sans geste ; aucune ligne de retrait créée, quantité inchangée | 3 |
 
 Autres preuves attendues au lot 2 et 3 : maquettes Jour et Nuit, captures à largeur iPhone, test de compréhension de Guardian, recette Safari iOS sur appareil réel.
 

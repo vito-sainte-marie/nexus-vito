@@ -15,7 +15,6 @@ Légende : O = autorisé, N = refusé par le serveur, A = autorisé seulement si
 | Signaler | O | O | O | N | N |
 | Confirmer le retrait physique | O | O | O | N | N |
 | Comptabiliser la démarque | N | O | O | N | N |
-| Supervision et validation | N | O | O | N | N |
 | Activer ou fermer l'accès caissière | N | O | O | N | N |
 | Ouvrir une nouvelle tournée | N | O | O | N | N |
 | Rattacher un produit provisoire ou poser « même produit que… » | N | O | O | N | N |

@@ -14,6 +14,7 @@ Donner au manager un tableau de suivi des dates à venir, des quantités consoli
 - Grisé à 7 jours. Quantité masquée au delà de 14 jours.
 - Par ligne : produit et EAN, date limite, jours restants, quantité consolidée, historique des corrections, état de traitement, action du manager.
 - Seuils complémentaires : propositions seulement, jamais appliquées sans arbitrage.
+- Date passée avec quantité supérieure à zéro : le groupe passe de lui-même à l'état d'affichage « signalé, à retirer ». C'est un état d'affichage, pas un mouvement : aucune écriture de retrait, aucune quantité modifiée. Le retrait physique reste un geste humain.
 - Aucune action automatique : ni promotion, ni destruction, ni démarque.
 
 ## 3. Retraits en trois états
@@ -30,7 +31,7 @@ Aucune intégration comptable inventée : « démarque comptabilisée » est un 
 
 - Liste des groupes à échéance, filtrable par bande.
 - Détail d'un groupe : relevés, corrections, signalements, retraits, avec auteur, date et heure.
-- Actions : signaler, confirmer le retrait physique, comptabiliser la démarque, valider.
+- Actions : signaler, confirmer le retrait physique, comptabiliser la démarque. (L'action « valider » est retirée : aucun objet ni effet défini.)
 - Liste « à comptabiliser » : les unités retirées physiquement et pas encore comptabilisées. Le renfort ne peut pas les marquer comptabilisées.
 - Liste des produits provisoires (EAN inconnu du catalogue) : le manager peut rattacher une ligne à la main à un produit sous un autre code (geste tracé : auteur, date). Un produit provisoire rejoint seul la fiche du catalogue quand son EAN apparaît dans un import.
 - Traçabilité : chaque action écrit une ligne append-only ; rien n'est supprimé.
@@ -57,7 +58,7 @@ Aucune icône dessinée par l'assistant.
 
 - Aucun groupe de 60 jours ou plus n'apparaît.
 - Ordre de la liste conforme à la règle, vérifié sur jeu fictif.
-- Un renfort ne peut pas poser l'état « démarque comptabilisée » : refus serveur (cas 9). Alertes à 59 et 61 jours : cas 19 ; ordre du tableau : cas 20.
+- Un renfort ne peut pas poser l'état « démarque comptabilisée » : refus serveur (cas 9). Alertes à 59 et 61 jours : cas 19 ; ordre du tableau : cas 20. Date passée : cas 29.
 - Aucune action automatique n'est créée sans geste humain.
 
 ## 7. Limites

@@ -61,7 +61,7 @@ Quantité consolidée d'un groupe :
 1. Dans la tournée en cours : somme des relevés non annulés de cette tournée. Les relevés d'une même tournée s'additionnent (4 au frigo + 3 en gondole = 7).
 2. Le premier relevé d'un groupe dans une nouvelle tournée remplace la quantité de la tournée précédente ; les relevés suivants de la même tournée s'y ajoutent.
 3. Un groupe non recompté dans la tournée en cours garde sa dernière quantité, affichée avec son âge (« relevé il y a 8 jours »). Il ne s'additionne jamais avec la tournée précédente.
-4. On ajoute les corrections non annulées de la tournée, on soustrait les retraits physiques (section 4), plancher à zéro.
+4. La tournée retenue est la dernière tournée où le groupe a été relevé. On ajoute les corrections non annulées et on soustrait les retraits physiques (section 4) dont l'heure du geste est postérieure au premier relevé de cette tournée retenue, plancher à zéro. Les gestes antérieurs restent dans l'historique, les retraits antérieurs restent dans « à comptabiliser », aucun ne touche la quantité. Exemple : semaine 1 = 8 ; lundi 9:00 de la semaine 2, un retrait de 3 ; 10:00, premier relevé de la semaine 2 à 5 ; quantité 5 et non 2.
 5. Calculée par vue ou fonction, jamais stockée comme vérité. Un éventuel cache est recalculable.
 
 Les relevés, corrections et retraits de toutes les tournées restent affichés sous le groupe.
@@ -83,7 +83,7 @@ Les relevés, corrections et retraits de toutes les tournées restent affichés 
 | auteur, cree_le, commentaire | trace |
 | annule_le, annule_par, motif_annulation | annulation tracée |
 
-- Le retrait physique diminue la quantité consolidée. C'est un mouvement à part entière, ni une correction ni une démarque : 8 relevés moins 3 retirés donnent 5, l'historique indique « 3 retirés par R1 à 10:05 ».
+- Le retrait physique diminue la quantité consolidée s'il est postérieur au premier relevé de la tournée retenue (section 3, point 4). C'est un mouvement à part entière, ni une correction ni une démarque : 8 relevés moins 3 retirés donnent 5, l'historique indique « 3 retirés par R1 à 10:05 ».
 - Les unités retirées alimentent la liste « à comptabiliser » du manager. L'état « démarque comptabilisée » exige manager, gérant ou créateur ; le renfort ne peut pas le poser. Aucune écriture comptable.
 - `inventaire_mouvements` n'est pas utilisée (`quart_id` obligatoire).
 
@@ -96,6 +96,7 @@ Un réglage booléen « accès caissière », fermé par défaut, modifiable par
 - États côté appareil : Enregistré, En attente, Refusé.
 - Une opération rejouée porte la même clé d'idempotence : le serveur renvoie le résultat de la première.
 - Refus du serveur (plancher, droits) : visible, jamais silencieux.
+- Chaque geste (relevé, correction, retrait) porte l'heure du geste relevée sur l'appareil, en plus de la clé d'idempotence. Le comptage de la section 3 utilise l'heure du geste, jamais l'heure de réception : un geste fait hors ligne le lundi 9:00 et reçu à 11:00 compte à 9:00. L'heure de réception est conservée pour la trace.
 
 ## 7. Droits sur les tables
 
