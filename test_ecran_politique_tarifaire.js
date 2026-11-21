@@ -1278,19 +1278,48 @@ ok('L5 : le chargement des vérifications exclut les annulées (annule_le is nul
   const i = src.indexOf("from('tarif_anomalies_verifications').select");
   assert.ok(i > 0 && /\.is\('annule_le', null\)/.test(src.slice(i, i + 700)), 'une vérification annulée ne revient jamais comme vérifiée');
 });
-ok('L5 : marquerVerifie lit le commentaire saisi dans le détail (hôte et banc), pas seulement dans un li', () => {
+ok('L5 : marquerVerifie lit le commentaire saisi dans le détail (hôte et banc), seulement celui de l\'article et de la cause du bouton', () => {
   ['NEXUS-Produits-v1.html', 'outils/recette/ecran_scanner/banc.html'].forEach(f => {
     const src = require('fs').readFileSync(__dirname + '/' + f, 'utf8');
     const lz = src.split('\n').filter(l => /(const|var) zone = btn\.closest/.test(l))[0];
-    const lc = src.split('\n').filter(l => /(const|var) zc = zone\.querySelector/.test(l))[0];
+    const lc = src.split('\n').filter(l => /(const|var) com = E2?\.commentaireDuControle\(zone, art, code\)/.test(l))[0];
     assert.ok(lz && lc, f + ' : lignes zone/commentaire introuvables');
+    assert.ok(!/zone\.querySelector\('textarea\.pt-verif-com/.test(src), f + ' : plus de lecture du premier champ venu');
     const cut = (lz + '\n' + lc).replace(/(const|let)\s/g, 'var ');
-    const mk = (v, avecLi) => { const ta = { value: v };
-      const zoneDetail = { querySelector: s => /textarea\.pt-verif-com/.test(s) ? ta : null, appendChild() {} };
-      const btn = { closest: s => s === '[data-ctl-detail]' ? zoneDetail : (s === 'li' ? (avecLi ? {} : null) : null), parentNode: {} };
-      return { btn, document: { createElement: () => ({ setAttribute() {} }) } }; };
-    const { btn, document } = mk('vu sur facture', false);
-    const r = new Function('btn', 'document', cut + '; return com;')(btn, document);
-    assert.strictEqual(r, 'vu sur facture', f + ' : le commentaire saisi dans le détail doit être lu');
+    const champ = (article, code, v) => ({ value: v, dataset: { comArticle: article, comCode: code } });
+    const mk = (champs, art, code) => {
+      const zoneDetail = { querySelectorAll: s => /textarea\.pt-verif-com/.test(s) ? champs : [], appendChild() {} };
+      const btn = { dataset: { verArticle: art, verifier: code }, closest: s => s === '[data-ctl-detail]' ? zoneDetail : null, parentNode: {} };
+      return btn; };
+    const lire = (champs, art, code) => new Function('btn', 'E', 'E2', 'art', 'code', cut + '; return com;')(mk(champs, art, code), E, E, art, code);
+    assert.strictEqual(lire([champ('NETT VITRES', 'S2', 'vu sur facture')], 'NETT VITRES', 'S2'), 'vu sur facture', f + ' : le commentaire du bon contrôle est lu');
+    // Deux champs ouverts : chaque bouton part avec son propre texte.
+    const deux = [champ('DURMINT', 'S2', 'texte DURMINT'), champ('NETT VITRES', 'S2', 'texte NETT')];
+    assert.strictEqual(lire(deux, 'NETT VITRES', 'S2'), 'texte NETT', f + ' : NETT VITRES ne prend pas le texte de DURMINT');
+    assert.strictEqual(lire(deux, 'DURMINT', 'S2'), 'texte DURMINT', f + ' : DURMINT garde le sien');
+    // Même article, autre cause : pas de mélange.
+    assert.strictEqual(lire([champ('DURMINT', 'S7', 'autre cause')], 'DURMINT', 'S2'), '', f + ' : autre cause, aucun texte');
+    // Chemin iPhone : l\'écriture de DURMINT a échoué, le texte reste dans son champ ; NETT VITRES enregistré sans ce texte.
+    assert.strictEqual(lire([champ('DURMINT', 'S2', 'texte DURMINT')], 'NETT VITRES', 'S2'), '', f + ' : champ resté sur DURMINT, NETT VITRES part sans commentaire');
   });
+});
+ok('L5 : le payload de tarif_marquer_verifie porte l\'article et la cause du bouton, avec le commentaire du même contrôle', () => {
+  const a = avecControles(2);
+  const cs = []; a.lignes.forEach(l => (l.anomalies || []).forEach(an => cs.push({ l, an })));
+  assert.ok(cs.length >= 2, 'deux contrôles');
+  cs.slice(0, 2).forEach((c, i) => {
+    const v = E.payloadVerification(c.an, c.l, { importBatchId: 'lot', moteurVersion: 'm', commentaire: 'com ' + i });
+    assert.strictEqual(v.article, c.l.article);
+    assert.strictEqual(v.cause, c.an.code);
+    assert.strictEqual(v.commentaire, 'com ' + i);
+  });
+});
+ok('L5 : la confirmation cite l\'article vérifié et le commentaire enregistré', () => {
+  const a = avecControles(2); const cs = []; a.lignes.forEach(l => (l.anomalies || []).forEach(an => cs.push({ l, an })));
+  const etat = { analyse: a };
+  E.effetVerificationEnregistree(cs[0].an, etat, 'Gérant du banc', 'id1', { commentaire: 'vu sur facture' });
+  assert.ok(etat.messageVerif.indexOf(cs[0].l.article) >= 0 && etat.messageVerif.indexOf('vu sur facture') >= 0, etat.messageVerif);
+  const etat2 = { analyse: a };
+  E.effetVerificationEnregistree(cs[1].an, etat2, 'Gérant du banc', 'id2', {});
+  assert.ok(/sans commentaire/.test(etat2.messageVerif) && etat2.messageVerif.indexOf(cs[1].l.article) >= 0, etat2.messageVerif);
 });
