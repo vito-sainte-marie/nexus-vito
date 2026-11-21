@@ -9,6 +9,8 @@
   var AR = global.NexusPolitiqueTarifaireRegistres || (typeof require === 'function' ? require('./nexus-politique-tarifaire-registres.js') : null);
   var V = global.NexusVocabTarif || (typeof require === 'function' ? require('./nexus-vocabulaire-tarif.js') : null);
   var CP = global.NexusComposantsPilotage || (typeof require === 'function' ? (function () { try { return require('./nexus-composants-pilotage.js'); } catch (e) { return null; } })() : null);
+  var RF = global.NexusRayonsFamilles || (typeof require === 'function' ? (function () { try { return require('./nexus-rayons-familles.js'); } catch (e) { return null; } })() : null);
+  var NI = global.NexusIcones || (typeof require === 'function' ? (function () { try { return require('./nexus-icones.js'); } catch (e) { return null; } })() : null);
   var B = global.NexusBadgeEtat || (typeof require === 'function' ? require('./nexus-badge-etat.js') : null);
 
   var RANG_GRAVITE = { critique: 0, a_verifier: 1, information: 2 };
@@ -505,7 +507,7 @@
     if (etat && etat.estCreateur && an.cycle !== 'verifiee') return '<p class="sc-note pt-lecture-seule" data-lecture-seule-createur="1">Lecture seule : le compte créateur ne vérifie pas.</p>';
     if (!droits || an.cycle === 'verifiee') return '';
     if (!fiable) return '<p class="sc-note pt-verif-indispo" data-verif-indispo="1">Donnée non fiable : l\'import de référence est introuvable, la vérification n\'est pas possible.</p>';
-    var cleC = code + '|' + l.article, comOuvert = !!(etat && etat.comOuvert && etat.comOuvert.indexOf(cleC) >= 0);
+    var cleC = code + '|' + l.article, comOuvert = true;
     var com = comOuvert
       ? '<div class="pt-verif-champ"><label class="sc-lib" for="' + idc + '">Commentaire (facultatif)</label>' +
         '<div class="pt-verif-zone"><textarea id="' + idc + '" class="pt-verif-com" rows="2" data-com-article="' + esc(l.article) + '" data-com-code="' + esc(code) + '" aria-describedby="' + idc + '-n"></textarea>' +
@@ -549,18 +551,24 @@
   }
   // L2 : une ligne compacte par contrôle (article, cause, chiffre clé, un seul niveau) ; le détail s'affiche dans le panneau.
   function cleControle(x) { return x.a.code + '|' + x.l.article; }
+  function vignetteFamille(l) {
+    var id = RF && RF.iconeRayon ? RF.iconeRayon(l.rayon) : 'cat-petits-articles';
+    return NI && NI.imgFamille ? NI.imgFamille('cat', id, 40, { decoratif: true }) : '';
+  }
   function htmlLigneCompacte(x, choisi) {
-    var pc = pieceControle(x.a, x.l), cle = cleControle(x);
+    var pc = pieceControle(x.a, x.l), cle = cleControle(x), grav = pc.niveau === LIB_NIVEAU.demontree ? 'demontree' : 'averifier';
     return '<li class="pt-ctl-item" data-anomalie="' + esc(pc.code) + '"><button type="button" class="pt-ctl-ligne" data-ctl-ligne="1" data-ctl-sel="' + esc(cle) + '"' +
       (choisi ? ' aria-current="true" tabindex="0"' : ' tabindex="-1"') + '>' +
-      '<span class="vp-nom pt-l-art">' + esc(x.l.article) + '</span><span class="nbe-qualif pt-l-tag" data-axe="niveau">' + esc(pc.niveau) + '</span>' +
-      '<span class="pt-l-sec"><span class="pt-l-cause">' + esc(pc.cd.titre || pc.code) + '</span> <span class="pt-l-etat" data-axe="cycle">' + esc(LIB_CYCLE[x.a.cycle || 'nouvelle'] || '') + '</span> <span class="pt-l-chiffre">' + pc.chiffres + '</span></span></button></li>';
+      '<span class="pt-l-vign">' + vignetteFamille(x.l) + '</span>' +
+      '<span class="pt-l-corps"><span class="vp-nom pt-l-art">' + esc(x.l.article) + '</span>' +
+      '<span class="pt-l-sec"><span class="pt-l-cause">' + esc(pc.cd.court || pc.cd.titre || pc.code) + '</span> <span class="nbe-qualif pt-l-niv" data-axe="niveau">' + esc(pc.niveau) + '</span> <span class="pt-l-etat nbe-qualif" data-axe="cycle">' + esc(LIB_CYCLE[x.a.cycle || 'nouvelle'] || '') + '</span></span></span>' +
+      '<span class="pt-l-chiffre pt-l-gr-' + grav + '">' + pc.chiffres + '</span><span class="pt-l-chev" aria-hidden="true">›</span></button></li>';
   }
   function htmlDetailControle(x, droits, etat, nav, avecSuivi) {
     var pc = pieceControle(x.a, x.l), n = nav || { restants: 0, suivant: false };
     var retour = '<button type="button" class="detail-btn pt-ctl-retour" data-ctl-retour="1">‹ Retour à la liste (' + n.restants + (n.restants > 1 ? ' restants' : ' restant') + ')</button>';
     var pos = n.total ? '<span class="pt-ctl-pos" data-ctl-pos="1">' + n.pos + ' / ' + n.total + '</span>' : '';
-    var suiv = '<button type="button" class="detail-btn pt-ctl-suivant" data-ctl-suivant="1"' + (n.suivant ? '' : ' disabled') + '>Suivant</button>';
+    var suiv = '<button type="button" class="detail-btn pt-ctl-suivant" data-ctl-suivant="1"' + (n.suivant ? '' : ' disabled') + '>Passer au suivant sans vérifier</button>';
     return '<section class="pt-detail" data-ctl-detail="1" aria-label="Détail du contrôle"><div class="pt-ctl-entete">' + retour + pos + '</div>' + (avecSuivi ? htmlSuiviVerif(etat, droits) : '') + '<div class="pt-ctl-1"><button type="button" class="vp-ligne-prod pt-ctl-prod" data-article="' + esc(x.l.article) + '"><span class="vp-nom">' + esc(x.l.article) + '</span></button> ' +
       '<span class="sc-nom">' + esc(pc.cd.titre || pc.code) + '</span> <span class="nbe-qualif" data-axe="cycle">' + esc(pc.statut) + '</span></div>' +
       '<p class="pt-ctl-2 pt-ctl-chiffre" data-ctl-chiffre="1"><span class="pt-mono">' + pc.chiffres + '</span> <span class="nbe-qualif" data-axe="niveau">' + esc(pc.niveau) + '</span></p>' +
@@ -629,11 +637,16 @@
     if (etat.erreurEcriture) r += '<p class="sc-note pt-erreur" role="alert" data-ctl-erreur="1">' + esc(etat.erreurEcriture) + '</p>';
     return r;
   }
+  function htmlEnteteControles(a) {
+    var id = a.identiteDonnees || (a.synthese || {}).identiteDonnees || {};
+    var sous = id.dateReleve ? 'Relevé du ' + jourFr(String(id.dateReleve).slice(0, 10)) : '';
+    return '<nav class="pt-ctl-fil sc-methode" aria-label="Fil d\'Ariane">Produits › Scanner tarifaire › Contrôler</nav>' + (sous ? '<p class="pt-ctl-sous sc-methode" data-ctl-sous="1">' + esc(sous) + '</p>' : '');
+  }
   function htmlBlocControles(etat) {
     var a = etat.analyse, droits = peutVerifier(etat.role, etat.estCreateur), tous = tousControles(a);
     var actifs = tous.filter(function (x) { return CYCLES_ACTIFS.indexOf(x.a.cycle || 'nouvelle') >= 0; });
     var AL = A_LIB(), S = a.synthese || {}, ouvert = etat.ctlReplie ? '' : ' open';
-    var h = '<details class="vp-bloc sc-carte pt-bloc-controles" data-bloc-controles="1"' + ouvert + '><summary><span class="sc-nom">Contrôles à effectuer (' + actifs.length + ')</span><span class="sc-chev"></span></summary>';
+    var h = '<details class="vp-bloc sc-carte pt-bloc-controles" data-bloc-controles="1"' + ouvert + '><summary><span class="sc-nom">Contrôles à effectuer (' + actifs.length + ')</span><span class="sc-chev"></span></summary>' + htmlEnteteControles(a);
     if (!tous.length) {
       var id = a.identiteDonnees || S.identiteDonnees || {};
       return h + '<p class="sc-note" data-ctl-vide="1">Aucune anomalie à vérifier sur cet import' + (id.dateReleve ? ' (relevé du ' + esc(jourFr(String(id.dateReleve).slice(0, 10))) + ')' : '') + (id.fichierHash ? ', empreinte ' + esc(String(id.fichierHash).slice(0, 8)) : '') + '.</p></details>';
@@ -644,14 +657,13 @@
     var aideCtl = esc(AL.explication || 'Un contrôle indique où comparer avec Decenium. Ce n\'est pas une erreur constatée : comparez les valeurs, puis marquez la ligne comme vérifiée.');
     if (!droits) h += '<p class="sc-note" data-ctl-lecture="1">Lecture seule : seuls le gérant et le manager marquent un contrôle comme vérifié.</p>';
     var L = controlesFiltres(etat);
-    if (tous.length > SEUIL_OUTILS) {
+    {
       var cy = etat.ctlCycles || CYCLES_DEFAUT;
-      h += '<div class="vp-filtres pt-ctl-outils"><label class="pt-f pt-f-rech"><span class="sc-methode">Recherche</span><input type="search" id="ptCtlRecherche" placeholder="Nom du produit" value="' + esc(etat.ctlRecherche || '') + '"></label>' +
+      h += '<div class="vp-filtres pt-ctl-outils"><label class="pt-f pt-f-rech"><span class="sc-methode">Recherche</span><input type="search" id="ptCtlRecherche" placeholder="Nom ou code-barres" aria-label="Rechercher par nom ou code-barres" value="' + esc(etat.ctlRecherche || '') + '"></label>' +
         '<label class="pt-f"><span class="sc-methode">Tri</span><select data-ctl-tri="1">' + TRI_CTL.map(function (o) { return '<option value="' + o[0] + '"' + ((etat.ctlTri || 'gravite') === o[0] ? ' selected' : '') + '>' + esc(o[1]) + '</option>'; }).join('') + '</select></label>' +
         '<details class="pt-ctl-aide" data-ctl-expl="1"><summary class="info-btn" aria-label="Comment lire un contrôle" role="button">i</summary><p class="sc-methode">' + aideCtl + '</p></details>' + '<fieldset class="pt-ctl-cycles"><legend class="sc-methode">Historique</legend>' + ['nouvelle', 'persistante', 'aggravee', 'verifiee', 'resolue'].map(function (k) {
           return '<label class="pt-chk"><input type="checkbox" data-ctl-cycle="' + k + '"' + (cy.indexOf(k) >= 0 ? ' checked' : '') + '> ' + esc(LIB_CYCLE[k]) + '</label>'; }).join('') + '</fieldset></div>';
     }
-    if (tous.length <= SEUIL_OUTILS) h += '<details class="pt-ctl-aide" data-ctl-expl="1"><summary class="info-btn" aria-label="Comment lire un contrôle" role="button">i</summary><p class="sc-methode">' + aideCtl + '</p></details>';
     var vis = etat.ctlToutes || tous.length <= SEUIL_OUTILS ? L : L.slice(0, SEUIL_OUTILS);
     // Sélection : le contrôle choisi, sinon le premier de la vue (la ligne vérifiée quitte la vue, la suivante prend la place).
     var sel = null; vis.forEach(function (x) { if (!sel && cleControle(x) === etat.ctlSel) sel = x; }); if (!sel) sel = vis[0] || null;
@@ -1171,6 +1183,7 @@
   CSS += '.vue-p1c .pt-pastilles{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}.vue-p1c .pt-pastille{min-height:44px;padding:4px 12px;border:1px solid var(--t-line);border-radius:999px;background:transparent;color:var(--t-text);font:inherit;cursor:pointer}.vue-p1c .pt-pastille[aria-pressed=true]{border-color:var(--t-accent,currentColor);font-weight:600}.vue-p1c .pt-pastille-n{opacity:.8}.vue-p1c .pt-l-etat{font-size:.9em;opacity:.9}.vue-p1c .pt-l-etat::before{content:"\\00B7  "}@media (max-width:599px){.vue-p1c .pt-pastilles{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch}.vue-p1c .pt-pastille{flex:0 0 auto;white-space:nowrap}}';
   CSS += '.vue-p1c .pt-ctl-deux{display:block}.vue-p1c .pt-ctl-liste{list-style:none;margin:0;padding:0}.vue-p1c .pt-ctl-item{margin:0;border-top:1px solid var(--t-line)}.vue-p1c .pt-ctl-ligne{display:flex;align-items:center;gap:8px;width:100%;min-height:44px;padding:6px 10px;background:transparent;color:var(--t-text);border:0;border-left:3px solid transparent;text-align:left;font:inherit;cursor:pointer}.vue-p1c .pt-ctl-ligne>span{min-width:0;overflow-wrap:anywhere;white-space:normal}.vue-p1c .pt-ctl-ligne{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:8px;row-gap:2px;align-items:center}.vue-p1c .pt-ctl-ligne>.pt-l-tag{flex-shrink:0;overflow:visible;text-overflow:clip;white-space:nowrap;min-width:max-content;justify-self:end}.vue-p1c .pt-ctl-ligne>.pt-l-sec{grid-column:1 / -1;font-size:.85em;opacity:.85}.vue-p1c .pt-ctl-ligne[aria-current=true]{background:var(--t-panel);border-left-color:var(--t-text)}.vue-p1c .pt-ctl-ligne:focus-visible,.vue-p1c details.pt-sources-calcul>summary:focus-visible{outline:2px solid var(--t-text);outline-offset:2px}.vue-p1c .pt-ctl-ligne:focus-visible{outline-offset:-2px}.vue-p1c .pt-detail{margin-top:12px;padding:12px;border:1px solid var(--t-line);border-radius:14px;background:var(--t-panel)}.vue-p1c .pt-detail .pt-ctl-prod{background:none;border:0;padding:0;margin:0;color:var(--t-text);font:inherit;font-weight:700;text-align:left;cursor:pointer;min-height:44px}.vue-p1c .pt-detail .pt-ctl-prod:focus-visible{outline:2px solid var(--t-text);outline-offset:2px}.vue-p1c details.pt-sources-calcul>summary{min-height:44px;display:flex;align-items:center;cursor:pointer}@media (max-width:899.98px){.vue-p1c .pt-ctl-deux[data-mode=liste]>.pt-ctl-droite{display:none}.vue-p1c .pt-ctl-deux[data-mode=detail]>.pt-ctl-gauche{display:none}.vue-p1c .pt-ctl-deux[data-mode=detail]>.pt-ctl-droite{position:fixed;top:0;right:0;bottom:0;left:0;z-index:50;overflow-y:auto;overflow-x:hidden;background:var(--t-panel);-webkit-overflow-scrolling:touch}.vue-p1c .pt-ctl-deux[data-mode=detail] .pt-detail{margin:0;min-height:100%;display:flex;flex-direction:column;border:0;border-radius:0;padding:12px 16px 0;box-sizing:border-box;max-width:100%;overflow-wrap:anywhere}.vue-p1c .pt-ctl-entete{display:flex;align-items:center;justify-content:space-between;gap:8px}.vue-p1c .pt-ctl-pos{white-space:nowrap;color:var(--t-text)}.vue-p1c .pt-ctl-retour,.vue-p1c .pt-ctl-suivant{min-height:44px;min-width:44px;margin:0 0 8px}.vue-p1c .pt-ctl-suivant[disabled]{opacity:.5}.vue-p1c .pt-actions{position:sticky;bottom:0;display:flex;gap:8px;padding:8px 0 calc(8px + env(safe-area-inset-bottom,0px));margin-top:auto;background:var(--t-panel);border-top:1px solid var(--t-line)}.vue-p1c .pt-actions>button{flex:1 1 0;min-height:44px}.vue-p1c .pt-ctl-retour:focus-visible,.vue-p1c .pt-actions>button:focus-visible{outline:2px solid var(--t-text);outline-offset:2px}}@media (min-width:900px){.vue-p1c .pt-ctl-retour,.vue-p1c .pt-ctl-suivant{display:none}.vue-p1c .pt-actions{display:block}.vue-p1c .pt-ctl-deux{display:grid;grid-template-columns:46% 1fr;gap:16px;align-items:start}.vue-p1c .pt-ctl-ligne{min-height:52px;padding:4px 10px}.vue-p1c .pt-ctl-deux>.pt-ctl-droite{position:sticky;top:8px;align-self:start;max-height:calc(100vh - 16px);overflow-y:auto}.vue-p1c .pt-detail{margin-top:0}}';
 
+  CSS += '.vue-p1c .pt-ctl-fil,.vue-p1c .pt-ctl-sous{margin:4px 0;color:var(--t-mid)}.vue-p1c .pt-ctl-outils{padding:8px;border:1px solid var(--t-line);border-radius:12px;background:var(--t-panel);align-items:flex-end}.vue-p1c .pt-pastille-n{font-weight:700;opacity:1}.vue-p1c .pt-l-vign{flex:0 0 40px;width:40px;height:40px;display:inline-flex;align-items:center;justify-content:center}.vue-p1c .pt-l-vign img{width:40px;height:40px;object-fit:contain}.vue-p1c .pt-ctl-ligne{grid-template-columns:40px minmax(0,1fr) auto auto}.vue-p1c .pt-l-corps{display:flex;flex-direction:column;gap:2px;min-width:0}.vue-p1c .pt-l-art{font-weight:600;overflow-wrap:anywhere;white-space:normal}.vue-p1c .pt-l-sec{font-size:.85em;color:var(--t-mid)}.vue-p1c .pt-l-chiffre{font-family:var(--t-mono);font-weight:700;padding:2px 8px;border:1px solid var(--t-line);border-radius:999px;white-space:nowrap}.vue-p1c .pt-l-gr-demontree{border-color:var(--nbe-critique,var(--t-text));color:var(--t-text)}.vue-p1c .pt-l-gr-averifier{border-color:var(--nbe-verifier,var(--t-text));color:var(--t-text)}.vue-p1c .pt-l-chev{color:var(--t-mid)}.vue-p1c .pt-detail .pt-ctl-suivant{background:transparent;color:var(--t-text);border:1px solid var(--t-line)}.vue-p1c .pt-detail .pt-actions .pt-ctl-suivant{width:100%}';
   // ---------- Montage : lecture seule, session de la personne connectée, clé publique, aucun paramètre de site ----------
   var VUES = { familles: 'v_tarif_familles_actifs', rattachements: 'v_tarif_rattachements_actifs', seuils: 'v_tarif_seuils_actifs', reglages: 'v_tarif_reglages_actifs',
     prixDecides: 'v_tarif_prix_decides_actifs', applications: 'v_tarif_prix_application_actifs', exceptions: 'v_tarif_exceptions_effectives',

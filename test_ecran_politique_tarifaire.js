@@ -460,7 +460,7 @@ ok('B2/L2 : bloc Contrôles, liste compacte, détail avec consigne et bouton', (
   assert.ok(/data-axe="niveau">Démontré/.test(h) && /data-axe="niveau">À vérifier/.test(h));
   assert.ok(/data-ctl-liste/.test(h) && /data-ctl-detail/.test(h) && /pt-ctl-3/.test(h) && !/data-ctl-info/.test(h));
   assert.ok(/✓ Marquer comme vérifié/.test(h) && /data-ctl-expl/.test(h));
-  assert.ok(!/data-ctl-plus/.test(h) && !/ptCtlRecherche/.test(h));
+  assert.ok(!/data-ctl-plus/.test(h) && /ptCtlRecherche/.test(h) && /Nom ou code-barres/.test(h), 'barre d\'outils toujours présente, sans suite sous le seuil');
 });
 ok('B2 : au-delà de 10 contrôles, outils et suite', () => {
   const h = E.htmlPage({ analyse: avecControles(14), role: 'manager', estCreateur: false, filtres: {}, incoherences: [] });
@@ -506,16 +506,21 @@ ok('L5 compact : le texte d\'aide est derrière un (i), outils sur un bloc uniqu
   const src = require('fs').readFileSync(require('path').join(__dirname, 'nexus-politique-tarifaire-ecran.js'), 'utf8');
   assert.ok(/@media\(min-width:900px\)\{\.vue-p1c \.pt-ctl-outils\{flex-wrap:nowrap/.test(src), 'ligne unique dès 900 px');
 });
-ok('recette Guardian : commentaire replié derrière un lien, (i) sur la ligne du titre', () => {
+ok('recette Guardian : commentaire visible d\'emblée, rattaché au contrôle choisi', () => {
   const a = avecControles(2);
   const h = E.htmlPage({ analyse: a, role: 'manager', estCreateur: false, filtres: {}, incoherences: [] });
-  assert.ok(/data-com-ouvrir=/.test(h) && !/<textarea/.test(h), 'zone fermée par défaut');
-  assert.ok(/Ajouter un commentaire/.test(h));
+  assert.ok(/<textarea/.test(h) && !/data-com-ouvrir=/.test(h), 'zone visible, sans lien de dépliage');
+  assert.strictEqual((h.match(/<textarea/g) || []).length, 1, 'une seule zone : celle du contrôle choisi');
   assert.ok(!/data-ctl-info/.test(h), 'plus de (i) : la consigne est toujours visible dans le détail');
-  const cle = /aria-current="true"[^>]*data-ctl-sel="([^"]+)"|data-ctl-sel="([^"]+)"[^>]*aria-current="true"/.exec(h);
-  const k = cle[1] || cle[2];
-  const h2 = E.htmlPage({ analyse: a, role: 'manager', estCreateur: false, filtres: {}, incoherences: [], comOuvert: [k] });
-  assert.ok(/<textarea/.test(h2), 'zone ouverte sur cette ligne');
+});
+ok('mise en page Contrôler : fil d\'Ariane, vignette de famille, pas de title sur les lignes, bouton secondaire', () => {
+  const h = E.htmlPage({ analyse: avecControles(3), role: 'manager', estCreateur: false, filtres: {}, incoherences: [] });
+  assert.ok(/Produits › Scanner tarifaire › Contrôler/.test(h));
+  assert.ok(/pt-l-vign/.test(h) && /pt-l-gr-(demontree|averifier)/.test(h));
+  assert.ok(/Passer au suivant sans vérifier/.test(h) && !/>Suivant<\/button>/.test(h));
+  const lignes = h.match(/<button[^>]*data-ctl-ligne[^>]*>/g) || [];
+  assert.ok(lignes.length >= 3 && lignes.every(b => !/\stitle=/.test(b)), 'aucune ligne ne porte de title');
+  assert.ok(!/<li class="pt-ctl-item"[^>]*\stitle=/.test(h));
 });
 ok('recette Guardian : cases de filtre avec accent-color', () => {
   assert.ok(/input\[type=checkbox\]\{accent-color:var\(--accent\)/.test(E.CSS));
