@@ -87,8 +87,9 @@ async function planche(sortie, ids, nom) {
   const src = process.argv[2];
   if (!src) { console.error('Usage : node outils/icones-familles/integrer.js <dossier-sources> [--pret]'); process.exit(2); }
   const sortie = path.join(__dirname, '../../assets/icones/v2');
-  const ids = T.A_VENIR.filter(id => fs.existsSync(path.join(src, id + '.png')));
-  const manquantes = T.A_VENIR.filter(id => !ids.includes(id));
+  const CIBLES = T.A_VENIR.length ? T.A_VENIR : T.PRETES.slice(11);   // liste vide une fois les 18 familles déclarées prêtes
+  const ids = CIBLES.filter(id => fs.existsSync(path.join(src, id + '.png')));
+  const manquantes = CIBLES.filter(id => !ids.includes(id));
   if (!ids.length) { console.error('Aucune source trouvée dans ' + src); process.exit(1); }
   for (const id of ids) (await famille(src, id, sortie)).forEach(l => console.log(l));
   await planche(sortie, ids, 'nuit'); await planche(sortie, ids, 'jour');
