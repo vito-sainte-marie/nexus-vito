@@ -6,11 +6,12 @@
 -- Données des 62 lignes : outils/tva/confirmations_sainte_marie_20261121.json (le test du dépôt vérifie qu'elles sont identiques).
 -- Épreuve de ce même corps sur Test (fixtures, site d'essai) : outils/tva/epreuve_confirmations_20261121.sql.
 --
--- Le corps est une fonction temporaire (pg_temp, disparaît avec la session) appelée par UN select final.
--- Deux modes, réglés par le premier argument de l'appel (RAPPORT par défaut, sans effet) :
+-- Le corps est UN bloc DO : aucune table ni fonction n'est créée, RAPPORT passe donc sous « begin transaction read only ».
+-- Les paramètres passent par set_config (tva.mode, tva.site, tva.compte_test, tva.attendu, tva.donnees) juste avant le bloc.
+-- Deux modes, réglés par tva.mode (RAPPORT par défaut, sans effet) :
 --   RAPPORT   : ne touche à rien. Se termine par une exception « RAPPORT_TVA ... » qui porte le rapport :
 --               lignes à insérer, lignes qui en remplacent une autre, lignes déjà conformes, cibles absentes de products.
---   APPLIQUER : insère en une seule instruction (l'appel de la fonction), puis relit le résultat.
+--   APPLIQUER : insère en une seule instruction, puis relit le résultat.
 --               Refuse (annulation complète) si une cible est absente de products du site.
 --
 -- Règles :
@@ -25,111 +26,13 @@
 -- Exécution : par Guardian, sur Test (épreuve), puis en Production après un GO distinct du pilote. Le script s'exécute en rôle
 -- privilégié (la RLS ne s'applique pas) : c'est pourquoi confirme_par est renseigné explicitement.
 
--- DEBUT_FONCTION_PARTAGEE (texte identique dans outils/tva/epreuve_confirmations_20261121.sql, vérifié par le test du dépôt)
-create or replace function pg_temp.tva_confirmations(p_mode text, p_site text, p_compte_test boolean, p_donnees jsonb, p_attendu int)
-returns text
-language plpgsql
-as $corps$
-declare
-  v_pilote uuid;
-  v_nb_pilote int;
-  v_total int;
-  v_inserer int;
-  v_remplacer int;
-  v_conformes int;
-  v_introuvables int;
-  v_inseres int := 0;
-  v_actives_ok int;
-  v_detail text;
-begin
-  if p_mode not in ('RAPPORT', 'APPLIQUER') then
-    raise exception 'MODE_INCONNU : % (attendu RAPPORT ou APPLIQUER)', p_mode;
-  end if;
-
-  select count(*), (array_agg(e.id))[1] into v_nb_pilote, v_pilote
-    from employees e
-   where e.site_id = p_site and e.est_createur and e.actif and e.compte_test = p_compte_test;
-  if v_nb_pilote <> 1 then
-    raise exception 'CONFIRME_PAR_INTROUVABLE_OU_AMBIGU : % compte(s) créateur sur %, attendu exactement 1', v_nb_pilote, p_site;
-  end if;
-
-  drop table if exists pg_temp.tva_plan;
-  create temp table tva_plan on commit drop as
-  select d.article, nullif(trim(d.code_barres), '') as code_barres, d.taux, d.commentaire,
-         a.id as actif_id, a.taux_confirme as actif_taux,
-         exists (
-           select 1 from products p
-            where p.site = p_site
-              and ( (nullif(trim(d.code_barres), '') is not null and trim(p.code_barres) = trim(d.code_barres))
-                 or (nullif(trim(d.code_barres), '') is null
-                     and lower(regexp_replace(trim(p.article), '\s+', ' ', 'g')) = lower(regexp_replace(trim(d.article), '\s+', ' ', 'g'))) )
-         ) as dans_catalogue
-    from jsonb_to_recordset(p_donnees) as d(article text, code_barres text, taux numeric, commentaire text)
-    left join lateral (
-      select c.id, c.taux_confirme
-        from produits_tva_confirmations c
-       where c.site = p_site
-         and c.annule_le is null
-         and not exists (select 1 from produits_tva_confirmations r where r.remplace_id = c.id and r.annule_le is null)
-         and ( (nullif(trim(d.code_barres), '') is not null and trim(c.code_barres) = trim(d.code_barres))
-            or (nullif(trim(d.code_barres), '') is null and nullif(trim(c.code_barres), '') is null
-                and lower(regexp_replace(trim(c.article), '\s+', ' ', 'g')) = lower(regexp_replace(trim(d.article), '\s+', ' ', 'g'))) )
-       order by c.confirme_le desc
-       limit 1
-    ) a on true;
-
-  select count(*),
-         count(*) filter (where actif_id is null),
-         count(*) filter (where actif_id is not null and actif_taux <> taux),
-         count(*) filter (where actif_id is not null and actif_taux = taux),
-         count(*) filter (where not dans_catalogue)
-    into v_total, v_inserer, v_remplacer, v_conformes, v_introuvables
-    from tva_plan;
-
-  select coalesce(string_agg(article || ' (' || actif_taux || ' -> ' || taux || ')', ' ; ' order by article), 'aucun')
-    into v_detail from tva_plan where actif_id is not null and actif_taux <> taux;
-
-  if p_mode = 'RAPPORT' then
-    raise exception 'RAPPORT_TVA : cibles=%, a_inserer=%, a_remplacer=%, deja_conformes=%, cibles_absentes_de_products=% ; remplacements : %',
-      v_total, v_inserer, v_remplacer, v_conformes, v_introuvables, v_detail;
-  end if;
-
-  -- APPLIQUER
-  if v_total <> p_attendu then
-    raise exception 'DONNEES_INATTENDUES : % cibles, attendu %', v_total, p_attendu;
-  end if;
-  if v_introuvables > 0 then
-    raise exception 'CIBLES_ABSENTES_DE_PRODUCTS : % cible(s) hors du catalogue du site, rien n''est inséré (lancer RAPPORT)', v_introuvables;
-  end if;
-
-  insert into produits_tva_confirmations (site, article, code_barres, taux_confirme, commentaire, confirme_par, remplace_id)
-  select p_site, p.article, p.code_barres, p.taux, p.commentaire, v_pilote, p.actif_id
-    from tva_plan p
-   where p.actif_id is null or p.actif_taux <> p.taux;
-  get diagnostics v_inseres = row_count;
-
-  -- Relecture : chaque cible a une confirmation active au taux décidé.
-  select count(*) into v_actives_ok
-    from tva_plan p
-   where exists (
-     select 1 from produits_tva_confirmations c
-      where c.site = p_site and c.annule_le is null and c.taux_confirme = p.taux
-        and not exists (select 1 from produits_tva_confirmations r where r.remplace_id = c.id and r.annule_le is null)
-        and ( (p.code_barres is not null and trim(c.code_barres) = p.code_barres)
-           or (p.code_barres is null and nullif(trim(c.code_barres), '') is null
-               and lower(regexp_replace(trim(c.article), '\s+', ' ', 'g')) = lower(regexp_replace(trim(p.article), '\s+', ' ', 'g'))) ));
-  if v_actives_ok <> v_total then
-    raise exception 'RELECTURE_ECART : % cible(s) sur % ont une confirmation active au taux décidé, rien n''est validé', v_actives_ok, v_total;
-  end if;
-
-  return format('APPLIQUER_TVA : inseres=%s (dont remplacements=%s), deja_conformes=%s, relecture=%s/%s', v_inseres, v_remplacer, v_conformes, v_actives_ok, v_total);
-end
-$corps$;
--- FIN_FONCTION_PARTAGEE
-
--- Appel : RAPPORT par défaut. Pour appliquer, remplacer 'RAPPORT' par 'APPLIQUER' (second GO du pilote).
--- Arguments : mode, site, compte_test du créateur (faux en Production), données, nombre de cibles attendu.
-select pg_temp.tva_confirmations('RAPPORT', 'vito-sainte-marie', false, $json$[
+-- Paramètres : RAPPORT par défaut. Pour appliquer, remplacer 'RAPPORT' par 'APPLIQUER' (second GO du pilote).
+-- compte_test du créateur : faux en Production. Nombre de cibles attendu : 62.
+select set_config('tva.mode', 'RAPPORT', false),
+       set_config('tva.site', 'vito-sainte-marie', false),
+       set_config('tva.compte_test', 'false', false),
+       set_config('tva.attendu', '62', false),
+       set_config('tva.donnees', $json$[
   {"article":"AD Blue 10L","code_barres":"7041068131193","taux":0,"commentaire":"Décision du pilote du 21/11/2026, facture fournisseur Decenium : BLF-2026-29277 du 10/11, RUBIS LUBRIFIANTS, 7 bon(s), TVA 0,00 %, écart 0,00"},
   {"article":"Baguette - 24P","code_barres":"","taux":0,"commentaire":"Décision du pilote du 21/11/2026, facture fournisseur Decenium : BLF-2026-29216 du 31/10, pains et compagnie, 17 bon(s), TVA 0,00 %, écart 0,00"},
   {"article":"Baguette BEURRE delices prod","code_barres":"","taux":0,"commentaire":"Décision du pilote du 21/11/2026, facture fournisseur Decenium : BLF-2026-29255 du 31/10, CAPRICORNE DISTRIBUTION, 4 bon(s), TVA 0,00 %, écart 0,00"},
@@ -192,7 +95,119 @@ select pg_temp.tva_confirmations('RAPPORT', 'vito-sainte-marie', false, $json$[
   {"article":"SERVIET ULTRA MIN NORM X 16","code_barres":"3270190191063","taux":0,"commentaire":"Décision du pilote du 21/11/2026, facture fournisseur Decenium : aucun achat depuis mi-mai ; aligné : hygiène, même famille à 0 %"},
   {"article":"Thon Pecheur de France 1/6","code_barres":"3139323003799","taux":0,"commentaire":"Décision du pilote du 21/11/2026, facture fournisseur Decenium : BLF-2026-29007 du 22/09, POMAL 2019, 1 bon(s), TVA 0,00 %, écart 0,00"},
   {"article":"VICO CLASSIQUE 135G - 20P","code_barres":"3336971209164","taux":0,"commentaire":"Décision du pilote du 21/11/2026, facture fournisseur Decenium : BLF-2026-28919 du 08/09, POMAL 2019, 2 bon(s), TVA 0,00 %, écart 0,00"}
-]$json$::jsonb, 62);
+]$json$, false);
+
+do $tva$
+-- DEBUT_FONCTION_PARTAGEE (texte identique dans outils/tva/epreuve_confirmations_20261121.sql, vérifié par le test du dépôt)
+declare
+  p_mode text := current_setting('tva.mode');
+  p_site text := current_setting('tva.site');
+  p_compte_test boolean := current_setting('tva.compte_test')::boolean;
+  p_donnees jsonb := current_setting('tva.donnees')::jsonb;
+  p_attendu int := current_setting('tva.attendu')::int;
+  v_pilote uuid;
+  v_nb_pilote int;
+  v_plan jsonb;
+  v_total int;
+  v_inserer int;
+  v_remplacer int;
+  v_conformes int;
+  v_introuvables int;
+  v_inseres int := 0;
+  v_actives_ok int;
+  v_detail text;
+  v_resultat text;
+begin
+  if p_mode not in ('RAPPORT', 'APPLIQUER') then
+    raise exception 'MODE_INCONNU : % (attendu RAPPORT ou APPLIQUER)', p_mode;
+  end if;
+
+  select count(*), (array_agg(e.id))[1] into v_nb_pilote, v_pilote
+    from employees e
+   where e.site_id = p_site and e.est_createur and e.actif and e.compte_test = p_compte_test;
+  if v_nb_pilote <> 1 then
+    raise exception 'CONFIRME_PAR_INTROUVABLE_OU_AMBIGU : % compte(s) créateur sur %, attendu exactement 1', v_nb_pilote, p_site;
+  end if;
+
+  -- Plan calculé en mémoire (variable jsonb) : aucune table créée, le mode RAPPORT passe en transaction read only.
+  select coalesce(jsonb_agg(to_jsonb(t)), '[]'::jsonb) into v_plan
+    from (
+      select d.article, nullif(trim(d.code_barres), '') as code_barres, d.taux, d.commentaire,
+             a.id as actif_id, a.taux_confirme as actif_taux,
+             exists (
+               select 1 from products p
+                where p.site = p_site
+                  and ( (nullif(trim(d.code_barres), '') is not null and trim(p.code_barres) = trim(d.code_barres))
+                     or (nullif(trim(d.code_barres), '') is null
+                         and lower(regexp_replace(trim(p.article), '\s+', ' ', 'g')) = lower(regexp_replace(trim(d.article), '\s+', ' ', 'g'))) )
+             ) as dans_catalogue
+        from jsonb_to_recordset(p_donnees) as d(article text, code_barres text, taux numeric, commentaire text)
+        left join lateral (
+          select c.id, c.taux_confirme
+            from produits_tva_confirmations c
+           where c.site = p_site
+             and c.annule_le is null
+             and not exists (select 1 from produits_tva_confirmations r where r.remplace_id = c.id and r.annule_le is null)
+             and ( (nullif(trim(d.code_barres), '') is not null and trim(c.code_barres) = trim(d.code_barres))
+                or (nullif(trim(d.code_barres), '') is null and nullif(trim(c.code_barres), '') is null
+                    and lower(regexp_replace(trim(c.article), '\s+', ' ', 'g')) = lower(regexp_replace(trim(d.article), '\s+', ' ', 'g'))) )
+           order by c.confirme_le desc
+           limit 1
+        ) a on true
+    ) t;
+
+  select count(*),
+         count(*) filter (where x.actif_id is null),
+         count(*) filter (where x.actif_id is not null and x.actif_taux <> x.taux),
+         count(*) filter (where x.actif_id is not null and x.actif_taux = x.taux),
+         count(*) filter (where not x.dans_catalogue)
+    into v_total, v_inserer, v_remplacer, v_conformes, v_introuvables
+    from jsonb_to_recordset(v_plan) as x(article text, code_barres text, taux numeric, commentaire text, actif_id uuid, actif_taux numeric, dans_catalogue boolean);
+
+  select coalesce(string_agg(x.article || ' (' || x.actif_taux || ' -> ' || x.taux || ')', ' ; ' order by x.article), 'aucun')
+    into v_detail
+    from jsonb_to_recordset(v_plan) as x(article text, code_barres text, taux numeric, commentaire text, actif_id uuid, actif_taux numeric, dans_catalogue boolean)
+   where x.actif_id is not null and x.actif_taux <> x.taux;
+
+  if p_mode = 'RAPPORT' then
+    raise exception 'RAPPORT_TVA : cibles=%, a_inserer=%, a_remplacer=%, deja_conformes=%, cibles_absentes_de_products=% ; remplacements : %',
+      v_total, v_inserer, v_remplacer, v_conformes, v_introuvables, v_detail;
+  end if;
+
+  -- APPLIQUER
+  if v_total <> p_attendu then
+    raise exception 'DONNEES_INATTENDUES : % cibles, attendu %', v_total, p_attendu;
+  end if;
+  if v_introuvables > 0 then
+    raise exception 'CIBLES_ABSENTES_DE_PRODUCTS : % cible(s) hors du catalogue du site, rien n''est inséré (lancer RAPPORT)', v_introuvables;
+  end if;
+
+  insert into produits_tva_confirmations (site, article, code_barres, taux_confirme, commentaire, confirme_par, remplace_id)
+  select p_site, x.article, x.code_barres, x.taux, x.commentaire, v_pilote, x.actif_id
+    from jsonb_to_recordset(v_plan) as x(article text, code_barres text, taux numeric, commentaire text, actif_id uuid, actif_taux numeric, dans_catalogue boolean)
+   where x.actif_id is null or x.actif_taux <> x.taux;
+  get diagnostics v_inseres = row_count;
+
+  -- Relecture : chaque cible a une confirmation active au taux décidé.
+  select count(*) into v_actives_ok
+    from jsonb_to_recordset(v_plan) as x(article text, code_barres text, taux numeric, commentaire text, actif_id uuid, actif_taux numeric, dans_catalogue boolean)
+   where exists (
+     select 1 from produits_tva_confirmations c
+      where c.site = p_site and c.annule_le is null and c.taux_confirme = x.taux
+        and not exists (select 1 from produits_tva_confirmations r where r.remplace_id = c.id and r.annule_le is null)
+        and ( (x.code_barres is not null and trim(c.code_barres) = x.code_barres)
+           or (x.code_barres is null and nullif(trim(c.code_barres), '') is null
+               and lower(regexp_replace(trim(c.article), '\s+', ' ', 'g')) = lower(regexp_replace(trim(x.article), '\s+', ' ', 'g'))) ));
+  if v_actives_ok <> v_total then
+    raise exception 'RELECTURE_ECART : % cible(s) sur % ont une confirmation active au taux décidé, rien n''est validé', v_actives_ok, v_total;
+  end if;
+
+  v_resultat := format('APPLIQUER_TVA : inseres=%s (dont remplacements=%s), deja_conformes=%s, relecture=%s/%s', v_inseres, v_remplacer, v_conformes, v_actives_ok, v_total);
+  perform set_config('tva.resultat', v_resultat, false);
+  raise notice '%', v_resultat;
+end
+-- FIN_FONCTION_PARTAGEE
+$tva$;
 
 -- Relecture en lecture seule, utile après APPLIQUER : confirmations actives portant la décision du 21/11/2026, par taux.
 -- Attendu : 4 à 8,5 et 58 à 0.
