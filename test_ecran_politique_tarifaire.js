@@ -660,6 +660,29 @@ ok('L4 : annulation acceptée restaure le cycle et le compteur ; refus sans chan
   assert.strictEqual(etat.messageVerif, null); assert.ok(/Vérification annulée/.test(etat.messageAnnul));
   assert.deepStrictEqual(appels[1], ['id-1', 'motif']);
 });
+ok('L4 piste 4 : A puis B, « Annuler » sur la confirmation de B n\'annule que B, avec son id ; un échec reste à l\'écran', async () => {
+  const anA = { code: 'S2', cycle: 'nouvelle' }; const anB = { code: 'S3', cycle: 'nouvelle' };
+  const etat = { surAnnulation: null };
+  E.effetVerificationEnregistree(anA, etat, 'Gérant', 'idA');
+  E.effetVerificationEnregistree(anB, etat, 'Gérant', 'idB');
+  assert.strictEqual(etat.derniereVerif.id, 'idB', 'la confirmation affichée est celle de B');
+  const appels = [];
+  etat.surAnnulation = async (c, m) => { appels.push([c.id, m]); return { ok: false, message: 'Annulation refusée : politique' }; };
+  const r1 = await E.annulerVerification(etat, 'Test');
+  assert.strictEqual(r1.ok, false);
+  assert.deepStrictEqual(appels, [['idB', 'Test']], 'seul B est visé');
+  assert.strictEqual(anA.cycle, 'verifiee'); assert.strictEqual(anB.cycle, 'verifiee', 'refus : rien ne change');
+  etat.erreurAnnul = r1.message; etat.annulOuverte = true;
+  const base = { analyse: avecControles(2), role: 'manager', estCreateur: false, filtres: {}, incoherences: [] };
+  const h = E.htmlPage(Object.assign({}, base, etat));
+  assert.ok(/data-annul-erreur/.test(h) && /Annulation refusée : politique/.test(h) && /role="alert"/.test(h), 'l\'échec reste affiché');
+  etat.surAnnulation = async (c, m) => { appels.push([c.id, m]); return { ok: true }; };
+  const r2 = await E.annulerVerification(etat, 'Test');
+  assert.strictEqual(r2.ok, true);
+  assert.deepStrictEqual(appels[1], ['idB', 'Test']);
+  assert.strictEqual(anB.cycle, 'nouvelle'); assert.strictEqual(anA.cycle, 'verifiee', 'A reste vérifiée');
+  assert.deepStrictEqual(etat.verifications.map(v => v.id), ['idA'], 'A reste dans l\'état');
+});
 ok('L4 : confirmation en aria-live, Annuler seulement avec droit, zone motif obligatoire, état « Tout est traité »', () => {
   const a = avecControles(2);
   const base = { analyse: a, role: 'manager', estCreateur: false, filtres: {}, incoherences: [] };
@@ -1217,6 +1240,79 @@ ok('Hôte : lit employee.est_createur (et estCreateur)', () => {
 ok('Refus RPC inconnu : message générique', () => {
   assert.ok(/L'enregistrement a échoué/.test(E.messageErreurEcriture({ message: 'boom' })));
 });
+ok('annulation par le créateur : peutAnnuler, bouton « Annuler » sur la ligne de l\'historique, jamais « Marquer comme vérifié »', () => {
+  assert.strictEqual(E.peutAnnuler('employe', true), true);
+  assert.strictEqual(E.peutAnnuler('gerant', false), true); assert.strictEqual(E.peutAnnuler('manager', false), true);
+  assert.strictEqual(E.peutAnnuler('employe', false), false); assert.strictEqual(E.peutAnnuler('pompiste', false), false);
+  assert.strictEqual(E.peutAnnuler(undefined, false), false);
+  assert.ok(!E.peutVerifier('employe', true) && !E.peutVerifier('gerant', true), 'le créateur ne vérifie toujours pas');
+  const x = { article: 'Art A', code: 'S2', cle: 'k1', cycle: 'verifiee', verif: vref({ id: 'v-7', auteur: 'Alex Test' }) };
+  const bouton = /data-histo-annuler="v-7"/;
+  for (const [role, cr, voit] of [['employe', true, true], ['gerant', false, true], ['manager', false, true], ['employe', false, false], ['pompiste', false, false]]) {
+    const h = E.htmlAnnulLigne(x, { role, estCreateur: cr });
+    assert.strictEqual(bouton.test(h), voit, role + '/' + cr);
+    assert.ok(!/Marquer comme vérifié/.test(h));
+    assert.ok(!bouton.test(E.htmlDetailHistorique(x, { role, estCreateur: cr })), 'plus de bouton dans le détail');
+  }
+  const ouvert = E.htmlAnnulLigne(x, { role: 'employe', estCreateur: true, annulCible: { id: 'v-7' }, annulOuverte: true, erreurAnnul: 'Annulation refusée : x' });
+  assert.ok(/data-annul-confirmer/.test(ouvert) && !bouton.test(ouvert));
+  assert.ok(/data-annul-erreur="1"/.test(ouvert) && /Annulation refusée : x/.test(ouvert), 'échec affiché à côté de la ligne');
+});
+const etatSuivre = (extra) => {
+  const analyse = { lignes: [
+    { article: 'Art A', anomalies: [{ code: 'S2', cle: 'kA', cycle: 'verifiee' }], anomaliesResolues: [] },
+    { article: 'Art B', anomalies: [{ code: 'S2', cle: 'kB', cycle: 'verifiee' }], anomaliesResolues: [] }] };
+  const verifications = [
+    { id: 'v-A', code: 'S2', cle: 'kA', verifie_le: '2030-03-05T10:00:00Z', auteur: 'Alex Test', saisiPar: 'u-1', commentaire: null, reevaluation: null },
+    { id: 'v-B', code: 'S2', cle: 'kB', verifie_le: '2030-03-06T10:00:00Z', auteur: 'Alex Test', saisiPar: 'u-2', commentaire: null, reevaluation: null }];
+  return Object.assign({ historiqueDispo: true, analyse, verifications, filtreHisto: 'verifiee', role: 'gerant', estCreateur: false }, extra || {});
+};
+ok('annulation depuis Suivre : un bouton par vérification active, avec le bon id', () => {
+  const h = E.htmlHistorique(etatSuivre());
+  assert.ok(/data-histo-annuler="v-A"/.test(h) && /data-histo-annuler="v-B"/.test(h));
+  assert.strictEqual((h.match(/data-histo-annuler=/g) || []).length, 2);
+  assert.ok(/aria-label="Annuler la vérification de Art A"/.test(h));
+  const ouvert = E.htmlHistorique(etatSuivre({ annulCible: { id: 'v-B' }, annulOuverte: true }));
+  assert.ok(/data-histo-annul-ligne="v-B"/.test(ouvert) && /data-annul-confirmer/.test(ouvert));
+  assert.ok(!/data-histo-annuler="v-A"/.test(ouvert), 'une seule annulation à la fois');
+});
+ok('annulation depuis Suivre : aucun bouton sans le droit', () => {
+  for (const [role, cr] of [['employe', false], ['pompiste', false], [undefined, false]]) {
+    assert.ok(!/data-histo-annuler/.test(E.htmlHistorique(etatSuivre({ role, estCreateur: cr }))), String(role));
+  }
+  const m = E.htmlHistorique(etatSuivre({ role: 'manager', userId: 'u-1' }));
+  assert.ok(/data-histo-annuler="v-A"/.test(m) && !/data-histo-annuler="v-B"/.test(m), 'un manager n\'annule que sa propre saisie');
+  assert.ok(/data-histo-annuler="v-B"/.test(E.htmlHistorique(etatSuivre({ role: 'employe', estCreateur: true }))));
+});
+ok('annulation depuis Suivre : la ligne quitte « Vérifiés » et le contrôle revient, avec l\'id de CETTE ligne', async () => {
+  const etat = etatSuivre({ annulCible: { id: 'v-B', an: null, cle: 'kB', cycleAvant: 'nouvelle' } });
+  const an = etat.analyse.lignes[1].anomalies[0];
+  etat.annulCible.an = an;
+  const appels = [];
+  etat.surAnnulation = async (c, m) => { appels.push([c.id, m]); return { ok: false, message: 'Annulation refusée : x' }; };
+  assert.strictEqual((await E.annulerVerification(etat, 'motif')).ok, false);
+  assert.strictEqual(E.historiqueLignes(etat.analyse, etat.verifications, 'verifiee').length, 2, 'échec : la vérification reste');
+  etat.surAnnulation = async (c, m) => { appels.push([c.id, m]); return { ok: true }; };
+  assert.strictEqual((await E.annulerVerification(etat, 'motif')).ok, true);
+  assert.deepStrictEqual(appels.map(a => a[0]), ['v-B', 'v-B']);
+  assert.deepStrictEqual(etat.verifications.map(v => v.id), ['v-A']);
+  assert.strictEqual(an.cycle, 'nouvelle');
+  assert.strictEqual(etat.ctlSel, 'kB');
+  assert.strictEqual(E.historiqueLignes(etat.analyse, etat.verifications, 'verifiee').length, 1);
+});
+ok('annulation par le créateur : annulCible envoie le bon id, retire la ligne ; un refus garde la vérification', async () => {
+  const etat = { role: 'employe', estCreateur: true, verifications: [{ id: 'v-7', code: 'S2', cle: 'k1' }, { id: 'v-8', code: 'S2', cle: 'k2' }], annulCible: { id: 'v-7' } };
+  const appels = [];
+  etat.surAnnulation = async (c, m) => { appels.push([c.id, m]); return { ok: false, message: 'Annulation refusée : x' }; };
+  const r1 = await E.annulerVerification(etat, 'motif');
+  assert.strictEqual(r1.ok, false); assert.strictEqual(etat.verifications.length, 2);
+  etat.surAnnulation = async (c, m) => { appels.push([c.id, m]); return { ok: true }; };
+  const r2 = await E.annulerVerification(etat, 'motif');
+  assert.strictEqual(r2.ok, true);
+  assert.deepStrictEqual(appels.map(a => a[0]), ['v-7', 'v-7']);
+  assert.deepStrictEqual(etat.verifications.map(v => v.id), ['v-8']);
+  assert.strictEqual(etat.annulCible, null);
+});
 Promise.all(PROMESSES).then(() => {
 console.log('test_ecran_politique_tarifaire : ' + n + ' épreuves OK');
 });
@@ -1278,19 +1374,48 @@ ok('L5 : le chargement des vérifications exclut les annulées (annule_le is nul
   const i = src.indexOf("from('tarif_anomalies_verifications').select");
   assert.ok(i > 0 && /\.is\('annule_le', null\)/.test(src.slice(i, i + 700)), 'une vérification annulée ne revient jamais comme vérifiée');
 });
-ok('L5 : marquerVerifie lit le commentaire saisi dans le détail (hôte et banc), pas seulement dans un li', () => {
+ok('L5 : marquerVerifie lit le commentaire saisi dans le détail (hôte et banc), seulement celui de l\'article et de la cause du bouton', () => {
   ['NEXUS-Produits-v1.html', 'outils/recette/ecran_scanner/banc.html'].forEach(f => {
     const src = require('fs').readFileSync(__dirname + '/' + f, 'utf8');
     const lz = src.split('\n').filter(l => /(const|var) zone = btn\.closest/.test(l))[0];
-    const lc = src.split('\n').filter(l => /(const|var) zc = zone\.querySelector/.test(l))[0];
+    const lc = src.split('\n').filter(l => /(const|var) com = E2?\.commentaireDuControle\(zone, art, code\)/.test(l))[0];
     assert.ok(lz && lc, f + ' : lignes zone/commentaire introuvables');
+    assert.ok(!/zone\.querySelector\('textarea\.pt-verif-com/.test(src), f + ' : plus de lecture du premier champ venu');
     const cut = (lz + '\n' + lc).replace(/(const|let)\s/g, 'var ');
-    const mk = (v, avecLi) => { const ta = { value: v };
-      const zoneDetail = { querySelector: s => /textarea\.pt-verif-com/.test(s) ? ta : null, appendChild() {} };
-      const btn = { closest: s => s === '[data-ctl-detail]' ? zoneDetail : (s === 'li' ? (avecLi ? {} : null) : null), parentNode: {} };
-      return { btn, document: { createElement: () => ({ setAttribute() {} }) } }; };
-    const { btn, document } = mk('vu sur facture', false);
-    const r = new Function('btn', 'document', cut + '; return com;')(btn, document);
-    assert.strictEqual(r, 'vu sur facture', f + ' : le commentaire saisi dans le détail doit être lu');
+    const champ = (article, code, v) => ({ value: v, dataset: { comArticle: article, comCode: code } });
+    const mk = (champs, art, code) => {
+      const zoneDetail = { querySelectorAll: s => /textarea\.pt-verif-com/.test(s) ? champs : [], appendChild() {} };
+      const btn = { dataset: { verArticle: art, verifier: code }, closest: s => s === '[data-ctl-detail]' ? zoneDetail : null, parentNode: {} };
+      return btn; };
+    const lire = (champs, art, code) => new Function('btn', 'E', 'E2', 'art', 'code', cut + '; return com;')(mk(champs, art, code), E, E, art, code);
+    assert.strictEqual(lire([champ('NETT VITRES', 'S2', 'vu sur facture')], 'NETT VITRES', 'S2'), 'vu sur facture', f + ' : le commentaire du bon contrôle est lu');
+    // Deux champs ouverts : chaque bouton part avec son propre texte.
+    const deux = [champ('DURMINT', 'S2', 'texte DURMINT'), champ('NETT VITRES', 'S2', 'texte NETT')];
+    assert.strictEqual(lire(deux, 'NETT VITRES', 'S2'), 'texte NETT', f + ' : NETT VITRES ne prend pas le texte de DURMINT');
+    assert.strictEqual(lire(deux, 'DURMINT', 'S2'), 'texte DURMINT', f + ' : DURMINT garde le sien');
+    // Même article, autre cause : pas de mélange.
+    assert.strictEqual(lire([champ('DURMINT', 'S7', 'autre cause')], 'DURMINT', 'S2'), '', f + ' : autre cause, aucun texte');
+    // Chemin iPhone : l\'écriture de DURMINT a échoué, le texte reste dans son champ ; NETT VITRES enregistré sans ce texte.
+    assert.strictEqual(lire([champ('DURMINT', 'S2', 'texte DURMINT')], 'NETT VITRES', 'S2'), '', f + ' : champ resté sur DURMINT, NETT VITRES part sans commentaire');
   });
+});
+ok('L5 : le payload de tarif_marquer_verifie porte l\'article et la cause du bouton, avec le commentaire du même contrôle', () => {
+  const a = avecControles(2);
+  const cs = []; a.lignes.forEach(l => (l.anomalies || []).forEach(an => cs.push({ l, an })));
+  assert.ok(cs.length >= 2, 'deux contrôles');
+  cs.slice(0, 2).forEach((c, i) => {
+    const v = E.payloadVerification(c.an, c.l, { importBatchId: 'lot', moteurVersion: 'm', commentaire: 'com ' + i });
+    assert.strictEqual(v.article, c.l.article);
+    assert.strictEqual(v.cause, c.an.code);
+    assert.strictEqual(v.commentaire, 'com ' + i);
+  });
+});
+ok('L5 : la confirmation cite l\'article vérifié et le commentaire enregistré', () => {
+  const a = avecControles(2); const cs = []; a.lignes.forEach(l => (l.anomalies || []).forEach(an => cs.push({ l, an })));
+  const etat = { analyse: a };
+  E.effetVerificationEnregistree(cs[0].an, etat, 'Gérant du banc', 'id1', { commentaire: 'vu sur facture' });
+  assert.ok(etat.messageVerif.indexOf(cs[0].l.article) >= 0 && etat.messageVerif.indexOf('vu sur facture') >= 0, etat.messageVerif);
+  const etat2 = { analyse: a };
+  E.effetVerificationEnregistree(cs[1].an, etat2, 'Gérant du banc', 'id2', {});
+  assert.ok(/sans commentaire/.test(etat2.messageVerif) && etat2.messageVerif.indexOf(cs[1].l.article) >= 0, etat2.messageVerif);
 });

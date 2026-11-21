@@ -1358,6 +1358,23 @@
       "valide_le": "2026-11-18T23:45:00Z",
       "trace": "#160, validation transmise par Guardian, commentaire 6995017878"
     },
+    "20261121100000": {
+      "etat": "additive_compatible_avant_code",
+      "justification": "Migration statique : remplace la politique d UPDATE annulation_roles_meme_site des deux tables d anomalies tarifaires pour y ajouter une branche (compte createur du site, meme test que la lecture). Aucune colonne, aucune donnee, aucun droit modifie ; le code deploye ne depend pas de cette branche (sans elle, un createur recoit un refus RLS deja gere par l ecran) ; migration d abord.",
+      "mesure": {
+        "source": "catalogue",
+        "le": "2026-11-21T10:00:00Z",
+        "cible": "udljdqxerrbbbajxubfn",
+        "par": "claude-code",
+        "outil": "lecture du fichier de migration ; aucune lecture Production (non autorisee), aucune application sur Test",
+        "verdict": "NON APPLIQUEE, NON MESUREE : ecrite le 21/11/2026, a appliquer d abord sur Test par Guardian puis, sur GO separe, en Production",
+        "blob_migration": "4462fe801a0d3a80df2f6cb3904490fab24649a4"
+      },
+      "objets_crees": [],
+      "valide_par": "pilote",
+      "valide_le": "2026-11-21T09:11:00Z",
+      "trace": "#160, decision du pilote du 21/11 (09:11) : le createur peut annuler une verification du Scanner, sans verifier lui-meme"
+    },
     "20261120124007": {
       "etat": "additive_compatible_avant_code",
       "justification": "Migration statique : une fonction et deux declencheurs BEFORE UPDATE qui fixent annule_le a now() a la premiere annulation. Aucun DDL destructif, aucune colonne ni politique modifiee, aucun code deploye ne depend de ces objets ; migration d abord.",
