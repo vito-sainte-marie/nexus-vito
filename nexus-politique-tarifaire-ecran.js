@@ -9,6 +9,8 @@
   var AR = global.NexusPolitiqueTarifaireRegistres || (typeof require === 'function' ? require('./nexus-politique-tarifaire-registres.js') : null);
   var V = global.NexusVocabTarif || (typeof require === 'function' ? require('./nexus-vocabulaire-tarif.js') : null);
   var CP = global.NexusComposantsPilotage || (typeof require === 'function' ? (function () { try { return require('./nexus-composants-pilotage.js'); } catch (e) { return null; } })() : null);
+  var RF = global.NexusRayonsFamilles || (typeof require === 'function' ? (function () { try { return require('./nexus-rayons-familles.js'); } catch (e) { return null; } })() : null);
+  var NI = global.NexusIcones || (typeof require === 'function' ? (function () { try { return require('./nexus-icones.js'); } catch (e) { return null; } })() : null);
   var B = global.NexusBadgeEtat || (typeof require === 'function' ? require('./nexus-badge-etat.js') : null);
 
   var RANG_GRAVITE = { critique: 0, a_verifier: 1, information: 2 };
@@ -428,9 +430,9 @@
   function htmlMarge(l) {
     var m = l.margeEstimee;
     if (estDemarque(l)) return '<span class="pt-marge-l1"><span class="nbe-qualif" data-axe="demarque">' + esc(LIB_DEMARQUE) + '</span></span>';
-    if (!m) return 'Marge ' + esc(pct(l.taux));
+    if (!m) return 'Marge ' + esc(moinsTypo(pct(l.taux)));
     if (m.etat === 'non_calculable' || m.taux === null || m.taux === undefined) return '<span class="pt-marge-l1">Marge estimée : ' + B.qualification('non-calculable') + '</span>';
-    return '<span class="pt-marge-l1">Marge estimée : <span class="pt-mono pt-marge-prin">' + esc(pct(m.taux)) + '</span> ' + badgeMarge(l) + '</span>' +
+    return '<span class="pt-marge-l1">Marge estimée : <span class="pt-mono pt-marge-prin">' + esc(moinsTypo(pct(m.taux))) + '</span> ' + badgeMarge(l) + '</span>' +
       (num(m.margeUnitaireHt) !== null ? '<span class="pt-marge-sec pt-mono">' + esc(eur(m.margeUnitaireHt)) + ' HT/unité</span>' : '');
   }
   // Une ligne ne porte jamais deux étiquettes de même texte : si la marge dit déjà « À vérifier », l'étiquette de statut ne le répète pas.
@@ -453,7 +455,7 @@
     h += li('Coût utilisé', c.valeur === undefined || c.valeur === null ? 'n/d' : eur(c.valeur)) +
       li('Source', c.source === 'releve' ? T0.sources.releve(c.dateReleve ? jourFr(c.dateReleve) : '') : T0.sources.export) +
       li('Méthode', c.methode || T0.methode);
-    if (m.controle) h += li('Écart au relevé', 'PA net HT du relevé ' + eur(m.controle.paNetHtReleve) + ' (' + pct(m.controle.ecart) + ')');
+    if (m.controle) h += li('Écart au relevé', 'PA net HT du relevé ' + eur(m.controle.paNetHtReleve) + ' (' + moinsTypo(pct(m.controle.ecart)) + ')');
     (m.raisons || []).forEach(function (r) { h += '<p class="sc-note">' + esc(typeof r === 'string' ? r : (r.texte || r.code || '')) + '</p>'; });
     h += '<p class="sc-methode">' + esc(T0.limites.remises) + ' ' + esc(T0.limites.decision) + '</p></div>';
     return h;
@@ -489,15 +491,50 @@
     if (c === 'S1') {
       var pu = perteUnitaire(l);
       if (pu) return 'Perte de ' + eur(pu.perte) + ' HT par unité : vendu ' + eur(pu.pv) + ', coût ' + eur(pu.cout);
-      return 'Marge : ' + pct(v.taux);
+      return 'Marge : ' + moinsTypo(pct(v.taux));
     }
-    if (c === 'S2') return 'Écart : ' + pct(v.ecart) + ' · PA net HT du relevé de stock : ' + eur(v.paNetHtReleve);
-    if (c === 'S3') return 'Variation du coût : ' + pct(v.variationCout);
+    if (c === 'S2') return 'Écart : ' + moinsTypo(pct(v.ecart)) + ' · PA net HT du relevé de stock : ' + eur(v.paNetHtReleve);
+    if (c === 'S3') return 'Variation du coût : ' + moinsTypo(pct(v.variationCout));
     if (c === 'S4') return 'Unités par colis : ' + (v.unites === undefined || v.unites === null ? 'n/d' : v.unites) + ' · rapport du relevé : ' + (num(v.rapportReleve) === null ? 'n/d' : v.rapportReleve) + ' · rapport du prix de vente : ' + (num(v.rapportPv) === null ? 'n/d' : v.rapportPv);
     if (c === 'S5') return 'Constats de correspondance : ' + (v.constats === undefined || v.constats === null ? 'n/d' : v.constats);
-    if (c === 'S6') return 'Variation du prix de vente : ' + pct(v.variationPv);
+    if (c === 'S6') return 'Variation du prix de vente : ' + moinsTypo(pct(v.variationPv));
     if (c === 'S7') return 'Taux de TVA : ' + (v.tva === undefined || v.tva === null ? 'n/d' : v.tva + ' %') + ' · état : ' + (v.etat === 'a_verifier' ? 'à confirmer' : esc(v.etat || 'n/d'));
     return '';
+  }
+  // Chiffre clé court de la ligne : une valeur, pas la phrase. La phrase complète reste dans le détail (pc.chiffres).
+  function moinsTypo(t) { return String(t).replace(/-(?=\d)/g, '\u2212'); }
+  function chiffreCourt(an, l) {
+    var v = an.valeurs || {}, c = an.code, nd = function (x) { return x === undefined || x === null ? 'n/d' : x; }, pu = c === 'S1' ? perteUnitaire(l) : null;
+    if (pu) return 'Perte ' + eur(pu.perte);
+    if (c === 'S1') return 'Marge ' + moinsTypo(pct(v.taux));
+    if (c === 'S2') return 'Écart ' + moinsTypo(pct(v.ecart));
+    if (c === 'S3') return 'Coût ' + moinsTypo(pct(v.variationCout));
+    if (c === 'S4') return nd(v.unites) + ' par colis';
+    if (c === 'S5') return nd(v.constats) + ' constats';
+    if (c === 'S6') return 'PV ' + moinsTypo(pct(v.variationPv));
+    if (c === 'S7') return 'TVA ' + (v.tva === undefined || v.tva === null ? 'n/d' : v.tva + ' %');
+    return 'n/d';
+  }
+  // Indicateurs du détail : le chiffre clé en grand (libellé + valeur) et le niveau. Mêmes valeurs que valeursAComparer, rien de recalculé.
+  function indicateursControle(an, l, pc) {
+    var v = an.valeurs || {}, c = an.code, nd = function (x) { return x === undefined || x === null ? 'n/d' : x; }, pu = c === 'S1' ? perteUnitaire(l) : null, i;
+    if (pu) i = ['Perte par unité', eur(pu.perte) + ' HT'];
+    else if (c === 'S1') i = ['Marge', moinsTypo(pct(v.taux))];
+    else if (c === 'S2') i = ['Écart au relevé', moinsTypo(pct(v.ecart))];
+    else if (c === 'S3') i = ['Variation du coût', moinsTypo(pct(v.variationCout))];
+    else if (c === 'S4') i = ['Unités par colis', String(nd(v.unites))];
+    else if (c === 'S5') i = ['Constats de correspondance', String(nd(v.constats))];
+    else if (c === 'S6') i = ['Variation du prix de vente', moinsTypo(pct(v.variationPv))];
+    else if (c === 'S7') i = ['Taux de TVA', v.tva === undefined || v.tva === null ? 'n/d' : v.tva + ' %'];
+    else i = ['Chiffre clé', 'n/d'];
+    var coutL = l && l.margeEstimee && l.margeEstimee.cout ? l.margeEstimee.cout.valeur : null, j;
+    if (c === 'S2') j = ['PA net HT du relevé', eur(v.paNetHtReleve)];
+    else if (c === 'S6') j = ['PV', eur(l && l.pv_ht)];
+    else if (c === 'S4') j = ['Rapport du relevé', String(nd(v.rapportReleve))];
+    else if (c === 'S5' || c === 'S7') j = ['PV', eur(l && l.pv_ht)];
+    else j = ['Coût', eur(coutL)];
+    return '<div class="pt-ind2" data-ctl-indicateurs="1"><div class="pt-ind pt-ind-cle"><span class="pt-ind-ico">' + vignetteFamille(l) + '</span><span class="pt-ind-txt"><span class="pt-ind-lib sc-methode">' + esc(i[0]) + '</span><span class="pt-ind-val pt-mono">' + esc(i[1]) + '</span></span></div>' +
+      '<div class="pt-ind pt-ind-sec"><span class="pt-ind-ico">' + vignetteFamille(l) + '</span><span class="pt-ind-txt"><span class="pt-ind-lib sc-methode">' + esc(j[0]) + '</span><span class="pt-ind-val pt-mono">' + esc(j[1]) + '</span></span></div></div>';
   }
   function htmlVerification(an, l, droits, etat, suivant) {
     var code = an.code, idc = 'ptc-' + String(l.article).replace(/[^A-Za-z0-9_-]/g, '_') + '-' + code;
@@ -505,14 +542,14 @@
     if (etat && etat.estCreateur && an.cycle !== 'verifiee') return '<p class="sc-note pt-lecture-seule" data-lecture-seule-createur="1">Lecture seule : le compte créateur ne vérifie pas.</p>';
     if (!droits || an.cycle === 'verifiee') return '';
     if (!fiable) return '<p class="sc-note pt-verif-indispo" data-verif-indispo="1">Donnée non fiable : l\'import de référence est introuvable, la vérification n\'est pas possible.</p>';
-    var cleC = code + '|' + l.article, comOuvert = !!(etat && etat.comOuvert && etat.comOuvert.indexOf(cleC) >= 0);
+    var cleC = code + '|' + l.article, comOuvert = true;
     var com = comOuvert
       ? '<div class="pt-verif-champ"><label class="sc-lib" for="' + idc + '">Commentaire (facultatif)</label>' +
         '<div class="pt-verif-zone"><textarea id="' + idc + '" class="pt-verif-com" rows="2" data-com-article="' + esc(l.article) + '" data-com-code="' + esc(code) + '" aria-describedby="' + idc + '-n"></textarea>' +
         '<span id="' + idc + '-n" class="sc-note pt-verif-n" data-com-compteur="1">0 / ' + LIMITE_COMMENTAIRE + '</span></div></div>'
       : '<button type="button" class="pt-com-lien" data-com-ouvrir="' + esc(cleC) + '">Ajouter un commentaire</button>';
     var bouton = '<button type="button" class="detail-btn pt-verifier" data-verifier="' + esc(code) + '" data-ver-article="' + esc(l.article) + '">✓ Marquer comme vérifié</button>';
-    return suivant === undefined ? com + bouton : com + '<div class="pt-actions" data-ctl-actions="1">' + suivant + bouton + '</div>';
+    return suivant === undefined ? com + bouton : com + '<div class="pt-actions" data-ctl-actions="1">' + bouton + suivant + '</div>';
   }
   // L2 : pièces communes d'un contrôle. La consigne est toujours visible (plus de (i)) ; la source et le calcul sont dans un bloc natif replié.
   function pieceControle(an, l) {
@@ -522,12 +559,13 @@
     var cycle = AL.cycles[an.cycle] || '';
     return { AL: AL, code: code, cd: cd, s1Contredit: s1Contredit, niveau: LIB_NIVEAU[niveauAff] || '',
       statut: an.cycle === 'verifiee' ? 'Vérifié' : an.cycle === 'nouvelle' ? 'Nouveau' : cycle,
+      court: chiffreCourt(an, l),
       chiffres: valeursAComparer(an, l) + (s1Contredit ? ' · coût de l\'export contredit par le relevé de stock' : '') };
   }
   function htmlCorpsControle(an, l, droits, etat, pc, suivant) {
     var AL = pc.AL, code = pc.code;
     var masque = (an.peutExpliquerAussi || []).length ? '<p class="sc-note">' + esc(AL.masque) + ' ' + esc(an.peutExpliquerAussi.map(function (c) { return (AL.codes[c] || {}).titre || c; }).join(', ')) + '</p>' : '';
-    var marge = code === 'S1' && perteUnitaire(l) ? '<p class="sc-note" data-s1-pct="1">Marge : ' + esc(pct((an.valeurs || {}).taux)) + '</p>' : '';
+    var marge = code === 'S1' && perteUnitaire(l) ? '<p class="sc-note" data-s1-pct="1">Marge : ' + esc(moinsTypo(pct((an.valeurs || {}).taux))) + '</p>' : '';
     return '<p class="pt-ctl-3 sc-note">' + esc(pc.cd.controle || '') + '</p>' + marge + masque +
       '<details class="pt-sources-calcul" data-sources-calcul="1"><summary>Sources et calcul</summary>' + (suivant === undefined ? '<p class="pt-ctl-2 sc-methode">' + pc.chiffres + '</p>' : '') +
       '<p class="sc-methode">' + esc(AL.explication || 'Un contrôle indique où comparer avec Decenium. Ce n\'est pas une erreur constatée.') + '</p></details>' +
@@ -549,21 +587,28 @@
   }
   // L2 : une ligne compacte par contrôle (article, cause, chiffre clé, un seul niveau) ; le détail s'affiche dans le panneau.
   function cleControle(x) { return x.a.code + '|' + x.l.article; }
+  function vignetteFamille(l) {
+    var id = RF && RF.iconeRayon ? RF.iconeRayon(l.rayon) : 'cat-petits-articles';
+    var h = NI && NI.imgCategorie ? NI.imgCategorie(id, 40, { decoratif: true }) : '';
+    return h || '<span class="pt-vign-neutre" aria-hidden="true"></span>';
+  }
   function htmlLigneCompacte(x, choisi) {
-    var pc = pieceControle(x.a, x.l), cle = cleControle(x);
+    var pc = pieceControle(x.a, x.l), cle = cleControle(x), grav = pc.niveau === LIB_NIVEAU.demontree ? 'demontree' : 'averifier';
     return '<li class="pt-ctl-item" data-anomalie="' + esc(pc.code) + '"><button type="button" class="pt-ctl-ligne" data-ctl-ligne="1" data-ctl-sel="' + esc(cle) + '"' +
       (choisi ? ' aria-current="true" tabindex="0"' : ' tabindex="-1"') + '>' +
-      '<span class="vp-nom pt-l-art">' + esc(x.l.article) + '</span><span class="nbe-qualif pt-l-tag" data-axe="niveau">' + esc(pc.niveau) + '</span>' +
-      '<span class="pt-l-sec"><span class="pt-l-cause">' + esc(pc.cd.titre || pc.code) + '</span> <span class="pt-l-etat" data-axe="cycle">' + esc(LIB_CYCLE[x.a.cycle || 'nouvelle'] || '') + '</span> <span class="pt-l-chiffre">' + pc.chiffres + '</span></span></button></li>';
+      '<span class="pt-l-vign">' + vignetteFamille(x.l) + '</span>' +
+      '<span class="pt-l-corps"><span class="vp-nom pt-l-art">' + esc(x.l.article) + '</span>' +
+      '<span class="pt-l-sec"><span class="pt-l-cause">' + esc(pc.cd.court || pc.cd.titre || pc.code) + '</span> <span class="nbe-qualif pt-l-niv" data-axe="niveau">' + esc(pc.niveau) + '</span> <span class="pt-l-etat nbe-qualif" data-axe="cycle">' + esc(LIB_CYCLE[x.a.cycle || 'nouvelle'] || '') + '</span></span></span>' +
+      '<span class="pt-l-chiffre pt-l-gr-' + grav + '">' + esc(pc.court) + '</span><span class="pt-l-chev" aria-hidden="true">›</span></button></li>';
   }
   function htmlDetailControle(x, droits, etat, nav, avecSuivi) {
     var pc = pieceControle(x.a, x.l), n = nav || { restants: 0, suivant: false };
     var retour = '<button type="button" class="detail-btn pt-ctl-retour" data-ctl-retour="1">‹ Retour à la liste (' + n.restants + (n.restants > 1 ? ' restants' : ' restant') + ')</button>';
-    var pos = n.total ? '<span class="pt-ctl-pos" data-ctl-pos="1">' + n.pos + ' / ' + n.total + '</span>' : '';
-    var suiv = '<button type="button" class="detail-btn pt-ctl-suivant" data-ctl-suivant="1"' + (n.suivant ? '' : ' disabled') + '>Suivant</button>';
+    var pos = n.total ? '<span class="pt-ctl-nav"><button type="button" class="detail-btn pt-ctl-fl" data-ctl-prec="1" aria-label="Contrôle précédent"' + (n.pos > 1 ? '' : ' disabled') + '>‹</button><span class="pt-ctl-pos" data-ctl-pos="1">' + n.pos + ' / ' + n.total + '</span><button type="button" class="detail-btn pt-ctl-fl" data-ctl-suiv-fl="1" aria-label="Contrôle suivant"' + (n.pos < n.total ? '' : ' disabled') + '>›</button></span>' : '';
+    var suiv = '<button type="button" class="detail-btn pt-ctl-suivant" data-ctl-suivant="1"' + (n.suivant ? '' : ' disabled') + '>Passer au suivant sans vérifier</button>';
     return '<section class="pt-detail" data-ctl-detail="1" aria-label="Détail du contrôle"><div class="pt-ctl-entete">' + retour + pos + '</div>' + (avecSuivi ? htmlSuiviVerif(etat, droits) : '') + '<div class="pt-ctl-1"><button type="button" class="vp-ligne-prod pt-ctl-prod" data-article="' + esc(x.l.article) + '"><span class="vp-nom">' + esc(x.l.article) + '</span></button> ' +
-      '<span class="sc-nom">' + esc(pc.cd.titre || pc.code) + '</span> <span class="nbe-qualif" data-axe="cycle">' + esc(pc.statut) + '</span></div>' +
-      '<p class="pt-ctl-2 pt-ctl-chiffre" data-ctl-chiffre="1"><span class="pt-mono">' + pc.chiffres + '</span> <span class="nbe-qualif" data-axe="niveau">' + esc(pc.niveau) + '</span></p>' +
+      '<span class="sc-nom">' + esc(pc.cd.titre || pc.code) + '</span> <span class="nbe-qualif" data-axe="niveau">' + esc(pc.niveau) + '</span> <span class="nbe-qualif" data-axe="cycle">' + esc(pc.statut) + '</span></div>' +
+      indicateursControle(x.a, x.l, pc) + '<p class="pt-ctl-2 pt-ctl-chiffre" data-ctl-chiffre="1"><span class="pt-num">' + pc.chiffres + '</span></p>' +
       htmlCorpsControle(x.a, x.l, droits, etat, pc, suiv) + '</section>';
   }
   function htmlControlesAFaire(l, droits, etat) {
@@ -584,20 +629,20 @@
   // Base de la ventilation par cause : cycles et recherche appliqués, cause non appliquée (les pastilles comptent sur cette base).
   function controlesBase(etat) {
     var cy = etat.ctlCycles || CYCLES_DEFAUT, q = String(etat.ctlRecherche || '').trim().toLowerCase();
-    return tousControles(etat.analyse).filter(function (x) { return cy.indexOf(x.a.cycle || 'nouvelle') >= 0 && (!q || String(x.l.article).toLowerCase().indexOf(q) >= 0); });
+    return tousControles(etat.analyse).filter(function (x) { return cy.indexOf(x.a.cycle || 'nouvelle') >= 0 && (!q || String(x.l.article).toLowerCase().indexOf(q) >= 0 || String(x.l.code_barres || '').toLowerCase().indexOf(q) >= 0); });
   }
   function ventilationCauses(etat) {
     var AL = A_LIB(), n = {}, ordre = [];
     controlesBase(etat).forEach(function (x) { if (!n[x.a.code]) { n[x.a.code] = 0; ordre.push(x.a.code); } n[x.a.code]++; });
     ordre.sort(function (p, q) { return n[q] - n[p] || String(p).localeCompare(String(q)); });
-    return ordre.map(function (c) { return { code: c, n: n[c], titre: (AL.codes[c] || {}).titre || c }; });
+    return ordre.map(function (c) { return { code: c, n: n[c], titre: (AL.codes[c] || {}).titre || c, court: (AL.codes[c] || {}).court || (AL.codes[c] || {}).titre || c }; });
   }
   function htmlPastillesCauses(etat) {
     var V = ventilationCauses(etat), tot = V.reduce(function (t, v) { return t + v.n; }, 0), cause = etat.ctlCause || '';
     if (cause && !V.some(function (v) { return v.code === cause; })) cause = '';
     if (!V.length) return '';
-    var p = function (code, lib, n) { var on = code === cause; return '<button type="button" class="pt-pastille" data-ctl-cause="' + esc(code) + '" aria-pressed="' + (on ? 'true' : 'false') + '">' + esc(lib) + ' <span class="pt-pastille-n">' + n + '</span></button>'; };
-    return '<div class="pt-pastilles" role="group" aria-label="Filtrer par cause" data-ctl-causes="1">' + p('', 'Toutes', tot) + V.map(function (v) { return p(v.code, v.titre, v.n); }).join('') + '</div>';
+    var p = function (code, lib, n, complet) { var on = code === cause; return '<button type="button" class="pt-pastille" data-ctl-cause="' + esc(code) + '" aria-pressed="' + (on ? 'true' : 'false') + '" aria-label="' + esc(complet || lib) + ' : ' + n + '">' + esc(lib) + ' <span class="pt-pastille-n">' + n + '</span></button>'; };
+    return '<div class="pt-pastilles" role="group" aria-label="Filtrer par cause" data-ctl-causes="1">' + p('', 'Toutes', tot) + V.map(function (v) { return p(v.code, v.court, v.n, v.titre); }).join('') + '</div>';
   }
   function controlesFiltres(etat) {
     var cause = etat.ctlCause || '';
@@ -629,14 +674,25 @@
     if (etat.erreurEcriture) r += '<p class="sc-note pt-erreur" role="alert" data-ctl-erreur="1">' + esc(etat.erreurEcriture) + '</p>';
     return r;
   }
-  function htmlBlocControles(etat) {
+  function htmlEnteteControles(a, etat, n) {
+    var S = a.synthese || {}, id = a.identiteDonnees || S.identiteDonnees || {};
+    var parts = [];
+    if (etat && etat.site) parts.push(etat.site);
+    var per = libellePeriode(S.periode); if (per && per !== 'période inconnue') parts.push(per.replace(/^du /, 'ventes du '));
+    if (id.dateReleve) parts.push('relevé du ' + jourFr(String(id.dateReleve).slice(0, 10)));
+    if (S.references !== undefined && S.references !== null) parts.push(S.references + ' références');
+    return '<header class="pt-ctl-tete" data-ctl-tete="1"><nav class="pt-ctl-fil sc-methode" aria-label="Fil d\'Ariane">Produits › Scanner tarifaire › Contrôler</nav>' +
+      '<h2 class="pt-ctl-titre sc-nom">Contrôles à effectuer (' + n + ')</h2>' +
+      '<p class="pt-ctl-sous sc-methode" data-ctl-sous="1">' + esc(parts.join(' · ')) + ' <span class="pt-ctl-pilule nbe-qualif" data-ctl-estimations="1">Estimations</span></p></header>';
+  }
+  function htmlBlocControles(etat, cartes) {
     var a = etat.analyse, droits = peutVerifier(etat.role, etat.estCreateur), tous = tousControles(a);
     var actifs = tous.filter(function (x) { return CYCLES_ACTIFS.indexOf(x.a.cycle || 'nouvelle') >= 0; });
-    var AL = A_LIB(), S = a.synthese || {}, ouvert = etat.ctlReplie ? '' : ' open';
-    var h = '<details class="vp-bloc sc-carte pt-bloc-controles" data-bloc-controles="1"' + ouvert + '><summary><span class="sc-nom">Contrôles à effectuer (' + actifs.length + ')</span><span class="sc-chev"></span></summary>';
+    var AL = A_LIB(), S = a.synthese || {};
+    var h = '<section class="vp-bloc pt-bloc-controles" data-bloc-controles="1" aria-label="Contrôles à effectuer">' + htmlEnteteControles(a, etat, actifs.length) + (cartes || '');
     if (!tous.length) {
       var id = a.identiteDonnees || S.identiteDonnees || {};
-      return h + '<p class="sc-note" data-ctl-vide="1">Aucune anomalie à vérifier sur cet import' + (id.dateReleve ? ' (relevé du ' + esc(jourFr(String(id.dateReleve).slice(0, 10))) + ')' : '') + (id.fichierHash ? ', empreinte ' + esc(String(id.fichierHash).slice(0, 8)) : '') + '.</p></details>';
+      return h + '<p class="sc-note" data-ctl-vide="1">Aucune anomalie à vérifier sur cet import' + (id.dateReleve ? ' (relevé du ' + esc(jourFr(String(id.dateReleve).slice(0, 10))) + ')' : '') + (id.fichierHash ? ', empreinte ' + esc(String(id.fichierHash).slice(0, 8)) : '') + '.</p></section>';
     }
     var L0 = controlesFiltres(etat);
     var enDetail = !!(etat.ctlDetail && L0.length);
@@ -644,14 +700,13 @@
     var aideCtl = esc(AL.explication || 'Un contrôle indique où comparer avec Decenium. Ce n\'est pas une erreur constatée : comparez les valeurs, puis marquez la ligne comme vérifiée.');
     if (!droits) h += '<p class="sc-note" data-ctl-lecture="1">Lecture seule : seuls le gérant et le manager marquent un contrôle comme vérifié.</p>';
     var L = controlesFiltres(etat);
-    if (tous.length > SEUIL_OUTILS) {
+    {
       var cy = etat.ctlCycles || CYCLES_DEFAUT;
-      h += '<div class="vp-filtres pt-ctl-outils"><label class="pt-f pt-f-rech"><span class="sc-methode">Recherche</span><input type="search" id="ptCtlRecherche" placeholder="Nom du produit" value="' + esc(etat.ctlRecherche || '') + '"></label>' +
+      h += '<div class="vp-filtres pt-ctl-outils"><label class="pt-f pt-f-rech"><span class="sc-methode">Recherche</span><input type="search" id="ptCtlRecherche" placeholder="Nom ou code-barres" aria-label="Rechercher par nom ou code-barres" value="' + esc(etat.ctlRecherche || '') + '"></label>' +
         '<label class="pt-f"><span class="sc-methode">Tri</span><select data-ctl-tri="1">' + TRI_CTL.map(function (o) { return '<option value="' + o[0] + '"' + ((etat.ctlTri || 'gravite') === o[0] ? ' selected' : '') + '>' + esc(o[1]) + '</option>'; }).join('') + '</select></label>' +
-        '<details class="pt-ctl-aide" data-ctl-expl="1"><summary class="info-btn" aria-label="Comment lire un contrôle" role="button">i</summary><p class="sc-methode">' + aideCtl + '</p></details>' + '<fieldset class="pt-ctl-cycles"><legend class="sc-methode">Historique</legend>' + ['nouvelle', 'persistante', 'aggravee', 'verifiee', 'resolue'].map(function (k) {
+        '<details class="pt-ctl-aide" data-ctl-expl="1"><summary class="info-btn" aria-label="Comment lire un contrôle" role="button">i</summary><p class="sc-methode">' + aideCtl + '</p></details>' + '<button type="button" class="detail-btn pt-ctl-filtres-btn" data-ctl-filtres="1" aria-expanded="' + (etat.ctlFiltresOuverts ? 'true' : 'false') + '">Filtres (' + cy.length + ')</button><fieldset class="pt-ctl-cycles' + (etat.ctlFiltresOuverts ? '' : ' pt-ctl-cycles-ferme') + '"><legend class="sc-methode">Historique</legend>' + ['nouvelle', 'persistante', 'aggravee', 'verifiee', 'resolue'].map(function (k) {
           return '<label class="pt-chk"><input type="checkbox" data-ctl-cycle="' + k + '"' + (cy.indexOf(k) >= 0 ? ' checked' : '') + '> ' + esc(LIB_CYCLE[k]) + '</label>'; }).join('') + '</fieldset></div>';
     }
-    if (tous.length <= SEUIL_OUTILS) h += '<details class="pt-ctl-aide" data-ctl-expl="1"><summary class="info-btn" aria-label="Comment lire un contrôle" role="button">i</summary><p class="sc-methode">' + aideCtl + '</p></details>';
     var vis = etat.ctlToutes || tous.length <= SEUIL_OUTILS ? L : L.slice(0, SEUIL_OUTILS);
     // Sélection : le contrôle choisi, sinon le premier de la vue (la ligne vérifiée quitte la vue, la suivante prend la place).
     var sel = null; vis.forEach(function (x) { if (!sel && cleControle(x) === etat.ctlSel) sel = x; }); if (!sel) sel = vis[0] || null;
@@ -662,7 +717,7 @@
     else if (!L.length) h += '<p class="sc-note">Aucun contrôle ne correspond à ces filtres.</p>';
     if (L.length > vis.length) h += '<button type="button" class="detail-btn vp-plus" data-ctl-plus="1">Afficher la suite (' + (L.length - vis.length) + ')</button>';
     h += '</div>' + (sel ? '<div class="pt-ctl-droite">' + htmlDetailControle(sel, droits, etat, nav, enDetail) + '</div>' : '') + '</div>';
-    return h + '</details>';
+    return h + '</section>';
   }
   // Réévaluations à enregistrer : périmètre complet de l'import (jamais la vue filtrée), une ligne par anomalie dont le cycle change.
   // identite : { fichierHash, dateReleve } de l'import en cours. La vérification la plus récente de chaque (cause, clé) fait foi.
@@ -992,6 +1047,12 @@
       etat.ctlSel = ls[i + 1].dataset.ctlSel; rendre(); if (typeof window !== 'undefined' && window.scrollTo) window.scrollTo(0, 0);
       var b = corps.querySelector('[data-ctl-suivant]'); if (b && b.focus) b.focus();
     }
+    function precedent() {
+      var ls = Array.prototype.slice.call(corps.querySelectorAll('[data-ctl-sel]')), i = -1;
+      ls.forEach(function (b, k) { if (b.getAttribute('aria-current') === 'true') i = k; });
+      if (i <= 0) return;
+      etat.ctlSel = ls[i - 1].dataset.ctlSel; rendre(); if (typeof window !== 'undefined' && window.scrollTo) window.scrollTo(0, 0);
+    }
     // Écouteurs globaux liés une seule fois ; ils appellent toujours les dernières fermetures.
     etat.ctlRetourFn = demanderRetour; etat.ctlFermerDirect = fermerDetailDirect;
     if (!etat.ctlGlobaux && typeof window !== 'undefined' && window.addEventListener) {
@@ -1017,6 +1078,8 @@
     });
     var bRetour = corps.querySelector('[data-ctl-retour]'); if (bRetour) bRetour.addEventListener('click', demanderRetour);
     var bSuiv = corps.querySelector('[data-ctl-suivant]'); if (bSuiv) bSuiv.addEventListener('click', suivant);
+    var bPrec = corps.querySelector('[data-ctl-prec]'); if (bPrec) bPrec.addEventListener('click', precedent);
+    var bSf = corps.querySelector('[data-ctl-suiv-fl]'); if (bSf) bSf.addEventListener('click', suivant);
     lignes.forEach(function (b, i) {
       b.addEventListener('click', function () { if (etroit()) ouvrirDetail(b.dataset.ctlSel); else choisirLigne(b.dataset.ctlSel); });
       b.addEventListener('keydown', function (ev) {
@@ -1033,6 +1096,7 @@
       });
     });
     var ctlPlus = corps.querySelector('[data-ctl-plus]'); if (ctlPlus) ctlPlus.addEventListener('click', function () { etat.ctlToutes = true; rendre(); });
+    var ctlFb = corps.querySelector('[data-ctl-filtres]'); if (ctlFb) ctlFb.addEventListener('click', function () { etat.ctlFiltresOuverts = !etat.ctlFiltresOuverts; rendre(); var nb = corps.querySelector('[data-ctl-filtres]'); if (nb) nb.focus(); });
     var ctlTri = corps.querySelector('[data-ctl-tri]'); if (ctlTri) ctlTri.addEventListener('change', function () { etat.ctlTri = ctlTri.value; etat.ctlToutes = false; rendre(); });
     Array.prototype.forEach.call(corps.querySelectorAll('[data-ctl-cycle]'), function (c) { c.addEventListener('change', function () { var cy = (etat.ctlCycles || ['nouvelle', 'persistante', 'aggravee']).filter(function (x) { return x !== c.dataset.ctlCycle; }); if (c.checked) cy.push(c.dataset.ctlCycle); etat.ctlCycles = cy; etat.ctlToutes = false; rendre(); }); });
     var ctlRech = corps.querySelector('#ptCtlRecherche'); if (ctlRech) ctlRech.addEventListener('input', function () { etat.ctlRecherche = ctlRech.value; etat.ctlToutes = false; var p = ctlRech.selectionStart; rendre(); var n = corps.querySelector('#ptCtlRecherche'); if (n) { n.focus(); try { n.setSelectionRange(p, p); } catch (e) {} } });
@@ -1115,8 +1179,7 @@
         '<div class="sc-cartes">' + fa.cartes.map(function (x) { return htmlControle(x, etat.icone); }).join('') + '</div>' + (fa.id === 'decisions' && etat.margePlus ? etat.margePlus : '') + '</section>';
     };
     // Panneau Contrôler : ce qu'il reste à examiner.
-    var pC = '<div class="sc-inds pt-inds">' + carte('marge_negative') + carte('a_verifier') + '</div>';
-    pC += htmlBlocControles(etat);
+    var pC = htmlBlocControles(etat, '<div class="sc-inds pt-inds">' + carte('marge_negative') + carte('a_verifier') + '</div>');
     if (etat.messageReeval) pC += '<p class="sc-note pt-reeval-msg" role="status" data-reeval-msg="1">' + esc(etat.messageReeval) + '</p>';
     if (etat.role !== 'manager' && etat.incoherences && etat.incoherences.length) pC += '<div class="pt-integrite sc-note" role="alert">Incohérence dans les registres tarifaires : ' + plur(etat.incoherences.length, 'ligne', 'lignes') + ' à corriger.</div>';
     pC += htmlFamille('pertes');
@@ -1168,9 +1231,21 @@
     '.vue-p1c .pt-badges{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}.vue-p1c .pt-pol{margin:8px 0}.vue-p1c .pt-pol-l{display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:2px 0}' +
     '.vue-p1c details.pt-filtres[open]>summary .sc-chev{transform:rotate(45deg)}.vue-p1c details.pt-histo-sec[open]>summary .sc-chev{transform:rotate(45deg)}.vue-p1c .pt-histo-sec>summary{min-height:44px;display:flex;align-items:center;justify-content:space-between;cursor:pointer}.vue-p1c .pt-histo-reset{margin:6px 0}.vue-p1c .pt-histo-plus{margin:6px 0}.vue-p1c .pt-ctrl .vp-liste{margin:8px 0}.vue-p1c .pt-f{display:flex;flex-direction:column;gap:2px;min-width:0}.vue-p1c .pt-f select,.vue-p1c .pt-f input{min-height:44px;border-radius:8px;border:1px solid var(--t-line);background:var(--t-panel);color:var(--t-text);font:inherit;padding:0 8px}.vue-p1c .pt-f-rech{flex:1 1 100%}.vue-p1c .pt-f:not(.pt-f-rech){flex:1 1 140px}.vue-p1c .pt-scenarios{margin:8px 0}.vue-p1c .pt-aucun{margin:4px 0 0}.vue-p1c .sc-conseiller{margin:0 0 10px}.vue-p1c .pt-histo-t{display:flex;align-items:center;gap:6px}.vue-p1c .sc-conseil-ligne{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px}.vue-p1c .sc-conseil-ligne .sc-conseil{margin:0;flex:1 1 220px;max-width:100%}.sc-conseil-plus{display:inline}.sc-conseil-plus>summary{display:inline-flex;list-style:none;cursor:pointer}.sc-conseil-plus>summary::-webkit-details-marker{display:none}.sc-conseil-plus[open]>span{display:block}.sc-conseiller .sc-conseil{overflow-wrap:anywhere}@media(min-width:900px){.sc-conseiller .sc-conseil:not(:has(details[open])){white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}.vue-p1c .sc-conseiller{padding-top:8px;padding-bottom:8px;align-items:center}.vue-p1c .sc-conseiller .conseiller-avatar{width:32px;height:32px}.vue-p1c .pt-histo-suivi{display:block;margin-top:2px}.vue-p1c .pt-histo-txt{flex:1;min-width:0}.vue-p1c .pt-li{display:flex;align-items:center;gap:6px}.vue-p1c .pt-li .vp-ligne-prod{flex:1;min-width:0}.vue-p1c .pt-li .pt-info{flex:none}.vue-p1c .pt-ctl{list-style:none;padding:10px 0;border-top:1px solid var(--t-line)}.vue-p1c .pt-ctl-2,.vue-p1c .pt-ctl-3{margin:4px 0}.vue-p1c .pt-ctl .pt-verifier{width:100%;min-height:44px;margin-top:8px}.vue-p1c .pt-ctl-titre{margin:0 0 8px}.vue-p1c .pt-controles-faire{margin:14px 0 10px}.vue-p1c .pt-bloc-controles{margin:10px 0}.vue-p1c .pt-ctl-outils{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}@media(min-width:900px){.vue-p1c .pt-ctl-outils{flex-wrap:nowrap;align-items:flex-end}.vue-p1c .pt-ctl-outils .pt-f-rech{flex:1 1 220px}.vue-p1c .pt-ctl-outils .pt-f:not(.pt-f-rech){flex:0 1 190px}.vue-p1c .pt-ctl-cycles{display:flex;flex-wrap:nowrap;align-items:center;gap:8px;border:0;padding:0;margin:0}.vue-p1c .pt-ctl-cycles legend{float:left;padding:0 4px 0 0}.vue-p1c .pt-ctl-aide{order:9}}.vue-p1c .pt-ctl-aide>summary{list-style:none;cursor:pointer}.vue-p1c .pt-ctl-aide>summary::-webkit-details-marker{display:none}.vue-p1c .pt-ctl-cycles{border:0;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:4px 12px}.vue-p1c .pt-carte-ctl{text-align:left;font:inherit;cursor:pointer;width:100%;border:1px solid var(--t-line);background:var(--t-panel);color:var(--t-text);min-height:44px}.vue-p1c .pt-com-lien{background:none;border:0;padding:0 2px;min-height:44px;font:inherit;font-size:13px;color:var(--accent,inherit);text-decoration:underline;cursor:pointer}.vue-p1c input[type=checkbox]{accent-color:var(--accent)}.vue-p1c .pt-chk{display:inline-flex;align-items:center;gap:6px;min-height:44px}.vue-p1c .pt-verif-champ{margin-top:8px}.vue-p1c .pt-verif-zone{display:flex;flex-direction:column;gap:4px}.vue-p1c .pt-verif-com{width:100%;box-sizing:border-box;min-height:64px;border-radius:8px;border:1px solid var(--t-line);background:var(--t-panel);color:var(--t-text);font:inherit;padding:8px;resize:vertical}.vue-p1c .pt-verif-n{align-self:flex-end}.vue-p1c .pt-fond{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:40}.vue-p1c .pt-fiche{position:fixed;z-index:41;background:var(--t-panel);overflow:auto;box-sizing:border-box;left:0;right:0;bottom:0;max-height:85vh;border-radius:16px 16px 0 0;padding:12px 16px 24px}@media (min-width:900px){.vue-p1c .pt-fiche{left:auto;top:0;bottom:0;right:0;width:420px;max-height:none;border-radius:0}}.vue-p1c .pt-fiche-tete{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}.vue-p1c .pt-fermer{min-height:44px}.vue-p1c .pt-marge-l1{display:block;color:var(--t-text)}.vue-p1c .pt-marge-prin{color:var(--t-text);font-family:var(--t-mono);font-weight:700;font-size:17px}.vue-p1c .pt-marge-sec{display:block;color:var(--t-mid);font-family:var(--t-mono);font-size:12px}.vue-p1c .vp-filtres{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start}.vue-p1c .pt-filtres{flex:1 1 100%}.vue-p1c .pt-filtres>summary{min-height:44px;display:flex;align-items:center;justify-content:space-between;cursor:pointer}.vue-p1c .pt-filtres-corps{display:flex;flex-wrap:wrap;gap:8px}@media (min-width:900px){.vue-p1c .pt-filtres-corps{flex-wrap:wrap}.vue-p1c .pt-filtres-corps>.pt-f{flex:1 1 160px;min-width:0}}@media (max-width:599px){.vue-p1c .sc-conseiller .conseiller-avatar{width:48px;height:48px}.vue-p1c .sc-ind{padding:10px 12px}.vue-p1c .sc-ind-val{font-size:20px}}';
   CSS += '@media(max-width:599px){.sc-conseiller:has(.sc-conseil-2l){display:grid;grid-template-columns:32px minmax(0,1fr) auto;column-gap:8px;row-gap:6px;align-items:center}.sc-conseiller:has(.sc-conseil-2l) .conseiller-corps,.sc-conseiller:has(.sc-conseil-2l) .sc-conseil-2l{display:contents}.sc-conseiller:has(.sc-conseil-2l)>.conseiller-avatar{grid-area:1/1/2/2}.sc-conseiller:has(.sc-conseil-2l) .conseiller-titre{grid-area:1/2/2/4}.sc-conseil-2l .sc-conseil-art{grid-area:2/1/3/4;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}.sc-conseil-2l .sc-conseil-sous{grid-area:3/1/4/4;display:block}.sc-conseiller:has(.sc-conseil-2l) .detail-btn{grid-area:4/1/5/3;justify-self:start}.sc-conseil-2l .sc-conseil-plus{grid-area:4/3/5/4;justify-self:end}.sc-conseil-2l .sc-conseil-plus[open]{grid-area:5/1/6/4;justify-self:stretch}}';
-  CSS += '.vue-p1c .pt-pastilles{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}.vue-p1c .pt-pastille{min-height:44px;padding:4px 12px;border:1px solid var(--t-line);border-radius:999px;background:transparent;color:var(--t-text);font:inherit;cursor:pointer}.vue-p1c .pt-pastille[aria-pressed=true]{border-color:var(--t-accent,currentColor);font-weight:600}.vue-p1c .pt-pastille-n{opacity:.8}.vue-p1c .pt-l-etat{font-size:.9em;opacity:.9}.vue-p1c .pt-l-etat::before{content:"\\00B7  "}@media (max-width:599px){.vue-p1c .pt-pastilles{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch}.vue-p1c .pt-pastille{flex:0 0 auto;white-space:nowrap}}';
-  CSS += '.vue-p1c .pt-ctl-deux{display:block}.vue-p1c .pt-ctl-liste{list-style:none;margin:0;padding:0}.vue-p1c .pt-ctl-item{margin:0;border-top:1px solid var(--t-line)}.vue-p1c .pt-ctl-ligne{display:flex;align-items:center;gap:8px;width:100%;min-height:44px;padding:6px 10px;background:transparent;color:var(--t-text);border:0;border-left:3px solid transparent;text-align:left;font:inherit;cursor:pointer}.vue-p1c .pt-ctl-ligne>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.vue-p1c .pt-ctl-ligne{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:8px;row-gap:2px;align-items:center}.vue-p1c .pt-ctl-ligne>.pt-l-tag{flex-shrink:0;overflow:visible;text-overflow:clip;white-space:nowrap;min-width:max-content;justify-self:end}.vue-p1c .pt-ctl-ligne>.pt-l-sec{grid-column:1 / -1;font-size:.85em;opacity:.85}.vue-p1c .pt-ctl-ligne[aria-current=true]{background:var(--t-panel);border-left-color:var(--t-text)}.vue-p1c .pt-ctl-ligne:focus-visible,.vue-p1c details.pt-sources-calcul>summary:focus-visible{outline:2px solid var(--t-text);outline-offset:2px}.vue-p1c .pt-ctl-ligne:focus-visible{outline-offset:-2px}.vue-p1c .pt-detail{margin-top:12px;padding:12px;border:1px solid var(--t-line);border-radius:14px;background:var(--t-panel)}.vue-p1c .pt-detail .pt-ctl-prod{background:none;border:0;padding:0;margin:0;color:var(--t-text);font:inherit;font-weight:700;text-align:left;cursor:pointer;min-height:44px}.vue-p1c .pt-detail .pt-ctl-prod:focus-visible{outline:2px solid var(--t-text);outline-offset:2px}.vue-p1c details.pt-sources-calcul>summary{min-height:44px;display:flex;align-items:center;cursor:pointer}@media (max-width:899.98px){.vue-p1c .pt-ctl-deux[data-mode=liste]>.pt-ctl-droite{display:none}.vue-p1c .pt-ctl-deux[data-mode=detail]>.pt-ctl-gauche{display:none}.vue-p1c .pt-ctl-deux[data-mode=detail]>.pt-ctl-droite{position:fixed;top:0;right:0;bottom:0;left:0;z-index:50;overflow-y:auto;overflow-x:hidden;background:var(--t-panel);-webkit-overflow-scrolling:touch}.vue-p1c .pt-ctl-deux[data-mode=detail] .pt-detail{margin:0;min-height:100%;display:flex;flex-direction:column;border:0;border-radius:0;padding:12px 16px 0;box-sizing:border-box;max-width:100%;overflow-wrap:anywhere}.vue-p1c .pt-ctl-entete{display:flex;align-items:center;justify-content:space-between;gap:8px}.vue-p1c .pt-ctl-pos{white-space:nowrap;color:var(--t-text)}.vue-p1c .pt-ctl-retour,.vue-p1c .pt-ctl-suivant{min-height:44px;min-width:44px;margin:0 0 8px}.vue-p1c .pt-ctl-suivant[disabled]{opacity:.5}.vue-p1c .pt-actions{position:sticky;bottom:0;display:flex;gap:8px;padding:8px 0 calc(8px + env(safe-area-inset-bottom,0px));margin-top:auto;background:var(--t-panel);border-top:1px solid var(--t-line)}.vue-p1c .pt-actions>button{flex:1 1 0;min-height:44px}.vue-p1c .pt-ctl-retour:focus-visible,.vue-p1c .pt-actions>button:focus-visible{outline:2px solid var(--t-text);outline-offset:2px}}@media (min-width:900px){.vue-p1c .pt-ctl-retour,.vue-p1c .pt-ctl-suivant{display:none}.vue-p1c .pt-actions{display:block}.vue-p1c .pt-ctl-deux{display:grid;grid-template-columns:46% 1fr;gap:16px;align-items:start}.vue-p1c .pt-ctl-ligne{min-height:52px;padding:4px 10px}.vue-p1c .pt-ctl-deux>.pt-ctl-droite{position:sticky;top:8px;align-self:start;max-height:calc(100vh - 16px);overflow-y:auto}.vue-p1c .pt-detail{margin-top:0}}';
+  CSS += '.vue-p1c .pt-pastilles{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}.vue-p1c .pt-pastille{min-height:44px;padding:4px 12px;border:1px solid var(--t-line);border-radius:999px;background:transparent;color:var(--t-text);font:inherit;cursor:pointer}.vue-p1c .pt-pastille[aria-pressed=true]{border-color:var(--t-accent,currentColor);font-weight:600}.vue-p1c .pt-pastille-n{opacity:.8}.vue-p1c .pt-l-etat{font-size:.9em;opacity:.9}';
+  CSS += '.vue-p1c .pt-ctl-filtres-btn{display:none;min-height:44px}.vue-p1c .pt-num{font-variant-numeric:tabular-nums}@media (max-width:899px){.vue-p1c .pt-ctl-filtres-btn{display:inline-flex;align-items:center}.vue-p1c fieldset.pt-ctl-cycles.pt-ctl-cycles-ferme{display:none!important}.vue-p1c .pt-ctl-outils{display:flex;flex-wrap:wrap;gap:8px}.vue-p1c .pt-ctl-outils .pt-f-rech{flex:1 1 100%;min-width:0}.vue-p1c .pt-ctl-outils .pt-f:not(.pt-f-rech){flex:1 1 100%;min-width:0}.vue-p1c .pt-ctl-outils .pt-f select{width:100%;min-width:0;box-sizing:border-box}.vue-p1c .pt-ctl-outils .pt-ctl-filtres-btn{order:8;flex:1 1 0;min-width:0;justify-content:center;min-height:44px;background:transparent;border:1px solid var(--t-bordure-forte,currentColor);border-radius:8px;font-weight:600;text-decoration:none;color:inherit}.vue-p1c .pt-ctl-outils .pt-ctl-aide{order:9;flex:0 0 auto;align-self:center}.vue-p1c .pt-ctl-outils .pt-f-rech input{width:100%;box-sizing:border-box}}';
+  CSS += '.vue-p1c .pt-ctl-deux{display:block}.vue-p1c .pt-ctl-liste{list-style:none;margin:0;padding:0}.vue-p1c .pt-ctl-item{margin:0;border-top:1px solid var(--t-line)}.vue-p1c .pt-ctl-ligne{display:flex;align-items:center;gap:8px;width:100%;min-height:44px;padding:6px 10px;background:transparent;color:var(--t-text);border:0;border-left:3px solid transparent;text-align:left;font:inherit;cursor:pointer}.vue-p1c .pt-ctl-ligne>span{min-width:0;overflow-wrap:anywhere;white-space:normal}.vue-p1c .pt-ctl-ligne{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:8px;row-gap:2px;align-items:center}.vue-p1c .pt-ctl-ligne>.pt-l-tag{flex-shrink:0;overflow:visible;text-overflow:clip;white-space:nowrap;min-width:max-content;justify-self:end}.vue-p1c .pt-ctl-ligne>.pt-l-sec{grid-column:1 / -1;font-size:.85em;opacity:.85}.vue-p1c .pt-ctl-ligne[aria-current=true]{background:var(--t-panel);border-left-color:var(--t-text)}.vue-p1c .pt-ctl-ligne:focus-visible,.vue-p1c details.pt-sources-calcul>summary:focus-visible{outline:2px solid var(--t-text);outline-offset:2px}.vue-p1c .pt-ctl-ligne:focus-visible{outline-offset:-2px}.vue-p1c .pt-detail{margin-top:12px;padding:12px;border:1px solid var(--t-line);border-radius:14px;background:var(--t-panel)}.vue-p1c .pt-detail .pt-ctl-prod{background:none;border:0;padding:0;margin:0;color:var(--t-text);font:inherit;font-weight:700;text-align:left;cursor:pointer;min-height:44px}.vue-p1c .pt-detail .pt-ctl-prod:focus-visible{outline:2px solid var(--t-text);outline-offset:2px}.vue-p1c details.pt-sources-calcul>summary{min-height:44px;display:flex;align-items:center;cursor:pointer}@media (max-width:899.98px){.vue-p1c .pt-ctl-deux[data-mode=liste]>.pt-ctl-droite{display:none}.vue-p1c .pt-ctl-deux[data-mode=detail]>.pt-ctl-gauche{display:none}.vue-p1c .pt-ctl-deux[data-mode=detail]>.pt-ctl-droite{position:fixed;top:0;right:0;bottom:0;left:0;z-index:50;overflow-y:auto;overflow-x:hidden;background:var(--t-panel);-webkit-overflow-scrolling:touch}.vue-p1c .pt-ctl-deux[data-mode=detail] .pt-detail{margin:0;min-height:100%;display:flex;flex-direction:column;border:0;border-radius:0;padding:12px 16px 0;box-sizing:border-box;max-width:100%;overflow-wrap:anywhere}.vue-p1c .pt-ctl-entete{display:flex;align-items:center;justify-content:space-between;gap:8px}.vue-p1c .pt-ctl-pos{white-space:nowrap;color:var(--t-text)}.vue-p1c .pt-ctl-retour,.vue-p1c .pt-ctl-suivant{min-height:44px;min-width:44px;margin:0 0 8px}.vue-p1c .pt-ctl-suivant[disabled]{opacity:.5}.vue-p1c .pt-actions{position:sticky;bottom:0;display:flex;gap:8px;padding:8px 0 calc(8px + env(safe-area-inset-bottom,0px));margin-top:auto;background:var(--t-panel);border-top:1px solid var(--t-line)}.vue-p1c .pt-actions>button{flex:1 1 0;min-height:44px}.vue-p1c .pt-ctl-retour:focus-visible,.vue-p1c .pt-actions>button:focus-visible{outline:2px solid var(--t-text);outline-offset:2px}}@media (min-width:900px){.vue-p1c .pt-ctl-retour{display:none}.vue-p1c .pt-actions{display:block}.vue-p1c .pt-ctl-deux{display:grid;grid-template-columns:46% 1fr;gap:16px;align-items:start}.vue-p1c .pt-ctl-ligne{min-height:52px;padding:4px 10px}.vue-p1c .pt-ctl-deux>.pt-ctl-droite{position:sticky;top:8px;align-self:start;max-height:calc(100vh - 16px);overflow-y:auto}.vue-p1c .pt-detail{margin-top:0}}';
 
+  CSS += '.vue-p1c .pt-ctl-fil,.vue-p1c .pt-ctl-sous{margin:4px 0;color:var(--t-mid)}.vue-p1c .pt-ctl-outils{padding:8px;border:1px solid var(--t-line);border-radius:12px;background:var(--t-panel);align-items:flex-end}.vue-p1c .pt-pastille-n{font-weight:700;opacity:1}.vue-p1c .pt-l-vign{flex:0 0 40px;width:40px;height:40px;display:inline-flex;align-items:center;justify-content:center}.vue-p1c .pt-l-vign img{width:40px;height:40px;object-fit:contain}.vue-p1c .pt-ctl-ligne{grid-template-columns:40px minmax(0,1fr) auto auto}.vue-p1c .pt-l-corps{display:flex;flex-direction:column;gap:2px;min-width:0}.vue-p1c .pt-l-art{font-weight:600;overflow-wrap:anywhere;white-space:normal}.vue-p1c .pt-l-sec{font-size:.85em;color:var(--t-mid)}.vue-p1c .pt-l-chiffre{font-family:inherit;font-variant-numeric:tabular-nums;font-weight:700;padding:2px 8px;border:1px solid var(--t-line);border-radius:999px;white-space:nowrap}.vue-p1c .pt-l-gr-demontree{border-color:var(--nbe-critique,var(--t-text));color:var(--t-text)}.vue-p1c .pt-l-gr-averifier{border-color:var(--nbe-verifier,var(--t-text));color:var(--t-text)}.vue-p1c .pt-l-chev{color:var(--t-mid)}.vue-p1c .pt-detail .pt-ctl-suivant{background:transparent;color:var(--t-text);border:1px solid var(--t-line)}.vue-p1c .pt-detail .pt-actions .pt-ctl-suivant{width:100%}';
+  CSS += '.vue-p1c .pt-ctl-ligne{grid-template-columns:40px minmax(0,1fr) auto;grid-template-rows:auto auto}.vue-p1c .pt-ctl-ligne>.pt-l-vign{grid-column:1;grid-row:1 / span 2;align-self:start}.vue-p1c .pt-ctl-ligne>.pt-l-corps{grid-column:2;grid-row:1}.vue-p1c .pt-ctl-ligne>.pt-l-chiffre{grid-column:2;grid-row:2;justify-self:start;white-space:normal;overflow-wrap:anywhere;font-size:.9em}.vue-p1c .pt-ctl-ligne>.pt-l-chev{grid-column:3;grid-row:1 / span 2;align-self:center}.vue-p1c .pt-pastille{white-space:normal;max-width:100%}';
+  CSS += '.vue-p1c .pt-ctl .pt-verifier,.vue-p1c .pt-actions>.pt-verifier{width:100%;min-height:48px;background:var(--t-cyan);color:var(--t-bg);border:1px solid var(--t-cyan);border-radius:10px;font-weight:700;font-size:16px}' +
+    '.vue-p1c .pt-actions{flex-direction:column}.vue-p1c .pt-actions>button{flex:0 0 auto;width:100%}' +
+    '.vue-p1c details.pt-sources-calcul{border:1px solid var(--t-line);border-radius:10px;padding:0 12px;margin:8px 0}' +
+    '.vue-p1c details.pt-sources-calcul>summary{list-style:none;justify-content:space-between;font-weight:600}.vue-p1c details.pt-sources-calcul>summary::-webkit-details-marker{display:none}' +
+    '.vue-p1c details.pt-sources-calcul>summary::after{content:"\\25BE";transition:transform .15s}.vue-p1c details.pt-sources-calcul[open]>summary::after{transform:rotate(180deg)}' +
+    '.vue-p1c .pt-ctl-nav{display:inline-flex;align-items:center;gap:4px}.vue-p1c .pt-ctl-fl{min-width:44px;min-height:44px;font-size:1.4em;border:1px solid var(--t-line)}.vue-p1c .pt-ctl-fl[disabled]{opacity:.4}' +
+    '.vue-p1c .pt-vign-neutre{display:inline-block;width:40px;height:40px;border:1px solid var(--t-line);border-radius:10px;background:var(--t-raised)}' +
+    '.vue-p1c .pt-l-chiffre{white-space:nowrap}';
+  CSS += '.vue-p1c .pt-ctl-tete{margin:0 0 8px}.vue-p1c .pt-ctl-titre{margin:4px 0;font-size:1.25em;overflow-wrap:anywhere}.vue-p1c .pt-ctl-pilule{display:inline-block;margin-left:6px}.vue-p1c .pt-ind2{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin:8px 0}.vue-p1c .pt-ind{display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--t-line);border-radius:12px;min-width:0}.vue-p1c .pt-ind-ico{flex:0 0 40px;display:inline-flex}.vue-p1c .pt-ind-txt{display:flex;flex-direction:column;gap:2px;min-width:0}.vue-p1c .pt-ind-val{font-size:1.5em;font-weight:700;overflow-wrap:anywhere}';
   // ---------- Montage : lecture seule, session de la personne connectée, clé publique, aucun paramètre de site ----------
   var VUES = { familles: 'v_tarif_familles_actifs', rattachements: 'v_tarif_rattachements_actifs', seuils: 'v_tarif_seuils_actifs', reglages: 'v_tarif_reglages_actifs',
     prixDecides: 'v_tarif_prix_decides_actifs', applications: 'v_tarif_prix_application_actifs', exceptions: 'v_tarif_exceptions_effectives',

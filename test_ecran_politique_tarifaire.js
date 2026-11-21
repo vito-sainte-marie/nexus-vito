@@ -460,7 +460,7 @@ ok('B2/L2 : bloc Contrôles, liste compacte, détail avec consigne et bouton', (
   assert.ok(/data-axe="niveau">Démontré/.test(h) && /data-axe="niveau">À vérifier/.test(h));
   assert.ok(/data-ctl-liste/.test(h) && /data-ctl-detail/.test(h) && /pt-ctl-3/.test(h) && !/data-ctl-info/.test(h));
   assert.ok(/✓ Marquer comme vérifié/.test(h) && /data-ctl-expl/.test(h));
-  assert.ok(!/data-ctl-plus/.test(h) && !/ptCtlRecherche/.test(h));
+  assert.ok(!/data-ctl-plus/.test(h) && /ptCtlRecherche/.test(h) && /Nom ou code-barres/.test(h), 'barre d\'outils toujours présente, sans suite sous le seuil');
 });
 ok('B2 : au-delà de 10 contrôles, outils et suite', () => {
   const h = E.htmlPage({ analyse: avecControles(14), role: 'manager', estCreateur: false, filtres: {}, incoherences: [] });
@@ -506,16 +506,32 @@ ok('L5 compact : le texte d\'aide est derrière un (i), outils sur un bloc uniqu
   const src = require('fs').readFileSync(require('path').join(__dirname, 'nexus-politique-tarifaire-ecran.js'), 'utf8');
   assert.ok(/@media\(min-width:900px\)\{\.vue-p1c \.pt-ctl-outils\{flex-wrap:nowrap/.test(src), 'ligne unique dès 900 px');
 });
-ok('recette Guardian : commentaire replié derrière un lien, (i) sur la ligne du titre', () => {
+ok('recette Guardian : commentaire visible d\'emblée, rattaché au contrôle choisi', () => {
   const a = avecControles(2);
   const h = E.htmlPage({ analyse: a, role: 'manager', estCreateur: false, filtres: {}, incoherences: [] });
-  assert.ok(/data-com-ouvrir=/.test(h) && !/<textarea/.test(h), 'zone fermée par défaut');
-  assert.ok(/Ajouter un commentaire/.test(h));
+  assert.ok(/<textarea/.test(h) && !/data-com-ouvrir=/.test(h), 'zone visible, sans lien de dépliage');
+  assert.strictEqual((h.match(/<textarea/g) || []).length, 1, 'une seule zone : celle du contrôle choisi');
   assert.ok(!/data-ctl-info/.test(h), 'plus de (i) : la consigne est toujours visible dans le détail');
-  const cle = /aria-current="true"[^>]*data-ctl-sel="([^"]+)"|data-ctl-sel="([^"]+)"[^>]*aria-current="true"/.exec(h);
-  const k = cle[1] || cle[2];
-  const h2 = E.htmlPage({ analyse: a, role: 'manager', estCreateur: false, filtres: {}, incoherences: [], comOuvert: [k] });
-  assert.ok(/<textarea/.test(h2), 'zone ouverte sur cette ligne');
+});
+ok('mise en page Contrôler : fil d\'Ariane, vignette de famille, pas de title sur les lignes, bouton secondaire', () => {
+  const h = E.htmlPage({ analyse: avecControles(3), role: 'manager', estCreateur: false, filtres: {}, incoherences: [] });
+  assert.ok(/Produits › Scanner tarifaire › Contrôler/.test(h));
+  assert.ok(/pt-l-vign/.test(h) && /pt-l-gr-(demontree|averifier)/.test(h));
+  assert.ok(/Passer au suivant sans vérifier/.test(h) && !/>Suivant<\/button>/.test(h));
+  const lignes = h.match(/<button[^>]*data-ctl-ligne[^>]*>/g) || [];
+  assert.ok(lignes.length >= 3 && lignes.every(b => !/\stitle=/.test(b)), 'aucune ligne ne porte de title');
+  assert.ok(!/<li class="pt-ctl-item"[^>]*\stitle=/.test(h));
+});
+ok('en-tête Contrôler en tête de l\'axe : titre, sous-titre, pilule Estimations, avant les cartes, sans details', () => {
+  const h = E.htmlPage({ analyse: avecControles(3), role: 'manager', estCreateur: false, filtres: {}, incoherences: [] });
+  const i = h.indexOf('data-bloc-controles'), c = h.indexOf('pt-inds', i);
+  assert.ok(i > 0 && c > i && h.indexOf('<h2 class="pt-ctl-titre', i) < c, 'titre avant les cartes d\'axe');
+  assert.ok(/data-ctl-sous="1">[^<]*références/.test(h) && /data-ctl-estimations="1">Estimations</.test(h));
+  assert.ok(!/<details[^>]*data-bloc-controles/.test(h));
+});
+ok('détail Contrôler : bloc de deux indicateurs (chiffre clé en grand + valeur ; niveau dans l’en-tête)', () => {
+  const h = E.htmlPage({ analyse: avecControles(2), role: 'manager', estCreateur: false, filtres: {}, incoherences: [] });
+  assert.ok(/data-ctl-indicateurs="1"/.test(h) && /pt-ind-cle/.test(h) && /pt-ind-sec/.test(h) && !/pt-ind-niv/.test(h));
 });
 ok('recette Guardian : cases de filtre avec accent-color', () => {
   assert.ok(/input\[type=checkbox\]\{accent-color:var\(--accent\)/.test(E.CSS));
@@ -1131,7 +1147,9 @@ ok('L3 : mode liste par défaut, mode détail avec retour, Suivant et barre d\'a
   assert.ok(/data-mode="detail"/.test(hd) && /data-ctl-retour="1"/.test(hd) && /Retour à la liste \(\d+ restants?\)/.test(hd));
   assert.ok(/data-ctl-actions="1"/.test(hd) && /data-ctl-suivant="1"/.test(hd) && /✓ Marquer comme vérifié/.test(hd));
   assert.strictEqual((hd.match(/data-verifier="/g) || []).length, 1, 'un seul bouton de vérification');
-  assert.ok(hd.indexOf('data-ctl-suivant') < hd.indexOf('data-verifier='), 'Suivant précède Marquer comme vérifié dans la barre');
+  assert.ok(hd.indexOf('data-verifier=') < hd.indexOf('data-ctl-suivant'), 'Marquer comme vérifié précède Passer au suivant dans la barre');
+  assert.ok(/data-ctl-prec="1"[^>]*aria-label/.test(hd) && /data-ctl-suiv-fl="1"[^>]*aria-label/.test(hd), 'flèches précédent et suivant');
+  assert.ok(/<details class="pt-sources-calcul"/.test(hd) && !/pt-l-etat::before/.test(E.CSS), 'cadre repliable, pas de point parasite');
 });
 ok('L3 : en lecture seule la barre porte Suivant sans bouton de vérification', () => {
   const a = avecControles(3), h = E.htmlPage({ analyse: a, role: 'employe', estCreateur: false, filtres: {}, incoherences: [], ctlDetail: true });
@@ -1152,7 +1170,7 @@ ok('L3 : câblage (historique, popstate, Échap, focus, défilement) et CSS étr
   assert.ok(/window\.scrollTo\(0, etat\.ctlScroll \|\| 0\)/.test(src) && /preventScroll: true/.test(src));
   assert.ok(/max-width:899\.98px\)\{[^}]*data-mode=liste\]>\.pt-ctl-droite\{display:none\}/.test(src));
   assert.ok(/\.pt-ctl-retour,\.vue-p1c \.pt-ctl-suivant\{min-height:44px/.test(src) && /\.pt-actions>button\{flex:1 1 0;min-height:44px/.test(src));
-  assert.ok(/min-width:900px\)\{\.vue-p1c \.pt-ctl-retour,\.vue-p1c \.pt-ctl-suivant\{display:none\}/.test(src), 'bureau inchangé : retour et Suivant masqués');
+  assert.ok(/min-width:900px\)\{\.vue-p1c \.pt-ctl-retour\{display:none\}/.test(src) && !/min-width:900px\)\{[^}]*pt-ctl-suivant\{display:none/.test(src), 'bureau : Retour masqué, Passer au suivant visible');
 });
 ok('L3 : détail plein écran sous 900 px, position k / N, barre fixée en bas, titre produit sans fond', () => {
   const src = fs.readFileSync(require.resolve('./nexus-politique-tarifaire-ecran.js'), 'utf8');
@@ -1167,7 +1185,7 @@ ok('L3 : le détail porte le chiffre clé et l\'étiquette de preuve hors de « 
   const src = fs.readFileSync(require.resolve('./nexus-politique-tarifaire-ecran.js'), 'utf8');
   const i = src.indexOf('function htmlDetailControle'), j = src.indexOf('htmlCorpsControle(x.a', i);
   const seg = src.slice(i, j);
-  assert.ok(/data-ctl-chiffre="1"/.test(seg) && /pt-mono/.test(seg) && /data-axe="niveau"/.test(seg) && /pc\.chiffres/.test(seg) && /pc\.niveau/.test(seg), 'chiffre clé et niveau sous le titre');
+  assert.ok(/data-ctl-chiffre="1"/.test(seg) && /pt-num/.test(seg) && !/data-ctl-chiffre="1"><span class="pt-mono/.test(seg) && /data-axe="niveau"/.test(seg) && /pc\.chiffres/.test(seg) && /pc\.niveau/.test(seg), 'chiffre clé et niveau sous le titre');
   assert.ok(/suivant === undefined \? '<p class="pt-ctl-2 sc-methode">'/.test(src), 'le chiffre n\'est plus répété dans « Sources et calcul » du détail');
 });
 ok('L3 : vérifier en détail passe au contrôle suivant', () => {
@@ -1418,4 +1436,40 @@ ok('L5 : la confirmation cite l\'article vérifié et le commentaire enregistré
   const etat2 = { analyse: a };
   E.effetVerificationEnregistree(cs[1].an, etat2, 'Gérant du banc', 'id2', {});
   assert.ok(/sans commentaire/.test(etat2.messageVerif) && etat2.messageVerif.indexOf(cs[1].l.article) >= 0, etat2.messageVerif);
+});
+
+// Lot design Contrôler : recherche par code-barres, libellés courts, lignes sans troncature.
+ok('Design Contrôler : la recherche de l\'axe trouve aussi par code-barres', () => {
+  const a = avecControles(14);
+  const l0 = a.lignes.filter(l => (l.anomalies || []).length)[0];
+  l0.code_barres = '3999000111222';
+  const h = E.htmlPage({ analyse: a, role: 'manager', estCreateur: false, filtres: {}, incoherences: [], ctlRecherche: '3999000111222' });
+  assert.strictEqual((h.match(/data-ctl-ligne="1"/g) || []).length, l0.anomalies.length);
+  const h2 = E.htmlPage({ analyse: a, role: 'manager', estCreateur: false, filtres: {}, incoherences: [], ctlRecherche: '3999000999' });
+  assert.strictEqual((h2.match(/data-ctl-ligne="1"/g) || []).length, 0);
+});
+ok('Design Contrôler : puces à libellé court, libellé complet en aria-label', () => {
+  const V = require('./nexus-vocabulaire-tarif.js').anomaliesTarifaires.codes;
+  assert.strictEqual(V.S2.court, 'Coût écarté du relevé');
+  assert.strictEqual(V.S6.court, 'Prix modifié sans décision');
+  const h = E.htmlPage({ analyse: avecControles(14), role: 'manager', estCreateur: false, filtres: {}, incoherences: [] });
+  assert.ok(/aria-label="Coût écarté du relevé de stock : \d+"/.test(h), 'libellé complet');
+  assert.ok(/data-ctl-cause="S2"[^>]*>Coût écarté du relevé <span/.test(h), 'libellé court affiché');
+});
+ok('Design Contrôler : aucune ellipse sur les lignes et aucun title croisé', () => {
+  const src = require('fs').readFileSync(require('path').join(__dirname, 'nexus-politique-tarifaire-ecran.js'), 'utf8');
+  const m = /\.pt-ctl-ligne>span\{([^}]*)\}/.exec(src);
+  assert.ok(m && !/text-overflow:ellipsis/.test(m[1]) && !/nowrap/.test(m[1]));
+  const h = E.htmlPage({ analyse: avecControles(14), role: 'manager', estCreateur: false, filtres: {}, incoherences: [] });
+  const bloc = h.slice(h.indexOf('data-ctl-liste'));
+  assert.ok(!/ title="/.test(bloc.slice(0, bloc.indexOf('data-ctl-detail') > 0 ? bloc.indexOf('data-ctl-detail') : bloc.length)), 'aucune info-bulle sur les lignes');
+});
+
+ok('Retouches Guardian : pastille sans chasse fixe, vrai signe moins, bouton 16 px, Filtres (n) repliable', () => {
+  const src = fs.readFileSync(require.resolve('./nexus-politique-tarifaire-ecran.js'), 'utf8');
+  assert.ok(/\.pt-l-chiffre\{font-family:inherit;font-variant-numeric:tabular-nums/.test(src) && !/\.pt-l-chiffre\{[^}]*t-mono/.test(src), 'pastille en police de l\u2019interface');
+  assert.ok(/replace\(\/-\(\?=\\d\)\/g, '\\u2212'\)/.test(src), 'vrai signe moins');
+  assert.ok(/\.pt-verifier\{[^}]*font-weight:700;font-size:16px/.test(src), 'bouton principal 16 px gras');
+  assert.ok(/data-ctl-filtres="1" aria-expanded="/.test(src) && /max-width:899px\)\{[^@]*pt-ctl-cycles-ferme\{display:none!important\}/.test(src), 'Filtres (n) sous 900 px seulement');
+  assert.ok(/moinsTypo\(pct\(/.test(src) && /'Marge : ' \+ moinsTypo/.test(src), 'le détail aussi porte le vrai moins');
 });
