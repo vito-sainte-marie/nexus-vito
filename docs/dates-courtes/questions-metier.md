@@ -30,7 +30,7 @@ Produit sans EAN : réglé par l'arbitrage du 21/11.
 
 ## 4. EAN partagé entre deux fiches
 
-Problème : un même EAN pourrait désigner deux fiches catalogue. Aujourd'hui 0 cas connu (non mesuré en dehors de ce qui a été annoncé).
+Problème : un même EAN pourrait désigner deux fiches catalogue. Mesure de Guardian du 21/11 : 0 EAN partagé sur 784, dans chacune des deux dernières périodes d'import.
 
 Options :
 - A : la clé reste station + EAN + DLC ; le doublon d'EAN est signalé au manager.
@@ -76,4 +76,4 @@ Recommandation : table dédiée si la configuration de station n'est pas écriva
 
 ## 10. Couverture de la référence catalogue
 
-Problème : `normalized_products.external_product_id` est-il renseigné pour les produits sans EAN ? Non mesuré. Une lecture ciblée par site exige l'accord du pilote.
+Problème : `normalized_products.external_product_id` est-il renseigné pour les produits sans EAN ? Non mesuré. Guardian a mesuré que 6 EAN ont changé de libellé entre deux périodes : un libellé ne peut pas servir de clé. Une lecture ciblée par site exige l'accord du pilote.

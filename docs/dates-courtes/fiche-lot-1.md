@@ -49,6 +49,17 @@ Deux options pour l'éviter :
 
 Recommandation : A si la couverture de `external_product_id` est démontrée pour les produits sans EAN, sinon B. Cette couverture n'a pas été mesurée (aucune lecture Production sans GO). Voir `questions-metier.md`.
 
+Mesures de Guardian (commentaire du 21/11, lecture seule, deux dernières périodes d'import) :
+
+- Dans une même période, aucun EAN n'est porté par deux fiches : 0 sur 784 EAN dans la période en cours, 0 dans la précédente.
+- D'une période à l'autre, 6 EAN changent de libellé : 4 par ajout ou retrait d'une date en tête du libellé, 2 par renommage.
+
+Conséquences retenues :
+
+1. Avec la clé station + EAN + DLC, ces 6 produits restent dans un seul groupe d'une période à l'autre. Le libellé affiché est celui de la période la plus récente (`libelle_vu` reste une mémoire, jamais une clé).
+2. Pour un produit sans EAN, une clé fondée sur le libellé casserait dans ces cas. La référence retenue doit survivre à un changement de libellé. Aucune mesure ne démontre aujourd'hui qu'un identifiant stable existe dans les imports pour ces produits : l'option B (table de références propre au module, rattachée au produit choisi) est la solution de repli, sans code à ce stade.
+3. L'EAN partagé reste un cas à gérer (liste des fiches, choix explicite), mais il n'a aucune occurrence mesurée. Il ne justifie pas de complexité au lot 1.
+
 ## 6. Anti-doublon
 
 - Clé d'idempotence fabriquée sur l'appareil au moment du geste, envoyée avec l'opération.
