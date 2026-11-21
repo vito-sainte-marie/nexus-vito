@@ -1170,7 +1170,7 @@ ok('L3 : câblage (historique, popstate, Échap, focus, défilement) et CSS étr
   assert.ok(/window\.scrollTo\(0, etat\.ctlScroll \|\| 0\)/.test(src) && /preventScroll: true/.test(src));
   assert.ok(/max-width:899\.98px\)\{[^}]*data-mode=liste\]>\.pt-ctl-droite\{display:none\}/.test(src));
   assert.ok(/\.pt-ctl-retour,\.vue-p1c \.pt-ctl-suivant\{min-height:44px/.test(src) && /\.pt-actions>button\{flex:1 1 0;min-height:44px/.test(src));
-  assert.ok(/min-width:900px\)\{\.vue-p1c \.pt-ctl-retour,\.vue-p1c \.pt-ctl-suivant\{display:none\}/.test(src), 'bureau inchangé : retour et Suivant masqués');
+  assert.ok(/min-width:900px\)\{\.vue-p1c \.pt-ctl-retour\{display:none\}/.test(src) && !/min-width:900px\)\{[^}]*pt-ctl-suivant\{display:none/.test(src), 'bureau : Retour masqué, Passer au suivant visible');
 });
 ok('L3 : détail plein écran sous 900 px, position k / N, barre fixée en bas, titre produit sans fond', () => {
   const src = fs.readFileSync(require.resolve('./nexus-politique-tarifaire-ecran.js'), 'utf8');
@@ -1185,7 +1185,7 @@ ok('L3 : le détail porte le chiffre clé et l\'étiquette de preuve hors de « 
   const src = fs.readFileSync(require.resolve('./nexus-politique-tarifaire-ecran.js'), 'utf8');
   const i = src.indexOf('function htmlDetailControle'), j = src.indexOf('htmlCorpsControle(x.a', i);
   const seg = src.slice(i, j);
-  assert.ok(/data-ctl-chiffre="1"/.test(seg) && /pt-mono/.test(seg) && /data-axe="niveau"/.test(seg) && /pc\.chiffres/.test(seg) && /pc\.niveau/.test(seg), 'chiffre clé et niveau sous le titre');
+  assert.ok(/data-ctl-chiffre="1"/.test(seg) && /pt-num/.test(seg) && !/data-ctl-chiffre="1"><span class="pt-mono/.test(seg) && /data-axe="niveau"/.test(seg) && /pc\.chiffres/.test(seg) && /pc\.niveau/.test(seg), 'chiffre clé et niveau sous le titre');
   assert.ok(/suivant === undefined \? '<p class="pt-ctl-2 sc-methode">'/.test(src), 'le chiffre n\'est plus répété dans « Sources et calcul » du détail');
 });
 ok('L3 : vérifier en détail passe au contrôle suivant', () => {
@@ -1463,4 +1463,12 @@ ok('Design Contrôler : aucune ellipse sur les lignes et aucun title croisé', (
   const h = E.htmlPage({ analyse: avecControles(14), role: 'manager', estCreateur: false, filtres: {}, incoherences: [] });
   const bloc = h.slice(h.indexOf('data-ctl-liste'));
   assert.ok(!/ title="/.test(bloc.slice(0, bloc.indexOf('data-ctl-detail') > 0 ? bloc.indexOf('data-ctl-detail') : bloc.length)), 'aucune info-bulle sur les lignes');
+});
+
+ok('Retouches Guardian : pastille sans chasse fixe, vrai signe moins, bouton 16 px, Filtres (n) repliable', () => {
+  const src = fs.readFileSync(require.resolve('./nexus-politique-tarifaire-ecran.js'), 'utf8');
+  assert.ok(/\.pt-l-chiffre\{font-family:inherit;font-variant-numeric:tabular-nums/.test(src) && !/\.pt-l-chiffre\{[^}]*t-mono/.test(src), 'pastille en police de l\u2019interface');
+  assert.ok(/replace\(\/-\(\?=\\d\)\/g, '\\u2212'\)/.test(src), 'vrai signe moins');
+  assert.ok(/\.pt-verifier\{[^}]*font-weight:700;font-size:16px/.test(src), 'bouton principal 16 px gras');
+  assert.ok(/data-ctl-filtres="1" aria-expanded="/.test(src) && /max-width:899px\)\{[^@]*pt-ctl-cycles-ferme\{display:none\}/.test(src), 'Filtres (n) sous 900 px seulement');
 });
