@@ -7,6 +7,7 @@
 // ============================================================
 (function (global) {
   'use strict';
+  const TR = global.NexusTvaReglesPilote || (typeof require === 'function' ? require('./nexus-tva-regles-pilote.js') : null);
 
   const QUALIFICATIONS = {
     moteur: 'Produit moteur',
@@ -307,10 +308,13 @@
       const prevRow = prev && idxCur.get(normaliserNom(r.article)) === i && prev.idx.has(normaliserNom(r.article)) ? prev.rows[prev.idx.get(normaliserNom(r.article))] : null;
       const tvaP = prevRow ? (prevRow.tva === null || prevRow.tva === undefined || prevRow.tva === '' ? null : num(prevRow.tva)) : null;
       const autresTaxes = (rayonsTaxes.get(r.categorie || '') || 0) - (tva !== null && tva > 0 ? 1 : 0);
-      const confRow = trouverDeclaration(tvaConf, r, idxCur.get(normaliserNom(r.article)) === i);
+      // Registre d'abord ; à défaut, règle de rayon du pilote (même source que le Scanner), pour son site seulement.
+      const regleRayon = TR ? TR.regleDeRayon(r, site) : null;
+      const confReg = trouverDeclaration(tvaConf, r, idxCur.get(normaliserNom(r.article)) === i);
+      const confRow = confReg || (regleRayon ? { id: null, taux_confirme: regleRayon.taux_confirme, confirme_par: regleRayon.source, confirme_le: regleRayon.confirme_le, commentaire: null, source: regleRayon.source } : null);
       const et = etatTva(tva, tvaP, autresTaxes > 0, confRow, exportLe);
       m.tva = { etat: et.etat, taux_importe: tva, taux_retenu: et.etat === 'incoherente' ? null : et.taux, raison: et.raison, ecart_export: et.ecart_export === undefined ? null : et.ecart_export,
-        confirmation: confRow ? { id: confRow.id, taux: num(confRow.taux_confirme), confirme_par: confRow.confirme_par, confirme_le: confRow.confirme_le, commentaire: confRow.commentaire || null } : null };
+        confirmation: confRow ? { id: confRow.id, taux: num(confRow.taux_confirme), confirme_par: confRow.confirme_par, confirme_le: confRow.confirme_le, commentaire: confRow.commentaire || null, source: confRow.source || null } : null };
       if (pv === null) {
         m.pv_ttc = Object.assign(valeur(null, 'Calcul NEXUS', per, 'non_disponible', site), { mention: 'TTC non disponible' });
       } else if (et.etat === 'incoherente') {
