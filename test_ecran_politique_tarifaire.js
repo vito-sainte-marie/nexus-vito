@@ -1454,7 +1454,7 @@ ok('Design Contrôler : puces à libellé court, libellé complet en aria-label'
   assert.strictEqual(V.S6.court, 'Prix modifié sans décision');
   const h = E.htmlPage({ analyse: avecControles(14), role: 'manager', estCreateur: false, filtres: {}, incoherences: [] });
   assert.ok(/aria-label="Coût écarté du relevé de stock : \d+"/.test(h), 'libellé complet');
-  assert.ok(/data-ctl-cause="S2"[^>]*>Coût écarté du relevé <span/.test(h), 'libellé court affiché');
+  assert.ok(/data-ctl-cause="S2"[^>]*>(<svg class="pt-picto"[^>]*>.*?<\/svg>)?Coût écarté du relevé <span/.test(h), 'libellé court affiché');
 });
 ok('Design Contrôler : aucune ellipse sur les lignes et aucun title croisé', () => {
   const src = require('fs').readFileSync(require('path').join(__dirname, 'nexus-politique-tarifaire-ecran.js'), 'utf8');
