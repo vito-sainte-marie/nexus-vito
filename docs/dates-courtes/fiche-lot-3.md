@@ -8,11 +8,11 @@ Donner au manager un tableau de suivi des dates à venir, des quantités consoli
 
 ## 2. Alertes
 
-- Seuil : DLC dans moins de 60 jours.
+- Seuil : date limite dans moins de 60 jours (une seule date, sans type).
 - Bandes : expiré, 0 à 7 jours, 8 à 30 jours, 31 à 60 jours.
 - Ordre : expiré, puis jours croissants, puis quantité décroissante. Aucun score.
 - Grisé à 7 jours. Quantité masquée au delà de 14 jours.
-- Par ligne : produit et EAN, DLC, jours restants, quantité consolidée, historique des corrections, état de traitement, action du manager.
+- Par ligne : produit et EAN, date limite, jours restants, quantité consolidée, historique des corrections, état de traitement, action du manager.
 - Seuils complémentaires : propositions seulement, jamais appliquées sans arbitrage.
 - Aucune action automatique : ni promotion, ni destruction, ni démarque.
 
@@ -24,13 +24,15 @@ Donner au manager un tableau de suivi des dates à venir, des quantités consoli
 | Retiré physiquement | Renfort, manager |
 | Démarque comptabilisée | Manager (et profils supérieurs), jamais le renfort |
 
-Aucune intégration comptable inventée : « démarque comptabilisée » est un état que la personne habilitée pose à la main, avec sa trace. Savoir si le retrait réduit la quantité consolidée reste une question ouverte (`questions-metier.md`, point 6).
+Aucune intégration comptable inventée : « démarque comptabilisée » est un état que la personne habilitée pose à la main, avec sa trace. Le retrait physique diminue la quantité consolidée comme mouvement à part, ni correction ni démarque (8 moins 3 donnent 5) ; les unités retirées vont dans la liste « à comptabiliser » du manager.
 
 ## 4. Tableau de suivi du manager
 
 - Liste des groupes à échéance, filtrable par bande.
 - Détail d'un groupe : relevés, corrections, signalements, retraits, avec auteur, date et heure.
 - Actions : signaler, confirmer le retrait physique, comptabiliser la démarque, valider.
+- Liste « à comptabiliser » : les unités retirées physiquement et pas encore comptabilisées. Le renfort ne peut pas les marquer comptabilisées.
+- Liste des produits provisoires (EAN inconnu du catalogue) : le manager peut rattacher une ligne à la main à un produit sous un autre code (geste tracé : auteur, date). Un produit provisoire rejoint seul la fiche du catalogue quand son EAN apparaît dans un import.
 - Traçabilité : chaque action écrit une ligne append-only ; rien n'est supprimé.
 
 ## 5. Fiche de conception (section 7 du référentiel)
@@ -55,10 +57,9 @@ Aucune icône dessinée par l'assistant.
 
 - Aucun groupe de 60 jours ou plus n'apparaît.
 - Ordre de la liste conforme à la règle, vérifié sur jeu fictif.
-- Un renfort ne peut pas poser l'état « démarque comptabilisée » : refus serveur (cas 9).
+- Un renfort ne peut pas poser l'état « démarque comptabilisée » : refus serveur (cas 9). Alertes à 59 et 61 jours : cas 19 ; ordre du tableau : cas 20.
 - Aucune action automatique n'est créée sans geste humain.
 
 ## 7. Limites
 
 - Pas de lecture de ventes : la fiche n'estime pas de reste écoulé (hors périmètre).
-- La relation entre retrait physique et quantité consolidée n'est pas tranchée.

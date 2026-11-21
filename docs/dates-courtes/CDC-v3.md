@@ -1,32 +1,34 @@
-# Cahier des charges v3 : Dates courtes (DLC et DDM)
+# Cahier des charges v3 : Dates courtes
 
 Statut : brouillon de documentation. Aucun code, aucune migration, rien sur Test ni en Production.
 Cette version v3 est autonome : elle se lit sans la v2. Elle reprend l'arbitrage du 21/11 et l'emporte sur la v2 partout où elles divergent.
 
 ## 1. Objet
 
-Permettre à une station de relever les produits à date courte (DLC, DDM) en circulant librement dans le magasin, et de savoir à tout moment, produit par produit et date par date, combien d'unités ont été relevées et quand. Le module n'est pas un inventaire de stock. Il alimente un suivi par le manager : alertes à moins de 60 jours, signalements, retraits physiques.
+Permettre à une station de relever les produits à date limite en circulant librement dans le magasin, et de savoir à tout moment, produit par produit et date par date, combien d'unités ont été relevées et quand. Le module n'est pas un inventaire de stock. Il alimente un suivi par le manager : alertes à moins de 60 jours, signalements, retraits physiques.
 
 Vocabulaire imposé : « quantité relevée », jamais « stock ». Toute quantité affichée porte sa date de relevé ou son âge.
 
 ## 2. Principes arbitrés (21/11)
 
-1. Pas un inventaire de stock. Circulation libre : on scanne ou on cherche, on saisit la DLC et la quantité, on enregistre, on continue.
+1. Pas un inventaire de stock. Circulation libre : on scanne ou on cherche, on saisit la date limite et la quantité, on enregistre, on continue.
 2. Pas de zones. Aucun réglage de zone, aucun passage par zone, aucune ouverture ni clôture de zone, aucune confirmation d'absence en fin de zone, aucun remplacement zone par zone. Une session de travail peut subsister pour la traçabilité, sans clôture automatique ni découpage géographique.
 3. Identification d'un produit :
    - scan caméra sur iPhone Safari ;
    - recherche par nom ou par EAN ;
    - saisie manuelle de l'EAN si la lecture échoue ;
    - photo facultative ;
-   - EAN inconnu : entrée provisoire clairement marquée, aucune création automatique de référence ;
-   - produit sans EAN : identifié par son nom via la recherche rapide (suggestions dès les premières lettres, un geste). La clé n'est jamais le texte tapé mais la référence catalogue de la fiche choisie (voir fiche lot 1, section « Produit sans EAN »).
-4. Clé de consolidation : station + EAN normalisé + DLC exacte. 6 + 4 = 10, puis correction de moins 2 = 8, relevés et correction restent visibles. Deux DLC donnent deux groupes. Jamais de fusion sur le seul nom commercial.
-5. Corrections positives et négatives, chacune enregistrant produit et DLC, quantité, auteur, date et heure, motif s'il est donné, relevé ou groupe visé. La quantité consolidée n'est jamais négative. Deux actions distinctes : « Ajouter des unités » et « Corriger le relevé ». Une correction n'est ni une vente ni une démarque.
-6. Droits portés par le serveur, isolation stricte par `site_id` : le renfort a le contrôle complet ; le manager pareil plus la supervision et la validation ; la caissière n'a pas d'accès par défaut ; le pompiste n'a aucun accès opérationnel. Complément : l'accès de la caissière peut être activé dans les réglages de la station, par trois profils seulement : manager, gérant, créateur. Fermé par défaut.
-7. Retraits en trois états : signalé, retiré physiquement, démarque comptabilisée. Le renfort peut confirmer le retrait physique, jamais le comptabiliser. Aucune intégration comptable inventée.
-8. Alertes à DLC de moins de 60 jours. Affichés : produit et EAN, DLC, jours restants, quantité consolidée, historique des corrections, état de traitement, action du manager. Les seuils complémentaires ne sont que des propositions. Rien d'automatique (promotion, destruction, démarque).
-9. États de synchronisation : Enregistré, En attente, Refusé. Une opération renvoyée compte une fois. Tests de corrections simultanées et de reprise après coupure.
-10. Parcours : ouvrir, scanner ou chercher, saisir DLC et quantité, enregistrer, continuer. Accès rapide aux produits déjà relevés et aux corrections.
+   - EAN inconnu : entrée provisoire portant l'EAN lu et un nom libre facultatif, clairement marquée « provisoire », aucune création de référence. Elle rejoint la fiche du catalogue d'elle-même quand l'EAN apparaît dans un import. Le manager voit la liste des produits encore provisoires et peut rattacher une ligne à la main (geste tracé) ;
+   - produit sans EAN : identifié par son nom via la recherche rapide (suggestions dès les premières lettres, un geste). La clé est le libellé normalisé (date en tête retirée, casse et espaces unifiés), jamais le texte tapé. Un geste manager tracé « même produit que… » traite un renommage (voir fiche lot 1, section 5).
+4. Une seule date est saisie, la « Date limite », sans type : DLC et DDM sont traitées de la même façon (même clé, mêmes seuils, même règle).
+5. Clé de consolidation : station + EAN normalisé + date limite exacte (sans EAN : libellé normalisé). 6 + 4 = 10, puis correction de moins 2 = 8, relevés et correction restent visibles. Deux dates limites donnent deux groupes. Jamais de fusion sur le seul nom commercial.
+6. Tournée. Les relevés d'un même groupe dans la même tournée s'additionnent (4 au frigo + 3 en gondole = 7). Le premier relevé d'un groupe dans une nouvelle tournée remplace la quantité de la tournée précédente ; les suivants s'y ajoutent. Un groupe non recompté garde sa dernière quantité, affichée avec son âge (« relevé il y a 8 jours »), sans jamais s'additionner. L'employé ne choisit rien. Une tournée n'est jamais fermée : par défaut une par semaine calendaire (lundi 00:00, heure de la Martinique), et un manager, un gérant ou un créateur peut en ouvrir une à la main (geste tracé). « Corriger le relevé » reste pour les erreurs de saisie.
+7. Corrections positives et négatives, chacune enregistrant produit et date limite, quantité, auteur, date et heure, motif s'il est donné, relevé ou groupe visé. La quantité consolidée n'est jamais négative. Deux actions distinctes : « Ajouter des unités » et « Corriger le relevé ». Une correction n'est ni une vente ni une démarque.
+8. Droits portés par le serveur, isolation stricte par `site_id` : le renfort a le contrôle complet ; le manager pareil plus la supervision et la validation ; la caissière n'a pas d'accès par défaut ; le pompiste n'a aucun accès opérationnel. Complément : l'accès de la caissière peut être activé dans les réglages de la station, par trois profils seulement : manager, gérant, créateur. Fermé par défaut.
+9. Retraits en trois états : signalé, retiré physiquement, démarque comptabilisée. Le renfort peut confirmer le retrait physique, jamais le comptabiliser. Le retrait physique diminue la quantité consolidée comme mouvement à part (ni correction ni démarque) : 8 relevés moins 3 retirés donnent 5, et les 3 vont dans la liste « à comptabiliser » du manager. Aucune intégration comptable inventée.
+10. Alertes à date limite de moins de 60 jours. Affichés : produit et EAN, date limite, jours restants, quantité consolidée, historique des corrections, état de traitement, action du manager. Les seuils complémentaires ne sont que des propositions. Rien d'automatique (promotion, destruction, démarque).
+11. États de synchronisation : Enregistré, En attente, Refusé. Une opération renvoyée compte une fois. Tests de corrections simultanées et de reprise après coupure.
+12. Parcours : ouvrir, scanner ou chercher, saisir la date limite et la quantité, enregistrer, continuer. Accès rapide aux produits déjà relevés et aux corrections.
 
 ## 3. Règles conservées de la v2
 
@@ -49,7 +51,7 @@ Sept lots conservés. Seuls les lots 1 à 3 sont fiches ici.
 
 | Lot | Contenu |
 |---|---|
-| 1 | Socle métier et données : relevés, corrections, consolidation station + EAN + DLC, historique, anti-doublon, droits, isolation multisite |
+| 1 | Socle métier et données : relevés, corrections, consolidation station + EAN + date limite, tournées, historique, anti-doublon, droits, isolation multisite |
 | 2 | Parcours mobile : scan caméra, recherche, saisie rapide, corrections, maquettes Jour et Nuit, recette iPhone Safari |
 | 3 | Exploitation et alertes : échéances, tableau de suivi du manager, quantités consolidées, signalements et retraits physiques, traçabilité des actions |
 | 4 à 7 | Rien n'est anticipé sans besoin démontré. Renumérotation à faire à partir de ce qui reste de la v2 |
@@ -71,4 +73,4 @@ Promotion, destruction, démarque automatique ; intégration comptable ; zones ;
 
 - La v2 n'a pas été relue dans le dépôt : ses règles sont reprises du message d'arbitrage.
 - Les noms de tables et de colonnes sont des propositions, non vérifiées contre la base Production.
-- Rien n'est mesuré sur Test ni en Production.
+- Une mesure en Production a été faite par Guardian (lecture seule, 21/11) : `normalized_products` est vide, d'où la clé sur le libellé normalisé. Rien d'autre n'est mesuré, rien sur Test.

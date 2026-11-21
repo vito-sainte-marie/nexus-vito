@@ -4,61 +4,69 @@ Statut : documentation. Aucun code ni migration.
 
 ## 1. Objectif
 
-Poser le modèle de relevé et de consolidation : relevés, corrections, groupes station + EAN + DLC, historique, anti-doublon, droits, isolation multisite.
+Poser le modèle de relevé et de consolidation : relevés, corrections, tournées, groupes station + EAN + date limite, historique, anti-doublon, droits, isolation multisite.
+
+Une seule date est saisie, la « Date limite », sans type : DLC et DDM sont traitées de la même façon (même clé, mêmes seuils, même règle).
 
 ## 2. Ce que le lot livre (une fois codé, plus tard)
 
-- Table de relevés append-only, table de corrections append-only, vue ou fonction de consolidation.
+- Table de relevés append-only, table de corrections append-only, tables de tournées et de correspondances, vue ou fonction de consolidation.
 - Droits portés par le serveur (voir `matrice-permissions.md`).
 - Réglage de station d'ouverture de l'accès caissière.
 - Détail des tables et clés : `modele-donnees.md`.
 
 ## 3. Règles de consolidation
 
-- Clé de groupe : station + EAN normalisé + DLC exacte.
-- Quantité consolidée = somme des relevés non annulés + somme des corrections (positives et négatives) non annulées, jamais inférieure à zéro.
-- Exemple : 6 et 4 donnent 10 ; correction de moins 2 donne 8. Les deux relevés et la correction restent visibles.
-- Deux DLC pour un même EAN : deux groupes.
+- Clé de groupe : station + EAN normalisé + date limite exacte. Sans EAN : station + libellé normalisé + date limite exacte (section 5).
+- Deux dates limites pour un même EAN : deux groupes.
 - Jamais de fusion sur le nom commercial seul.
 - Normalisation de l'EAN : chiffres seuls, EAN-8 et EAN-13 avec contrôle de la clé ; un UPC ou un code interne n'est pas converti de force en EAN.
+
+Tournée (l'employé ne choisit rien, le serveur rattache le relevé à la tournée en cours) :
+
+- Les relevés d'un même groupe dans la même tournée s'additionnent : 4 au frigo et 3 en gondole donnent 7.
+- Le premier relevé d'un groupe dans une nouvelle tournée remplace la quantité de la tournée précédente ; les relevés suivants de la même tournée s'y ajoutent.
+- Un groupe non recompté dans la tournée en cours garde sa dernière quantité, affichée avec son âge (« relevé il y a 8 jours »). Il ne s'additionne jamais avec la tournée précédente.
+- Une tournée n'est jamais fermée. Par défaut, une par semaine calendaire (lundi 00:00, heure de la Martinique), par station. Un manager, un gérant ou un créateur peut en ouvrir une à la main (geste tracé). Proposition à valider par Guardian.
+- « Corriger le relevé » reste réservé aux erreurs de saisie.
+
+Quantité consolidée d'un groupe : somme des relevés non annulés de la tournée en cours, plus les corrections non annulées de la tournée, moins les retraits physiques, jamais inférieure à zéro.
+
+- Exemple : 6 et 4 donnent 10 ; correction de moins 2 donne 8. Les deux relevés et la correction restent visibles.
+- Les relevés, corrections et retraits de toutes les tournées restent affichés sous le groupe.
 
 ## 4. Corrections
 
 - « Ajouter des unités » : ajoute un relevé au groupe, sans toucher à l'existant.
 - « Corriger le relevé » : écrit une correction signée (positive ou négative) liée à un relevé ou à un groupe.
-- Chaque correction enregistre produit et DLC, quantité, auteur, date et heure, motif s'il est donné, cible.
+- Chaque correction enregistre produit et date limite, quantité, auteur, date et heure, motif s'il est donné, cible.
 - Changement de date : une correction moins n sur l'ancien groupe et une plus n sur le nouveau, liées entre elles.
 - Annulation : trace conservée, motif obligatoire.
 - Plancher à zéro : vérifié côté serveur sous verrou de ligne sur le groupe. Une correction qui ferait passer sous zéro est refusée, avec le refus visible.
 - Une correction n'est ni une vente ni une démarque.
 
-## 5. Produit sans EAN
+## 5. Produit sans EAN et EAN inconnu
 
-Cas : pain, viennoiserie ou produit sans code-barres. Identification par le nom via la recherche rapide (suggestions dès les premières lettres, un geste). La clé est station + référence catalogue de la fiche choisie + DLC exacte. Jamais le texte tapé.
+Cas : pain, viennoiserie ou produit sans code-barres. Identification par le nom via la recherche rapide (suggestions dès les premières lettres, un geste).
 
-Stabilité de la référence catalogue, vérifiée dans le schéma :
+Clé retenue : station + libellé normalisé + date limite exacte. Libellé normalisé : date en tête retirée, casse et espaces unifiés. `libelle_vu` reste une mémoire d'affichage.
 
-- La table `products` contient une ligne par produit et par période d'import (`periode_debut`, `periode_fin`). Son `id` change à chaque période : il ne peut pas servir de clé stable. `article` est un libellé libre, `code_barres` est facultatif.
-- Le candidat stable est `normalized_products.external_product_id` (unique par site, avec `barcode`, `label`, `product_id`), qui évite déjà toute identification par libellé.
-- Si l'on clé sur `products.id`, deux imports de période différente donneraient deux groupes pour le même produit physique.
+Constat de Guardian, Production, lecture seule, filtrée sur la station, sur GO du pilote (21/11) :
 
-Deux options pour l'éviter :
+- `normalized_products` est vide en Production : `external_product_id` ne peut pas servir de clé.
+- Deux dernières périodes d'import : 64 articles sans EAN dans la dernière, 56 dans la précédente. 48 retrouvés avec un libellé identique, 49 avec un libellé normalisé, 0 doublon de libellé normalisé dans une même période.
+- Les 15 autres sont surtout hors périmètre (cartes prépayées, timbre, consigne gaz, codes promo) ou de vraies nouveautés. Un seul renommage alimentaire : « Pain Chocolat - 68P » devient « Pain Chocolat - 96P ».
+- Pour les produits avec EAN : dans une même période, aucun EAN n'est porté par deux fiches (0 sur 784 dans la période en cours, 0 dans la précédente). D'une période à l'autre, 6 EAN changent de libellé : 4 par date en tête, 2 par renommage. La clé EAN les garde dans un seul groupe.
 
-- Option A : clé sur `normalized_products.external_product_id`. Pas de nouvelle table. Dépend du fait que cet identifiant est renseigné pour les produits concernés.
-- Option B : table de références dédiée au module (identifiant stable propre, rattachée au produit choisi, créée au premier relevé). Indépendante de l'import, mais ajoute une table à entretenir.
+Renommage : un geste manager tracé « même produit que… » (table de correspondances, annulable, rarement utilisé) rattache l'ancien libellé au nouveau, historique intact. Le renfort ne peut pas le poser. Tant que rien n'est fait, les deux libellés donnent deux groupes.
 
-Recommandation : A si la couverture de `external_product_id` est démontrée pour les produits sans EAN, sinon B. Cette couverture n'a pas été mesurée (aucune lecture Production sans GO). Voir `questions-metier.md`.
+Contrôle prévu : une liste des groupes dont le libellé normalisé disparaît d'un import à l'autre, pour que le manager les rattache. La couverture au delà des deux périodes mesurées n'est pas mesurée.
 
-Mesures de Guardian (commentaire du 21/11, lecture seule, deux dernières périodes d'import) :
+EAN inconnu du catalogue :
 
-- Dans une même période, aucun EAN n'est porté par deux fiches : 0 sur 784 EAN dans la période en cours, 0 dans la précédente.
-- D'une période à l'autre, 6 EAN changent de libellé : 4 par ajout ou retrait d'une date en tête du libellé, 2 par renommage.
-
-Conséquences retenues :
-
-1. Avec la clé station + EAN + DLC, ces 6 produits restent dans un seul groupe d'une période à l'autre. Le libellé affiché est celui de la période la plus récente (`libelle_vu` reste une mémoire, jamais une clé).
-2. Pour un produit sans EAN, une clé fondée sur le libellé casserait dans ces cas. La référence retenue doit survivre à un changement de libellé. Aucune mesure ne démontre aujourd'hui qu'un identifiant stable existe dans les imports pour ces produits : l'option B (table de références propre au module, rattachée au produit choisi) est la solution de repli, sans code à ce stade.
-3. L'EAN partagé reste un cas à gérer (liste des fiches, choix explicite), mais il n'a aucune occurrence mesurée. Il ne justifie pas de complexité au lot 1.
+- L'entrée provisoire porte l'EAN lu et un nom libre facultatif, marquée « provisoire ». NEXUS ne crée aucune référence.
+- Quand l'EAN apparaît dans un import, le groupe rejoint la fiche du catalogue de lui-même, historique intact, marque retirée.
+- Le manager voit la liste des produits encore provisoires et peut rattacher une ligne à la main à un produit sous un autre code (geste tracé : auteur, date ; renfort refusé).
 
 ## 6. Anti-doublon
 
@@ -70,14 +78,16 @@ Conséquences retenues :
 
 - `site_id` obligatoire sur chaque ligne ; politique de sécurité par ligne limitée au site de l'employé ; aucun accès `anon`.
 - Pas de suppression. Mise à jour limitée aux colonnes d'annulation.
-- Accès caissière : activé par réglage de station, seulement par manager, gérant ou créateur ; refusé par le serveur à toute autre personne, y compris renfort et caissière. Valable pour la station concernée uniquement.
+- Accès caissière : activé par réglage de station, seulement par manager, gérant ou créateur ; refusé par le serveur à toute autre personne, y compris renfort et caissière. Valable pour la station concernée uniquement. Portée de lecture (ses propres relevés) et emplacement du réglage : hypothèses de travail.
+- Ouverture manuelle d'une tournée, rattachement d'un produit provisoire et geste « même produit que… » : manager, gérant, créateur ; refusés au renfort et à la caissière.
 
 ## 8. Recettes du lot
 
-Voir `plan-recette.md` : cas 1, 2, 3, 4, 5, 6, 7, 8, 10 et recettes caissière et produit sans EAN.
+Voir `plan-recette.md` : cas 1 à 5, 6b, 6c, 7, 8, 10, 12 à 17, 16b, 21 à 26 (et 6, 15, 24 pour la part lot 1).
 
 ## 9. Limites
 
 - Aucun nom de colonne n'est figé avant validation.
-- Couverture réelle de `external_product_id` non mesurée.
+- Couverture du libellé normalisé mesurée sur deux périodes seulement.
+- Noms de rôles du serveur à vérifier contre la base.
 - Rien n'a été joué sur Test.

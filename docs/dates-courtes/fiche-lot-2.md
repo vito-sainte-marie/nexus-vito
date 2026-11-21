@@ -4,17 +4,17 @@ Statut : documentation. Application de NEXUS-REFERENTIEL-CONCEPTION v1.0 (fiche 
 
 ## 1. Objectif
 
-Un employé circule librement, relève un produit en quelques gestes, d'une main, sur iPhone Safari : scanner ou chercher, saisir DLC et quantité, enregistrer, continuer.
+Un employé circule librement, relève un produit en quelques gestes, d'une main, sur iPhone Safari : scanner ou chercher, saisir la date limite et la quantité, enregistrer, continuer.
 
 ## 2. Parcours
 
 1. Ouvrir le relevé (aucune zone à choisir).
 2. Scanner l'EAN (caméra), ou chercher par nom ou EAN, ou saisir l'EAN à la main si la lecture échoue.
-3. Saisir la DLC puis la quantité.
+3. Saisir la date limite (une seule date, sans type) puis la quantité.
 4. Enregistrer. L'écran revient prêt pour le produit suivant.
-5. Accès rapide aux produits déjà relevés et aux corrections.
+5. Accès rapide aux produits déjà relevés et aux corrections. Un groupe non recompté dans la tournée en cours s'affiche avec son âge (« relevé il y a 8 jours »), sans que l'employé choisisse quoi que ce soit.
 
-Produit sans EAN : recherche rapide par nom à une main, suggestions dès les premières lettres, les produits sans EAN déjà relevés dans la station proposés en premier. EAN inconnu : entrée provisoire marquée, sans création de référence.
+Produit sans EAN : recherche rapide par nom à une main, suggestions dès les premières lettres sur le libellé normalisé, les produits sans EAN déjà relevés dans la station proposés en premier. EAN inconnu : entrée provisoire marquée « provisoire », avec un nom libre facultatif, sans création de référence.
 
 Photo facultative, jamais bloquante.
 
@@ -24,7 +24,7 @@ Les 11 points sont à remplir à la conception détaillée, avant tout code. Ét
 
 | # | Point | État |
 |---|---|---|
-| 1 | Tâche principale de l'écran | Relever un produit : scanner ou chercher, DLC, quantité, enregistrer |
+| 1 | Tâche principale de l'écran | Relever un produit : scanner ou chercher, date limite, quantité, enregistrer |
 | 2 | Qui, où, avec quoi | Renfort ou manager, en magasin, iPhone une main |
 | 3 | Niveau de conception (1 à 3) | Niveau 3 proposé (parcours de saisie répété, écran inédit) à confirmer par Guardian |
 | 4 | Canevas (A à E) | À choisir à la conception : saisie rapide, plutôt canevas de saisie |
@@ -47,7 +47,7 @@ Aucune icône dessinée par l'assistant : les icônes viennent du pilote.
 
 ## 5. Critères mesurables
 
-- Un relevé complet (scan, DLC, quantité, enregistrement) en au plus 4 gestes après le scan, mesuré sur parcours chronométré.
+- Un relevé complet (scan, date limite, quantité, enregistrement) en au plus 4 gestes après le scan, mesuré sur parcours chronométré.
 - Aucune cible tactile sous 44 px, aucun débordement horizontal à 375 px.
 - Les trois états de synchronisation visibles sur chaque ligne.
 - Scan réel Safari iOS, y compris EAN à 90 degrés : réussi ou marqué « non fait ».
