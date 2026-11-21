@@ -1,7 +1,7 @@
 -- NEXUS Scanner tarifaire : assertions de la migration 20261121100000 (le compte createur peut ANNULER une verification, mais ne verifie toujours pas), en transaction, puis ROLLBACK. Cible : Test.
 -- Prerequis : les migrations 20261118120000, 20261120100000 ET 20261121100000 sont deja appliquees sur Test (ce script ne les applique pas ; il s'arrete avant toute ecriture si l'une manque).
 -- Comptes et lots fictifs, crees DANS la transaction (ids 00000000-0000-4000-8000-0000000e02xx), annules par le rollback. Aucun libelle reel : articles « essai-c... ».
--- Les drapeaux sites.acces_createur_autorise sont fixes DANS la transaction (vrai sur site-fantome-test, faux sur nexus-station-test) puis defaits par le rollback.
+-- Les drapeaux sites.acces_createur_autorise sont LUS, jamais modifies (non modifies : C04 et C07 non couverts sur Test).
 -- Aucune ecriture hors transaction. Sortie : le rapport est porte par un `raise exception 'RAPPORT_53 ...'` final (JSON, un verdict par assertion C01 a C10), qui defait tout.
 begin;
 do $garde_recette$
@@ -88,11 +88,11 @@ insert into import_batches(id, site, intention, fichier_hash) values
   ('00000000-0000-4000-8000-00000000f105', 'site-fantome-test', 'stock_theorique', 'H3');
 
 
-update sites set acces_createur_autorise = true where site_id = 'site-fantome-test';
-update sites set acces_createur_autorise = false where site_id = 'nexus-station-test';
+-- Aucune ecriture sur sites : le drapeau acces_createur_autorise appartient au client (trigger nexus_acces_createur_immuable). C04 et C07 ne sont donc pas couverts sur Test (aucun site de recette a drapeau faux).
 
 select pg_temp.note('C00 comptes de recette trouves (8 attendus)', '8', (select count(*)::text from employees where id::text like '00000000-0000-4000-8000-0000000e02%' and compte_test));
 select pg_temp.note('C00 deux politiques d annulation avec branche createur', '2', (select count(*)::text from pg_policies where policyname = 'annulation_roles_meme_site' and qual like '%je_suis_createur%'));
+select pg_temp.note('C00 drapeaux acces_createur_autorise vrais sur les 3 sites de recette', 'true', pg_temp.val($q$select (count(*) = 3 and bool_and(acces_createur_autorise))::text from sites where site_id in ('site-fantome-test','nexus-station-test','vito-sainte-marie')$q$));
 
 -- C01 : un manager marque, le createur annule sa saisie. L'heure est fixee par le serveur, annule_par est le createur.
 select pg_temp.comme('authenticated', pg_temp.u('mA'));
@@ -118,14 +118,6 @@ select pg_temp.note('C03 le createur ne marque pas verifie', 'tarif_verif_create
 select pg_temp.note('C03 aucune verification creee par le createur', '0', pg_temp.val($q$select count(*)::text from tarif_anomalies_verifications where article='essai-c3'$q$));
 reset role;
 
--- C04 : site sans acces createur autorise : 0 ligne (nexus-station-test a le drapeau a faux).
-select pg_temp.comme('authenticated', pg_temp.u('mB'));
-select pg_temp.note('C04 mB marque essai-c4 sur l autre site', 'ok n=1', pg_temp.tente(pg_temp.marque(pg_temp.js('essai-c4','00000000-0000-4000-8000-00000000f103','H1'))));
-reset role;
-select pg_temp.comme('authenticated', pg_temp.u('cA'));
-select pg_temp.note('C04 le createur n annule pas sur un site sans acces createur autorise (0 ligne)', 'ok n=0', pg_temp.tente(format($q$update tarif_anomalies_verifications set annule_le=now(), annule_par=%L, motif_annulation='essai' where article='essai-c4'$q$, pg_temp.u('cA'))));
-reset role;
-
 -- C05 : une ligne deja annulee n'est pas reprise.
 select pg_temp.comme('authenticated', pg_temp.u('cA'));
 select pg_temp.note('C05 le createur ne reprend pas une ligne deja annulee (0 ligne)', 'ok n=0', pg_temp.tente(format($q$update tarif_anomalies_verifications set annule_le=now(), annule_par=%L, motif_annulation='autre' where article='essai-c1'$q$, pg_temp.u('cA'))));
@@ -138,13 +130,6 @@ reset role;
 select pg_temp.comme('authenticated', pg_temp.u('cA'));
 select pg_temp.note('C06 le createur ne modifie pas une autre colonne', '42501', pg_temp.tente($q$update tarif_anomalies_verifications set article='essai-c6-bis' where article='essai-c6'$q$));
 reset role;
-
--- C07 : drapeau coupe sur le site : le createur n'annule plus rien.
-update sites set acces_createur_autorise = false where site_id = 'site-fantome-test';
-select pg_temp.comme('authenticated', pg_temp.u('cA'));
-select pg_temp.note('C07 drapeau coupe : le createur n annule pas (0 ligne)', 'ok n=0', pg_temp.tente(format($q$update tarif_anomalies_verifications set annule_le=now(), annule_par=%L, motif_annulation='essai' where article='essai-c6'$q$, pg_temp.u('cA'))));
-reset role;
-update sites set acces_createur_autorise = true where site_id = 'site-fantome-test';
 
 -- C08 : reevaluations, meme comportement que les verifications.
 select pg_temp.comme('authenticated', pg_temp.u('mA'));

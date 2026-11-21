@@ -44,4 +44,11 @@ ep('aucun identifiant de lot n\'est inséré deux fois dans le script', () => {
     assert.deepStrictEqual(doublons, [], 'identifiant inséré deux fois : ' + doublons.join(','));
   });
 });
+ep('aucun update sites dans le script (le drapeau acces_createur_autorise est immuable)', () => {
+  [corps, exec.slice(exec.indexOf('-- >>> DEBUT corps de 53_annulation_createur.sql'))].forEach(txt => {
+    const code = txt.split('\n').filter(l => !/^\s*--/.test(l)).join('\n');
+    assert.ok(!/update\s+(public\.)?sites\b/i.test(code), 'update sites interdit');
+    assert.ok(!/essai-c4|C04 |C07 /.test(code), 'C04 et C07 ne sont pas couverts sur Test');
+  });
+});
 console.log(ok + ' épreuves OK');
