@@ -853,6 +853,16 @@
     return '<button type="button" class="sc-ind sc-ambre pt-carte-ctl" data-carte="controles_a_effectuer" aria-label="Contrôles à effectuer : ' + n + ', ouvrir la liste"><span class="sc-ind-val">' + n + '</span><span class="sc-ind-lib">' + (n > 1 ? 'contrôles' : 'contrôle') + ' sur ' + m + (m > 1 ? ' références' : ' référence') + '</span><span class="sc-ind-sous">' + esc(libellePeriode(s.periode)) + ' · un contrôle n\'est pas une erreur constatée</span></button>';
   }
   // Câblage commun page et banc : ouverture du bloc des contrôles (carte, Conseiller) et du champ de commentaire. Aucune écriture.
+  // Commentaire saisi pour CE contrôle : seul le champ dont l'article ET la cause sont ceux du bouton cliqué compte.
+  // Aucun autre champ ouvert (autre contrôle, ancien rendu) ne peut fournir le texte. Page et banc.
+  function commentaireDuControle(zone, article, code) {
+    var champs = zone && zone.querySelectorAll ? zone.querySelectorAll('textarea.pt-verif-com') : [];
+    for (var i = 0; i < champs.length; i++) {
+      var d = champs[i].dataset || {};
+      if (d.comArticle === String(article) && d.comCode === String(code)) return champs[i].value || '';
+    }
+    return '';
+  }
   // Effet commun d'une vérification enregistrée : la ligne passe « vérifiée » (elle quitte la liste active), message daté. Page et banc.
   function effetVerificationEnregistree(an, etat, auteur, idVerif, extra) {
     var cycleAvant = an.cycle || 'nouvelle', cleAn = null;
@@ -875,7 +885,10 @@
         verifie_le: ex.verifieLe || new Date().toISOString(), identiteDonnees: { fichierHash: (an.identiteDonnees || {}).fichierHash || ex.fichierHash || null, dateReleve: ex.dateReleve || (an.identiteDonnees || {}).dateReleve || null },
         commentaire: ex.commentaire || null, auteur: auteur || null, reevaluation: null });
     }
-    etat.messageVerif = MSG_VERIF_OK;
+    var artMsg = null;
+    try { tousControles(etat.analyse).forEach(function (x) { if (x.a === an) artMsg = x.l.article; }); } catch (e2) {}
+    var comMsg = extra && extra.commentaire ? String(extra.commentaire) : '';
+    etat.messageVerif = artMsg ? 'Vérification enregistrée pour ' + artMsg + (comMsg ? ' (commentaire : ' + comMsg + ')' : ' (sans commentaire)') + '. Contrôle suivant ouvert.' : MSG_VERIF_OK;
     etat.erreurEcriture = null; etat.messageAnnul = null; etat.erreurAnnul = null; etat.annulOuverte = false; etat.annulMotif = '';
     etat.derniereVerif = idVerif ? { an: an, id: idVerif, cle: cleAn, cycleAvant: cycleAvant } : null;
   }
@@ -1213,7 +1226,7 @@
     } catch (e) { return { fourni: false, erreur: true }; }
   }
   var API = { estDemarque: estDemarque, lignesControle: lignesControle, nombreReleve: nombreReleve, lotStockPublie: lotStockPublie, lignesStockDepuisLot: lignesStockDepuisLot, chargerStockPublie: chargerStockPublie, TVA_CONFIRMATIONS_PILOTE: TVA_CONFIRMATIONS_PILOTE, cartes: cartes, scenarios: scenarios, alertesCartes: alertesCartes, trier: trier, filtrer: filtrer, valeursFiltres: valeursFiltres,
-    preuves: preuves, conseiller: conseiller, lierOuvertures: lierOuvertures, effetVerificationEnregistree: effetVerificationEnregistree, annulerVerification: annulerVerification, motifAnnulationValide: motifAnnulationValide, messageErreurAnnulation: messageErreurAnnulation, fiche: fiche, etatAcces: etatAcces, peutVoirOnglet: peutVoirOnglet, filtrerSite: filtrerSite,
+    preuves: preuves, conseiller: conseiller, lierOuvertures: lierOuvertures, effetVerificationEnregistree: effetVerificationEnregistree, commentaireDuControle: commentaireDuControle, annulerVerification: annulerVerification, motifAnnulationValide: motifAnnulationValide, messageErreurAnnulation: messageErreurAnnulation, fiche: fiche, etatAcces: etatAcces, peutVoirOnglet: peutVoirOnglet, filtrerSite: filtrerSite,
     regimeDe: regimeDe, contexteDeclaratif: contexteDeclaratif, construireContexteTarif: construireContexteTarif, stockParLibelle: stockParLibelle, controle: controle, familles: familles, avertissementRegime: avertissementRegime, infoRegime: infoRegime, badgeRegime: badgeRegime, badgeLigne: badgeLigne, blocFiche: blocFiche,
     chargerRegistres: chargerRegistres, chargerVerifications: chargerVerifications, historiqueLignes: historiqueLignes, htmlHistorique: htmlHistorique, chargerVentes: chargerVentes, lireCompte: lireCompte, libellePeriode: libellePeriode,
     reevaluationsAEcrire: reevaluationsAEcrire, enregistrerReevaluations: enregistrerReevaluations, htmlPage: htmlPage, htmlControlesAFaire: htmlControlesAFaire, htmlDetailHistorique: htmlDetailHistorique, htmlLigne: htmlLigne, htmlControle: htmlControle, htmlFiche: htmlFiche, carteMarge: carteMarge, AXES: AXES, NOTE_PISTES: NOTE_PISTES, axeCourant: axeCourant, compteursAxes: compteursAxes, htmlMarge: htmlMarge, ficheMarge: ficheMarge, peutVerifier: peutVerifier, commentaireValide: commentaireValide, messageApresEcriture: messageApresEcriture, messageErreurEcriture: messageErreurEcriture, payloadVerification: payloadVerification, LIMITE_COMMENTAIRE: LIMITE_COMMENTAIRE, graviteLigne: graviteLigne, CSS: CSS };
