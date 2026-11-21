@@ -1,0 +1,64 @@
+# Fiche lot 3 : exploitation et alertes
+
+Statut : documentation. Application de NEXUS-REFERENTIEL-CONCEPTION v1.0 (fiche de la section 7, 11 points). Aucun code.
+
+## 1. Objectif
+
+Donner au manager un tableau de suivi des dates à venir, des quantités consolidées, des signalements et des retraits physiques, avec la trace de chaque action.
+
+## 2. Alertes
+
+- Seuil : DLC dans moins de 60 jours.
+- Bandes : expiré, 0 à 7 jours, 8 à 30 jours, 31 à 60 jours.
+- Ordre : expiré, puis jours croissants, puis quantité décroissante. Aucun score.
+- Grisé à 7 jours. Quantité masquée au delà de 14 jours.
+- Par ligne : produit et EAN, DLC, jours restants, quantité consolidée, historique des corrections, état de traitement, action du manager.
+- Seuils complémentaires : propositions seulement, jamais appliquées sans arbitrage.
+- Aucune action automatique : ni promotion, ni destruction, ni démarque.
+
+## 3. Retraits en trois états
+
+| État | Qui peut le poser |
+|---|---|
+| Signalé | Renfort, manager |
+| Retiré physiquement | Renfort, manager |
+| Démarque comptabilisée | Manager (et profils supérieurs), jamais le renfort |
+
+Aucune intégration comptable inventée : « démarque comptabilisée » est un état que la personne habilitée pose à la main, avec sa trace. Savoir si le retrait réduit la quantité consolidée reste une question ouverte (`questions-metier.md`, point 6).
+
+## 4. Tableau de suivi du manager
+
+- Liste des groupes à échéance, filtrable par bande.
+- Détail d'un groupe : relevés, corrections, signalements, retraits, avec auteur, date et heure.
+- Actions : signaler, confirmer le retrait physique, comptabiliser la démarque, valider.
+- Traçabilité : chaque action écrit une ligne append-only ; rien n'est supprimé.
+
+## 5. Fiche de conception (section 7 du référentiel)
+
+| # | Point | État |
+|---|---|---|
+| 1 | Tâche principale | Savoir quoi traiter aujourd'hui et le suivre |
+| 2 | Qui, où, avec quoi | Manager, gérant, créateur ; mobile et bureau |
+| 3 | Niveau (1 à 3) | À confirmer par Guardian |
+| 4 | Canevas (A à E) | Liste priorisée avec panneau de détail, à choisir |
+| 5 | Action principale | Traiter le groupe (confirmer le retrait physique) |
+| 6 | États | Vide, chargement, refus, hors ligne |
+| 7 | Textes | Sans tiret, « quantité relevée », jamais « stock » |
+| 8 | Cibles 44 px | À mesurer |
+| 9 | Jour et Nuit | Maquettes obligatoires |
+| 10 | Test de compréhension Guardian | À planifier |
+| 11 | Recette Safari iOS | Appareil réel, sinon « non fait » |
+
+Aucune icône dessinée par l'assistant.
+
+## 6. Critères mesurables
+
+- Aucun groupe de 60 jours ou plus n'apparaît.
+- Ordre de la liste conforme à la règle, vérifié sur jeu fictif.
+- Un renfort ne peut pas poser l'état « démarque comptabilisée » : refus serveur (cas 9).
+- Aucune action automatique n'est créée sans geste humain.
+
+## 7. Limites
+
+- Pas de lecture de ventes : la fiche n'estime pas de reste écoulé (hors périmètre).
+- La relation entre retrait physique et quantité consolidée n'est pas tranchée.
