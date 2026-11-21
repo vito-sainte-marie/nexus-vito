@@ -194,6 +194,8 @@
     return null;
   }
   function virgule(n) { return String(n).replace('.', ','); }
+  // « le JJ/MM/AAAA » si la date est lisible, sinon rien : jamais de « le » orphelin en fin de raison.
+  function dateLe(iso) { const d = dateFr(iso); return d ? ' le ' + d : ''; }
   function dateFr(iso) { const j = jourIso(iso); return j ? j.slice(8, 10) + '/' + j.slice(5, 7) + '/' + j.slice(0, 4) : ''; }
 
   // Trois états de TVA. Jamais de correction d'un taux à partir du rayon : on signale, on ne déduit pas.
@@ -209,11 +211,11 @@
       const exp = jourIso(exportLe);
       if (tva !== null && tva !== c) {
         if (confLe && exp && exp <= confLe) {
-          return { etat: 'confirmee', taux: c, raison: 'TVA confirmée à ' + virgule(c) + ' % le ' + dateFr(confirmation.confirme_le) + ' · Decenium exporte ' + virgule(tva) + ' %, différent du taux confirmé ' + virgule(c) + ' %', confirme: c, ecart_export: tva };
+          return { etat: 'confirmee', taux: c, raison: 'TVA confirmée à ' + virgule(c) + ' %' + dateLe(confirmation.confirme_le) + ' · Decenium exporte ' + virgule(tva) + ' %, différent du taux confirmé ' + virgule(c) + ' %', confirme: c, ecart_export: tva };
         }
-        return { etat: 'incoherente', taux: tva, raison: 'taux importé ' + virgule(tva) + ' % différent du taux confirmé ' + virgule(c) + ' % le ' + dateFr(confirmation.confirme_le), confirme: c };
+        return { etat: 'incoherente', taux: tva, raison: 'taux importé ' + virgule(tva) + ' % différent du taux confirmé ' + virgule(c) + ' %' + dateLe(confirmation.confirme_le), confirme: c };
       }
-      return { etat: 'confirmee', taux: c, raison: 'TVA confirmée à ' + virgule(c) + ' % le ' + dateFr(confirmation.confirme_le), confirme: c };
+      return { etat: 'confirmee', taux: c, raison: 'TVA confirmée à ' + virgule(c) + ' %' + dateLe(confirmation.confirme_le), confirme: c };
     }
     if (tva === null) return { etat: 'incoherente', taux: null, raison: 'TVA absente de l\'import' };
     if (tvaPrecedente !== null && tvaPrecedente !== undefined && tvaPrecedente !== tva) {
