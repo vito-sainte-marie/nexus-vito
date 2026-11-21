@@ -41,7 +41,10 @@ t('les 11 catégories et les 5 rôles ont leurs 11 fichiers', () => {
   });
 });
 t('les registres exposent exactement ces identifiants', () => {
-  assert.deepStrictEqual(Object.keys(NI.CATEGORIES).sort(), Object.keys(CATS).sort());
+  // Les 11 d'origine, plus les familles de la table des rayons (test_icones_registre_familles_20261121.js garde cet ajout).
+  const RFam = require('./nexus-rayons-familles.js');
+  const attendu = Object.keys(CATS).concat(RFam.PRETES.filter(id => !(id in CATS)));
+  assert.deepStrictEqual(Object.keys(NI.CATEGORIES).sort(), attendu.sort());
   assert.deepStrictEqual(Object.keys(NI.ROLES).sort(), Object.keys(ROLES).sort());
 });
 
