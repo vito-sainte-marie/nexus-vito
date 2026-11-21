@@ -473,6 +473,8 @@
   // ---------- Anomalies : contrôles à effectuer et marquage « vérifié » ----------
   var A_LIB = function () { return V.anomaliesTarifaires; };
   function peutVerifier(role, estCreateur) { return !estCreateur && (role === 'gerant' || role === 'manager'); }
+  // Annuler une vérification est ouvert au créateur (qui ne vérifie pas lui-même), au gérant et au manager ; la base tranche le périmètre exact.
+  function peutAnnuler(role, estCreateur) { return !!estCreateur || role === 'gerant' || role === 'manager'; }
   function commentaireValide(t) { return String(t == null ? '' : t).trim().length <= LIMITE_COMMENTAIRE; }
   var LIB_NIVEAU = { demontree: 'Démontré', a_verifier: 'À vérifier' };
   // Valeurs à comparer, dans un ordre fixe par cause (Decenium d'un côté, relevé de l'autre).
@@ -605,6 +607,12 @@
     else L.sort(function (x, y) { return (y.a.gravite || 0) - (x.a.gravite || 0) || String(x.l.article).localeCompare(String(y.l.article), 'fr'); });
     return L;
   }
+  function htmlZoneAnnulation(etat) {
+    return '<div class="pt-verif-champ" data-ctl-annul-zone="1"><label class="sc-lib" for="ptAnnulMotif">Motif de l\'annulation (obligatoire)</label>' +
+        '<div class="pt-verif-zone"><textarea id="ptAnnulMotif" class="pt-verif-com" rows="2" maxlength="' + LIMITE_MOTIF + '" required aria-describedby="ptAnnulN" data-annul-motif="1">' + esc(etat.annulMotif || '') + '</textarea>' +
+        '<span id="ptAnnulN" class="sc-note pt-verif-n" data-annul-compteur="1">' + String(etat.annulMotif || '').length + ' / ' + LIMITE_MOTIF + '</span></div>' +
+        '<div class="pt-actions"><button type="button" class="detail-btn" data-annul-confirmer="1">Confirmer l\'annulation</button> <button type="button" class="pt-com-lien" data-annul-garder="1">Garder la vérification</button></div></div>';
+  }
   // L4 : confirmation, annulation et erreurs. Affichées dans le détail quand il est ouvert (plein écran à 375 px), sinon au-dessus de la liste.
   function htmlSuiviVerif(etat, droits) {
     var r = '';
@@ -613,12 +621,9 @@
     if (etat.messageAnnul) r += '<p class="sc-note pt-verif-msg" role="status" data-annul-ok="1">' + esc(etat.messageAnnul) + '</p>';
     r += '</div>';
     var dv = etat.derniereVerif;
-    if (dv && droits && etat.messageVerif) {
+    if (dv && droits && etat.messageVerif && !etat.annulCible) {
       if (!etat.annulOuverte) r += '<button type="button" class="pt-com-lien" data-ctl-annuler="1">Annuler</button>';
-      else r += '<div class="pt-verif-champ" data-ctl-annul-zone="1"><label class="sc-lib" for="ptAnnulMotif">Motif de l\'annulation (obligatoire)</label>' +
-        '<div class="pt-verif-zone"><textarea id="ptAnnulMotif" class="pt-verif-com" rows="2" maxlength="' + LIMITE_MOTIF + '" required aria-describedby="ptAnnulN" data-annul-motif="1">' + esc(etat.annulMotif || '') + '</textarea>' +
-        '<span id="ptAnnulN" class="sc-note pt-verif-n" data-annul-compteur="1">' + String(etat.annulMotif || '').length + ' / ' + LIMITE_MOTIF + '</span></div>' +
-        '<div class="pt-actions"><button type="button" class="detail-btn" data-annul-confirmer="1">Confirmer l\'annulation</button> <button type="button" class="pt-com-lien" data-annul-garder="1">Garder la vérification</button></div></div>';
+      else r += htmlZoneAnnulation(etat);
     }
     if (etat.erreurAnnul) r += '<p class="sc-note pt-erreur" role="alert" data-annul-erreur="1">' + esc(etat.erreurAnnul) + '</p>';
     if (etat.erreurEcriture) r += '<p class="sc-note pt-erreur" role="alert" data-ctl-erreur="1">' + esc(etat.erreurEcriture) + '</p>';
@@ -715,7 +720,7 @@
   function motifAnnulationValide(m) { var t = String(m == null ? '' : m).trim(); return t.length >= 1 && t.length <= LIMITE_MOTIF; }
   function messageErreurAnnulation(err) {
     var m = String((err && (err.message || err)) || '');
-    if (/refus|denied|policy|permission|row-level|aucune ligne|droit/i.test(m)) return "Annulation refusée : seule la personne qui a saisi cette vérification, ou un gérant, peut l'annuler. Rien n'a été modifié.";
+    if (/refus|denied|policy|permission|row-level|aucune ligne|droit/i.test(m)) return "Annulation refusée : seule la personne qui a saisi cette vérification, un gérant ou le créateur du site peut l'annuler. Rien n'a été modifié.";
     return "L'annulation a échoué. Rien n'a été modifié, vous pouvez réessayer.";
   }
   function messageApresEcriture(info) {
@@ -809,10 +814,15 @@
     var v = x.verif;
     if (!v) return '<p class="sc-note">Jamais vérifié.</p>';
     var re = v.reevaluation, LR = { persistante: 'persistante', aggravee: 'aggravée', resolue: 'résolue' };
+    var annul = '';
+    if (v.id && etat && peutAnnuler(etat.role, etat.estCreateur)) {
+      if (etat.annulCible && etat.annulCible.id === v.id && etat.annulOuverte) annul = htmlZoneAnnulation(etat);
+      else if (!etat.annulCible) annul = '<button type="button" class="pt-com-lien" data-histo-annuler="' + esc(v.id) + '">Annuler cette vérification</button>';
+    }
     return '<p class="sc-note">Vérifié le ' + esc(jourFr(String(v.verifie_le).slice(0, 10))) + ' par ' + esc(v.auteur || 'un responsable') + '.' +
       (v.commentaire ? ' Commentaire : ' + esc(v.commentaire) : ' Aucun commentaire.') +
       (re ? ' Réévaluation : ' + esc(LR[re.etat] || re.etat) + ' au relevé du ' + esc(jourFr(String(re.date_releve || re.saisi_le).slice(0, 10))) + '.' : ' Pas encore réévalué.') +
-      (etat && etat.reevalNonEnregistree && CYCLES_REEVAL[x.cycle] ? ' Réévaluation calculée : ' + esc(LR[x.cycle] || x.cycle) + ', non encore enregistrée.' : '') + '</p>';
+      (etat && etat.reevalNonEnregistree && CYCLES_REEVAL[x.cycle] ? ' Réévaluation calculée : ' + esc(LR[x.cycle] || x.cycle) + ', non encore enregistrée.' : '') + '</p>' + annul;
   }
   // L5 : auteur, date, commentaire et import visibles sur la ligne elle-même (le (i) garde la réévaluation). Une vérification annulée n'est jamais chargée.
   function htmlLigneSuivi(x) {
@@ -895,16 +905,17 @@
   // Annulation tracée d'une vérification : la modification elle-même est faite par l'hôte (etat.surAnnulation), jamais par cet écran.
   // Retourne { ok: true } ou { ok: false, message }. Rien ne change dans l'état en cas de refus.
   async function annulerVerification(etat, motif) {
-    var dv = etat.derniereVerif;
+    var dv = etat.annulCible || etat.derniereVerif;
     if (!dv || !dv.id) return { ok: false, message: 'Aucune vérification récente à annuler.' };
     if (!motifAnnulationValide(motif)) return { ok: false, message: 'Indiquez un motif de 1 à ' + LIMITE_MOTIF + ' caractères.' };
     if (typeof etat.surAnnulation !== 'function') return { ok: false, message: messageErreurAnnulation(null) };
     var r;
     try { r = await etat.surAnnulation({ id: dv.id }, String(motif).trim()); } catch (e) { r = { ok: false, erreur: e }; }
     if (!r || !r.ok) return { ok: false, message: (r && r.message) || messageErreurAnnulation(r && r.erreur) };
-    dv.an.cycle = dv.cycleAvant; if (dv.cle) etat.ctlSel = dv.cle;
+    if (dv.an) dv.an.cycle = dv.cycleAvant; if (dv.cle) etat.ctlSel = dv.cle;
     if (Array.isArray(etat.verifications)) etat.verifications = etat.verifications.filter(function (v) { return v.id !== dv.id; });
-    etat.derniereVerif = null; etat.messageVerif = null; etat.annulOuverte = false; etat.annulMotif = ''; etat.erreurAnnul = null;
+    if (etat.derniereVerif && etat.derniereVerif.id === dv.id) { etat.derniereVerif = null; etat.messageVerif = null; }
+    etat.annulCible = null; etat.annulOuverte = false; etat.annulMotif = ''; etat.erreurAnnul = null;
     etat.messageAnnul = MSG_ANNUL_OK;
     return { ok: true };
   }
@@ -974,12 +985,15 @@
       window.addEventListener('popstate', function () { if (etat.ctlDetail && etat.ctlFermerDirect) etat.ctlFermerDirect(); });
       document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape' && etat.ctlDetail && etroit() && etat.ctlRetourFn) { ev.preventDefault(); etat.ctlRetourFn(); } });
     }
+    Array.prototype.forEach.call(corps.querySelectorAll('[data-histo-annuler]'), function (b) {
+      b.addEventListener('click', function () { etat.annulCible = { id: b.dataset.histoAnnuler }; etat.annulOuverte = true; etat.annulMotif = ''; etat.erreurAnnul = null; rendre(); var t = corps.querySelector('#ptAnnulMotif'); if (t && t.focus) t.focus(); });
+    });
     var bAnn = corps.querySelector('[data-ctl-annuler]');
     if (bAnn) bAnn.addEventListener('click', function () { etat.annulOuverte = true; etat.erreurAnnul = null; rendre(); var t = corps.querySelector('#ptAnnulMotif'); if (t && t.focus) t.focus(); });
     var tAnn = corps.querySelector('[data-annul-motif]');
     if (tAnn) tAnn.addEventListener('input', function () { etat.annulMotif = tAnn.value; var c = corps.querySelector('[data-annul-compteur]'); if (c) c.textContent = tAnn.value.length + ' / ' + LIMITE_MOTIF; });
     var bGarde = corps.querySelector('[data-annul-garder]');
-    if (bGarde) bGarde.addEventListener('click', function () { etat.annulOuverte = false; etat.erreurAnnul = null; rendre(); });
+    if (bGarde) bGarde.addEventListener('click', function () { etat.annulOuverte = false; etat.annulCible = null; etat.erreurAnnul = null; rendre(); });
     var bConf = corps.querySelector('[data-annul-confirmer]');
     if (bConf) bConf.addEventListener('click', async function () {
       bConf.disabled = true;
@@ -1226,7 +1240,7 @@
     } catch (e) { return { fourni: false, erreur: true }; }
   }
   var API = { estDemarque: estDemarque, lignesControle: lignesControle, nombreReleve: nombreReleve, lotStockPublie: lotStockPublie, lignesStockDepuisLot: lignesStockDepuisLot, chargerStockPublie: chargerStockPublie, TVA_CONFIRMATIONS_PILOTE: TVA_CONFIRMATIONS_PILOTE, cartes: cartes, scenarios: scenarios, alertesCartes: alertesCartes, trier: trier, filtrer: filtrer, valeursFiltres: valeursFiltres,
-    preuves: preuves, conseiller: conseiller, lierOuvertures: lierOuvertures, effetVerificationEnregistree: effetVerificationEnregistree, commentaireDuControle: commentaireDuControle, annulerVerification: annulerVerification, motifAnnulationValide: motifAnnulationValide, messageErreurAnnulation: messageErreurAnnulation, fiche: fiche, etatAcces: etatAcces, peutVoirOnglet: peutVoirOnglet, filtrerSite: filtrerSite,
+    preuves: preuves, conseiller: conseiller, lierOuvertures: lierOuvertures, effetVerificationEnregistree: effetVerificationEnregistree, commentaireDuControle: commentaireDuControle, annulerVerification: annulerVerification, peutAnnuler: peutAnnuler, motifAnnulationValide: motifAnnulationValide, messageErreurAnnulation: messageErreurAnnulation, fiche: fiche, etatAcces: etatAcces, peutVoirOnglet: peutVoirOnglet, filtrerSite: filtrerSite,
     regimeDe: regimeDe, contexteDeclaratif: contexteDeclaratif, construireContexteTarif: construireContexteTarif, stockParLibelle: stockParLibelle, controle: controle, familles: familles, avertissementRegime: avertissementRegime, infoRegime: infoRegime, badgeRegime: badgeRegime, badgeLigne: badgeLigne, blocFiche: blocFiche,
     chargerRegistres: chargerRegistres, chargerVerifications: chargerVerifications, historiqueLignes: historiqueLignes, htmlHistorique: htmlHistorique, chargerVentes: chargerVentes, lireCompte: lireCompte, libellePeriode: libellePeriode,
     reevaluationsAEcrire: reevaluationsAEcrire, enregistrerReevaluations: enregistrerReevaluations, htmlPage: htmlPage, htmlControlesAFaire: htmlControlesAFaire, htmlDetailHistorique: htmlDetailHistorique, htmlLigne: htmlLigne, htmlControle: htmlControle, htmlFiche: htmlFiche, carteMarge: carteMarge, AXES: AXES, NOTE_PISTES: NOTE_PISTES, axeCourant: axeCourant, compteursAxes: compteursAxes, htmlMarge: htmlMarge, ficheMarge: ficheMarge, peutVerifier: peutVerifier, commentaireValide: commentaireValide, messageApresEcriture: messageApresEcriture, messageErreurEcriture: messageErreurEcriture, payloadVerification: payloadVerification, LIMITE_COMMENTAIRE: LIMITE_COMMENTAIRE, graviteLigne: graviteLigne, CSS: CSS };

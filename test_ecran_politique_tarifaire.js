@@ -1240,6 +1240,35 @@ ok('Hôte : lit employee.est_createur (et estCreateur)', () => {
 ok('Refus RPC inconnu : message générique', () => {
   assert.ok(/L'enregistrement a échoué/.test(E.messageErreurEcriture({ message: 'boom' })));
 });
+ok('annulation par le créateur : peutAnnuler, entrée dans le détail de l\'historique, jamais « Marquer comme vérifié »', () => {
+  assert.strictEqual(E.peutAnnuler('employe', true), true);
+  assert.strictEqual(E.peutAnnuler('gerant', false), true); assert.strictEqual(E.peutAnnuler('manager', false), true);
+  assert.strictEqual(E.peutAnnuler('employe', false), false); assert.strictEqual(E.peutAnnuler('pompiste', false), false);
+  assert.strictEqual(E.peutAnnuler(undefined, false), false);
+  assert.ok(!E.peutVerifier('employe', true) && !E.peutVerifier('gerant', true), 'le créateur ne vérifie toujours pas');
+  const x = { article: 'Art A', code: 'S2', cle: 'k1', cycle: 'persistante', verif: vref({ id: 'v-7', auteur: 'Alex Test' }) };
+  const bouton = /data-histo-annuler="v-7"/;
+  for (const [role, cr, voit] of [['employe', true, true], ['gerant', false, true], ['manager', false, true], ['employe', false, false], ['pompiste', false, false]]) {
+    const h = E.htmlDetailHistorique(x, { role, estCreateur: cr });
+    assert.strictEqual(bouton.test(h), voit, role + '/' + cr);
+    assert.ok(!/Marquer comme vérifié/.test(h));
+  }
+  const ouvert = E.htmlDetailHistorique(x, { role: 'employe', estCreateur: true, annulCible: { id: 'v-7' }, annulOuverte: true });
+  assert.ok(/data-annul-confirmer/.test(ouvert) && !bouton.test(ouvert));
+});
+ok('annulation par le créateur : annulCible envoie le bon id, retire la ligne ; un refus garde la vérification', async () => {
+  const etat = { role: 'employe', estCreateur: true, verifications: [{ id: 'v-7', code: 'S2', cle: 'k1' }, { id: 'v-8', code: 'S2', cle: 'k2' }], annulCible: { id: 'v-7' } };
+  const appels = [];
+  etat.surAnnulation = async (c, m) => { appels.push([c.id, m]); return { ok: false, message: 'Annulation refusée : x' }; };
+  const r1 = await E.annulerVerification(etat, 'motif');
+  assert.strictEqual(r1.ok, false); assert.strictEqual(etat.verifications.length, 2);
+  etat.surAnnulation = async (c, m) => { appels.push([c.id, m]); return { ok: true }; };
+  const r2 = await E.annulerVerification(etat, 'motif');
+  assert.strictEqual(r2.ok, true);
+  assert.deepStrictEqual(appels.map(a => a[0]), ['v-7', 'v-7']);
+  assert.deepStrictEqual(etat.verifications.map(v => v.id), ['v-8']);
+  assert.strictEqual(etat.annulCible, null);
+});
 Promise.all(PROMESSES).then(() => {
 console.log('test_ecran_politique_tarifaire : ' + n + ' épreuves OK');
 });
