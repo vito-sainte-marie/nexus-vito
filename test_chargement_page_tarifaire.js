@@ -26,7 +26,7 @@ const charger = (fichier) => {
   const ctx = vm.createContext({ console });
   ctx.window = ctx; ctx.globalThis = ctx;
   const liste = scriptsTarif(fichier);
-  liste.filter(s => /(nexus-vocabulaire-tarif|nexus-marge|nexus-produits-mesure|nexus-badge-etat|nexus-composants-pilotage|nexus-anomalies-tarifaires|nexus-politique-tarifaire)/.test(s)).forEach(s => {
+  liste.filter(s => /(nexus-vocabulaire-tarif|nexus-marge|nexus-tva-regles-pilote|nexus-produits-mesure|nexus-badge-etat|nexus-composants-pilotage|nexus-anomalies-tarifaires|nexus-politique-tarifaire)/.test(s)).forEach(s => {
     const p = path.resolve(dossierDe(fichier), s);
     vm.runInContext(fs.readFileSync(p, 'utf8'), ctx, { filename: p });
   });
@@ -39,6 +39,12 @@ PAGES.forEach(([nom, fichier]) => {
     const ia = l.indexOf('nexus-anomalies-tarifaires.js'), im = l.indexOf('nexus-politique-tarifaire.js');
     assert.ok(ia >= 0, 'nexus-anomalies-tarifaires.js n\'est pas chargé');
     assert.ok(im >= 0 && ia < im, 'il doit précéder nexus-politique-tarifaire.js');
+  });
+  ok(nom + ' : le module des règles TVA du pilote est déclaré avant la mesure et l\'écran', () => {
+    const l = scriptsTarif(fichier).map(s => path.basename(s));
+    const ir = l.indexOf('nexus-tva-regles-pilote.js');
+    assert.ok(ir >= 0, 'nexus-tva-regles-pilote.js n\'est pas chargé');
+    assert.ok(ir < l.indexOf('nexus-produits-mesure.js') && ir < l.indexOf('nexus-politique-tarifaire-ecran.js'), 'il doit précéder la mesure et l\'écran');
   });
   ok(nom + ' : chargé comme un navigateur, NexusAnomaliesTarifaires existe', () => {
     const { ctx } = charger(fichier);

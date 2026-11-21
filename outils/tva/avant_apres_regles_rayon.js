@@ -5,7 +5,11 @@ const fs = require('fs'), path = require('path'), vm = require('vm');
 const racine = path.join(__dirname, '..', '..');
 const [fp, fc, d, f] = process.argv.slice(2);
 if (!fp) { console.error('Usage : node avant_apres_regles_rayon.js <products.json> [confirmations.json] [debut fin]'); process.exit(2); }
-const products = JSON.parse(fs.readFileSync(fp, 'utf8'));
+const jour = v => (v == null ? '' : String(v).slice(0, 10));
+const toutes = JSON.parse(fs.readFileSync(fp, 'utf8'));
+// Sans filtre, un fichier couvrant deux périodes compte chaque référence deux fois : on ne garde que les lignes de la période demandée.
+const products = (d && f) ? toutes.filter(p => jour(p.periode_debut) === jour(d) && jour(p.periode_fin) === jour(f)) : toutes;
+if (d && f) console.log('Période ' + jour(d) + ' → ' + jour(f) + ' : ' + products.length + ' lignes sur ' + toutes.length);
 const registre = fc ? JSON.parse(fs.readFileSync(fc, 'utf8')) : [];
 const charger = (regles) => {
   const sb = { console }; sb.window = sb; sb.globalThis = sb; vm.createContext(sb);

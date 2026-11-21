@@ -13,7 +13,9 @@ function banc(ctx) {
     if (!attr) return [];
     return [...z.innerHTML.matchAll(new RegExp(attr + '="([^"]+)"', 'g'))].map(m => ({ dataset: { [attr === 'data-vig' ? 'vig' : 'vue']: m[1] }, addEventListener: (_, f) => { (ecouteurs[attr + m[1]] = ecouteurs[attr + m[1]] || []).push(f); } }));
   };
-  el('vueCorps'); el('conseillerAccueil');
+  // La vue « Mes produits » lit ses filtres (#fRayon, #fTva…) dans le corps de la vue : le banc les sert.
+  el('vueCorps').querySelector = s => el(String(s).replace(/^#/, ''));
+  el('conseillerAccueil');
   const dc = ctx.document;
   dc.getElementById = id => el(id);
   return { els, sorties, clic: (attr, id) => (ecouteurs[attr + id] || []).forEach(f => f()), z };
@@ -113,7 +115,9 @@ function banc(ctx) {
   const assert = require('assert');
   assert.ok(src.includes("titre: 'TVA à vérifier (catalogue)'"), 'A8 carte');
   assert.ok(src.includes('TVA à vérifier (catalogue) · <button'), 'A8 ligne À compléter');
-  assert.ok(src.includes('Le Scanner applique en plus les confirmations du pilote.'), 'A8 (i) sans nombre');
-  assert.ok(!/Scanner applique[^'`]*\d/.test(src.match(/info: '[^']*'/)[0]), 'A8 aucun chiffre codé en dur');
+  const info = src.match(/titre: 'TVA à vérifier \(catalogue\)'[^\n]*?info: '((?:[^'\\]|\\.)*)'/);
+  assert.ok(info, 'A8 (i) présent');
+  assert.ok(/décisions du pilote par rayon/.test(info[1]), 'A8 (i) dit que les décisions du pilote sont appliquées comme dans le Scanner');
+  assert.ok(!/\d/.test(info[1]), 'A8 (i) sans nombre : aucun chiffre codé en dur');
   console.log('OK  A8 libellé et (i) TVA catalogue');
 })();
