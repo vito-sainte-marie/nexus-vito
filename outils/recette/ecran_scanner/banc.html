@@ -99,10 +99,14 @@
   var cfg, P1, P2, stock;
   if (scenario === 'cas_production') {
     // Trois cas du terrain rejoués sur des lignes ENTIÈREMENT fictives (aucun libellé réel, aucune donnée T1).
-    var fic = function (article, pv, pa) { return { article: article, categorie: 'Rayon fictif', quantite: 10, prix_vente: pv, prix_achat: pa, tva: 20, code_barres: '' }; };
+    var fic = function (article, pv, pa, rayon) { return { article: article, categorie: rayon || 'Rayon fictif', quantite: 10, prix_vente: pv, prix_achat: pa, tva: 20, code_barres: '' }; };
     cfg = { contexte: { periode: { debut: '2030-03-01', fin: '2030-03-30' }, tva: { explications: [] } } };
     P1 = [];
-    P2 = [fic('12-11-2026 ARTICLE FICTIF DATE', 0.03, 1.57), fic('ARTICLE FICTIF DEUX CONTROLES', 0.5, 1.0), fic('ARTICLE FICTIF PERTE EXTREME SACHET MENTHE BLEUE 100G LOT 12P', 0.5, 3.0), fic('ARTICLE FICTIF SAIN', 3.0, 1.5)];
+    P2 = [fic('12-11-2026 ARTICLE FICTIF DATE', 0.03, 1.57), fic('ARTICLE FICTIF DEUX CONTROLES', 0.5, 1.0), fic('ARTICLE FICTIF PERTE EXTREME SACHET MENTHE BLEUE 100G LOT 12P', 0.5, 3.0), fic('ARTICLE FICTIF SAIN', 3.0, 1.5),
+      // Libelles de rayons REELS (libelles seuls) sur des articles fictifs : la vignette de famille doit etre rendue de bout en bout.
+      fic('ARTICLE FICTIF CONFISERIE', 0.5, 1.0, 'Confiserie'), fic('ARTICLE FICTIF BIERE', 0.5, 1.0, 'Bi\u00e8res, Cidres et Panach\u00e9s'), fic('ARTICLE FICTIF EAU', 0.5, 1.0, 'Eaux plates ou gazeuses'),
+      fic('ARTICLE FICTIF HYGIENE', 0.5, 1.0, 'Hygi\u00e8ne'), fic('ARTICLE FICTIF CIGARETTES', 0.5, 1.0, 'Paquet de 20'), fic('ARTICLE FICTIF OUTIL', 0.5, 1.0, 'Outillage'),
+      fic('ARTICLE FICTIF HUILE MOTEUR', 0.5, 1.0, 'Huile Moteur'), fic('ARTICLE FICTIF GAZ', 0.5, 1.0, 'Gaz')];
     stock = [{ libelle: 'ARTICLE FICTIF DEUX CONTROLES', pa_net_ht: 2.0 }, { libelle: 'ARTICLE FICTIF PERTE EXTREME SACHET MENTHE BLEUE 100G LOT 12P', pa_net_ht: 3.0 }, { libelle: 'ARTICLE FICTIF SAIN', pa_net_ht: 1.5 }];
   } else try {
     var get = async function (f) { var r = await fetch(DOSSIER + f); if (!r.ok) throw new Error(f + ' : ' + r.status); return r; };

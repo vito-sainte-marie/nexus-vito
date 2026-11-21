@@ -591,7 +591,11 @@
     var id = RF && RF.iconeRayon ? RF.iconeRayon(l.rayon) : 'cat-petits-articles';
     var h = NI && NI.imgCategorie ? NI.imgCategorie(id, 40, { decoratif: true }) : '';
     if (!h && NI && NI.imgCategorie) {
-      try { if (typeof console !== 'undefined' && console.warn) console.warn('[recette] identifiant de famille inconnu : ' + id); } catch (e) {}
+      // Chaque identifiant non déclaré est tracé une fois (rayon et identifiant), pour ne plus jamais passer inaperçu.
+      try {
+        var vus = vignetteFamille.vus || (vignetteFamille.vus = {}), k = id + '|' + l.rayon;
+        if (!vus[k]) { vus[k] = 1; if (typeof console !== 'undefined' && console.warn) console.warn('[recette] identifiant de famille inconnu : ' + id + ' (rayon : ' + l.rayon + ')'); }
+      } catch (e) {}
       h = NI.imgCategorie('cat-petits-articles', 40, { decoratif: true });
     }
     return h || '<span class="pt-vign-neutre" aria-hidden="true"></span>';

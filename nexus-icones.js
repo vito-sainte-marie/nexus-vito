@@ -161,6 +161,26 @@
     'cat-cbd':             { libelle: 'CBD' },
     'cat-cigarettes':      { libelle: 'Cigarettes' },
     'cat-petits-articles': { libelle: 'Petits articles caisse' },
+    // Dix-huit familles ajoutées avec #345 : sans entrée ici, imgCategorie rendait '' et la vignette restait vide.
+    // Une épreuve (test_icones_registre_familles_20261121.js) exige que chaque identifiant de NexusRayonsFamilles.PRETES figure ici.
+    'cat-confiserie':      { libelle: 'Confiserie' },
+    'cat-biscuits':        { libelle: 'Biscuits et gâteaux' },
+    'cat-chips':           { libelle: 'Chips et snacks' },
+    'cat-jus':             { libelle: 'Jus et sodas' },
+    'cat-eaux':            { libelle: 'Eaux' },
+    'cat-bieres':          { libelle: 'Bières et cidres' },
+    'cat-alcools':         { libelle: 'Alcools' },
+    'cat-tabac':           { libelle: 'Tabac' },
+    'cat-feuilles':        { libelle: 'Feuilles et filtres' },
+    'cat-vape':            { libelle: 'Vape' },
+    'cat-cartes':          { libelle: 'Cartes et recharges' },
+    'cat-glaces':          { libelle: 'Glaces' },
+    'cat-epicerie':        { libelle: 'Épicerie' },
+    'cat-hygiene':         { libelle: 'Hygiène et beauté' },
+    'cat-entretien':       { libelle: 'Entretien' },
+    'cat-auto':            { libelle: 'Auto et moto' },
+    'cat-electricite':     { libelle: 'Électricité' },
+    'cat-bricolage':       { libelle: 'Bricolage' },
   };
 
   const ROLES = {
