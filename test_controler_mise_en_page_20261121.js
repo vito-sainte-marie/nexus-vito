@@ -48,10 +48,13 @@ if (!pw) { console.log('test_controler_mise_en_page_20261121 : géométrie NON E
       assert(e1.ex === 'true' && e1.vis && e1.focus, 'Filtres ouvert : cases masquées, aria-expanded ou focus incorrect');
       await page.click('[data-ctl-filtres]'); let e2 = await etat();
       assert(e2.ex === 'false' && !e2.vis && e2.focus, 'Filtres refermé : cases visibles, aria-expanded ou focus incorrect');
-      const g = await page.evaluate(() => { const r = s => document.querySelector(s).getBoundingClientRect(); const rech = r('.pt-ctl-outils .pt-f-rech'), tri = r('[data-ctl-tri]'), fb = r('[data-ctl-filtres]'), sel = document.querySelector('[data-ctl-tri]'); return { rech: rech, tri: tri, fb: fb, coupe: sel.scrollWidth > sel.clientWidth + 1 }; });
-      assert(g.tri.top >= g.rech.bottom - 1, 'tri sur la même ligne que la recherche');
-      assert(Math.abs(g.tri.top - g.fb.top) < 12 && g.fb.left > g.tri.left, 'tri et Filtres pas sur une même ligne');
-      assert(g.tri.width > 120 && g.fb.width > 120, 'tri ou Filtres trop étroit (' + Math.round(g.tri.width) + ', ' + Math.round(g.fb.width) + ')');
+      const g = await page.evaluate(() => { const r = s => document.querySelector(s).getBoundingClientRect(); const rech = r('.pt-ctl-outils .pt-f-rech'), tri = r('[data-ctl-tri]'), fb = r('[data-ctl-filtres]'), ai = r('.pt-ctl-aide'), cs = getComputedStyle(document.querySelector('[data-ctl-filtres]')); return { rech: rech, tri: tri, fb: fb, ai: ai, bord: cs.borderTopWidth, coupe: document.querySelector('[data-ctl-tri]').scrollWidth > document.querySelector('[data-ctl-tri]').clientWidth, vw: document.documentElement.clientWidth }; });
+      assert(g.tri.top >= g.rech.bottom - 1, 'tri sous la recherche');
+      assert(g.fb.top >= g.tri.bottom - 1, 'Filtres sur une ligne distincte, sous le tri');
+      assert(g.tri.width >= g.rech.width - 2, 'tri pas en pleine largeur (' + Math.round(g.tri.width) + ' sur ' + Math.round(g.rech.width) + ')');
+      assert(!g.coupe, 'texte du tri coupé');
+      assert(g.fb.height >= 44 && parseFloat(g.bord) >= 1, 'Filtres : bouton à contour de 44 px minimum');
+      assert(Math.abs(g.ai.top - g.fb.top) < 30 && g.ai.left > g.fb.left, 'le (i) se place à côté de Filtres');
       await page.close();
     }
     console.log('test_controler_mise_en_page_20261121 : géométrie OK (375, 768, 1280 ; Jour, Nuit)');
