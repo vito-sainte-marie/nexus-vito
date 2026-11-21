@@ -1358,22 +1358,22 @@
       "valide_le": "2026-11-18T23:45:00Z",
       "trace": "#160, validation transmise par Guardian, commentaire 6995017878"
     },
-    "20261121100000": {
+    "20261121175606": {
       "etat": "additive_compatible_avant_code",
       "justification": "Migration statique : remplace la politique d UPDATE annulation_roles_meme_site des deux tables d anomalies tarifaires pour y ajouter une branche (compte createur du site, meme test que la lecture). Aucune colonne, aucune donnee, aucun droit modifie ; le code deploye ne depend pas de cette branche (sans elle, un createur recoit un refus RLS deja gere par l ecran) ; migration d abord.",
       "mesure": {
         "source": "catalogue",
-        "le": "2026-11-21T10:00:00Z",
-        "cible": "udljdqxerrbbbajxubfn",
-        "par": "claude-code",
-        "outil": "lecture du fichier de migration ; aucune lecture Production (non autorisee), aucune application sur Test",
-        "verdict": "NON APPLIQUEE, NON MESUREE : ecrite le 21/11/2026, a appliquer d abord sur Test par Guardian puis, sur GO separe, en Production",
+        "le": "2026-11-21T17:56:06Z",
+        "cible": "uzhjpqpctpvxytxpxoqz",
+        "par": "guardian",
+        "outil": "constat rapporte par Guardian dans #160 7066878256 ; repris ici sans nouvelle lecture",
+        "verdict": "APPLIQUEE le 21/11/2026 sous la version 20261121175606 (registre 348) apres GO du pilote ; fichier du depot renomme selon la version enregistree ; deux politiques annulation_roles_meme_site portent la branche du createur, aucune donnee touchee",
         "blob_migration": "4462fe801a0d3a80df2f6cb3904490fab24649a4"
       },
       "objets_crees": [],
       "valide_par": "pilote",
       "valide_le": "2026-11-21T09:11:00Z",
-      "trace": "#160, decision du pilote du 21/11 (09:11) : le createur peut annuler une verification du Scanner, sans verifier lui-meme"
+      "trace": "#160, decision du pilote du 21/11 (09:11) : le createur peut annuler une verification du Scanner, sans verifier lui-meme ; application constatee par Guardian, commentaire 7066878256"
     },
     "20261120124007": {
       "etat": "additive_compatible_avant_code",

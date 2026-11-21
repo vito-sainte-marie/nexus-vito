@@ -5,7 +5,7 @@ const assert = require('assert');
 const D = 'outils/recette/anomalies_verifications/';
 const exec = fs.readFileSync(D + '53_exec_test.sql', 'utf8');
 const corps = fs.readFileSync(D + '53_annulation_createur.sql', 'utf8');
-const migs = ['20261118120000_tarif_anomalies_verifications', '20261120124007_tarif_annulation_heure_serveur', '20261121100000_tarif_annulation_createur'];
+const migs = ['20261118120000_tarif_anomalies_verifications', '20261120124007_tarif_annulation_heure_serveur', '20261121175606_tarif_annulation_createur'];
 let ok = 0;
 function ep(nom, f) { f(); ok++; console.log('OK  ' + nom); }
 

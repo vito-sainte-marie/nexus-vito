@@ -291,7 +291,7 @@ create trigger tarif_reeval_annulation_heure_serveur
   before update of annule_le, annule_par, motif_annulation on public.tarif_anomalies_reevaluations
   for each row execute function public.tarif_annulation_heure_serveur();
 -- <<< FIN migration 20261120124007_tarif_annulation_heure_serveur.sql
--- >>> DEBUT migration 20261121100000_tarif_annulation_createur.sql
+-- >>> DEBUT migration 20261121175606_tarif_annulation_createur.sql
 -- NEXUS Scanner tarifaire : le compte créateur peut ANNULER une vérification (ou une réévaluation), mais ne vérifie toujours pas.
 -- Décision du pilote du 21/11/2026. Avant : seule la policy annulation_roles_meme_site existait (gérant du site, ou manager pour sa propre saisie),
 -- donc le créateur voyait une vérification sans pouvoir l'annuler. Après : une troisième branche l'autorise.
@@ -329,7 +329,7 @@ begin
       t, gerant, manager, format(createur, t));
   end loop;
 end $$;
--- <<< FIN migration 20261121100000_tarif_annulation_createur.sql
+-- <<< FIN migration 20261121175606_tarif_annulation_createur.sql
 -- >>> DEBUT corps de 53_annulation_createur.sql
 do $garde_recette$
 declare v_sysid bigint := (select system_identifier from pg_control_system());
