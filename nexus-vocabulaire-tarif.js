@@ -34,7 +34,7 @@
   NexusVocabTarif.anomaliesTarifaires = {
     niveaux: { demontree: 'Démontrée', a_verifier: 'À vérifier' },
     cycles: { nouvelle: 'Nouvelle', verifiee: 'Vérifiée', resolue: 'Résolue', persistante: 'Persistante', aggravee: 'Aggravée' },
-    masque: 'peut expliquer aussi :',
+    masque: 'Peut expliquer aussi :',
     codes: {
       S1: { court: 'Marge négative ou nulle', titre: 'Marge négative ou nulle', controle: 'Vérifier le coût de revient et le prix de vente dans Decenium.' },
       S2: { court: 'Coût écarté du relevé', titre: 'Coût écarté du relevé de stock', controle: 'Comparer à la dernière facture fournisseur (prix brut, remise).' },

@@ -590,6 +590,10 @@
   function vignetteFamille(l) {
     var id = RF && RF.iconeRayon ? RF.iconeRayon(l.rayon) : 'cat-petits-articles';
     var h = NI && NI.imgCategorie ? NI.imgCategorie(id, 40, { decoratif: true }) : '';
+    if (!h && NI && NI.imgCategorie) {
+      try { if (typeof console !== 'undefined' && console.warn) console.warn('[recette] identifiant de famille inconnu : ' + id); } catch (e) {}
+      h = NI.imgCategorie('cat-petits-articles', 40, { decoratif: true });
+    }
     return h || '<span class="pt-vign-neutre" aria-hidden="true"></span>';
   }
   function htmlLigneCompacte(x, choisi) {
@@ -606,8 +610,8 @@
     var retour = '<button type="button" class="detail-btn pt-ctl-retour" data-ctl-retour="1">‹ Retour à la liste (' + n.restants + (n.restants > 1 ? ' restants' : ' restant') + ')</button>';
     var pos = n.total ? '<span class="pt-ctl-nav"><button type="button" class="detail-btn pt-ctl-fl" data-ctl-prec="1" aria-label="Contrôle précédent"' + (n.pos > 1 ? '' : ' disabled') + '>‹</button><span class="pt-ctl-pos" data-ctl-pos="1">' + n.pos + ' / ' + n.total + '</span><button type="button" class="detail-btn pt-ctl-fl" data-ctl-suiv-fl="1" aria-label="Contrôle suivant"' + (n.pos < n.total ? '' : ' disabled') + '>›</button></span>' : '';
     var suiv = '<button type="button" class="detail-btn pt-ctl-suivant" data-ctl-suivant="1"' + (n.suivant ? '' : ' disabled') + '>Passer au suivant sans vérifier</button>';
-    return '<section class="pt-detail" data-ctl-detail="1" aria-label="Détail du contrôle"><div class="pt-ctl-entete">' + retour + pos + '</div>' + (avecSuivi ? htmlSuiviVerif(etat, droits) : '') + '<div class="pt-ctl-1"><button type="button" class="vp-ligne-prod pt-ctl-prod" data-article="' + esc(x.l.article) + '"><span class="vp-nom">' + esc(x.l.article) + '</span></button> ' +
-      '<span class="sc-nom">' + esc(pc.cd.titre || pc.code) + '</span> <span class="nbe-qualif" data-axe="niveau">' + esc(pc.niveau) + '</span> <span class="nbe-qualif" data-axe="cycle">' + esc(pc.statut) + '</span></div>' +
+    return '<section class="pt-detail" data-ctl-detail="1" aria-label="Détail du contrôle"><div class="pt-ctl-entete">' + retour + pos + '</div>' + (avecSuivi ? htmlSuiviVerif(etat, droits) : '') + '<div class="pt-ctl-1"><div class="pt-ctl-nom"><button type="button" class="vp-ligne-prod pt-ctl-prod" data-article="' + esc(x.l.article) + '"><span class="vp-nom">' + esc(x.l.article) + '</span></button></div>' +
+      '<div class="pt-ctl-cause"><span class="sc-nom">' + esc(pc.cd.titre || pc.code) + '</span> <span class="nbe-qualif" data-axe="niveau">' + esc(pc.niveau) + '</span> <span class="nbe-qualif" data-axe="cycle">' + esc(pc.statut) + '</span></div></div>' +
       indicateursControle(x.a, x.l, pc) + '<p class="pt-ctl-2 pt-ctl-chiffre" data-ctl-chiffre="1"><span class="pt-num">' + pc.chiffres + '</span></p>' +
       htmlCorpsControle(x.a, x.l, droits, etat, pc, suiv) + '</section>';
   }
