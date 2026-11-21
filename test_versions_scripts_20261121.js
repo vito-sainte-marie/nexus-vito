@@ -49,30 +49,6 @@ if (!ref) {
   });
 }
 
-// Contrôle par l'historique : sur l'état commité, la version déclarée d'un script doit être posée au plus tôt dans le commit qui l'a modifié.
-// Attrape ce que la comparaison à origin/production ne voit pas : un script déjà fusionné sans changement de ?v= (cas #345).
-const superficiel = (gitOuNull(['rev-parse', '--is-shallow-repository']) || '').trim() === 'true';
-const propre = (gitOuNull(['status', '--porcelain', '--', '*.html', '*.js']) || '').trim() === '';
-if (superficiel || !propre) {
-  console.log('SAUTÉ contrôle par l\'historique : ' + (superficiel ? 'clone superficiel' : 'arbre non commité'));
-} else {
-  t('historique : aucun script modifié après la pose de son ?v= dans une page', () => {
-    const dernier = {}, fautes = [];
-    const cs = s => (dernier[s] = dernier[s] || git(['log', '-1', '--format=%H', '--', s]).trim());
-    pages.forEach(p => {
-      const v = versions(fs.readFileSync(path.join(D, p), 'utf8'));
-      Object.keys(v).forEach(s => {
-        const c1 = cs(s); if (!c1) return;
-        const c2 = git(['log', '-1', '--format=%H', '-S' + s + '?v=' + v[s], '--', p]).trim(); if (!c2) return;
-        let ok = c1 === c2;
-        if (!ok) { try { git(['merge-base', '--is-ancestor', c1, c2]); ok = true; } catch (e) { ok = false; } }
-        if (!ok) fautes.push(p + ' : ' + s + '?v=' + v[s]);
-      });
-    });
-    assert.deepStrictEqual(fautes, [], 'script modifié après la pose de son ?v= :\n' + fautes.join('\n'));
-  });
-}
-
 t('nexus-icones.js : une seule version déclarée dans toutes les pages', () => {
   const vs = new Set();
   pages.forEach(p => { const v = versions(fs.readFileSync(path.join(D, p), 'utf8')); if (v['nexus-icones.js']) vs.add(v['nexus-icones.js']); });

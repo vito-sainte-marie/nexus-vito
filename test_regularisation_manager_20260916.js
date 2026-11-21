@@ -364,7 +364,8 @@ verifier('le Cockpit charge nexus-station.js — sans quoi le critère « quart 
   // pile ou face, vert environ deux fois sur trois, muet sur sa vraie
   // question. Constaté le 28/09/2026 en construisant `dbaa253`
   // (génération `ddaf9db160a1`, commençant par une lettre).
-  const versions = new Set((COCKPIT.match(/\?v=[A-Za-z0-9-]+/g) || []));
+  // nexus-icones.js porte sa propre version depuis le correctif de cache du 21/11/2026 (garde test_versions_scripts_20261121.js) : on l'écarte du décompte.
+  const versions = new Set((COCKPIT.replace(/nexus-icones\.js\?v=[A-Za-z0-9-]+/g, '').match(/\?v=[A-Za-z0-9-]+/g) || []));
   assert.strictEqual(versions.size, 1, 'une seule chaîne de version : ' + [...versions].join(', '));
 });
 
