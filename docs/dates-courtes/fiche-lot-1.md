@@ -41,7 +41,7 @@ Quels gestes comptent :
 - Exemple : 6 et 4 donnent 10 ; correction de moins 2 donne 8. Les deux relevés et la correction restent visibles.
 - Les relevés, corrections et retraits de toutes les tournées restent affichés sous le groupe, ceux des tournées précédentes comme historique.
 
-Geste « trouvé et retiré » : le lundi matin, un renfort trouve 3 articles périmés d'un produit pas encore relevé dans la tournée. La quantité active est zéro et le plancher refuserait un retrait seul. Un geste unique écrit un relevé de 3 et un retrait de 3 : quantité active zéro, 3 dans « à comptabiliser », aucun refus de plancher. Renfort autorisé, comme pour la confirmation d'un retrait physique (hypothèse à faire valider).
+Geste « trouvé et retiré » : le lundi matin, un renfort trouve 3 articles périmés d'un produit pas encore relevé dans la tournée. La quantité active est zéro et le plancher refuserait un retrait seul. Un geste unique écrit un relevé de 3 et un retrait de 3 : quantité active zéro, 3 dans « à comptabiliser », aucun refus de plancher. Renfort autorisé, car le geste combine deux droits déjà donnés au renfort (relever, confirmer un retrait physique) et aucun droit comptable.
 
 ## 4. Corrections
 

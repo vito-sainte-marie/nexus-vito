@@ -39,7 +39,7 @@ La date saisie est une seule « Date limite », sans type : aucune recette ne di
 | 28 | Geste hors ligne : retrait fait dimanche 23:50 sans réseau, reçu lundi 8:00 | Compté dans la tournée de son heure de geste (celle du dimanche) : sans effet sur la quantité active de la nouvelle tournée ; l'heure de réception est conservée pour la trace | 1 et 2 |
 | 29 | Groupe dont la date limite est passée, quantité active supérieure à zéro dans la tournée en cours | Affiché « signalé, à retirer » sans geste ; aucune ligne de retrait créée, quantité inchangée | 3 |
 | 30 | Date disparue : semaine 1, 15/12 relevé à 10 ; semaine 2, seul le 22/12 est relevé, à 6 | Actifs : 22/12 = 6, 15/12 = 0 ; aucune alerte ni demande de retrait sur le 15/12 ; historique de la semaine 1 intact | 1 et 3 |
-| 31 | Retrait le lundi avant tout relevé de la tournée : geste « trouvé et retiré » de 3 | Quantité active 0 ; 3 dans « à comptabiliser » ; aucun refus de plancher ; renfort autorisé (hypothèse) | 1 et 3 |
+| 31 | Retrait le lundi avant tout relevé de la tournée : geste « trouvé et retiré » de 3 | Quantité active 0 ; 3 dans « à comptabiliser » ; aucun refus de plancher ; renfort autorisé | 1 et 3 |
 | 32 | Ouverture manuelle d'une tournée | Refusée au renfort et à la caissière ; acceptée avec confirmation à l'écran et tracée pour manager, gérant et créateur ; toutes les quantités actives à 0 | 1 et 3 |
 | 33 | Tableau du manager en début de tournée | Affiche « Tournée du 23/11 : 0 produit relevé », et non une liste vide sans explication ; chiffres de la tournée précédente présentés comme historique | 3 |
 | 34 | Date passée dont la quantité vient seulement de la tournée précédente | Aucun état « à retirer » : il ne vaut que pour une quantité active de la tournée en cours | 3 |
