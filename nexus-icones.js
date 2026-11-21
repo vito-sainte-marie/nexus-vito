@@ -182,21 +182,11 @@
 
   // Nom de catégorie (inventaire_categories.nom) → identifiant, sans accents ni casse. Ordre significatif :
   // « Lave-glace » passe avant « glaçons ». Nom inconnu → null (la surface garde son pictogramme).
+  // La table est dans nexus-rayons-familles.js (données, chargée avant ce fichier). Une famille sans image : null.
   function idCategorie(nom) {
-    const n = normaliser(nom);
-    if (!n) return null;
-    if (/\blave[- ]?glace\b|refroidissement/.test(n)) return 'cat-lave-glace';
-    if (/glacon/.test(n)) return 'cat-glacons';
-    if (/\bgaz\b/.test(n)) return 'cat-gaz';
-    if (/huile/.test(n)) return 'cat-huiles';
-    if (/biere|boisson/.test(n)) return 'cat-boissons';
-    if (/viennois/.test(n)) return 'cat-viennoiserie';
-    if (/\bpains?\b|sandwich/.test(n)) return 'cat-pains';
-    if (/journa/.test(n)) return 'cat-journaux';
-    if (/\bcbd\b/.test(n)) return 'cat-cbd';
-    if (/cigarette/.test(n)) return 'cat-cigarettes';
-    if (/petits? articles?/.test(n)) return 'cat-petits-articles';
-    return null;
+    const T = globalThis.NexusRayonsFamilles;
+    if (!T || !normaliser(nom)) return null;
+    return T.familleAffichable(nom);
   }
 
   // Code de rôle ou de poste (shifts.role, employees.role) → identifiant. « caissier » (masculin écrit par la

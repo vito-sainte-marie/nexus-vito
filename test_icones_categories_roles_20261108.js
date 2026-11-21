@@ -15,7 +15,7 @@ function garde(nom, src, regle, litteral, remplacement) {
     assert.ok(!regle(src.replace(litteral, remplacement)), 'la garde doit rougir sur la source mutée');
   });
 }
-function charger(src) { const ctx = { window: undefined }; ctx.globalThis = ctx; vm.runInNewContext(src, ctx); return ctx.NexusIcones; }
+function charger(src) { const ctx = { window: undefined }; ctx.globalThis = ctx; vm.runInNewContext(lire('nexus-rayons-familles.js'), ctx); vm.runInNewContext(src, ctx); return ctx.NexusIcones; }
 const SRC = lire('nexus-icones.js');
 const NI = charger(SRC);
 const dossier = id => path.join(__dirname, 'assets/icones/v2', id);
@@ -48,20 +48,20 @@ t('les registres exposent exactement ces identifiants', () => {
 // ---- Catégories : nom → id ----
 const NOMS = {
   'Gaz': 'cat-gaz', 'Glaçons': 'cat-glacons', 'Glacons': 'cat-glacons', 'Huiles': 'cat-huiles', 'Boissons chaudes': 'cat-boissons',
-  'Bières': 'cat-boissons', 'Lave-glace & Liquide de refroidissement': 'cat-lave-glace', 'Viennoiserie': 'cat-viennoiserie',
+  'Bières': 'cat-bieres', 'Lave-glace & Liquide de refroidissement': 'cat-lave-glace', 'Viennoiserie': 'cat-viennoiserie',
   'Pains': 'cat-pains', 'Sandwichs': 'cat-pains', 'Journaux': 'cat-journaux', 'CBD': 'cat-cbd', 'Cigarettes': 'cat-cigarettes',
   'Petits articles caisse': 'cat-petits-articles', '  GAZ ': 'cat-gaz', 'Lave glace': 'cat-lave-glace',
 };
-t('11 catégories reconnues, casse, accents et espaces tolérés', () => {
+t('12 catégories reconnues, casse, accents et espaces tolérés', () => {
   Object.keys(NOMS).forEach(nom => assert.strictEqual(NI.idCategorie(nom), NOMS[nom], nom));
-  assert.strictEqual(new Set(Object.values(NOMS)).size, 11);
+  assert.strictEqual(new Set(Object.values(NOMS)).size, 12);
 });
 t('« Lave-glace » n\'est pas pris pour des glaçons (l\'ancienne règle « gla » se trompait)', () => {
   assert.strictEqual(NI.idCategorie('Lave-glace'), 'cat-lave-glace');
   assert.strictEqual(NI.idCategorie('Glaçons 5 kg'), 'cat-glacons');
 });
 t('catégorie inconnue, vide ou absente : null, la surface garde son pictogramme', () => {
-  ['Épicerie', '', null, undefined, 42].forEach(x => assert.strictEqual(NI.idCategorie(x), null, String(x)));
+  ['Rayon fictif sans règle', '', null, undefined, 42].forEach(x => assert.strictEqual(NI.idCategorie(x), null, String(x)));
   assert.strictEqual(NI.imgCategorie('cat-inconnue', 40, { ancien: '<svg>ancien</svg>' }), '<svg>ancien</svg>');
   assert.strictEqual(NI.imgCategorie(null, 40), '');
 });
@@ -97,7 +97,7 @@ t('jusqu\'à 24 px : variante simplifiée -24.svg (et -24-jour.svg), sans srcset
 });
 t('thème lu sur html[data-theme] quand « jour » n\'est pas imposé', () => {
   const ctx = { document: { documentElement: { getAttribute: () => 'jour' } } };
-  ctx.globalThis = ctx; ctx.window = undefined; vm.runInNewContext(SRC, ctx);
+  ctx.globalThis = ctx; ctx.window = undefined; vm.runInNewContext(lire('nexus-rayons-familles.js'), ctx); vm.runInNewContext(SRC, ctx);
   assert.ok(/-jour@1x\.webp$/.test(ctx.NexusIcones.attributsCategorie('cat-gaz', 40).src));
 });
 t('décoratif : alt vide et aria-hidden ; sinon alt = libellé', () => {
