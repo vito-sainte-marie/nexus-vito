@@ -27,9 +27,10 @@ if (!pw) { console.log('test_controler_mise_en_page_20261121 : géométrie NON E
     for (const largeur of [375, 768, 1280]) for (const theme of ['jour', 'nuit']) {
       const page = await br.newPage({ viewport: { width: largeur, height: 812 } });
       await page.goto('http://localhost:' + port + '/outils/recette/ecran_scanner/banc.html?scenario=cas_production&theme=' + theme);
+      await page.waitForSelector('.pt-ctl-ligne .vp-nom', { timeout: 10000 });
       const m = await page.evaluate(() => ({
         debord: document.documentElement.scrollWidth > innerWidth,
-        lignes: [...document.querySelectorAll('.pt-ctl-ligne .vp-nom')].map(e => Math.round(e.getBoundingClientRect().height / parseFloat(getComputedStyle(e).lineHeight))),
+        lignes: [...document.querySelectorAll('.pt-ctl-ligne .vp-nom')].map(e => (function(){var cs=getComputedStyle(e);var lh=parseFloat(cs.lineHeight);if(isNaN(lh))lh=parseFloat(cs.fontSize)*1.2;return Math.round(e.getBoundingClientRect().height/lh);})()),
         tete: !!document.querySelector('[data-bloc-controles] > header [data-ctl-sous]'),
       }));
       assert(!m.debord, 'débordement horizontal à ' + largeur + ' px (' + theme + ')');

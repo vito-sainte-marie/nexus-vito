@@ -501,6 +501,19 @@
     if (c === 'S7') return 'Taux de TVA : ' + (v.tva === undefined || v.tva === null ? 'n/d' : v.tva + ' %') + ' · état : ' + (v.etat === 'a_verifier' ? 'à confirmer' : esc(v.etat || 'n/d'));
     return '';
   }
+  // Chiffre clé court de la ligne : une valeur, pas la phrase. La phrase complète reste dans le détail (pc.chiffres).
+  function chiffreCourt(an, l) {
+    var v = an.valeurs || {}, c = an.code, nd = function (x) { return x === undefined || x === null ? 'n/d' : x; }, pu = c === 'S1' ? perteUnitaire(l) : null;
+    if (pu) return 'Perte ' + eur(pu.perte);
+    if (c === 'S1') return 'Marge ' + pct(v.taux);
+    if (c === 'S2') return 'Écart ' + pct(v.ecart);
+    if (c === 'S3') return 'Coût ' + pct(v.variationCout);
+    if (c === 'S4') return nd(v.unites) + ' par colis';
+    if (c === 'S5') return nd(v.constats) + ' constats';
+    if (c === 'S6') return 'PV ' + pct(v.variationPv);
+    if (c === 'S7') return 'TVA ' + (v.tva === undefined || v.tva === null ? 'n/d' : v.tva + ' %');
+    return 'n/d';
+  }
   // Indicateurs du détail : le chiffre clé en grand (libellé + valeur) et le niveau. Mêmes valeurs que valeursAComparer, rien de recalculé.
   function indicateursControle(an, l, pc) {
     var v = an.valeurs || {}, c = an.code, nd = function (x) { return x === undefined || x === null ? 'n/d' : x; }, pu = c === 'S1' ? perteUnitaire(l) : null, i;
@@ -513,8 +526,14 @@
     else if (c === 'S6') i = ['Variation du prix de vente', pct(v.variationPv)];
     else if (c === 'S7') i = ['Taux de TVA', v.tva === undefined || v.tva === null ? 'n/d' : v.tva + ' %'];
     else i = ['Chiffre clé', 'n/d'];
+    var coutL = l && l.margeEstimee && l.margeEstimee.cout ? l.margeEstimee.cout.valeur : null, j;
+    if (c === 'S2') j = ['PA net HT du relevé', eur(v.paNetHtReleve)];
+    else if (c === 'S6') j = ['PV', eur(l && l.pv_ht)];
+    else if (c === 'S4') j = ['Rapport du relevé', String(nd(v.rapportReleve))];
+    else if (c === 'S5' || c === 'S7') j = ['PV', eur(l && l.pv_ht)];
+    else j = ['Coût', eur(coutL)];
     return '<div class="pt-ind2" data-ctl-indicateurs="1"><div class="pt-ind pt-ind-cle"><span class="pt-ind-ico">' + vignetteFamille(l) + '</span><span class="pt-ind-txt"><span class="pt-ind-lib sc-methode">' + esc(i[0]) + '</span><span class="pt-ind-val pt-mono">' + esc(i[1]) + '</span></span></div>' +
-      '<div class="pt-ind pt-ind-niv"><span class="pt-ind-txt"><span class="pt-ind-lib sc-methode">Niveau</span><span class="pt-ind-val"><span class="nbe-qualif" data-axe="niveau">' + esc(pc.niveau) + '</span></span></span></div></div>';
+      '<div class="pt-ind pt-ind-sec"><span class="pt-ind-ico">' + vignetteFamille(l) + '</span><span class="pt-ind-txt"><span class="pt-ind-lib sc-methode">' + esc(j[0]) + '</span><span class="pt-ind-val pt-mono">' + esc(j[1]) + '</span></span></div></div>';
   }
   function htmlVerification(an, l, droits, etat, suivant) {
     var code = an.code, idc = 'ptc-' + String(l.article).replace(/[^A-Za-z0-9_-]/g, '_') + '-' + code;
@@ -529,7 +548,7 @@
         '<span id="' + idc + '-n" class="sc-note pt-verif-n" data-com-compteur="1">0 / ' + LIMITE_COMMENTAIRE + '</span></div></div>'
       : '<button type="button" class="pt-com-lien" data-com-ouvrir="' + esc(cleC) + '">Ajouter un commentaire</button>';
     var bouton = '<button type="button" class="detail-btn pt-verifier" data-verifier="' + esc(code) + '" data-ver-article="' + esc(l.article) + '">✓ Marquer comme vérifié</button>';
-    return suivant === undefined ? com + bouton : com + '<div class="pt-actions" data-ctl-actions="1">' + suivant + bouton + '</div>';
+    return suivant === undefined ? com + bouton : com + '<div class="pt-actions" data-ctl-actions="1">' + bouton + suivant + '</div>';
   }
   // L2 : pièces communes d'un contrôle. La consigne est toujours visible (plus de (i)) ; la source et le calcul sont dans un bloc natif replié.
   function pieceControle(an, l) {
@@ -539,6 +558,7 @@
     var cycle = AL.cycles[an.cycle] || '';
     return { AL: AL, code: code, cd: cd, s1Contredit: s1Contredit, niveau: LIB_NIVEAU[niveauAff] || '',
       statut: an.cycle === 'verifiee' ? 'Vérifié' : an.cycle === 'nouvelle' ? 'Nouveau' : cycle,
+      court: chiffreCourt(an, l),
       chiffres: valeursAComparer(an, l) + (s1Contredit ? ' · coût de l\'export contredit par le relevé de stock' : '') };
   }
   function htmlCorpsControle(an, l, droits, etat, pc, suivant) {
@@ -568,7 +588,8 @@
   function cleControle(x) { return x.a.code + '|' + x.l.article; }
   function vignetteFamille(l) {
     var id = RF && RF.iconeRayon ? RF.iconeRayon(l.rayon) : 'cat-petits-articles';
-    return NI && NI.imgFamille ? NI.imgFamille('cat', id, 40, { decoratif: true }) : '';
+    var h = NI && NI.imgCategorie ? NI.imgCategorie(id, 40, { decoratif: true }) : '';
+    return h || '<span class="pt-vign-neutre" aria-hidden="true"></span>';
   }
   function htmlLigneCompacte(x, choisi) {
     var pc = pieceControle(x.a, x.l), cle = cleControle(x), grav = pc.niveau === LIB_NIVEAU.demontree ? 'demontree' : 'averifier';
@@ -577,16 +598,16 @@
       '<span class="pt-l-vign">' + vignetteFamille(x.l) + '</span>' +
       '<span class="pt-l-corps"><span class="vp-nom pt-l-art">' + esc(x.l.article) + '</span>' +
       '<span class="pt-l-sec"><span class="pt-l-cause">' + esc(pc.cd.court || pc.cd.titre || pc.code) + '</span> <span class="nbe-qualif pt-l-niv" data-axe="niveau">' + esc(pc.niveau) + '</span> <span class="pt-l-etat nbe-qualif" data-axe="cycle">' + esc(LIB_CYCLE[x.a.cycle || 'nouvelle'] || '') + '</span></span></span>' +
-      '<span class="pt-l-chiffre pt-l-gr-' + grav + '">' + pc.chiffres + '</span><span class="pt-l-chev" aria-hidden="true">›</span></button></li>';
+      '<span class="pt-l-chiffre pt-l-gr-' + grav + '">' + esc(pc.court) + '</span><span class="pt-l-chev" aria-hidden="true">›</span></button></li>';
   }
   function htmlDetailControle(x, droits, etat, nav, avecSuivi) {
     var pc = pieceControle(x.a, x.l), n = nav || { restants: 0, suivant: false };
     var retour = '<button type="button" class="detail-btn pt-ctl-retour" data-ctl-retour="1">‹ Retour à la liste (' + n.restants + (n.restants > 1 ? ' restants' : ' restant') + ')</button>';
-    var pos = n.total ? '<span class="pt-ctl-pos" data-ctl-pos="1">' + n.pos + ' / ' + n.total + '</span>' : '';
+    var pos = n.total ? '<span class="pt-ctl-nav"><button type="button" class="detail-btn pt-ctl-fl" data-ctl-prec="1" aria-label="Contrôle précédent"' + (n.pos > 1 ? '' : ' disabled') + '>‹</button><span class="pt-ctl-pos" data-ctl-pos="1">' + n.pos + ' / ' + n.total + '</span><button type="button" class="detail-btn pt-ctl-fl" data-ctl-suiv-fl="1" aria-label="Contrôle suivant"' + (n.pos < n.total ? '' : ' disabled') + '>›</button></span>' : '';
     var suiv = '<button type="button" class="detail-btn pt-ctl-suivant" data-ctl-suivant="1"' + (n.suivant ? '' : ' disabled') + '>Passer au suivant sans vérifier</button>';
     return '<section class="pt-detail" data-ctl-detail="1" aria-label="Détail du contrôle"><div class="pt-ctl-entete">' + retour + pos + '</div>' + (avecSuivi ? htmlSuiviVerif(etat, droits) : '') + '<div class="pt-ctl-1"><button type="button" class="vp-ligne-prod pt-ctl-prod" data-article="' + esc(x.l.article) + '"><span class="vp-nom">' + esc(x.l.article) + '</span></button> ' +
-      '<span class="sc-nom">' + esc(pc.cd.titre || pc.code) + '</span> <span class="nbe-qualif" data-axe="cycle">' + esc(pc.statut) + '</span></div>' +
-      indicateursControle(x.a, x.l, pc) + '<p class="pt-ctl-2 pt-ctl-chiffre" data-ctl-chiffre="1"><span class="pt-mono">' + pc.chiffres + '</span> <span class="nbe-qualif" data-axe="niveau">' + esc(pc.niveau) + '</span></p>' +
+      '<span class="sc-nom">' + esc(pc.cd.titre || pc.code) + '</span> <span class="nbe-qualif" data-axe="niveau">' + esc(pc.niveau) + '</span> <span class="nbe-qualif" data-axe="cycle">' + esc(pc.statut) + '</span></div>' +
+      indicateursControle(x.a, x.l, pc) + '<p class="pt-ctl-2 pt-ctl-chiffre" data-ctl-chiffre="1"><span class="pt-mono">' + pc.chiffres + '</span></p>' +
       htmlCorpsControle(x.a, x.l, droits, etat, pc, suiv) + '</section>';
   }
   function htmlControlesAFaire(l, droits, etat) {
@@ -1025,6 +1046,12 @@
       etat.ctlSel = ls[i + 1].dataset.ctlSel; rendre(); if (typeof window !== 'undefined' && window.scrollTo) window.scrollTo(0, 0);
       var b = corps.querySelector('[data-ctl-suivant]'); if (b && b.focus) b.focus();
     }
+    function precedent() {
+      var ls = Array.prototype.slice.call(corps.querySelectorAll('[data-ctl-sel]')), i = -1;
+      ls.forEach(function (b, k) { if (b.getAttribute('aria-current') === 'true') i = k; });
+      if (i <= 0) return;
+      etat.ctlSel = ls[i - 1].dataset.ctlSel; rendre(); if (typeof window !== 'undefined' && window.scrollTo) window.scrollTo(0, 0);
+    }
     // Écouteurs globaux liés une seule fois ; ils appellent toujours les dernières fermetures.
     etat.ctlRetourFn = demanderRetour; etat.ctlFermerDirect = fermerDetailDirect;
     if (!etat.ctlGlobaux && typeof window !== 'undefined' && window.addEventListener) {
@@ -1050,6 +1077,8 @@
     });
     var bRetour = corps.querySelector('[data-ctl-retour]'); if (bRetour) bRetour.addEventListener('click', demanderRetour);
     var bSuiv = corps.querySelector('[data-ctl-suivant]'); if (bSuiv) bSuiv.addEventListener('click', suivant);
+    var bPrec = corps.querySelector('[data-ctl-prec]'); if (bPrec) bPrec.addEventListener('click', precedent);
+    var bSf = corps.querySelector('[data-ctl-suiv-fl]'); if (bSf) bSf.addEventListener('click', suivant);
     lignes.forEach(function (b, i) {
       b.addEventListener('click', function () { if (etroit()) ouvrirDetail(b.dataset.ctlSel); else choisirLigne(b.dataset.ctlSel); });
       b.addEventListener('keydown', function (ev) {
@@ -1200,11 +1229,19 @@
     '.vue-p1c .pt-badges{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}.vue-p1c .pt-pol{margin:8px 0}.vue-p1c .pt-pol-l{display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:2px 0}' +
     '.vue-p1c details.pt-filtres[open]>summary .sc-chev{transform:rotate(45deg)}.vue-p1c details.pt-histo-sec[open]>summary .sc-chev{transform:rotate(45deg)}.vue-p1c .pt-histo-sec>summary{min-height:44px;display:flex;align-items:center;justify-content:space-between;cursor:pointer}.vue-p1c .pt-histo-reset{margin:6px 0}.vue-p1c .pt-histo-plus{margin:6px 0}.vue-p1c .pt-ctrl .vp-liste{margin:8px 0}.vue-p1c .pt-f{display:flex;flex-direction:column;gap:2px;min-width:0}.vue-p1c .pt-f select,.vue-p1c .pt-f input{min-height:44px;border-radius:8px;border:1px solid var(--t-line);background:var(--t-panel);color:var(--t-text);font:inherit;padding:0 8px}.vue-p1c .pt-f-rech{flex:1 1 100%}.vue-p1c .pt-f:not(.pt-f-rech){flex:1 1 140px}.vue-p1c .pt-scenarios{margin:8px 0}.vue-p1c .pt-aucun{margin:4px 0 0}.vue-p1c .sc-conseiller{margin:0 0 10px}.vue-p1c .pt-histo-t{display:flex;align-items:center;gap:6px}.vue-p1c .sc-conseil-ligne{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px}.vue-p1c .sc-conseil-ligne .sc-conseil{margin:0;flex:1 1 220px;max-width:100%}.sc-conseil-plus{display:inline}.sc-conseil-plus>summary{display:inline-flex;list-style:none;cursor:pointer}.sc-conseil-plus>summary::-webkit-details-marker{display:none}.sc-conseil-plus[open]>span{display:block}.sc-conseiller .sc-conseil{overflow-wrap:anywhere}@media(min-width:900px){.sc-conseiller .sc-conseil:not(:has(details[open])){white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}.vue-p1c .sc-conseiller{padding-top:8px;padding-bottom:8px;align-items:center}.vue-p1c .sc-conseiller .conseiller-avatar{width:32px;height:32px}.vue-p1c .pt-histo-suivi{display:block;margin-top:2px}.vue-p1c .pt-histo-txt{flex:1;min-width:0}.vue-p1c .pt-li{display:flex;align-items:center;gap:6px}.vue-p1c .pt-li .vp-ligne-prod{flex:1;min-width:0}.vue-p1c .pt-li .pt-info{flex:none}.vue-p1c .pt-ctl{list-style:none;padding:10px 0;border-top:1px solid var(--t-line)}.vue-p1c .pt-ctl-2,.vue-p1c .pt-ctl-3{margin:4px 0}.vue-p1c .pt-ctl .pt-verifier{width:100%;min-height:44px;margin-top:8px}.vue-p1c .pt-ctl-titre{margin:0 0 8px}.vue-p1c .pt-controles-faire{margin:14px 0 10px}.vue-p1c .pt-bloc-controles{margin:10px 0}.vue-p1c .pt-ctl-outils{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}@media(min-width:900px){.vue-p1c .pt-ctl-outils{flex-wrap:nowrap;align-items:flex-end}.vue-p1c .pt-ctl-outils .pt-f-rech{flex:1 1 220px}.vue-p1c .pt-ctl-outils .pt-f:not(.pt-f-rech){flex:0 1 190px}.vue-p1c .pt-ctl-cycles{display:flex;flex-wrap:nowrap;align-items:center;gap:8px;border:0;padding:0;margin:0}.vue-p1c .pt-ctl-cycles legend{float:left;padding:0 4px 0 0}.vue-p1c .pt-ctl-aide{order:9}}.vue-p1c .pt-ctl-aide>summary{list-style:none;cursor:pointer}.vue-p1c .pt-ctl-aide>summary::-webkit-details-marker{display:none}.vue-p1c .pt-ctl-cycles{border:0;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:4px 12px}.vue-p1c .pt-carte-ctl{text-align:left;font:inherit;cursor:pointer;width:100%;border:1px solid var(--t-line);background:var(--t-panel);color:var(--t-text);min-height:44px}.vue-p1c .pt-com-lien{background:none;border:0;padding:0 2px;min-height:44px;font:inherit;font-size:13px;color:var(--accent,inherit);text-decoration:underline;cursor:pointer}.vue-p1c input[type=checkbox]{accent-color:var(--accent)}.vue-p1c .pt-chk{display:inline-flex;align-items:center;gap:6px;min-height:44px}.vue-p1c .pt-verif-champ{margin-top:8px}.vue-p1c .pt-verif-zone{display:flex;flex-direction:column;gap:4px}.vue-p1c .pt-verif-com{width:100%;box-sizing:border-box;min-height:64px;border-radius:8px;border:1px solid var(--t-line);background:var(--t-panel);color:var(--t-text);font:inherit;padding:8px;resize:vertical}.vue-p1c .pt-verif-n{align-self:flex-end}.vue-p1c .pt-fond{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:40}.vue-p1c .pt-fiche{position:fixed;z-index:41;background:var(--t-panel);overflow:auto;box-sizing:border-box;left:0;right:0;bottom:0;max-height:85vh;border-radius:16px 16px 0 0;padding:12px 16px 24px}@media (min-width:900px){.vue-p1c .pt-fiche{left:auto;top:0;bottom:0;right:0;width:420px;max-height:none;border-radius:0}}.vue-p1c .pt-fiche-tete{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}.vue-p1c .pt-fermer{min-height:44px}.vue-p1c .pt-marge-l1{display:block;color:var(--t-text)}.vue-p1c .pt-marge-prin{color:var(--t-text);font-family:var(--t-mono);font-weight:700;font-size:17px}.vue-p1c .pt-marge-sec{display:block;color:var(--t-mid);font-family:var(--t-mono);font-size:12px}.vue-p1c .vp-filtres{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start}.vue-p1c .pt-filtres{flex:1 1 100%}.vue-p1c .pt-filtres>summary{min-height:44px;display:flex;align-items:center;justify-content:space-between;cursor:pointer}.vue-p1c .pt-filtres-corps{display:flex;flex-wrap:wrap;gap:8px}@media (min-width:900px){.vue-p1c .pt-filtres-corps{flex-wrap:wrap}.vue-p1c .pt-filtres-corps>.pt-f{flex:1 1 160px;min-width:0}}@media (max-width:599px){.vue-p1c .sc-conseiller .conseiller-avatar{width:48px;height:48px}.vue-p1c .sc-ind{padding:10px 12px}.vue-p1c .sc-ind-val{font-size:20px}}';
   CSS += '@media(max-width:599px){.sc-conseiller:has(.sc-conseil-2l){display:grid;grid-template-columns:32px minmax(0,1fr) auto;column-gap:8px;row-gap:6px;align-items:center}.sc-conseiller:has(.sc-conseil-2l) .conseiller-corps,.sc-conseiller:has(.sc-conseil-2l) .sc-conseil-2l{display:contents}.sc-conseiller:has(.sc-conseil-2l)>.conseiller-avatar{grid-area:1/1/2/2}.sc-conseiller:has(.sc-conseil-2l) .conseiller-titre{grid-area:1/2/2/4}.sc-conseil-2l .sc-conseil-art{grid-area:2/1/3/4;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}.sc-conseil-2l .sc-conseil-sous{grid-area:3/1/4/4;display:block}.sc-conseiller:has(.sc-conseil-2l) .detail-btn{grid-area:4/1/5/3;justify-self:start}.sc-conseil-2l .sc-conseil-plus{grid-area:4/3/5/4;justify-self:end}.sc-conseil-2l .sc-conseil-plus[open]{grid-area:5/1/6/4;justify-self:stretch}}';
-  CSS += '.vue-p1c .pt-pastilles{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}.vue-p1c .pt-pastille{min-height:44px;padding:4px 12px;border:1px solid var(--t-line);border-radius:999px;background:transparent;color:var(--t-text);font:inherit;cursor:pointer}.vue-p1c .pt-pastille[aria-pressed=true]{border-color:var(--t-accent,currentColor);font-weight:600}.vue-p1c .pt-pastille-n{opacity:.8}.vue-p1c .pt-l-etat{font-size:.9em;opacity:.9}.vue-p1c .pt-l-etat::before{content:"\\00B7  "}';
+  CSS += '.vue-p1c .pt-pastilles{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}.vue-p1c .pt-pastille{min-height:44px;padding:4px 12px;border:1px solid var(--t-line);border-radius:999px;background:transparent;color:var(--t-text);font:inherit;cursor:pointer}.vue-p1c .pt-pastille[aria-pressed=true]{border-color:var(--t-accent,currentColor);font-weight:600}.vue-p1c .pt-pastille-n{opacity:.8}.vue-p1c .pt-l-etat{font-size:.9em;opacity:.9}';
   CSS += '.vue-p1c .pt-ctl-deux{display:block}.vue-p1c .pt-ctl-liste{list-style:none;margin:0;padding:0}.vue-p1c .pt-ctl-item{margin:0;border-top:1px solid var(--t-line)}.vue-p1c .pt-ctl-ligne{display:flex;align-items:center;gap:8px;width:100%;min-height:44px;padding:6px 10px;background:transparent;color:var(--t-text);border:0;border-left:3px solid transparent;text-align:left;font:inherit;cursor:pointer}.vue-p1c .pt-ctl-ligne>span{min-width:0;overflow-wrap:anywhere;white-space:normal}.vue-p1c .pt-ctl-ligne{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:8px;row-gap:2px;align-items:center}.vue-p1c .pt-ctl-ligne>.pt-l-tag{flex-shrink:0;overflow:visible;text-overflow:clip;white-space:nowrap;min-width:max-content;justify-self:end}.vue-p1c .pt-ctl-ligne>.pt-l-sec{grid-column:1 / -1;font-size:.85em;opacity:.85}.vue-p1c .pt-ctl-ligne[aria-current=true]{background:var(--t-panel);border-left-color:var(--t-text)}.vue-p1c .pt-ctl-ligne:focus-visible,.vue-p1c details.pt-sources-calcul>summary:focus-visible{outline:2px solid var(--t-text);outline-offset:2px}.vue-p1c .pt-ctl-ligne:focus-visible{outline-offset:-2px}.vue-p1c .pt-detail{margin-top:12px;padding:12px;border:1px solid var(--t-line);border-radius:14px;background:var(--t-panel)}.vue-p1c .pt-detail .pt-ctl-prod{background:none;border:0;padding:0;margin:0;color:var(--t-text);font:inherit;font-weight:700;text-align:left;cursor:pointer;min-height:44px}.vue-p1c .pt-detail .pt-ctl-prod:focus-visible{outline:2px solid var(--t-text);outline-offset:2px}.vue-p1c details.pt-sources-calcul>summary{min-height:44px;display:flex;align-items:center;cursor:pointer}@media (max-width:899.98px){.vue-p1c .pt-ctl-deux[data-mode=liste]>.pt-ctl-droite{display:none}.vue-p1c .pt-ctl-deux[data-mode=detail]>.pt-ctl-gauche{display:none}.vue-p1c .pt-ctl-deux[data-mode=detail]>.pt-ctl-droite{position:fixed;top:0;right:0;bottom:0;left:0;z-index:50;overflow-y:auto;overflow-x:hidden;background:var(--t-panel);-webkit-overflow-scrolling:touch}.vue-p1c .pt-ctl-deux[data-mode=detail] .pt-detail{margin:0;min-height:100%;display:flex;flex-direction:column;border:0;border-radius:0;padding:12px 16px 0;box-sizing:border-box;max-width:100%;overflow-wrap:anywhere}.vue-p1c .pt-ctl-entete{display:flex;align-items:center;justify-content:space-between;gap:8px}.vue-p1c .pt-ctl-pos{white-space:nowrap;color:var(--t-text)}.vue-p1c .pt-ctl-retour,.vue-p1c .pt-ctl-suivant{min-height:44px;min-width:44px;margin:0 0 8px}.vue-p1c .pt-ctl-suivant[disabled]{opacity:.5}.vue-p1c .pt-actions{position:sticky;bottom:0;display:flex;gap:8px;padding:8px 0 calc(8px + env(safe-area-inset-bottom,0px));margin-top:auto;background:var(--t-panel);border-top:1px solid var(--t-line)}.vue-p1c .pt-actions>button{flex:1 1 0;min-height:44px}.vue-p1c .pt-ctl-retour:focus-visible,.vue-p1c .pt-actions>button:focus-visible{outline:2px solid var(--t-text);outline-offset:2px}}@media (min-width:900px){.vue-p1c .pt-ctl-retour,.vue-p1c .pt-ctl-suivant{display:none}.vue-p1c .pt-actions{display:block}.vue-p1c .pt-ctl-deux{display:grid;grid-template-columns:46% 1fr;gap:16px;align-items:start}.vue-p1c .pt-ctl-ligne{min-height:52px;padding:4px 10px}.vue-p1c .pt-ctl-deux>.pt-ctl-droite{position:sticky;top:8px;align-self:start;max-height:calc(100vh - 16px);overflow-y:auto}.vue-p1c .pt-detail{margin-top:0}}';
 
   CSS += '.vue-p1c .pt-ctl-fil,.vue-p1c .pt-ctl-sous{margin:4px 0;color:var(--t-mid)}.vue-p1c .pt-ctl-outils{padding:8px;border:1px solid var(--t-line);border-radius:12px;background:var(--t-panel);align-items:flex-end}.vue-p1c .pt-pastille-n{font-weight:700;opacity:1}.vue-p1c .pt-l-vign{flex:0 0 40px;width:40px;height:40px;display:inline-flex;align-items:center;justify-content:center}.vue-p1c .pt-l-vign img{width:40px;height:40px;object-fit:contain}.vue-p1c .pt-ctl-ligne{grid-template-columns:40px minmax(0,1fr) auto auto}.vue-p1c .pt-l-corps{display:flex;flex-direction:column;gap:2px;min-width:0}.vue-p1c .pt-l-art{font-weight:600;overflow-wrap:anywhere;white-space:normal}.vue-p1c .pt-l-sec{font-size:.85em;color:var(--t-mid)}.vue-p1c .pt-l-chiffre{font-family:var(--t-mono);font-weight:700;padding:2px 8px;border:1px solid var(--t-line);border-radius:999px;white-space:nowrap}.vue-p1c .pt-l-gr-demontree{border-color:var(--nbe-critique,var(--t-text));color:var(--t-text)}.vue-p1c .pt-l-gr-averifier{border-color:var(--nbe-verifier,var(--t-text));color:var(--t-text)}.vue-p1c .pt-l-chev{color:var(--t-mid)}.vue-p1c .pt-detail .pt-ctl-suivant{background:transparent;color:var(--t-text);border:1px solid var(--t-line)}.vue-p1c .pt-detail .pt-actions .pt-ctl-suivant{width:100%}';
   CSS += '.vue-p1c .pt-ctl-ligne{grid-template-columns:40px minmax(0,1fr) auto;grid-template-rows:auto auto}.vue-p1c .pt-ctl-ligne>.pt-l-vign{grid-column:1;grid-row:1 / span 2;align-self:start}.vue-p1c .pt-ctl-ligne>.pt-l-corps{grid-column:2;grid-row:1}.vue-p1c .pt-ctl-ligne>.pt-l-chiffre{grid-column:2;grid-row:2;justify-self:start;white-space:normal;overflow-wrap:anywhere;font-size:.9em}.vue-p1c .pt-ctl-ligne>.pt-l-chev{grid-column:3;grid-row:1 / span 2;align-self:center}.vue-p1c .pt-pastille{white-space:normal;max-width:100%}';
+  CSS += '.vue-p1c .pt-ctl .pt-verifier,.vue-p1c .pt-actions>.pt-verifier{width:100%;min-height:48px;background:var(--t-cyan);color:var(--t-bg);border:1px solid var(--t-cyan);border-radius:10px;font-weight:700}' +
+    '.vue-p1c .pt-actions{flex-direction:column}.vue-p1c .pt-actions>button{flex:0 0 auto;width:100%}' +
+    '.vue-p1c details.pt-sources-calcul{border:1px solid var(--t-line);border-radius:10px;padding:0 12px;margin:8px 0}' +
+    '.vue-p1c details.pt-sources-calcul>summary{list-style:none;justify-content:space-between;font-weight:600}.vue-p1c details.pt-sources-calcul>summary::-webkit-details-marker{display:none}' +
+    '.vue-p1c details.pt-sources-calcul>summary::after{content:"\\25BE";transition:transform .15s}.vue-p1c details.pt-sources-calcul[open]>summary::after{transform:rotate(180deg)}' +
+    '.vue-p1c .pt-ctl-nav{display:inline-flex;align-items:center;gap:4px}.vue-p1c .pt-ctl-fl{min-width:44px;min-height:44px;font-size:1.4em;border:1px solid var(--t-line)}.vue-p1c .pt-ctl-fl[disabled]{opacity:.4}' +
+    '.vue-p1c .pt-vign-neutre{display:inline-block;width:40px;height:40px;border:1px solid var(--t-line);border-radius:10px;background:var(--t-raised)}' +
+    '.vue-p1c .pt-l-chiffre{white-space:nowrap}';
   CSS += '.vue-p1c .pt-ctl-tete{margin:0 0 8px}.vue-p1c .pt-ctl-titre{margin:4px 0;font-size:1.25em;overflow-wrap:anywhere}.vue-p1c .pt-ctl-pilule{display:inline-block;margin-left:6px}.vue-p1c .pt-ind2{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin:8px 0}.vue-p1c .pt-ind{display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--t-line);border-radius:12px;min-width:0}.vue-p1c .pt-ind-ico{flex:0 0 40px;display:inline-flex}.vue-p1c .pt-ind-txt{display:flex;flex-direction:column;gap:2px;min-width:0}.vue-p1c .pt-ind-val{font-size:1.5em;font-weight:700;overflow-wrap:anywhere}';
   // ---------- Montage : lecture seule, session de la personne connectée, clé publique, aucun paramètre de site ----------
   var VUES = { familles: 'v_tarif_familles_actifs', rattachements: 'v_tarif_rattachements_actifs', seuils: 'v_tarif_seuils_actifs', reglages: 'v_tarif_reglages_actifs',

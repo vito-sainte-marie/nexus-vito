@@ -529,9 +529,9 @@ ok('en-tête Contrôler en tête de l\'axe : titre, sous-titre, pilule Estimatio
   assert.ok(/data-ctl-sous="1">[^<]*références/.test(h) && /data-ctl-estimations="1">Estimations</.test(h));
   assert.ok(!/<details[^>]*data-bloc-controles/.test(h));
 });
-ok('détail Contrôler : bloc de deux indicateurs (chiffre clé en grand + niveau)', () => {
+ok('détail Contrôler : bloc de deux indicateurs (chiffre clé en grand + valeur ; niveau dans l’en-tête)', () => {
   const h = E.htmlPage({ analyse: avecControles(2), role: 'manager', estCreateur: false, filtres: {}, incoherences: [] });
-  assert.ok(/data-ctl-indicateurs="1"/.test(h) && /pt-ind-cle/.test(h) && /pt-ind-niv/.test(h));
+  assert.ok(/data-ctl-indicateurs="1"/.test(h) && /pt-ind-cle/.test(h) && /pt-ind-sec/.test(h) && !/pt-ind-niv/.test(h));
 });
 ok('recette Guardian : cases de filtre avec accent-color', () => {
   assert.ok(/input\[type=checkbox\]\{accent-color:var\(--accent\)/.test(E.CSS));
@@ -1147,7 +1147,9 @@ ok('L3 : mode liste par défaut, mode détail avec retour, Suivant et barre d\'a
   assert.ok(/data-mode="detail"/.test(hd) && /data-ctl-retour="1"/.test(hd) && /Retour à la liste \(\d+ restants?\)/.test(hd));
   assert.ok(/data-ctl-actions="1"/.test(hd) && /data-ctl-suivant="1"/.test(hd) && /✓ Marquer comme vérifié/.test(hd));
   assert.strictEqual((hd.match(/data-verifier="/g) || []).length, 1, 'un seul bouton de vérification');
-  assert.ok(hd.indexOf('data-ctl-suivant') < hd.indexOf('data-verifier='), 'Suivant précède Marquer comme vérifié dans la barre');
+  assert.ok(hd.indexOf('data-verifier=') < hd.indexOf('data-ctl-suivant'), 'Marquer comme vérifié précède Passer au suivant dans la barre');
+  assert.ok(/data-ctl-prec="1"[^>]*aria-label/.test(hd) && /data-ctl-suiv-fl="1"[^>]*aria-label/.test(hd), 'flèches précédent et suivant');
+  assert.ok(/<details class="pt-sources-calcul"/.test(hd) && !/pt-l-etat::before/.test(E.CSS), 'cadre repliable, pas de point parasite');
 });
 ok('L3 : en lecture seule la barre porte Suivant sans bouton de vérification', () => {
   const a = avecControles(3), h = E.htmlPage({ analyse: a, role: 'employe', estCreateur: false, filtres: {}, incoherences: [], ctlDetail: true });
