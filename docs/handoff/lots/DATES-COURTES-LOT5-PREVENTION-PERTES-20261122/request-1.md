@@ -1,4 +1,24 @@
-<!-- en-attente wake_to: https://github.com/vito-sainte-marie/nexus-vito/issues/160 -->
+---
+protocol: nexus-handoff/2
+kind: request
+lot_id: DATES-COURTES-LOT5-PREVENTION-PERTES-20261122
+seq: 1
+author: Claude
+branch: handoff-continuite-20260920
+status: AWAITING_DECISION
+token_mode: STANDARD
+wake_to: https://github.com/vito-sainte-marie/nexus-vito/issues/160
+preuves:
+  - id: refs-protegees
+    classe: VERIFIED
+    valeur: main=659af077 production=7e78868d
+  - id: merge-base-production
+    classe: VERIFIED
+    valeur: 501c0c744c3327dd5693a2bddc45d064045ca474
+  - id: diff-applicatif-production
+    classe: VERIFIED
+    valeur: 264-fichiers
+---
 # DATES-COURTES-LOT5-PREVENTION-PERTES-20261122 : conception du lot 5 « Prévention des pertes »
 
 Déposée en file d'attente le 22/11/2026 sur instruction du pilote (option 2), sans toucher au lot actif `INVENTAIRE-CAISSE-RENFORT-20261102` ni à `STATE.json`. Canal d'exécution : issue #160 (consigne Guardian, code Claude Code), PR #353 en brouillon vers `production`.
