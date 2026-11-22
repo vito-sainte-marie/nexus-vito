@@ -174,6 +174,7 @@
   .badge-e.att{color:var(--amber);border-color:var(--amber)}
   .badge-e.ref{color:var(--red);border-color:var(--red)}
   .bandeau-corr{margin-top:14px;padding:12px 14px;border-radius:8px;background:var(--cyan-dim);border:1px solid var(--cyan);font-size:13px;line-height:1.45}
+  .lien{background:none;border:0;padding:6px 0;min-height:44px;color:var(--cyan);font:600 13px var(--sans);text-decoration:underline;cursor:pointer}
   .msg-fix{position:sticky;bottom:0;margin-top:12px;padding:10px 12px;border-radius:8px;background:var(--panel);border:1px solid var(--hairline);font-size:12px;color:var(--text-mid)}
   @media (min-width:600px){.ligne{grid-template-columns:2fr 1fr auto auto}.ligne .raison,.ligne .acts{grid-column:1/-1}}
   .bande{display:none;padding:8px 14px;font:600 13px var(--sans);color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-bottom:1px solid var(--hairline)}
@@ -245,10 +246,13 @@ function nomAff(l){return nomUtile(l&&l.libelle)||SANS_NOM;}
 function enRayon(l){return Math.max(0,l.total-l.retire);}
 function detailQte(l){return l.retire>0?l.total+' '+pl(l.total,'relevée','relevées')+' · '+l.retire+' '+pl(l.retire,'retirée','retirées'):'';}
 function enRayonTxt(l){return enRayon(l)+' en rayon'+(l.retire>0?' ('+l.retire+' '+pl(l.retire,'retirée','retirées')+')':'');}
-function titre(nom){
-  document.body.classList.toggle('en-tournee',nom!==null);
-  if(bande) bande.textContent='Dates courtes · '+(nom||'Tournée en cours');
-  sous.textContent=nom===null?'Mes tournées':(nom||'Tournée en cours');
+var ETATS={EN_COURS:'En cours',CORRECTION_DEMANDEE:'Correction demandée',TERMINEE_A_CERTIFIER:'Terminée, à certifier',CERTIFIEE:'Certifiée'};
+function etatLib(e){return ETATS[e]||'En cours';}
+function ligneEtat(t){return (t&&t.commencee_a?'Commencée à '+t.commencee_a+' · ':'')+etatLib(t&&t.etat);}
+function titre(t){
+  document.body.classList.toggle('en-tournee',t!==null);
+  if(bande) bande.textContent=t===null?'':(t.nom||'Tournée en cours');
+  sous.textContent=t===null?'Mes tournées':ligneEtat(t);
 }
 
 /* ---------- File d'attente locale : clés créées au geste ---------- */
@@ -302,27 +306,27 @@ function chargement(){racine.innerHTML='<div class="squelette" aria-label="Charg
 /* ---------- Mes tournées ---------- */
 function ecranTournees(){
   arreterScan();tournee=null;titre(null);chargement();
-  nexusClient.from('dates_courtes_tournees').select('id,nom,etat,saisi_le').eq('saisi_par',employee.id).in('etat',['EN_COURS','CORRECTION_DEMANDEE']).order('saisi_le',{ascending:false}).then(function(r){
+  nexusClient.rpc('dates_courtes_lire_tournees',{p_etats:['EN_COURS','CORRECTION_DEMANDEE']}).then(function(r){
     if(r.error){messageEtat('Chargement impossible','Les tournées n\'ont pas pu être lues.',true);return;}
-    var h='<h2 class="ecran-titre">Mes tournées</h2><label class="champ">Nom de la tournée (facultatif)<input id="nomTournee" maxlength="100" autocomplete="off"></label><div class="rang"><button type="button" class="btn prim plein" data-act="nouvelle">Nouvelle tournée</button></div>';
+    var liste=Array.isArray(r.data)?r.data:[];
+    var h='<h2 class="ecran-titre">Mes tournées</h2><div class="rang"><button type="button" class="btn prim plein" data-act="nouvelle">Nouvelle tournée</button></div>';
     var n=enAttente().length;
     if(n) h+='<div class="msg-fix">'+n+' '+pl(n,'saisie en attente','saisies en attente')+' d\'envoi sur cet appareil.</div>';
-    if(!r.data.length) h+='<div class="etat">Aucune tournée en cours. Commencez une nouvelle tournée pour relever des dates limites.</div>';
+    if(!liste.length) h+='<div class="etat">Aucune tournée en cours. Commencez une nouvelle tournée pour relever des dates limites.</div>';
     else h+='<h2 class="ecran-titre">Tournées en cours</h2>';
-    r.data.forEach(function(t){
-      h+='<div class="carte"><h3>'+esc(t.nom||'Tournée sans nom')+(t.etat==='CORRECTION_DEMANDEE'?'<span class="badge-e att">Correction demandée</span>':'')+'</h3><div class="meta">Commencée le '+esc(dateFr(t.saisi_le))+'</div><div class="rang"><button type="button" class="btn prim" data-act="ouvrir" data-id="'+esc(t.id)+'" data-nom="'+esc(t.nom||'')+'" data-etat="'+esc(t.etat)+'">Reprendre</button></div></div>';
+    liste.forEach(function(t){
+      h+='<div class="carte"><h3>'+esc(t.nom)+'</h3><div class="meta">'+esc(ligneEtat(t))+'</div><button type="button" class="lien" data-act="renommer" data-id="'+esc(t.id)+'" data-nom="'+esc(t.nom)+'">Renommer</button><div class="rang"><button type="button" class="btn prim" data-act="ouvrir" data-id="'+esc(t.id)+'" data-nom="'+esc(t.nom)+'" data-etat="'+esc(t.etat)+'" data-heure="'+esc(t.commencee_a)+'">Reprendre</button></div></div>';
     });
     racine.innerHTML=h;
   });
 }
 function nouvelleTournee(){
-  var nom=(document.getElementById('nomTournee')||{}).value||'';
-  nexusClient.rpc('dates_courtes_creer_tournee',{p_nom:nom,p_cle_idempotence:uuid()}).then(function(r){
+  nexusClient.rpc('dates_courtes_creer_tournee',{p_nom:null,p_cle_idempotence:uuid()}).then(function(r){
     if(r.error){var c=codeErreur(r.error);messageEtat('Tournée non créée',c?c.texte:'Connexion nécessaire pour ouvrir une tournée.',true);return;}
-    ouvrirTournee({id:r.data.tournee_id,nom:nom,etat:'EN_COURS'});
+    ouvrirTournee({id:r.data.tournee_id,nom:r.data.nom,etat:'EN_COURS',commencee_a:r.data.commencee_a});
   });
 }
-function ouvrirTournee(t){tournee=t;titre(t.nom||'');return rafraichir().then(function(){if(t.etat==='CORRECTION_DEMANDEE') ecranCorrection(); else ecranTournee();});}
+function ouvrirTournee(t){tournee=t;titre(t);return rafraichir().then(function(){if(t.etat==='CORRECTION_DEMANDEE') ecranCorrection(); else ecranTournee();});}
 
 /* ---------- Lecture des lignes de la tournée : un groupe par article et date, un élément par relevé ---------- */
 function rafraichir(){
@@ -372,7 +376,7 @@ function dessinerLignes(){
 /* ---------- Écran de tournée ---------- */
 function ecranTournee(){
   arreterScan();
-  racine.innerHTML='<div class="rang"><button type="button" class="btn prim plein" data-act="identifier">Identifier un produit</button></div><h2 class="ecran-titre">Saisies de ma tournée</h2><ul class="lignes" id="listeLignes"></ul><div class="rang"><button type="button" class="btn" data-act="liste">Mes tournées</button><button type="button" class="btn" data-act="terminer">Terminer ma tournée</button></div>';
+  racine.innerHTML='<button type="button" class="lien" data-act="renommer">Renommer</button><div class="rang"><button type="button" class="btn prim plein" data-act="identifier">Identifier un produit</button></div><h2 class="ecran-titre">Saisies de ma tournée</h2><ul class="lignes" id="listeLignes"></ul><div class="rang"><button type="button" class="btn" data-act="liste">Mes tournées</button><button type="button" class="btn" data-act="terminer">Terminer ma tournée</button></div>';
   dessinerLignes();
 }
 
@@ -563,6 +567,25 @@ function enregistrer(){
   ecranIdentifier(msg);
 }
 
+/* ---------- Renommer une tournée : change l'étiquette, rien d'autre ---------- */
+var renomme=null,cleRenom='';
+function ouvrirRenommer(t){
+  renomme=t;cleRenom=uuid();
+  fiche.innerHTML='<div class="fiche"><h2>Renommer la tournée</h2><label class="champ">Nom de la tournée<input id="champRenom" maxlength="60" autocomplete="off" value="'+esc(t.nom)+'"></label><div class="msg-champ err" id="ficheMsg" role="alert"></div><div class="actions"><button type="button" class="btn prim" data-act="renommerOk">Enregistrer</button><button type="button" data-act="fermer">Annuler</button></div></div>';
+  if(fiche.showModal) fiche.showModal(); else fiche.setAttribute('open','');
+}
+function enregistrerNom(){
+  if(!renomme) return Promise.resolve();
+  var v=((document.getElementById('champRenom')||{}).value||'').replace(/\s+/g,' ').trim();
+  if(!v||v.length>60){ficheDit('Le nom doit faire de 1 à 60 caractères.');return Promise.resolve();}
+  var t=renomme;
+  return nexusClient.rpc('dates_courtes_renommer_tournee',{p_tournee:t.id,p_nom:v,p_cle_idempotence:cleRenom}).then(function(r){
+    if(r.error){var c=codeErreur(r.error);ficheDit(c?c.texte:'Connexion nécessaire pour renommer.');return;}
+    fermer();
+    if(tournee&&tournee.id===t.id){tournee.nom=(r.data&&r.data.nom)||v;titre(tournee);} else ecranTournees();
+  });
+}
+
 /* ---------- Corrections sur une ligne ---------- */
 var ficheQ='';
 function ouvrirAction(i){
@@ -651,7 +674,9 @@ function clic(e){
   switch(a){
     case 'init':init();break;
     case 'nouvelle':nouvelleTournee();break;
-    case 'ouvrir':ouvrirTournee({id:b.getAttribute('data-id'),nom:b.getAttribute('data-nom'),etat:b.getAttribute('data-etat')});break;
+    case 'ouvrir':ouvrirTournee({id:b.getAttribute('data-id'),nom:b.getAttribute('data-nom'),etat:b.getAttribute('data-etat'),commencee_a:b.getAttribute('data-heure')});break;
+    case 'renommer':ouvrirRenommer({id:b.getAttribute('data-id')||(tournee&&tournee.id),nom:b.getAttribute('data-nom')||(tournee&&tournee.nom)||''});break;
+    case 'renommerOk':enregistrerNom();break;
     case 'liste':ecranTournees();break;
     case 'retourTournee':ecranTournee();break;
     case 'identifier':ecranIdentifier();break;
@@ -694,7 +719,7 @@ function init(){
   });
 }
 if(window.__DC_TEST__){
-  window.__dc={analyserCode:analyserCode,vider:vider,empiler:empiler,lireFile:lireFile,ecrireFile:ecrireFile,enAttente:enAttente,ecranTerminer:ecranTerminer,init:init,clic:clic,repartir:repartir,rafraichir:rafraichir,dessinerLignes:dessinerLignes,ecranIdentifier:ecranIdentifier,ecranSaisie:ecranSaisie,ouvrirAction:ouvrirAction,nomAff:nomAff,
+  window.__dc={analyserCode:analyserCode,vider:vider,empiler:empiler,lireFile:lireFile,ecrireFile:ecrireFile,enAttente:enAttente,ecranTerminer:ecranTerminer,init:init,clic:clic,repartir:repartir,rafraichir:rafraichir,dessinerLignes:dessinerLignes,ecranIdentifier:ecranIdentifier,ecranSaisie:ecranSaisie,ouvrirAction:ouvrirAction,ouvrirTournee:ouvrirTournee,ecranTournees:ecranTournees,ouvrirRenommer:ouvrirRenommer,enregistrerNom:enregistrerNom,etatTournee:function(){return tournee;},nomAff:nomAff,
     etat:function(o){if('employee' in o) employee=o.employee;if('tournee' in o) tournee=o.tournee;if('produit' in o) produit=o.produit;if('lignes' in o) lignes=o.lignes;if('saisie' in o) saisie=o.saisie;},
     lire:function(){return {tournee:tournee,lignes:lignes,saisie:saisie,produit:produit};}};
 }

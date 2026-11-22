@@ -83,7 +83,7 @@ Quantité courante d'un article (EAN, ou libellé normalisé) :
 
 ### 3 bis. Tables annexes
 
-- `dates_courtes_tournees` : id, site, nom (facultatif), auteur, creee_le, etat, terminee_par, terminee_le, version_empreinte, version_derniere_operation. Mise à jour limitée à l'état et aux colonnes de clôture, par fonction serveur. Pas de colonne `origine`.
+- `dates_courtes_tournees` : id, site, nom (lot 2.1 : généré par le serveur à la création si absent ; renommable par l'auteur ou la direction du site, jamais sur une tournée certifiée ; voir `dates_courtes_renommages_tournee`), auteur, creee_le, etat, terminee_par, terminee_le, version_empreinte, version_derniere_operation. Mise à jour limitée à l'état et aux colonnes de clôture, par fonction serveur. Pas de colonne `origine`.
 - `dates_courtes_certifications` : id, site, tournee_id, manager, certifiee_le, version_certifiee, observations, statut, mention d'identité (réalisateur et certificateur identiques). Append-only ; une nouvelle certification s'ajoute, l'ancienne reste tracée.
 - `dates_courtes_demandes_correction` : id, site, tournee_id, manager, motif, releves_vises, demandee_le, reponse, repondue_par, repondue_le. Append-only hors réponse. La réponse du renfort remet la tournée à certifier.
 - `dates_courtes_correspondances` : id, site, libelle_normalise_ancien, libelle_normalise_nouveau, auteur, cree_le, annule_le, annule_par, motif_annulation. Geste manager « même produit que… ». Append-only. Ne rajeunit pas l'âge d'une ligne.
@@ -138,3 +138,7 @@ Un réglage booléen « accès caissier », fermé par défaut, modifiable par m
 - Fonctions de lecture : `dates_courtes_prevention_pertes(p_instant)` (jsonb) et `dates_courtes_nature_fiscale(site, date)` (comparaison des prix d'achat, tolérance 1,5 %).
 - Aucune nouvelle table de données ; B s'appuie sur le prix figé à la comptabilisation, « prix reconstitué » avant le lot 5.
 - Limite : un site sans import d'inventaire reste en nature non déterminée.
+
+## Lot 2.1 : trace des renommages
+
+`dates_courtes_renommages_tournee` : id, tournee, site, ancien_nom, nouveau_nom, renomme_par, renomme_le, cle_idempotence. Ajout seulement (immuable par déclencheur), lecture réservée à la direction du site. Aucune autre colonne de la tournée n'est touchée par un renommage.
