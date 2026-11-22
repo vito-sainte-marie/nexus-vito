@@ -163,7 +163,11 @@ t('barre d\'accueil : aucun des anciens PNG n\'est cité en src (ni srcset) dans
     const src = (b.match(/\ssrc="([^"]*)"/) || [])[1], srcset = (b.match(/\ssrcset="([^"]*)"/) || [])[1] || '';
     assert.ok(/^assets\/icones\/v2\/mod-[a-z-]+\/mod-[a-z-]+@1x\.webp$/.test(src), 'src : ' + src);
     ANCIENS.forEach(a => assert.ok(!src.includes(a) && !srcset.includes(a), a + ' cité dans ' + b.slice(0, 60)));
-    assert.ok(/data-nexus-ancien-src="assets\/icons\/icon-/.test(b), 'ancien src gardé');
+    // Modules créés directement en v2 : pas d'ancienne icône, donc pas de faux ancien chemin à garder.
+    const CREES_EN_V2 = ['mod-dates-courtes'];
+    const mod = (b.match(/data-nexus-icone="([^"]*)"/) || [])[1];
+    if (!CREES_EN_V2.includes(mod)) assert.ok(/data-nexus-ancien-src="assets\/icons\/icon-/.test(b), 'ancien src gardé');
+    else assert.ok(!/data-nexus-ancien-src=/.test(b), mod + ' : aucun ancien chemin attendu');
   });
   assert.ok(/<div class="nav-icon" data-nexus-icone="mod-carburants"[^>]*data-nexus-ancien-emoji="⛽"[^>]*><img src="assets\/icones\/v2\/mod-carburants\//.test(APP));
   assert.ok(!/data-nexus-icone="mod-carburants"[^>]*>⛽</.test(APP), 'plus d\'emoji affiché dans le HTML');

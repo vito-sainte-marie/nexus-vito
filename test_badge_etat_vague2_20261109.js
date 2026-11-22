@@ -81,7 +81,9 @@ t('missions : états carburant À agir / À décider rendus par le composant', (
 });
 t('Accueil : aucun emoji d\'état dans les compteurs, rien à convertir', () => {
   const A = lire('NEXUS-App-v1.html');
-  const bloc = A.split('\n').slice(2145, 2160).join('\n').replace(/\/\/.*$/gm, '');
+  const i0 = A.indexOf('const nbPriorites = candidatsDisponibles'), i1 = A.indexOf('renderOutilsGrid({', i0);
+  assert.ok(i0 > 0 && i1 > i0, 'bloc des compteurs d\'accueil introuvable (ancre de texte)');
+  const bloc = A.slice(i0, i1).replace(/\/\/.*$/gm, '');
   assert.ok(/NexusEtatsConseiller\.est\(/.test(bloc) && !EMO.test(bloc));
 });
 console.log(n + ' épreuves OK');
