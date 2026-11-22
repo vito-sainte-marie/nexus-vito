@@ -152,6 +152,11 @@ begin
     select p.prix_achat::numeric as pa, nullif(p.prix_vente, 0)::numeric as pv, p.periode_debut::date as pd, p.periode_fin::date as pf, p.imported_at::timestamptz as ia,
            dates_courtes_normaliser_ean(p.code_barres) as ek, dates_courtes_normaliser_libelle(p.article) as lk
     from products p where p.site = v_site and p.prix_achat > 0
+  ), ry as materialized (
+    select distinct on (u.ek) u.ek, u.rayon from (
+      select dates_courtes_normaliser_ean(p.code_barres) as ek, nullif(btrim(p.categorie), '') as rayon, p.periode_fin, p.imported_at
+      from products p where p.site = v_site) u
+    where u.ek is not null and u.rayon is not null order by u.ek, u.periode_fin desc nulls last, u.imported_at desc nulls last
   ), iv as materialized (
     select v.prix_achat_ht::numeric as pa, nullif(v.prix_vente_ht, 0)::numeric as pv, v.importe_le::timestamptz as ia, v.importe_le::date as jd,
            dates_courtes_normaliser_ean(v.code_barres_brut) as ek, dates_courtes_normaliser_libelle(v.designation_brute) as lk
@@ -210,6 +215,7 @@ begin
   )
   select jsonb_build_object(
     'jour', v_jour,
+    'dernier_releve', (select max(dernier_releve) from c),
     'nature_fiscale', jsonb_build_object('determinee', v_det, 'comparables', v_nat.comparables, 'ecart_median', v_nat.ecart_median, 'tolerance', v_nat.tolerance),
     'compteurs', jsonb_build_object(
       'traiter', (select count(*) from k where code in ('retirer', 'promo')),
@@ -226,7 +232,23 @@ begin
             'quantite_indicative', (k.code = 'releve'),
             'prix_connu', (k.pu is not null),
             'valeur', case when k.pu2 is not null then round(k.quantite * k.pu2, 2) end,
-            'autres_tournees', k.autres_tournees) as o, k.prio, k.date_limite as dl, coalesce(k.libelle_normalise, k.ean) as lib
+            'dernier_releve', k.dernier_releve,
+            'rayon', case when k.ean is not null then (select ry.rayon from ry where ry.ek = k.ean) end,
+            'autres_tournees', case when k.autres then (
+              select coalesce(jsonb_agg(jsonb_build_object('tournee_id', a.tid, 'nom', a.nom, 'role', a.role_aff, 'heure', a.heure, 'quantite', a.qte, 'etat', a.etat) order by a.heure desc), '[]'::jsonb)
+              from (
+                select (e.o ->> 'tournee_id')::uuid as tid, e.o ->> 'nom' as nom, (e.o ->> 'heure')::timestamptz as heure, t.etat,
+                  case when em.est_createur then 'Créateur' when em.role = 'renfort' then 'Renfort' when em.role = 'manager' then 'Manager'
+                       when em.role = 'gerant' then 'Gérant' else 'Opérateur' end as role_aff,
+                  coalesce((select sum(r.quantite) from dates_courtes_releves r
+                              where r.site = v_site and r.tournee_id = (e.o ->> 'tournee_id')::uuid and r.annule_le is null and r.heure_geste <= p_instant
+                                and r.date_limite = k.date_limite and dates_courtes_cle_article(r.site, r.ean, r.libelle_normalise) = k.cle_article), 0)
+                  + coalesce((select sum(cr.delta) from dates_courtes_corrections cr
+                              where cr.site = v_site and cr.tournee_id = (e.o ->> 'tournee_id')::uuid and cr.annule_le is null and cr.heure_geste <= p_instant
+                                and cr.date_limite = k.date_limite and dates_courtes_cle_article(cr.site, cr.ean, cr.libelle_normalise) = k.cle_article), 0) as qte
+                from jsonb_array_elements(k.autres_tournees) as e(o)
+                left join dates_courtes_tournees t on t.id = (e.o ->> 'tournee_id')::uuid
+                left join employees em on em.id = (e.o ->> 'saisi_par')::uuid) a) end) as o, k.prio, k.date_limite as dl, coalesce(k.libelle_normalise, k.ean) as lib
         from k where k.code is not null order by k.prio, k.date_limite, coalesce(k.libelle_normalise, k.ean) limit 200) x),
     'a', (select jsonb_build_object(
         'calculable', v_det and count(*) filter (where age_jours <= 7) > 0,

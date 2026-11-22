@@ -89,7 +89,7 @@ declare
   m uuid := '00000000-0000-4000-8000-0000000e0501';
   s text := 'site-fantome-test';
   inst timestamptz := '2026-11-22 16:00:00+00';
-  t_c uuid; t_r1 uuid; t_m1 uuid; l record; rid uuid; did uuid;
+  t_c uuid; t_r1 uuid; t_m1 uuid; t_g uuid; a uuid; l record; rid uuid; did uuid;
 begin
   reset role;
   perform set_config('request.jwt.claims', json_build_object('sub', m, 'role', 'authenticated')::text, true);
@@ -97,39 +97,48 @@ begin
   insert into dates_courtes_tournees (site, nom, cle_idempotence, saisi_par, etat) values
     (s, 'Certifiée', 'dc5-tc', m, 'EN_COURS') returning id into t_c;
   insert into dates_courtes_tournees (site, nom, cle_idempotence, saisi_par, etat) values
-    (s, 'Frais rayon laitier R1', 'dc5-tr1', m, 'EN_COURS') returning id into t_r1;
+    (s, 'Frais rayon laitier R1', 'dc5-tr1', '00000000-0000-4000-8000-0000000e0503', 'EN_COURS') returning id into t_r1;
   insert into dates_courtes_tournees (site, nom, cle_idempotence, saisi_par, etat) values
     (s, 'Charcuterie M1', 'dc5-tm1', m, 'EN_COURS') returning id into t_m1;
+  insert into dates_courtes_tournees (site, nom, cle_idempotence, saisi_par, etat) values
+    (s, 'Charcuterie G1', 'dc5-tg', '00000000-0000-4000-8000-0000000e0502', 'EN_COURS') returning id into t_g;
   for l in select * from (values
-    ('Yaourt nature x4', '2026-11-20'::date, 6, 1, 'r1'),
-    ('Salade composée', '2026-11-23', 8, 0, 'c'),
-    ('Jus d''orange 1 L', '2026-11-26', 12, 2, 'c'),
-    ('Sandwich thon', '2026-11-24', 3, 0, 'r1'),
-    ('Lait demi-écrémé 1 L', '2026-11-18', 4, 10, 'c'),
-    ('Biscuits chocolat', '2026-12-05', 20, 11, 'c'),
-    ('Compote pomme x4', '2026-12-10', 9, 18, 'c'),
-    ('Jambon blanc x4', '2026-12-04', 5, 2, 'r1'),
-    ('Jambon blanc x4', '2026-12-04', 6, 1, 'm1'),
-    ('Eau gazeuse 1,5 L', '2027-01-15', 24, 3, 'c')) v(nom, dl, q, age, t) loop
-    insert into dates_courtes_releves (site, libelle_vu, libelle_normalise, date_limite, quantite, cle_groupe, tournee_id, heure_geste, cle_idempotence, saisi_par)
-    values (s, l.nom, dates_courtes_normaliser_libelle(l.nom), l.dl, l.q, dates_courtes_normaliser_libelle(l.nom) || l.dl::text,
-            case l.t when 'c' then t_c when 'r1' then t_r1 else t_m1 end, inst - make_interval(days => l.age), 'dc5-r-' || l.nom || l.age, m);
+    ('Yaourt nature x4', '2026-11-20'::date, 6, 1, 'r1', '3000000000014'),
+    ('Salade composée', '2026-11-23', 8, 0, 'c', null),
+    ('Jus d''orange 1 L', '2026-11-26', 12, 2, 'c', '3000000000021'),
+    ('Sandwich thon', '2026-11-22', 3, 0, 'r1', null),
+    ('Lait demi-écrémé 1 L', '2026-11-21', 4, 10, 'c', null),
+    ('Biscuits chocolat', '2026-12-05', 20, 11, 'c', null),
+    ('Compote pomme x4', '2026-12-10', 9, 18, 'c', null),
+    ('Jambon blanc x4', '2026-12-04', 5, 2, 'r1', null),
+    ('Jambon blanc x4', '2026-12-04', 6, 1, 'm1', null),
+    ('Jambon blanc x4', '2026-12-04', 4, 3, 'g', null),
+    ('Eau gazeuse 1,5 L', '2027-01-15', 24, 3, 'c', null)) v(nom, dl, q, age, t, ean) loop
+    a := case l.t when 'r1' then '00000000-0000-4000-8000-0000000e0503'::uuid when 'g' then '00000000-0000-4000-8000-0000000e0502'::uuid else m end;
+    perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+    perform set_config('request.jwt.claim.sub', a::text, true);
+    insert into dates_courtes_releves (site, ean, libelle_vu, libelle_normalise, date_limite, quantite, cle_groupe, tournee_id, heure_geste, cle_idempotence, saisi_par)
+    values (s, l.ean, l.nom, dates_courtes_normaliser_libelle(l.nom), l.dl, l.q, dates_courtes_normaliser_libelle(l.nom) || l.dl::text,
+            case l.t when 'c' then t_c when 'r1' then t_r1 when 'g' then t_g else t_m1 end, inst - make_interval(days => l.age), 'dc5-r-' || l.nom || l.age,
+            a);
   end loop;
+  perform set_config('request.jwt.claims', json_build_object('sub', m, 'role', 'authenticated')::text, true);
+  perform set_config('request.jwt.claim.sub', m::text, true);
   -- Statuts : les tournées sont terminées après la saisie (contrainte : terminée = les 3 champs renseignés).
   update dates_courtes_tournees set etat = 'CERTIFIEE', terminee_par = m, terminee_le = inst - interval '1 day', version_empreinte = 'e1' where id = t_c;
   update dates_courtes_tournees set etat = 'TERMINEE_A_CERTIFIER', terminee_par = m, terminee_le = inst - interval '1 day', version_empreinte = 'e2' where id in (t_r1, t_m1);
   -- Prix de référence (products) : tous sauf le sandwich.
-  insert into products (site, periode_debut, periode_fin, article, prix_achat, prix_vente) values
-    (s, '2026-10-01', '2026-11-20', 'Yaourt nature x4', 1.80, 2.60),
-    (s, '2026-10-01', '2026-11-20', 'Salade composée', 2.40, 3.90),
-    (s, '2026-10-01', '2026-11-20', 'Jus d''orange 1 L', 1.10, 1.80),
-    (s, '2026-10-01', '2026-11-20', 'Lait demi-écrémé 1 L', 1.05, 1.60),
-    (s, '2026-10-01', '2026-11-20', 'Biscuits chocolat', 0.95, 1.70),
-    (s, '2026-10-01', '2026-11-20', 'Compote pomme x4', 1.30, 2.10),
-    (s, '2026-10-01', '2026-11-20', 'Jambon blanc x4', 2.90, 4.60),
-    (s, '2026-10-01', '2026-11-20', 'Eau gazeuse 1,5 L', 0.45, 0.90),
-    (s, '2026-10-01', '2026-11-20', 'Yaourt fruits x4', 1.75, 2.70),
-    (s, '2026-10-01', '2026-11-20', 'Jus de pomme 1 L', 1.00, 1.65);
+  insert into products (site, periode_debut, periode_fin, article, prix_achat, prix_vente, code_barres, categorie) values
+    (s, '2026-10-01', '2026-11-20', 'Yaourt nature x4', 1.80, 2.60, '3000000000014', 'Produits laitiers'),
+    (s, '2026-10-01', '2026-11-20', 'Salade composée', 2.40, 3.90, '3000000000038', 'Traiteur'),
+    (s, '2026-10-01', '2026-11-20', 'Jus d''orange 1 L', 1.10, 1.80, '3000000000021', null),
+    (s, '2026-10-01', '2026-11-20', 'Lait demi-écrémé 1 L', 1.05, 1.60, null, null),
+    (s, '2026-10-01', '2026-11-20', 'Biscuits chocolat', 0.95, 1.70, null, null),
+    (s, '2026-10-01', '2026-11-20', 'Compote pomme x4', 1.30, 2.10, null, null),
+    (s, '2026-10-01', '2026-11-20', 'Jambon blanc x4', 2.90, 4.60, null, null),
+    (s, '2026-10-01', '2026-11-20', 'Eau gazeuse 1,5 L', 0.45, 0.90, null, null),
+    (s, '2026-10-01', '2026-11-20', 'Yaourt fruits x4', 1.75, 2.70, null, null),
+    (s, '2026-10-01', '2026-11-20', 'Jus de pomme 1 L', 1.00, 1.65, null, null);
   -- Cohérence HT : l'inventaire donne les mêmes prix d'achat (écarts nuls ou inférieurs à 1,5 %).
   insert into inventaire_ventes_import (site, designation_brute, prix_achat_ht, prix_vente_ht, importe_le) values
     (s, 'Yaourt nature x4', 1.80, 2.60, inst - interval '5 days'),
@@ -167,6 +176,28 @@ begin
   r := pg_temp.n(r, '1 age L5 (10 j, périmé) = vérifier la présence', 'présence', (select (e->>'action') || '/' || (e->>'etat_age') from jsonb_array_elements(g->'liste') e where e->>'libelle' ilike 'Lait%'));
   r := pg_temp.n(r, '1 age L7 (18 j) = à recontrôler', '=a_recontroler', (select e->>'etat_age' from jsonb_array_elements(g->'liste') e where e->>'libelle' ilike 'Compote%'));
   r := pg_temp.n(r, '1 age L1 (1 j) périmé = À retirer', 'retirer', (select e->>'action' from jsonb_array_elements(g->'liste') e where e->>'libelle' ilike 'Yaourt nature%'));
+  -- 1b autres tournées : quantité, rôle, état, jamais de nom ni d'identifiant d'auteur (jambon : 2 autres tournées de rôles différents)
+  v := (select e->'autres_tournees' from jsonb_array_elements(g->'liste') e where e->>'libelle' ilike 'Jambon%' limit 1);
+  r := pg_temp.n(r, '1b autres tournées : 2 lignes', '=2', jsonb_array_length(v)::text);
+  r := pg_temp.n(r, '1b autre Renfort : quantité 5, état terminée', '=Renfort/5/TERMINEE_A_CERTIFIER', (select (e->>'role') || '/' || (e->>'quantite') || '/' || (e->>'etat') from jsonb_array_elements(v) e where e->>'role' = 'Renfort'));
+  r := pg_temp.n(r, '1b autre Gérant : quantité 4, état en cours', '=Gérant/4/EN_COURS', (select (e->>'role') || '/' || (e->>'quantite') || '/' || (e->>'etat') from jsonb_array_elements(v) e where e->>'role' = 'Gérant'));
+  r := pg_temp.n(r, '1b aucun saisi_par dans la réponse', '!saisi_par', g::text);
+  r := pg_temp.n(r, '1b aucun uuid d''auteur dans la réponse', '!0e050', g::text);
+  r := pg_temp.n(r, '1b aucun nom d''employé dans la réponse', '!Recette', g::text);
+  r := pg_temp.n(r, '1b ligne sans autre tournée : aucune clé', '=ok', (select case when bool_and(e->'autres_tournees' is null or jsonb_typeof(e->'autres_tournees') = 'null' or e->>'libelle' ilike 'Jambon%' or e->>'libelle' ilike 'Yaourt%' or e->>'libelle' ilike 'Sandwich%') then 'ok' else 'ko' end from jsonb_array_elements(g->'liste') e));
+  -- 1c délais : jours restants (−2, −1, 0, +1, +4) lus par la page, jamais recalculés
+  r := pg_temp.n(r, '1c délai -2', '=-2', (select e->>'jours_restants' from jsonb_array_elements(g->'liste') e where e->>'libelle' ilike 'Yaourt nature%'));
+  r := pg_temp.n(r, '1c délai -1', '=-1', (select e->>'jours_restants' from jsonb_array_elements(g->'liste') e where e->>'libelle' ilike 'Lait%'));
+  r := pg_temp.n(r, '1c délai 0', '=0', (select e->>'jours_restants' from jsonb_array_elements(g->'liste') e where e->>'libelle' ilike 'Sandwich%'));
+  r := pg_temp.n(r, '1c délai +1', '=1', (select e->>'jours_restants' from jsonb_array_elements(g->'liste') e where e->>'libelle' ilike 'Salade%'));
+  r := pg_temp.n(r, '1c délai +4', '=4', (select e->>'jours_restants' from jsonb_array_elements(g->'liste') e where e->>'libelle' ilike 'Jus d%'));
+  -- 1d dernier relevé : par ligne et pour le site
+  r := pg_temp.n(r, '1d dernier relevé de la ligne', '=ok', (select case when bool_and(e->>'dernier_releve' is not null) then 'ok' else 'ko' end from jsonb_array_elements(g->'liste') e));
+  r := pg_temp.n(r, '1d dernier relevé du site', '=ok', case when g->>'dernier_releve' is not null then 'ok' else 'ko' end);
+  -- 1e rayon : par EAN seulement, jamais par ressemblance de nom
+  r := pg_temp.n(r, '1e rayon : EAN et rayon connu', '=Produits laitiers', (select e->>'rayon' from jsonb_array_elements(g->'liste') e where e->>'libelle' ilike 'Yaourt nature%'));
+  r := pg_temp.n(r, '1e rayon : sans EAN, trouvé par le libellé seul', '=', (select coalesce(e->>'rayon', '') from jsonb_array_elements(g->'liste') e where e->>'libelle' ilike 'Salade%'));
+  r := pg_temp.n(r, '1e rayon : EAN et rayon inconnu', '=', (select coalesce(e->>'rayon', '') from jsonb_array_elements(g->'liste') e where e->>'libelle' ilike 'Jus d%'));
   -- 2 A
   r := pg_temp.n(r, '2 A valeur', '=71.40~=71.4', g#>>'{a,valeur}');
   r := pg_temp.n(r, '2 A dont non certifiées', '=28.20~=28.2', g#>>'{a,dont_non_certifiees}');
@@ -211,6 +242,10 @@ begin
   perform pg_temp.exec($q$update products set prix_achat = 9.99, prix_vente = 19.99 where site = 'site-fantome-test' and article = 'Yaourt fruits x4'$q$);
   x := pg_temp.lire('M1');
   r := pg_temp.n(r, 'fige B inchangé après modif de products', '=29.50~=29.5', x#>>'{b,valeur}');
+  -- 2b tout provisoire : aucune tournée certifiée
+  perform pg_temp.exec($q$update dates_courtes_tournees set etat = 'TERMINEE_A_CERTIFIER' where site = 'site-fantome-test' and etat = 'CERTIFIEE'$q$);
+  x := pg_temp.lire('M1');
+  r := pg_temp.n(r, '2b tout provisoire : dont non certifiées = valeur', '=ok', case when x#>>'{a,valeur}' is not null and x#>>'{a,dont_non_certifiees}' = x#>>'{a,valeur}' then 'ok' else coalesce(x#>>'{a,valeur}', 'null') || '/' || coalesce(x#>>'{a,dont_non_certifiees}', 'null') end);
   -- 6 nature fiscale non déterminée : on vide l'inventaire
   perform pg_temp.exec($q$delete from inventaire_ventes_import where site = 'site-fantome-test'$q$);
   x := pg_temp.lire('M1');

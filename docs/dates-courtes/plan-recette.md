@@ -70,5 +70,6 @@ Limite : aucun de ces cas n'a été joué sur Test. Le plan décrit ce qu'il fau
 | 48 | Ligne sans prix d'achat | Unités comptées, hors montant, signalée | 5 |
 | 49 | Démarque antérieure au lot 5 | B « Partiellement reconstitué », part reconstituée affichée | 5 |
 | 50 | C et D | « Calcul indisponible » et quatre raisons, jamais « Estimation » | 5 |
+| 51 | Dix secondes sur iPhone | Un manager non formé nomme en moins de 10 s le premier produit à traiter, sa quantité, son échéance et l'action attendue | 5 |
 
-Rappel : la recette locale du lot 5 compte 47 contrôles (banc pglite). Les cas ci-dessus restent à jouer sur Test après GO.
+Rappel : la recette locale du lot 5 compte 76 contrôles (banc pglite). Les cas ci-dessus restent à jouer sur Test après GO.
