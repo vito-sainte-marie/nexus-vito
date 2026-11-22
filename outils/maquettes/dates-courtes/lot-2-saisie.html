@@ -1,0 +1,73 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Maquette lot 2 Saisie de tournée</title>
+<script src="../../../nexus-theme.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="../../../nexus-badge-etat.js"></script><script src="../../../nexus-icones.js"></script>
+<link rel="stylesheet" href="maquettes.css"></head><body>
+<div class="bandeau"><h1>Lot 2 : Contrôler les dates courtes (maquette, données fictives)</h1><div class="reglage" role="group" aria-label="Thème"></div></div>
+<nav class="liens" aria-label="Largeur"><a href="lot-2-saisie.html?largeur=375">Vue 375 px (téléphone)</a><a href="lot-2-saisie.html?largeur=1280">Vue 1280 px (bureau)</a><a href="lot-2-saisie.html">Les deux</a></nav>
+<p class="note">Le bouton « Terminer ma tournée » existe en 375 et en 1280. Le nom de la tournée reste visible pendant toute la saisie. Aucune écriture, aucune donnée réelle.</p>
+<div class="vues">
+
+<section class="cadre m"><h2>375 px · Choix de la tournée</h2><div class="ecran"><header class="header hero"><picture><source media="(max-width:599px)" srcset="../../../assets/telephone/dates-courtes-telephone.webp"><img class="entete" src="../../../assets/dates-courtes/dates-courtes-banniere-1200.webp" srcset="../../../assets/dates-courtes/dates-courtes-banniere-800.webp 800w, ../../../assets/dates-courtes/dates-courtes-banniere-1200.webp 1200w, ../../../assets/dates-courtes/dates-courtes-banniere-1600.webp 1600w" sizes="(min-width:1100px) 1100px, 100vw" width="1600" height="533" alt=""></picture><div class="header-texte"><div class="eyebrow">NEXUS · Mes dates courtes</div><h2 class="title">Contrôler</h2><p class="sous">Mes tournées en cours</p></div></header>
+ <div class="carte"><h3>Tournée Frais, rayon laitier</h3><div class="mid">Commencée à 8 h 40 · 12 saisies</div>
+  <div class="rang"><span data-etat="gravite:information">En cours</span><span data-etat="traitement:en-attente">2 en attente d'envoi</span></div>
+  <div class="rang"><span class="bouton pri">Reprendre cette tournée</span></div></div>
+ <div class="carte"><h3>Tournée Épicerie, allée 3</h3><div class="mid">Commencée à 10 h 05 · 4 saisies</div>
+  <div class="rang"><span data-etat="gravite:information">En cours</span></div>
+  <div class="rang"><span class="bouton">Reprendre cette tournée</span></div></div>
+ <div class="rang"><span class="bouton">Commencer une nouvelle tournée</span></div>
+</div></section>
+
+<section class="cadre m"><h2>375 px · Saisie d'une ligne</h2><div class="ecran"><header class="header hero"><picture><source media="(max-width:599px)" srcset="../../../assets/telephone/dates-courtes-telephone.webp"><img class="entete" src="../../../assets/dates-courtes/dates-courtes-banniere-1200.webp" srcset="../../../assets/dates-courtes/dates-courtes-banniere-800.webp 800w, ../../../assets/dates-courtes/dates-courtes-banniere-1200.webp 1200w, ../../../assets/dates-courtes/dates-courtes-banniere-1600.webp 1600w" sizes="(min-width:1100px) 1100px, 100vw" width="1600" height="533" alt=""></picture><div class="header-texte"><div class="eyebrow">NEXUS · Mes dates courtes</div><h2 class="title">Contrôler</h2></div></header>
+ <div class="tournee">Tournée Frais, rayon laitier <span data-etat="gravite:information">En cours</span></div>
+ <div class="carte"><div class="entree focus">Rechercher ou scanner un produit</div>
+  <div class="rang"><span class="bouton actif">Caméra</span><span class="bouton">Douchette</span><span class="mid">Réglage mémorisé sur cet appareil</span></div>
+  <div class="rang"><span class="bouton">Scanner l'article suivant (un geste)</span></div></div>
+ <div class="carte"><h3>Jus d'orange 1 L</h3><div class="mid">Code 0000000000017 · Rayon frais</div>
+  <div class="champ"><label>Date limite</label><div class="entree mono focus">12/12/2026</div></div>
+  <div class="champ"><label>Quantité</label><div class="entree mono">6</div></div>
+  <div class="pave" aria-label="Pavé numérique (champ actif : date limite)"><span class="bouton">1</span><span class="bouton">2</span><span class="bouton">3</span><span class="bouton">4</span><span class="bouton">5</span><span class="bouton">6</span><span class="bouton">7</span><span class="bouton">8</span><span class="bouton">9</span><span class="bouton">/</span><span class="bouton">0</span><span class="bouton">Effacer</span></div>
+  <div class="rang"><span class="mid">Champ actif : date limite. Touchez la quantité pour la saisir au même pavé.</span></div>
+  <div class="rang"><span class="bouton pri">Enregistrer la ligne</span></div>
+  <div class="rang"><span data-etat="traitement:en-attente">À certifier</span></div></div>
+ <div class="carte"><h3>Cette ligne existe déjà (6 unités à 12/12/2026)</h3>
+  <div class="mid">Deux gestes distincts, jamais fusionnés.</div>
+  <div class="rang"><span class="bouton pri">Ajouter des unités</span><span class="bouton">Corriger le relevé</span></div>
+  <div class="mid" style="margin-top:8px">Ajouter : la quantité saisie s'additionne à la ligne. Corriger : la quantité saisie remplace la ligne.</div></div>
+</div></section>
+
+<section class="cadre m"><h2>375 px · Douchette et fin de tournée</h2><div class="ecran"><header class="header hero"><picture><source media="(max-width:599px)" srcset="../../../assets/telephone/dates-courtes-telephone.webp"><img class="entete" src="../../../assets/dates-courtes/dates-courtes-banniere-1200.webp" srcset="../../../assets/dates-courtes/dates-courtes-banniere-800.webp 800w, ../../../assets/dates-courtes/dates-courtes-banniere-1200.webp 1200w, ../../../assets/dates-courtes/dates-courtes-banniere-1600.webp 1600w" sizes="(min-width:1100px) 1100px, 100vw" width="1600" height="533" alt=""></picture><div class="header-texte"><div class="eyebrow">NEXUS · Mes dates courtes</div><h2 class="title">Contrôler</h2></div></header>
+ <div class="tournee">Tournée Frais, rayon laitier <span data-etat="gravite:information">En cours</span></div>
+ <div class="carte"><h3>Code reconnu</h3><div class="mid">Yaourt nature x4 · douchette Bluetooth</div>
+  <div class="champ"><label>Date limite à saisir</label><div class="entree mono focus"></div></div>
+  <div class="rang"><span class="bouton">Revenir à la caméra</span></div></div>
+ <div class="carte"><h3>Saisies de ma tournée</h3>
+  <ul class="lignes">
+   <li><div>Jus d'orange 1 L<div class="mid mono">12/12/2026</div></div><div class="rang"><span class="mono">6</span><span data-etat="gravite:conforme">Enregistré</span></div></li>
+   <li><div>Salade composée<div class="mid mono">24/11/2026</div></div><div class="rang"><span class="mono">3</span><span data-etat="traitement:en-attente">En attente</span></div></li>
+   <li><div>Yaourt nature x4<div class="mid mono">30/11/2026</div></div><div class="rang"><span class="mono">−9 (correction)</span><span data-etat="gravite:critique">Refusé</span></div><div class="mid">Raison : la correction ferait passer la quantité sous zéro (quantité actuelle 3).</div></li>
+  </ul>
+  <div class="rang"><span class="mid">État de la tournée :</span><span data-etat="gravite:information">En cours</span></div>
+  <div class="rang"><span class="bouton pri">Terminer ma tournée</span></div></div>
+</div></section>
+
+<section class="cadre d"><h2>1280 px · Contrôler</h2><div class="ecran"><header class="header hero"><picture><source media="(max-width:599px)" srcset="../../../assets/telephone/dates-courtes-telephone.webp"><img class="entete" src="../../../assets/dates-courtes/dates-courtes-banniere-1200.webp" srcset="../../../assets/dates-courtes/dates-courtes-banniere-800.webp 800w, ../../../assets/dates-courtes/dates-courtes-banniere-1200.webp 1200w, ../../../assets/dates-courtes/dates-courtes-banniere-1600.webp 1600w" sizes="(min-width:1100px) 1100px, 100vw" width="1600" height="533" alt=""></picture><div class="header-texte"><div class="eyebrow">NEXUS · Mes dates courtes</div><h2 class="title">Contrôler</h2></div></header>
+ <div class="carte"><h3>Tournées en cours</h3>
+  <div class="rang"><span class="bouton actif">Frais, rayon laitier</span><span class="bouton">Épicerie, allée 3</span><span class="bouton">Nouvelle tournée</span></div>
+  <div class="tournee" style="margin-top:12px">Tournée Frais, rayon laitier <span data-etat="gravite:information">En cours</span></div>
+  <div class="champ"><label>Recherche ou scan</label><div class="entree focus">Rechercher ou scanner un produit</div></div>
+  <div class="rang"><span class="bouton actif">Caméra</span><span class="bouton">Douchette</span><span class="bouton">Scanner l'article suivant</span></div>
+  <div class="champ"><label>Date limite</label><div class="entree mono">12/12/2026</div></div>
+  <div class="champ"><label>Quantité</label><div class="entree mono">6</div></div>
+  <div class="rang"><span class="bouton pri">Enregistrer la ligne</span><span class="bouton">Ajouter des unités</span><span class="bouton">Corriger le relevé</span></div></div>
+ <div class="carte"><h3>Saisies de ma tournée</h3>
+  <table><thead><tr><th>Produit</th><th>Date limite</th><th>Qté</th><th>Envoi</th></tr></thead><tbody>
+   <tr><td>Jus d'orange 1 L</td><td class="mono">12/12/2026</td><td class="n">6</td><td><span data-etat="gravite:conforme">Enregistré</span></td></tr>
+   <tr><td>Salade composée</td><td class="mono">24/11/2026</td><td class="n">3</td><td><span data-etat="traitement:en-attente">En attente</span></td></tr>
+   <tr><td>Yaourt nature x4</td><td class="mono">30/11/2026</td><td class="n">−9 (correction)</td><td><span data-etat="gravite:critique">Refusé</span> <span class="mid">la correction ferait passer la quantité sous zéro (quantité actuelle 3)</span></td></tr>
+  </tbody></table>
+  <div class="rang"><span class="mid">État de la tournée :</span><span data-etat="gravite:information">En cours</span></div>
+  <div class="rang"><span class="bouton pri">Terminer ma tournée</span></div></div>
+</div></section>
+</div><script src="maquettes.js"></script></body></html>

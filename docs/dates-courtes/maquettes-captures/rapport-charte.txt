@@ -1,0 +1,28 @@
+
+== outils/maquettes/dates-courtes/lot-2-saisie.html (liste contrôlée) : 0 point(s)
+  nexus-theme.js : présent
+  couleurs hexadécimales hors :root : 0
+  emojis d'état : 0
+  icônes assets/ introuvables : 0
+
+== outils/maquettes/dates-courtes/lot-5-prevention-pertes.html (liste contrôlée) : 0 point(s)
+  nexus-theme.js : présent
+  couleurs hexadécimales hors :root : 0
+  emojis d'état : 0
+  icônes assets/ introuvables : 0
+
+== outils/maquettes/dates-courtes/maquettes.css (liste contrôlée) : 2 point(s)
+  nexus-theme.js : présent
+  couleurs hexadécimales hors :root : 2
+    l.49 #0D202E
+    l.54 #EDF1F5
+  emojis d'état : 0
+  icônes assets/ introuvables : 0
+
+== outils/maquettes/dates-courtes/maquettes.js (liste contrôlée) : 1 point(s)
+  nexus-theme.js : ABSENT
+  couleurs hexadécimales hors :root : 0
+  emojis d'état : 0
+  icônes assets/ introuvables : 0
+
+Mode rapport : 4 page(s) contrôlée(s), 3 écart(s) ; aucun échec dans ce lot.

@@ -21,3 +21,14 @@ Les noms `manager`, `gerant`, `createur` sont ceux de la matrice des droits. Ils
 ## 3. Rôle `vacataire` (arbitré)
 
 Arbitrage du pilote du 21/11 : aucun accès, comme le pompiste (`matrice-permissions.md`). Cas de recette 42.
+
+## 4. Prévention des pertes (arbitré le 22/11)
+
+Voir `prevention-pertes.md`. Arbitrages du pilote (#160, 7080834555), en plus du montant principal à 7 jours ou moins (8 à 14 jours « indicatifs », plus de 14 jours exclus) :
+
+1. Quantités non certifiées : incluses dans la valeur à risque, avec la mention « non certifiées » sur la carte.
+2. Rotation : fenêtre de ventes de 30 jours, moyenne seulement, jamais la date limite des unités vendues.
+3. Action terminée : clôturée par le manager, avec un résultat mesuré ou « Résultat non mesurable ».
+4. Multisite : aucune comparaison aux lots 5 et 6, une station par profil ; toute ouverture passe par un arbitrage de sécurité distinct.
+5. Prix d'achat d'une démarque : figé à la comptabilisation, table du lot 5 en ajout seul (prix HT unitaire, source, heure). Sans prix : « Prix d'achat absent ». Démarques antérieures : prix de la période de la pose, « prix reconstitué ».
+6. Nature fiscale de `products` : HT, contrôle de Guardian du 22/11 (preuve élevée). Contrôle de cohérence à chaque import au lot 5 ; échec : « Nature fiscale non déterminée », aucun montant.

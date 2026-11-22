@@ -59,3 +59,7 @@ Les trois cas de résolution de conflit à trois choix sont retirés : il n'y a 
 Autres preuves attendues aux lots 2 à 4 : maquettes Jour et Nuit, captures à largeur iPhone, recette Safari iOS sur appareil réel, exports.
 
 Limite : aucun de ces cas n'a été joué sur Test. Le plan décrit ce qu'il faudra démontrer.
+
+## Prévention des pertes (lots 5 à 7)
+
+Dix cas du pilote P1 à P10 avec leur critère mesurable : voir `prevention-pertes.md` §11.

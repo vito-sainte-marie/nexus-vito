@@ -70,8 +70,11 @@ Vocabulaire imposé : « quantité relevée », jamais « stock ». Toute quanti
 | 2 | Page employé : relevé, tournées, réponse aux demandes de correction |
 | 3 | Suivi manager dans Produits : tournées à certifier, relevés consolidés, historique, correction, certification |
 | 4 | Exports : PDF par tournée, Excel (au moins deux feuilles), export global ; la bibliothèque sera décrite dans la fiche avant tout code |
+| 5 | Prévention des pertes, étape 1 : valeur à risque et pertes constatées (annexe `prevention-pertes.md`) |
+| 6 | Prévention des pertes, étape 2 : actions commerciales et résultats (annexe `prevention-pertes.md`) |
+| 7 | Prévention des pertes, étape 3 : pertes évitées estimées, seulement si les données le permettent (annexe `prevention-pertes.md`) |
 
-Fiches : `fiche-lot-1.md` à `fiche-lot-3.md` (le lot 4 est fiché dans la branche de conception). Annexes : `matrice-permissions.md`, `modele-donnees.md`, `plan-recette.md`, `questions-metier.md`, `modifications-vs-v2.md`.
+Fiches : `fiche-lot-1.md` à `fiche-lot-7.md`. Annexes : `prevention-pertes.md`, `matrice-permissions.md`, `modele-donnees.md`, `plan-recette.md`, `questions-metier.md`, `modifications-vs-v2.md`.
 
 ## 5. Emplacement
 
