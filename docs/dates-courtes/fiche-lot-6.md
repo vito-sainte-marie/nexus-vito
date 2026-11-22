@@ -15,4 +15,4 @@ Référentiel : NEXUS-REFERENTIEL-CONCEPTION v1.0. Canevas A, B, C (Conseiller),
 Cas P7 et P8 ; une recommandation sans règle affichée est refusée.
 
 ## 5. Limites
-Définition d'une action « terminée » à arbitrer (`questions-metier.md` §4). Rien sur Test.
+Arbitré le 22/11 : une action est terminée quand le manager la clôture, avec un résultat mesuré ou « Résultat non mesurable ». Rotation : ventes sur 30 jours, moyenne seulement. Aucune comparaison multisite. Rien sur Test.

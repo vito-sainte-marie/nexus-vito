@@ -22,13 +22,13 @@ Les noms `manager`, `gerant`, `createur` sont ceux de la matrice des droits. Ils
 
 Arbitrage du pilote du 21/11 : aucun accès, comme le pompiste (`matrice-permissions.md`). Cas de recette 42.
 
-## 4. Prévention des pertes (à arbitrer)
+## 4. Prévention des pertes (arbitré le 22/11)
 
-Voir `prevention-pertes.md`. Déjà arbitré : montant principal sur les relevés de 7 jours ou moins, 8 à 14 jours « indicatifs » à part, plus de 14 jours exclus.
+Voir `prevention-pertes.md`. Arbitrages du pilote (#160, 7080834555), en plus du montant principal à 7 jours ou moins (8 à 14 jours « indicatifs », plus de 14 jours exclus) :
 
-1. **Quantités certifiées seulement ou aussi non certifiées.** Options : (a) certifiées seulement, (b) non certifiées incluses avec la mention « non certifiées ». Recommandation : (b), pour que la valeur existe avant la certification, avec la mention sur la carte.
-2. **Fenêtre de ventes servant à la rotation.** Options : 14, 30 ou 60 jours. Recommandation : 30 jours, tant que les ventes sont par période. Elle ne donne qu'une rotation moyenne, jamais la date limite des unités vendues.
-3. **Définition d'une action « terminée ».** Options : (a) à la date limite du produit, (b) quand le manager la clôture, (c) quand la quantité de départ est à zéro. Recommandation : (b), avec résultat mesuré ou « Résultat non mesurable ».
-4. **Comparaison multisite du gérant.** Options : (a) aucune, station unique, (b) stations autorisées seulement. Recommandation : (a) pour les lots 5 et 6, (b) en arbitrage de sécurité. Aucun droit n'est élargi par cette documentation.
-5. **Prix d'achat figé à la pose de la démarque.** Options : (a) figé à la pose, (b) relu à la date de la perte. Recommandation : (a), non reconstituable plus tard. Question aussi posée à Guardian pour #352.
-6. **Hors taxes de `products`.** À confirmer sur trois articles connus (requête filtrée par site, soumise au pilote).
+1. Quantités non certifiées : incluses dans la valeur à risque, avec la mention « non certifiées » sur la carte.
+2. Rotation : fenêtre de ventes de 30 jours, moyenne seulement, jamais la date limite des unités vendues.
+3. Action terminée : clôturée par le manager, avec un résultat mesuré ou « Résultat non mesurable ».
+4. Multisite : aucune comparaison aux lots 5 et 6, une station par profil ; toute ouverture passe par un arbitrage de sécurité distinct.
+5. Prix d'achat d'une démarque : figé à la comptabilisation, table du lot 5 en ajout seul (prix HT unitaire, source, heure). Sans prix : « Prix d'achat absent ». Démarques antérieures : prix de la période de la pose, « prix reconstitué ».
+6. Nature fiscale de `products` : HT, contrôle de Guardian du 22/11 (preuve élevée). Contrôle de cohérence à chaque import au lot 5 ; échec : « Nature fiscale non déterminée », aucun montant.

@@ -27,22 +27,22 @@ Fiches : `fiche-lot-5.md`, `fiche-lot-6.md`, `fiche-lot-7.md`.
 | Quantité courante par produit et date, avec âge | Oui : dernier relevé effectif, tournée qui fait foi | Utilisable sans reprise d'historique |
 | Version certifiée | Oui : états de tournée, certifications, versions de clôture | Utilisable |
 | Retrait physique distinct | Oui : retrait distinct du relevé | Utilisable |
-| Démarque comptabilisée avec quantité, date, auteur | Documentée comme état de retrait (`modele-donnees.md`), sans valeur en euros au lot 1 ; la quantité, la date et l'auteur de la pose sont à confirmer dans la migration telle qu'écrite | **Question posée dans #352, rien ajouté de moi-même** |
-| Prix d'achat au moment du retrait | Non | Non reconstituable plus tard avec certitude : à lire dans `products` à la date de la perte (voir §4) |
+| Démarque comptabilisée avec quantité, date, auteur | Oui : `quantite`, `heure_geste`, `recu_le`, `saisi_par`, motif facultatif, retrait et tournée liés, annulation tracée (confirmé par Guardian, #160 7080550017) | Utilisable |
+| Prix d'achat au moment du retrait | Non figé au lot 1, aucune valeur en euros | Figé au lot 5 (arbitrage du pilote du 22/11) : voir §5 B |
 
-La question à Guardian : la ligne de démarque comptabilisée porte-t-elle bien quantité, date et auteur, et le prix d'achat applicable à cette date doit-il être figé à la pose ?
+Arbitrage du pilote (22/11) : le prix d'achat est figé à la comptabilisation, dans une table du lot 5 en ajout seul, sans toucher aux tables du lot 1.
 
 ## 4. Inventaire des données Produits (dépôt et Test seulement)
 
 | Source | Provenance | Mise à jour | HT ou TTC | Granularité |
 |---|---|---|---|---|
-| `products` | Import Decenium par période (`periode_debut`, `periode_fin`) : `quantite`, `prix_achat`, `prix_vente`, `tva`, `ca`, `marge` | À chaque import manuel d'un fichier | Non établi dans le schéma : `tva` est une colonne à part, l'unité de `prix_achat` et de `prix_vente` reste à confirmer | Une ligne par article et par période, jamais par jour ni par date limite |
+| `products` | Import Decenium par période (`periode_debut`, `periode_fin`) : `quantite`, `prix_achat`, `prix_vente`, `tva`, `ca`, `marge` | À chaque import manuel d'un fichier | HT : `prix_achat`, `prix_vente` et `ca` (contrôle du 22/11 en lecture seule, trois articles, deux taux de TVA, écart inférieur à 0,3 %, preuve élevée, dernière période seulement) | Une ligne par article et par période, jamais par jour ni par date limite |
 | `inventaire_ventes_import` | Import des ventes Decenium par quart | À chaque import de quart | `prix_achat_ht` et `prix_vente_ht` : HT par construction | Par quart et par article, sans date limite |
 | `normalized_products` | Couche issue du pipeline d'import | Vide en Production pour tous les sites (constat Guardian) | Sans objet | Sans objet : aucune clé ne peut s'y appuyer |
 
 Conséquences : le prix d'achat HT vient de `products` (à confirmer HT) ou de `inventaire_ventes_import.prix_achat_ht`, avec la période de la source affichée. Aucune vente n'est rattachée à une date limite.
 
-Requête de vérification à soumettre au pilote si besoin, filtrée par site (je ne lis pas la Production) : pour un site donné, les 20 derniers `products` avec `prix_achat`, `prix_vente`, `tva`, pour contrôler HT contre TTC sur trois articles connus.
+Contrôle HT fait le 22/11 par Guardian (lecture seule). Le lot 5 refait un contrôle de cohérence à chaque nouvel import ; s'il échoue, la carte affiche « Nature fiscale non déterminée » et aucun montant.
 
 ## 5. Les quatre montants
 
@@ -54,13 +54,15 @@ Jamais additionnés, jamais convertis l'un en l'autre. Une carte par montant. Pr
 - Montré à part, marqué « indicative » et jamais ajouté au montant principal : quantités relevées il y a 8 à 14 jours.
 - Exclues, gardées en historique « À recontrôler » : plus de 14 jours.
 - Une ligne sans prix d'achat n'entre pas dans le montant : elle est comptée dans « n produits sans prix d'achat » sur la carte. Si aucune ligne n'a de prix : « Calcul indisponible ».
-- Affiché avec la date du dernier relevé de chaque ligne la plus ancienne retenue, la fraîcheur, et la mention « non certifiées » tant que la tournée n'est pas certifiée (question 2 ci-dessous).
+- Affiché avec la date du dernier relevé de chaque ligne la plus ancienne retenue, la fraîcheur, et la mention « non certifiées » sur la carte : les quantités non certifiées sont incluses (arbitrage du 22/11).
 
 ### B. Pertes constatées
 
 - Calcul : somme des quantités des démarques comptabilisées sur la période, par le prix d'achat unitaire HT applicable à la date de la pose.
 - Un retrait physique n'est pas une perte : il reste dans la liste « à comptabiliser ».
-- Sans prix d'achat : la quantité est affichée, le montant non, avec « Prix d'achat absent ».
+- Prix d'achat HT unitaire figé à la comptabilisation, dans une table du lot 5 en ajout seul : prix, source (`products` et sa période, ou `inventaire_ventes_import`) et heure. La carte affiche la période et l'origine du prix utilisé. Aucune modification des tables du lot 1.
+- Sans prix trouvé : quantité affichée, montant non, « Prix d'achat absent ». Une ligne sans prix ne compte jamais pour zéro.
+- Démarques posées avant le lot 5 : prix de la période de la pose, marqué « prix reconstitué ». Description seulement, aucun code.
 
 ### C. Valeur d'achat des unités écoulées avant échéance
 
@@ -94,7 +96,7 @@ Chaque recommandation affiche la règle qui la déclenche. Le manager décide ; 
 | Recommandation | Règle déclenchante |
 |---|---|
 | Surveiller | Date limite à 31 à 60 jours, quantité relevée il y a 7 jours ou moins |
-| Vérifier la rotation | Date limite à 8 à 30 jours et quantité courante supérieure à la quantité vendue sur la fenêtre de ventes (fenêtre à arbitrer, question 3) |
+| Vérifier la rotation | Date limite à 8 à 30 jours et quantité courante supérieure à la quantité vendue sur la fenêtre de ventes (fenêtre de 30 jours, arbitrage du 22/11, moyenne seulement) |
 | Envisager une remise | Date limite à 0 à 7 jours, quantité courante relevée il y a 7 jours ou moins |
 | Mettre en évidence | Idem, produit à rotation lente selon la fenêtre retenue |
 | Organiser un nouveau contrôle | Dernier relevé de 8 jours ou plus |
@@ -111,7 +113,7 @@ Produit et date limite, date et auteur de la décision, nature, remise éventuel
 État lu dans le dépôt : le rattachement d'un employé à une station passe par `current_employee_site_id()`, une seule station ; les politiques de `inventaire_ventes_import` limitent la lecture à manager et gérant de cette station ; le créateur n'a de portée que sur les stations où `acces_createur_autorise` est vrai (garde posée par `20260906100000_garde_createur_sites.sql`). Aucune table de stations autorisées multiples n'a été lue.
 
 - Manager : sa station.
-- Gérant : sa station aujourd'hui ; la comparaison multisite exigerait une fonction de lecture sur une liste de stations autorisées. **Arbitrage de sécurité** avant toute conception de ce droit.
+- Gérant : sa station. Aucune comparaison multisite aux lots 5 et 6 (arbitrage du 22/11). L'ouvrir exigerait une fonction de lecture sur une liste de stations autorisées. **Arbitrage de sécurité** avant toute conception de ce droit.
 - Créateur : dans les limites de ses droits effectifs ; jamais d'accès illimité supposé.
 - Aucun contournement de `site_id` ni des RLS ; aucun privilège nouveau sans arbitrage de sécurité.
 

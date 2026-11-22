@@ -25,7 +25,7 @@ Contrôler : l'écran liste les tournées ouvertes de l'auteur (il peut en avoir
 - Champ de saisie gardant le focus ; pavé numérique à l'écran et boutons + et − pour la quantité.
 - Option : préremplissage de la date limite depuis l'identifiant GS1 AI 17 si le code le porte.
 - Réglage par défaut par station : option, non décidée.
-- 4 cas de recette lot 2 (saisie douchette, suffixe, focus, AI 17) ; maquettes Jour et Nuit à 375 et 1280 px selon `nexus-design-experience` et NEXUS-REFERENTIEL-CONCEPTION v1.0.
+- 4 cas de recette lot 2 (saisie douchette, suffixe, focus, AI 17) ; maquettes (`outils/maquettes/dates-courtes/lot-2-saisie.html`, avec douchette Bluetooth et clavier de saisie intégré quand le clavier iOS est masqué ; tuile neutre « icône à venir ») Jour et Nuit à 375 et 1280 px selon `nexus-design-experience` et NEXUS-REFERENTIEL-CONCEPTION v1.0.
 
 Accès : renfort, manager, gérant, créateur ; caissier seulement si l'accès de la station est ouvert ; pompiste et vacataire refusés.
 
