@@ -76,7 +76,7 @@
   .liste{display:flex;flex-direction:column;gap:8px;margin-top:10px}
   .ligne{display:grid;grid-template-columns:1fr auto;gap:4px 10px;align-items:center;text-align:left;width:100%;background:var(--panel);border:1px solid var(--hairline);border-radius:10px;padding:12px;color:inherit;font:inherit;cursor:pointer;min-height:44px}
   .ligne:hover{border-color:var(--cyan)}
-  .ligne .nom{font-weight:600;font-size:14px;text-transform:capitalize;overflow-wrap:anywhere}
+  .ligne .nom{font-weight:600;font-size:14px;overflow-wrap:anywhere}
   .ligne .meta{font-size:12px;color:var(--text-mid);grid-column:1/-1}
   .ligne .val{font:600 13px var(--mono);text-align:right}
   .filtres{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
@@ -106,9 +106,9 @@
   dialog{margin:auto;border:1px solid var(--hairline);border-radius:14px;background:var(--panel);color:var(--text);width:min(520px,calc(100vw - 24px));padding:0;max-height:88vh;overflow:auto}
   dialog::backdrop{background:rgba(0,0,0,.55)} /* charte-exception: voile de fond de la fiche */
   .fiche{padding:18px}
-  .fiche h2{margin:0;font-size:17px;text-transform:capitalize;overflow-wrap:anywhere}
+  .fiche h2{margin:0;font-size:17px;overflow-wrap:anywhere}
   .fiche dl{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin-top:14px;font-size:13px}
-  .fiche dt{color:var(--text-mid)} .fiche dd{text-align:right;font-family:var(--mono)}
+  .fiche dt{color:var(--text-mid)} .fiche dd{text-align:right;font-family:var(--sans)} .fiche dd .num,.fiche dd .autre b{font-family:var(--mono)} .fiche .autres{margin:6px 0 0;padding:0;list-style:none;text-align:left} .fiche .autres li{margin:2px 0} .fiche .regle{grid-column:1/-1;margin:6px 0 0;font-size:13px;color:var(--text-mid);text-align:left}
   .fiche .actions{display:flex;flex-direction:column;gap:8px;margin-top:16px}
   .fiche button{min-height:44px;border-radius:8px;border:1px solid var(--hairline);background:var(--panel-raised);color:var(--text);font:600 13px var(--sans);cursor:pointer}
   .fiche button[disabled]{opacity:.6;cursor:not-allowed}
@@ -156,9 +156,11 @@
   const pl = (n, u, m) => nb(n) + ' ' + (n > 1 ? (m || u + 's') : u);
   const unites = n => nb(n) + (n > 1 ? ' unités' : ' unité');
   const dateFr = iso => iso ? iso.slice(8,10) + '/' + iso.slice(5,7) + '/' + iso.slice(0,4) : '';
-  const ETAT_AGE = {courante:'7 jours ou moins : courante', a_verifier:'8 à 14 jours : à vérifier', a_recontroler:'Plus de 14 jours : À recontrôler'};
+  const ETAT_AGE = {courante:'Récent (7 jours ou moins)', a_verifier:'8 à 14 jours : à vérifier', a_recontroler:'Plus de 14 jours : À recontrôler'};
   const ORIGINE = {fige:'Figé', reconstitue:'Reconstitué', absent:'Absent'};
   const SOURCE = {products:'Fiche produit', inventaire_ventes_import:'Inventaire des ventes'};
+  const nomArt = it => { const l = (it.libelle || '').trim(); return (!l || l === String(it.ean || '').trim()) ? 'Article inconnu' : l; };
+  const heureMq = iso => { try { return new Date(iso).toLocaleString('fr-FR', {timeZone:'America/Martinique', day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'}).replace(',', ' à'); } catch (e) { return ''; } };
   const agePhrase = n => n === 0 ? 'relevé aujourd\'hui' : 'relevé il y a ' + pl(n, 'jour');
 
   function messageEtat(titre, texte, avecReessai){
@@ -176,7 +178,7 @@
     } else {
       corps = '<div class="gros">' + (a.valeur == null ? 'Aucun montant' : eur(a.valeur)) + '</div>' +
         (a.valeur != null ? '<p class="sous-gros">Dont non certifiées : ' + eur(a.dont_non_certifiees || 0) + '</p>' : '') +
-        '<p class="sous-gros">' + pl(a.articles_valorises, 'article valorisé') + ', ' + unites(a.unites) + '.</p>' +
+        '<p class="sous-gros">' + pl(a.articles_valorises, 'article valorisé', 'articles valorisés') + ', ' + unites(a.unites) + '.</p>' +
         (a.sans_prix.lignes > 0 ? '<p class="note">' + pl(a.sans_prix.lignes, 'ligne') + ' sans prix d\'achat (' + unites(a.sans_prix.unites) + ') : hors montant.</p>' : '');
     }
     const ind = a.indicatif && a.indicatif.articles > 0
@@ -187,7 +189,7 @@
       : 'Marge non calculable : prix ou nature fiscale manquants.';
     return '<section class="card" id="carteA" aria-labelledby="hA"><h3 id="hA">A · Valeur à risque' + btnInfo('iA') + '</h3>' + corps + ind + exc +
       '<div class="infobulle" id="iA" hidden>' + marge + '<br><span class="aide">' + esc(d.marge.formule) + '</span></div>' +
-      (a.plus_ancien_jours != null ? '<p class="sous-gros">Dernier relevé retenu : jour ' + dateFr(d.jour) + ', le plus ancien a ' + pl(a.plus_ancien_jours, 'jour') + '.</p>' : '') + '</section>';
+      (a.plus_ancien_jours != null ? '<p class="sous-gros">Relevés retenus : le plus ancien ' + (a.plus_ancien_jours === 0 ? 'date d\'aujourd\'hui' : 'a ' + pl(a.plus_ancien_jours, 'jour')) + '.</p>' : '') + '</section>';
   }
 
   function btnInfo(id){ return '<button type="button" class="info" aria-expanded="false" aria-controls="' + id + '" aria-label="Voir la marge et le chiffre d\'affaires"><span aria-hidden="true">i</span></button>'; }
@@ -242,15 +244,15 @@
     const lignes = items.length ? items.map(it => {
       const idx = d.liste.indexOf(it);
       const val = nfOk && it.valeur != null ? eur(it.valeur) : unites(it.quantite);
-      return '<button type="button" class="ligne" data-i="' + idx + '"><span class="nom">' + esc(it.libelle) + '</span><span class="val">' + esc(val) + '</span>' +
-        '<span class="meta">' + esc(it.action) + ' · date limite ' + dateFr(it.date_limite) + ' · ' + agePhrase(it.age_jours) + '</span></button>';
+      return '<button type="button" class="ligne" data-i="' + idx + '"><span class="nom">' + esc(nomArt(it)) + '</span><span class="val">' + esc(val) + '</span>' +
+        '<span class="meta">' + (nomArt(it) === 'Article inconnu' && it.ean ? 'EAN ' + esc(it.ean) + ' · ' : '') + esc(it.action) + ' · date limite ' + dateFr(it.date_limite) + ' · ' + agePhrase(it.age_jours) + '</span></button>';
     }).join('') : '<div class="etat">Rien à afficher pour cette sélection.</div>';
     return '<h2 id="titreListe">' + titre + '</h2>' + f + '<div class="liste">' + lignes + '</div>';
   }
 
   function detailPertes(d){
     const b = d.b, nfOk = d.nature_fiscale.determinee;
-    const rows = b.detail.length ? b.detail.map(x => '<tr><td>' + esc(x.libelle) + '</td><td>' + dateFr(x.date_comptabilisation) + '</td><td class="num">' + nb(x.quantite) + '</td><td class="num">' + (x.prix_unitaire != null ? eur(x.prix_unitaire) : 'Absent') + '</td><td class="num">' + (nfOk && x.valeur != null ? eur(x.valeur) : 'Aucun montant') + '</td><td>' + esc(SOURCE[x.source] || x.source || 'Aucune') + (x.periode_debut ? '<br><span class="aide">' + dateFr(x.periode_debut) + ' au ' + dateFr(x.periode_fin) + '</span>' : '') + '</td><td>' + esc(ORIGINE[x.etat] || x.etat) + '</td></tr>').join('') : '<tr><td colspan="7">Aucune démarque sur la période.</td></tr>';
+    const rows = b.detail.length ? b.detail.map(x => '<tr><td>' + esc(nomArt(x)) + (nomArt(x) === 'Article inconnu' && x.ean ? '<br><span class="aide">' + esc(x.ean) + '</span>' : '') + '</td><td>' + dateFr(x.date_comptabilisation) + '</td><td class="num">' + nb(x.quantite) + '</td><td class="num">' + (x.prix_unitaire != null ? eur(x.prix_unitaire) : 'Absent') + '</td><td class="num">' + (nfOk && x.valeur != null ? eur(x.valeur) : 'Aucun montant') + '</td><td>' + esc(SOURCE[x.source] || x.source || 'Aucune') + (x.periode_debut ? '<br><span class="aide">' + dateFr(x.periode_debut) + ' au ' + dateFr(x.periode_fin) + '</span>' : '') + '</td><td>' + esc(ORIGINE[x.etat] || x.etat) + '</td></tr>').join('') : '<tr><td colspan="7">Aucune démarque sur la période.</td></tr>';
     return '<details class="panneau" id="panDetail"><summary>Voir le détail des pertes</summary><div class="corps"><p>Une ligne par démarque : date de comptabilisation, prix unitaire, origine du prix et état (figé, reconstitué ou absent). Au plus 100 lignes, les plus récentes d\'abord.</p><div style="overflow-x:auto"><table><thead><tr><th>Produit</th><th>Comptabilisée le</th><th class="num">Quantité</th><th class="num">Prix unitaire</th><th class="num">Perte</th><th>Origine du prix</th><th>État</th></tr></thead><tbody>' + rows + '</tbody></table></div></div></details>';
   }
 
@@ -277,13 +279,22 @@
       detailPertes(d) + commentCalcule(d);
   }
 
+  function autresTournees(it){
+    const a = Array.isArray(it.autres_tournees) ? it.autres_tournees : [];
+    if (!a.length) return '';
+    // L'identifiant de l'auteur n'est jamais affiché : la réponse ne porte ni pseudonyme ni rôle.
+    const li = a.map(t => '<li class="autre">' + esc(t.nom || 'Tournée sans nom') + ', par un autre opérateur, ' + esc(heureMq(t.heure)) + '</li>').join('');
+    return '<h3 class="aide" style="margin:12px 0 0">Autres tournées sur cette ligne</h3><ul class="autres">' + li + '</ul>' +
+      '<p class="regle">La tournée la plus récente fait foi : seules les ' + unites(it.quantite) + ' de cette tournée comptent.</p>';
+  }
+
   function ouvrirFiche(i){
     const it = DONNEES.liste[i], nfOk = DONNEES.nature_fiscale.determinee;
-    fiche.innerHTML = '<div class="fiche"><h2>' + esc(it.libelle) + '</h2><p class="aide">' + esc(it.ean || '') + '</p><dl>' +
-      '<dt>Action</dt><dd>' + esc(it.action) + '</dd><dt>Date limite</dt><dd>' + dateFr(it.date_limite) + ' (' + nb(it.jours_restants) + ' j)</dd>' +
-      '<dt>Quantité</dt><dd>' + nb(it.quantite) + '</dd><dt>Âge du relevé</dt><dd>' + nb(it.age_jours) + ' j</dd><dt>État du relevé</dt><dd>' + esc(ETAT_AGE[it.etat_age] || it.etat_age) + '</dd>' +
+    fiche.innerHTML = '<div class="fiche"><h2>' + esc(nomArt(it)) + '</h2><p class="aide">' + esc(it.ean || '') + '</p><dl>' +
+      '<dt>Action</dt><dd>' + esc(it.action) + '</dd><dt>Date limite</dt><dd>' + dateFr(it.date_limite) + ' (' + (it.jours_restants === 0 ? 'aujourd\'hui' : nb(it.jours_restants) + ' j') + ')</dd>' +
+      '<dt>Quantité</dt><dd><span class="num">' + nb(it.quantite) + '</span></dd><dt>Âge du relevé</dt><dd>' + (it.age_jours === 0 ? 'aujourd\'hui' : '<span class="num">' + nb(it.age_jours) + '</span> j') + '</dd><dt>État du relevé</dt><dd>' + esc(ETAT_AGE[it.etat_age] || it.etat_age) + '</dd>' +
       '<dt>Valeur</dt><dd>' + (nfOk && it.valeur != null ? eur(it.valeur) : 'Aucun montant') + '</dd>' +
-      (it.autres_tournees ? '<dt>Autres tournées</dt><dd>' + nb(it.autres_tournees) + '</dd>' : '') + '</dl>' +
+      '</dl>' + autresTournees(it) +
       '<div class="actions"><button type="button" disabled aria-disabled="true">Décider une action</button><p class="dispo">Disponible au lot 6</p><button type="button" id="fermerFiche">Fermer</button></div></div>';
     if (typeof fiche.showModal === 'function') fiche.showModal(); else fiche.setAttribute('open', '');
     document.getElementById('fermerFiche').onclick = () => fiche.close();
