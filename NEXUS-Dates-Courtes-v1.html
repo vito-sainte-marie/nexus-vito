@@ -86,6 +86,10 @@
   .ligne .chiffres{font-size:13px;overflow-wrap:anywhere}
   .ligne .chiffres .num{font-family:var(--mono);font-weight:600}
   .ligne .ean{font:12px var(--mono);color:var(--text-mid)}
+  .ligne .l1{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:4px 8px;width:100%}
+  .ligne .badges{display:inline-flex;flex-wrap:wrap;gap:4px}
+  .ligne .l2{font-size:12px;overflow-wrap:anywhere}
+  .ligne .meta{grid-column:auto;color:var(--text-mid)}
   @media (min-width:1280px){.ligne{grid-template-columns:56px 1fr}.ligne .vign{width:56px;height:56px}}
   .filtres{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
   .filtres button{min-height:44px;padding:0 14px;border-radius:999px;border:1px solid var(--hairline);background:var(--panel);color:var(--text);font:600 12px var(--sans);cursor:pointer}
@@ -148,8 +152,8 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
 <script src="nexus-theme.js"></script>
-<script src="nexus-auth.js?v=20260904-0104"></script>
-<script src="nexus-icones.js?v=20261121-0004"></script>
+<script src="nexus-auth.js?v=20261122-0001"></script>
+<script src="nexus-icones.js?v=20261122-0001"></script>
 <script src="nexus-rayons-familles.js?v=20261121-0001"></script>
 <script src="nexus-badge-etat.js"></script>
 <script>
@@ -201,7 +205,7 @@
   function chiffres(it, nfOk){
     const prov = provisoire(it) ? ' <span class="aide">provisoire</span>' : '';
     const v = nfOk && it.valeur != null ? '<span class="num">' + eur(it.valeur) + '</span> au coût d\'achat' + prov : (nfOk ? 'Valeur non calculable (prix d\'achat absent)' : 'Aucun montant (nature fiscale non déterminée)');
-    return '<span class="chiffres">' + unites(it.quantite) + '</span><span class="chiffres">' + v + '</span>';
+    return '<span class="chiffres">' + unites(it.quantite) + ' · ' + v + '</span>';
   }
   const heureMq = iso => { try { return new Date(iso).toLocaleString('fr-FR', {timeZone:'America/Martinique', day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'}).replace(',', ' à'); } catch (e) { return ''; } };
   const agePhrase = n => n === 0 ? 'relevé aujourd\'hui' : 'relevé il y a ' + pl(n, 'jour');
@@ -300,10 +304,11 @@
     const lignes = items.length ? items.map(it => {
       const idx = d.liste.indexOf(it);
       const inc = nomArt(it) === INCONNU;
-      return '<button type="button" class="ligne" data-i="' + idx + '"><span class="vign">' + vignette(it) + '</span><span class="corps-l"><span class="nom">' + esc(nomArt(it)) + '</span>' +
-        (inc && it.ean ? '<span class="ean">EAN ' + esc(it.ean) + '</span>' : '') + '<span>' + badgeAction(it) + '</span>' +
-        '<span class="delai">' + esc(delaiRel(it.jours_restants)) + '</span><span class="dlc">DLC ' + dateFr(it.date_limite) + '</span>' + chiffres(it, nfOk) +
-        '<span class="meta">' + esc(it.action) + ' · ' + agePhrase(it.age_jours) + '</span></span></button>';
+      const motif = (!['À retirer','À vérifier','Promotion à envisager'].includes(it.action) ? esc(it.action) : '') + (it.etat_age !== 'courante' ? (!['À retirer','À vérifier','Promotion à envisager'].includes(it.action) ? ' · ' : '') + agePhrase(it.age_jours) : '');
+      return '<button type="button" class="ligne" data-i="' + idx + '"><span class="vign">' + vignette(it) + '</span><span class="corps-l">' +
+        '<span class="l1"><span class="nom">' + esc(nomArt(it)) + '</span><span class="badges">' + badgeAction(it) + '</span></span>' +
+        '<span class="l2"><span class="delai">' + esc(delaiRel(it.jours_restants)) + '</span><span class="dlc"> · DLC ' + dateFr(it.date_limite) + '</span>' + (inc && it.ean ? '<span class="ean"> · EAN ' + esc(it.ean) + '</span>' : '') + '</span>' +
+        chiffres(it, nfOk) + (motif ? '<span class="meta">' + motif + '</span>' : '') + '</span></button>';
     }).join('') : '<div class="etat">Rien à afficher pour cette sélection.</div>';
     return '<h2 id="titreListe">' + titre + '</h2>' + f + '<div class="liste">' + lignes + '</div>';
   }
