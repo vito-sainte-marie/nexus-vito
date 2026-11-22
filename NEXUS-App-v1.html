@@ -2568,7 +2568,7 @@
   const TUILES_OUTILS_CATALOGUE = {
     missions: { titre: 'Missions', desc: 'Voir mes tâches du quart', href: 'NEXUS-Missions-v1.html', module: 'mod-missions', icone: 'assets/icons/icon-missions-48.png' },
     inventaire: { titre: 'Inventaire', desc: 'Compter les produits de votre quart', href: 'NEXUS-Inventaire-v1.html', module: 'mod-inventaire', icone: 'assets/icons/icon-inventaire-48.png' },
-    datescourtes: { titre: 'Dates courtes', desc: 'Relever les produits à date proche', href: 'NEXUS-Dates-Courtes-Releve-v1.html', module: 'mod-dates-courtes', icone: 'assets/icons/icon-inventaire-48.png' },
+    datescourtes: { titre: 'Dates courtes', desc: 'Relever les produits à date proche', href: 'NEXUS-Dates-Courtes-Releve-v1.html', module: 'mod-dates-courtes', icone: null },
     releves: { titre: 'Relevés d’index', desc: 'Index des pompes de votre quart', href: 'NEXUS-Releves-Piste-v1.html', icone: 'assets/icons/icon-reception-carburant-48.png' },
     fdj: { titre: 'FDJ', desc: 'Contrôler votre activité FDJ', href: 'NEXUS-FDJ-v1.html', module: 'mod-fdj', icone: 'assets/icons/icon-fdj-48.png' },
     reception: { titre: 'Réception', desc: 'Livraison carburant du jour', href: 'NEXUS-Carburant-Reception-v1.html', icone: 'assets/icons/icon-reception-carburant-48.png' },
@@ -2696,7 +2696,7 @@
         : t.desc;
       return `
         <a class="outil-quart-card" href="${t.href}">
-          <div class="outil-quart-icon">${t.module && window.NexusIcones ? window.NexusIcones.img(t.module, 19, { decoratif: true, ancien: `<img src="${t.icone}" alt="">` }) : `<img src="${t.icone}" alt="">`}</div>
+          <div class="outil-quart-icon">${t.module && window.NexusIcones ? window.NexusIcones.img(t.module, 19, { decoratif: true, ancien: t.icone ? `<img src="${t.icone}" alt="">` : '' }) : (t.icone ? `<img src="${t.icone}" alt="">` : '')}</div>
           <div class="outil-quart-titre">${t.titre}</div>
           <div class="outil-quart-desc">${desc}</div>
         </a>`;

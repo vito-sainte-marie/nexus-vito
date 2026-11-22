@@ -176,6 +176,7 @@ begin
   r := pg_temp.n(r, 'anonyme refusé sur la recherche', 'ERR', x);
   reset role;
   perform set_config('request.jwt.claims', '{}', true);
+  perform set_config('request.jwt.claim.sub', '', true);
   set local role authenticated;
   begin perform count(*) from dates_courtes_rechercher_produit('yaourt'); x := 'ouvert'; exception when others then x := 'ERR ' || sqlerrm; end;
   reset role;
