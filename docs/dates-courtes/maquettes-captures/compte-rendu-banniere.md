@@ -1,5 +1,7 @@
 # Compte rendu : bannière Dates courtes dans les maquettes lots 2 et 5
 
+Correction 7081520147 : la bannière est en haut de chaque cadre d'écran (375 et 1280, lots 2 et 5), à la place du bloc identité (tuile « icône à venir » et titre) ; le bandeau de la page ne garde que son titre de document. Lot 2 à 375 : « Saisies de ma tournée » passe en lignes empilées (produit et date, puis quantité et état, puis raison), sans tableau horizontal, badges non rognés ; le tableau reste à 1280.
+
 - Référentiel : NEXUS-REFERENTIEL-CONCEPTION v1.0 (skill nexus-design-experience).
 - Composants réutilisés : en-tête `header.header.hero` de NEXUS-Produits-v1.html (picture, source téléphone 599 px, img.entete 800w/1200w/1600w, `sizes`, 1600x533, alt vide car décorative), eyebrow, thème jour/nuit existant.
 - Composant nouveau : aucun côté produit. CSS d'en-tête ajouté à `maquettes.css` seulement (maquettes).
