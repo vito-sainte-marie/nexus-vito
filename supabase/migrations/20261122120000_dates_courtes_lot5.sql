@@ -58,6 +58,21 @@ begin
     limit 1;
 end $$;
 
+-- 2 bis. Libellé affiché : le libellé lu (libelle_vu) du dernier relevé de l'article, à défaut le nom du catalogue (products), à défaut le libellé normalisé.
+-- Fonction interne : aucun droit client.
+create or replace function dates_courtes_libelle_affiche(p_site text, p_ean text, p_libelle text) returns text
+language sql stable security definer set search_path = public, pg_temp as $$
+  select coalesce(
+    (select r.libelle_vu from dates_courtes_releves r
+      where r.site = p_site and r.annule_le is null and nullif(btrim(r.libelle_vu), '') is not null
+        and ((p_ean is not null and r.ean = p_ean) or (p_ean is null and r.libelle_normalise = p_libelle))
+      order by r.heure_geste desc limit 1),
+    (select p.article from products p
+      where p.site = p_site and p_ean is not null and dates_courtes_normaliser_ean(p.code_barres) = p_ean and nullif(btrim(p.article), '') is not null
+      order by p.periode_fin desc, p.imported_at desc nulls last limit 1),
+    p_libelle, p_ean)
+$$;
+
 -- 3. Capture du prix à l'insertion d'une démarque. Ne bloque jamais la saisie : en cas d'échec, la ligne est « absent » et un avertissement part au journal.
 create or replace function dates_courtes_capturer_prix_demarque() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
@@ -112,7 +127,7 @@ $$;
 create or replace function dates_courtes_prevention_pertes(p_instant timestamptz default now()) returns jsonb
 language plpgsql stable security definer set search_path = public, pg_temp as $$
 declare
-  v_site text; v_jour date; v_debut_b date; v_nat record; v_det boolean;
+  v_site text; v_jour date; v_debut_b date; v_nat record; v_det boolean; v_ventes_incompletes boolean; v_prix_absents boolean; v_periode_vide boolean;
   v_out jsonb;
 begin
   if auth.uid() is null then
@@ -126,13 +141,35 @@ begin
   v_debut_b := date_trunc('month', v_jour)::date;
   select * into v_nat from dates_courtes_nature_fiscale(v_site, (v_debut_b - 60));
   v_det := v_nat.determinee;
+  v_ventes_incompletes := not exists (select 1 from inventaire_ventes_import v where v.site = v_site and v.importe_le::date between v_debut_b and v_jour);
+  v_prix_absents := exists (select 1 from dates_courtes_demarques dm left join dates_courtes_prix_demarques pd on pd.demarque_id = dm.id
+      where dm.site = v_site and dm.annule_le is null and (dm.heure_geste at time zone 'America/Martinique')::date between v_debut_b and v_jour
+        and (pd.demarque_id is null or pd.source = 'absent'));
+  v_periode_vide := not exists (select 1 from dates_courtes_demarques dm where dm.site = v_site and dm.annule_le is null
+      and (dm.heure_geste at time zone 'America/Martinique')::date between v_debut_b and v_jour);
 
-  with c as (
+  with pp as materialized (
+    select p.prix_achat::numeric as pa, nullif(p.prix_vente, 0)::numeric as pv, p.periode_debut::date as pd, p.periode_fin::date as pf, p.imported_at::timestamptz as ia,
+           dates_courtes_normaliser_ean(p.code_barres) as ek, dates_courtes_normaliser_libelle(p.article) as lk
+    from products p where p.site = v_site and p.prix_achat > 0
+  ), iv as materialized (
+    select v.prix_achat_ht::numeric as pa, nullif(v.prix_vente_ht, 0)::numeric as pv, v.importe_le::timestamptz as ia, v.importe_le::date as jd,
+           dates_courtes_normaliser_ean(v.code_barres_brut) as ek, dates_courtes_normaliser_libelle(v.designation_brute) as lk
+    from inventaire_ventes_import v where v.site = v_site and v.prix_achat_ht > 0
+  ), c as (
     select cs.*, (cs.date_limite - v_jour) as r from dates_courtes_courant_station(v_site, p_instant) cs
   ), p as (
     select c.*, px.prix_achat as pu, px.prix_vente as pv, px.source as psource,
       (c.autres_tournees is not null and jsonb_array_length(c.autres_tournees) > 0) as autres
-    from c left join lateral dates_courtes_prix_article(v_site, c.ean, c.libelle_normalise, v_jour) px on true
+    from c left join lateral (
+      select u.pa as prix_achat, u.pv as prix_vente, u.src as source, u.pdeb as periode_debut, u.pfin as periode_fin from (
+        select 1 as ord, pp.pa, pp.pv, 'products'::text as src, pp.pd as pdeb, pp.pf as pfin, (pp.pf >= v_jour) as o1, pp.pf as o2, pp.ia as o3
+          from pp where pp.pd <= v_jour and ((c.ean is not null and pp.ek = c.ean) or (c.libelle_normalise is not null and pp.lk = c.libelle_normalise))
+        union all
+        select 2, iv.pa, iv.pv, 'inventaire_ventes_import'::text, null::date, null::date, null::boolean, null::date, iv.ia
+          from iv where iv.jd <= v_jour and ((c.ean is not null and iv.ek = c.ean) or (c.libelle_normalise is not null and iv.lk = c.libelle_normalise))
+      ) u order by u.ord, u.o1 desc, u.o2 desc, u.o3 desc nulls last limit 1
+    ) px on true
   ), cl as (
     select p.*, case when v_det then p.pu end as pu2, case when v_det then p.pv end as pv2,
       case when p.r < 0 and p.age_jours <= 7 then 'retirer'
@@ -147,7 +184,7 @@ begin
                           when 'promo' then case when r <= 2 then 1 else 2 end end as prio
     from cl
   ), d as (
-    select dm.id, dm.quantite, dm.heure_geste, r.ean, r.libelle_normalise, pd.source as psrc, pd.prix_achat_ht as ppa, pd.prix_vente_ht as ppv,
+    select dm.id, dm.quantite, dm.heure_geste, r.ean, r.libelle_normalise, pd.source as psrc, pd.prix_achat_ht as ppa, pd.prix_vente_ht as ppv, pd.periode_debut as pdeb, pd.periode_fin as pfin,
       (pd.demarque_id is not null) as capt
     from dates_courtes_demarques dm
     join dates_courtes_retraits r on r.id = dm.retrait_id and r.site = dm.site
@@ -156,8 +193,18 @@ begin
       and (dm.heure_geste at time zone 'America/Martinique')::date between v_debut_b and v_jour
   ), dv as (
     select d.*, case when d.capt then d.ppa else lk.prix_achat end as pu, case when d.capt then d.ppv else lk.prix_vente end as pv,
-      case when d.capt and d.psrc <> 'absent' then 'fige' when d.capt then 'absent' when lk.prix_achat is not null then 'reconstitue' else 'absent' end as etat
-    from d left join lateral dates_courtes_prix_article(v_site, d.ean, d.libelle_normalise, (d.heure_geste at time zone 'America/Martinique')::date) lk on not d.capt
+      case when d.capt and d.psrc <> 'absent' then 'fige' when d.capt then 'absent' when lk.prix_achat is not null then 'reconstitue' else 'absent' end as etat,
+      case when d.capt then d.psrc else coalesce(lk.source, 'absent') end as src,
+      case when d.capt then d.pdeb else lk.periode_debut end as sdeb, case when d.capt then d.pfin else lk.periode_fin end as sfin
+    from d left join lateral (
+      select u.pa as prix_achat, u.pv as prix_vente, u.src as source, u.pdeb as periode_debut, u.pfin as periode_fin from (
+        select 1 as ord, pp.pa, pp.pv, 'products'::text as src, pp.pd as pdeb, pp.pf as pfin, (pp.pf >= (d.heure_geste at time zone 'America/Martinique')::date) as o1, pp.pf as o2, pp.ia as o3
+          from pp where pp.pd <= (d.heure_geste at time zone 'America/Martinique')::date and ((d.ean is not null and pp.ek = d.ean) or (d.libelle_normalise is not null and pp.lk = d.libelle_normalise))
+        union all
+        select 2, iv.pa, iv.pv, 'inventaire_ventes_import'::text, null::date, null::date, null::boolean, null::date, iv.ia
+          from iv where iv.jd <= (d.heure_geste at time zone 'America/Martinique')::date and ((d.ean is not null and iv.ek = d.ean) or (d.libelle_normalise is not null and iv.lk = d.libelle_normalise))
+      ) u order by u.ord, u.o1 desc, u.o2 desc, u.o3 desc nulls last limit 1
+    ) lk on not d.capt
   ), dw as (
     select dv.*, case when v_det then dv.pu end as pu2, case when v_det then dv.pv end as pv2 from dv
   )
@@ -169,7 +216,7 @@ begin
       'verifier', (select count(*) from k where code in ('presence', 'recontroler', 'releve', 'comparer')),
       'certifier', (select count(*) from dates_courtes_tournees t where t.site = v_site and t.etat = 'TERMINEE_A_CERTIFIER')),
     'liste', (select coalesce(jsonb_agg(x.o order by x.prio, x.dl, x.lib), '[]'::jsonb) from (
-        select jsonb_build_object('cle_article', k.cle_article, 'ean', k.ean, 'libelle', coalesce(k.libelle_normalise, k.ean), 'date_limite', k.date_limite,
+        select jsonb_build_object('cle_article', k.cle_article, 'ean', k.ean, 'libelle', dates_courtes_libelle_affiche(v_site, k.ean, k.libelle_normalise), 'date_limite', k.date_limite,
             'jours_restants', k.r, 'quantite', k.quantite, 'age_jours', k.age_jours, 'etat_age', k.etat_age, 'tournee_etat', k.tournee_etat,
             'categorie', case when k.code in ('retirer', 'promo') then 'traiter' else 'verifier' end,
             'code', k.code,
@@ -202,8 +249,10 @@ begin
         'lignes_reconstituees', count(*) filter (where etat = 'reconstitue'),
         'lignes_sans_prix', count(*) filter (where etat = 'absent'),
         'badge', case when count(*) = 0 then 'aucune_perte' when count(*) filter (where etat = 'reconstitue') > 0 then 'partiellement_reconstitue' else 'fige' end,
-        'detail', (select coalesce(jsonb_agg(jsonb_build_object('libelle', coalesce(w.libelle_normalise, w.ean), 'quantite', w.quantite,
-              'heure_geste', w.heure_geste, 'etat', w.etat, 'valeur', case when w.pu2 is not null then round(w.quantite * w.pu2, 2) end) order by w.heure_geste desc), '[]'::jsonb)
+        'detail', (select coalesce(jsonb_agg(jsonb_build_object('libelle', dates_courtes_libelle_affiche(v_site, w.ean, w.libelle_normalise), 'quantite', w.quantite,
+              'heure_geste', w.heure_geste, 'date_comptabilisation', (w.heure_geste at time zone 'America/Martinique')::date,
+              'etat', w.etat, 'source', w.src, 'periode_debut', w.sdeb, 'periode_fin', w.sfin,
+              'prix_unitaire', w.pu2, 'valeur', case when w.pu2 is not null then round(w.quantite * w.pu2, 2) end) order by w.heure_geste desc), '[]'::jsonb)
             from (select * from dw order by heure_geste desc limit 100) w)) from dw),
     'marge', jsonb_build_object(
       'a', (select jsonb_build_object('ca_potentiel', round(sum(quantite * pv2) filter (where age_jours <= 7 and pu2 is not null and pv2 is not null), 2),
@@ -215,16 +264,16 @@ begin
               'hors_calcul', count(*) filter (where pu is null or pv is null)) from dw),
       'formule', 'CA = quantité × prix de vente HT ; marge = quantité × (prix de vente HT − prix d''achat HT)',
       'provenance', 'products, à défaut dernier import d''inventaire'),
-    'c', jsonb_build_object('statut', 'indisponible', 'raisons', jsonb_build_array(
-      'Les ventes en promotion ne sont pas rattachées aux articles relevés',
-      'Aucun historique de promotions avant le lot 6',
-      'Le prix promotionnel pratiqué n''est pas enregistré',
-      'Les quantités vendues après démarque ne sont pas isolées')),
-    'd', jsonb_build_object('statut', 'indisponible', 'raisons', jsonb_build_array(
-      'Les retraits ne sont pas encore comparés aux ventes de la période',
-      'Pas d''historique de rotation par article',
-      'Les commandes fournisseurs ne sont pas rapprochées des relevés',
-      'Les actions de prévention ne sont enregistrées qu''à partir du lot 6'))
+    'c', jsonb_build_object('statut', 'indisponible', 'raisons',
+      jsonb_build_array('Les ventes sont connues par article et par période, sans la date limite des unités vendues : le rapprochement avec les DLC est impossible',
+                        'Aucune vente n''est attribuée à une DLC par défaut')
+      || case when v_ventes_incompletes then jsonb_build_array('Historique des ventes incomplet sur la période') else '[]'::jsonb end
+      || case when v_prix_absents then jsonb_build_array('Prix d''achat indisponible pour certaines lignes') else '[]'::jsonb end
+      || case when v_periode_vide then jsonb_build_array('Période non exploitable : aucune démarque depuis le début du mois') else '[]'::jsonb end),
+    'd', jsonb_build_object('statut', 'indisponible', 'raisons',
+      jsonb_build_array('Ventes par DLC indisponibles (voir C)',
+                        'Hypothèse de référence non validée : ce qui se serait vendu sans action',
+                        'Une vente n''est jamais comptée comme perte évitée'))
   ) into v_out;
   return v_out;
 end $$;
@@ -242,6 +291,7 @@ revoke all on dates_courtes_prix_demarques from anon, public, authenticated, ser
 grant select on dates_courtes_prix_demarques to authenticated, service_role;
 
 revoke all on function dates_courtes_prix_article(text, text, text, date) from public, anon, authenticated, service_role;
+revoke all on function dates_courtes_libelle_affiche(text, text, text) from public, anon, authenticated, service_role;
 revoke all on function dates_courtes_capturer_prix_demarque() from public, anon, authenticated, service_role;
 revoke all on function dates_courtes_nature_fiscale(text, date) from public, anon, authenticated, service_role;
 revoke all on function dates_courtes_prevention_pertes(timestamptz) from public, anon, authenticated, service_role;

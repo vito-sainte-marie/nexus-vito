@@ -5,5 +5,6 @@ drop function if exists dates_courtes_prevention_pertes(timestamptz);
 drop function if exists dates_courtes_nature_fiscale(text, date);
 drop function if exists dates_courtes_capturer_prix_demarque();
 drop function if exists dates_courtes_prix_article(text, text, text, date);
+drop function if exists dates_courtes_libelle_affiche(text, text, text);
 drop table if exists dates_courtes_prix_demarques;
 commit;

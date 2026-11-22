@@ -50,8 +50,9 @@
   .priorites{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px}
   .prio{background:var(--panel);border:1px solid var(--hairline);border-radius:12px;padding:12px;text-align:left;color:inherit;font:inherit;cursor:pointer;min-height:44px}
   .prio:hover{border-color:var(--cyan)}
-  .prio .n{font:700 26px var(--mono)}
-  .prio .l{font-size:12px;color:var(--text-mid);margin-top:2px}
+  .prio[aria-pressed="true"]{border-color:var(--cyan);box-shadow:0 0 0 1px var(--cyan)}
+  .prio .n{display:block;font:700 26px var(--mono)}
+  .prio .l{display:block;font-size:12px;color:var(--text-mid);margin-top:2px}
   .prio.rouge .n{color:var(--red)} .prio.ambre .n{color:var(--amber)} .prio.cyan .n{color:var(--cyan)}
 
   .cartes{display:grid;grid-template-columns:1fr;gap:12px;margin-top:12px}
@@ -152,10 +153,13 @@
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const eur = v => new Intl.NumberFormat('fr-FR', {style:'currency', currency:'EUR'}).format(v) + ' HT';
   const nb = v => new Intl.NumberFormat('fr-FR').format(v);
+  const pl = (n, u, m) => nb(n) + ' ' + (n > 1 ? (m || u + 's') : u);
   const unites = n => nb(n) + (n > 1 ? ' unités' : ' unité');
   const dateFr = iso => iso ? iso.slice(8,10) + '/' + iso.slice(5,7) + '/' + iso.slice(0,4) : '';
   const ETAT_AGE = {courante:'7 jours ou moins : courante', a_verifier:'8 à 14 jours : à vérifier', a_recontroler:'Plus de 14 jours : À recontrôler'};
-  const ORIGINE = {fige:'Prix figé', reconstitue:'Prix reconstitué', absent:"Prix d'achat absent"};
+  const ORIGINE = {fige:'Figé', reconstitue:'Reconstitué', absent:'Absent'};
+  const SOURCE = {products:'Fiche produit', inventaire_ventes_import:'Inventaire des ventes'};
+  const agePhrase = n => n === 0 ? 'relevé aujourd\'hui' : 'relevé il y a ' + pl(n, 'jour');
 
   function messageEtat(titre, texte, avecReessai){
     racine.innerHTML = '<div class="etat' + (avecReessai ? ' erreur' : '') + '" role="' + (avecReessai ? 'alert' : 'status') + '"><b>' + esc(titre) + '</b><br>' + esc(texte) +
@@ -172,21 +176,21 @@
     } else {
       corps = '<div class="gros">' + (a.valeur == null ? 'Aucun montant' : eur(a.valeur)) + '</div>' +
         (a.valeur != null ? '<p class="sous-gros">Dont non certifiées : ' + eur(a.dont_non_certifiees || 0) + '</p>' : '') +
-        '<p class="sous-gros">' + nb(a.articles_valorises) + ' article(s) valorisé(s), ' + unites(a.unites) + '.</p>' +
-        (a.sans_prix.lignes > 0 ? '<p class="note">' + nb(a.sans_prix.lignes) + ' ligne(s) sans prix d\'achat (' + unites(a.sans_prix.unites) + ') : hors montant.</p>' : '');
+        '<p class="sous-gros">' + pl(a.articles_valorises, 'article valorisé') + ', ' + unites(a.unites) + '.</p>' +
+        (a.sans_prix.lignes > 0 ? '<p class="note">' + pl(a.sans_prix.lignes, 'ligne') + ' sans prix d\'achat (' + unites(a.sans_prix.unites) + ') : hors montant.</p>' : '');
     }
     const ind = a.indicatif && a.indicatif.articles > 0
       ? '<p class="sous-gros">8 à 14 jours : à vérifier, affichées à part' + (nf.determinee && a.indicatif.valeur != null ? ' (' + eur(a.indicatif.valeur) + ')' : ' (' + unites(a.indicatif.unites) + ')') + '.</p>' : '';
     const exc = a.exclus > 0 ? '<p class="sous-gros">Plus de 14 jours : À recontrôler, exclues (' + nb(a.exclus) + ').</p>' : '';
     const marge = nf.determinee && m.ca_potentiel != null
-      ? 'Chiffre d\'affaires potentiel : <b>' + eur(m.ca_potentiel) + '</b><br>Marge exposée : <b>' + eur(m.marge_exposee) + '</b>' + (m.hors_calcul > 0 ? '<br>' + nb(m.hors_calcul) + ' ligne(s) hors calcul (prix absent).' : '')
+      ? 'Chiffre d\'affaires potentiel : <b>' + eur(m.ca_potentiel) + '</b><br>Marge exposée : <b>' + eur(m.marge_exposee) + '</b>' + (m.hors_calcul > 0 ? '<br>Exclu : ' + pl(m.hors_calcul, 'ligne') + ' sans prix d\'achat.' : '') + '<br>Période : relevés de 7 jours ou moins, situation au ' + dateFr(d.jour) + '.<br>Provenance : dernier relevé de chaque ligne, prix d\'achat de la fiche produit.' + (a.exclus > 0 ? '<br>Exclu : ' + pl(a.exclus, 'relevé') + ' de plus de 14 jours.' : '')
       : 'Marge non calculable : prix ou nature fiscale manquants.';
     return '<section class="card" id="carteA" aria-labelledby="hA"><h3 id="hA">A · Valeur à risque' + btnInfo('iA') + '</h3>' + corps + ind + exc +
       '<div class="infobulle" id="iA" hidden>' + marge + '<br><span class="aide">' + esc(d.marge.formule) + '</span></div>' +
-      (a.plus_ancien_jours != null ? '<p class="sous-gros">Dernier relevé retenu : jour ' + dateFr(d.jour) + ', le plus ancien a ' + nb(a.plus_ancien_jours) + ' jour(s).</p>' : '') + '</section>';
+      (a.plus_ancien_jours != null ? '<p class="sous-gros">Dernier relevé retenu : jour ' + dateFr(d.jour) + ', le plus ancien a ' + pl(a.plus_ancien_jours, 'jour') + '.</p>' : '') + '</section>';
   }
 
-  function btnInfo(id){ return '<button type="button" class="info" aria-expanded="false" aria-controls="' + id + '" aria-label="Voir la marge"><span aria-hidden="true">i</span></button>'; }
+  function btnInfo(id){ return '<button type="button" class="info" aria-expanded="false" aria-controls="' + id + '" aria-label="Voir la marge et le chiffre d\'affaires"><span aria-hidden="true">i</span></button>'; }
 
   function carteB(d){
     const b = d.b, nf = d.nature_fiscale, m = d.marge.b;
@@ -199,10 +203,10 @@
     } else {
       corps = '<div class="gros">' + (b.valeur == null ? 'Aucun montant' : eur(b.valeur)) + '</div><div class="note">' + badge + '</div>' +
         '<p class="sous-gros">' + per + ' Prix figé à la comptabilisation de chaque démarque ; « prix reconstitué » pour les démarques antérieures au lot 5.</p>' +
-        (b.lignes_sans_prix > 0 ? '<p class="note">' + nb(b.lignes_sans_prix) + ' ligne(s) : Prix d\'achat absent. Cette ligne n\'a pas de montant et n\'entre pas dans B.</p>' : '');
+        (b.lignes_sans_prix > 0 ? '<p class="note">' + pl(b.lignes_sans_prix, 'ligne') + ' : prix d\'achat absent. ' + (b.lignes_sans_prix > 1 ? 'Ces lignes n\'ont' : 'Cette ligne n\'a') + ' pas de montant et n\'' + (b.lignes_sans_prix > 1 ? 'entrent' : 'entre') + ' pas dans B.</p>' : '');
     }
     const marge = nf.determinee && m.ca_theorique != null
-      ? 'Chiffre d\'affaires théorique : <b>' + eur(m.ca_theorique) + '</b><br>Marge non réalisée : <b>' + eur(m.marge_non_realisee) + '</b>' + (m.dont_reconstituee ? '<br>Dont reconstituée : <b>' + eur(m.dont_reconstituee) + '</b>' : '')
+      ? 'Chiffre d\'affaires théorique : <b>' + eur(m.ca_theorique) + '</b><br>Marge non réalisée : <b>' + eur(m.marge_non_realisee) + '</b>' + (m.dont_reconstituee ? '<br>Dont reconstituée : <b>' + eur(m.dont_reconstituee) + '</b>' : '') + '<br>' + per + '<br>Provenance : prix figé à la démarque, ou reconstitué depuis la fiche produit pour les démarques antérieures au lot 5.' + (b.lignes_sans_prix > 0 ? '<br>Exclu : ' + pl(b.lignes_sans_prix, 'ligne') + ' sans prix d\'achat.' : '')
       : 'Marge non calculable : prix ou nature fiscale manquants.';
     return '<section class="card" id="carteB" aria-labelledby="hB"><h3 id="hB">B · Pertes constatées' + btnInfo('iB') + '</h3>' + corps +
       '<div class="infobulle" id="iB" hidden>' + marge + '<br><span class="aide">' + esc(d.marge.formule) + '</span></div></section>';
@@ -212,15 +216,13 @@
     const x = d[cle];
     return '<section class="card indispo" aria-labelledby="h' + cle + '"><h3 id="h' + cle + '">' + titre + '</h3><div class="gros">Calcul indisponible</div>' +
       '<ul class="sous-gros" style="margin:8px 0 0 18px">' + x.raisons.map(r => '<li>' + esc(r) + '</li>').join('') + '</ul>' +
-      (cle === 'd' ? '<p class="sous-gros">L\'étiquette « Estimation » apparaît seulement quand un montant est calculé.</p>' : '') + '</section>';
+      '</section>';
   }
 
   function priorites(d){
     const c = d.compteurs;
-    return '<div class="priorites" role="group" aria-label="Priorités du jour">' +
-      '<button type="button" class="prio rouge" data-f="traiter"><span class="n">' + nb(c.traiter) + '</span><span class="l">À traiter aujourd\'hui</span></button>' +
-      '<button type="button" class="prio ambre" data-f="verifier"><span class="n">' + nb(c.verifier) + '</span><span class="l">À vérifier</span></button>' +
-      '<button type="button" class="prio cyan" data-f="certifier"><span class="n">' + nb(c.certifier) + '</span><span class="l">Tournées à certifier</span></button></div>';
+    const b = (k, cl, n, l) => '<button type="button" class="prio ' + cl + '" data-f="' + k + '" aria-pressed="' + (FILTRE === k) + '"><span class="n">' + nb(n) + '</span><span class="l">' + l + '</span></button>';
+    return '<div class="priorites" role="group" aria-label="Priorités du jour">' + b('traiter', 'rouge', c.traiter, 'À traiter aujourd\'hui') + b('verifier', 'ambre', c.verifier, 'À vérifier') + b('certifier', 'cyan', c.certifier, 'Tournées à certifier') + '</div>';
   }
 
   function correspond(it, f){
@@ -234,21 +236,22 @@
   function liste(d){
     const nfOk = d.nature_fiscale.determinee;
     const items = d.liste.filter(it => correspond(it, FILTRE));
-    const noms = {tous:'Tous', traiter:'À traiter', verifier:'À vérifier', certifier:'À certifier'};
-    const f = '<div class="filtres" role="group" aria-label="Filtrer la liste">' + Object.keys(noms).map(k => '<button type="button" data-f="' + k + '" aria-pressed="' + (FILTRE === k) + '">' + noms[k] + '</button>').join('') + '</div>';
+    const noms = {traiter:'À traiter aujourd\'hui', verifier:'À vérifier', certifier:'Tournées à certifier'};
+    const titre = FILTRE === 'tous' ? 'Liste de priorité' : 'Liste de priorité : ' + noms[FILTRE];
+    const f = FILTRE === 'tous' ? '' : '<p class="aide">Filtre actif. Touchez de nouveau le compteur pour tout afficher.</p>';
     const lignes = items.length ? items.map(it => {
       const idx = d.liste.indexOf(it);
       const val = nfOk && it.valeur != null ? eur(it.valeur) : unites(it.quantite);
       return '<button type="button" class="ligne" data-i="' + idx + '"><span class="nom">' + esc(it.libelle) + '</span><span class="val">' + esc(val) + '</span>' +
-        '<span class="meta">' + esc(it.action) + ' · date limite ' + dateFr(it.date_limite) + ' · relevé il y a ' + nb(it.age_jours) + ' jour(s)</span></button>';
-    }).join('') : '<div class="etat">Rien à afficher pour ce filtre.</div>';
-    return '<h2>Liste de priorité</h2>' + f + '<div class="liste">' + lignes + '</div>';
+        '<span class="meta">' + esc(it.action) + ' · date limite ' + dateFr(it.date_limite) + ' · ' + agePhrase(it.age_jours) + '</span></button>';
+    }).join('') : '<div class="etat">Rien à afficher pour cette sélection.</div>';
+    return '<h2 id="titreListe">' + titre + '</h2>' + f + '<div class="liste">' + lignes + '</div>';
   }
 
   function detailPertes(d){
     const b = d.b, nfOk = d.nature_fiscale.determinee;
-    const rows = b.detail.length ? b.detail.map(x => '<tr><td style="text-transform:capitalize">' + esc(x.libelle) + '</td><td class="num">' + nb(x.quantite) + '</td><td class="num">' + (nfOk && x.valeur != null ? eur(x.valeur) : 'Aucun montant') + '</td><td>' + esc(ORIGINE[x.etat] || x.etat) + '</td></tr>').join('') : '<tr><td colspan="4">Aucune démarque sur la période.</td></tr>';
-    return '<details class="panneau" id="panDetail"><summary>Voir le détail des pertes</summary><div class="corps"><p>Origine du prix des pertes constatées. Au plus 100 lignes, les plus récentes d\'abord.</p><table><thead><tr><th>Produit</th><th class="num">Quantité</th><th class="num">Perte</th><th>Origine du prix</th></tr></thead><tbody>' + rows + '</tbody></table></div></details>';
+    const rows = b.detail.length ? b.detail.map(x => '<tr><td>' + esc(x.libelle) + '</td><td>' + dateFr(x.date_comptabilisation) + '</td><td class="num">' + nb(x.quantite) + '</td><td class="num">' + (x.prix_unitaire != null ? eur(x.prix_unitaire) : 'Absent') + '</td><td class="num">' + (nfOk && x.valeur != null ? eur(x.valeur) : 'Aucun montant') + '</td><td>' + esc(SOURCE[x.source] || x.source || 'Aucune') + (x.periode_debut ? '<br><span class="aide">' + dateFr(x.periode_debut) + ' au ' + dateFr(x.periode_fin) + '</span>' : '') + '</td><td>' + esc(ORIGINE[x.etat] || x.etat) + '</td></tr>').join('') : '<tr><td colspan="7">Aucune démarque sur la période.</td></tr>';
+    return '<details class="panneau" id="panDetail"><summary>Voir le détail des pertes</summary><div class="corps"><p>Une ligne par démarque : date de comptabilisation, prix unitaire, origine du prix et état (figé, reconstitué ou absent). Au plus 100 lignes, les plus récentes d\'abord.</p><div style="overflow-x:auto"><table><thead><tr><th>Produit</th><th>Comptabilisée le</th><th class="num">Quantité</th><th class="num">Prix unitaire</th><th class="num">Perte</th><th>Origine du prix</th><th>État</th></tr></thead><tbody>' + rows + '</tbody></table></div></div></details>';
   }
 
   function commentCalcule(d){
@@ -269,9 +272,9 @@
       return;
     }
     racine.innerHTML = (d.nature_fiscale.determinee ? '' : '<div class="bandeau-nf" role="status"><b>Nature fiscale non déterminée.</b> Les quantités sont affichées, aucun montant ne l\'est tant que les prix d\'achat ne sont pas rapprochés de l\'inventaire.</div>') +
-      '<h2>Priorités du jour</h2>' + priorites(d) +
-      '<div class="cartes">' + carteA(d) + carteB(d) + carteIndispo('c', 'C · Valeur d\'achat des unités écoulées avant échéance', d) + carteIndispo('d', 'D · Pertes évitées estimées', d) + '</div>' +
-      liste(d) + detailPertes(d) + commentCalcule(d);
+      '<h2>Priorités du jour</h2>' + priorites(d) + liste(d) +
+      '<h2>Lecture financière</h2><div class="cartes">' + carteA(d) + carteB(d) + carteIndispo('c', 'C · Valeur d\'achat des unités écoulées avant échéance', d) + carteIndispo('d', 'D · Pertes évitées estimées', d) + '</div>' +
+      detailPertes(d) + commentCalcule(d);
   }
 
   function ouvrirFiche(i){
@@ -288,8 +291,8 @@
 
   racine.addEventListener('click', e => {
     const info = e.target.closest('.info');
-    if (info) { const p = document.getElementById(info.getAttribute('aria-controls')); const ouvert = p.hidden; p.hidden = !ouvert; info.setAttribute('aria-expanded', String(ouvert)); return; }
-    const f = e.target.closest('[data-f]'); if (f && DONNEES) { FILTRE = f.dataset.f; rendre(); const l = document.querySelector('.filtres'); if (l) l.scrollIntoView({block:'nearest'}); return; }
+    if (info && !(window.matchMedia && matchMedia('(hover:hover)').matches)) { const p = document.getElementById(info.getAttribute('aria-controls')); const ouvert = p.hidden; p.hidden = !ouvert; info.setAttribute('aria-expanded', String(ouvert)); return; }
+    const f = e.target.closest('[data-f]'); if (f && DONNEES) { FILTRE = FILTRE === f.dataset.f ? 'tous' : f.dataset.f; rendre(); const l = document.getElementById('titreListe'); if (l) l.scrollIntoView({block:'nearest'}); const bt = document.querySelector('.prio[data-f="' + FILTRE + '"]'); if (bt) bt.focus(); return; }
     const l = e.target.closest('[data-i]'); if (l) ouvrirFiche(Number(l.dataset.i));
   });
 
@@ -303,6 +306,12 @@
       }
       DONNEES = data; rendre();
     } catch (e) { messageEtat('Chargement impossible', 'Les données n\'ont pas pu être lues. Vos relevés ne sont pas touchés.', true); }
+  }
+
+  if (window.matchMedia && matchMedia('(hover:hover)').matches) {
+    const bascule = (e, o) => { const i = e.target.closest && e.target.closest('.info'); if (!i) return; const p = document.getElementById(i.getAttribute('aria-controls')); p.hidden = !o; i.setAttribute('aria-expanded', String(o)); };
+    racine.addEventListener('mouseover', e => bascule(e, true));
+    racine.addEventListener('mouseout', e => bascule(e, false));
   }
 
   nexusRequireAuth().then(employee => {

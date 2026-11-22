@@ -187,8 +187,19 @@ begin
   -- 7 C et D
   r := pg_temp.n(r, '7 C indisponible', '=indisponible', g#>>'{c,statut}');
   r := pg_temp.n(r, '7 D indisponible', '=indisponible', g#>>'{d,statut}');
-  r := pg_temp.n(r, '7 C 4 raisons', '=4', (select jsonb_array_length(g#>'{c,raisons}')::text));
-  r := pg_temp.n(r, '7 D 4 raisons', '=4', (select jsonb_array_length(g#>'{d,raisons}')::text));
+  r := pg_temp.n(r, '7 C raisons : ventes sans DLC', 'DLC', (g#>'{c,raisons}')::text);
+  r := pg_temp.n(r, '7 C raisons : aucune vente attribuée', 'Aucune vente', (g#>'{c,raisons}')::text);
+  r := pg_temp.n(r, '7 C raisons sans promotion ni lot 6', '!romotion', (g#>'{c,raisons}')::text);
+  r := pg_temp.n(r, '7 C au moins 2 raisons', '=ok', case when jsonb_array_length(g#>'{c,raisons}') >= 2 then 'ok' else 'ko' end);
+  r := pg_temp.n(r, '7 D raisons : hypothèse de référence', 'ypothèse de référence non validée', (g#>'{d,raisons}')::text);
+  r := pg_temp.n(r, '7 D raisons sans commandes fournisseurs', '!ommandes fournisseurs', (g#>'{d,raisons}')::text);
+  r := pg_temp.n(r, '7 D raisons : vente jamais perte évitée', 'jamais', (g#>'{d,raisons}')::text);
+  r := pg_temp.n(r, '7 D 3 raisons', '=3', (select jsonb_array_length(g#>'{d,raisons}')::text));
+  r := pg_temp.n(r, '7 B détail : source', '=0', (select count(*)::text from jsonb_array_elements(g#>'{b,detail}') e where not (e ? 'source')));
+  r := pg_temp.n(r, '7 B détail : date de comptabilisation', '=0', (select count(*)::text from jsonb_array_elements(g#>'{b,detail}') e where coalesce(e->>'date_comptabilisation','') = ''));
+  r := pg_temp.n(r, '7 B détail : état', '=0', (select count(*)::text from jsonb_array_elements(g#>'{b,detail}') e where coalesce(e->>'etat','') = ''));
+  r := pg_temp.n(r, '7 B détail : clés période et prix', '=0', (select count(*)::text from jsonb_array_elements(g#>'{b,detail}') e where not (e ? 'periode_debut' and e ? 'periode_fin' and e ? 'prix_unitaire')));
+  r := pg_temp.n(r, '7 B détail : prix unitaire sur ligne chiffrée', '=ok', (select case when count(*) filter (where e->>'prix_unitaire' is not null) > 0 then 'ok' else 'ko' end from jsonb_array_elements(g#>'{b,detail}') e));
   -- 13 14 marges
   r := pg_temp.n(r, '13 marge A CA', '=117.60~=117.6', g#>>'{marge,a,ca_potentiel}');
   r := pg_temp.n(r, '13 marge A marge', '=46.20~=46.2', g#>>'{marge,a,marge_exposee}');
