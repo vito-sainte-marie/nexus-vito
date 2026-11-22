@@ -206,6 +206,28 @@ const TOURNEE = { id: 'tour-1', nom: '', etat: 'EN_COURS' };
     assert.strictEqual(ann[0].args.p_donnees.cible, 'releves');
   });
 
+  await test('fiche Corriger : actions et Fermer d\'abord, clavier seulement après « Corriger la quantité »', () => {
+    const m = monde();
+    m.dc.etat({ employee: EMP, tournee: TOURNEE, lignes: [{ k: 'x', ean: '3168930171683', libelle: 'Jus', date: '2027-01-10', releves: [{ id: 'a', q: 6 }], total: 6, retire: 0 }] });
+    m.dc.ouvrirAction(0);
+    const h = m.get('fiche').innerHTML;
+    for (const a of ['a-corr', 'a-date', 'a-trouve', 'a-annule']) assert(h.includes('data-act="' + a + '"'), a + ' présent');
+    assert(h.includes('Corriger la quantité'));
+    assert(!h.includes('f-touche') && !h.includes('fQteAff'), 'pas de clavier à l\'ouverture');
+    m.dc.clic(bouton('a-corr', { 'data-i': '0' }));
+    const z = m.get('ficheZone').innerHTML;
+    assert(z.includes('f-touche') && z.includes('fQteAff'), 'clavier après le choix');
+    assert(z.includes('Valider la quantité') && z.includes('data-act="v-corr"'));
+  });
+
+  await test('libellé vide ou réduit à un code : « Produit non identifié »', () => {
+    const m = monde();
+    for (const l of ['', '   ', '3168930171683', null]) {
+      assert.strictEqual(m.dc.nomAff({ libelle: l }), 'Produit non identifié', JSON.stringify(l));
+    }
+    assert.strictEqual(m.dc.nomAff({ libelle: 'Jus' }), 'Jus');
+  });
+
   await test('chaque data-act de la page a un case et mène à un écran', () => {
     const utilises = new Set();
     for (const mm of script.matchAll(/data-act="([a-z-]+)"/g)) utilises.add(mm[1]);

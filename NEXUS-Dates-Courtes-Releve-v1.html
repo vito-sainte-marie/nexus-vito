@@ -214,9 +214,12 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
-<script src="nexus-theme.js"></script>
-<script src="nexus-auth.js?v=20261122-0002"></script>
-<script src="nexus-icones.js?v=20261122-0001"></script>
+<script src="nexus-theme.js?v=beca7ad4fb1b"></script>
+<script src="nexus-config.js"></script>
+<script src="nexus-page.js?v=beca7ad4fb1b"></script>
+<script src="nexus-bandeau-environnement.js?v=beca7ad4fb1b"></script>
+<script src="nexus-auth.js?v=beca7ad4fb1b"></script>
+<script src="nexus-icones.js?v=beca7ad4fb1b"></script>
 <script>
 (function(){
 'use strict';
@@ -237,7 +240,8 @@ function stoc(k,v){try{if(v===undefined){var r=localStorage.getItem(k);return r=
 var SANS_NOM='Produit non identifié';
 var OPS={releve:'Relevé',ajout:'Unités ajoutées',correction:'Correction',retrait:'Retrait',trouve_retire:'Trouvé et retiré',changement_date:'Changement de date',annulation:'Annulation'};
 function signe(n){return (n<0?'−':'+')+Math.abs(n);}
-function nomAff(l){return (l&&l.libelle)||SANS_NOM;}
+function nomUtile(t){t=(t||'').trim();return (t&&!/^[0-9\s]+$/.test(t))?t:null;}
+function nomAff(l){return nomUtile(l&&l.libelle)||SANS_NOM;}
 function enRayon(l){return Math.max(0,l.total-l.retire);}
 function detailQte(l){return l.retire>0?l.total+' '+pl(l.total,'relevée','relevées')+' · '+l.retire+' '+pl(l.retire,'retirée','retirées'):'';}
 function enRayonTxt(l){return enRayon(l)+' en rayon'+(l.retire>0?' ('+l.retire+' '+pl(l.retire,'retirée','retirées')+')':'');}
@@ -335,7 +339,7 @@ function rafraichir(){
     (rs[0].data||[]).forEach(function(x){
       var k=cle(x);
       var o=g[k]=g[k]||{k:k,ean:x.ean,libelle:null,ln:x.libelle_normalise,date:x.date_limite,releves:[],total:0,retire:0,provisoire:false};
-      if(x.libelle_vu&&!o.libelle) o.libelle=x.libelle_vu;
+      if(nomUtile(x.libelle_vu)&&!o.libelle) o.libelle=nomUtile(x.libelle_vu);
       o.releves.push({id:x.id,q:x.quantite});
       o.provisoire=o.provisoire||!!x.provisoire;
     });
@@ -360,7 +364,7 @@ function dessinerLignes(){
   f.forEach(function(i){
     var ok=i.etat==='attente';
     var q=i.qte==null?'':(i.op==='correction'?signe(i.qte):i.qte);
-    h+='<li class="ligne"><div><div class="prod">'+esc(i.libelle||SANS_NOM)+'</div><div class="date">'+esc(OPS[i.op]||'Saisie')+(i.date?' · '+esc(dateFr(i.date)):'')+'</div></div><div class="qte">'+esc(q)+'<span class="badge-e '+(ok?'att':'ref')+'">'+(ok?'En attente':'Refusé')+'</span></div>'+(ok?'':'<div class="raison">'+esc(i.raison)+'</div><div class="acts"><button type="button" class="btn" data-act="oubli" data-cle="'+esc(i.cle)+'">Effacer cette saisie</button></div>')+'</li>';
+    h+='<li class="ligne"><div><div class="prod">'+esc(nomUtile(i.libelle)||SANS_NOM)+'</div><div class="date">'+esc(OPS[i.op]||'Saisie')+(i.date?' · '+esc(dateFr(i.date)):'')+'</div></div><div class="qte">'+esc(q)+'<span class="badge-e '+(ok?'att':'ref')+'">'+(ok?'En attente':'Refusé')+'</span></div>'+(ok?'':'<div class="raison">'+esc(i.raison)+'</div><div class="acts"><button type="button" class="btn" data-act="oubli" data-cle="'+esc(i.cle)+'">Effacer cette saisie</button></div>')+'</li>';
   });
   el.innerHTML=h||'<li class="etat">Aucune saisie pour l\'instant.</li>';
 }
@@ -484,7 +488,7 @@ function ecranSaisie(){
   montrerScan(false);
   saisie={date:produit.date||'',q:'',mode:'ajout'};
   var sansNom=!produit.libelle;
-  var h='<h2 class="ecran-titre">'+esc(produit.libelle||SANS_NOM)+'</h2>';
+  var h='<h2 class="ecran-titre">'+esc(nomUtile(produit.libelle)||SANS_NOM)+'</h2>';
   if(produit.provisoire||sansNom){
     h+='<div class="meta">Code EAN '+esc(produit.ean||'inconnu')+' · Identification à vérifier</div>';
     h+='<div class="prov">L\'entrée sera marquée provisoire : aucune référence n\'est créée.</div><label class="champ">Nom du produit (facultatif)<input id="nomLibre" maxlength="120" autocomplete="off"></label>';
@@ -536,7 +540,7 @@ function enregistrer(){
   var q=parseInt(saisie.q||'0',10),d=saisie.date;
   var l=trouverLigne(),nl=(document.getElementById('nomLibre')||{}).value||'';
   nl=nl.trim();
-  var nom=(l&&l.libelle)||produit.libelle||nl||SANS_NOM;
+  var nom=nomUtile(l&&l.libelle)||nomUtile(produit.libelle)||nomUtile(nl)||SANS_NOM;
   var base={ean:produit.ean||null,libelle:produit.libelle||nl||null,date_limite:d};
   var msg;
   if(l&&saisie.mode==='corr'){
@@ -564,7 +568,7 @@ var ficheQ='';
 function ouvrirAction(i){
   var l=lignes[i];if(!l) return;
   ficheQ='';
-  fiche.innerHTML='<div class="fiche"><h2>'+esc(nomAff(l))+'</h2><p class="meta">Date limite '+esc(dateFr(l.date))+' · '+esc(enRayonTxt(l))+'</p><p class="meta">Saisissez la quantité réellement en rayon : le relevé est ajusté.</p><div class="qte-aff" id="fQteAff">0</div>'+clavierHtml('f-touche')+'<div class="msg-champ err" id="ficheMsg" role="alert"></div><div class="actions"><button type="button" class="prim" data-act="v-corr" data-i="'+i+'">Corriger la quantité</button><button type="button" data-act="a-date" data-i="'+i+'">Changer la date</button><button type="button" data-act="a-trouve" data-i="'+i+'">Trouvé et retiré</button><button type="button" data-act="a-annule" data-i="'+i+'">Annuler un relevé</button><button type="button" data-act="fermer">Fermer</button></div><div id="ficheZone"></div></div>';
+  fiche.innerHTML='<div class="fiche"><h2>'+esc(nomAff(l))+'</h2><p class="meta">Date limite '+esc(dateFr(l.date))+' · '+esc(enRayonTxt(l))+'</p><div class="msg-champ err" id="ficheMsg" role="alert"></div><div class="actions"><button type="button" class="prim" data-act="a-corr" data-i="'+i+'">Corriger la quantité</button><button type="button" data-act="a-date" data-i="'+i+'">Changer la date</button><button type="button" data-act="a-trouve" data-i="'+i+'">Trouvé et retiré</button><button type="button" data-act="a-annule" data-i="'+i+'">Annuler un relevé</button><button type="button" data-act="fermer">Fermer</button></div><div id="ficheZone"></div></div>';
   if(fiche.showModal) fiche.showModal(); else fiche.setAttribute('open','');
 }
 function fermer(){if(fiche.close) fiche.close(); else fiche.removeAttribute('open');}
@@ -573,7 +577,9 @@ function ficheDit(t){var e=document.getElementById('ficheMsg');if(e) e.textConte
 function validerAction(a,i,ri){
   var l=lignes[i],v=function(id){return ((document.getElementById(id)||{}).value||'').trim();};
   ficheDit('');
-  if(a==='a-date'){
+  if(a==='a-corr'){
+    zone('<p class="meta">Saisissez la quantité réellement en rayon : le relevé est ajusté.</p><div class="qte-aff" id="fQteAff">0</div>'+clavierHtml('f-touche')+'<button type="button" class="btn prim plein" data-act="v-corr" data-i="'+i+'">Valider la quantité</button>');
+  } else if(a==='a-date'){
     zone('<label class="champ">Nouvelle date limite<input type="date" id="fNouv"></label><label class="champ">Motif<input id="fMotif" maxlength="200"></label><button type="button" class="btn prim plein" data-act="v-date" data-i="'+i+'">Valider</button>');
   } else if(a==='a-trouve'){
     zone('<label class="champ">Quantité trouvée et retirée<input id="fQte" inputmode="numeric" pattern="[0-9]*"></label><button type="button" class="btn prim plein" data-act="v-trouve" data-i="'+i+'">Valider</button>');
@@ -659,7 +665,7 @@ function clic(e){
     case 'enregistrer':enregistrer();break;
     case 'action':ouvrirAction(i);break;
     case 'fermer':fermer();break;
-    case 'a-date':case 'a-trouve':case 'a-annule':case 'v-date':case 'v-trouve':case 'v-corr':validerAction(a,i);break;
+    case 'a-corr':case 'a-date':case 'a-trouve':case 'a-annule':case 'v-date':case 'v-trouve':case 'v-corr':validerAction(a,i);break;
     case 'v-annule':validerAction(a,i,parseInt(b.getAttribute('data-r'),10));break;
     case 'oubli':var cle=b.getAttribute('data-cle');ecrireFile(lireFile().filter(function(x){return x.cle!==cle;}));dessinerLignes();break;
     case 'terminer':rafraichir().then(ecranTerminer);break;
@@ -688,7 +694,7 @@ function init(){
   });
 }
 if(window.__DC_TEST__){
-  window.__dc={analyserCode:analyserCode,vider:vider,empiler:empiler,lireFile:lireFile,ecrireFile:ecrireFile,enAttente:enAttente,ecranTerminer:ecranTerminer,init:init,clic:clic,repartir:repartir,rafraichir:rafraichir,dessinerLignes:dessinerLignes,ecranIdentifier:ecranIdentifier,ecranSaisie:ecranSaisie,ouvrirAction:ouvrirAction,
+  window.__dc={analyserCode:analyserCode,vider:vider,empiler:empiler,lireFile:lireFile,ecrireFile:ecrireFile,enAttente:enAttente,ecranTerminer:ecranTerminer,init:init,clic:clic,repartir:repartir,rafraichir:rafraichir,dessinerLignes:dessinerLignes,ecranIdentifier:ecranIdentifier,ecranSaisie:ecranSaisie,ouvrirAction:ouvrirAction,nomAff:nomAff,
     etat:function(o){if('employee' in o) employee=o.employee;if('tournee' in o) tournee=o.tournee;if('produit' in o) produit=o.produit;if('lignes' in o) lignes=o.lignes;if('saisie' in o) saisie=o.saisie;},
     lire:function(){return {tournee:tournee,lignes:lignes,saisie:saisie,produit:produit};}};
 }
