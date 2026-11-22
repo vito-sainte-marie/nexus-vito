@@ -69,15 +69,24 @@ const EMP = { id: 'emp-1', role: 'renfort', est_createur: false };
 //  - decodeFromVideoElement(source) renvoie une promesse et IGNORE tout rappel ;
 //  - decodeFromVideoElementContinuously(source, rappel) appelle le rappel (res, err) à chaque image.
 function fauxZxing() {
-  const z = { lecteurs: [], hints: null };
+  const z = { lecteurs: [], hints: null, aLire: [] };
   z.BarcodeFormat = { EAN_13: 'EAN_13', EAN_8: 'EAN_8', UPC_A: 'UPC_A', UPC_E: 'UPC_E', CODE_128: 'CODE_128', ITF: 'ITF' };
   z.DecodeHintType = { POSSIBLE_FORMATS: 'POSSIBLE_FORMATS', TRY_HARDER: 'TRY_HARDER' };
   z.BrowserMultiFormatReader = function (hints) {
-    const l = { resets: 0, rappel: null, unique: 0 };
+    const l = { resets: 0, decodes: 0, continus: 0, unique: 0 };
     z.hints = hints; z.lecteurs.push(l);
-    l.decodeFromVideoElement = function (source) { l.unique++; return new Promise(() => {}); };
-    l.decodeFromVideoElementContinuously = function (source, rappel) { l.rappel = rappel; };
-    l.reset = function () { l.resets++; l.rappel = null; };
+    // Réel : decode(video) lit l'image courante, lève NotFoundException si rien ; TRY_HARDER ne lit rien ici (constat de Guardian).
+    l.decode = function (video) {
+      l.decodes++;
+      if (hints && hints.get('TRY_HARDER')) throw { name: 'NotFoundException' };
+      const t = z.aLire.shift();
+      if (t === undefined) throw { name: 'NotFoundException' };
+      return { getText: () => t };
+    };
+    // Réel : attend l'événement « playing » de la vidéo ; la page l'a déjà reçu avant le chargement de ZXing, donc rien ne démarre.
+    l.decodeFromVideoElementContinuously = function () { l.continus++; };
+    l.decodeFromVideoElement = function () { l.unique++; return new Promise(() => {}); };
+    l.reset = function () { l.resets++; };
     return l;
   };
   return z;
@@ -86,7 +95,9 @@ function monde2(opts = {}) {
   const m = monde();
   const z = fauxZxing();
   m.ctx.ZXing = z;
-  m.get('video').play = () => Promise.resolve();
+  m.get('video').play = () => Promise.resolve(); m.get('video').readyState = 4;
+  m.efface = [];
+  m.ctx.clearInterval = (id) => { m.efface.push(id); };
   const piste = { contraintes: [], getCapabilities: () => opts.sansFocus ? {} : { focusMode: ['manual', 'continuous'] }, applyConstraints(c) { piste.contraintes.push(c); return Promise.resolve(); }, stopped: false, stop() { piste.stopped = true; } };
   const flux = { getTracks: () => [piste], getVideoTracks: () => [piste] };
   m.ctx.navigator = { mediaDevices: { getUserMedia: (c) => { m.contraintesCamera = c; return Promise.resolve(flux); } }, vibrate: (n) => { m.vibre = (m.vibre || 0) + 1; return true; } };
@@ -104,40 +115,50 @@ const res = (t) => ({ getText: () => t });
 (async () => {
   console.log('Page Dates courtes, scan caméra iPhone (Lot 2.2)');
 
-  await test('ZXing : lecture continue (le rappel de decodeFromVideoElement serait ignoré), un résultat fait avancer vers la saisie', async () => {
+  const boucleZ = (m) => m.intervalles.find(x => x.ms === 250);
+  const tour = async (m) => { boucleZ(m).fn(); await attendre(); };
+  const rech = (m) => m.appels.filter(a => a.nom === 'dates_courtes_rechercher_produit');
+
+  await test('ZXing : boucle de 250 ms avec decode(video), sans decodeFrom…Continuously (qui attend « playing »), un code lu fait avancer', async () => {
     const m = monde2(); m.dc.ecranIdentifier(); await attendre();
-    assert.strictEqual(m.z.lecteurs.length, 1, 'un lecteur créé');
+    assert(boucleZ(m), 'boucle setInterval de 250 ms');
     const l = m.z.lecteurs[0];
-    assert.strictEqual(l.unique, 0, 'decodeFromVideoElement (une seule lecture, sans rappel) ne doit pas être utilisé');
-    assert.strictEqual(typeof l.rappel, 'function', 'decodeFromVideoElementContinuously doit recevoir un rappel');
-    l.rappel(res('3017620422003'), null); await attendre();
-    assert(m.appels.some(a => a.nom === 'dates_courtes_rechercher_produit' && a.args.p_requete === '3017620422003'), 'recherche du produit lue');
+    assert.strictEqual(l.continus + l.unique, 0, 'aucune fonction decodeFrom… de ZXing');
+    m.z.aLire.push('3017620422003'); await tour(m);
+    assert.strictEqual(l.decodes, 1);
+    assert(rech(m).some(a => a.args.p_requete === '3017620422003'), 'recherche du produit lue');
     assert.strictEqual(m.dc.lire().produit.ean, '3017620422003');
   });
 
-  await test('Entre deux images (NotFoundException, résultat nul) : ignoré, le lecteur continue', async () => {
+  await test('Entre deux images (NotFoundException) : ignoré, la boucle continue ; pas de décodage tant que la vidéo n\'est pas prête', async () => {
     const m = monde2(); m.dc.ecranIdentifier(); await attendre();
     const l = m.z.lecteurs[0];
-    l.rappel(null, { name: 'NotFoundException' }); l.rappel(null, { name: 'NotFoundException' }); await attendre();
-    assert.strictEqual(l.resets, 0); assert.strictEqual(m.appels.filter(a => a.nom === 'dates_courtes_rechercher_produit').length, 0);
-    assert.strictEqual(typeof l.rappel, 'function');
+    await tour(m); await tour(m);
+    assert.strictEqual(l.decodes, 2); assert.strictEqual(l.resets, 0); assert.strictEqual(rech(m).length, 0); assert.strictEqual(m.efface.length, 0);
+    m.get('video').readyState = 1; await tour(m);
+    assert.strictEqual(l.decodes, 2, 'readyState < 2 : pas de décodage');
   });
 
-  await test('Un seul résultat traité : le lecteur et la caméra s\'arrêtent à la première lecture valide', async () => {
+  await test('Un seul résultat traité : boucle, lecteur et caméra s\'arrêtent à la première lecture valide', async () => {
     const m = monde2(); m.dc.ecranIdentifier(); await attendre();
-    const l = m.z.lecteurs[0], rappel = l.rappel;
-    rappel(res('3017620422003'), null); rappel(res('3017620422003'), null); rappel(res('5449000000996'), null); await attendre();
-    assert.strictEqual(m.appels.filter(a => a.nom === 'dates_courtes_rechercher_produit').length, 1, 'une seule recherche');
+    const l = m.z.lecteurs[0];
+    m.z.aLire.push('3017620422003', '5449000000996');
+    await tour(m); await tour(m);
+    assert.strictEqual(rech(m).length, 1, 'une seule recherche');
+    assert.strictEqual(l.decodes, 1, 'plus de décodage après la première lecture');
+    assert.strictEqual(m.efface.length, 1, 'boucle arrêtée');
     assert.strictEqual(l.resets, 1, 'lecteur arrêté');
     assert.strictEqual(m.piste.stopped, true, 'caméra arrêtée');
     assert.strictEqual(m.vibre, 1, 'courte vibration');
   });
 
-  await test('Formats EAN-13, EAN-8, UPC-A, UPC-E, Code 128, ITF et TRY_HARDER', async () => {
+  await test('Indices : POSSIBLE_FORMATS seul (EAN-13, EAN-8, UPC-A, UPC-E, Code 128, ITF), sans TRY_HARDER', async () => {
     const m = monde2(); m.dc.ecranIdentifier(); await attendre();
     const h = m.z.hints;
     assert.deepStrictEqual([...h.get('POSSIBLE_FORMATS')].sort(), ['CODE_128', 'EAN_13', 'EAN_8', 'ITF', 'UPC_A', 'UPC_E']);
-    assert.strictEqual(h.get('TRY_HARDER'), true);
+    assert.strictEqual(h.has('TRY_HARDER'), false);
+    m.z.aLire.push('3017620422003'); await tour(m);
+    assert.strictEqual(rech(m).length, 1, 'avec ces indices le code est lu');
   });
 
   await test('Caméra arrière, mise au point continue si la piste le permet', async () => {
@@ -155,7 +176,7 @@ const res = (t) => ({ getText: () => t });
     t.fn();
     assert.strictEqual(m.get('scanMsg').textContent, 'Approchez le code à 10 à 15 cm, bien éclairé, ou saisissez-le ci-dessous');
     const n = monde2(); n.dc.ecranIdentifier(); await attendre();
-    n.z.lecteurs[0].rappel(res('3017620422003'), null); await attendre();
+    n.z.aLire.push('3017620422003'); await tour(n);
     assert.strictEqual(n.minuteurs.find(x => x.ms === 8000).annule, true, 'minuteur annulé');
   });
 

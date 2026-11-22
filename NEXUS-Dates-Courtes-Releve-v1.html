@@ -461,18 +461,20 @@ function demarrerScan(silence){
         if(!flux) return;
         var hints=new Map();
         hints.set(Z.DecodeHintType.POSSIBLE_FORMATS,[Z.BarcodeFormat.EAN_13,Z.BarcodeFormat.EAN_8,Z.BarcodeFormat.UPC_A,Z.BarcodeFormat.UPC_E,Z.BarcodeFormat.CODE_128,Z.BarcodeFormat.ITF]);
-        hints.set(Z.DecodeHintType.TRY_HARDER,true);
         var lec=new Z.BrowserMultiFormatReader(hints);
         lecteur=lec;
-        // Lecture continue : decodeFromVideoElement(source) renvoie une promesse et ignore tout rappel.
-        lec.decodeFromVideoElementContinuously(v,function(res){
-          if(!res||lecteur!==lec) return; // NotFoundException entre deux images : ignorée
-          var t=res.getText();
-          if(!scanActif||Date.now()<scanBloque||!analyserCode(t)) return;
+        // Même schéma que BarcodeDetector : on décode l'image courante toutes les 250 ms.
+        // decodeFromVideoElementContinuously attend l'événement « playing », déjà passé ici ; TRY_HARDER empêche la lecture.
+        boucle=setInterval(function(){
+          if(!scanActif||lecteur!==lec||v.readyState<2) return;
+          var res;
+          try{res=lec.decode(v);}catch(e){return;} // NotFoundException entre deux images : ignorée
+          var t=res&&res.getText&&res.getText();
+          if(!t||Date.now()<scanBloque||!analyserCode(t)) return;
           try{if(navigator.vibrate) navigator.vibrate(60);}catch(e){}
           reconnaitre(t,true);
-          arreterScan(); // un seul résultat : le lecteur et la caméra s'arrêtent à la première lecture valide
-        });
+          arreterScan(); // un seul résultat : boucle, lecteur et caméra s'arrêtent à la première lecture valide
+        },250);
       },function(){dire('Lecture impossible ici : saisissez le code ou cherchez par nom.');});
     }
   },function(){montrerScan(false);dire('Accès caméra refusé : saisissez le code ou cherchez par nom.');});
