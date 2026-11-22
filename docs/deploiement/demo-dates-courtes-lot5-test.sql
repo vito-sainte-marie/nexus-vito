@@ -58,7 +58,7 @@ begin
   set local role authenticated;
 end $$;
 
--- 1. Articles : prix d'achat et de vente HT identiques dans le catalogue produits (articles 1 à 3) et dans l'import d'inventaire (4 et 5).
+-- 1. Articles : les 5 articles sont dans le catalogue produits et dans l'import d'inventaire, aux mêmes prix HT (nature fiscale déterminée).
 --    L'article 6 n'a aucun prix et aucun libellé : il sert au cas « sans prix ».
 reset role;
 insert into products (site, periode_debut, periode_fin, article, prix_achat, prix_vente, code_barres, categorie)
@@ -66,7 +66,9 @@ select 'nexus-station-test', current_date - 30, current_date, a.article, a.pa, a
 from (values
   ('[Démo] Jambon blanc 4 tranches', 2.10, 3.49, '2999900000013'),
   ('[Démo] Saucisson sec', 3.20, 4.95, '2999900000020'),
-  ('[Démo] Pâté de campagne', 1.40, 2.29, '2999900000037')) a(article, pa, pv, ean)
+  ('[Démo] Pâté de campagne', 1.40, 2.29, '2999900000037'),
+  ('[Démo] Yaourt nature x4', 0.95, 1.59, '2999900000044'),
+  ('[Démo] Salade composée', 1.80, 2.99, '2999900000051')) a(article, pa, pv, ean)
 where not exists (select 1 from products p where p.site = 'nexus-station-test' and p.article = a.article);
 
 insert into inventaire_quarts (site, date, quart, statut, is_simulation)
@@ -76,7 +78,9 @@ where not exists (select 1 from inventaire_quarts where site = 'nexus-station-te
 insert into inventaire_ventes_import (site, quart_id, designation_brute, code_barres_brut, categorie_brute, quantite_vendue, prix_achat_ht, prix_vente_ht)
 select 'nexus-station-test', q.id, a.des, a.ean, '[Démo]', 0, a.pa, a.pv
 from inventaire_quarts q,
-  (values ('[Démo] Yaourt nature x4', '2999900000044', 0.95, 1.59), ('[Démo] Salade composée', '2999900000051', 1.80, 2.99)) a(des, ean, pa, pv)
+  (values ('[Démo] Jambon blanc 4 tranches', '2999900000013', 2.10, 3.49), ('[Démo] Saucisson sec', '2999900000020', 3.20, 4.95),
+          ('[Démo] Pâté de campagne', '2999900000037', 1.40, 2.29), ('[Démo] Yaourt nature x4', '2999900000044', 0.95, 1.59),
+          ('[Démo] Salade composée', '2999900000051', 1.80, 2.99)) a(des, ean, pa, pv)
 where q.site = 'nexus-station-test' and q.date = current_date and q.quart = '[Démo] Dates courtes'
   and not exists (select 1 from inventaire_ventes_import i where i.site = 'nexus-station-test' and i.designation_brute = a.des);
 
