@@ -126,7 +126,7 @@
   .fiche button[disabled]{opacity:.6;cursor:not-allowed}
   .fiche .dispo{font-size:12px;color:var(--text-mid);text-align:center}
   :focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
-  @media (max-width:599px){.priorites{grid-template-columns:1fr}.prio{display:flex;align-items:center;gap:12px}.prio .l{margin:0}}
+  @media (max-width:599px){.priorites{gap:8px;margin-top:8px}.prio{padding:8px 6px;text-align:center;min-height:56px}.prio .n{font-size:24px;line-height:1.1}.prio .l{font-size:12px}h2{margin-top:14px}}
 </style>
 </head>
 <body>
@@ -284,7 +284,7 @@
   function priorites(d){
     const c = d.compteurs;
     const b = (k, cl, n, l) => '<button type="button" class="prio ' + cl + '" data-f="' + k + '" aria-pressed="' + (FILTRE === k) + '"><span class="n">' + nb(n) + '</span><span class="l">' + l + '</span></button>';
-    return '<div class="priorites" role="group" aria-label="Priorités du jour">' + b('traiter', 'rouge', c.traiter, 'À traiter aujourd\'hui') + b('verifier', 'ambre', c.verifier, 'À vérifier') + b('certifier', 'cyan', c.certifier, 'Tournées à certifier') + '</div>';
+    return '<div class="priorites" role="group" aria-label="Priorités du jour">' + b('traiter', 'rouge', c.traiter, 'À traiter') + b('verifier', 'ambre', c.verifier, 'À vérifier') + b('certifier', 'cyan', c.certifier, 'À certifier') + '</div>';
   }
 
   function correspond(it, f){
