@@ -21,3 +21,14 @@ Les noms `manager`, `gerant`, `createur` sont ceux de la matrice des droits. Ils
 ## 3. Rôle `vacataire` (arbitré)
 
 Arbitrage du pilote du 21/11 : aucun accès, comme le pompiste (`matrice-permissions.md`). Cas de recette 42.
+
+## 4. Prévention des pertes (à arbitrer)
+
+Voir `prevention-pertes.md`. Déjà arbitré : montant principal sur les relevés de 7 jours ou moins, 8 à 14 jours « indicatifs » à part, plus de 14 jours exclus.
+
+1. **Quantités certifiées seulement ou aussi non certifiées.** Options : (a) certifiées seulement, (b) non certifiées incluses avec la mention « non certifiées ». Recommandation : (b), pour que la valeur existe avant la certification, avec la mention sur la carte.
+2. **Fenêtre de ventes servant à la rotation.** Options : 14, 30 ou 60 jours. Recommandation : 30 jours, tant que les ventes sont par période. Elle ne donne qu'une rotation moyenne, jamais la date limite des unités vendues.
+3. **Définition d'une action « terminée ».** Options : (a) à la date limite du produit, (b) quand le manager la clôture, (c) quand la quantité de départ est à zéro. Recommandation : (b), avec résultat mesuré ou « Résultat non mesurable ».
+4. **Comparaison multisite du gérant.** Options : (a) aucune, station unique, (b) stations autorisées seulement. Recommandation : (a) pour les lots 5 et 6, (b) en arbitrage de sécurité. Aucun droit n'est élargi par cette documentation.
+5. **Prix d'achat figé à la pose de la démarque.** Options : (a) figé à la pose, (b) relu à la date de la perte. Recommandation : (a), non reconstituable plus tard. Question aussi posée à Guardian pour #352.
+6. **Hors taxes de `products`.** À confirmer sur trois articles connus (requête filtrée par site, soumise au pilote).

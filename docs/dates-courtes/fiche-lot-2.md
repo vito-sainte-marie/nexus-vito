@@ -33,8 +33,8 @@ Accès : renfort, manager, gérant, créateur ; caissier seulement si l'accès d
 
 1. Tâche : relever, corriger, terminer.
 2. Utilisateur et contexte : employé debout, une main, en rayon.
-3. Niveau : niveau 3, à arbitrer.
-4. Canevas : à choisir.
+3. Niveau : niveau 3 (saisie guidée, un geste après l'autre). Proposition, à valider par la revue Guardian.
+4. Canevas : A identité (nom de la tournée), D navigation et actions (Enregistrer, Terminer ma tournée) et E détails (ligne, historique). B synthèse et C Conseiller écartés : une page de saisie ne synthétise rien. Un bloc = une question : « qu'ai-je relevé ? ».
 5. Action principale : Enregistrer.
 6. États : Enregistré, En attente, Refusé.
 7. Vocabulaire : « quantité relevée ».
@@ -49,7 +49,9 @@ Accès : renfort, manager, gérant, créateur ; caissier seulement si l'accès d
 - Démo : 6, puis 4 (10), correction moins 2 (8), terminer.
 - Captures 375×812.
 - Scan Safari réel, ou « non fait ».
-- Tuile neutre « icône à venir ».
+- Tuile neutre « icône à venir » (icône `mod-dates-courtes` à demander sur #160, jamais dessinée).
+- Premier écran à 375×812 : nom de la tournée, champ scan ou recherche, dernière ligne enregistrée, bouton Enregistrer. Douchette : champ à focus permanent, même écran à 1280×800.
+- États : chargement, aucune donnée, erreur, donnée non fiable (ligne En attente ou Refusé).
 
 ## 5. Critères
 
@@ -61,6 +63,6 @@ Accès : renfort, manager, gérant, créateur ; caissier seulement si l'accès d
 ## 6. Limites
 
 - Le détecteur natif manque sur certains navigateurs (ZXing figé en version).
-- Niveau et canevas non arbitrés.
+- Niveau et canevas proposés dans la fiche de conception #160, en attente de revue.
 - Le blocage de la clôture est un contrôle d'appareil ; le serveur reste l'autorité.
 - Rien n'a été joué sur Test.

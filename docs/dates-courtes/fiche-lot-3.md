@@ -34,7 +34,19 @@ Donner au manager et au gérant le suivi des tournées, des relevés consolidés
 
 ## 5. Fiche de conception
 
-Manager ou gérant ; action Certifier le contrôle ; 4 états ; libellé « gérant » ; cibles 44 px ; Jour et Nuit ; test Guardian ; recette navigateur sur le rail.
+Référentiel : NEXUS-REFERENTIEL-CONCEPTION v1.0, section 7.
+
+1. Utilisateur : manager, gérant ou créateur, au bureau ou au téléphone.
+2. Besoin : savoir quelles tournées attendent une certification et quelles quantités sont courantes.
+3. Trois informations en premier : tournées à certifier, produits à échéance 0 à 7 jours, retraits à comptabiliser.
+4. Actions : Certifier le contrôle (page de la tournée), Demander une correction, Comptabiliser la démarque.
+5. Canevas : A identité, B synthèse (trois cartes), D navigation, E détails. C Conseiller écarté à ce lot (réservé à la Prévention des pertes).
+6. Composants : `nexus-theme.js`, jetons `--t-*`, `nexus-badge-etat.js` pour les états, `nexus-icones.js`, tuile « icône à venir ».
+7. Réservé aux détails : lignes consolidées, historique, mention « relevé aussi dans la tournée X ».
+8. Premier écran à 375×812 et 1280×800 : les trois cartes, puis la liste des tournées à certifier.
+9. États : chargement, aucune tournée à certifier, erreur, quantités « non certifiées ».
+10. Exceptions : aucune. Aucun rouge hors `--nbe-critique`.
+11. Maquette : `outils/maquettes/dates-courtes/`, Jour et Nuit, 375 et 1280, après revue de cette fiche.
 
 ## 6. Critères
 
