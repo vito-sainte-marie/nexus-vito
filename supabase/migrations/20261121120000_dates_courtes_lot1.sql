@@ -136,6 +136,7 @@ create table if not exists dates_courtes_retraits (
   date_limite date not null check (date_limite between date '2000-01-01' and date '2100-01-01'),
   quantite integer not null check (quantite > 0 and quantite <= 100000),
   etat text not null default 'retire_physique' check (etat = 'retire_physique'),
+  trouve boolean not null default false,
   releve_id uuid,
   cle_groupe text not null,
   tournee_id uuid not null,
@@ -296,7 +297,8 @@ language sql stable set search_path = public, pg_temp as $$
               else p_site || '|L|' || coalesce(dates_courtes_resolution(p_site, 'libelle', p_libelle), '') end
 $$;
 
--- Total brut d'un groupe dans une tournée, sans plancher. SECURITY DEFINER pour que le plancher soit vérifié sur tous les gestes de la tournée.
+-- Total brut d'un groupe dans une tournée (relevés et corrections, jamais les retraits : un retrait n'appartient pas à la tournée), sans plancher.
+-- SECURITY DEFINER pour que le plancher d'une correction soit vérifié sur tous les gestes de la tournée.
 -- Appelable seulement depuis un déclencheur : jamais directement par un client.
 create or replace function dates_courtes_total_brut(p_site text, p_cle text, p_tournee uuid, p_exclure_table text default null, p_exclure_id uuid default null) returns integer
 language plpgsql stable security definer set search_path = public, pg_temp as $$
@@ -316,10 +318,6 @@ begin
                     where c.site = p_site and c.tournee_id = p_tournee and c.annule_le is null
                       and not coalesce(p_exclure_table = 'dates_courtes_corrections' and c.id = p_exclure_id, false)
                       and dates_courtes_cle_canonique(c.site, c.ean, c.libelle_normalise, c.date_limite) = p_cle), 0)
-       - coalesce((select sum(x.quantite) from dates_courtes_retraits x
-                    where x.site = p_site and x.tournee_id = p_tournee and x.annule_le is null
-                      and not coalesce(p_exclure_table = 'dates_courtes_retraits' and x.id = p_exclure_id, false)
-                      and dates_courtes_cle_canonique(x.site, x.ean, x.libelle_normalise, x.date_limite) = p_cle), 0)
   into v_total;
   return v_total;
 end $$;
@@ -419,9 +417,14 @@ begin
       end if;
     end if;
   elsif TG_TABLE_NAME = 'dates_courtes_retraits' then
-    v_total := dates_courtes_total_brut(NEW.site, v_cle, NEW.tournee_id);
-    if v_total - NEW.quantite < 0 then
-      raise exception 'plancher_zero : le retrait ferait passer la quantité sous zéro (quantité actuelle %, retrait %)', v_total, NEW.quantite using errcode = 'P0001';
+    -- Un retrait physique diminue la quantité courante de la ligne (article, date) de la station, quelle que soit la tournée où il est saisi.
+    -- Verrou par ligne et par station ; plancher vérifié sur la quantité courante. Un trouvé-et-retiré n'est pas dans la liste : il n'est jamais refusé.
+    perform pg_advisory_xact_lock(hashtextextended(NEW.site || '|L|' || dates_courtes_cle_article(NEW.site, NEW.ean, NEW.libelle_normalise) || '|' || NEW.date_limite::text, 0));
+    if not NEW.trouve then
+      v_total := dates_courtes_courant_ligne(NEW.site, dates_courtes_cle_article(NEW.site, NEW.ean, NEW.libelle_normalise), NEW.date_limite);
+      if v_total - NEW.quantite < 0 then
+        raise exception 'plancher_zero : le retrait ferait passer la quantité courante sous zéro (quantité courante %, retrait %)', v_total, NEW.quantite using errcode = 'P0001';
+      end if;
     end if;
   end if;
   return NEW;
@@ -606,21 +609,21 @@ drop policy if exists lecture_meme_site on dates_courtes_demandes_correction;
 create policy lecture_meme_site on dates_courtes_demandes_correction for select to authenticated using (site = (select current_employee_site_id())
   and ((select dates_courtes_gestion()) or tournee_id in (select t.id from dates_courtes_tournees t)));
 
--- 7. Version d'une tournée : empreinte des quantités consolidées (plancher à zéro par groupe) et dernière opération reçue ou annulée.
+-- 7. Version d'une tournée : empreinte des relevés et corrections consolidés (plancher à zéro par groupe ; les retraits n'en font pas partie) et dernière opération reçue ou annulée.
 -- Deux appels sans changement donnent la même version. Lecture de toute la tournée, réservée à sa station.
 create or replace function dates_courtes_version_tournee(p_tournee uuid) returns jsonb
 language plpgsql stable security definer set search_path = public, pg_temp as $$
 declare v_site text; v_emp text; v_der text;
 begin
-  select t.site into v_site from dates_courtes_tournees t where t.id = p_tournee;
+  select t.site into v_site from dates_courtes_tournees t where t.id = p_tournee
+    and (dates_courtes_gestion() or t.saisi_par = auth.uid());
   if v_site is null or not exists (select 1 from employees e where e.id = auth.uid() and e.actif and e.site_id = v_site) then
-    raise exception 'introuvable : tournée inconnue pour cette station' using errcode = 'P0001';
+    raise exception 'introuvable : tournée inconnue, ou réservée à la gestion et à son auteur' using errcode = 'P0001';
   end if;
   select md5(coalesce(string_agg(q.cle || '=' || q.s::text, '|' order by q.cle), '')) into v_emp from (
     select dates_courtes_cle_canonique(m.site, m.ean, m.libelle_normalise, m.date_limite) as cle, greatest(0, sum(m.q)) as s
     from (select r.site, r.ean, r.libelle_normalise, r.date_limite, r.quantite as q from dates_courtes_releves r where r.tournee_id = p_tournee and r.annule_le is null
-          union all select c.site, c.ean, c.libelle_normalise, c.date_limite, c.delta from dates_courtes_corrections c where c.tournee_id = p_tournee and c.annule_le is null
-          union all select x.site, x.ean, x.libelle_normalise, x.date_limite, - x.quantite from dates_courtes_retraits x where x.tournee_id = p_tournee and x.annule_le is null) m
+          union all select c.site, c.ean, c.libelle_normalise, c.date_limite, c.delta from dates_courtes_corrections c where c.tournee_id = p_tournee and c.annule_le is null) m
     group by 1) q;
   select y.cle into v_der from (
     select r.cle_idempotence as cle, greatest(r.recu_le, r.annule_le) as h from dates_courtes_releves r where r.tournee_id = p_tournee
@@ -630,53 +633,104 @@ begin
   return jsonb_build_object('empreinte', v_emp, 'derniere_operation', coalesce(v_der, ''));
 end $$;
 
--- 8. Quantité courante, par ligne de date limite. Jamais stockée : calculée à la lecture, sur les lignes visibles de l'appelant.
--- Pour chaque article, la tournée qui porte le dernier relevé effectif (heure du geste) l'emporte ; ses quantités par date sont les quantités courantes.
--- Les autres tournées restent en historique, mention seule dans autres_tournees. Aucune addition entre tournées.
--- Âge : jours calendaires (fuseau Martinique) depuis le dernier relevé effectif de la ligne, jamais depuis la certification ou la clôture.
--- Une correction, une annulation, une certification ou un rattachement ne rajeunit pas la ligne. Une ligne née d'une correction seule prend l'heure de son premier geste.
+-- 8. Quantité courante, par ligne de date limite. Jamais stockée : calculée à la lecture, sur toutes les tournées de la station.
+-- Pour chaque article, la tournée qui porte le dernier relevé effectif (heure du geste) l'emporte ; ses relevés et corrections par date donnent la base de chaque ligne.
+-- Un retrait physique n'est pas un relevé : il ne désigne jamais la tournée de référence et ne rajeunit jamais une ligne. Il diminue la quantité courante de la ligne
+-- (article, date) de la station, quelle que soit la tournée où il est saisi, s'il est de la tournée de référence ou postérieur au relevé de référence.
+-- Un retrait sur un article jamais relevé ne crée aucune quantité courante. Aucune addition entre tournées.
+-- Âge : jours calendaires (fuseau Martinique) depuis le dernier relevé effectif de la ligne, jamais depuis un retrait, une certification ou une clôture.
+-- Une ligne née d'une correction seule prend l'heure de son premier geste.
 -- etat_age : 7 jours et moins courante, 8 à 14 a_verifier, plus de 14 a_recontroler.
 -- echeance : date dépassée avec relevé de 7 jours ou moins a_retirer ; date dépassée avec relevé plus ancien depassee_a_verifier (aucune demande de retrait) ; sinon aucune.
-create or replace function dates_courtes_quantites_courantes(p_instant timestamptz default now())
+-- Noyau interne, jamais appelable par un client : le site est un paramètre, la garde est dans les fonctions qui l'appellent.
+create or replace function dates_courtes_courant_station(p_site text, p_instant timestamptz)
 returns table (site text, cle_article text, ean text, libelle_normalise text, date_limite date, quantite integer, tournee_id uuid, tournee_etat text,
                dernier_releve timestamptz, age_jours integer, etat_age text, echeance text, autres_tournees jsonb)
-language sql stable security invoker set search_path = public, pg_temp as $$
+language sql stable security definer set search_path = public, pg_temp as $$
   with rel as (
     select r.site, r.tournee_id, r.id, r.heure_geste, dates_courtes_cle_article(r.site, r.ean, r.libelle_normalise) as art
-    from dates_courtes_releves r where r.annule_le is null and r.heure_geste <= p_instant
+    from dates_courtes_releves r where r.site = p_site and r.annule_le is null and r.heure_geste <= p_instant
   ), gagnante as (
-    select distinct on (x.site, x.art) x.site, x.art, x.tournee_id from rel x order by x.site, x.art, x.heure_geste desc, x.id desc
-  ), mouv as (
-    select r.site, r.tournee_id, dates_courtes_cle_article(r.site, r.ean, r.libelle_normalise) as art, r.ean, r.libelle_normalise, r.date_limite,
-           r.quantite as q, r.heure_geste, true as est_releve
-      from dates_courtes_releves r where r.annule_le is null and r.heure_geste <= p_instant
-    union all
-    select c.site, c.tournee_id, dates_courtes_cle_article(c.site, c.ean, c.libelle_normalise), c.ean, c.libelle_normalise, c.date_limite, c.delta, c.heure_geste, false
-      from dates_courtes_corrections c where c.annule_le is null and c.heure_geste <= p_instant
-    union all
-    select x.site, x.tournee_id, dates_courtes_cle_article(x.site, x.ean, x.libelle_normalise), x.ean, x.libelle_normalise, x.date_limite, - x.quantite, x.heure_geste, false
-      from dates_courtes_retraits x where x.annule_le is null and x.heure_geste <= p_instant
+    select distinct on (x.art) x.art, x.tournee_id, x.heure_geste as ref_heure from rel x order by x.art, x.heure_geste desc, x.id desc
+  ), base as (
+    select g.art, g.tournee_id, m.date_limite, m.ean, m.libelle_normalise, m.q, m.heure_geste, m.est_releve
+    from gagnante g join (
+      select dates_courtes_cle_article(r.site, r.ean, r.libelle_normalise) as art, r.tournee_id, r.ean, r.libelle_normalise, r.date_limite,
+             r.quantite as q, r.heure_geste, true as est_releve
+        from dates_courtes_releves r where r.site = p_site and r.annule_le is null and r.heure_geste <= p_instant
+      union all
+      select dates_courtes_cle_article(c.site, c.ean, c.libelle_normalise), c.tournee_id, c.ean, c.libelle_normalise, c.date_limite, c.delta, c.heure_geste, false
+        from dates_courtes_corrections c where c.site = p_site and c.annule_le is null and c.heure_geste <= p_instant
+    ) m on m.art = g.art and m.tournee_id = g.tournee_id
+  ), retr as (
+    select g.art, x.date_limite, sum(x.quantite)::integer as s
+    from gagnante g join dates_courtes_retraits x on x.site = p_site and x.annule_le is null and x.heure_geste <= p_instant
+      and dates_courtes_cle_article(x.site, x.ean, x.libelle_normalise) = g.art
+      and (x.tournee_id = g.tournee_id or x.heure_geste >= g.ref_heure)
+    group by g.art, x.date_limite
   ), lignes as (
-    select g.site, g.art, g.tournee_id, m.date_limite, max(m.ean) as ean, max(m.libelle_normalise) as libelle_normalise,
-           greatest(0, sum(m.q))::integer as q,
-           coalesce(max(m.heure_geste) filter (where m.est_releve), min(m.heure_geste)) as dernier
-    from gagnante g join mouv m on m.site = g.site and m.tournee_id = g.tournee_id and m.art = g.art
-    group by g.site, g.art, g.tournee_id, m.date_limite
+    select b.art, b.tournee_id, b.date_limite, max(b.ean) as ean, max(b.libelle_normalise) as libelle_normalise, sum(b.q) as brut,
+           coalesce(max(b.heure_geste) filter (where b.est_releve), min(b.heure_geste)) as dernier
+    from base b group by b.art, b.tournee_id, b.date_limite
   ), ages as (
-    select l.*, ((p_instant at time zone 'America/Martinique')::date - (l.dernier at time zone 'America/Martinique')::date) as age,
+    select l.art, l.tournee_id, l.date_limite, l.ean, l.libelle_normalise, l.dernier,
+           greatest(0, l.brut - coalesce(r.s, 0))::integer as q,
+           ((p_instant at time zone 'America/Martinique')::date - (l.dernier at time zone 'America/Martinique')::date) as age,
            ((p_instant at time zone 'America/Martinique')::date) as aujourdhui
-    from lignes l where l.q > 0
+    from lignes l left join retr r on r.art = l.art and r.date_limite = l.date_limite
   )
-  select a.site, a.art, a.ean, a.libelle_normalise, a.date_limite, a.q, a.tournee_id, t.etat, a.dernier, a.age,
+  select p_site, a.art, a.ean, a.libelle_normalise, a.date_limite, a.q, a.tournee_id, t.etat, a.dernier, a.age,
          case when a.age <= 7 then 'courante' when a.age <= 14 then 'a_verifier' else 'a_recontroler' end,
          case when a.date_limite < a.aujourdhui and a.age <= 7 then 'a_retirer'
               when a.date_limite < a.aujourdhui then 'depassee_a_verifier'
               else 'aucune' end,
          (select jsonb_agg(jsonb_build_object('tournee_id', o.tournee_id, 'nom', t2.nom, 'saisi_par', t2.saisi_par, 'heure', o.h) order by o.h desc)
-            from (select x.tournee_id, max(x.heure_geste) as h from rel x where x.site = a.site and x.art = a.art and x.tournee_id <> a.tournee_id group by x.tournee_id) o
+            from (select x.tournee_id, max(x.heure_geste) as h from rel x where x.art = a.art and x.tournee_id <> a.tournee_id group by x.tournee_id) o
             join dates_courtes_tournees t2 on t2.id = o.tournee_id)
   from ages a join dates_courtes_tournees t on t.id = a.tournee_id
+  where a.q > 0
 $$;
+
+-- Garde de lecture : opérateurs et caissier habilité seulement, site lu depuis le compte. Pompiste et vacataire refusés.
+create or replace function dates_courtes_exiger_lecture() returns text
+language plpgsql stable security definer set search_path = public, pg_temp as $$
+declare v_site text;
+begin
+  if auth.uid() is null then
+    raise exception 'non_authentifie : connexion requise' using errcode = 'P0001';
+  end if;
+  select e.site_id into v_site from employees e where e.id = auth.uid() and e.actif;
+  if v_site is null or not (dates_courtes_operer() or dates_courtes_caissier_autorise()) then
+    raise exception 'droit_refuse : ce profil ne peut pas lire les quantités courantes de dates courtes' using errcode = 'P0001';
+  end if;
+  return v_site;
+end $$;
+
+-- Quantités courantes de la station de la personne connectée. Même quantité, même tournée de référence et même échéance pour tout profil autorisé.
+-- Le détail des autres tournées (autres_tournees) n'est rendu qu'à la gestion.
+create or replace function dates_courtes_quantites_courantes(p_instant timestamptz default now())
+returns table (site text, cle_article text, ean text, libelle_normalise text, date_limite date, quantite integer, tournee_id uuid, tournee_etat text,
+               dernier_releve timestamptz, age_jours integer, etat_age text, echeance text, autres_tournees jsonb)
+language sql stable security definer set search_path = public, pg_temp as $$
+  select c.site, c.cle_article, c.ean, c.libelle_normalise, c.date_limite, c.quantite, c.tournee_id, c.tournee_etat,
+         c.dernier_releve, c.age_jours, c.etat_age, c.echeance,
+         case when dates_courtes_gestion() then c.autres_tournees end
+  from dates_courtes_courant_station(dates_courtes_exiger_lecture(), p_instant) c
+$$;
+
+-- Quantité courante d'une ligne, pour le plancher d'un retrait. Appelable seulement depuis un déclencheur.
+create or replace function dates_courtes_courant_ligne(p_site text, p_cle_article text, p_date date) returns integer
+language plpgsql stable security definer set search_path = public, pg_temp as $$
+begin
+  if pg_trigger_depth() = 0 then
+    raise exception 'appel_interdit : cette fonction ne s''appelle que depuis un déclencheur' using errcode = 'P0001';
+  end if;
+  if not exists (select 1 from employees e where e.id = auth.uid() and e.actif and e.site_id = p_site) then
+    raise exception 'site_interdit : station différente de celle de la personne connectée' using errcode = 'P0001';
+  end if;
+  return coalesce((select sum(c.quantite)::integer from dates_courtes_courant_station(p_site, now()) c
+                    where c.cle_article = p_cle_article and c.date_limite = p_date), 0);
+end $$;
 
 create or replace function dates_courtes_quantite_courante(p_ean text, p_libelle text, p_date date) returns integer
 language sql stable security invoker set search_path = public, pg_temp as $$
@@ -723,6 +777,9 @@ begin
   if p_cle_idempotence is null or length(btrim(p_cle_idempotence)) not between 1 and 100 then
     raise exception 'cle_idempotence_requise : clé d''idempotence de 1 à 100 caractères' using errcode = 'P0001';
   end if;
+  if position(':' in p_cle_idempotence) > 0 then
+    raise exception 'cle_idempotence_invalide : le caractère « : » est réservé au serveur' using errcode = 'P0001';
+  end if;
   if p_donnees is null or jsonb_typeof(p_donnees) <> 'object' then
     raise exception 'donnees_invalides : un objet JSON est attendu' using errcode = 'P0001';
   end if;
@@ -731,7 +788,7 @@ begin
     when 'ajout' then array['tournee_id', 'ean', 'libelle', 'nom_libre', 'photo_ref', 'date_limite', 'quantite', 'heure_geste']
     when 'correction' then array['tournee_id', 'ean', 'libelle', 'date_limite', 'delta', 'releve_id', 'motif', 'heure_geste']
     when 'retrait' then array['tournee_id', 'ean', 'libelle', 'date_limite', 'quantite', 'heure_geste']
-    when 'trouve_retire' then array['tournee_id', 'ean', 'libelle', 'nom_libre', 'photo_ref', 'date_limite', 'quantite', 'heure_geste']
+    when 'trouve_retire' then array['tournee_id', 'ean', 'libelle', 'date_limite', 'quantite', 'heure_geste']
     when 'changement_date' then array['tournee_id', 'ean', 'libelle', 'ancienne_date', 'nouvelle_date', 'quantite', 'heure_geste', 'motif']
     else array['cible', 'id', 'motif'] end;
   for v_champ in select jsonb_object_keys(p_donnees) loop
@@ -817,14 +874,12 @@ begin
         values (v_site, v_ean, v_lib, v_date, v_qte, v_tournee, v_geste, v_cle) returning id into v_id;
       v_ids := jsonb_build_array(jsonb_build_object('table', 'retraits', 'id', v_id));
     elsif p_operation = 'trouve_retire' then
-      -- Un geste unique : un relevé de N et un retrait de N, liés. Quantité nulle dans la tournée, N dans « à comptabiliser », aucun refus de plancher.
+      -- Trouvé et retiré dans le même geste : un retrait seul, marqué « trouvé ». Ce n'est pas un relevé : il ne désigne aucune tournée de référence,
+      -- ne rajeunit aucune ligne et ne crée aucune quantité courante. Sur une ligne relevée il la diminue, sans refus de plancher.
       v_qte := (p_donnees ->> 'quantite')::integer;
-      v_prov := coalesce(dates_courtes_est_provisoire(v_ean), false);
-      insert into dates_courtes_releves (site, ean, libelle_vu, nom_libre, photo_ref, date_limite, quantite, provisoire, tournee_id, heure_geste, cle_idempotence, lien_id)
-        values (v_site, v_ean, v_lib, v_nom, v_photo, v_date, v_qte, v_prov, v_tournee, v_geste, v_cle || ':r', v_lien) returning id into v_id;
-      insert into dates_courtes_retraits (site, ean, libelle_normalise, date_limite, quantite, releve_id, tournee_id, heure_geste, cle_idempotence, lien_id)
-        values (v_site, v_ean, v_lib, v_date, v_qte, v_id, v_tournee, v_geste, v_cle || ':t', v_lien) returning id into v_id2;
-      v_ids := jsonb_build_array(jsonb_build_object('table', 'releves', 'id', v_id), jsonb_build_object('table', 'retraits', 'id', v_id2));
+      insert into dates_courtes_retraits (site, ean, libelle_normalise, date_limite, quantite, trouve, tournee_id, heure_geste, cle_idempotence)
+        values (v_site, v_ean, v_lib, v_date, v_qte, true, v_tournee, v_geste, v_cle) returning id into v_id;
+      v_ids := jsonb_build_array(jsonb_build_object('table', 'retraits', 'id', v_id));
     else
       -- Changement de date : moins N sur l'ancien groupe, plus N sur le nouveau, liés entre eux.
       v_qte := (p_donnees ->> 'quantite')::integer;
@@ -1119,6 +1174,7 @@ begin
     'dates_courtes_operer()', 'dates_courtes_gestion()', 'dates_courtes_caissier_autorise()',
     'dates_courtes_resolution(text,text,text)', 'dates_courtes_cle_canonique(text,text,text,date)', 'dates_courtes_cle_article(text,text,text)',
     'dates_courtes_total_brut(text,text,uuid,text,uuid)', 'dates_courtes_porte_tournee(text,uuid,timestamptz)',
+    'dates_courtes_courant_station(text,timestamptz)', 'dates_courtes_exiger_lecture()', 'dates_courtes_courant_ligne(text,text,date)',
     'dates_courtes_signaler_modification(uuid)', 'dates_courtes_demarque_active(uuid)',
     'dates_courtes_version_tournee(uuid)', 'dates_courtes_quantites_courantes(timestamptz)', 'dates_courtes_quantite_courante(text,text,date)',
     'dates_courtes_est_provisoire(text)', 'dates_courtes_enregistrer(text,text,jsonb)',
@@ -1128,7 +1184,7 @@ begin
     'dates_courtes_regler_acces_caissier(boolean)', 'dates_courtes_poser_correspondance(text,text,text)', 'dates_courtes_annuler_correspondance(uuid,text)',
     'dates_courtes_avant_insertion()', 'dates_courtes_avant_annulation()', 'dates_courtes_avant_correspondance()', 'dates_courtes_avant_demarque()'] loop
     execute format('revoke all on function %s from public, anon, authenticated, service_role', f);
-    if f not like 'dates_courtes_avant_%' then
+    if f not like 'dates_courtes_avant_%' and f <> 'dates_courtes_courant_station(text,timestamptz)' then
       execute format('grant execute on function %s to authenticated', f);
     end if;
   end loop;
@@ -1137,13 +1193,15 @@ end $$;
 comment on table dates_courtes_tournees is 'Dates courtes : tournées individuelles. Chaque employé autorisé crée et mène la sienne, plusieurs peuvent être ouvertes dans une station. États EN_COURS, TERMINEE_A_CERTIFIER, CERTIFIEE, CORRECTION_DEMANDEE, changés par fonction serveur seulement.';
 comment on table dates_courtes_releves is 'Dates courtes : relevés d''une date limite. Ajout seul, annulation tracée. La clé de groupe, l''heure de réception et les marques de rattachement sont posées par le serveur.';
 comment on table dates_courtes_corrections is 'Dates courtes : corrections signées d''un groupe dans une tournée. Ajout seul, annulation tracée. Plancher à zéro vérifié sous verrou.';
-comment on table dates_courtes_retraits is 'Dates courtes : retraits physiques confirmés. Ajout seul. Ce n''est ni une vente ni une démarque.';
+comment on table dates_courtes_retraits is 'Dates courtes : retraits physiques confirmés. Ajout seul. Ce n''est ni une vente ni une démarque, ni un relevé. trouve = trouvé et retiré dans le même geste.';
 comment on table dates_courtes_demarques is 'Dates courtes : démarque comptabilisée sur un retrait physique. Ajout seul, annulation tracée. Aucune valeur en euros, aucune écriture comptable, aucun lien avec Decenium.';
 comment on table dates_courtes_correspondances is 'Dates courtes : rattachements « même produit que… » (libellé ou EAN). Ajout seul, annulation tracée. Historique intact.';
 comment on table dates_courtes_acces_caissier is 'Dates courtes : réglage d''accès caissier par station, historique en ajout seul, la dernière ligne fait foi. Fermé par défaut.';
 comment on table dates_courtes_certifications is 'Dates courtes : certifications de tournée, en ajout seul. Une nouvelle certification s''ajoute, l''ancienne reste tracée.';
 comment on table dates_courtes_demandes_correction is 'Dates courtes : demandes de correction (relevés visés, motif) et réponse du réalisateur. Écrites par fonction serveur seulement.';
-comment on function dates_courtes_quantites_courantes(timestamptz) is 'Quantité courante par ligne de date limite : la tournée du dernier relevé effectif l''emporte, jamais d''addition entre tournées. Âge depuis le dernier relevé effectif, fuseau Martinique. Droits de l''appelant.';
+comment on function dates_courtes_quantites_courantes(timestamptz) is 'Quantité courante par ligne de date limite : la tournée du dernier relevé effectif l''emporte, jamais d''addition entre tournées ; un retrait diminue la ligne de la station sans désigner de tournée ni rajeunir. Âge depuis le dernier relevé effectif, fuseau Martinique. Station lue depuis le compte, opérateurs et caissier habilité ; détail des autres tournées pour la gestion seule.';
 comment on function dates_courtes_enregistrer(text, text, jsonb) is 'Écrit un relevé, une correction, un retrait, un trouvé-et-retiré, un changement de date ou une annulation dans sa propre tournée. Rôle et station relus depuis le compte, idempotent.';
-comment on function dates_courtes_total_brut(text, text, uuid, text, uuid) is 'Total brut d''un groupe dans une tournée. Réservé aux déclencheurs de plancher.';
+comment on function dates_courtes_total_brut(text, text, uuid, text, uuid) is 'Total brut d''un groupe dans une tournée (relevés et corrections). Réservé aux déclencheurs de plancher.';
+comment on function dates_courtes_courant_station(text, timestamptz) is 'Noyau interne du calcul de quantité courante. Aucun droit client.';
+comment on function dates_courtes_courant_ligne(text, text, date) is 'Quantité courante d''une ligne pour le plancher d''un retrait. Réservé aux déclencheurs.';
 comment on function dates_courtes_comptabiliser_demarque(uuid, integer, text, text, timestamptz) is 'Démarque comptabilisée sur un retrait physique, cumul au plus égal à la quantité retirée. Gestion seule. Aucune écriture comptable.';
