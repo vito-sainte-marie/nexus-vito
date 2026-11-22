@@ -73,3 +73,7 @@ Limite : aucun de ces cas n'a été joué sur Test. Le plan décrit ce qu'il fau
 | 51 | Dix secondes sur iPhone | Un manager non formé nomme en moins de 10 s le premier produit à traiter, sa quantité, son échéance et l'action attendue | 5 |
 
 Rappel : la recette locale du lot 5 compte 76 contrôles (banc pglite). Les cas ci-dessus restent à jouer sur Test après GO.
+
+## Lot 2 : Relevé employé
+
+Rappel : la recette locale du lot 2 compte 41 contrôles (banc pglite, `outils/recette/dates_courtes_lot2/`). Elle couvre les parties serveur des cas 6, 15, 18, 38, 43 et 44, la recherche produit (sans prix, sans autre station, 20 lignes au plus) et les refus du pompiste, du vacataire et du caissier sans accès. Le scan réel sur iPhone Safari (cas 11) et le blocage de « Terminer » avec une saisie en attente (cas 32) se jouent sur l'appareil. Aucun de ces cas n'a été joué sur Test.
