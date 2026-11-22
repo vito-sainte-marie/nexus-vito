@@ -46,6 +46,7 @@
     'mod-progression':         { libelle: 'Progression' },
     'mod-parametres':          { libelle: 'Paramètres' },
     'mod-produits':            { libelle: 'Produits' },
+    'mod-dates-courtes':       { libelle: 'Dates courtes' },
     'mod-accueil':             { libelle: 'Accueil' },
     'mod-cockpit':             { libelle: 'Cockpit' },
     'mod-rapport':             { libelle: 'Rapport NEXUS' },
