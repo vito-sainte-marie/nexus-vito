@@ -1431,7 +1431,7 @@
         "cible": "udljdqxerrbbbajxubfn",
         "par": "guardian",
         "outil": "Application sur Test par Guardian au sha 6af6c1e9 (md5 c4cf02839b7c925bca42ba28bbb67bbe, identique au fichier du depot) puis recette RLS reelle 36/36 conforme, comptes authenticated de nexus-station-test, bloc annule (#160, commentaire 7079549597). Qualification deposee par claude-code.",
-        "verdict": "APPLIQUEE ET RECETTEE SUR TEST : 9 tables en RLS forcee, 35 fonctions, 8 declencheurs, aucun droit pour anon ni PUBLIC. NON MESUREE EN PRODUCTION : aucune lecture ni ecriture Production, application sur GO distinct du pilote.",
+        "verdict": "APPLIQUEE ET RECETTEE SUR TEST (9 tables en RLS forcee, 35 fonctions, 8 declencheurs, recette 36/36). APPLIQUEE EN PRODUCTION le 22/11 sur GO ecrit du pilote, par Guardian, au sha 6af6c1e9 : 9 tables RLS forcee, 35 fonctions, 8 declencheurs, 30 politiques, aucun droit anon ni PUBLIC, 0 ligne, empreinte du code des fonctions identique a Test (#160, commentaire 7080027067). Constat rapporte par Guardian : claude-code n'a fait aucune lecture Production.",
         "blob_migration": "ec0f8a4fe79b6717193375190234b08b6323a8f6"
       },
       "objets_crees": [
@@ -1495,7 +1495,7 @@
         "insertion_gestion_meme_site",
         "annulation_gestion_meme_site"
       ],
-      "valide_par": "a confirmer par le pilote (GO Production et fusion de #352 distincts)",
+      "valide_par": "pilote (GO migration Production du 22/11 rapporte par Guardian, 7080027067) ; GO fusion de #352 distinct",
       "valide_le": null,
       "trace": "#160, Guardian 7079549597 (Test, 36/36) ; decisions du pilote 7070287902 et 7070334877 (tournees individuelles) ; PR #352."
     }
