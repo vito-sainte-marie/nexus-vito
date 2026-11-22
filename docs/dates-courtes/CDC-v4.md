@@ -45,7 +45,7 @@ Vocabulaire imposé : « quantité relevée », jamais « stock ». Toute quanti
     - Une rectification après certification est tracée et appelle une nouvelle certification.
     - La certification ne déclenche aucune démarque et ne bloque ni la clôture ni l'usage des quantités, qui s'affichent « non certifiées » jusque-là.
 11. Retraits en trois états : signalé, retiré physiquement, démarque comptabilisée. Geste « trouvé et retiré ». Inchangé depuis la v3 (le plancher à zéro se calcule par tournée).
-12. **Droits** (détail dans `matrice-permissions.md`) : renfort : créer, terminer, répondre aux demandes de correction, voir ses tournées. Manager, gérant, créateur : tout, plus voir toutes les tournées de la station, demander une correction, certifier, exporter. Caissier : accès par station, ne certifie pas. Pompiste : aucun. Vacataire : en attente d'arbitrage du pilote ; aucun accès par défaut, comme le pompiste.
+12. **Droits** (détail dans `matrice-permissions.md`) : renfort : créer, terminer, répondre aux demandes de correction, voir ses tournées. Manager, gérant, créateur : tout, plus voir toutes les tournées de la station, demander une correction, certifier, exporter. Caissier : accès par station, ne certifie pas. Pompiste : aucun. Vacataire : aucun accès, comme le pompiste (arbitrage du pilote du 21/11).
 13. États de synchronisation : Enregistré, En attente, Refusé. Une opération renvoyée compte une fois.
 14. Parcours libre, sans zones.
 
@@ -98,5 +98,5 @@ Promotion, destruction, démarque automatique ; intégration comptable ; zones ;
 
 - La v2 n'est pas dans le dépôt : ses règles sont reprises des messages d'arbitrage.
 - Les noms de tables et de colonnes sont des propositions, vérifiées seulement sur un banc local jetable.
-- Le rôle `vacataire` n'est pas arbitré : défaut sans accès, à confirmer par le pilote.
+- Le rôle `vacataire` n'a aucun accès (arbitrage du pilote du 21/11).
 - Rien n'est mesuré sur Test ni en Production.

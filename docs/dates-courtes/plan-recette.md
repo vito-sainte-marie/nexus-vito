@@ -50,7 +50,7 @@ La date saisie est une seule « Date limite », sans type. Les quantités s'addi
 | 39 | Rectification après certification | Tracée ; nouvelle certification requise | 1 |
 | 40 | Certification : effets sur les quantités | Aucune démarque, aucun blocage de la clôture, quantités « non certifiées » avant | 1 et 3 |
 | 41 | Renfort lit les tournées d'un autre employé | Refusé ; manager voit toutes les tournées de la station | 1 |
-| 42 | Vacataire | Refusé par le serveur sur toute action (en attente d'arbitrage du pilote) | 1 |
+| 42 | Vacataire | Refusé par le serveur sur toute action (aucun accès, arbitrage du pilote du 21/11) | 1 |
 | 43 | Retrait le premier jour d'une tournée : geste « trouvé et retiré » de 3 | Quantité courante 0 dans la tournée, 3 dans « à comptabiliser », aucun refus de plancher ; renfort autorisé | 1 et 3 |
 | 44 | Geste hors ligne reçu plus tard | Compté à l'heure du geste dans sa tournée ; heure de réception conservée | 1 et 2 |
 

@@ -1,4 +1,4 @@
--- Retour arrière de 20261121120000_dates_courtes_lot1 (v4) : retire les 9 tables et les 32 fonctions du Lot 1 Dates courtes.
+-- Retour arrière de 20261121120000_dates_courtes_lot1 (v4) : retire les 9 tables et les 35 fonctions du Lot 1 Dates courtes.
 -- Tables : tournees, releves, corrections, retraits, demarques, correspondances, acces_caissier, certifications, demandes_correction.
 -- Ne touche aucun objet existant (inventaire_*, station_config, droits en place). Les données saisies dans les tables du lot sont supprimées avec elles :
 -- à n'exécuter qu'avec le GO du pilote, après export éventuel des lignes à conserver.

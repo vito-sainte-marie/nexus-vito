@@ -18,6 +18,6 @@ Reste à surveiller : la couverture de cette clé. 49 sur 56 articles de la pér
 
 Les noms `manager`, `gerant`, `createur` sont ceux de la matrice des droits. Ils sont à vérifier contre la base avant tout code. Rien n'a été lu en Production par l'assistant pour ce dossier.
 
-## 3. Rôle `vacataire` (arbitrage attendu)
+## 3. Rôle `vacataire` (arbitré)
 
-Le pilote n'a pas tranché. Défaut retenu : aucun accès, comme le pompiste (`matrice-permissions.md`). Cas de recette 42. Guardian pose la question au pilote.
+Arbitrage du pilote du 21/11 : aucun accès, comme le pompiste (`matrice-permissions.md`). Cas de recette 42.

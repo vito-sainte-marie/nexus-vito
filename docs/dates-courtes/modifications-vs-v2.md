@@ -41,6 +41,6 @@ Limite : la v2 n'étant pas dans le dépôt, la colonne « v2 » reprend ce qui 
 | v4-F | Âge | Quantité masquée au delà de 14 jours | Ligne par date limite, depuis le dernier relevé effectif : 7 jours et moins courante, 8 à 14 « à vérifier », plus de 14 « À recontrôler » ; ni correction ni certification ne rajeunit | Arbitrage du 21/11 |
 | v4-G | Date dépassée | « à retirer » | Relevé de 7 jours ou moins : « à retirer ». Plus de 7 jours : « DLC dépassée, présence à vérifier », sans demande de retrait | Arbitrage du 21/11 |
 | v4-H | Certification | Aucune | Manager, gérant, créateur certifient ou demandent une correction ; renfort et caissier jamais ; réalisateur et certificateur identiques permis avec mention ; sans effet sur démarque ou clôture | Arbitrage du 21/11 |
-| v4-I | Droits | Renfort complet, caissière activable | Renfort : créer, terminer, répondre, voir ses tournées ; manager et au dessus : tout, plus certifier, exporter ; rôle `caissier` ; `vacataire` sans accès en attente d'arbitrage | Arbitrage du 21/11 |
+| v4-I | Droits | Renfort complet, caissière activable | Renfort : créer, terminer, répondre, voir ses tournées ; manager et au dessus : tout, plus certifier, exporter ; rôle `caissier` ; `vacataire` sans accès (arbitrage du 21/11) | Arbitrage du 21/11 |
 | v4-J | Emplacement | Non fixé | Page employé dédiée, suivi manager dans Produits | Arbitrage du 21/11 |
 | v4-K | Lots | Sept lots | Lot 1 données et droits, lot 2 page employé, lot 3 suivi Produits, lot 4 exports | Arbitrage du 21/11 |

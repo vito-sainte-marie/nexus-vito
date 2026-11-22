@@ -31,7 +31,7 @@ Règles :
 - Certification : manager, gérant et créateur seulement. Le manager peut certifier sa propre tournée, avec la mention « réalisateur et certificateur identiques ». Le renfort et le caissier ne certifient jamais.
 - Accès caissier : fermé par défaut. Seuls manager, gérant et créateur l'activent, pour la station concernée seulement.
 - Pompiste : aucun accès.
-- Vacataire : en attente d'arbitrage du pilote. Aucun accès par défaut, comme le pompiste. Cas de recette « vacataire refusé ».
+- Vacataire : aucun accès, comme le pompiste (arbitrage du pilote du 21/11). Cas de recette « vacataire refusé ».
 - Le renfort ne comptabilise jamais une démarque. Le geste « trouvé et retiré » combine relever et confirmer un retrait physique, sans droit comptable.
 - Aucune suppression pour aucun profil. Mise à jour limitée aux colonnes d'annulation et d'état de tournée, par fonction serveur.
 - Aucun accès `anon`.

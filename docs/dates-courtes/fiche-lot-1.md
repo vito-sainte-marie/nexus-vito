@@ -94,7 +94,7 @@ EAN inconnu du catalogue : entrée provisoire (EAN lu, nom libre facultatif), au
 - Renfort et caissier ne lisent que leurs propres tournées ; manager, gérant et créateur lisent toute la station.
 - Accès caissier : fermé par défaut, activé par manager, gérant ou créateur, pour la station concernée seulement.
 - Certification, demande de correction, rattachement, « même produit que… », démarque comptabilisée : manager, gérant, créateur.
-- Pompiste : aucun accès. Vacataire : aucun accès par défaut, en attente d'arbitrage du pilote.
+- Pompiste : aucun accès. Vacataire : aucun accès (arbitrage du pilote du 21/11).
 
 ## 8. Recettes du lot
 

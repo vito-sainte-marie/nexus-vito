@@ -447,6 +447,111 @@ begin
   r := pg_temp.n(r, '21 la version change après un relevé', '=1', (v1 is distinct from v2)::int::text);
   return r;
 end $$;
+
+-- Cas 22 à 26 : un retrait n'est pas un relevé ; quantité courante sur toute la station ; mêmes valeurs pour renfort et manager.
+create function pg_temp.h(k int) returns text language sql stable as $$ select (date_trunc('minute', now()) - make_interval(hours => k))::text $$;
+create function pg_temp.ret(op text, cle text, t text, ean text, dt text, qte int, hk int) returns text language sql as $$
+  select pg_temp.er(op, cle, jsonb_build_object('tournee_id', t, 'ean', ean, 'date_limite', dt, 'quantite', qte, 'heure_geste', pg_temp.h(hk))) $$;
+create function pg_temp.relh(cle text, t text, ean text, dt text, qte int, hk int) returns text language sql as $$
+  select pg_temp.er('releve', cle, jsonb_build_object('tournee_id', t, 'ean', ean, 'date_limite', dt, 'quantite', qte, 'heure_geste', pg_temp.h(hk))) $$;
+
+create function pg_temp.c22(a text default null) returns jsonb language plpgsql as $$
+declare r jsonb := '[]'; tm text; tr text; o text;
+begin
+  perform pg_temp.comme('M1'); tm := pg_temp.tn('t22m');
+  perform pg_temp.relh('c22a', tm, pg_temp.e('E1'), pg_temp.d('d1'), 5, 5);
+  perform pg_temp.relh('c22b', tm, pg_temp.e('E1'), pg_temp.d('d2'), 4, 5);
+  perform pg_temp.comme('RF1'); tr := pg_temp.tn('t22r');
+  o := pg_temp.ret('trouve_retire', 'c22c', tr, pg_temp.e('E1'), pg_temp.d('d1'), 2, 4);
+  r := pg_temp.n(r, '22 trouvé-retiré accepté', 'ok', o);
+  perform pg_temp.comme('M1');
+  r := pg_temp.n(r, '22 D1 diminuée à 3', '=3', pg_temp.ligne('quantite', pg_temp.e('E1'), pg_temp.d('d1')));
+  r := pg_temp.n(r, '22 D2 inchangée à 4', '=4', pg_temp.ligne('quantite', pg_temp.e('E1'), pg_temp.d('d2')));
+  r := pg_temp.n(r, '22 tournée de référence : celle du relevé', '=' || tm, pg_temp.ligne('tournee_id', pg_temp.e('E1'), pg_temp.d('d1')));
+  r := pg_temp.n(r, '22 âge compté depuis le relevé, pas depuis le retrait', '=' || pg_temp.vrai(format('select (now() at time zone ''America/Martinique'')::date - ((%L)::timestamptz at time zone ''America/Martinique'')::date', pg_temp.h(5))),
+                 pg_temp.ligne('age_jours', pg_temp.e('E1'), pg_temp.d('d1')));
+  r := pg_temp.n(r, '22 dernier relevé inchangé', '=' || pg_temp.vrai(format('select (%L)::timestamptz::text', pg_temp.h(5))),
+                 pg_temp.vrai(format('select dernier_releve::text from dates_courtes_quantites_courantes(now()) where ean = %L and date_limite = %L::date', pg_temp.e('E1'), pg_temp.d('d1'))));
+  perform pg_temp.comme('RF1');
+  o := pg_temp.ret('retrait', 'c22d', tr, pg_temp.e('E1'), pg_temp.d('d1'), 1, 3);
+  r := pg_temp.n(r, '22 retrait physique accepté', 'ok', o);
+  perform pg_temp.comme('M1');
+  r := pg_temp.n(r, '22 D1 à 2, tournée de référence toujours M1', '=2|' || tm, pg_temp.ligne('quantite', pg_temp.e('E1'), pg_temp.d('d1')) || '|' || pg_temp.ligne('tournee_id', pg_temp.e('E1'), pg_temp.d('d1')));
+  return r;
+end $$;
+
+create function pg_temp.c23(a text default null) returns jsonb language plpgsql as $$
+declare r jsonb := '[]'; tm text; tr text;
+begin
+  perform pg_temp.comme('M1'); tm := pg_temp.tn('t23m');
+  perform pg_temp.relh('c23a', tm, pg_temp.e('E1'), pg_temp.d('d1'), 5, 5);
+  perform pg_temp.comme('RF1'); tr := pg_temp.tn('t23r');
+  r := pg_temp.n(r, '23 retrait de 6 sur 5 refusé depuis une autre tournée', 'plancher_zero', pg_temp.ret('retrait', 'c23b', tr, pg_temp.e('E1'), pg_temp.d('d1'), 6, 4));
+  r := pg_temp.n(r, '23 retrait de 5 sur 5 accepté', 'ok', pg_temp.ret('retrait', 'c23c', tr, pg_temp.e('E1'), pg_temp.d('d1'), 5, 4));
+  r := pg_temp.n(r, '23 un second retrait est refusé, la ligne est à zéro', 'plancher_zero', pg_temp.ret('retrait', 'c23d', tr, pg_temp.e('E1'), pg_temp.d('d1'), 1, 3));
+  perform pg_temp.comme('M1');
+  r := pg_temp.n(r, '23 ligne à zéro absente de la liste', '=0', pg_temp.vrai(format('select count(*) from dates_courtes_quantites_courantes(now()) where ean = %L and date_limite = %L::date', pg_temp.e('E1'), pg_temp.d('d1'))));
+  return r;
+end $$;
+
+create function pg_temp.c24(a text default null) returns jsonb language plpgsql as $$
+declare r jsonb := '[]'; tm text; tr text;
+begin
+  perform pg_temp.comme('M1'); tm := pg_temp.tn('t24m');
+  perform pg_temp.relh('c24a', tm, pg_temp.e('E1'), pg_temp.d('d1'), 5, 5);
+  perform pg_temp.relh('c24b', tm, pg_temp.e('E1'), pg_temp.d('d2'), 4, 5);
+  perform pg_temp.comme('RF1'); tr := pg_temp.tn('t24r');
+  perform pg_temp.ret('trouve_retire', 'c24c', tr, pg_temp.e('E1'), pg_temp.d('d1'), 2, 4);
+  perform pg_temp.relh('c24d', tr, pg_temp.e('E1'), pg_temp.d('d1'), 3, 2);
+  perform pg_temp.comme('M1');
+  r := pg_temp.n(r, '24 un vrai relevé de RF1 désigne sa tournée', '=' || tr, pg_temp.ligne('tournee_id', pg_temp.e('E1'), pg_temp.d('d1')));
+  r := pg_temp.n(r, '24 la quantité est celle du relevé de la tournée de référence', '=3', pg_temp.ligne('quantite', pg_temp.e('E1'), pg_temp.d('d1')));
+  r := pg_temp.n(r, '24 la date non relevée par la tournée de référence disparaît (pas d''addition)', '=0', pg_temp.vrai(format('select count(*) from dates_courtes_quantites_courantes(now()) where ean = %L and date_limite = %L::date', pg_temp.e('E1'), pg_temp.d('d2'))));
+  return r;
+end $$;
+
+create function pg_temp.c25(a text default null) returns jsonb language plpgsql as $$
+declare r jsonb := '[]'; tr text;
+begin
+  perform pg_temp.comme('RF1'); tr := pg_temp.tn('t25r');
+  r := pg_temp.n(r, '25 trouvé-retiré sur un article jamais relevé accepté', 'ok', pg_temp.ret('trouve_retire', 'c25a', tr, pg_temp.e('E2'), pg_temp.d('d1'), 3, 2));
+  r := pg_temp.n(r, '25 aucune quantité courante créée', '=0', pg_temp.vrai(format('select count(*) from dates_courtes_quantites_courantes(now()) where ean = %L', pg_temp.e('E2'))));
+  r := pg_temp.n(r, '25 aucun relevé écrit', '=0', pg_temp.vrai(format('select count(*) from dates_courtes_releves where ean = %L', pg_temp.e('E2'))));
+  r := pg_temp.n(r, '25 un retrait marqué trouvé est enregistré', '=1', pg_temp.vrai(format('select count(*) from dates_courtes_retraits where ean = %L and trouve', pg_temp.e('E2'))));
+  r := pg_temp.n(r, '25 clé client avec « : » refusée', 'cle_idempotence_invalide', pg_temp.ret('retrait', 'a:b', tr, pg_temp.e('E2'), pg_temp.d('d1'), 1, 2));
+  return r;
+end $$;
+
+create function pg_temp.c26(a text default null) returns jsonb language plpgsql as $$
+declare r jsonb := '[]'; tm text; tr text; sig text; sm text; sr text;
+begin
+  perform pg_temp.comme('RF1'); tr := pg_temp.tn('t26r');
+  perform pg_temp.relh('c26a', tr, pg_temp.e('E1'), pg_temp.d('d1'), 7, 6);
+  perform pg_temp.comme('M1'); tm := pg_temp.tn('t26m');
+  perform pg_temp.relh('c26b', tm, pg_temp.e('E1'), pg_temp.d('d1'), 5, 5);
+  perform pg_temp.comme('RF1');
+  perform pg_temp.ret('trouve_retire', 'c26c', tr, pg_temp.e('E1'), pg_temp.d('d1'), 2, 4);
+  sig := 'select quantite::text || ''|'' || tournee_id::text || ''|'' || echeance || ''|'' || age_jours::text from dates_courtes_quantites_courantes(now()) where ean = %L and date_limite = %L::date';
+  perform pg_temp.comme('RF1'); sr := pg_temp.val(format(sig, pg_temp.e('E1'), pg_temp.d('d1')));
+  perform pg_temp.comme('M1');  sm := pg_temp.val(format(sig, pg_temp.e('E1'), pg_temp.d('d1')));
+  r := pg_temp.n(r, '26 renfort et manager obtiennent la même ligne', '=' || sm, sr);
+  r := pg_temp.n(r, '26 la quantité est celle de la tournée de référence M1 moins le retrait', '=3|' || tm, split_part(sm, '|', 1) || '|' || split_part(sm, '|', 2));
+  perform pg_temp.comme('RF1');
+  r := pg_temp.n(r, '26 le renfort ne reçoit pas le détail des autres tournées', '=1', pg_temp.val(format('select (autres_tournees is null)::int from dates_courtes_quantites_courantes(now()) where ean = %L and date_limite = %L::date', pg_temp.e('E1'), pg_temp.d('d1'))));
+  perform pg_temp.comme('M1');
+  r := pg_temp.n(r, '26 la gestion reçoit le détail des autres tournées', '=1', pg_temp.val(format('select (autres_tournees is not null)::int from dates_courtes_quantites_courantes(now()) where ean = %L and date_limite = %L::date', pg_temp.e('E1'), pg_temp.d('d1'))));
+  perform pg_temp.comme('P1');
+  r := pg_temp.n(r, '26 pompiste refusé', 'droit_refuse', pg_temp.appel('dates_courtes_quantites_courantes(now())'));
+  perform pg_temp.comme('V1');
+  r := pg_temp.n(r, '26 vacataire refusé', 'droit_refuse', pg_temp.appel('dates_courtes_quantites_courantes(now())'));
+  perform pg_temp.comme('RF2');
+  r := pg_temp.n(r, '26 autre station : aucune ligne de R1', '=0', pg_temp.val(format('select count(*) from dates_courtes_quantites_courantes(now()) where ean = %L and date_limite = %L::date', pg_temp.e('E1'), pg_temp.d('d1'))));
+  perform pg_temp.comme('RF1');
+  r := pg_temp.n(r, '26 version de tournée : refusée à un renfort pour la tournée d''un autre', 'introuvable', pg_temp.appel(format('dates_courtes_version_tournee(%L)', tm)));
+  perform pg_temp.comme('M1');
+  r := pg_temp.n(r, '26 version de tournée : accordée à la gestion', 'ok', pg_temp.appel(format('dates_courtes_version_tournee(%L)', tr)));
+  return r;
+end $$;
 -- Exécution : chaque cas dans un sous-bloc annulé ; le résultat survit par la variable.
 create function pg_temp.jouer(nom text, arg text default null) returns void language plpgsql as $$
 declare r jsonb := null; e jsonb; lbl text := nom || coalesce(' ' || arg, '');
@@ -492,6 +597,11 @@ select pg_temp.jouer('c18');
 select pg_temp.jouer('c19');
 select pg_temp.jouer('c20');
 select pg_temp.jouer('c21');
+select pg_temp.jouer('c22');
+select pg_temp.jouer('c23');
+select pg_temp.jouer('c24');
+select pg_temp.jouer('c25');
+select pg_temp.jouer('c26');
 
 do $rapport$
 declare j jsonb;

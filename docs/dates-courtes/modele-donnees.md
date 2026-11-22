@@ -63,8 +63,8 @@ Clé de groupe :
 
 Quantité d'un groupe dans une tournée :
 
-1. Somme des relevés non annulés de la tournée, plus les corrections non annulées, moins les retraits physiques de la même tournée, plancher à zéro par tournée. 6 + 4 − 2 = 8.
-2. Un relevé, une correction ou un retrait appartient à la tournée de son geste et ne compte que dans celle-ci.
+1. Somme des relevés non annulés de la tournée, plus les corrections non annulées, plancher à zéro par tournée. Les retraits n'y entrent pas.
+2. Un relevé et une correction appartiennent à la tournée de leur geste. Un retrait n'est pas un relevé : il ne désigne aucune tournée de référence et ne rajeunit aucune ligne.
 
 Quantité courante d'un article (EAN, ou libellé normalisé) :
 
@@ -102,8 +102,10 @@ La certification ne déclenche aucune démarque et ne bloque ni la clôture ni l
 | auteur, cree_le, heure_geste, commentaire | trace |
 | annule_le, annule_par, motif_annulation | annulation tracée |
 
-- Le retrait physique diminue la quantité du groupe dans la tournée de son geste. C'est un mouvement à part entière, ni une correction ni une démarque : 8 relevés moins 3 retirés donnent 5, l'historique indique « 3 retirés par R1 à 10:05 ».
-- Geste « trouvé et retiré » : un seul geste écrit un relevé de 3 et un retrait de 3 (deux lignes liées, même clé d'idempotence de geste). Quantité courante zéro dans la tournée, 3 dans « à comptabiliser », aucun refus de plancher. Autorisé au renfort.
+- Le retrait physique diminue la quantité courante de la ligne (article, date), quelle que soit la tournée où il est saisi, s'il est postérieur au dernier relevé effectif. Plancher vérifié sous verrou sur cette quantité courante (`plancher_zero`). Exemple : M1 relève X à 10:00, D1 = 5, D2 = 4 ; R1 retire 2 de D1 à 11:00 ; D1 = 3, D2 = 4, tournée de référence M1, âge depuis 10:00.
+- Geste « trouvé et retiré » : un seul retrait marqué `trouve`, sans relevé. Il n'est jamais refusé par le plancher, ne crée aucune quantité sur un article jamais relevé et ne désigne aucune tournée. Autorisé au renfort.
+- La quantité courante se calcule sur toutes les tournées de la station (fonction serveur, site lu depuis le compte, opérateurs et caissier habilité). Le détail des autres tournées n'est rendu qu'à la gestion ; renfort et manager obtiennent la même quantité, la même tournée de référence et la même échéance.
+- `provisoire` est l'état à la saisie ; l'affichage relit `dates_courtes_est_provisoire`. Les clés d'idempotence client contenant « : » sont refusées. `dates_courtes_version_tournee` est réservée à la gestion et à l'auteur.
 - Les unités retirées alimentent la liste « à comptabiliser » du manager. L'état « démarque comptabilisée » exige manager, gérant ou créateur ; le renfort ne peut pas le poser. Aucune écriture comptable.
 - `inventaire_mouvements` n'est pas utilisée (`quart_id` obligatoire).
 
@@ -126,6 +128,6 @@ Un réglage booléen « accès caissier », fermé par défaut, modifiable par m
 ## 8. Points non vérifiés
 
 - Noms exacts des rôles du serveur : `renfort`, `manager`, `gerant`, `caissier`, `pompiste`, `vacataire` ; créateur par drapeau.
-- Rôle `vacataire` : sans accès par défaut, en attente d'arbitrage du pilote.
+- Rôle `vacataire` : aucun accès (arbitrage du pilote du 21/11).
 - Emplacement du réglage de station.
 - Couverture du libellé normalisé au delà des deux périodes mesurées (voir `questions-metier.md`).

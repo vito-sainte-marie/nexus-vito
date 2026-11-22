@@ -666,7 +666,7 @@ language sql stable security definer set search_path = public, pg_temp as $$
     select g.art, x.date_limite, sum(x.quantite)::integer as s
     from gagnante g join dates_courtes_retraits x on x.site = p_site and x.annule_le is null and x.heure_geste <= p_instant
       and dates_courtes_cle_article(x.site, x.ean, x.libelle_normalise) = g.art
-      and (x.tournee_id = g.tournee_id or x.heure_geste >= g.ref_heure)
+      and x.heure_geste >= g.ref_heure
     group by g.art, x.date_limite
   ), lignes as (
     select b.art, b.tournee_id, b.date_limite, max(b.ean) as ean, max(b.libelle_normalise) as libelle_normalise, sum(b.q) as brut,
