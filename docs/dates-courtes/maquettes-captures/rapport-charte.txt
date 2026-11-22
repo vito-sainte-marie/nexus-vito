@@ -15,7 +15,7 @@
   nexus-theme.js : présent
   couleurs hexadécimales hors :root : 2
     l.49 #0D202E
-    l.55 #EDF1F5
+    l.54 #EDF1F5
   emojis d'état : 0
   icônes assets/ introuvables : 0
 

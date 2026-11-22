@@ -45,13 +45,12 @@ td.n{font-family:var(--mono);text-align:right}
 .sr{position:absolute;left:-9999px}
 
 /* En-tête illustré : modèle NEXUS-Produits-v1.html (lignes 182-188). Dégradé de lisibilité en rgba littéral, repris à l'identique de Produits. */
-:root{--banniere-cadrage:60% 50%}
-.header{position:relative;margin:12px 16px 0;border-radius:14px;overflow:hidden;border:1px solid var(--hairline);min-height:190px;display:flex;align-items:flex-end;background:#0D202E}
+/* Bannière : le cadre prend la proportion de l'image servie (2/1 téléphone 960x480, 3/1 au-delà), image entière, sans rognage. */
+.header{position:relative;margin:12px 16px 0;border-radius:14px;overflow:hidden;box-shadow:0 0 0 1px var(--hairline);aspect-ratio:3/1;display:flex;align-items:flex-end;background:#0D202E}
 .header picture{position:absolute;inset:0;display:block}
-.header img.entete{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:var(--banniere-cadrage)}
-.header::after{content:'';position:absolute;inset:0;background:linear-gradient(0deg,rgba(7,19,30,.86) 0%,rgba(7,19,30,.55) 45%,rgba(7,19,30,.15) 100%)}
-:root[data-theme="jour"] .header::after{background:linear-gradient(0deg,rgba(7,19,30,.78) 0%,rgba(7,19,30,.45) 45%,rgba(7,19,30,.08) 100%)}
-@media (max-width:599px){.header{min-height:210px}.header::after,:root[data-theme="jour"] .header::after{background:linear-gradient(0deg,rgba(7,19,30,.94) 0%,rgba(7,19,30,.82) 50%,rgba(7,19,30,.5) 100%)}}
+.header img.entete{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+.header::after{content:'';position:absolute;inset:0;background:linear-gradient(0deg,rgba(7,19,30,.85) 0%,rgba(7,19,30,0) 60%)}
+@media (max-width:599px){.header{aspect-ratio:2/1}}
 .header-texte{position:relative;z-index:1;padding:18px;width:100%;color:#EDF1F5}
 .header-texte .eyebrow{font:600 11px var(--mono);letter-spacing:.08em;text-transform:uppercase;opacity:.85}
 .header-texte .title{margin:4px 0 0;font:700 24px/1.2 var(--sans)}
