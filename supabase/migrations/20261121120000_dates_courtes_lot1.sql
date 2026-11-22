@@ -1,10 +1,13 @@
--- NEXUS Dates courtes, lot 1 : socle de données (relevés, corrections, retraits, tournées, correspondances, accès caissière).
--- Additive : six tables d'ajout seul, une vue, des fonctions d'aide et d'écriture. Aucune table existante modifiée, aucun droit existant changé, inventaire_* intact.
--- Aucun écran, aucune page modifiée. Aucune écriture Decenium. Le site n'est jamais un paramètre : il est lu dans la ligne employees de la personne connectée.
--- Rôles réels de employees.role : caissier, pompiste, renfort, manager, gerant, vacataire. « Créateur » n'est pas un rôle : employees.est_createur, valable où sites.acces_createur_autorise.
+-- NEXUS Dates courtes, lot 1 (v4) : socle de données. Tournées individuelles, relevés, corrections, retraits, démarques comptabilisées,
+-- certifications, demandes de correction, correspondances, accès caissier, quantité courante et âge des lignes.
+-- Additive : tables d'ajout seul (la tournée change d'état par fonction serveur seulement), fonctions d'aide et d'écriture. Aucune table existante modifiée,
+-- aucun droit existant changé, inventaire_* intact. Aucun écran, aucune page. Aucune écriture comptable, aucun lien avec Decenium ni inventaire_mouvements, aucune valeur en euros.
+-- Le site n'est jamais un paramètre : il est lu dans la ligne employees de la personne connectée.
+-- Rôles réels de employees.role : caissier, pompiste, renfort, manager, gerant, vacataire. Pompiste et vacataire : aucun accès, par construction des fonctions de droits.
+-- « Créateur » n'est pas un rôle : employees.est_createur, valable où sites.acces_createur_autorise.
 -- Retour arrière : docs/deploiement/retour-arriere-dates-courtes-lot1-20261121.sql (ne retire que les objets de cette migration).
 
--- Prérequis : la migration s'arrête avant toute écriture si un objet attendu manque.
+-- Prérequis : la migration s'arrête avant toute écriture si un objet attendu manque ou si l'ancien modèle hebdomadaire est présent.
 do $prerequis$
 declare v_manque text;
 begin
@@ -14,6 +17,9 @@ begin
   end if;
   if v_manque is not null then
     raise exception 'prerequis_migrations : 20261121120000 : objets absents : %', v_manque;
+  end if;
+  if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'dates_courtes_tournees' and column_name = 'origine') then
+    raise exception 'prerequis_migrations : 20261121120000 : ancien modele de tournee hebdomadaire present, appliquer d''abord le retour arriere';
   end if;
 end $prerequis$;
 
@@ -38,36 +44,37 @@ language sql immutable set search_path = public, pg_temp as $$
   select lower(btrim(regexp_replace(regexp_replace(coalesce(p_libelle, ''), '^\s*[0-9]{1,2}[/.-][0-9]{1,2}([/.-][0-9]{2,4})?\s*[-:]?\s*', ''), '\s+', ' ', 'g')))
 $$;
 
-create or replace function dates_courtes_debut_semaine(p_instant timestamptz) returns timestamptz
-language sql stable set search_path = public, pg_temp as $$
-  select date_trunc('week', p_instant at time zone 'America/Martinique') at time zone 'America/Martinique'
-$$;
-
 create or replace function dates_courtes_cle_groupe(p_site text, p_ean text, p_libelle text, p_date date) returns text
 language sql immutable set search_path = public, pg_temp as $$
   select case when p_ean is not null then p_site || '|E|' || p_ean || '|' || p_date::text
               else p_site || '|L|' || coalesce(p_libelle, '') || '|' || p_date::text end
 $$;
 
--- 2. Tables. Toutes en ajout seul : pas de suppression, mise à jour limitée aux colonnes d'annulation (là où une annulation existe).
+-- 2. Tables. Ajout seul : pas de suppression, mise à jour limitée aux colonnes d'annulation. La tournée change d'état par fonction serveur seulement.
 create table if not exists dates_courtes_tournees (
   id uuid primary key default gen_random_uuid(),
   site text not null references sites(site_id),
-  debut timestamptz not null,
-  origine text not null check (origine in ('automatique', 'manuelle')),
-  cle_idempotence text check (cle_idempotence is null or length(btrim(cle_idempotence)) between 1 and 100),
+  nom text check (nom is null or char_length(nom) <= 100),
+  cle_idempotence text not null check (length(btrim(cle_idempotence)) between 1 and 100),
   saisi_par uuid not null default auth.uid() references employees(id),
   saisi_le timestamptz not null default now(),
-  constraint dates_courtes_tournees_site_debut unique (site, debut),
-  constraint dates_courtes_tournees_id_site unique (id, site),
-  constraint dates_courtes_tournees_manuelle_cle check (origine = 'automatique' or cle_idempotence is not null)
+  etat text not null default 'EN_COURS' check (etat in ('EN_COURS', 'TERMINEE_A_CERTIFIER', 'CERTIFIEE', 'CORRECTION_DEMANDEE')),
+  terminee_par uuid references employees(id),
+  terminee_le timestamptz,
+  version_empreinte text,
+  version_derniere_operation text,
+  constraint dates_courtes_tournees_cloture check ((etat = 'EN_COURS' and terminee_par is null and terminee_le is null and version_empreinte is null)
+    or (etat <> 'EN_COURS' and terminee_par is not null and terminee_le is not null and version_empreinte is not null)),
+  constraint dates_courtes_tournees_idem unique (site, cle_idempotence),
+  constraint dates_courtes_tournees_id_site unique (id, site)
 );
-create unique index if not exists dates_courtes_tournees_idem_uq on dates_courtes_tournees (site, cle_idempotence) where cle_idempotence is not null;
 
 create table if not exists dates_courtes_releves (
   id uuid primary key default gen_random_uuid(),
   site text not null references sites(site_id),
   ean text, libelle_vu text, libelle_normalise text,
+  nom_libre text check (nom_libre is null or char_length(nom_libre) <= 200),
+  photo_ref text check (photo_ref is null or char_length(photo_ref) <= 300),
   date_limite date not null check (date_limite between date '2000-01-01' and date '2100-01-01'),
   quantite integer not null check (quantite > 0 and quantite <= 100000),
   provisoire boolean not null default false,
@@ -75,6 +82,8 @@ create table if not exists dates_courtes_releves (
   tournee_id uuid not null,
   heure_geste timestamptz not null,
   recu_le timestamptz not null default now(),
+  recu_apres_cloture boolean not null default false,
+  rectification boolean not null default false,
   cle_idempotence text not null check (length(btrim(cle_idempotence)) between 1 and 100),
   lien_id uuid,
   saisi_par uuid not null default auth.uid() references employees(id),
@@ -103,6 +112,8 @@ create table if not exists dates_courtes_corrections (
   tournee_id uuid not null,
   heure_geste timestamptz not null,
   recu_le timestamptz not null default now(),
+  recu_apres_cloture boolean not null default false,
+  rectification boolean not null default false,
   cle_idempotence text not null check (length(btrim(cle_idempotence)) between 1 and 100),
   lien_id uuid,
   saisi_par uuid not null default auth.uid() references employees(id),
@@ -130,6 +141,8 @@ create table if not exists dates_courtes_retraits (
   tournee_id uuid not null,
   heure_geste timestamptz not null,
   recu_le timestamptz not null default now(),
+  recu_apres_cloture boolean not null default false,
+  rectification boolean not null default false,
   cle_idempotence text not null check (length(btrim(cle_idempotence)) between 1 and 100),
   lien_id uuid,
   saisi_par uuid not null default auth.uid() references employees(id),
@@ -141,9 +154,34 @@ create table if not exists dates_courtes_retraits (
   constraint dates_courtes_retraits_motif_long check (motif_annulation is null or char_length(motif_annulation) <= 500),
   constraint dates_courtes_retraits_releve_fk foreign key (releve_id, site) references dates_courtes_releves (id, site),
   constraint dates_courtes_retraits_tournee_fk foreign key (tournee_id, site) references dates_courtes_tournees (id, site),
-  constraint dates_courtes_retraits_idem unique (site, cle_idempotence)
+  constraint dates_courtes_retraits_idem unique (site, cle_idempotence),
+  constraint dates_courtes_retraits_id_site unique (id, site)
 );
 create index if not exists dates_courtes_retraits_tournee on dates_courtes_retraits (site, tournee_id);
+
+-- Démarque comptabilisée : état qui suit un retrait physique. Quantité, heure du geste, auteur, motif facultatif, lien vers le retrait et la tournée,
+-- clé d'idempotence. Aucune colonne d'euros, aucun lien avec Decenium ni inventaire_mouvements : le lot ne comptabilise rien.
+create table if not exists dates_courtes_demarques (
+  id uuid primary key default gen_random_uuid(),
+  site text not null references sites(site_id),
+  retrait_id uuid not null,
+  tournee_id uuid not null,
+  quantite integer not null check (quantite > 0 and quantite <= 100000),
+  motif text check (motif is null or char_length(motif) <= 500),
+  heure_geste timestamptz not null,
+  recu_le timestamptz not null default now(),
+  cle_idempotence text not null check (length(btrim(cle_idempotence)) between 1 and 100),
+  saisi_par uuid not null default auth.uid() references employees(id),
+  saisi_le timestamptz not null default now(),
+  annule_le timestamptz, annule_par uuid references employees(id), motif_annulation text,
+  constraint dates_courtes_demarques_annulation check ((annule_le is null and annule_par is null and motif_annulation is null)
+    or (annule_le is not null and annule_par is not null and length(btrim(coalesce(motif_annulation, ''))) > 0)),
+  constraint dates_courtes_demarques_motif_long check (motif_annulation is null or char_length(motif_annulation) <= 500),
+  constraint dates_courtes_demarques_retrait_fk foreign key (retrait_id, site) references dates_courtes_retraits (id, site),
+  constraint dates_courtes_demarques_tournee_fk foreign key (tournee_id, site) references dates_courtes_tournees (id, site),
+  constraint dates_courtes_demarques_idem unique (site, cle_idempotence)
+);
+create index if not exists dates_courtes_demarques_retrait on dates_courtes_demarques (site, retrait_id);
 
 create table if not exists dates_courtes_correspondances (
   id uuid primary key default gen_random_uuid(),
@@ -161,17 +199,55 @@ create table if not exists dates_courtes_correspondances (
 );
 create unique index if not exists dates_courtes_correspondances_active_uq on dates_courtes_correspondances (site, type_cle, cle_ancienne) where annule_le is null;
 
--- Réglage « accès caissière » : historique en ajout seul, la dernière ligne de la station fait foi. Fermé par défaut (aucune ligne).
-create table if not exists dates_courtes_acces_caissiere (
+-- Réglage « accès caissier » : historique en ajout seul, la dernière ligne de la station fait foi. Fermé par défaut (aucune ligne).
+create table if not exists dates_courtes_acces_caissier (
   id uuid primary key default gen_random_uuid(),
   site text not null references sites(site_id),
   actif boolean not null,
   saisi_par uuid not null default auth.uid() references employees(id),
   saisi_le timestamptz not null default clock_timestamp()
 );
-create index if not exists dates_courtes_acces_caissiere_site on dates_courtes_acces_caissiere (site, saisi_le desc);
+create index if not exists dates_courtes_acces_caissier_site on dates_courtes_acces_caissier (site, saisi_le desc);
+
+-- Certifications : une nouvelle certification s'ajoute, l'ancienne reste tracée. Écrites par fonction serveur seulement.
+create table if not exists dates_courtes_certifications (
+  id uuid primary key default gen_random_uuid(),
+  site text not null references sites(site_id),
+  tournee_id uuid not null,
+  certifiee_par uuid not null default auth.uid() references employees(id),
+  certifiee_le timestamptz not null default now(),
+  version_certifiee text not null,
+  observations text check (observations is null or char_length(observations) <= 1000),
+  statut text not null default 'certifiee' check (statut = 'certifiee'),
+  realisateur_identique boolean not null default false,
+  cle_idempotence text not null check (length(btrim(cle_idempotence)) between 1 and 100),
+  constraint dates_courtes_certifications_tournee_fk foreign key (tournee_id, site) references dates_courtes_tournees (id, site),
+  constraint dates_courtes_certifications_idem unique (site, cle_idempotence)
+);
+create index if not exists dates_courtes_certifications_tournee on dates_courtes_certifications (site, tournee_id);
+
+-- Demandes de correction : relevés visés et motif ; la réponse du renfort est la seule mise à jour, par fonction serveur.
+create table if not exists dates_courtes_demandes_correction (
+  id uuid primary key default gen_random_uuid(),
+  site text not null references sites(site_id),
+  tournee_id uuid not null,
+  demandee_par uuid not null default auth.uid() references employees(id),
+  demandee_le timestamptz not null default now(),
+  motif text not null check (length(btrim(motif)) between 1 and 500),
+  releves_vises uuid[] not null check (cardinality(releves_vises) >= 1),
+  reponse text check (reponse is null or length(btrim(reponse)) between 1 and 500),
+  repondue_par uuid references employees(id),
+  repondue_le timestamptz,
+  cle_idempotence text not null check (length(btrim(cle_idempotence)) between 1 and 100),
+  constraint dates_courtes_demandes_reponse check ((reponse is null and repondue_par is null and repondue_le is null)
+    or (reponse is not null and repondue_par is not null and repondue_le is not null)),
+  constraint dates_courtes_demandes_tournee_fk foreign key (tournee_id, site) references dates_courtes_tournees (id, site),
+  constraint dates_courtes_demandes_idem unique (site, cle_idempotence)
+);
+create index if not exists dates_courtes_demandes_tournee on dates_courtes_demandes_correction (site, tournee_id);
 
 -- 3. Fonctions d'aide de lecture des droits (SECURITY DEFINER : elles ne lisent que la ligne de la personne connectée).
+-- Pompiste et vacataire n'apparaissent dans aucune d'elles : refus par construction.
 create or replace function dates_courtes_operer() returns boolean
 language sql stable security definer set search_path = public, pg_temp as $$
   select exists (select 1 from employees e where e.id = auth.uid() and e.actif
@@ -186,10 +262,10 @@ language sql stable security definer set search_path = public, pg_temp as $$
       or (e.est_createur and exists (select 1 from sites s where s.site_id = e.site_id and s.acces_createur_autorise))))
 $$;
 
-create or replace function dates_courtes_caissiere_autorisee() returns boolean
+create or replace function dates_courtes_caissier_autorise() returns boolean
 language sql stable security definer set search_path = public, pg_temp as $$
   select exists (select 1 from employees e where e.id = auth.uid() and e.actif and e.role = 'caissier'
-    and coalesce((select a.actif from dates_courtes_acces_caissiere a where a.site = e.site_id order by a.saisi_le desc, a.id desc limit 1), false))
+    and coalesce((select a.actif from dates_courtes_acces_caissier a where a.site = e.site_id order by a.saisi_le desc, a.id desc limit 1), false))
 $$;
 
 -- 4. Résolution des correspondances (rattachements « même produit que… »), suivies jusqu'à 20 maillons.
@@ -213,8 +289,15 @@ language sql stable set search_path = public, pg_temp as $$
     else dates_courtes_cle_groupe(p_site, null, dates_courtes_resolution(p_site, 'libelle', p_libelle), p_date) end
 $$;
 
--- Total brut d'un groupe dans une tournée, sans plancher. SECURITY DEFINER pour que le plancher soit vérifié sur tous les gestes de la station
--- (une caissière ne lit que ses propres relevés). Appelable seulement depuis un déclencheur : jamais directement par un client.
+-- Clé d'article (sans la date) : l'article est la maille du « dernier relevé effectif qui l'emporte ».
+create or replace function dates_courtes_cle_article(p_site text, p_ean text, p_libelle text) returns text
+language sql stable set search_path = public, pg_temp as $$
+  select case when p_ean is not null then p_site || '|E|' || dates_courtes_resolution(p_site, 'ean', p_ean)
+              else p_site || '|L|' || coalesce(dates_courtes_resolution(p_site, 'libelle', p_libelle), '') end
+$$;
+
+-- Total brut d'un groupe dans une tournée, sans plancher. SECURITY DEFINER pour que le plancher soit vérifié sur tous les gestes de la tournée.
+-- Appelable seulement depuis un déclencheur : jamais directement par un client.
 create or replace function dates_courtes_total_brut(p_site text, p_cle text, p_tournee uuid, p_exclure_table text default null, p_exclure_id uuid default null) returns integer
 language plpgsql stable security definer set search_path = public, pg_temp as $$
 declare v_total integer;
@@ -241,10 +324,67 @@ begin
   return v_total;
 end $$;
 
--- 5. Déclencheurs : la tournée, l'heure de réception et la clé de groupe sont posées par le serveur, jamais par le client.
+-- Porte de la tournée : verrouille la ligne de tournée, vérifie qu'elle appartient à la personne connectée, et dit comment le geste s'y rattache.
+-- 'normal' (tournée en cours), 'apres_cloture' (geste fait avant la clôture, reçu après), 'rectification' (geste fait après la clôture, sur une tournée certifiée
+-- ou dont une correction a été demandée). Une tournée certifiée repasse à certifier ; l'ancienne certification reste tracée.
+-- Appelable seulement depuis un déclencheur.
+create or replace function dates_courtes_porte_tournee(p_site text, p_tournee uuid, p_geste timestamptz) returns text
+language plpgsql volatile security definer set search_path = public, pg_temp as $$
+declare t record;
+begin
+  if pg_trigger_depth() = 0 then
+    raise exception 'appel_interdit : cette fonction ne s''appelle que depuis un déclencheur' using errcode = 'P0001';
+  end if;
+  if not exists (select 1 from employees e where e.id = auth.uid() and e.actif and e.site_id = p_site) then
+    raise exception 'site_interdit : station différente de celle de la personne connectée' using errcode = 'P0001';
+  end if;
+  select * into t from dates_courtes_tournees x where x.id = p_tournee and x.site = p_site for update;
+  if not found then
+    raise exception 'tournee_inconnue : tournée inconnue pour cette station' using errcode = 'P0001';
+  end if;
+  if t.saisi_par <> auth.uid() then
+    raise exception 'tournee_interdite : on ne saisit que dans sa propre tournée' using errcode = 'P0001';
+  end if;
+  if t.etat = 'EN_COURS' then return 'normal'; end if;
+  if p_geste <= t.terminee_le then
+    if t.etat = 'CERTIFIEE' then update dates_courtes_tournees set etat = 'TERMINEE_A_CERTIFIER' where id = p_tournee; end if;
+    return 'apres_cloture';
+  end if;
+  if t.etat = 'TERMINEE_A_CERTIFIER' then
+    raise exception 'tournee_terminee : la tournée est terminée, un nouveau geste appelle une demande de correction ou une nouvelle tournée' using errcode = 'P0001';
+  end if;
+  if t.etat = 'CERTIFIEE' then update dates_courtes_tournees set etat = 'TERMINEE_A_CERTIFIER' where id = p_tournee; end if;
+  return 'rectification';
+end $$;
+
+-- Une annulation dans une tournée certifiée est une rectification : la tournée repasse à certifier. Appelable seulement depuis un déclencheur.
+create or replace function dates_courtes_signaler_modification(p_tournee uuid) returns void
+language plpgsql volatile security definer set search_path = public, pg_temp as $$
+begin
+  if pg_trigger_depth() = 0 then
+    raise exception 'appel_interdit : cette fonction ne s''appelle que depuis un déclencheur' using errcode = 'P0001';
+  end if;
+  update dates_courtes_tournees t set etat = 'TERMINEE_A_CERTIFIER'
+    where t.id = p_tournee and t.etat = 'CERTIFIEE'
+      and exists (select 1 from employees e where e.id = auth.uid() and e.actif and e.site_id = t.site);
+end $$;
+
+-- Une démarque active sur un retrait empêche son annulation (lecture élargie à toute la station). Appelable seulement depuis un déclencheur.
+create or replace function dates_courtes_demarque_active(p_retrait uuid) returns boolean
+language plpgsql stable security definer set search_path = public, pg_temp as $$
+begin
+  if pg_trigger_depth() = 0 then
+    raise exception 'appel_interdit : cette fonction ne s''appelle que depuis un déclencheur' using errcode = 'P0001';
+  end if;
+  return exists (select 1 from dates_courtes_demarques d
+    join employees e on e.id = auth.uid() and e.actif and e.site_id = d.site
+    where d.retrait_id = p_retrait and d.annule_le is null);
+end $$;
+
+-- 5. Déclencheurs : la clé de groupe, l'heure de réception et les marques de rattachement sont posées par le serveur, jamais par le client.
 create or replace function dates_courtes_avant_insertion() returns trigger
 language plpgsql security invoker set search_path = public, pg_temp as $$
-declare v_debut timestamptz; v_tournee uuid; v_cle text; v_total integer;
+declare v_cle text; v_total integer; v_mode text;
 begin
   NEW.ean := dates_courtes_normaliser_ean(NEW.ean);
   if TG_TABLE_NAME = 'dates_courtes_releves' then
@@ -255,6 +395,9 @@ begin
   if NEW.ean is null and NEW.libelle_normalise is null then
     raise exception 'produit_requis : un code-barres valide ou un libellé est obligatoire' using errcode = 'P0001';
   end if;
+  if NEW.tournee_id is null then
+    raise exception 'tournee_requise : la tournée est obligatoire' using errcode = 'P0001';
+  end if;
   NEW.heure_geste := coalesce(NEW.heure_geste, now());
   if NEW.heure_geste < now() - interval '45 days' or NEW.heure_geste > now() + interval '5 minutes' then
     raise exception 'heure_geste_hors_bornes : l''heure du geste doit tenir entre 45 jours dans le passé et 5 minutes dans le futur' using errcode = 'P0001';
@@ -262,17 +405,12 @@ begin
   NEW.recu_le := now();
   NEW.cle_groupe := dates_courtes_cle_groupe(NEW.site, NEW.ean, NEW.libelle_normalise, NEW.date_limite);
 
-  v_debut := dates_courtes_debut_semaine(NEW.heure_geste);
-  select t.id into v_tournee from dates_courtes_tournees t
-    where t.site = NEW.site and t.debut <= NEW.heure_geste and t.debut >= v_debut order by t.debut desc limit 1;
-  if v_tournee is null then
-    insert into dates_courtes_tournees (site, debut, origine) values (NEW.site, v_debut, 'automatique') on conflict (site, debut) do nothing;
-    select t.id into v_tournee from dates_courtes_tournees t where t.site = NEW.site and t.debut = v_debut;
-  end if;
-  NEW.tournee_id := v_tournee;
+  v_mode := dates_courtes_porte_tournee(NEW.site, NEW.tournee_id, NEW.heure_geste);
+  NEW.recu_apres_cloture := (v_mode = 'apres_cloture');
+  NEW.rectification := (v_mode = 'rectification');
 
   v_cle := dates_courtes_cle_canonique(NEW.site, NEW.ean, NEW.libelle_normalise, NEW.date_limite);
-  perform pg_advisory_xact_lock(hashtextextended(NEW.site || '|' || v_cle, 0));
+  perform pg_advisory_xact_lock(hashtextextended(NEW.site || '|' || NEW.tournee_id::text || '|' || v_cle, 0));
   if TG_TABLE_NAME = 'dates_courtes_corrections' then
     if NEW.delta < 0 then
       v_total := dates_courtes_total_brut(NEW.site, v_cle, NEW.tournee_id);
@@ -293,13 +431,19 @@ create or replace function dates_courtes_avant_annulation() returns trigger
 language plpgsql security invoker set search_path = public, pg_temp as $$
 declare v_cle text; v_total integer;
 begin
-  if OLD.annule_le is null and NEW.annule_le is not null and TG_TABLE_NAME in ('dates_courtes_releves', 'dates_courtes_corrections') then
-    v_cle := dates_courtes_cle_canonique(OLD.site, OLD.ean, OLD.libelle_normalise, OLD.date_limite);
-    perform pg_advisory_xact_lock(hashtextextended(OLD.site || '|' || v_cle, 0));
-    v_total := dates_courtes_total_brut(OLD.site, v_cle, OLD.tournee_id, TG_TABLE_NAME, OLD.id);
-    if v_total < 0 then
-      raise exception 'plancher_zero : l''annulation ferait passer la quantité sous zéro' using errcode = 'P0001';
+  if OLD.annule_le is null and NEW.annule_le is not null then
+    if TG_TABLE_NAME = 'dates_courtes_retraits' and dates_courtes_demarque_active(OLD.id) then
+      raise exception 'demarque_existante : une démarque comptabilisée repose sur ce retrait, l''annuler d''abord' using errcode = 'P0001';
     end if;
+    if TG_TABLE_NAME in ('dates_courtes_releves', 'dates_courtes_corrections') then
+      v_cle := dates_courtes_cle_canonique(OLD.site, OLD.ean, OLD.libelle_normalise, OLD.date_limite);
+      perform pg_advisory_xact_lock(hashtextextended(OLD.site || '|' || OLD.tournee_id::text || '|' || v_cle, 0));
+      v_total := dates_courtes_total_brut(OLD.site, v_cle, OLD.tournee_id, TG_TABLE_NAME, OLD.id);
+      if v_total < 0 then
+        raise exception 'plancher_zero : l''annulation ferait passer la quantité sous zéro' using errcode = 'P0001';
+      end if;
+    end if;
+    perform dates_courtes_signaler_modification(OLD.tournee_id);
   end if;
   return NEW;
 end $$;
@@ -320,6 +464,32 @@ begin
   return NEW;
 end $$;
 
+-- Démarque : la quantité cumulée des démarques actives d'un retrait ne dépasse jamais la quantité retirée. Vérifié sous verrou, même en insertion directe.
+create or replace function dates_courtes_avant_demarque() returns trigger
+language plpgsql security invoker set search_path = public, pg_temp as $$
+declare v_ret record; v_deja integer;
+begin
+  perform pg_advisory_xact_lock(hashtextextended(NEW.site || '|retrait|' || NEW.retrait_id::text, 0));
+  select x.quantite, x.tournee_id, x.annule_le into v_ret from dates_courtes_retraits x where x.id = NEW.retrait_id and x.site = NEW.site;
+  if not found then
+    raise exception 'introuvable : retrait inconnu pour cette station' using errcode = 'P0001';
+  end if;
+  if v_ret.annule_le is not null then
+    raise exception 'retrait_annule : ce retrait est annulé' using errcode = 'P0001';
+  end if;
+  NEW.tournee_id := v_ret.tournee_id;
+  NEW.heure_geste := coalesce(NEW.heure_geste, now());
+  if NEW.heure_geste < now() - interval '45 days' or NEW.heure_geste > now() + interval '5 minutes' then
+    raise exception 'heure_geste_hors_bornes : l''heure du geste doit tenir entre 45 jours dans le passé et 5 minutes dans le futur' using errcode = 'P0001';
+  end if;
+  NEW.recu_le := now();
+  select coalesce(sum(d.quantite), 0) into v_deja from dates_courtes_demarques d where d.retrait_id = NEW.retrait_id and d.site = NEW.site and d.annule_le is null;
+  if v_deja + NEW.quantite > v_ret.quantite then
+    raise exception 'quantite_superieure_au_retrait : démarque cumulée % pour un retrait de %', v_deja + NEW.quantite, v_ret.quantite using errcode = 'P0001';
+  end if;
+  return NEW;
+end $$;
+
 drop trigger if exists dates_courtes_releves_avant_insertion on dates_courtes_releves;
 create trigger dates_courtes_releves_avant_insertion before insert on dates_courtes_releves for each row execute function dates_courtes_avant_insertion();
 drop trigger if exists dates_courtes_corrections_avant_insertion on dates_courtes_corrections;
@@ -330,67 +500,90 @@ drop trigger if exists dates_courtes_releves_avant_annulation on dates_courtes_r
 create trigger dates_courtes_releves_avant_annulation before update on dates_courtes_releves for each row execute function dates_courtes_avant_annulation();
 drop trigger if exists dates_courtes_corrections_avant_annulation on dates_courtes_corrections;
 create trigger dates_courtes_corrections_avant_annulation before update on dates_courtes_corrections for each row execute function dates_courtes_avant_annulation();
+drop trigger if exists dates_courtes_retraits_avant_annulation on dates_courtes_retraits;
+create trigger dates_courtes_retraits_avant_annulation before update on dates_courtes_retraits for each row execute function dates_courtes_avant_annulation();
 drop trigger if exists dates_courtes_correspondances_avant_insertion on dates_courtes_correspondances;
 create trigger dates_courtes_correspondances_avant_insertion before insert on dates_courtes_correspondances for each row execute function dates_courtes_avant_correspondance();
+drop trigger if exists dates_courtes_demarques_avant_insertion on dates_courtes_demarques;
+create trigger dates_courtes_demarques_avant_insertion before insert on dates_courtes_demarques for each row execute function dates_courtes_avant_demarque();
 
 -- 6. Sécurité par ligne : site de la personne connectée, aucun accès anon, aucune suppression, mise à jour limitée aux colonnes d'annulation.
 do $$
 declare t text;
 begin
-  foreach t in array array['dates_courtes_tournees', 'dates_courtes_releves', 'dates_courtes_corrections', 'dates_courtes_retraits', 'dates_courtes_correspondances', 'dates_courtes_acces_caissiere'] loop
+  foreach t in array array['dates_courtes_tournees', 'dates_courtes_releves', 'dates_courtes_corrections', 'dates_courtes_retraits', 'dates_courtes_demarques',
+                           'dates_courtes_correspondances', 'dates_courtes_acces_caissier', 'dates_courtes_certifications', 'dates_courtes_demandes_correction'] loop
     execute format('alter table %I enable row level security', t);
     execute format('alter table %I force row level security', t);
     execute format('drop policy if exists compte_actif_obligatoire on %I', t);
     execute format('create policy compte_actif_obligatoire on %I as restrictive to authenticated using (exists (select 1 from employees e where e.id = (select auth.uid()) and e.actif))', t);
     execute format('revoke all on %I from anon, public, authenticated, service_role', t);
+  end loop;
+  foreach t in array array['dates_courtes_tournees', 'dates_courtes_releves', 'dates_courtes_corrections', 'dates_courtes_retraits', 'dates_courtes_demarques',
+                           'dates_courtes_correspondances', 'dates_courtes_acces_caissier'] loop
     execute format('grant select, insert on %I to authenticated, service_role', t);
   end loop;
-  foreach t in array array['dates_courtes_releves', 'dates_courtes_corrections', 'dates_courtes_retraits', 'dates_courtes_correspondances'] loop
+  foreach t in array array['dates_courtes_certifications', 'dates_courtes_demandes_correction'] loop
+    execute format('grant select on %I to authenticated, service_role', t);
+  end loop;
+  foreach t in array array['dates_courtes_releves', 'dates_courtes_corrections', 'dates_courtes_retraits', 'dates_courtes_demarques', 'dates_courtes_correspondances'] loop
     execute format('grant update (annule_le, annule_par, motif_annulation) on %I to authenticated, service_role', t);
   end loop;
 end $$;
 
--- Relevés et corrections : opérateurs (renfort, manager, gérant, créateur) ; caissière habilitée : ses propres lignes seulement.
+-- Tournées : le réalisateur (renfort, caissier habilité) ne lit que les siennes ; manager, gérant et créateur lisent toute la station.
+-- Création par un opérateur ou un caissier habilité, toujours en cours. Aucune mise à jour directe : les changements d'état passent par les fonctions serveur.
+drop policy if exists lecture_meme_site on dates_courtes_tournees;
+create policy lecture_meme_site on dates_courtes_tournees for select to authenticated using (site = (select current_employee_site_id())
+  and ((select dates_courtes_gestion()) or (saisi_par = (select auth.uid()) and ((select dates_courtes_operer()) or (select dates_courtes_caissier_autorise())))));
+drop policy if exists insertion_meme_site on dates_courtes_tournees;
+create policy insertion_meme_site on dates_courtes_tournees for insert to authenticated with check (site = (select current_employee_site_id())
+  and saisi_par = (select auth.uid()) and etat = 'EN_COURS' and ((select dates_courtes_operer()) or (select dates_courtes_caissier_autorise())));
+
+-- Relevés et corrections : même règle de lecture ; insertion par un opérateur ou un caissier habilité dans sa propre tournée (vérifié par le déclencheur).
+-- Annulation : opérateurs seulement, la sienne pour un renfort, toute la station pour la gestion.
 do $$
 declare t text;
 begin
   foreach t in array array['dates_courtes_releves', 'dates_courtes_corrections'] loop
     execute format('drop policy if exists lecture_meme_site on %I', t);
     execute format($p$create policy lecture_meme_site on %I for select to authenticated using (site = (select current_employee_site_id())
-      and ((select dates_courtes_operer()) or ((select dates_courtes_caissiere_autorisee()) and saisi_par = (select auth.uid()))))$p$, t);
+      and ((select dates_courtes_gestion()) or (saisi_par = (select auth.uid()) and ((select dates_courtes_operer()) or (select dates_courtes_caissier_autorise())))))$p$, t);
     execute format('drop policy if exists insertion_meme_site on %I', t);
     execute format($p$create policy insertion_meme_site on %I for insert to authenticated with check (site = (select current_employee_site_id())
-      and saisi_par = (select auth.uid()) and ((select dates_courtes_operer()) or (select dates_courtes_caissiere_autorisee())))$p$, t);
+      and saisi_par = (select auth.uid()) and ((select dates_courtes_operer()) or (select dates_courtes_caissier_autorise())))$p$, t);
     execute format('drop policy if exists annulation_meme_site on %I', t);
     execute format($p$create policy annulation_meme_site on %I for update to authenticated
-      using (site = (select current_employee_site_id()) and (select dates_courtes_operer()) and annule_le is null)
+      using (site = (select current_employee_site_id()) and (select dates_courtes_operer()) and ((select dates_courtes_gestion()) or saisi_par = (select auth.uid())) and annule_le is null)
       with check (site = (select current_employee_site_id()) and (select dates_courtes_operer()) and annule_le is not null and annule_par = (select auth.uid()))$p$, t);
   end loop;
 end $$;
 
+-- Retraits : opérateurs seulement (le caissier ne confirme aucun retrait).
 drop policy if exists lecture_meme_site on dates_courtes_retraits;
-create policy lecture_meme_site on dates_courtes_retraits for select to authenticated using (site = (select current_employee_site_id()) and (select dates_courtes_operer()));
+create policy lecture_meme_site on dates_courtes_retraits for select to authenticated using (site = (select current_employee_site_id())
+  and ((select dates_courtes_gestion()) or (saisi_par = (select auth.uid()) and (select dates_courtes_operer()))));
 drop policy if exists insertion_meme_site on dates_courtes_retraits;
 create policy insertion_meme_site on dates_courtes_retraits for insert to authenticated with check (site = (select current_employee_site_id()) and saisi_par = (select auth.uid()) and (select dates_courtes_operer()));
 drop policy if exists annulation_meme_site on dates_courtes_retraits;
 create policy annulation_meme_site on dates_courtes_retraits for update to authenticated
-  using (site = (select current_employee_site_id()) and (select dates_courtes_operer()) and annule_le is null)
+  using (site = (select current_employee_site_id()) and (select dates_courtes_operer()) and ((select dates_courtes_gestion()) or saisi_par = (select auth.uid())) and annule_le is null)
   with check (site = (select current_employee_site_id()) and (select dates_courtes_operer()) and annule_le is not null and annule_par = (select auth.uid()));
-grant update (annule_le, annule_par, motif_annulation) on dates_courtes_retraits to authenticated, service_role;
 
--- Tournées : lecture par les opérateurs et la caissière habilitée ; ouverture automatique par eux, ouverture manuelle par la gestion seule.
-drop policy if exists lecture_meme_site on dates_courtes_tournees;
-create policy lecture_meme_site on dates_courtes_tournees for select to authenticated using (site = (select current_employee_site_id())
-  and ((select dates_courtes_operer()) or (select dates_courtes_caissiere_autorisee())));
-drop policy if exists insertion_meme_site on dates_courtes_tournees;
-create policy insertion_meme_site on dates_courtes_tournees for insert to authenticated with check (site = (select current_employee_site_id()) and saisi_par = (select auth.uid())
-  and ((origine = 'automatique' and ((select dates_courtes_operer()) or (select dates_courtes_caissiere_autorisee())))
-    or (origine = 'manuelle' and (select dates_courtes_gestion()))));
+-- Démarques : gestion seule (manager, gérant, créateur). Le renfort, le caissier, le pompiste et le vacataire ne lisent ni n'écrivent.
+drop policy if exists lecture_gestion_meme_site on dates_courtes_demarques;
+create policy lecture_gestion_meme_site on dates_courtes_demarques for select to authenticated using (site = (select current_employee_site_id()) and (select dates_courtes_gestion()));
+drop policy if exists insertion_gestion_meme_site on dates_courtes_demarques;
+create policy insertion_gestion_meme_site on dates_courtes_demarques for insert to authenticated with check (site = (select current_employee_site_id()) and saisi_par = (select auth.uid()) and (select dates_courtes_gestion()));
+drop policy if exists annulation_gestion_meme_site on dates_courtes_demarques;
+create policy annulation_gestion_meme_site on dates_courtes_demarques for update to authenticated
+  using (site = (select current_employee_site_id()) and (select dates_courtes_gestion()) and annule_le is null)
+  with check (site = (select current_employee_site_id()) and (select dates_courtes_gestion()) and annule_le is not null and annule_par = (select auth.uid()));
 
--- Correspondances : lecture par les opérateurs et la caissière habilitée (pour que le groupe se calcule de la même façon pour tous) ; pose et annulation par la gestion.
+-- Correspondances : lecture par les opérateurs et le caissier habilité (le groupe se calcule de la même façon pour tous) ; pose et annulation par la gestion.
 drop policy if exists lecture_meme_site on dates_courtes_correspondances;
 create policy lecture_meme_site on dates_courtes_correspondances for select to authenticated using (site = (select current_employee_site_id())
-  and ((select dates_courtes_operer()) or (select dates_courtes_caissiere_autorisee())));
+  and ((select dates_courtes_operer()) or (select dates_courtes_caissier_autorise())));
 drop policy if exists insertion_gestion_meme_site on dates_courtes_correspondances;
 create policy insertion_gestion_meme_site on dates_courtes_correspondances for insert to authenticated with check (site = (select current_employee_site_id()) and saisi_par = (select auth.uid()) and (select dates_courtes_gestion()));
 drop policy if exists annulation_gestion_meme_site on dates_courtes_correspondances;
@@ -398,43 +591,99 @@ create policy annulation_gestion_meme_site on dates_courtes_correspondances for 
   using (site = (select current_employee_site_id()) and (select dates_courtes_gestion()) and annule_le is null)
   with check (site = (select current_employee_site_id()) and (select dates_courtes_gestion()) and annule_le is not null and annule_par = (select auth.uid()));
 
--- Accès caissière : lecture par les opérateurs et les caissières de la station ; activation et fermeture par la gestion seule.
-drop policy if exists lecture_meme_site on dates_courtes_acces_caissiere;
-create policy lecture_meme_site on dates_courtes_acces_caissiere for select to authenticated using (site = (select current_employee_site_id())
+-- Accès caissier : lecture par les opérateurs et les caissiers de la station ; activation et fermeture par la gestion seule.
+drop policy if exists lecture_meme_site on dates_courtes_acces_caissier;
+create policy lecture_meme_site on dates_courtes_acces_caissier for select to authenticated using (site = (select current_employee_site_id())
   and ((select dates_courtes_operer()) or (select current_employee_role()) = 'caissier'));
-drop policy if exists insertion_gestion_meme_site on dates_courtes_acces_caissiere;
-create policy insertion_gestion_meme_site on dates_courtes_acces_caissiere for insert to authenticated with check (site = (select current_employee_site_id()) and saisi_par = (select auth.uid()) and (select dates_courtes_gestion()));
+drop policy if exists insertion_gestion_meme_site on dates_courtes_acces_caissier;
+create policy insertion_gestion_meme_site on dates_courtes_acces_caissier for insert to authenticated with check (site = (select current_employee_site_id()) and saisi_par = (select auth.uid()) and (select dates_courtes_gestion()));
 
--- 7. Quantité active : tournée en cours seulement (la dernière de la semaine calendaire courante), jamais sous zéro. Vue en droits de l'appelant.
-create or replace view dates_courtes_quantites_actives with (security_invoker = true) as
-with courante as (
-  select distinct on (t.site) t.site, t.id as tournee_id
-  from dates_courtes_tournees t
-  where t.debut <= now() and t.debut >= dates_courtes_debut_semaine(now())
-  order by t.site, t.debut desc
-), mouvements as (
-  select r.site, r.tournee_id, r.ean, r.libelle_normalise, r.date_limite, r.quantite as q from dates_courtes_releves r where r.annule_le is null
-  union all
-  select c.site, c.tournee_id, c.ean, c.libelle_normalise, c.date_limite, c.delta from dates_courtes_corrections c where c.annule_le is null
-  union all
-  select x.site, x.tournee_id, x.ean, x.libelle_normalise, x.date_limite, - x.quantite from dates_courtes_retraits x where x.annule_le is null
-)
-select m.site, co.tournee_id,
-       dates_courtes_cle_canonique(m.site, m.ean, m.libelle_normalise, m.date_limite) as cle_groupe,
-       max(m.ean) as ean, max(m.libelle_normalise) as libelle_normalise, m.date_limite,
-       greatest(0, sum(m.q))::integer as quantite_active
-from mouvements m join courante co on co.site = m.site and co.tournee_id = m.tournee_id
-group by m.site, co.tournee_id, dates_courtes_cle_canonique(m.site, m.ean, m.libelle_normalise, m.date_limite), m.date_limite;
+-- Certifications et demandes de correction : lecture de la gestion pour toute la station, du réalisateur pour sa propre tournée. Écriture par fonction serveur seulement.
+drop policy if exists lecture_meme_site on dates_courtes_certifications;
+create policy lecture_meme_site on dates_courtes_certifications for select to authenticated using (site = (select current_employee_site_id())
+  and ((select dates_courtes_gestion()) or tournee_id in (select t.id from dates_courtes_tournees t)));
+drop policy if exists lecture_meme_site on dates_courtes_demandes_correction;
+create policy lecture_meme_site on dates_courtes_demandes_correction for select to authenticated using (site = (select current_employee_site_id())
+  and ((select dates_courtes_gestion()) or tournee_id in (select t.id from dates_courtes_tournees t)));
 
-revoke all on dates_courtes_quantites_actives from anon, public, authenticated, service_role;
-grant select on dates_courtes_quantites_actives to authenticated, service_role;
+-- 7. Version d'une tournée : empreinte des quantités consolidées (plancher à zéro par groupe) et dernière opération reçue ou annulée.
+-- Deux appels sans changement donnent la même version. Lecture de toute la tournée, réservée à sa station.
+create or replace function dates_courtes_version_tournee(p_tournee uuid) returns jsonb
+language plpgsql stable security definer set search_path = public, pg_temp as $$
+declare v_site text; v_emp text; v_der text;
+begin
+  select t.site into v_site from dates_courtes_tournees t where t.id = p_tournee;
+  if v_site is null or not exists (select 1 from employees e where e.id = auth.uid() and e.actif and e.site_id = v_site) then
+    raise exception 'introuvable : tournée inconnue pour cette station' using errcode = 'P0001';
+  end if;
+  select md5(coalesce(string_agg(q.cle || '=' || q.s::text, '|' order by q.cle), '')) into v_emp from (
+    select dates_courtes_cle_canonique(m.site, m.ean, m.libelle_normalise, m.date_limite) as cle, greatest(0, sum(m.q)) as s
+    from (select r.site, r.ean, r.libelle_normalise, r.date_limite, r.quantite as q from dates_courtes_releves r where r.tournee_id = p_tournee and r.annule_le is null
+          union all select c.site, c.ean, c.libelle_normalise, c.date_limite, c.delta from dates_courtes_corrections c where c.tournee_id = p_tournee and c.annule_le is null
+          union all select x.site, x.ean, x.libelle_normalise, x.date_limite, - x.quantite from dates_courtes_retraits x where x.tournee_id = p_tournee and x.annule_le is null) m
+    group by 1) q;
+  select y.cle into v_der from (
+    select r.cle_idempotence as cle, greatest(r.recu_le, r.annule_le) as h from dates_courtes_releves r where r.tournee_id = p_tournee
+    union all select c.cle_idempotence, greatest(c.recu_le, c.annule_le) from dates_courtes_corrections c where c.tournee_id = p_tournee
+    union all select x.cle_idempotence, greatest(x.recu_le, x.annule_le) from dates_courtes_retraits x where x.tournee_id = p_tournee) y
+    order by y.h desc, y.cle desc limit 1;
+  return jsonb_build_object('empreinte', v_emp, 'derniere_operation', coalesce(v_der, ''));
+end $$;
 
-create or replace function dates_courtes_quantite_active(p_ean text, p_libelle text, p_date date) returns integer
+-- 8. Quantité courante, par ligne de date limite. Jamais stockée : calculée à la lecture, sur les lignes visibles de l'appelant.
+-- Pour chaque article, la tournée qui porte le dernier relevé effectif (heure du geste) l'emporte ; ses quantités par date sont les quantités courantes.
+-- Les autres tournées restent en historique, mention seule dans autres_tournees. Aucune addition entre tournées.
+-- Âge : jours calendaires (fuseau Martinique) depuis le dernier relevé effectif de la ligne, jamais depuis la certification ou la clôture.
+-- Une correction, une annulation, une certification ou un rattachement ne rajeunit pas la ligne. Une ligne née d'une correction seule prend l'heure de son premier geste.
+-- etat_age : 7 jours et moins courante, 8 à 14 a_verifier, plus de 14 a_recontroler.
+-- echeance : date dépassée avec relevé de 7 jours ou moins a_retirer ; date dépassée avec relevé plus ancien depassee_a_verifier (aucune demande de retrait) ; sinon aucune.
+create or replace function dates_courtes_quantites_courantes(p_instant timestamptz default now())
+returns table (site text, cle_article text, ean text, libelle_normalise text, date_limite date, quantite integer, tournee_id uuid, tournee_etat text,
+               dernier_releve timestamptz, age_jours integer, etat_age text, echeance text, autres_tournees jsonb)
 language sql stable security invoker set search_path = public, pg_temp as $$
-  select coalesce((select v.quantite_active from dates_courtes_quantites_actives v
-    where v.site = (select current_employee_site_id())
-      and v.cle_groupe = dates_courtes_cle_canonique((select current_employee_site_id()), dates_courtes_normaliser_ean(p_ean),
-            nullif(dates_courtes_normaliser_libelle(p_libelle), ''), p_date)), 0)
+  with rel as (
+    select r.site, r.tournee_id, r.id, r.heure_geste, dates_courtes_cle_article(r.site, r.ean, r.libelle_normalise) as art
+    from dates_courtes_releves r where r.annule_le is null and r.heure_geste <= p_instant
+  ), gagnante as (
+    select distinct on (x.site, x.art) x.site, x.art, x.tournee_id from rel x order by x.site, x.art, x.heure_geste desc, x.id desc
+  ), mouv as (
+    select r.site, r.tournee_id, dates_courtes_cle_article(r.site, r.ean, r.libelle_normalise) as art, r.ean, r.libelle_normalise, r.date_limite,
+           r.quantite as q, r.heure_geste, true as est_releve
+      from dates_courtes_releves r where r.annule_le is null and r.heure_geste <= p_instant
+    union all
+    select c.site, c.tournee_id, dates_courtes_cle_article(c.site, c.ean, c.libelle_normalise), c.ean, c.libelle_normalise, c.date_limite, c.delta, c.heure_geste, false
+      from dates_courtes_corrections c where c.annule_le is null and c.heure_geste <= p_instant
+    union all
+    select x.site, x.tournee_id, dates_courtes_cle_article(x.site, x.ean, x.libelle_normalise), x.ean, x.libelle_normalise, x.date_limite, - x.quantite, x.heure_geste, false
+      from dates_courtes_retraits x where x.annule_le is null and x.heure_geste <= p_instant
+  ), lignes as (
+    select g.site, g.art, g.tournee_id, m.date_limite, max(m.ean) as ean, max(m.libelle_normalise) as libelle_normalise,
+           greatest(0, sum(m.q))::integer as q,
+           coalesce(max(m.heure_geste) filter (where m.est_releve), min(m.heure_geste)) as dernier
+    from gagnante g join mouv m on m.site = g.site and m.tournee_id = g.tournee_id and m.art = g.art
+    group by g.site, g.art, g.tournee_id, m.date_limite
+  ), ages as (
+    select l.*, ((p_instant at time zone 'America/Martinique')::date - (l.dernier at time zone 'America/Martinique')::date) as age,
+           ((p_instant at time zone 'America/Martinique')::date) as aujourdhui
+    from lignes l where l.q > 0
+  )
+  select a.site, a.art, a.ean, a.libelle_normalise, a.date_limite, a.q, a.tournee_id, t.etat, a.dernier, a.age,
+         case when a.age <= 7 then 'courante' when a.age <= 14 then 'a_verifier' else 'a_recontroler' end,
+         case when a.date_limite < a.aujourdhui and a.age <= 7 then 'a_retirer'
+              when a.date_limite < a.aujourdhui then 'depassee_a_verifier'
+              else 'aucune' end,
+         (select jsonb_agg(jsonb_build_object('tournee_id', o.tournee_id, 'nom', t2.nom, 'saisi_par', t2.saisi_par, 'heure', o.h) order by o.h desc)
+            from (select x.tournee_id, max(x.heure_geste) as h from rel x where x.site = a.site and x.art = a.art and x.tournee_id <> a.tournee_id group by x.tournee_id) o
+            join dates_courtes_tournees t2 on t2.id = o.tournee_id)
+  from ages a join dates_courtes_tournees t on t.id = a.tournee_id
+$$;
+
+create or replace function dates_courtes_quantite_courante(p_ean text, p_libelle text, p_date date) returns integer
+language sql stable security invoker set search_path = public, pg_temp as $$
+  select coalesce((select sum(q.quantite)::integer from dates_courtes_quantites_courantes() q
+    where q.site = (select current_employee_site_id()) and q.date_limite = p_date
+      and q.cle_article = dates_courtes_cle_article((select current_employee_site_id()), dates_courtes_normaliser_ean(p_ean),
+            nullif(dates_courtes_normaliser_libelle(p_libelle), ''))), 0)
 $$;
 
 -- Marque « provisoire » : un EAN lu absent du catalogue importé de la station. Elle disparaît d'elle-même quand l'EAN apparaît dans un import.
@@ -445,7 +694,8 @@ language sql stable security invoker set search_path = public, pg_temp as $$
                        and regexp_replace(coalesce(p.code_barres, ''), '[^0-9]', '', 'g') = dates_courtes_normaliser_ean(p_ean))
 $$;
 
--- 8. Fonction d'écriture : rôle et station relus depuis le compte, clé d'idempotence, heure du geste, verrou de groupe, plancher à zéro.
+-- 9. Fonction d'écriture : rôle et station relus depuis le compte, clé d'idempotence, heure du geste, verrous, plancher à zéro.
+-- La tournée est un paramètre de données (tournee_id) vérifié par le serveur : elle doit être celle de la personne connectée. Le site et le rôle ne se transmettent jamais.
 create or replace function dates_courtes_enregistrer(p_operation text, p_cle_idempotence text, p_donnees jsonb) returns jsonb
 language plpgsql volatile security invoker set search_path = public, pg_temp as $$
 declare
@@ -453,7 +703,7 @@ declare
   v_operer boolean; v_autorise boolean;
   v_permis text[]; v_cle text; v_champ text; v_ids jsonb;
   v_ean text; v_lib text; v_date date; v_date2 date; v_qte integer; v_delta integer; v_geste timestamptz; v_motif text; v_prov boolean;
-  v_releve uuid; v_lien uuid := gen_random_uuid(); v_id uuid; v_id2 uuid; v_cible text; v_tournee uuid;
+  v_releve uuid; v_lien uuid := gen_random_uuid(); v_id uuid; v_id2 uuid; v_cible text; v_tournee uuid; v_nom text; v_photo text;
 begin
   if auth.uid() is null then
     raise exception 'non_authentifie : connexion requise' using errcode = 'P0001';
@@ -462,9 +712,8 @@ begin
   if not found or not v_actif then
     raise exception 'compte_inactif : compte introuvable ou inactif' using errcode = 'P0001';
   end if;
-  v_operer := v_role in ('renfort', 'manager', 'gerant')
-    or (v_createur and exists (select 1 from sites s where s.site_id = v_site and s.acces_createur_autorise));
-  v_autorise := v_operer or (p_operation in ('releve', 'ajout', 'correction') and dates_courtes_caissiere_autorisee());
+  v_operer := dates_courtes_operer();
+  v_autorise := v_operer or (p_operation in ('releve', 'ajout', 'correction') and dates_courtes_caissier_autorise());
   if not v_autorise then
     raise exception 'droit_refuse : ce profil ne peut pas faire cette opération sur les dates courtes' using errcode = 'P0001';
   end if;
@@ -478,16 +727,16 @@ begin
     raise exception 'donnees_invalides : un objet JSON est attendu' using errcode = 'P0001';
   end if;
   v_permis := case p_operation
-    when 'releve' then array['ean', 'libelle', 'date_limite', 'quantite', 'heure_geste', 'provisoire']
-    when 'ajout' then array['ean', 'libelle', 'date_limite', 'quantite', 'heure_geste', 'provisoire']
-    when 'correction' then array['ean', 'libelle', 'date_limite', 'delta', 'releve_id', 'motif', 'heure_geste']
-    when 'retrait' then array['ean', 'libelle', 'date_limite', 'quantite', 'heure_geste']
-    when 'trouve_retire' then array['ean', 'libelle', 'date_limite', 'quantite', 'heure_geste', 'provisoire']
-    when 'changement_date' then array['ean', 'libelle', 'ancienne_date', 'nouvelle_date', 'quantite', 'heure_geste', 'motif']
+    when 'releve' then array['tournee_id', 'ean', 'libelle', 'nom_libre', 'photo_ref', 'date_limite', 'quantite', 'heure_geste']
+    when 'ajout' then array['tournee_id', 'ean', 'libelle', 'nom_libre', 'photo_ref', 'date_limite', 'quantite', 'heure_geste']
+    when 'correction' then array['tournee_id', 'ean', 'libelle', 'date_limite', 'delta', 'releve_id', 'motif', 'heure_geste']
+    when 'retrait' then array['tournee_id', 'ean', 'libelle', 'date_limite', 'quantite', 'heure_geste']
+    when 'trouve_retire' then array['tournee_id', 'ean', 'libelle', 'nom_libre', 'photo_ref', 'date_limite', 'quantite', 'heure_geste']
+    when 'changement_date' then array['tournee_id', 'ean', 'libelle', 'ancienne_date', 'nouvelle_date', 'quantite', 'heure_geste', 'motif']
     else array['cible', 'id', 'motif'] end;
   for v_champ in select jsonb_object_keys(p_donnees) loop
     if not (v_champ = any (v_permis)) then
-      raise exception 'champ_inconnu : % (le site, le rôle et la tournée ne se transmettent jamais)', v_champ using errcode = 'P0001';
+      raise exception 'champ_inconnu : % (le site et le rôle ne se transmettent jamais)', v_champ using errcode = 'P0001';
     end if;
   end loop;
   v_cle := btrim(p_cle_idempotence);
@@ -496,7 +745,7 @@ begin
   begin
     if p_operation = 'annulation' then
       v_cible := p_donnees ->> 'cible'; v_id := (p_donnees ->> 'id')::uuid; v_motif := btrim(coalesce(p_donnees ->> 'motif', ''));
-      if v_cible not in ('releves', 'corrections', 'retraits') then
+      if v_cible is null or v_cible not in ('releves', 'corrections', 'retraits') then
         raise exception 'cible_inconnue : releves, corrections ou retraits' using errcode = 'P0001';
       end if;
       if not v_operer then
@@ -532,7 +781,13 @@ begin
       return jsonb_build_object('statut', 'deja_enregistre', 'lignes', v_ids);
     end if;
 
+    v_tournee := (p_donnees ->> 'tournee_id')::uuid;
+    if v_tournee is null then
+      raise exception 'tournee_requise : la tournée est obligatoire' using errcode = 'P0001';
+    end if;
     v_lib := p_donnees ->> 'libelle';
+    v_nom := nullif(btrim(coalesce(p_donnees ->> 'nom_libre', '')), '');
+    v_photo := nullif(btrim(coalesce(p_donnees ->> 'photo_ref', '')), '');
     v_ean := dates_courtes_normaliser_ean(p_donnees ->> 'ean');
     if v_ean is null and length(btrim(coalesce(p_donnees ->> 'ean', ''))) > 0 and nullif(dates_courtes_normaliser_libelle(v_lib), '') is null then
       raise exception 'ean_invalide : code-barres illisible (EAN-8 ou EAN-13 avec clé exacte) et aucun libellé fourni' using errcode = 'P0001';
@@ -547,28 +802,28 @@ begin
     if p_operation in ('releve', 'ajout') then
       v_qte := (p_donnees ->> 'quantite')::integer;
       v_prov := coalesce(dates_courtes_est_provisoire(v_ean), false);
-      insert into dates_courtes_releves (site, ean, libelle_vu, date_limite, quantite, provisoire, heure_geste, cle_idempotence)
-        values (v_site, v_ean, v_lib, v_date, v_qte, v_prov, v_geste, v_cle) returning id, tournee_id into v_id, v_tournee;
+      insert into dates_courtes_releves (site, ean, libelle_vu, nom_libre, photo_ref, date_limite, quantite, provisoire, tournee_id, heure_geste, cle_idempotence)
+        values (v_site, v_ean, v_lib, v_nom, v_photo, v_date, v_qte, v_prov, v_tournee, v_geste, v_cle) returning id into v_id;
       v_ids := jsonb_build_array(jsonb_build_object('table', 'releves', 'id', v_id));
     elsif p_operation = 'correction' then
       v_delta := (p_donnees ->> 'delta')::integer;
       v_releve := (p_donnees ->> 'releve_id')::uuid;
-      insert into dates_courtes_corrections (site, ean, libelle_normalise, date_limite, delta, releve_id, motif, heure_geste, cle_idempotence)
-        values (v_site, v_ean, v_lib, v_date, v_delta, v_releve, v_motif, v_geste, v_cle) returning id, tournee_id into v_id, v_tournee;
+      insert into dates_courtes_corrections (site, ean, libelle_normalise, date_limite, delta, releve_id, motif, tournee_id, heure_geste, cle_idempotence)
+        values (v_site, v_ean, v_lib, v_date, v_delta, v_releve, v_motif, v_tournee, v_geste, v_cle) returning id into v_id;
       v_ids := jsonb_build_array(jsonb_build_object('table', 'corrections', 'id', v_id));
     elsif p_operation = 'retrait' then
       v_qte := (p_donnees ->> 'quantite')::integer;
-      insert into dates_courtes_retraits (site, ean, libelle_normalise, date_limite, quantite, heure_geste, cle_idempotence)
-        values (v_site, v_ean, v_lib, v_date, v_qte, v_geste, v_cle) returning id, tournee_id into v_id, v_tournee;
+      insert into dates_courtes_retraits (site, ean, libelle_normalise, date_limite, quantite, tournee_id, heure_geste, cle_idempotence)
+        values (v_site, v_ean, v_lib, v_date, v_qte, v_tournee, v_geste, v_cle) returning id into v_id;
       v_ids := jsonb_build_array(jsonb_build_object('table', 'retraits', 'id', v_id));
     elsif p_operation = 'trouve_retire' then
-      -- Un geste unique : un relevé de N et un retrait de N, liés. Quantité active inchangée, N dans « à comptabiliser » (lot 3), aucun refus de plancher.
+      -- Un geste unique : un relevé de N et un retrait de N, liés. Quantité nulle dans la tournée, N dans « à comptabiliser », aucun refus de plancher.
       v_qte := (p_donnees ->> 'quantite')::integer;
       v_prov := coalesce(dates_courtes_est_provisoire(v_ean), false);
-      insert into dates_courtes_releves (site, ean, libelle_vu, date_limite, quantite, provisoire, heure_geste, cle_idempotence, lien_id)
-        values (v_site, v_ean, v_lib, v_date, v_qte, v_prov, v_geste, v_cle || ':r', v_lien) returning id, tournee_id into v_id, v_tournee;
-      insert into dates_courtes_retraits (site, ean, libelle_normalise, date_limite, quantite, releve_id, heure_geste, cle_idempotence, lien_id)
-        values (v_site, v_ean, v_lib, v_date, v_qte, v_id, v_geste, v_cle || ':t', v_lien) returning id into v_id2;
+      insert into dates_courtes_releves (site, ean, libelle_vu, nom_libre, photo_ref, date_limite, quantite, provisoire, tournee_id, heure_geste, cle_idempotence, lien_id)
+        values (v_site, v_ean, v_lib, v_nom, v_photo, v_date, v_qte, v_prov, v_tournee, v_geste, v_cle || ':r', v_lien) returning id into v_id;
+      insert into dates_courtes_retraits (site, ean, libelle_normalise, date_limite, quantite, releve_id, tournee_id, heure_geste, cle_idempotence, lien_id)
+        values (v_site, v_ean, v_lib, v_date, v_qte, v_id, v_tournee, v_geste, v_cle || ':t', v_lien) returning id into v_id2;
       v_ids := jsonb_build_array(jsonb_build_object('table', 'releves', 'id', v_id), jsonb_build_object('table', 'retraits', 'id', v_id2));
     else
       -- Changement de date : moins N sur l'ancien groupe, plus N sur le nouveau, liés entre eux.
@@ -577,10 +832,10 @@ begin
       if v_qte is null or v_qte <= 0 or v_date2 is null then
         raise exception 'donnees_invalides : quantite positive et nouvelle_date obligatoires' using errcode = 'P0001';
       end if;
-      insert into dates_courtes_corrections (site, ean, libelle_normalise, date_limite, delta, motif, heure_geste, cle_idempotence, lien_id)
-        values (v_site, v_ean, v_lib, v_date, - v_qte, v_motif, v_geste, v_cle || ':a', v_lien) returning id, tournee_id into v_id, v_tournee;
-      insert into dates_courtes_corrections (site, ean, libelle_normalise, date_limite, delta, motif, heure_geste, cle_idempotence, lien_id)
-        values (v_site, v_ean, v_lib, v_date2, v_qte, v_motif, v_geste, v_cle || ':b', v_lien) returning id into v_id2;
+      insert into dates_courtes_corrections (site, ean, libelle_normalise, date_limite, delta, motif, tournee_id, heure_geste, cle_idempotence, lien_id)
+        values (v_site, v_ean, v_lib, v_date, - v_qte, v_motif, v_tournee, v_geste, v_cle || ':a', v_lien) returning id into v_id;
+      insert into dates_courtes_corrections (site, ean, libelle_normalise, date_limite, delta, motif, tournee_id, heure_geste, cle_idempotence, lien_id)
+        values (v_site, v_ean, v_lib, v_date2, v_qte, v_motif, v_tournee, v_geste, v_cle || ':b', v_lien) returning id into v_id2;
       v_ids := jsonb_build_array(jsonb_build_object('table', 'corrections', 'id', v_id), jsonb_build_object('table', 'corrections', 'id', v_id2));
     end if;
     return jsonb_build_object('statut', 'cree', 'lignes', v_ids, 'tournee_id', v_tournee);
@@ -590,31 +845,214 @@ begin
   end;
 end $$;
 
--- 9. Gestes de la gestion : ouvrir une tournée à la main, régler l'accès caissière, poser ou annuler un rattachement « même produit que… ».
-create or replace function dates_courtes_ouvrir_tournee(p_cle_idempotence text) returns jsonb
+-- 10. Gestes de tournée : créer la sienne, la terminer, la faire certifier, demander et répondre à une correction.
+create or replace function dates_courtes_creer_tournee(p_nom text, p_cle_idempotence text) returns jsonb
 language plpgsql volatile security invoker set search_path = public, pg_temp as $$
-declare v_site text; v_id uuid;
+declare v_site text; v_id uuid; v_nom text := nullif(btrim(coalesce(p_nom, '')), ''); v_cle text;
 begin
   if auth.uid() is null then raise exception 'non_authentifie : connexion requise' using errcode = 'P0001'; end if;
-  if not dates_courtes_gestion() then
-    raise exception 'droit_refuse : l''ouverture d''une tournée est réservée au manager, au gérant et au créateur' using errcode = 'P0001';
+  if not (dates_courtes_operer() or dates_courtes_caissier_autorise()) then
+    raise exception 'droit_refuse : ce profil ne peut pas créer de tournée de dates courtes' using errcode = 'P0001';
   end if;
-  v_site := current_employee_site_id();
   if p_cle_idempotence is null or length(btrim(p_cle_idempotence)) not between 1 and 100 then
     raise exception 'cle_idempotence_requise : clé d''idempotence de 1 à 100 caractères' using errcode = 'P0001';
   end if;
-  perform pg_advisory_xact_lock(hashtextextended(v_site || '|tournee|' || btrim(p_cle_idempotence), 0));
-  select t.id into v_id from dates_courtes_tournees t where t.site = v_site and t.cle_idempotence = btrim(p_cle_idempotence);
+  if v_nom is not null and char_length(v_nom) > 100 then
+    raise exception 'valeur_invalide : nom de 100 caractères au plus' using errcode = 'P0001';
+  end if;
+  v_site := current_employee_site_id();
+  v_cle := btrim(p_cle_idempotence);
+  perform pg_advisory_xact_lock(hashtextextended(v_site || '|tournee|' || v_cle, 0));
+  select t.id into v_id from dates_courtes_tournees t where t.site = v_site and t.cle_idempotence = v_cle;
   if found then return jsonb_build_object('statut', 'deja_enregistre', 'tournee_id', v_id); end if;
   begin
-    insert into dates_courtes_tournees (site, debut, origine, cle_idempotence) values (v_site, now(), 'manuelle', btrim(p_cle_idempotence)) returning id into v_id;
+    insert into dates_courtes_tournees (site, nom, cle_idempotence) values (v_site, v_nom, v_cle) returning id into v_id;
   exception when unique_violation then
-    raise exception 'tournee_deja_ouverte : une tournée commence déjà à cet instant' using errcode = 'P0001';
+    raise exception 'cle_deja_utilisee : cette clé d''idempotence appartient à une autre tournée' using errcode = 'P0001';
   end;
   return jsonb_build_object('statut', 'cree', 'tournee_id', v_id);
 end $$;
 
-create or replace function dates_courtes_regler_acces_caissiere(p_actif boolean) returns jsonb
+-- Terminer : enregistre auteur, heure, empreinte et dernière opération. Terminer deux fois sans changement renvoie la même version.
+-- Le blocage tant que le téléphone a des saisies en attente est un contrôle côté appareil (lot 2).
+create or replace function dates_courtes_terminer_tournee(p_tournee uuid) returns jsonb
+language plpgsql volatile security definer set search_path = public, pg_temp as $$
+declare v_site text; t record; v_ver jsonb;
+begin
+  if auth.uid() is null then raise exception 'non_authentifie : connexion requise' using errcode = 'P0001'; end if;
+  if not (dates_courtes_operer() or dates_courtes_caissier_autorise()) then
+    raise exception 'droit_refuse : ce profil ne peut pas terminer de tournée de dates courtes' using errcode = 'P0001';
+  end if;
+  v_site := current_employee_site_id();
+  select * into t from dates_courtes_tournees x where x.id = p_tournee and x.site = v_site for update;
+  if not found then raise exception 'introuvable : tournée inconnue pour cette station' using errcode = 'P0001'; end if;
+  if t.saisi_par <> auth.uid() then
+    raise exception 'tournee_interdite : on ne termine que sa propre tournée' using errcode = 'P0001';
+  end if;
+  v_ver := dates_courtes_version_tournee(p_tournee);
+  if t.etat = 'EN_COURS' then
+    update dates_courtes_tournees set etat = 'TERMINEE_A_CERTIFIER', terminee_par = auth.uid(), terminee_le = now(),
+      version_empreinte = v_ver ->> 'empreinte', version_derniere_operation = v_ver ->> 'derniere_operation' where id = p_tournee;
+    return jsonb_build_object('statut', 'terminee', 'etat', 'TERMINEE_A_CERTIFIER', 'version', v_ver);
+  elsif t.etat = 'TERMINEE_A_CERTIFIER' then
+    if t.version_empreinte is distinct from v_ver ->> 'empreinte' or t.version_derniere_operation is distinct from v_ver ->> 'derniere_operation' then
+      update dates_courtes_tournees set version_empreinte = v_ver ->> 'empreinte', version_derniere_operation = v_ver ->> 'derniere_operation' where id = p_tournee;
+    end if;
+    return jsonb_build_object('statut', 'deja_terminee', 'etat', t.etat, 'version', v_ver);
+  end if;
+  raise exception 'etat_incompatible : la tournée est déjà % ', t.etat using errcode = 'P0001';
+end $$;
+
+-- Certifier : manager, gérant ou créateur. Le manager peut certifier sa propre tournée (marque réalisateur et certificateur identiques).
+-- La certification ne déclenche aucune démarque et ne bloque ni la clôture ni l'usage des quantités.
+create or replace function dates_courtes_certifier_tournee(p_tournee uuid, p_observations text, p_cle_idempotence text) returns jsonb
+language plpgsql volatile security definer set search_path = public, pg_temp as $$
+declare v_site text; t record; v_ver jsonb; v_id uuid; v_obs text := nullif(btrim(coalesce(p_observations, '')), ''); v_cle text;
+begin
+  if auth.uid() is null then raise exception 'non_authentifie : connexion requise' using errcode = 'P0001'; end if;
+  if not dates_courtes_gestion() then
+    raise exception 'droit_refuse : la certification est réservée au manager, au gérant et au créateur' using errcode = 'P0001';
+  end if;
+  if p_cle_idempotence is null or length(btrim(p_cle_idempotence)) not between 1 and 100 then
+    raise exception 'cle_idempotence_requise : clé d''idempotence de 1 à 100 caractères' using errcode = 'P0001';
+  end if;
+  if v_obs is not null and char_length(v_obs) > 1000 then
+    raise exception 'valeur_invalide : observations de 1000 caractères au plus' using errcode = 'P0001';
+  end if;
+  v_site := current_employee_site_id();
+  v_cle := btrim(p_cle_idempotence);
+  perform pg_advisory_xact_lock(hashtextextended(v_site || '|certif|' || v_cle, 0));
+  select c.id into v_id from dates_courtes_certifications c where c.site = v_site and c.cle_idempotence = v_cle;
+  if found then return jsonb_build_object('statut', 'deja_enregistre', 'id', v_id); end if;
+  select * into t from dates_courtes_tournees x where x.id = p_tournee and x.site = v_site for update;
+  if not found then raise exception 'introuvable : tournée inconnue pour cette station' using errcode = 'P0001'; end if;
+  if t.etat <> 'TERMINEE_A_CERTIFIER' then
+    raise exception 'etat_incompatible : seule une tournée terminée à certifier se certifie (état actuel %)', t.etat using errcode = 'P0001';
+  end if;
+  v_ver := dates_courtes_version_tournee(p_tournee);
+  insert into dates_courtes_certifications (site, tournee_id, version_certifiee, observations, realisateur_identique, cle_idempotence)
+    values (v_site, p_tournee, (v_ver ->> 'empreinte') || '@' || (v_ver ->> 'derniere_operation'), v_obs, t.saisi_par = auth.uid(), v_cle) returning id into v_id;
+  update dates_courtes_tournees set etat = 'CERTIFIEE' where id = p_tournee;
+  return jsonb_build_object('statut', 'cree', 'id', v_id, 'realisateur_identique', t.saisi_par = auth.uid(), 'version', v_ver);
+end $$;
+
+create or replace function dates_courtes_demander_correction(p_tournee uuid, p_releves uuid[], p_motif text, p_cle_idempotence text) returns jsonb
+language plpgsql volatile security definer set search_path = public, pg_temp as $$
+declare v_site text; t record; v_id uuid; v_motif text := btrim(coalesce(p_motif, '')); v_cle text; v_n integer;
+begin
+  if auth.uid() is null then raise exception 'non_authentifie : connexion requise' using errcode = 'P0001'; end if;
+  if not dates_courtes_gestion() then
+    raise exception 'droit_refuse : la demande de correction est réservée au manager, au gérant et au créateur' using errcode = 'P0001';
+  end if;
+  if p_cle_idempotence is null or length(btrim(p_cle_idempotence)) not between 1 and 100 then
+    raise exception 'cle_idempotence_requise : clé d''idempotence de 1 à 100 caractères' using errcode = 'P0001';
+  end if;
+  if length(v_motif) = 0 or char_length(v_motif) > 500 then
+    raise exception 'motif_requis : motif de 1 à 500 caractères' using errcode = 'P0001';
+  end if;
+  if p_releves is null or cardinality(p_releves) = 0 then
+    raise exception 'releves_requis : au moins un relevé visé' using errcode = 'P0001';
+  end if;
+  v_site := current_employee_site_id();
+  v_cle := btrim(p_cle_idempotence);
+  perform pg_advisory_xact_lock(hashtextextended(v_site || '|demande|' || v_cle, 0));
+  select d.id into v_id from dates_courtes_demandes_correction d where d.site = v_site and d.cle_idempotence = v_cle;
+  if found then return jsonb_build_object('statut', 'deja_enregistre', 'id', v_id); end if;
+  select * into t from dates_courtes_tournees x where x.id = p_tournee and x.site = v_site for update;
+  if not found then raise exception 'introuvable : tournée inconnue pour cette station' using errcode = 'P0001'; end if;
+  if t.etat not in ('TERMINEE_A_CERTIFIER', 'CERTIFIEE') then
+    raise exception 'etat_incompatible : une correction se demande sur une tournée terminée ou certifiée (état actuel %)', t.etat using errcode = 'P0001';
+  end if;
+  select count(distinct x) into v_n from unnest(p_releves) x;
+  if (select count(*) from dates_courtes_releves r where r.id = any (p_releves) and r.tournee_id = p_tournee and r.site = v_site) <> v_n then
+    raise exception 'releves_invalides : un relevé visé n''appartient pas à cette tournée' using errcode = 'P0001';
+  end if;
+  insert into dates_courtes_demandes_correction (site, tournee_id, motif, releves_vises, cle_idempotence)
+    values (v_site, p_tournee, v_motif, p_releves, v_cle) returning id into v_id;
+  update dates_courtes_tournees set etat = 'CORRECTION_DEMANDEE' where id = p_tournee;
+  return jsonb_build_object('statut', 'cree', 'id', v_id);
+end $$;
+
+-- Réponse du réalisateur : la tournée repasse à certifier.
+create or replace function dates_courtes_repondre_correction(p_demande uuid, p_reponse text) returns jsonb
+language plpgsql volatile security definer set search_path = public, pg_temp as $$
+declare v_site text; d record; t record; v_rep text := btrim(coalesce(p_reponse, '')); v_ver jsonb;
+begin
+  if auth.uid() is null then raise exception 'non_authentifie : connexion requise' using errcode = 'P0001'; end if;
+  if not (dates_courtes_operer() or dates_courtes_caissier_autorise()) then
+    raise exception 'droit_refuse : ce profil ne peut pas répondre à une demande de correction' using errcode = 'P0001';
+  end if;
+  if length(v_rep) = 0 or char_length(v_rep) > 500 then
+    raise exception 'reponse_requise : réponse de 1 à 500 caractères' using errcode = 'P0001';
+  end if;
+  v_site := current_employee_site_id();
+  select * into d from dates_courtes_demandes_correction x where x.id = p_demande and x.site = v_site;
+  if not found then raise exception 'introuvable : demande inconnue pour cette station' using errcode = 'P0001'; end if;
+  select * into t from dates_courtes_tournees x where x.id = d.tournee_id and x.site = v_site for update;
+  if t.saisi_par <> auth.uid() then
+    raise exception 'tournee_interdite : on ne répond que pour sa propre tournée' using errcode = 'P0001';
+  end if;
+  if d.reponse is not null then
+    return jsonb_build_object('statut', 'deja_repondue', 'id', p_demande);
+  end if;
+  if t.etat <> 'CORRECTION_DEMANDEE' then
+    raise exception 'etat_incompatible : la tournée n''attend pas de réponse (état actuel %)', t.etat using errcode = 'P0001';
+  end if;
+  v_ver := dates_courtes_version_tournee(d.tournee_id);
+  update dates_courtes_demandes_correction set reponse = v_rep, repondue_par = auth.uid(), repondue_le = now() where id = p_demande;
+  update dates_courtes_tournees set etat = 'TERMINEE_A_CERTIFIER', version_empreinte = v_ver ->> 'empreinte', version_derniere_operation = v_ver ->> 'derniere_operation' where id = d.tournee_id;
+  return jsonb_build_object('statut', 'repondue', 'etat', 'TERMINEE_A_CERTIFIER', 'version', v_ver);
+end $$;
+
+-- 11. Démarque comptabilisée : manager, gérant, créateur. Transition seulement depuis un retrait physique ; cumul inférieur ou égal à la quantité retirée.
+-- Aucune écriture comptable, aucun lien avec Decenium ni inventaire_mouvements, aucune valeur en euros.
+create or replace function dates_courtes_comptabiliser_demarque(p_retrait uuid, p_quantite integer, p_motif text, p_cle_idempotence text, p_heure_geste timestamptz default null) returns jsonb
+language plpgsql volatile security invoker set search_path = public, pg_temp as $$
+declare v_site text; v_id uuid; v_cle text; v_motif text := nullif(btrim(coalesce(p_motif, '')), '');
+begin
+  if auth.uid() is null then raise exception 'non_authentifie : connexion requise' using errcode = 'P0001'; end if;
+  if not dates_courtes_gestion() then
+    raise exception 'droit_refuse : la démarque comptabilisée est réservée au manager, au gérant et au créateur' using errcode = 'P0001';
+  end if;
+  if p_cle_idempotence is null or length(btrim(p_cle_idempotence)) not between 1 and 100 then
+    raise exception 'cle_idempotence_requise : clé d''idempotence de 1 à 100 caractères' using errcode = 'P0001';
+  end if;
+  if p_quantite is null or p_quantite <= 0 then
+    raise exception 'valeur_invalide : quantité positive obligatoire' using errcode = 'P0001';
+  end if;
+  v_site := current_employee_site_id();
+  v_cle := btrim(p_cle_idempotence);
+  perform pg_advisory_xact_lock(hashtextextended(v_site || '|demarque|' || v_cle, 0));
+  select d.id into v_id from dates_courtes_demarques d where d.site = v_site and d.cle_idempotence = v_cle;
+  if found then return jsonb_build_object('statut', 'deja_enregistre', 'id', v_id); end if;
+  begin
+    insert into dates_courtes_demarques (site, retrait_id, tournee_id, quantite, motif, heure_geste, cle_idempotence)
+      values (v_site, p_retrait, gen_random_uuid(), p_quantite, v_motif, p_heure_geste, v_cle) returning id into v_id;
+  exception when check_violation then
+    raise exception 'valeur_invalide : %', sqlerrm using errcode = 'P0001';
+  end;
+  return jsonb_build_object('statut', 'cree', 'id', v_id);
+end $$;
+
+create or replace function dates_courtes_annuler_demarque(p_id uuid, p_motif text) returns jsonb
+language plpgsql volatile security invoker set search_path = public, pg_temp as $$
+declare v_motif text := btrim(coalesce(p_motif, ''));
+begin
+  if auth.uid() is null then raise exception 'non_authentifie : connexion requise' using errcode = 'P0001'; end if;
+  if not dates_courtes_gestion() then
+    raise exception 'droit_refuse : l''annulation est réservée au manager, au gérant et au créateur' using errcode = 'P0001';
+  end if;
+  if length(v_motif) = 0 or char_length(v_motif) > 500 then
+    raise exception 'motif_requis : motif d''annulation de 1 à 500 caractères' using errcode = 'P0001';
+  end if;
+  update dates_courtes_demarques set annule_le = now(), annule_par = auth.uid(), motif_annulation = v_motif
+    where id = p_id and site = current_employee_site_id() and annule_le is null;
+  if not found then raise exception 'introuvable : démarque inconnue ou déjà annulée' using errcode = 'P0001'; end if;
+  return jsonb_build_object('statut', 'annule', 'id', p_id);
+end $$;
+
+-- 12. Gestes de la gestion : régler l'accès caissier, poser ou annuler un rattachement « même produit que… ».
+create or replace function dates_courtes_regler_acces_caissier(p_actif boolean) returns jsonb
 language plpgsql volatile security invoker set search_path = public, pg_temp as $$
 declare v_site text; v_id uuid;
 begin
@@ -624,7 +1062,7 @@ begin
   end if;
   if p_actif is null then raise exception 'valeur_invalide : actif doit être vrai ou faux' using errcode = 'P0001'; end if;
   v_site := current_employee_site_id();
-  insert into dates_courtes_acces_caissiere (site, actif) values (v_site, p_actif) returning id into v_id;
+  insert into dates_courtes_acces_caissier (site, actif) values (v_site, p_actif) returning id into v_id;
   return jsonb_build_object('statut', 'cree', 'id', v_id, 'site', v_site, 'actif', p_actif);
 end $$;
 
@@ -636,7 +1074,7 @@ begin
   if not dates_courtes_gestion() then
     raise exception 'droit_refuse : le rattachement est réservé au manager, au gérant et au créateur' using errcode = 'P0001';
   end if;
-  if p_type not in ('libelle', 'ean') then raise exception 'type_inconnu : libelle ou ean' using errcode = 'P0001'; end if;
+  if p_type is null or p_type not in ('libelle', 'ean') then raise exception 'type_inconnu : libelle ou ean' using errcode = 'P0001'; end if;
   v_site := current_employee_site_id();
   if p_type = 'ean' then
     v_a := dates_courtes_normaliser_ean(p_ancienne); v_n := dates_courtes_normaliser_ean(p_nouvelle);
@@ -672,18 +1110,23 @@ begin
   return jsonb_build_object('statut', 'annule', 'id', p_id);
 end $$;
 
--- 10. Droits d'exécution : jamais anon, jamais public.
+-- 13. Droits d'exécution : jamais anon, jamais public.
 do $$
 declare f text;
 begin
   foreach f in array array[
-    'dates_courtes_normaliser_ean(text)', 'dates_courtes_normaliser_libelle(text)', 'dates_courtes_debut_semaine(timestamptz)',
-    'dates_courtes_cle_groupe(text,text,text,date)', 'dates_courtes_operer()', 'dates_courtes_gestion()', 'dates_courtes_caissiere_autorisee()',
-    'dates_courtes_resolution(text,text,text)', 'dates_courtes_cle_canonique(text,text,text,date)',
-    'dates_courtes_total_brut(text,text,uuid,text,uuid)', 'dates_courtes_quantite_active(text,text,date)', 'dates_courtes_est_provisoire(text)',
-    'dates_courtes_enregistrer(text,text,jsonb)', 'dates_courtes_ouvrir_tournee(text)', 'dates_courtes_regler_acces_caissiere(boolean)',
-    'dates_courtes_poser_correspondance(text,text,text)', 'dates_courtes_annuler_correspondance(uuid,text)',
-    'dates_courtes_avant_insertion()', 'dates_courtes_avant_annulation()', 'dates_courtes_avant_correspondance()'] loop
+    'dates_courtes_normaliser_ean(text)', 'dates_courtes_normaliser_libelle(text)', 'dates_courtes_cle_groupe(text,text,text,date)',
+    'dates_courtes_operer()', 'dates_courtes_gestion()', 'dates_courtes_caissier_autorise()',
+    'dates_courtes_resolution(text,text,text)', 'dates_courtes_cle_canonique(text,text,text,date)', 'dates_courtes_cle_article(text,text,text)',
+    'dates_courtes_total_brut(text,text,uuid,text,uuid)', 'dates_courtes_porte_tournee(text,uuid,timestamptz)',
+    'dates_courtes_signaler_modification(uuid)', 'dates_courtes_demarque_active(uuid)',
+    'dates_courtes_version_tournee(uuid)', 'dates_courtes_quantites_courantes(timestamptz)', 'dates_courtes_quantite_courante(text,text,date)',
+    'dates_courtes_est_provisoire(text)', 'dates_courtes_enregistrer(text,text,jsonb)',
+    'dates_courtes_creer_tournee(text,text)', 'dates_courtes_terminer_tournee(uuid)', 'dates_courtes_certifier_tournee(uuid,text,text)',
+    'dates_courtes_demander_correction(uuid,uuid[],text,text)', 'dates_courtes_repondre_correction(uuid,text)',
+    'dates_courtes_comptabiliser_demarque(uuid,integer,text,text,timestamptz)', 'dates_courtes_annuler_demarque(uuid,text)',
+    'dates_courtes_regler_acces_caissier(boolean)', 'dates_courtes_poser_correspondance(text,text,text)', 'dates_courtes_annuler_correspondance(uuid,text)',
+    'dates_courtes_avant_insertion()', 'dates_courtes_avant_annulation()', 'dates_courtes_avant_correspondance()', 'dates_courtes_avant_demarque()'] loop
     execute format('revoke all on function %s from public, anon, authenticated, service_role', f);
     if f not like 'dates_courtes_avant_%' then
       execute format('grant execute on function %s to authenticated', f);
@@ -691,12 +1134,16 @@ begin
   end loop;
 end $$;
 
-comment on table dates_courtes_releves is 'Dates courtes : relevés d''une date limite. Ajout seul, annulation tracée. La tournée, l''heure de réception et la clé de groupe sont posées par le serveur.';
-comment on table dates_courtes_corrections is 'Dates courtes : corrections signées d''un groupe. Ajout seul, annulation tracée. Plancher à zéro vérifié sous verrou.';
+comment on table dates_courtes_tournees is 'Dates courtes : tournées individuelles. Chaque employé autorisé crée et mène la sienne, plusieurs peuvent être ouvertes dans une station. États EN_COURS, TERMINEE_A_CERTIFIER, CERTIFIEE, CORRECTION_DEMANDEE, changés par fonction serveur seulement.';
+comment on table dates_courtes_releves is 'Dates courtes : relevés d''une date limite. Ajout seul, annulation tracée. La clé de groupe, l''heure de réception et les marques de rattachement sont posées par le serveur.';
+comment on table dates_courtes_corrections is 'Dates courtes : corrections signées d''un groupe dans une tournée. Ajout seul, annulation tracée. Plancher à zéro vérifié sous verrou.';
 comment on table dates_courtes_retraits is 'Dates courtes : retraits physiques confirmés. Ajout seul. Ce n''est ni une vente ni une démarque.';
-comment on table dates_courtes_tournees is 'Dates courtes : tournées de relevé, une par semaine et par station par défaut (lundi 00:00, heure de la Martinique), ouverture manuelle par la gestion. Jamais fermée.';
+comment on table dates_courtes_demarques is 'Dates courtes : démarque comptabilisée sur un retrait physique. Ajout seul, annulation tracée. Aucune valeur en euros, aucune écriture comptable, aucun lien avec Decenium.';
 comment on table dates_courtes_correspondances is 'Dates courtes : rattachements « même produit que… » (libellé ou EAN). Ajout seul, annulation tracée. Historique intact.';
-comment on table dates_courtes_acces_caissiere is 'Dates courtes : réglage d''accès caissière par station, historique en ajout seul, la dernière ligne fait foi. Fermé par défaut.';
-comment on view dates_courtes_quantites_actives is 'Quantité active par groupe dans la tournée en cours, jamais sous zéro. Droits de l''appelant.';
-comment on function dates_courtes_enregistrer(text, text, jsonb) is 'Écrit un relevé, une correction, un retrait, un trouvé-et-retiré, un changement de date ou une annulation. Rôle et station relus depuis le compte, idempotent.';
+comment on table dates_courtes_acces_caissier is 'Dates courtes : réglage d''accès caissier par station, historique en ajout seul, la dernière ligne fait foi. Fermé par défaut.';
+comment on table dates_courtes_certifications is 'Dates courtes : certifications de tournée, en ajout seul. Une nouvelle certification s''ajoute, l''ancienne reste tracée.';
+comment on table dates_courtes_demandes_correction is 'Dates courtes : demandes de correction (relevés visés, motif) et réponse du réalisateur. Écrites par fonction serveur seulement.';
+comment on function dates_courtes_quantites_courantes(timestamptz) is 'Quantité courante par ligne de date limite : la tournée du dernier relevé effectif l''emporte, jamais d''addition entre tournées. Âge depuis le dernier relevé effectif, fuseau Martinique. Droits de l''appelant.';
+comment on function dates_courtes_enregistrer(text, text, jsonb) is 'Écrit un relevé, une correction, un retrait, un trouvé-et-retiré, un changement de date ou une annulation dans sa propre tournée. Rôle et station relus depuis le compte, idempotent.';
 comment on function dates_courtes_total_brut(text, text, uuid, text, uuid) is 'Total brut d''un groupe dans une tournée. Réservé aux déclencheurs de plancher.';
+comment on function dates_courtes_comptabiliser_demarque(uuid, integer, text, text, timestamptz) is 'Démarque comptabilisée sur un retrait physique, cumul au plus égal à la quantité retirée. Gestion seule. Aucune écriture comptable.';
