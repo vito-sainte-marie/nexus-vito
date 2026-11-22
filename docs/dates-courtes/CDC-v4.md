@@ -89,7 +89,7 @@ Fiches : `fiche-lot-1.md` à `fiche-lot-3.md` (le lot 4 est fiché dans la branc
 
 ## 7. Qualification de la migration
 
-La migration du lot 1 est soumise à la garde ORDRE-MIGRATION-CODE. Une qualification est planifiée dans `docs/deploiement/qualification-ordre-migration-code.json` pour qu'un passage futur en Production ne soit pas bloqué. Elle n'est pas déposée tant que la migration n'a pas été relue par Guardian, et rien n'est déployé.
+La migration du lot 1 est soumise à la garde ORDRE-MIGRATION-CODE. Une qualification est planifiée dans `docs/deploiement/qualification-ordre-migration-code.json` pour qu'un passage futur en Production ne soit pas bloqué. Elle est déposée le 22/11, après application de la migration sur Test par Guardian et recette RLS 36/36 (#160, 7079549597). Elle atteste Test seulement : rien n'est appliqué en Production, qui exige un GO distinct du pilote, comme la fusion de #352.
 
 ## 8. Hors périmètre
 
