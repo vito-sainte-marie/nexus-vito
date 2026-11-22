@@ -31,7 +31,6 @@ body.v375 .cadre.d,body.v1280 .cadre.m{display:none}
 .bouton.actif{border-color:var(--cyan);color:var(--cyan)}
 .bouton img{width:24px;height:24px}
 .rang{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;align-items:center}
-.tuile{width:44px;height:44px;border:1px dashed var(--text-dim);border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--text-mid);font-size:9px;text-align:center;line-height:1.1;flex:none}
 .tete{display:flex;gap:12px;align-items:center}
 .tournee{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 12px;border:1px solid var(--cyan);border-radius:8px;background:var(--panel-raised);font-weight:600}
 .pave{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
