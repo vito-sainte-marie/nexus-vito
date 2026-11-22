@@ -102,6 +102,7 @@ La certification ne déclenche aucune démarque et ne bloque ni la clôture ni l
 | auteur, cree_le, heure_geste, commentaire | trace |
 | annule_le, annule_par, motif_annulation | annulation tracée |
 
+- Addition seulement entre les saisies d'un même auteur dans une même tournée ; un auteur peut mener plusieurs tournées, qui ne s'additionnent pas entre elles (la tournée du dernier relevé fait foi). Aucune colonne ni contrainte ne lie une tournée au quart ou limite le nombre de tournées ouvertes par auteur.
 - Le retrait physique diminue la quantité courante de la ligne (article, date), quelle que soit la tournée où il est saisi, s'il est postérieur ou égal au dernier relevé effectif de cette ligne (et non de l'article). Plancher vérifié sous verrou sur cette quantité courante (`plancher_zero`). Exemple : M1 relève X à 10:00, D1 = 5, D2 = 4 ; R1 retire 2 de D1 à 11:00 ; D1 = 3, D2 = 4, tournée de référence M1, âge depuis 10:00.
 - Geste « trouvé et retiré » : un seul retrait marqué `trouve`, sans relevé. Il n'est jamais refusé par le plancher, ne crée aucune quantité sur un article jamais relevé et ne désigne aucune tournée. Autorisé au renfort.
 - La quantité courante se calcule sur toutes les tournées de la station (fonction serveur, site lu depuis le compte, opérateurs et caissier habilité). Le détail des autres tournées n'est rendu qu'à la gestion ; renfort et manager obtiennent la même quantité, la même tournée de référence et la même échéance.

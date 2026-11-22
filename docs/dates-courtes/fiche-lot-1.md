@@ -33,9 +33,9 @@ Tournées individuelles :
 
 Quantités :
 
-- Dans une tournée, un même article et une même date s'additionnent, corrections comprises : 6 + 4 − 2 = 8. Plancher à zéro par tournée.
+- Addition seulement entre les saisies d'un même auteur dans une même tournée : un même article et une même date s'additionnent, corrections comprises : 6 + 4 − 2 = 8. Plancher à zéro par tournée.
 - Un relevé, une correction ou un retrait appartient à la tournée de son geste et ne compte que dans celle-ci. Un geste hors ligne compte à l'heure du geste, jamais à l'heure de réception.
-- Entre tournées, jamais d'addition. Une tournée qui relève un article l'a relevé en entier.
+- Entre tournées, jamais d'addition, y compris deux tournées du même auteur (nombre illimité, simultanées possibles ; la dernière relevée fait foi ; pas de lien avec `quart_id`). Saisir dans la tournée d'un autre est refusé (`tournee_interdite`). Une tournée qui relève un article l'a relevé en entier.
 - La tournée qui porte le dernier relevé effectif de l'article (heure du geste) l'emporte, que les tournées soient simultanées ou non. Ses quantités par date sont les quantités courantes. Les autres passent en historique, avec la seule mention « relevé aussi dans la tournée X (M1, 10:15), en historique ». Ni écran ni table de résolution de conflit.
 - Une date non retrouvée dans la tournée gagnante n'a aucune quantité courante, elle reste en historique. Son absence n'est ni une vente, ni une destruction, ni une démarque : aucun mouvement n'est écrit.
 - Quantité courante calculée par vue ou fonction, jamais stockée comme vérité.

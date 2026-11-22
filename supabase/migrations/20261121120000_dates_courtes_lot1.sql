@@ -636,7 +636,7 @@ end $$;
 -- 8. Quantité courante, par ligne de date limite. Jamais stockée : calculée à la lecture, sur toutes les tournées de la station.
 -- Pour chaque article, la tournée qui porte le dernier relevé effectif (heure du geste) l'emporte ; ses relevés et corrections par date donnent la base de chaque ligne.
 -- Un retrait physique n'est pas un relevé : il ne désigne jamais la tournée de référence et ne rajeunit jamais une ligne. Il diminue la quantité courante de la ligne
--- (article, date) de la station, quelle que soit la tournée où il est saisi, s'il est de la tournée de référence ou postérieur au relevé de référence.
+-- (article, date) de la station, quelle que soit la tournée où il est saisi, s'il est postérieur ou égal au dernier relevé de sa ligne.
 -- Un retrait (article, date) ne compte que s'il est postérieur ou égal au dernier relevé effectif de cette ligne.
 -- Un retrait sur un article jamais relevé ne crée aucune quantité courante. Aucune addition entre tournées.
 -- Âge : jours calendaires (fuseau Martinique) depuis le dernier relevé effectif de la ligne, jamais depuis un retrait, une certification ou une clôture.

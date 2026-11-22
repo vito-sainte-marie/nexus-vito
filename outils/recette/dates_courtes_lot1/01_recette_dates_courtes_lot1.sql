@@ -600,6 +600,33 @@ begin
   r := pg_temp.n(r, '30 un retrait antérieur au relevé de référence, saisi ailleurs, n''est pas déduit', '=5', pg_temp.ligne('quantite', pg_temp.e('E1'), pg_temp.d('d1')));
   return r;
 end $$;
+create function pg_temp.c31(a text default null) returns jsonb language plpgsql as $$
+declare r jsonb := '[]'; tr text; o text;
+begin
+  perform pg_temp.comme('RF1'); tr := pg_temp.tn('t31r');
+  perform pg_temp.relh('c31a', tr, pg_temp.e('E1'), pg_temp.d('d1'), 5, 6);
+  perform pg_temp.comme('M1');
+  o := pg_temp.relh('c31b', tr, pg_temp.e('E2'), pg_temp.d('d1'), 4, 4);
+  r := pg_temp.n(r, '31 on ne saisit pas dans la tournée d''un autre', 'tournee_interdite', o);
+  r := pg_temp.n(r, '31 aucune ligne créée pour l''article refusé', '=', coalesce(pg_temp.ligne('quantite', pg_temp.e('E2'), pg_temp.d('d1')), ''));
+  r := pg_temp.n(r, '31 la quantité de l''auteur est inchangée', '=5', pg_temp.ligne('quantite', pg_temp.e('E1'), pg_temp.d('d1')));
+  return r;
+end $$;
+
+create function pg_temp.c32(a text default null) returns jsonb language plpgsql as $$
+declare r jsonb := '[]'; ta text; tb text;
+begin
+  perform pg_temp.comme('RF1'); ta := pg_temp.tn('t32a'); tb := pg_temp.tn('t32b');
+  perform pg_temp.relh('c32a', ta, pg_temp.e('E1'), pg_temp.d('d1'), 5, 6);
+  perform pg_temp.relh('c32b', tb, pg_temp.e('E1'), pg_temp.d('d1'), 3, 4);
+  r := pg_temp.n(r, '32 deux tournées du même auteur ne s''additionnent pas : la dernière fait foi', '=3', pg_temp.ligne('quantite', pg_temp.e('E1'), pg_temp.d('d1')));
+  r := pg_temp.n(r, '32 les deux tournées sont ouvertes en même temps', '=2', pg_temp.vrai(format('select count(*)::text from dates_courtes_tournees where id in (%L, %L) and etat = ''EN_COURS''', ta, tb)));
+  r := pg_temp.n(r, '32 terminer la première', 'terminee', pg_temp.appel(format('dates_courtes_terminer_tournee(%L)', ta)));
+  r := pg_temp.n(r, '32 la seconde reste en cours', 'EN_COURS', pg_temp.vrai(format('select etat from dates_courtes_tournees where id = %L', tb)));
+  r := pg_temp.n(r, '32 terminer la seconde', 'terminee', pg_temp.appel(format('dates_courtes_terminer_tournee(%L)', tb)));
+  return r;
+end $$;
+
 -- Exécution : chaque cas dans un sous-bloc annulé ; le résultat survit par la variable.
 create function pg_temp.jouer(nom text, arg text default null) returns void language plpgsql as $$
 declare r jsonb := null; e jsonb; lbl text := nom || coalesce(' ' || arg, '');
@@ -654,6 +681,8 @@ select pg_temp.jouer('c27');
 select pg_temp.jouer('c28');
 select pg_temp.jouer('c29');
 select pg_temp.jouer('c30');
+select pg_temp.jouer('c31');
+select pg_temp.jouer('c32');
 
 do $rapport$
 declare j jsonb;

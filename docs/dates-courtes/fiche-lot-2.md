@@ -9,13 +9,23 @@ Permettre à un employé autorisé de créer sa propre tournée, de relever libr
 ## 2. Parcours
 
 1. Accueil « Mes tournées » et « Nouvelle tournée » (nom facultatif). Plusieurs tournées peuvent être ouvertes en même temps.
-2. Identification du produit : scan, recherche par nom, saisie de l'EAN.
+2. Identification du produit : scan caméra, douchette Bluetooth, recherche par nom, saisie de l'EAN.
 3. Feuille de saisie : date limite, quantité relevée, photo facultative, Enregistrer.
 4. Ajouter des unités, corriger, changer la date, annuler avec motif. Mention « relevé aussi dans la tournée X (M1, 10:15), en historique ». Aucun écran de résolution de conflit.
 5. Geste « trouvé et retiré » (cas 43).
 6. « Terminer ma tournée » avec récapitulatif. Bouton bloqué tant qu'une saisie est En attente (cas 32, contrôle côté appareil).
 7. Réponse à une demande de correction : la tournée repasse à certifier (cas 38).
 8. Produit sans EAN trouvé par nom. EAN inconnu : entrée provisoire, aucune référence créée.
+
+Contrôler : l'écran liste les tournées ouvertes de l'auteur (il peut en avoir plusieurs) et affiche le nom de la tournée pendant la saisie, pour qu'il sache dans laquelle il relève.
+
+### Douchette Bluetooth (lot 2)
+
+- Douchette en mode clavier HID ; réglage sur l'appareil « Caméra » / « Douchette » avec suffixe (Entrée) à confirmer.
+- Champ de saisie gardant le focus ; pavé numérique à l'écran et boutons + et − pour la quantité.
+- Option : préremplissage de la date limite depuis l'identifiant GS1 AI 17 si le code le porte.
+- Réglage par défaut par station : option, non décidée.
+- 4 cas de recette lot 2 (saisie douchette, suffixe, focus, AI 17) ; maquettes Jour et Nuit à 375 et 1280 px selon `nexus-design-experience` et NEXUS-REFERENTIEL-CONCEPTION v1.0.
 
 Accès : renfort, manager, gérant, créateur ; caissier seulement si l'accès de la station est ouvert ; pompiste et vacataire refusés.
 

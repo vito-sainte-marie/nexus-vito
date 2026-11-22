@@ -13,7 +13,7 @@ Vocabulaire imposé : « quantité relevée », jamais « stock ». Toute quanti
 
 1. Pas un inventaire. Circulation libre : on scanne ou on cherche, on saisit la date limite et la quantité, on enregistre, on continue.
 2. Pas de zones.
-3. Identification d'un produit : scan caméra iPhone Safari, recherche par nom ou EAN, saisie manuelle de l'EAN, photo facultative, EAN inconnu en entrée provisoire marquée (aucune référence créée), produit sans EAN par libellé normalisé, geste manager « même produit que… ». Inchangé depuis la v3.
+3. Identification d'un produit : scan caméra iPhone Safari (lot 2 : douchette Bluetooth en mode clavier HID, voir fiche lot 2), recherche par nom ou EAN, saisie manuelle de l'EAN, photo facultative, EAN inconnu en entrée provisoire marquée (aucune référence créée), produit sans EAN par libellé normalisé, geste manager « même produit que… ». Inchangé depuis la v3.
 4. Une seule « Date limite », sans type.
 5. Clé de consolidation : station + EAN normalisé (sans EAN : libellé normalisé) + date limite exacte.
 6. **Tournées individuelles.**
@@ -23,7 +23,8 @@ Vocabulaire imposé : « quantité relevée », jamais « stock ». Toute quanti
    - « Terminer ma tournée » enregistre l'auteur, l'heure et une version identifiable des relevés consolidés (empreinte et identifiant de la dernière opération). Le bouton est bloqué tant que le téléphone a des saisies en attente (contrôle côté appareil).
    - Une saisie reçue après la clôture mais faite avant elle est rattachée à sa tournée et marquée « reçue après clôture ». Une tournée déjà certifiée repasse alors à certifier.
 7. **Quantités.**
-   - Dans une tournée, un même EAN (ou libellé normalisé) et une même date s'additionnent, corrections comprises : 6 + 4 − 2 = 8. Plancher à zéro, par tournée.
+   - Addition seulement entre les saisies d'un même auteur dans une même tournée : un même EAN (ou libellé normalisé) et une même date s'additionnent, corrections comprises : 6 + 4 − 2 = 8. Plancher à zéro, par tournée.
+   - Un auteur peut ouvrir autant de tournées qu'il veut, y compris en même temps. Conséquence : deux tournées du même auteur ne s'additionnent pas ; la tournée du dernier relevé fait foi (5 dans A puis 3 dans B : quantité courante 3). Aucun lien avec le quart (`quart_id`). Nul ne saisit dans la tournée d'un autre (`tournee_interdite`).
    - Entre tournées, jamais d'addition automatique.
    - Une tournée qui relève un article l'a relevé en entier : pas de relevé partiel d'un article.
    - La tournée qui porte le dernier relevé effectif d'un article, à l'heure du geste, l'emporte, que les tournées soient simultanées ou non. Ses quantités par date sont les quantités courantes de l'article. Les autres passent en historique.
