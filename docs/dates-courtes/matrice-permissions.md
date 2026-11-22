@@ -37,3 +37,8 @@ Règles :
 - Aucun accès `anon`.
 
 Limites : la cellule « caissier, ses tournées en lecture » reste une hypothèse de travail. Le rôle `vacataire` n'est pas arbitré.
+
+## Lot 5 : Prévention des pertes
+
+- Lecture par `dates_courtes_prevention_pertes` : manager, gérant, créateur, de leur station. Refus serveur pour renfort, caissier, pompiste, vacataire, `anon`.
+- Aucune écriture au lot 5 ; les actions de prévention arrivent au lot 6.

@@ -13,7 +13,7 @@ const path = require('path');
 // Produits y entrera après la recette de sa refonte.
 const PAGES_CONTROLEES = [];
 // Page examinée à titre indicatif seulement.
-const PAGES_INDICATIVES = ['NEXUS-Produits-v1.html'];
+const PAGES_INDICATIVES = ['NEXUS-Produits-v1.html', 'NEXUS-Dates-Courtes-v1.html'];
 
 const RACINE = __dirname;
 const RE_EMOJI_ETAT = /[\u{1F534}\u{1F7E0}\u{1F7E1}\u{1F7E2}\u{1F535}\u{26A0}\u{2705}\u{274C}\u{2757}\u{2714}\u{2716}\u{1F6A8}\u{26D4}\u{1F6D1}]/u;

@@ -294,6 +294,7 @@ const NEXUS_PAGES_OPERATIONNELLES = [
   'NEXUS-Stock-Localise-v1.html',
   'NEXUS-Rayon-v1.html',
   'NEXUS-Produits-v1.html',
+  'NEXUS-Dates-Courtes-v1.html',
   'NEXUS-Carburants-v1.html',
   'NEXUS-Carburant-Reception-v1.html',
   'NEXUS-Releves-Piste-v1.html',

@@ -59,3 +59,17 @@ Les trois cas de résolution de conflit à trois choix sont retirés : il n'y a 
 Autres preuves attendues aux lots 2 à 4 : maquettes Jour et Nuit, captures à largeur iPhone, recette Safari iOS sur appareil réel, exports.
 
 Limite : aucun de ces cas n'a été joué sur Test. Le plan décrit ce qu'il faudra démontrer.
+
+## Lot 5 : Prévention des pertes
+
+| # | Cas | Résultat attendu | Lot |
+|---|-----|------------------|-----|
+| 45 | Manager ouvre la page | Compteurs, A, B, C, D, liste ; A, B, C, D jamais additionnés | 5 |
+| 46 | Vacataire, pompiste, caissier, renfort | `droit_refuse` côté serveur ; écran « Accès réservé à la gestion » | 5 |
+| 47 | Nature fiscale non déterminée | Unités seulement, aucun montant | 5 |
+| 48 | Ligne sans prix d'achat | Unités comptées, hors montant, signalée | 5 |
+| 49 | Démarque antérieure au lot 5 | B « Partiellement reconstitué », part reconstituée affichée | 5 |
+| 50 | C et D | « Calcul indisponible » et quatre raisons, jamais « Estimation » | 5 |
+| 51 | Dix secondes sur iPhone | Un manager non formé nomme en moins de 10 s le premier produit à traiter, sa quantité, son échéance et l'action attendue | 5 |
+
+Rappel : la recette locale du lot 5 compte 76 contrôles (banc pglite). Les cas ci-dessus restent à jouer sur Test après GO.

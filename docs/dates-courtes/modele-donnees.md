@@ -132,3 +132,9 @@ Un réglage booléen « accès caissier », fermé par défaut, modifiable par m
 - Rôle `vacataire` : aucun accès (arbitrage du pilote du 21/11).
 - Emplacement du réglage de station.
 - Couverture du libellé normalisé au delà des deux périodes mesurées (voir `questions-metier.md`).
+
+## 9. Lot 5 : Prévention des pertes
+
+- Fonctions de lecture : `dates_courtes_prevention_pertes(p_instant)` (jsonb) et `dates_courtes_nature_fiscale(site, date)` (comparaison des prix d'achat, tolérance 1,5 %).
+- Aucune nouvelle table de données ; B s'appuie sur le prix figé à la comptabilisation, « prix reconstitué » avant le lot 5.
+- Limite : un site sans import d'inventaire reste en nature non déterminée.

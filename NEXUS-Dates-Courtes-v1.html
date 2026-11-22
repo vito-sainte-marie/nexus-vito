@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="manifest" href="site.webmanifest">
+<meta name="theme-color" content="#07131E">
+<title>NEXUS : Prévention des pertes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --t-bg:#07131E; --t-panel:#0D202E; --t-raised:#0F2433; --t-line:#254354;
+    --t-text:#EDF1F5; --t-mid:#9AA8B6; --t-cyan:#24D8E3; --t-green:#29C98A; --t-amber:#F5A12A; --t-red:#F0707A;
+    --t-mono:'IBM Plex Mono',ui-monospace,monospace; --t-sans:'IBM Plex Sans',system-ui,sans-serif;
+    --bg:var(--t-bg); --panel:var(--t-panel); --panel-raised:var(--t-raised); --hairline:var(--t-line);
+    --text:var(--t-text); --text-mid:var(--t-mid); --text-dim:var(--t-mid);
+    --green:var(--t-green); --amber:var(--t-amber); --red:var(--t-red); --cyan:var(--t-cyan);
+    --amber-dim:color-mix(in srgb,var(--t-amber) 16%,transparent); --red-dim:color-mix(in srgb,var(--t-red) 16%,transparent);
+    --green-dim:color-mix(in srgb,var(--t-green) 16%,transparent); --cyan-dim:color-mix(in srgb,var(--t-cyan) 14%,transparent);
+    --mono:var(--t-mono); --sans:var(--t-sans);
+  }
+  :root[data-theme="jour"]{
+    --t-bg:#F4F6F8; --t-panel:#FFFFFF; --t-raised:#EEF2F5; --t-line:#D5DCE3; --t-text:#0F172A; --t-mid:#475569;
+    --t-cyan:#0B7285; --t-green:#047857; --t-amber:#B45309; --t-red:#B91C1C;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:var(--t-bg);color:var(--t-text);font-family:var(--t-sans);min-height:100vh}
+  body{display:flex;justify-content:center;font-variant-numeric:tabular-nums}
+  .app{width:100%;max-width:1100px;min-height:100vh;display:flex;flex-direction:column;padding:env(safe-area-inset-top) 16px 40px;overflow-x:hidden}
+
+  /* En-tête bannière : règles de la bannière Dates courtes (image entière, 2/1 puis 3/1). */
+  .header{position:relative;margin:12px 0 0;border-radius:14px;overflow:hidden;box-shadow:0 0 0 1px var(--hairline);aspect-ratio:3/1;display:flex;align-items:flex-end;background:#0D202E} /* charte-exception: fond de repli avant chargement de l'image, repris de Produits */
+  .header picture{position:absolute;inset:0;display:block}
+  .header img.entete{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+  .header::after{content:'';position:absolute;inset:0;background:linear-gradient(0deg,rgba(7,19,30,.85) 0%,rgba(7,19,30,0) 60%)} /* charte-exception: dégradé de lisibilité sur image */
+  @media (max-width:599px){.header{aspect-ratio:2/1}.header::after{background:linear-gradient(0deg,rgba(7,19,30,.9) 0%,rgba(7,19,30,.55) 45%,rgba(7,19,30,0) 80%)}.header-texte{padding:12px}.header-texte .eyebrow{font-size:10px;line-height:1.3}.header-texte .title{font-size:20px;line-height:1.2;margin-top:2px}.header-texte .sous{font-size:11px;margin-top:2px}}
+  .header-texte{position:relative;z-index:1;padding:18px;width:100%;color:#EDF1F5} /* charte-exception: texte clair posé sur le dégradé sombre, identique en Jour et Nuit */
+  .header-texte .eyebrow{font:600 11px var(--mono);letter-spacing:.08em;text-transform:uppercase;opacity:.85}
+  .header-texte .title{margin:4px 0 0;font:700 24px/1.2 var(--sans)}
+  .header-texte .sous{margin:4px 0 0;font-size:12px;opacity:.9}
+
+  .retour{display:inline-block;margin:12px 0 0;font-size:13px;color:var(--text-mid);text-decoration:none;min-height:44px;line-height:44px}
+  .retour:hover{color:var(--cyan)}
+  h2{font-size:15px;font-weight:700;margin:22px 0 4px}
+  .aide{font-size:12px;color:var(--text-mid);line-height:1.45}
+
+  .priorites{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px}
+  .prio{background:var(--panel);border:1px solid var(--hairline);border-radius:12px;padding:12px;text-align:left;color:inherit;font:inherit;cursor:pointer;min-height:44px}
+  .prio:hover{border-color:var(--cyan)}
+  .prio[aria-pressed="true"]{border-color:var(--cyan);box-shadow:0 0 0 1px var(--cyan)}
+  .prio .n{display:block;font:700 26px var(--mono)}
+  .prio .l{display:block;font-size:12px;color:var(--text-mid);margin-top:2px}
+  .prio.rouge .n{color:var(--red)} .prio.ambre .n{color:var(--amber)} .prio.cyan .n{color:var(--cyan)}
+
+  .cartes{display:grid;grid-template-columns:1fr;gap:12px;margin-top:12px}
+  @media (min-width:900px){.cartes{grid-template-columns:1fr 1fr}}
+  .card{background:var(--panel);border:1px solid var(--hairline);border-radius:12px;padding:16px}
+  .card h3{font-size:12px;font-weight:600;color:var(--text-mid);display:flex;align-items:center;gap:8px;line-height:1.35}
+  .card .gros{font:700 28px var(--mono);margin-top:8px}
+  .card .sous-gros{font-size:12px;color:var(--text-mid);margin-top:6px;line-height:1.45}
+  .card .note{font-size:12px;margin-top:8px;line-height:1.45}
+  .card.indispo .gros{font-size:18px;color:var(--text-mid)}
+  .info{margin-left:auto;flex:none;width:28px;height:28px;border-radius:50%;border:1px solid var(--hairline);background:var(--panel-raised);color:var(--text);font:600 13px var(--sans);cursor:pointer;min-width:44px;min-height:44px;margin:-8px -8px -8px auto;border-color:transparent;background:transparent}
+  .info span{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;border:1px solid var(--hairline);background:var(--panel-raised)}
+  .infobulle{margin-top:10px;padding:10px 12px;border-radius:8px;background:var(--panel-raised);border:1px solid var(--hairline);font-size:12px;line-height:1.5}
+  .infobulle[hidden]{display:none}
+  .infobulle b{font-family:var(--mono)}
+  .pastille{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;border:1px solid currentColor}
+  .p-ambre{color:var(--amber);background:var(--amber-dim)} .p-vert{color:var(--green);background:var(--green-dim)}
+  .p-rouge{color:var(--red);background:var(--red-dim)} .p-cyan{color:var(--cyan);background:var(--cyan-dim)}
+  .estim{color:var(--text-mid)}
+
+  .liste{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+  .ligne{display:grid;grid-template-columns:48px 1fr;gap:4px 12px;align-items:start;text-align:left;width:100%;background:var(--panel);border:1px solid var(--hairline);border-radius:10px;padding:12px;color:inherit;font:inherit;cursor:pointer;min-height:44px}
+  .ligne:hover{border-color:var(--cyan)}
+  .ligne .nom{font-weight:600;font-size:14px;overflow-wrap:anywhere}
+  .ligne .meta{font-size:12px;color:var(--text-mid);grid-column:1/-1}
+  .ligne .corps-l{display:flex;flex-direction:column;align-items:flex-start;gap:3px;min-width:0}
+  .ligne .vign{width:48px;height:48px;display:flex;align-items:center;justify-content:center;border-radius:8px;background:var(--panel-2,transparent);border:1px solid var(--hairline);overflow:hidden}
+  .ligne .vign img,.ligne .vign .pt-vign-neutre{width:100%;height:100%;object-fit:contain;display:block}
+  .ligne .delai{font-weight:600;font-size:13px}
+  .ligne .dlc{font-size:12px;color:var(--text-mid)}
+  .ligne .chiffres{font-size:13px;overflow-wrap:anywhere}
+  .ligne .chiffres .num{font-family:var(--mono);font-weight:600}
+  .ligne .ean{font:12px var(--mono);color:var(--text-mid)}
+  .ligne .l1{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:4px 8px;width:100%}
+  .ligne .badges{display:inline-flex;flex-wrap:wrap;gap:4px}
+  .ligne .l2{font-size:12px;overflow-wrap:anywhere}
+  .ligne .meta{grid-column:auto;color:var(--text-mid)}
+  @media (min-width:1280px){.ligne{grid-template-columns:56px 1fr}.ligne .vign{width:56px;height:56px}}
+  .filtres{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+  .filtres button{min-height:44px;padding:0 14px;border-radius:999px;border:1px solid var(--hairline);background:var(--panel);color:var(--text);font:600 12px var(--sans);cursor:pointer}
+  .filtres button[aria-pressed="true"]{border-color:var(--cyan);color:var(--cyan)}
+
+  details.panneau{margin-top:12px;background:var(--panel);border:1px solid var(--hairline);border-radius:12px}
+  details.panneau>summary{min-height:44px;padding:12px 16px;cursor:pointer;font-size:13px;font-weight:600;list-style:none;display:flex;align-items:center}
+  details.panneau>summary::-webkit-details-marker{display:none}
+  details.panneau>summary::after{content:'+';margin-left:auto;color:var(--text-mid)}
+  details.panneau[open]>summary::after{content:'\2212'}
+  details.panneau .corps{padding:0 16px 16px;font-size:12px;line-height:1.55}
+  .corps table{width:100%;border-collapse:collapse;margin-top:8px}
+  .corps th{font:600 11px var(--mono);text-transform:uppercase;letter-spacing:.05em;color:var(--text-mid);text-align:left;padding:6px 4px;border-bottom:1px solid var(--hairline)}
+  .corps td{padding:8px 4px;border-bottom:1px solid var(--hairline);vertical-align:top}
+  .corps td.num,.corps th.num{text-align:right}
+  .corps li{margin:6px 0 0 18px}
+
+  .etat{margin-top:16px;padding:20px 16px;border:1px dashed var(--hairline);border-radius:12px;text-align:center;color:var(--text-mid);font-size:13px;line-height:1.5}
+  .etat.erreur{border-color:var(--red);color:var(--text)}
+  .etat button{margin-top:12px;min-height:44px;padding:0 18px;border-radius:8px;border:1px solid var(--cyan);background:transparent;color:var(--cyan);font:600 13px var(--sans);cursor:pointer}
+  .bandeau-nf{margin-top:14px;padding:12px 14px;border-radius:10px;background:var(--amber-dim);border:1px solid var(--amber);font-size:13px;line-height:1.45}
+  .squelette{height:84px;border-radius:12px;background:var(--panel);border:1px solid var(--hairline);margin-top:12px;animation:pulse 1.4s ease-in-out infinite}
+  @keyframes pulse{50%{opacity:.5}}
+  @media (prefers-reduced-motion:reduce){.squelette{animation:none}}
+
+  dialog{margin:auto;border:1px solid var(--hairline);border-radius:14px;background:var(--panel);color:var(--text);width:min(520px,calc(100vw - 24px));padding:0;max-height:88vh;overflow:auto}
+  dialog::backdrop{background:rgba(0,0,0,.55)} /* charte-exception: voile de fond de la fiche */
+  .fiche{padding:18px}
+  .fiche h2{margin:0;font-size:17px;overflow-wrap:anywhere}
+  .fiche dl{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin-top:14px;font-size:13px}
+  .fiche dt{color:var(--text-mid)} .fiche dd{text-align:right;font-family:var(--sans)} .fiche dd .num,.fiche dd .autre b{font-family:var(--mono)} .fiche .autres{margin:6px 0 0;padding:0;list-style:none;text-align:left} .fiche .autres li{margin:2px 0} .fiche .regle{grid-column:1/-1;margin:6px 0 0;font-size:13px;color:var(--text-mid);text-align:left}
+  .fiche .actions{display:flex;flex-direction:column;gap:8px;margin-top:16px}
+  .fiche button{min-height:44px;border-radius:8px;border:1px solid var(--hairline);background:var(--panel-raised);color:var(--text);font:600 13px var(--sans);cursor:pointer}
+  .fiche button[disabled]{opacity:.6;cursor:not-allowed}
+  .fiche .dispo{font-size:12px;color:var(--text-mid);text-align:center}
+  :focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+  @media (max-width:599px){.priorites{gap:8px;margin-top:8px}.prio{padding:8px 6px;text-align:center;min-height:56px}.prio .n{font-size:24px;line-height:1.1}.prio .l{font-size:12px}h2{margin-top:14px}}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <a class="retour" href="NEXUS-App-v1.html">Retour à l'accueil</a>
+  <header class="header hero" id="heroDatesCourtes">
+    <picture>
+      <source media="(max-width:599px)" srcset="assets/telephone/dates-courtes-telephone.webp">
+      <img class="entete" src="assets/dates-courtes/dates-courtes-banniere-1200.webp" srcset="assets/dates-courtes/dates-courtes-banniere-800.webp 800w, assets/dates-courtes/dates-courtes-banniere-1200.webp 1200w, assets/dates-courtes/dates-courtes-banniere-1600.webp 1600w" sizes="(min-width:1100px) 1100px, 100vw" width="1600" height="533" alt="">
+    </picture>
+    <div class="header-texte">
+      <div class="eyebrow">NEXUS · Dates courtes</div>
+      <h1 class="title">Prévention des pertes</h1>
+      <p class="sous" id="sousTitre">Lecture réservée à la gestion</p>
+    </div>
+  </header>
+  <main id="contenu" aria-live="polite">
+    <div class="squelette" aria-label="Chargement"></div><div class="squelette"></div><div class="squelette"></div>
+  </main>
+</div>
+<dialog id="fiche" aria-label="Fiche article"></dialog>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="nexus-build.js"></script>
+<script src="nexus-theme.js"></script>
+<script src="nexus-auth.js?v=20261122-0001"></script>
+<script src="nexus-icones.js?v=20261122-0001"></script>
+<script src="nexus-rayons-familles.js?v=20261121-0001"></script>
+<script src="nexus-badge-etat.js"></script>
+<script>
+(function(){
+  'use strict';
+  const racine = document.getElementById('contenu');
+  const fiche = document.getElementById('fiche');
+  let DONNEES = null, FILTRE = 'tous';
+
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const eur = v => new Intl.NumberFormat('fr-FR', {style:'currency', currency:'EUR'}).format(v) + ' HT';
+  const nb = v => new Intl.NumberFormat('fr-FR').format(v);
+  const pl = (n, u, m) => nb(n) + ' ' + (n > 1 ? (m || u + 's') : u);
+  const unites = n => nb(n) + (n > 1 ? ' unités' : ' unité');
+  const dateFr = iso => iso ? iso.slice(8,10) + '/' + iso.slice(5,7) + '/' + iso.slice(0,4) : '';
+  const ETAT_AGE = {courante:'Récent (7 jours ou moins)', a_verifier:'8 à 14 jours : à vérifier', a_recontroler:'Plus de 14 jours : À recontrôler'};
+  const ORIGINE = {fige:'Figé', reconstitue:'Reconstitué', absent:'Absent'};
+  const SOURCE = {products:'Fiche produit', inventaire_ventes_import:'Inventaire des ventes'};
+  const nomArt = it => { const l = (it.libelle || '').trim(); return (!l || l === String(it.ean || '').trim()) ? 'Produit non identifié' : l; };
+  const INCONNU = 'Produit non identifié';
+  const hFr = iso => { try { const p = new Intl.DateTimeFormat('fr-FR', {timeZone:'America/Martinique', day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit', hour12:false}).formatToParts(new Date(iso)).reduce((o, x) => (o[x.type] = x.value, o), {}); return p.day + '/' + p.month + ' à ' + p.hour + ' h ' + p.minute; } catch (e) { return ''; } };
+  const heureSeule = iso => { const t = hFr(iso); return t.split(' à ')[1] || ''; };
+  const ETAT_TOURNEE = {EN_COURS:'en cours', TERMINEE_A_CERTIFIER:'terminée', CERTIFIEE:'certifiée'};
+  const etatTournee = e => ETAT_TOURNEE[e] || String(e || '').toLowerCase().replace(/_/g, ' ');
+  const delaiRel = j => j < 0 ? 'Périmé depuis ' + pl(-j, 'jour') : j === 0 ? 'Expire aujourd\'hui' : j === 1 ? 'Expire demain' : 'Dans ' + pl(j, 'jour');
+  const provisoire = it => it.tournee_etat !== 'CERTIFIEE';
+  function badgeAction(it){
+    const B = window.NexusBadgeEtat; const nom = nomArt(it);
+    let niv = 'a-verifier', lib = 'À vérifier';
+    if (it.action === 'À retirer') { niv = 'critique'; lib = 'À retirer'; }
+    else if (it.action === 'Promotion à envisager') { niv = 'information'; lib = 'Promotion à envisager'; }
+    let h = B ? B.gravite(niv, {libelle: lib}) : '<span>' + esc(lib) + '</span>';
+    if (nom === INCONNU) h += ' ' + (B ? B.gravite('a-verifier', {libelle: 'Identification à vérifier'}) : '<span>Identification à vérifier</span>');
+    return h;
+  }
+  let _avert = false;
+  function vignette(it){
+    const RF = window.NexusRayonsFamilles, NI = window.NexusIcones;
+    const neutre = '<span class="pt-vign-neutre" aria-hidden="true"></span>';
+    if (!RF || !NI || typeof NI.imgCategorie !== 'function') return neutre;
+    // Rayon fiable seulement quand la ligne porte un EAN rapproché de la fiche produit, jamais par similarité de nom.
+    const rayon = it.ean && it.rayon ? it.rayon : null;
+    let id = rayon ? RF.iconeRayon(rayon) : 'cat-petits-articles';
+    let h = '';
+    try { h = NI.imgCategorie(id, 56, {decoratif: true}); } catch (e) { h = ''; }
+    if (!h && id !== 'cat-petits-articles') { if (!_avert) { _avert = true; console.warn('Dates courtes : pictogramme de famille inconnu, repli sur le générique'); } try { h = NI.imgCategorie('cat-petits-articles', 56, {decoratif: true}); } catch (e) { h = ''; } }
+    return h ? h.replace('<img ', '<img loading="lazy" decoding="async" ') : neutre;
+  }
+  function chiffres(it, nfOk){
+    const prov = provisoire(it) ? ' <span class="aide">provisoire</span>' : '';
+    const v = nfOk && it.valeur != null ? '<span class="num">' + eur(it.valeur) + '</span> au coût d\'achat' + prov : (nfOk ? 'Valeur non calculable (prix d\'achat absent)' : 'Aucun montant (nature fiscale non déterminée)');
+    return '<span class="chiffres">' + unites(it.quantite) + ' · ' + v + '</span>';
+  }
+  const heureMq = iso => { try { return new Date(iso).toLocaleString('fr-FR', {timeZone:'America/Martinique', day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'}).replace(',', ' à'); } catch (e) { return ''; } };
+  const agePhrase = n => n === 0 ? 'relevé aujourd\'hui' : 'relevé il y a ' + pl(n, 'jour');
+
+  function messageEtat(titre, texte, avecReessai){
+    racine.innerHTML = '<div class="etat' + (avecReessai ? ' erreur' : '') + '" role="' + (avecReessai ? 'alert' : 'status') + '"><b>' + esc(titre) + '</b><br>' + esc(texte) +
+      (avecReessai ? '<br><button type="button" id="reessai">Réessayer</button>' : '') + '</div>';
+    const b = document.getElementById('reessai'); if (b) b.onclick = charger;
+  }
+
+  const MOIS = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+  function calculeLe(){
+    const t = new Date(); const p = new Intl.DateTimeFormat('fr-FR', {timeZone:'America/Martinique', day:'numeric', month:'numeric', year:'numeric', hour:'2-digit', minute:'2-digit', hour12:false}).formatToParts(t).reduce((o, x) => (o[x.type] = x.value, o), {});
+    return p.day + ' ' + MOIS[Number(p.month) - 1] + ' ' + p.year + ' à ' + p.hour + ' h ' + p.minute;
+  }
+  function dernierReleve(iso){
+    if (!iso) return 'aucun';
+    const fmt = x => new Intl.DateTimeFormat('fr-CA', {timeZone:'America/Martinique'}).format(new Date(x));
+    const j = fmt(iso), auj = fmt(new Date()), hier = fmt(new Date(Date.now() - 864e5));
+    const h = heureSeule(iso);
+    return (j === auj ? 'aujourd\'hui' : j === hier ? 'hier' : 'le ' + hFr(iso).split(' à ')[0]) + ' à ' + h;
+  }
+  function carteA(d){
+    const a = d.a, nf = d.nature_fiscale, m = d.marge.a;
+    let corps, tout = false;
+    if (!nf.determinee) {
+      corps = '<div class="gros">' + unites(a.unites) + '</div><div class="note"><span class="pastille p-ambre">Nature fiscale non déterminée</span></div>' +
+        '<p class="sous-gros">Aucun montant tant que la nature fiscale n\'est pas déterminée.</p>';
+    } else {
+      tout = a.valeur != null && a.valeur > 0 && Math.abs((a.dont_non_certifiees || 0) - a.valeur) < 0.005;
+      corps = '<div class="gros">' + (a.valeur == null ? 'Aucun montant' : eur(a.valeur)) + '</div>' +
+        (tout ? '<p class="sous-gros">Aucun relevé certifié : à confirmer par la certification des tournées.</p>' : (a.valeur != null && (a.dont_non_certifiees || 0) > 0 ? '<p class="sous-gros">dont ' + eur(a.dont_non_certifiees) + ' provisoires (relevés non certifiés)</p>' : '')) +
+        '<p class="sous-gros">' + pl(a.articles_valorises, 'article valorisé', 'articles valorisés') + ', ' + unites(a.unites) + '.</p>' +
+        (a.sans_prix.lignes > 0 ? '<p class="note">' + pl(a.sans_prix.lignes, 'ligne') + ' sans prix d\'achat (' + unites(a.sans_prix.unites) + ') : hors montant.</p>' : '');
+    }
+    const ind = a.indicatif && a.indicatif.articles > 0
+      ? '<p class="sous-gros">8 à 14 jours : à vérifier, affichées à part' + (nf.determinee && a.indicatif.valeur != null ? ' (' + eur(a.indicatif.valeur) + ')' : ' (' + unites(a.indicatif.unites) + ')') + '.</p>' : '';
+    const exc = a.exclus > 0 ? '<p class="sous-gros">Plus de 14 jours : À recontrôler, exclues (' + nb(a.exclus) + ').</p>' : '';
+    const marge = nf.determinee && m.ca_potentiel != null
+      ? 'Chiffre d\'affaires potentiel : <b>' + eur(m.ca_potentiel) + '</b><br>Marge exposée : <b>' + eur(m.marge_exposee) + '</b>' + (m.hors_calcul > 0 ? '<br>Exclu : ' + pl(m.hors_calcul, 'ligne') + ' sans prix d\'achat.' : '') + '<br>Période : relevés de 7 jours ou moins, calculé le ' + calculeLe() + '.<br>Provenance : dernier relevé de chaque ligne, prix d\'achat de la fiche produit.' + (a.exclus > 0 ? '<br>Exclu : ' + pl(a.exclus, 'relevé') + ' de plus de 14 jours.' : '')
+      : 'Marge non calculable : prix ou nature fiscale manquants.';
+    return '<section class="card" id="carteA" aria-labelledby="hA"><h3 id="hA">' + (tout ? 'Stock à risque · provisoire' : 'A · Valeur à risque') + btnInfo('iA') + '</h3>' + corps + ind + exc +
+      '<div class="infobulle" id="iA" hidden>' + marge + '<br><span class="aide">' + esc(d.marge.formule) + '</span></div>' +
+      (a.plus_ancien_jours != null ? '<p class="sous-gros">Relevés retenus : le plus ancien ' + (a.plus_ancien_jours === 0 ? 'date d\'aujourd\'hui' : 'a ' + pl(a.plus_ancien_jours, 'jour')) + '.</p>' : '') + '</section>';
+  }
+
+  function btnInfo(id){ return '<button type="button" class="info" aria-expanded="false" aria-controls="' + id + '" aria-label="Voir la marge et le chiffre d\'affaires"><span aria-hidden="true">i</span></button>'; }
+
+  function carteB(d){
+    const b = d.b, nf = d.nature_fiscale, m = d.marge.b;
+    const per = 'Période : ' + dateFr(b.periode_debut) + ' au ' + dateFr(b.periode_fin) + '.';
+    const badge = b.badge === 'partiellement_reconstitue' ? '<span class="pastille p-ambre">Partiellement reconstitué</span>'
+      : b.badge === 'fige' ? '<span class="pastille p-vert">Prix figé</span>' : '<span class="pastille p-cyan">Aucune perte constatée</span>';
+    let corps;
+    if (!nf.determinee) {
+      corps = '<div class="gros">' + unites(b.unites) + '</div><div class="note"><span class="pastille p-ambre">Nature fiscale non déterminée</span></div><p class="sous-gros">Aucun montant dans cet état. ' + per + '</p>';
+    } else {
+      corps = '<div class="gros">' + (b.valeur == null ? 'Aucun montant' : eur(b.valeur)) + '</div><div class="note">' + badge + '</div>' +
+        '<p class="sous-gros">' + per + ' Prix figé à la comptabilisation de chaque démarque ; « prix reconstitué » pour les démarques antérieures au lot 5.</p>' +
+        (b.lignes_sans_prix > 0 ? '<p class="note">' + pl(b.lignes_sans_prix, 'ligne') + ' : prix d\'achat absent. ' + (b.lignes_sans_prix > 1 ? 'Ces lignes n\'ont' : 'Cette ligne n\'a') + ' pas de montant et n\'' + (b.lignes_sans_prix > 1 ? 'entrent' : 'entre') + ' pas dans B.</p>' : '');
+    }
+    const marge = nf.determinee && m.ca_theorique != null
+      ? 'Chiffre d\'affaires théorique : <b>' + eur(m.ca_theorique) + '</b><br>Marge non réalisée : <b>' + eur(m.marge_non_realisee) + '</b>' + (m.dont_reconstituee ? '<br>Dont reconstituée : <b>' + eur(m.dont_reconstituee) + '</b>' : '') + '<br>' + per + '<br>Provenance : prix figé à la démarque, ou reconstitué depuis la fiche produit pour les démarques antérieures au lot 5.' + (b.lignes_sans_prix > 0 ? '<br>Exclu : ' + pl(b.lignes_sans_prix, 'ligne') + ' sans prix d\'achat.' : '')
+      : 'Marge non calculable : prix ou nature fiscale manquants.';
+    return '<section class="card" id="carteB" aria-labelledby="hB"><h3 id="hB">B · Pertes constatées' + btnInfo('iB') + '</h3>' + corps +
+      '<div class="infobulle" id="iB" hidden>' + marge + '<br><span class="aide">' + esc(d.marge.formule) + '</span></div></section>';
+  }
+
+  function carteIndispo(cle, titre, d){
+    const x = d[cle];
+    return '<section class="card indispo" aria-labelledby="h' + cle + '"><h3 id="h' + cle + '">' + titre + '</h3><div class="gros">Calcul indisponible</div>' +
+      '<ul class="sous-gros" style="margin:8px 0 0 18px">' + x.raisons.map(r => '<li>' + esc(r) + '</li>').join('') + '</ul>' +
+      '</section>';
+  }
+
+  function priorites(d){
+    const c = d.compteurs;
+    const b = (k, cl, n, l) => '<button type="button" class="prio ' + cl + '" data-f="' + k + '" aria-pressed="' + (FILTRE === k) + '"><span class="n">' + nb(n) + '</span><span class="l">' + l + '</span></button>';
+    return '<div class="priorites" role="group" aria-label="Priorités du jour">' + b('traiter', 'rouge', c.traiter, 'À traiter') + b('verifier', 'ambre', c.verifier, 'À vérifier') + b('certifier', 'cyan', c.certifier, 'À certifier') + '</div>';
+  }
+
+  function correspond(it, f){
+    if (f === 'tous') return true;
+    if (f === 'traiter') return it.priorite === 1 || it.action === 'À retirer';
+    if (f === 'verifier') return it.etat_age === 'a_verifier' || it.action === 'Vérifier la présence' || it.action === 'Relevé à vérifier' || it.action === 'Comparer les tournées';
+    if (f === 'certifier') return it.tournee_etat === 'TERMINEE_A_CERTIFIER';
+    return true;
+  }
+
+  function liste(d){
+    const nfOk = d.nature_fiscale.determinee;
+    const items = d.liste.filter(it => correspond(it, FILTRE));
+    const noms = {traiter:'À traiter aujourd\'hui', verifier:'À vérifier', certifier:'Tournées à certifier'};
+    const titre = FILTRE === 'tous' ? 'Liste de priorité' : 'Liste de priorité : ' + noms[FILTRE];
+    const f = FILTRE === 'tous' ? '' : '<p class="aide">Filtre actif. Touchez de nouveau le compteur pour tout afficher.</p>';
+    const lignes = items.length ? items.map(it => {
+      const idx = d.liste.indexOf(it);
+      const inc = nomArt(it) === INCONNU;
+      const motif = (!['À retirer','À vérifier','Promotion à envisager'].includes(it.action) ? esc(it.action) : '') + (it.etat_age !== 'courante' ? (!['À retirer','À vérifier','Promotion à envisager'].includes(it.action) ? ' · ' : '') + agePhrase(it.age_jours) : '');
+      return '<button type="button" class="ligne" data-i="' + idx + '"><span class="vign">' + vignette(it) + '</span><span class="corps-l">' +
+        '<span class="l1"><span class="nom">' + esc(nomArt(it)) + '</span><span class="badges">' + badgeAction(it) + '</span></span>' +
+        '<span class="l2"><span class="delai">' + esc(delaiRel(it.jours_restants)) + '</span><span class="dlc"> · DLC ' + dateFr(it.date_limite) + '</span>' + (inc && it.ean ? '<span class="ean"> · EAN ' + esc(it.ean) + '</span>' : '') + '</span>' +
+        chiffres(it, nfOk) + (motif ? '<span class="meta">' + motif + '</span>' : '') + '</span></button>';
+    }).join('') : '<div class="etat">Rien à afficher pour cette sélection.</div>';
+    return '<h2 id="titreListe">' + titre + '</h2>' + f + '<div class="liste">' + lignes + '</div>';
+  }
+
+  function detailPertes(d){
+    const b = d.b, nfOk = d.nature_fiscale.determinee;
+    const rows = b.detail.length ? b.detail.map(x => '<tr><td>' + esc(nomArt(x)) + (nomArt(x) === INCONNU && x.ean ? '<br><span class="aide">' + esc(x.ean) + '</span>' : '') + '</td><td>' + dateFr(x.date_comptabilisation) + '</td><td class="num">' + nb(x.quantite) + '</td><td class="num">' + (x.prix_unitaire != null ? eur(x.prix_unitaire) : 'Absent') + '</td><td class="num">' + (nfOk && x.valeur != null ? eur(x.valeur) : 'Aucun montant') + '</td><td>' + esc(SOURCE[x.source] || x.source || 'Aucune') + (x.periode_debut ? '<br><span class="aide">' + dateFr(x.periode_debut) + ' au ' + dateFr(x.periode_fin) + '</span>' : '') + '</td><td>' + esc(ORIGINE[x.etat] || x.etat) + '</td></tr>').join('') : '<tr><td colspan="7">Aucune démarque sur la période.</td></tr>';
+    return '<details class="panneau" id="panDetail"><summary>Voir le détail des pertes</summary><div class="corps"><p>Une ligne par démarque : date de comptabilisation, prix unitaire, origine du prix et état (figé, reconstitué ou absent). Au plus 100 lignes, les plus récentes d\'abord.</p><div style="overflow-x:auto"><table><thead><tr><th>Produit</th><th>Comptabilisée le</th><th class="num">Quantité</th><th class="num">Prix unitaire</th><th class="num">Perte</th><th>Origine du prix</th><th>État</th></tr></thead><tbody>' + rows + '</tbody></table></div></div></details>';
+  }
+
+  function commentCalcule(d){
+    const nf = d.nature_fiscale;
+    return '<details class="panneau" id="panCalcul"><summary>Comment c\'est calculé</summary><div class="corps"><ul>' +
+      '<li>A : quantité relevée multipliée par le prix d\'achat hors taxes, pour les relevés de 7 jours ou moins. Les relevés de 8 à 14 jours sont à vérifier et affichés à part. Au delà de 14 jours : À recontrôler, exclus.</li>' +
+      '<li>B : quantité démarquée multipliée par le prix d\'achat figé le jour de la démarque. Avant le lot 5, le prix est reconstitué depuis la fiche produit.</li>' +
+      '<li>Les montants A, B, C et D ne s\'additionnent jamais : ils répondent à quatre questions différentes.</li>' +
+      '<li>Nature fiscale : ' + (nf.determinee ? 'déterminée' : 'non déterminée') + ' (' + nb(nf.comparables) + ' articles comparables' + (nf.ecart_median != null ? ', écart médian ' + new Intl.NumberFormat('fr-FR',{style:'percent',maximumFractionDigits:1}).format(nf.ecart_median) : '') + ', tolérance ' + new Intl.NumberFormat('fr-FR',{style:'percent',maximumFractionDigits:1}).format(nf.tolerance) + '). Sans cette détermination, aucun montant n\'est affiché.</li>' +
+      '<li>C et D sont indisponibles tant que les ventes en promotion et les actions de prévention ne sont pas enregistrées (lot 6).</li></ul></div></details>';
+  }
+
+  function rendre(){
+    const d = DONNEES;
+    document.getElementById('sousTitre').textContent = 'Calculé le ' + calculeLe() + ' · votre station · Dernier relevé : ' + dernierReleve(d.dernier_releve);
+    if (!d.liste.length && d.b.demarques === 0 && d.a.unites === 0) {
+      racine.innerHTML = '<div class="etat" role="status"><b>Aucune donnée pour le moment</b><br>Aucun relevé de dates courtes ni aucune démarque sur la période.</div>';
+      return;
+    }
+    racine.innerHTML = (d.nature_fiscale.determinee ? '' : '<div class="bandeau-nf" role="status"><b>Nature fiscale non déterminée.</b> Les quantités sont affichées, aucun montant ne l\'est tant que les prix d\'achat ne sont pas rapprochés de l\'inventaire.</div>') +
+      '<h2>Priorités du jour</h2>' + priorites(d) + liste(d) +
+      '<h2>Lecture financière</h2><div class="cartes">' + carteA(d) + carteB(d) + carteIndispo('c', 'C · Valeur d\'achat des unités écoulées avant échéance', d) + carteIndispo('d', 'D · Pertes évitées estimées', d) + '</div>' +
+      detailPertes(d) + commentCalcule(d);
+  }
+
+  function autresTournees(it){
+    const a = Array.isArray(it.autres_tournees) ? it.autres_tournees : [];
+    if (!a.length) return '';
+    // Ni identifiant ni nom d'auteur : seulement le nom de la tournée, le rôle, la quantité et l'état.
+    const li = a.map(t => '<li class="autre">' + esc(t.nom || 'Tournée sans nom') + ', ' + esc(t.role || 'Opérateur') + ', ' + esc(hFr(t.heure)) + ' : <b>' + nb(t.quantite == null ? 0 : t.quantite) + ' u.</b> (' + esc(etatTournee(t.etat)) + ')</li>').join('');
+    return '<h3 class="aide" style="margin:12px 0 0">Autres tournées sur cette ligne</h3><ul class="autres">' + li + '</ul>' +
+      '<p class="regle">La tournée la plus récente fait foi : seules les ' + unites(it.quantite) + ' de cette tournée comptent.</p>';
+  }
+
+  function ouvrirFiche(i){
+    const it = DONNEES.liste[i], nfOk = DONNEES.nature_fiscale.determinee;
+    fiche.innerHTML = '<div class="fiche"><h2>' + esc(nomArt(it)) + '</h2><p class="aide">' + esc(it.ean || '') + '</p><dl>' +
+      '<dt>Action</dt><dd>' + badgeAction(it) + '<br>' + esc(it.action) + '</dd><dt>Échéance</dt><dd>' + esc(delaiRel(it.jours_restants)) + '<br>DLC ' + dateFr(it.date_limite) + '</dd>' +
+      '<dt>Quantité</dt><dd><span class="num">' + unites(it.quantite) + '</span></dd><dt>Âge du relevé</dt><dd>' + (it.age_jours === 0 ? 'aujourd\'hui' : '<span class="num">' + nb(it.age_jours) + '</span> j') + '</dd><dt>État du relevé</dt><dd>' + esc(ETAT_AGE[it.etat_age] || it.etat_age) + '</dd>' +
+      '<dt>Valeur</dt><dd>' + (nfOk && it.valeur != null ? eur(it.valeur) + ' au coût d\'achat' + (provisoire(it) ? ' (provisoire)' : '') : (nfOk ? 'Valeur non calculable (prix d\'achat absent)' : 'Aucun montant')) + '</dd>' +
+      '</dl>' + autresTournees(it) +
+      '<div class="actions"><button type="button" disabled aria-disabled="true">Décider une action</button><p class="dispo">Disponible au lot 6</p><button type="button" id="fermerFiche">Fermer</button></div></div>';
+    if (typeof fiche.showModal === 'function') fiche.showModal(); else fiche.setAttribute('open', '');
+    document.getElementById('fermerFiche').onclick = () => fiche.close();
+  }
+
+  racine.addEventListener('click', e => {
+    const info = e.target.closest('.info');
+    if (info && !(window.matchMedia && matchMedia('(hover:hover)').matches)) { const p = document.getElementById(info.getAttribute('aria-controls')); const ouvert = p.hidden; p.hidden = !ouvert; info.setAttribute('aria-expanded', String(ouvert)); return; }
+    const f = e.target.closest('[data-f]'); if (f && DONNEES) { FILTRE = FILTRE === f.dataset.f ? 'tous' : f.dataset.f; rendre(); const l = document.getElementById('titreListe'); if (l) l.scrollIntoView({block:'nearest'}); const bt = document.querySelector('.prio[data-f="' + FILTRE + '"]'); if (bt) bt.focus(); return; }
+    const l = e.target.closest('[data-i]'); if (l) ouvrirFiche(Number(l.dataset.i));
+  });
+
+  async function charger(){
+    racine.innerHTML = '<div class="squelette" aria-label="Chargement"></div><div class="squelette"></div><div class="squelette"></div>';
+    try {
+      const { data, error } = await nexusClient.rpc('dates_courtes_prevention_pertes');
+      if (error) {
+        if (/droit_refuse/.test(error.message || '')) return messageEtat('Accès réservé à la gestion', "Prévention des pertes est réservée à la gestion.", false);
+        return messageEtat('Chargement impossible', 'Les données n\'ont pas pu être lues. Vos relevés ne sont pas touchés.', true);
+      }
+      DONNEES = data; rendre();
+    } catch (e) { messageEtat('Chargement impossible', 'Les données n\'ont pas pu être lues. Vos relevés ne sont pas touchés.', true); }
+  }
+
+  if (window.matchMedia && matchMedia('(hover:hover)').matches) {
+    const bascule = (e, o) => { const i = e.target.closest && e.target.closest('.info'); if (!i) return; const p = document.getElementById(i.getAttribute('aria-controls')); p.hidden = !o; i.setAttribute('aria-expanded', String(o)); };
+    racine.addEventListener('mouseover', e => bascule(e, true));
+    racine.addEventListener('mouseout', e => bascule(e, false));
+  }
+
+  nexusRequireAuth().then(employee => {
+    if (!employee) return;
+    if (!nexusEstManager(employee)) { messageEtat('Accès réservé à la gestion', 'Prévention des pertes est réservée à la gestion.', false); return; }
+    charger();
+  });
+})();
+</script>
+</body>
+</html>
