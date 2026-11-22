@@ -36,6 +36,7 @@
     'NEXUS-Verify-v1.html': { label: 'Verify', module: 'mod-verify', icone: 'assets/icons/icon-nexus-verify.png', filtreIcone: 'filter:grayscale(1) brightness(1.05) contrast(1.05) sepia(1) hue-rotate(152deg) saturate(4);', desc: 'Contrôle caisse et écarts' },
     'NEXUS-Tempo-v2.html': { label: 'Tempo', module: 'mod-tempo', icone: 'assets/icons/icon-nexus-tempo.png', desc: 'Les jours qui portent votre station' },
     'NEXUS-Produits-v1.html': { label: 'Produits', module: 'mod-produits', icone: 'assets/icons/icon-produits.png', desc: 'Fiche complète par référence' },
+    'NEXUS-Dates-Courtes-v1.html': { label: 'Dates courtes', module: 'mod-dates-courtes', icone: 'assets/icones/v2/mod-dates-courtes/mod-dates-courtes-24.png', desc: 'Produits à date proche, pertes à prévenir' },
     'NEXUS-Brief-v1.html': { label: 'Brief NEXUS', module: 'mod-brief', emoji: '🧭', desc: 'La synthèse du dirigeant' },
     'NEXUS-Rapport-v1.html': { label: 'Rapport NEXUS', module: 'mod-rapport', emoji: '📑', desc: 'CA, marge et décisions sur une période choisie' },
     'NEXUS-Rayon-v1.html': { label: 'Rayon', module: 'mod-rayon', emoji: '🗂️', desc: 'CA, marge, top ventes par catégorie' },
