@@ -1,6 +1,6 @@
 # Questions restantes et constats
 
-Les points métier de la liste initiale sont tranchés par le pilote (21/11) et intégrés dans `CDC-v3.md`, les fiches, le modèle, la matrice et le plan de recette. Il ne reste qu'une couverture à surveiller et une vérification serveur.
+Les points métier de la liste initiale sont tranchés par le pilote (21/11) et intégrés dans `CDC-v4.md`, les fiches, le modèle, la matrice et le plan de recette. Il ne reste qu'une couverture à surveiller et une vérification serveur.
 
 ## 1. Couverture de la référence stable des produits sans EAN (constat)
 
@@ -17,3 +17,7 @@ Reste à surveiller : la couverture de cette clé. 49 sur 56 articles de la pér
 ## 2. Noms de rôles côté serveur (à vérifier)
 
 Les noms `manager`, `gerant`, `createur` sont ceux de la matrice des droits. Ils sont à vérifier contre la base avant tout code. Rien n'a été lu en Production par l'assistant pour ce dossier.
+
+## 3. Rôle `vacataire` (arbitré)
+
+Arbitrage du pilote du 21/11 : aucun accès, comme le pompiste (`matrice-permissions.md`). Cas de recette 42.
