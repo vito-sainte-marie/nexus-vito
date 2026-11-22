@@ -3125,7 +3125,8 @@
     // (dernière ligne de dates_courtes_acces_caissier). Pompiste et vacataire : jamais. Le serveur refuse de toute façon.
     let datesCourtesApplicable = false;
     if (enService) {
-      if (employee.est_createur || ['renfort', 'manager', 'gerant'].includes(employee.role)) datesCourtesApplicable = true;
+      const rolesDatesCourtes = ['renfort', 'manager', 'gerant'];
+      if (employee.est_createur || rolesDatesCourtes.includes(employee.role)) datesCourtesApplicable = true;
       else if (employee.role === 'caissier') {
         try {
           const { data: acc, error: eAcc } = await nexusClient.from('dates_courtes_acces_caissier').select('actif').eq('site', employee.site_id).order('saisi_le', { ascending: false }).limit(1);
