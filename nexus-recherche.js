@@ -50,6 +50,10 @@
     { label: 'Paramètres Comptes Clients', desc: "Identité, signature, modèle d'e-mail, tolérances de rapprochement", href: 'NEXUS-Parametres-Comptes-Clients-v1.html', role: 'manager', forfait: 'professional' },
     { label: 'Rayon', desc: 'CA, marge, top ventes par catégorie', href: 'NEXUS-Rayon-v1.html', role: 'manager' },
     { label: 'Produits', desc: 'Fiche complète par référence', href: 'NEXUS-Produits-v1.html', role: 'manager' },
+    // Dates courtes (22/11/2026, lot 2.3) : la recherche ne sait filtrer que manager/gérant/créateur ; le renfort et le caissier
+    // (accès ouvert par la station) passent par la tuile d'accueil. Le serveur refuse de toute façon un rôle non autorisé.
+    { label: 'Dates courtes', desc: 'Produits à date proche, pertes à prévenir', href: 'NEXUS-Dates-Courtes-v1.html', role: 'manager' },
+    { label: 'Relevé des dates courtes', desc: 'Relever les produits à date proche', href: 'NEXUS-Dates-Courtes-Releve-v1.html', role: 'manager' },
     { label: 'Tempo', desc: 'Les jours qui portent votre station, ceux qui la ralentissent', href: 'NEXUS-Tempo-v2.html', role: 'manager', forfait: 'professional' },
     { label: 'Campagnes', desc: 'Déclarer une promotion, mesurer son impact', href: 'NEXUS-Campagne-v2.html', role: 'manager', forfait: 'professional' },
     { label: 'Campagnes : suivi des ventes', desc: 'Actualiser les ventes d\'une promotion avec un fichier', href: 'NEXUS-Campagne-v2-Ventes.html', role: 'manager', forfait: 'professional' },
