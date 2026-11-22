@@ -1,43 +1,74 @@
-<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Maquette lot 2 : saisie des dates courtes</title>
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Maquette lot 2 Saisie de tournée</title>
+<script src="../../../nexus-theme.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="../../../nexus-badge-etat.js"></script><script src="../../../nexus-icones.js"></script>
 <link rel="stylesheet" href="maquettes.css"></head><body>
-<div class="bandeau"><h1>Lot 2 : saisie des dates courtes (maquette, chiffres fictifs)</h1><button id="bascule" type="button">Passer en Jour</button></div>
-<p class="note">Canvas A (tâche), D (saisie), E (état). Aucune donnée réelle. La tuile « icône à venir » remplace l'icône <span class="mono">mod-dates-courtes</span> en attente des fichiers sources du pilote.</p>
+<div class="bandeau"><h1>Lot 2 : Contrôler les dates courtes (maquette, données fictives)</h1><div class="reglage" role="group" aria-label="Thème"></div></div>
+<nav class="liens" aria-label="Largeur"><a href="lot-2-saisie.html?largeur=375">Vue 375 px (téléphone)</a><a href="lot-2-saisie.html?largeur=1280">Vue 1280 px (bureau)</a><a href="lot-2-saisie.html">Les deux</a></nav>
+<p class="note">Le bouton « Terminer ma tournée » existe en 375 et en 1280. Le nom de la tournée reste visible pendant toute la saisie. Aucune écriture, aucune donnée réelle.</p>
 <div class="vues">
-<!-- 375 px : saisie par recherche, clavier iOS affiché ou masqué -->
-<section class="cadre m"><h2>375 px · Saisie, scan ou recherche</h2><div class="ecran">
- <div class="tete"><div class="tuile">icône à venir</div><div><h3 style="margin:0">Dates courtes</h3><div class="mid">Tournée en cours · Rayon boissons</div></div></div>
- <div class="carte"><h3>Article</h3><div class="mid">Scanner un code ou chercher par nom</div>
-  <div class="champ"><label>Recherche</label><div class="entree focus">Jus d'orange 1 L</div></div>
-  <div class="rang"><span class="bouton">Scanner</span><span class="bouton">Rechercher</span></div></div>
- <div class="carte"><h3>Jus d'orange 1 L</h3><div class="mid">Code article fictif 0000000000000</div>
-  <div class="champ"><label>Date limite</label><div class="entree">12/12/2026</div></div>
-  <div class="champ"><label>Quantité</label><div class="entree mono">6</div></div>
-  <div class="rang"><span class="etiq">Ajoutée à votre tournée</span><span class="etiq">À certifier par le manager</span></div>
-  <div class="rang"><span class="bouton pri">Enregistrer</span><span class="bouton">Corriger</span></div></div>
- <div class="carte"><h3>Clavier de saisie intégré</h3><div class="mid">Affiché quand le clavier iOS est masqué (douchette Bluetooth connectée). Cible 52 px.</div>
-  <div class="entree mono" style="margin-top:12px">Quantité : 6</div>
-  <div class="pave"><span class="bouton">1</span><span class="bouton">2</span><span class="bouton">3</span><span class="bouton">4</span><span class="bouton">5</span><span class="bouton">6</span><span class="bouton">7</span><span class="bouton">8</span><span class="bouton">9</span><span class="bouton">Effacer</span><span class="bouton">0</span><span class="bouton pri">OK</span></div></div>
+
+<section class="cadre m"><h2>375 px · Choix de la tournée</h2><div class="ecran">
+ <div class="tete"><div class="tuile">icône à venir</div><div><h3 style="margin:0">Contrôler</h3><div class="mid">Mes tournées en cours</div></div></div>
+ <div class="carte"><h3>Tournée Frais, rayon laitier</h3><div class="mid">Commencée à 8 h 40 · 12 saisies</div>
+  <div class="rang"><span data-etat="gravite:information">En cours</span><span data-etat="traitement:en-attente">2 en attente d'envoi</span></div>
+  <div class="rang"><span class="bouton pri">Reprendre cette tournée</span></div></div>
+ <div class="carte"><h3>Tournée Épicerie, allée 3</h3><div class="mid">Commencée à 10 h 05 · 4 saisies</div>
+  <div class="rang"><span data-etat="gravite:information">En cours</span></div>
+  <div class="rang"><span class="bouton">Reprendre cette tournée</span></div></div>
+ <div class="rang"><span class="bouton">Commencer une nouvelle tournée</span></div>
 </div></section>
-<!-- 375 px : mode douchette Bluetooth -->
-<section class="cadre m"><h2>375 px · Douchette Bluetooth</h2><div class="ecran">
- <div class="tete"><div class="tuile">icône à venir</div><div><h3 style="margin:0">Dates courtes</h3><div class="mid">Douchette connectée</div></div></div>
- <div class="carte"><h3>Prêt à scanner</h3><div class="mid">Le champ garde le focus. Le suffixe Entrée valide le code. Le clavier iOS reste masqué.</div>
-  <div class="champ"><label>Dernier code lu</label><div class="entree mono focus">0000000000000</div></div>
-  <div class="rang"><span class="etiq">Code reconnu</span><span class="etiq att">Date limite à saisir</span></div></div>
- <div class="carte"><h3>Saisies de cette tournée</h3>
-  <table><tr><th>Article</th><th>Date</th><th>Qté</th></tr><tr><td>Jus d'orange 1 L</td><td class="mono">12/12</td><td class="n">6</td></tr><tr><td>Yaourt nature x4</td><td class="mono">05/12</td><td class="n">3</td></tr></table>
+
+<section class="cadre m"><h2>375 px · Saisie d'une ligne</h2><div class="ecran">
+ <div class="tournee">Tournée Frais, rayon laitier <span data-etat="gravite:information">En cours</span></div>
+ <div class="carte"><div class="entree focus">Rechercher ou scanner un produit</div>
+  <div class="rang"><span class="bouton actif">Caméra</span><span class="bouton">Douchette</span><span class="mid">Réglage mémorisé sur cet appareil</span></div>
+  <div class="rang"><span class="bouton">Scanner l'article suivant (un geste)</span></div></div>
+ <div class="carte"><h3>Jus d'orange 1 L</h3><div class="mid">Code 0000000000017 · Rayon frais</div>
+  <div class="champ"><label>Date limite</label><div class="entree mono focus">12/12/2026</div></div>
+  <div class="champ"><label>Quantité</label><div class="entree mono">6</div></div>
+  <div class="pave" aria-label="Pavé numérique (champ actif : date limite)"><span class="bouton">1</span><span class="bouton">2</span><span class="bouton">3</span><span class="bouton">4</span><span class="bouton">5</span><span class="bouton">6</span><span class="bouton">7</span><span class="bouton">8</span><span class="bouton">9</span><span class="bouton">/</span><span class="bouton">0</span><span class="bouton">Effacer</span></div>
+  <div class="rang"><span class="mid">Champ actif : date limite. Touchez la quantité pour la saisir au même pavé.</span></div>
+  <div class="rang"><span class="bouton pri">Enregistrer la ligne</span></div>
+  <div class="rang"><span data-etat="traitement:en-attente">Ajoutée à votre tournée, à certifier par le manager</span></div></div>
+ <div class="carte"><h3>Cette ligne existe déjà (6 unités à 12/12/2026)</h3>
+  <div class="mid">Deux gestes distincts, jamais fusionnés.</div>
+  <div class="rang"><span class="bouton pri">Ajouter des unités</span><span class="bouton">Corriger le relevé</span></div>
+  <div class="mid" style="margin-top:8px">Ajouter : la quantité saisie s'additionne à la ligne. Corriger : la quantité saisie remplace la ligne.</div></div>
+</div></section>
+
+<section class="cadre m"><h2>375 px · Douchette et fin de tournée</h2><div class="ecran">
+ <div class="tournee">Tournée Frais, rayon laitier <span data-etat="gravite:information">En cours</span></div>
+ <div class="carte"><h3>Code reconnu</h3><div class="mid">Yaourt nature x4 · douchette Bluetooth</div>
+  <div class="champ"><label>Date limite à saisir</label><div class="entree mono focus"></div></div>
+  <div class="rang"><span class="bouton">Revenir à la caméra</span></div></div>
+ <div class="carte"><h3>Saisies de ma tournée</h3>
+  <table><thead><tr><th>Produit</th><th>Qté</th><th>Envoi</th></tr></thead><tbody>
+   <tr><td>Jus d'orange 1 L<div class="mid mono">12/12/2026</div></td><td class="n">6</td><td><span data-etat="gravite:conforme">Enregistré</span></td></tr>
+   <tr><td>Salade composée<div class="mid mono">24/11/2026</div></td><td class="n">3</td><td><span data-etat="traitement:en-attente">En attente</span></td></tr>
+   <tr><td>Yaourt nature x4<div class="mid mono">30/11/2026</div></td><td class="n">8</td><td><span data-etat="gravite:critique">Refusé</span><div class="mid">Raison : date limite antérieure à aujourd'hui. Corrigez le relevé.</div></td></tr>
+  </tbody></table>
+  <div class="rang"><span class="mid">État de la tournée :</span><span data-etat="gravite:information">En cours</span></div>
   <div class="rang"><span class="bouton pri">Terminer ma tournée</span></div></div>
 </div></section>
-<!-- 1280 px -->
-<section class="cadre d"><h2>1280 px · Saisie, vue large</h2><div class="ecran">
- <div class="carte"><div class="tete"><div class="tuile">icône à venir</div><div><h3 style="margin:0">Article</h3><div class="mid">Scanner ou chercher</div></div></div>
-  <div class="champ"><label>Recherche</label><div class="entree focus">Jus d'orange 1 L</div></div>
-  <div class="champ"><label>Date limite</label><div class="entree">12/12/2026</div></div>
+
+<section class="cadre d"><h2>1280 px · Contrôler</h2><div class="ecran">
+ <div class="carte"><h3>Tournées en cours</h3>
+  <div class="rang"><span class="bouton actif">Frais, rayon laitier</span><span class="bouton">Épicerie, allée 3</span><span class="bouton">Nouvelle tournée</span></div>
+  <div class="tournee" style="margin-top:12px">Tournée Frais, rayon laitier <span data-etat="gravite:information">En cours</span></div>
+  <div class="champ"><label>Recherche ou scan</label><div class="entree focus">Rechercher ou scanner un produit</div></div>
+  <div class="rang"><span class="bouton actif">Caméra</span><span class="bouton">Douchette</span><span class="bouton">Scanner l'article suivant</span></div>
+  <div class="champ"><label>Date limite</label><div class="entree mono">12/12/2026</div></div>
   <div class="champ"><label>Quantité</label><div class="entree mono">6</div></div>
-  <div class="rang"><span class="bouton pri">Enregistrer</span><span class="bouton">Scanner</span></div></div>
- <div class="carte"><h3>Saisies de ma tournée</h3><table><tr><th>Article</th><th>Date limite</th><th>Quantité</th><th>État</th></tr>
-  <tr><td>Jus d'orange 1 L</td><td class="mono">12/12/2026</td><td class="n">6</td><td><span class="etiq">À certifier</span></td></tr>
-  <tr><td>Yaourt nature x4</td><td class="mono">05/12/2026</td><td class="n">3</td><td><span class="etiq att">À recontrôler</span></td></tr>
-  <tr><td>Lait demi-écrémé 1 L</td><td class="mono">02/12/2026</td><td class="n">12</td><td><span class="etiq">À certifier</span></td></tr></table></div>
+  <div class="rang"><span class="bouton pri">Enregistrer la ligne</span><span class="bouton">Ajouter des unités</span><span class="bouton">Corriger le relevé</span></div></div>
+ <div class="carte"><h3>Saisies de ma tournée</h3>
+  <table><thead><tr><th>Produit</th><th>Date limite</th><th>Qté</th><th>Envoi</th></tr></thead><tbody>
+   <tr><td>Jus d'orange 1 L</td><td class="mono">12/12/2026</td><td class="n">6</td><td><span data-etat="gravite:conforme">Enregistré</span></td></tr>
+   <tr><td>Salade composée</td><td class="mono">24/11/2026</td><td class="n">3</td><td><span data-etat="traitement:en-attente">En attente</span></td></tr>
+   <tr><td>Yaourt nature x4</td><td class="mono">30/11/2026</td><td class="n">8</td><td><span data-etat="gravite:critique">Refusé</span> <span class="mid">date limite antérieure à aujourd'hui</span></td></tr>
+  </tbody></table>
+  <div class="rang"><span class="mid">État de la tournée :</span><span data-etat="gravite:information">En cours</span></div>
+  <div class="rang"><span class="bouton pri">Terminer ma tournée</span></div></div>
 </div></section>
-</div><script src="theme.js"></script></body></html>
+</div><script src="maquettes.js"></script></body></html>

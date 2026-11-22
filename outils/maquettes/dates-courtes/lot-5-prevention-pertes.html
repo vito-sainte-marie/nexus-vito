@@ -1,39 +1,51 @@
-<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Maquette lot 5 : Prévention des pertes</title>
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Maquette lot 5 Prévention des pertes</title>
+<script src="../../../nexus-theme.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="../../../nexus-badge-etat.js"></script><script src="../../../nexus-icones.js"></script>
 <link rel="stylesheet" href="maquettes.css"></head><body>
-<div class="bandeau"><h1>Lot 5 : Prévention des pertes (maquette, chiffres fictifs)</h1><button id="bascule" type="button">Passer en Jour</button></div>
-<p class="note">Lecture manager, gérant, créateur. Pas d'accès vacataire ni pompiste. Une station par profil, aucune comparaison multisite. Les montants A, B, C et D ne s'additionnent jamais. C et D : « Calcul indisponible » par défaut.</p>
+<div class="bandeau"><h1>Lot 5 : Prévention des pertes (maquette, chiffres fictifs)</h1><div class="reglage" role="group" aria-label="Thème"></div></div>
+<nav class="liens" aria-label="Largeur"><a href="lot-5-prevention-pertes.html?largeur=375">Vue 375 px (téléphone)</a><a href="lot-5-prevention-pertes.html?largeur=1280">Vue 1280 px (bureau)</a><a href="lot-5-prevention-pertes.html">Les deux</a></nav>
+<p class="note">Lecture manager, gérant, créateur. Pas d'accès vacataire ni pompiste. Une station par profil, aucune comparaison multisite. Les montants A, B, C et D ne s'additionnent jamais. « Nature fiscale non déterminée » concerne tous les montants en euros, donc A et B.</p>
 <div class="vues">
+
 <section class="cadre m"><h2>375 px · Prévention des pertes</h2><div class="ecran">
  <div class="tete"><div class="tuile">icône à venir</div><div><h3 style="margin:0">Prévention des pertes</h3><div class="mid">Station fictive · 7 jours ou moins</div></div></div>
  <div class="carte"><h3>A · Valeur à risque</h3><div class="montant">1 240 € HT</div>
-  <div class="rang"><span class="etiq att">Dont non certifiées : 310 €</span><span class="etiq">Prix HT</span></div>
-  <div class="mid" style="margin-top:8px">8 à 14 jours : indicatifs, affichés à part (420 €). Plus de 14 jours : exclus.</div>
-  <div class="rang"><span class="bouton">(i) Comment c'est calculé</span></div></div>
- <div class="carte"><h3>B · Pertes enregistrées</h3><div class="montant">186 € HT</div>
-  <div class="mid">Prix d'achat : période novembre 2026, origine <span class="mono">products</span>. Une ligne sans prix ne compte jamais pour zéro.</div>
-  <div class="rang"><span class="etiq att">2 lignes : Prix d'achat absent</span><span class="etiq">1 ligne : prix reconstitué</span></div>
-  <div class="rang"><span class="bouton">(i) Source du prix</span></div></div>
- <div class="carte"><h3>C · Valeur d'achat vendue avant péremption</h3><div class="montant" style="font-size:18px">Calcul indisponible</div><div class="mid">Rotation : moyenne des ventes sur 30 jours.</div></div>
- <div class="carte"><h3>D · Pertes évitées estimées</h3><div class="montant" style="font-size:18px">Calcul indisponible</div><span class="etiq">Estimation</span></div>
+  <div class="rang"><span data-etat="gravite:a-verifier">Dont non certifiées : 310 €</span><span data-etat="gravite:information">Nature fiscale non déterminée</span></div>
+  <div class="mid" style="margin-top:8px">Dernier relevé retenu : 21/11/2026 à 18 h 12, il y a 1 jour (fraîcheur : à jour sous 3 jours).</div>
+  <div class="mid">8 à 14 jours : indicatifs, affichés à part (420 €). Plus de 14 jours : exclus.</div>
+  <div class="rang"><span class="bouton" role="button" aria-label="Comment c'est calculé"><img data-nexus-icone="mod-aide" data-nexus-taille="24" data-nexus-decoratif="1" alt="">Comment c'est calculé</span></div></div>
+ <div class="carte"><h3>B · Pertes constatées</h3><div class="montant">186 € HT</div>
+  <div class="rang"><span data-etat="gravite:information">Nature fiscale non déterminée</span></div>
+  <div class="mid" style="margin-top:8px">Pertes enregistrées sur la période, au dernier prix d'achat connu.</div></div>
 </div></section>
-<section class="cadre m"><h2>375 px · Nature fiscale non déterminée</h2><div class="ecran">
- <div class="tete"><div class="tuile">icône à venir</div><div><h3 style="margin:0">Prévention des pertes</h3><div class="mid">Station fictive</div></div></div>
- <div class="carte"><h3>B · Pertes enregistrées</h3><div class="montant" style="font-size:18px">Nature fiscale non déterminée</div>
-  <div class="mid">Le contrôle de cohérence du dernier import a échoué. Aucun montant n'est affiché. Les quantités restent visibles.</div>
-  <div class="rang"><span class="etiq att">Contrôle d'import en échec</span></div></div>
+
+<section class="cadre m"><h2>375 px · Valeurs non calculables</h2><div class="ecran">
+ <div class="carte"><h3>C · Valeur d'achat des unités écoulées avant échéance</h3><div class="montant indispo">Calcul indisponible</div>
+  <div class="rang"><span data-etat="gravite:information">Calcul indisponible</span></div>
+  <div class="mid" style="margin-top:8px">Il manque l'historique de ventes sur la fenêtre de 30 jours.</div></div>
+ <div class="carte"><h3>D · Pertes évitées estimées</h3><div class="montant indispo">Calcul indisponible</div>
+  <div class="rang"><span data-etat="gravite:information">Calcul indisponible</span></div>
+  <div class="mid" style="margin-top:8px">L'étiquette « Estimation » apparaît seulement quand un montant est calculé.</div></div>
 </div></section>
+
 <section class="cadre d"><h2>1280 px · Prévention des pertes</h2><div class="ecran">
  <div class="carte"><h3>A · Valeur à risque</h3><div class="montant">1 240 € HT</div>
-  <div class="rang"><span class="etiq att">Dont non certifiées : 310 €</span><span class="etiq">Prix HT</span><span class="bouton">(i)</span></div>
-  <div class="mid" style="margin-top:8px">8 à 14 jours, indicatifs : 420 €. Plus de 14 jours : exclus, historique « À recontrôler ».</div></div>
- <div class="carte"><h3>B · Pertes enregistrées</h3><div class="montant">186 € HT</div>
-  <div class="mid">Prix d'achat : novembre 2026, <span class="mono">products</span>.</div>
-  <div class="rang"><span class="etiq att">2 lignes : Prix d'achat absent</span><span class="etiq">1 ligne : prix reconstitué</span><span class="bouton">(i)</span></div></div>
- <div class="carte large"><h3>Produits sans prix d'achat</h3><table><tr><th>Article</th><th>Quantité retirée</th><th>Origine du prix</th><th>État</th></tr>
-  <tr><td>Salade composée</td><td class="n">4</td><td>Aucun prix trouvé</td><td><span class="etiq att">Prix d'achat absent</span></td></tr>
-  <tr><td>Jus d'orange 1 L</td><td class="n">6</td><td><span class="mono">products</span>, nov. 2026</td><td><span class="etiq">prix reconstitué</span></td></tr>
-  <tr><td>Yaourt nature x4</td><td class="n">3</td><td><span class="mono">inventaire_ventes_import</span></td><td><span class="etiq">Prix figé</span></td></tr></table></div>
- <div class="carte"><h3>C · Valeur d'achat vendue avant péremption</h3><div class="montant" style="font-size:18px">Calcul indisponible</div></div>
- <div class="carte"><h3>D · Pertes évitées estimées</h3><div class="montant" style="font-size:18px">Calcul indisponible</div><span class="etiq">Estimation</span></div>
+  <div class="rang"><span data-etat="gravite:a-verifier">Dont non certifiées : 310 €</span><span data-etat="gravite:information">Nature fiscale non déterminée</span></div>
+  <div class="mid" style="margin-top:8px">Dernier relevé retenu : 21/11/2026 à 18 h 12, il y a 1 jour.</div>
+  <div class="mid">8 à 14 jours : indicatifs (420 €), affichés à part. Plus de 14 jours : exclus.</div></div>
+ <div class="carte"><h3>B · Pertes constatées</h3><div class="montant">186 € HT</div>
+  <div class="rang"><span data-etat="gravite:information">Nature fiscale non déterminée</span></div></div>
+ <div class="carte large"><h3>Origine du prix des pertes constatées</h3>
+  <table><thead><tr><th>Produit</th><th>Perte</th><th>Origine du prix</th></tr></thead><tbody>
+   <tr><td>Salade composée</td><td class="n">64 €</td><td><span data-etat="gravite:a-verifier">Prix d'achat absent</span></td></tr>
+   <tr><td>Jus d'orange 1 L</td><td class="n">72 €</td><td><span data-etat="gravite:information">Prix reconstitué</span></td></tr>
+   <tr><td>Yaourt nature x4</td><td class="n">50 €</td><td><span data-etat="gravite:conforme">Prix d'achat connu</span></td></tr>
+  </tbody></table></div>
+ <div class="carte"><h3>C · Valeur d'achat des unités écoulées avant échéance</h3><div class="montant indispo">Calcul indisponible</div>
+  <div class="rang"><span data-etat="gravite:information">Calcul indisponible</span></div></div>
+ <div class="carte"><h3>D · Pertes évitées estimées</h3><div class="montant indispo">Calcul indisponible</div>
+  <div class="rang"><span data-etat="gravite:information">Calcul indisponible</span></div></div>
 </div></section>
-</div><script src="theme.js"></script></body></html>
+</div><script src="maquettes.js"></script></body></html>
