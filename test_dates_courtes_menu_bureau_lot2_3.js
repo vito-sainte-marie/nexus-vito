@@ -42,4 +42,13 @@ t('raccourcis : entrée au catalogue, hors RACCOURCIS_DEFAUT', () => {
 t('menu bureau : pas de filtre de rôle propre à Produits à répliquer', () => {
   assert.ok(!/role/.test(desktop.slice(desktop.indexOf("label: 'Dates courtes'"), desktop.indexOf('\n', desktop.indexOf("label: 'Dates courtes'")))));
 });
+t('les deux pages chargent nexus-desktop.js, même balise et même ?v= que Produits', () => {
+  const tag = lire('NEXUS-Produits-v1.html').match(/<script src="nexus-desktop\.js\?v=[^"]+"><\/script>/)[0];
+  ['NEXUS-Dates-Courtes-v1.html', 'NEXUS-Dates-Courtes-Releve-v1.html'].forEach(h => {
+    assert.strictEqual(lire(h).split(tag).length - 1, 1, h);
+  });
+});
+t('menu : la page courante est active via item.href === pageActuelle', () => {
+  assert.ok(/item\.href === pageActuelle \? ' active'/.test(desktop));
+});
 console.log(n + '/' + n);
