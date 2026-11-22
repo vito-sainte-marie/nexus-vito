@@ -83,8 +83,12 @@
   .ligne .vign img,.ligne .vign .pt-vign-neutre{width:100%;height:100%;object-fit:contain;display:block}
   .ligne .delai{font-weight:600;font-size:13px}
   .ligne .dlc{font-size:12px;color:var(--text-mid)}
-  .ligne .chiffres{font-size:13px;overflow-wrap:anywhere}
-  .ligne .chiffres .num{font-family:var(--mono);font-weight:600}
+  .ligne .chiffres{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 10px;overflow-wrap:anywhere}
+  .qte{white-space:nowrap}
+  .qte .qte-n{font-family:var(--mono);font-weight:700;font-size:22px;line-height:1.15}
+  .qte .qte-u{font-family:var(--sans);font-weight:400;font-size:14px}
+  .ligne .prix{font-weight:400;font-size:14px;color:var(--text-mid)}
+  @media (min-width:900px){.qte .qte-n{font-size:24px}}
   .ligne .ean{font:12px var(--mono);color:var(--text-mid)}
   .ligne .l1{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:4px 8px;width:100%}
   .ligne .badges{display:inline-flex;flex-wrap:wrap;gap:4px}
@@ -120,7 +124,7 @@
   .fiche{padding:18px}
   .fiche h2{margin:0;font-size:17px;overflow-wrap:anywhere}
   .fiche dl{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin-top:14px;font-size:13px}
-  .fiche dt{color:var(--text-mid)} .fiche dd{text-align:right;font-family:var(--sans)} .fiche dd .num,.fiche dd .autre b{font-family:var(--mono)} .fiche .autres{margin:6px 0 0;padding:0;list-style:none;text-align:left} .fiche .autres li{margin:2px 0} .fiche .regle{grid-column:1/-1;margin:6px 0 0;font-size:13px;color:var(--text-mid);text-align:left}
+  .fiche dt{color:var(--text-mid)} .fiche dd{text-align:right;font-family:var(--sans)} .fiche dd .num,.fiche dd .autre b{font-family:var(--mono)} .fiche dd .qte .qte-n{font-size:24px} .fiche .autres{margin:6px 0 0;padding:0;list-style:none;text-align:left} .fiche .autres li{margin:2px 0} .fiche .regle{grid-column:1/-1;margin:6px 0 0;font-size:13px;color:var(--text-mid);text-align:left}
   .fiche .actions{display:flex;flex-direction:column;gap:8px;margin-top:16px}
   .fiche button{min-height:44px;border-radius:8px;border:1px solid var(--hairline);background:var(--panel-raised);color:var(--text);font:600 13px var(--sans);cursor:pointer}
   .fiche button[disabled]{opacity:.6;cursor:not-allowed}
@@ -202,10 +206,13 @@
     if (!h && id !== 'cat-petits-articles') { if (!_avert) { _avert = true; console.warn('Dates courtes : pictogramme de famille inconnu, repli sur le générique'); } try { h = NI.imgCategorie('cat-petits-articles', 56, {decoratif: true}); } catch (e) { h = ''; } }
     return h ? h.replace('<img ', '<img loading="lazy" decoding="async" ') : neutre;
   }
+  function qteGrosse(n){
+    return '<span class="qte"><span class="qte-n">' + nb(n) + '</span> <span class="qte-u">' + (n > 1 ? 'unités' : 'unité') + '</span></span>';
+  }
   function chiffres(it, nfOk){
-    const prov = provisoire(it) ? ' <span class="aide">provisoire</span>' : '';
-    const v = nfOk && it.valeur != null ? '<span class="num">' + eur(it.valeur) + '</span> au coût d\'achat' + prov : (nfOk ? 'Valeur non calculable (prix d\'achat absent)' : 'Aucun montant (nature fiscale non déterminée)');
-    return '<span class="chiffres">' + unites(it.quantite) + ' · ' + v + '</span>';
+    const prov = provisoire(it) ? ', provisoire' : '';
+    const v = nfOk && it.valeur != null ? eur(it.valeur) + ' au coût d\'achat' + prov : (nfOk ? 'Valeur non calculable (prix d\'achat absent)' : 'Aucun montant (nature fiscale non déterminée)');
+    return '<span class="chiffres">' + qteGrosse(it.quantite) + '<span class="prix">' + v + '</span></span>';
   }
   const heureMq = iso => { try { return new Date(iso).toLocaleString('fr-FR', {timeZone:'America/Martinique', day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'}).replace(',', ' à'); } catch (e) { return ''; } };
   const agePhrase = n => n === 0 ? 'relevé aujourd\'hui' : 'relevé il y a ' + pl(n, 'jour');
@@ -355,8 +362,8 @@
     const it = DONNEES.liste[i], nfOk = DONNEES.nature_fiscale.determinee;
     fiche.innerHTML = '<div class="fiche"><h2>' + esc(nomArt(it)) + '</h2><p class="aide">' + esc(it.ean || '') + '</p><dl>' +
       '<dt>Action</dt><dd>' + badgeAction(it) + '<br>' + esc(it.action) + '</dd><dt>Échéance</dt><dd>' + esc(delaiRel(it.jours_restants)) + '<br>DLC ' + dateFr(it.date_limite) + '</dd>' +
-      '<dt>Quantité</dt><dd><span class="num">' + unites(it.quantite) + '</span></dd><dt>Âge du relevé</dt><dd>' + (it.age_jours === 0 ? 'aujourd\'hui' : '<span class="num">' + nb(it.age_jours) + '</span> j') + '</dd><dt>État du relevé</dt><dd>' + esc(ETAT_AGE[it.etat_age] || it.etat_age) + '</dd>' +
-      '<dt>Valeur</dt><dd>' + (nfOk && it.valeur != null ? eur(it.valeur) + ' au coût d\'achat' + (provisoire(it) ? ' (provisoire)' : '') : (nfOk ? 'Valeur non calculable (prix d\'achat absent)' : 'Aucun montant')) + '</dd>' +
+      '<dt>Quantité</dt><dd>' + qteGrosse(it.quantite) + '</dd><dt>Âge du relevé</dt><dd>' + (it.age_jours === 0 ? 'aujourd\'hui' : '<span class="num">' + nb(it.age_jours) + '</span> j') + '</dd><dt>État du relevé</dt><dd>' + esc(ETAT_AGE[it.etat_age] || it.etat_age) + '</dd>' +
+      '<dt>Valeur</dt><dd>' + (nfOk && it.valeur != null ? eur(it.valeur) + ' au coût d\'achat' + (provisoire(it) ? ', provisoire' : '') : (nfOk ? 'Valeur non calculable (prix d\'achat absent)' : 'Aucun montant')) + '</dd>' +
       '</dl>' + autresTournees(it) +
       '<div class="actions"><button type="button" disabled aria-disabled="true">Décider une action</button><p class="dispo">Disponible au lot 6</p><button type="button" id="fermerFiche">Fermer</button></div></div>';
     if (typeof fiche.showModal === 'function') fiche.showModal(); else fiche.setAttribute('open', '');
