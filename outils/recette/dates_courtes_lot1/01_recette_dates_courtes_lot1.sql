@@ -552,6 +552,54 @@ begin
   r := pg_temp.n(r, '26 version de tournée : accordée à la gestion', 'ok', pg_temp.appel(format('dates_courtes_version_tournee(%L)', tr)));
   return r;
 end $$;
+-- B1 bis : un retrait se compare au dernier relevé de SA LIGNE (article, date), jamais au dernier relevé de l'article.
+create function pg_temp.c27(a text default null) returns jsonb language plpgsql as $$
+declare r jsonb := '[]'; tm text;
+begin
+  perform pg_temp.comme('M1'); tm := pg_temp.tn('t27m');
+  perform pg_temp.relh('c27a', tm, pg_temp.e('E1'), pg_temp.d('d1'), 5, 6);
+  perform pg_temp.ret('retrait', 'c27b', tm, pg_temp.e('E1'), pg_temp.d('d1'), 2, 5);
+  perform pg_temp.relh('c27c', tm, pg_temp.e('E1'), pg_temp.d('d2'), 4, 4);
+  r := pg_temp.n(r, '27 le relevé d''une autre date n''efface pas le retrait de D1', '=3', pg_temp.ligne('quantite', pg_temp.e('E1'), pg_temp.d('d1')));
+  r := pg_temp.n(r, '27 la quantité de D2 est celle de son relevé', '=4', pg_temp.ligne('quantite', pg_temp.e('E1'), pg_temp.d('d2')));
+  return r;
+end $$;
+
+create function pg_temp.c28(a text default null) returns jsonb language plpgsql as $$
+declare r jsonb := '[]'; tm text; tr text;
+begin
+  perform pg_temp.comme('M1'); tm := pg_temp.tn('t28m');
+  perform pg_temp.relh('c28a', tm, pg_temp.e('E1'), pg_temp.d('d1'), 5, 6);
+  perform pg_temp.ret('retrait', 'c28b', tm, pg_temp.e('E1'), pg_temp.d('d1'), 2, 5);
+  perform pg_temp.comme('RF1'); tr := pg_temp.tn('t28r');
+  perform pg_temp.relh('c28c', tr, pg_temp.e('E1'), pg_temp.d('d1'), 3, 4);
+  perform pg_temp.comme('M1');
+  r := pg_temp.n(r, '28 un nouveau relevé de la ligne après le retrait ne déduit pas deux fois', '=3', pg_temp.ligne('quantite', pg_temp.e('E1'), pg_temp.d('d1')));
+  return r;
+end $$;
+
+create function pg_temp.c29(a text default null) returns jsonb language plpgsql as $$
+declare r jsonb := '[]'; tm text; tr text;
+begin
+  perform pg_temp.comme('M1'); tm := pg_temp.tn('t29m');
+  perform pg_temp.relh('c29a', tm, pg_temp.e('E1'), pg_temp.d('d1'), 5, 6);
+  perform pg_temp.comme('RF1'); tr := pg_temp.tn('t29r');
+  perform pg_temp.ret('trouve_retire', 'c29b', tr, pg_temp.e('E1'), pg_temp.d('d1'), 2, 4);
+  perform pg_temp.comme('M1');
+  r := pg_temp.n(r, '29 un retrait saisi dans une autre tournée après le relevé de référence est déduit', '=3', pg_temp.ligne('quantite', pg_temp.e('E1'), pg_temp.d('d1')));
+  return r;
+end $$;
+
+create function pg_temp.c30(a text default null) returns jsonb language plpgsql as $$
+declare r jsonb := '[]'; tm text; tr text;
+begin
+  perform pg_temp.comme('RF1'); tr := pg_temp.tn('t30r');
+  perform pg_temp.ret('trouve_retire', 'c30a', tr, pg_temp.e('E1'), pg_temp.d('d1'), 2, 6);
+  perform pg_temp.comme('M1'); tm := pg_temp.tn('t30m');
+  perform pg_temp.relh('c30b', tm, pg_temp.e('E1'), pg_temp.d('d1'), 5, 4);
+  r := pg_temp.n(r, '30 un retrait antérieur au relevé de référence, saisi ailleurs, n''est pas déduit', '=5', pg_temp.ligne('quantite', pg_temp.e('E1'), pg_temp.d('d1')));
+  return r;
+end $$;
 -- Exécution : chaque cas dans un sous-bloc annulé ; le résultat survit par la variable.
 create function pg_temp.jouer(nom text, arg text default null) returns void language plpgsql as $$
 declare r jsonb := null; e jsonb; lbl text := nom || coalesce(' ' || arg, '');
@@ -602,6 +650,10 @@ select pg_temp.jouer('c23');
 select pg_temp.jouer('c24');
 select pg_temp.jouer('c25');
 select pg_temp.jouer('c26');
+select pg_temp.jouer('c27');
+select pg_temp.jouer('c28');
+select pg_temp.jouer('c29');
+select pg_temp.jouer('c30');
 
 do $rapport$
 declare j jsonb;

@@ -637,6 +637,7 @@ end $$;
 -- Pour chaque article, la tournée qui porte le dernier relevé effectif (heure du geste) l'emporte ; ses relevés et corrections par date donnent la base de chaque ligne.
 -- Un retrait physique n'est pas un relevé : il ne désigne jamais la tournée de référence et ne rajeunit jamais une ligne. Il diminue la quantité courante de la ligne
 -- (article, date) de la station, quelle que soit la tournée où il est saisi, s'il est de la tournée de référence ou postérieur au relevé de référence.
+-- Un retrait (article, date) ne compte que s'il est postérieur ou égal au dernier relevé effectif de cette ligne.
 -- Un retrait sur un article jamais relevé ne crée aucune quantité courante. Aucune addition entre tournées.
 -- Âge : jours calendaires (fuseau Martinique) depuis le dernier relevé effectif de la ligne, jamais depuis un retrait, une certification ou une clôture.
 -- Une ligne née d'une correction seule prend l'heure de son premier geste.
@@ -662,22 +663,20 @@ language sql stable security definer set search_path = public, pg_temp as $$
       select dates_courtes_cle_article(c.site, c.ean, c.libelle_normalise), c.tournee_id, c.ean, c.libelle_normalise, c.date_limite, c.delta, c.heure_geste, false
         from dates_courtes_corrections c where c.site = p_site and c.annule_le is null and c.heure_geste <= p_instant
     ) m on m.art = g.art and m.tournee_id = g.tournee_id
-  ), retr as (
-    select g.art, x.date_limite, sum(x.quantite)::integer as s
-    from gagnante g join dates_courtes_retraits x on x.site = p_site and x.annule_le is null and x.heure_geste <= p_instant
-      and dates_courtes_cle_article(x.site, x.ean, x.libelle_normalise) = g.art
-      and x.heure_geste >= g.ref_heure
-    group by g.art, x.date_limite
   ), lignes as (
     select b.art, b.tournee_id, b.date_limite, max(b.ean) as ean, max(b.libelle_normalise) as libelle_normalise, sum(b.q) as brut,
            coalesce(max(b.heure_geste) filter (where b.est_releve), min(b.heure_geste)) as dernier
     from base b group by b.art, b.tournee_id, b.date_limite
   ), ages as (
     select l.art, l.tournee_id, l.date_limite, l.ean, l.libelle_normalise, l.dernier,
-           greatest(0, l.brut - coalesce(r.s, 0))::integer as q,
+           greatest(0, l.brut - coalesce((select sum(x.quantite) from dates_courtes_retraits x
+                                        where x.site = p_site and x.annule_le is null and x.heure_geste <= p_instant
+                                          and x.date_limite = l.date_limite
+                                          and dates_courtes_cle_article(x.site, x.ean, x.libelle_normalise) = l.art
+                                          and x.heure_geste >= l.dernier), 0))::integer as q,
            ((p_instant at time zone 'America/Martinique')::date - (l.dernier at time zone 'America/Martinique')::date) as age,
            ((p_instant at time zone 'America/Martinique')::date) as aujourdhui
-    from lignes l left join retr r on r.art = l.art and r.date_limite = l.date_limite
+    from lignes l
   )
   select p_site, a.art, a.ean, a.libelle_normalise, a.date_limite, a.q, a.tournee_id, t.etat, a.dernier, a.age,
          case when a.age <= 7 then 'courante' when a.age <= 14 then 'a_verifier' else 'a_recontroler' end,

@@ -1,6 +1,6 @@
 # Rapport lot 1 : Dates courtes (v4)
 
-Statut : migration, recette et retour arrière v4 livrés dans la même PR (#352, brouillon). Recette pglite 147 contrôles, 147 OK, 0 KO. Rien appliqué sur Test ni en Production.
+Statut : migration, recette et retour arrière v4 livrés dans la même PR (#352, brouillon). Recette pglite 152 contrôles, 152 OK, 0 KO. Rien appliqué sur Test ni en Production.
 
 ## Contenu de la migration 20261121120000
 
@@ -15,7 +15,7 @@ renfort, manager, gerant, caissier, pompiste, vacataire ; créateur par `est_cre
 
 ## Recette
 
-147/147. Cas 22 à 26 (revue Guardian 7071976186) : un retrait n'est pas un relevé, plancher sur la quantité courante de la station, trouvé retiré sans quantité créée, renfort et manager identiques, pompiste et vacataire refusés, détail des autres tournées réservé à la gestion. Les cas ajoutés pour la démarque : manager autorisé, renfort refusé, quantité au-dessus du retiré refusée, rejeu réseau sans doublon. Retour arrière : avant 35 fonctions et 9 tables, après 0 et 0, rejouable sans erreur.
+152/152. Cas 27 à 30 (revue Guardian 7072179720) : le retrait se compare au dernier relevé de sa ligne (article, date), pas à celui de l'article. Cas 22 à 26 (revue Guardian 7071976186) : un retrait n'est pas un relevé, plancher sur la quantité courante de la station, trouvé retiré sans quantité créée, renfort et manager identiques, pompiste et vacataire refusés, détail des autres tournées réservé à la gestion. Les cas ajoutés pour la démarque : manager autorisé, renfort refusé, quantité au-dessus du retiré refusée, rejeu réseau sans doublon. Retour arrière : avant 35 fonctions et 9 tables, après 0 et 0, rejouable sans erreur.
 
 ## Limites
 
