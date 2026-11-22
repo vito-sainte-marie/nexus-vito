@@ -1589,7 +1589,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
 <script src="nexus-station.js?v=20260904-0104"></script>
-<script src="nexus-auth.js?v=20261122-0001"></script>
+<script src="nexus-auth.js?v=20261122-0002"></script>
 <script src="nexus-pointage-regles.js?v=20260904-0104"></script>
 <script src="nexus-icones.js?v=20261122-0001"></script>
 <script src="nexus-desktop.js?v=20260904-0104"></script>
@@ -2560,6 +2560,7 @@
   const TUILES_OUTILS_CATALOGUE = {
     missions: { titre: 'Missions', desc: 'Voir mes tâches du quart', href: 'NEXUS-Missions-v1.html', module: 'mod-missions', icone: 'assets/icons/icon-missions-48.png' },
     inventaire: { titre: 'Inventaire', desc: 'Compter les produits de votre quart', href: 'NEXUS-Inventaire-v1.html', module: 'mod-inventaire', icone: 'assets/icons/icon-inventaire-48.png' },
+    datescourtes: { titre: 'Dates courtes', desc: 'Relever les produits à date proche', href: 'NEXUS-Dates-Courtes-Releve-v1.html', module: 'mod-dates-courtes', icone: 'assets/icons/icon-inventaire-48.png' },
     releves: { titre: 'Relevés d’index', desc: 'Index des pompes de votre quart', href: 'NEXUS-Releves-Piste-v1.html', icone: 'assets/icons/icon-reception-carburant-48.png' },
     fdj: { titre: 'FDJ', desc: 'Contrôler votre activité FDJ', href: 'NEXUS-FDJ-v1.html', module: 'mod-fdj', icone: 'assets/icons/icon-fdj-48.png' },
     reception: { titre: 'Réception', desc: 'Livraison carburant du jour', href: 'NEXUS-Carburant-Reception-v1.html', icone: 'assets/icons/icon-reception-carburant-48.png' },
@@ -2611,6 +2612,8 @@
     // Aucune TÂCHE accessible n'est masquée : le plafond de 4 ne rogne que le
     // remplissage « Progression », jamais une tâche applicable (relevés d'index).
     if (ctx.indexApplicable) candidats.splice(1, 0, 'releves');
+    // Dates courtes : tâche de relevé, jamais masquée par le plafond (le serveur reste seul juge du droit).
+    if (ctx.datesCourtesApplicable) candidats.splice(1, 0, 'datescourtes');
     if (candidats.length < 4) candidats.push('progression');
     return candidats;
   }
@@ -3110,6 +3113,19 @@
     // défaut) ET le réglage du site doit l'autoriser côté employé.
     const receptionApplicable = enService && roleADroitModule('reception', roleDuJour) && (receptionRole === 'employe' || receptionRole === 'les_deux');
 
+    // Dates courtes : renfort, manager, gérant, créateur ; le caissier seulement si l'accès de la station est ouvert
+    // (dernière ligne de dates_courtes_acces_caissier). Pompiste et vacataire : jamais. Le serveur refuse de toute façon.
+    let datesCourtesApplicable = false;
+    if (enService) {
+      if (employee.est_createur || ['renfort', 'manager', 'gerant'].includes(employee.role)) datesCourtesApplicable = true;
+      else if (employee.role === 'caissier') {
+        try {
+          const { data: acc, error: eAcc } = await nexusClient.from('dates_courtes_acces_caissier').select('actif').eq('site', employee.site_id).order('saisi_le', { ascending: false }).limit(1);
+          datesCourtesApplicable = !eAcc && !!(acc && acc[0] && acc[0].actif);
+        } catch (e) { datesCourtesApplicable = false; }
+      }
+    }
+
     const missionsInfo = calculerMissionsObligatoiresJour(catalogueRows, completionsRows, roleDuJour, maintenant);
     const controlesInfo = calculerControlesQuartJour(inventaireApplicable, inventaireFait, fdjApplicable, fdjFait, jaugeageApplicable, jaugeageFait, indexApplicable, indexFait);
     // `serviceCourantJour` / `serviceCourantId` / `enService` sont calculés
@@ -3188,7 +3204,7 @@
       arriveeFaite: arriveeFaite || journeeTerminee, departFait: departFait || journeeTerminee,
       journeeTerminee: journeeFinie,
       missionsInfo, controlesInfo,
-      inventaireApplicable, inventaireFait, inventaireOuvertureFaite, fdjApplicable, fdjFait, receptionApplicable,
+      inventaireApplicable, inventaireFait, inventaireOuvertureFaite, fdjApplicable, fdjFait, receptionApplicable, datesCourtesApplicable,
       jaugeageApplicable, jaugeageFait,
       indexApplicable, indexFait, indexLien, filLien, filCaisseLien,
     };

@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="manifest" href="site.webmanifest">
+<meta name="theme-color" content="#07131E">
+<title>NEXUS : Relevé des dates courtes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --t-bg:#07131E; --t-panel:#0D202E; --t-raised:#0F2433; --t-line:#254354;
+    --t-text:#EDF1F5; --t-mid:#9AA8B6; --t-cyan:#24D8E3; --t-green:#29C98A; --t-amber:#F5A12A; --t-red:#F0707A;
+    --t-mono:'IBM Plex Mono',ui-monospace,monospace; --t-sans:'IBM Plex Sans',system-ui,sans-serif;
+    --bg:var(--t-bg); --panel:var(--t-panel); --panel-raised:var(--t-raised); --hairline:var(--t-line);
+    --text:var(--t-text); --text-mid:var(--t-mid); --text-dim:var(--t-mid);
+    --green:var(--t-green); --amber:var(--t-amber); --red:var(--t-red); --cyan:var(--t-cyan);
+    --amber-dim:color-mix(in srgb,var(--t-amber) 16%,transparent); --red-dim:color-mix(in srgb,var(--t-red) 16%,transparent);
+    --green-dim:color-mix(in srgb,var(--t-green) 16%,transparent); --cyan-dim:color-mix(in srgb,var(--t-cyan) 14%,transparent);
+    --mono:var(--t-mono); --sans:var(--t-sans);
+  }
+  :root[data-theme="jour"]{
+    --t-bg:#F4F6F8; --t-panel:#FFFFFF; --t-raised:#EEF2F5; --t-line:#D5DCE3; --t-text:#0F172A; --t-mid:#475569;
+    --t-cyan:#0B7285; --t-green:#047857; --t-amber:#B45309; --t-red:#B91C1C;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:var(--t-bg);color:var(--t-text);font-family:var(--t-sans);min-height:100vh}
+  body{display:flex;justify-content:center;font-variant-numeric:tabular-nums}
+  .app{width:100%;max-width:1100px;min-height:100vh;display:flex;flex-direction:column;padding:env(safe-area-inset-top) 16px 40px;overflow-x:hidden}
+
+  /* En-tête bannière : règles de la bannière Dates courtes (image entière, 2/1 puis 3/1). */
+  .header{position:relative;margin:12px 0 0;border-radius:14px;overflow:hidden;box-shadow:0 0 0 1px var(--hairline);aspect-ratio:3/1;display:flex;align-items:flex-end;background:#0D202E} /* charte-exception: fond de repli avant chargement de l'image, repris de Produits */
+  .header picture{position:absolute;inset:0;display:block}
+  .header img.entete{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+  .header::after{content:'';position:absolute;inset:0;background:linear-gradient(0deg,rgba(7,19,30,.85) 0%,rgba(7,19,30,0) 60%)} /* charte-exception: dégradé de lisibilité sur image */
+  @media (max-width:599px){.header{aspect-ratio:2/1}.header::after{background:linear-gradient(0deg,rgba(7,19,30,.9) 0%,rgba(7,19,30,.55) 45%,rgba(7,19,30,0) 80%)}.header-texte{padding:12px}.header-texte .eyebrow{font-size:10px;line-height:1.3}.header-texte .title{font-size:20px;line-height:1.2;margin-top:2px}.header-texte .sous{font-size:11px;margin-top:2px}}
+  .header-texte{position:relative;z-index:1;padding:18px;width:100%;color:#EDF1F5} /* charte-exception: texte clair posé sur le dégradé sombre, identique en Jour et Nuit */
+  .header-texte .eyebrow{font:600 11px var(--mono);letter-spacing:.08em;text-transform:uppercase;opacity:.85}
+  .header-texte .title{margin:4px 0 0;font:700 24px/1.2 var(--sans)}
+  .header-texte .sous{margin:4px 0 0;font-size:12px;opacity:.9}
+
+  .retour{display:inline-block;margin:12px 0 0;font-size:13px;color:var(--text-mid);text-decoration:none;min-height:44px;line-height:44px}
+  .retour:hover{color:var(--cyan)}
+  h2{font-size:15px;font-weight:700;margin:22px 0 4px}
+  .aide{font-size:12px;color:var(--text-mid);line-height:1.45}
+
+  .priorites{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px}
+  .prio{background:var(--panel);border:1px solid var(--hairline);border-radius:12px;padding:12px;text-align:left;color:inherit;font:inherit;cursor:pointer;min-height:44px}
+  .prio:hover{border-color:var(--cyan)}
+  .prio[aria-pressed="true"]{border-color:var(--cyan);box-shadow:0 0 0 1px var(--cyan)}
+  .prio .n{display:block;font:700 26px var(--mono)}
+  .prio .l{display:block;font-size:12px;color:var(--text-mid);margin-top:2px}
+  .prio.rouge .n{color:var(--red)} .prio.ambre .n{color:var(--amber)} .prio.cyan .n{color:var(--cyan)}
+
+  .cartes{display:grid;grid-template-columns:1fr;gap:12px;margin-top:12px}
+  @media (min-width:900px){.cartes{grid-template-columns:1fr 1fr}}
+  .card{background:var(--panel);border:1px solid var(--hairline);border-radius:12px;padding:16px}
+  .card h3{font-size:12px;font-weight:600;color:var(--text-mid);display:flex;align-items:center;gap:8px;line-height:1.35}
+  .card .gros{font:700 28px var(--mono);margin-top:8px}
+  .card .sous-gros{font-size:12px;color:var(--text-mid);margin-top:6px;line-height:1.45}
+  .card .note{font-size:12px;margin-top:8px;line-height:1.45}
+  .card.indispo .gros{font-size:18px;color:var(--text-mid)}
+  .info{margin-left:auto;flex:none;width:28px;height:28px;border-radius:50%;border:1px solid var(--hairline);background:var(--panel-raised);color:var(--text);font:600 13px var(--sans);cursor:pointer;min-width:44px;min-height:44px;margin:-8px -8px -8px auto;border-color:transparent;background:transparent}
+  .info span{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;border:1px solid var(--hairline);background:var(--panel-raised)}
+  .infobulle{margin-top:10px;padding:10px 12px;border-radius:8px;background:var(--panel-raised);border:1px solid var(--hairline);font-size:12px;line-height:1.5}
+  .infobulle[hidden]{display:none}
+  .infobulle b{font-family:var(--mono)}
+  .pastille{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;border:1px solid currentColor}
+  .p-ambre{color:var(--amber);background:var(--amber-dim)} .p-vert{color:var(--green);background:var(--green-dim)}
+  .p-rouge{color:var(--red);background:var(--red-dim)} .p-cyan{color:var(--cyan);background:var(--cyan-dim)}
+  .estim{color:var(--text-mid)}
+
+  .liste{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+  .ligne{display:grid;grid-template-columns:48px 1fr;gap:4px 12px;align-items:start;text-align:left;width:100%;background:var(--panel);border:1px solid var(--hairline);border-radius:10px;padding:12px;color:inherit;font:inherit;cursor:pointer;min-height:44px}
+  .ligne:hover{border-color:var(--cyan)}
+  .ligne .nom{font-weight:600;font-size:14px;overflow-wrap:anywhere}
+  .ligne .meta{font-size:12px;color:var(--text-mid);grid-column:1/-1}
+  .ligne .corps-l{display:flex;flex-direction:column;align-items:flex-start;gap:3px;min-width:0}
+  .ligne .vign{width:48px;height:48px;display:flex;align-items:center;justify-content:center;border-radius:8px;background:var(--panel-2,transparent);border:1px solid var(--hairline);overflow:hidden}
+  .ligne .vign img,.ligne .vign .pt-vign-neutre{width:100%;height:100%;object-fit:contain;display:block}
+  .ligne .delai{font-weight:600;font-size:13px}
+  .ligne .dlc{font-size:12px;color:var(--text-mid)}
+  .ligne .chiffres{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 6px;overflow-wrap:anywhere}
+  .qte{white-space:nowrap}
+  .qte .qte-n{font-family:var(--mono);font-weight:700;font-size:22px;line-height:1.15}
+  .qte .qte-u{font-family:var(--sans);font-weight:400;font-size:14px}
+  .ligne .prix{white-space:nowrap;font-weight:400;font-size:14px;color:var(--text-mid)}
+  @media (min-width:900px){.qte .qte-n{font-size:24px}}
+  .ligne .ean{font:12px var(--mono);color:var(--text-mid)}
+  .ligne .l1{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:4px 8px;width:100%}
+  .ligne .badges{display:inline-flex;flex-wrap:wrap;gap:4px}
+  .ligne .l2{font-size:12px;overflow-wrap:anywhere}
+  .ligne .meta{grid-column:auto;color:var(--text-mid)}
+  @media (min-width:1280px){.ligne{grid-template-columns:56px 1fr}.ligne .vign{width:56px;height:56px}}
+  .filtres{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+  .filtres button{min-height:44px;padding:0 14px;border-radius:999px;border:1px solid var(--hairline);background:var(--panel);color:var(--text);font:600 12px var(--sans);cursor:pointer}
+  .filtres button[aria-pressed="true"]{border-color:var(--cyan);color:var(--cyan)}
+
+  details.panneau{margin-top:12px;background:var(--panel);border:1px solid var(--hairline);border-radius:12px}
+  details.panneau>summary{min-height:44px;padding:12px 16px;cursor:pointer;font-size:13px;font-weight:600;list-style:none;display:flex;align-items:center}
+  details.panneau>summary::-webkit-details-marker{display:none}
+  details.panneau>summary::after{content:'+';margin-left:auto;color:var(--text-mid)}
+  details.panneau[open]>summary::after{content:'\2212'}
+  details.panneau .corps{padding:0 16px 16px;font-size:12px;line-height:1.55}
+  .corps table{width:100%;border-collapse:collapse;margin-top:8px}
+  .corps th{font:600 11px var(--mono);text-transform:uppercase;letter-spacing:.05em;color:var(--text-mid);text-align:left;padding:6px 4px;border-bottom:1px solid var(--hairline)}
+  .corps td{padding:8px 4px;border-bottom:1px solid var(--hairline);vertical-align:top}
+  .corps td.num,.corps th.num{text-align:right}
+  .corps li{margin:6px 0 0 18px}
+
+  .etat{margin-top:16px;padding:20px 16px;border:1px dashed var(--hairline);border-radius:12px;text-align:center;color:var(--text-mid);font-size:13px;line-height:1.5}
+  .etat.erreur{border-color:var(--red);color:var(--text)}
+  .etat button{margin-top:12px;min-height:44px;padding:0 18px;border-radius:8px;border:1px solid var(--cyan);background:transparent;color:var(--cyan);font:600 13px var(--sans);cursor:pointer}
+  .bandeau-nf{margin-top:14px;padding:12px 14px;border-radius:10px;background:var(--amber-dim);border:1px solid var(--amber);font-size:13px;line-height:1.45}
+  .squelette{height:84px;border-radius:12px;background:var(--panel);border:1px solid var(--hairline);margin-top:12px;animation:pulse 1.4s ease-in-out infinite}
+  @keyframes pulse{50%{opacity:.5}}
+  @media (prefers-reduced-motion:reduce){.squelette{animation:none}}
+
+  dialog{margin:auto;border:1px solid var(--hairline);border-radius:14px;background:var(--panel);color:var(--text);width:min(520px,calc(100vw - 24px));padding:0;max-height:88vh;overflow:auto}
+  dialog::backdrop{background:rgba(0,0,0,.55)} /* charte-exception: voile de fond de la fiche */
+  .fiche{padding:18px}
+  .fiche h2{margin:0;font-size:17px;overflow-wrap:anywhere}
+  .fiche dl{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin-top:14px;font-size:13px}
+  .fiche dt{color:var(--text-mid)} .fiche dd{text-align:right;font-family:var(--sans)} .fiche dd .num,.fiche dd .autre b{font-family:var(--mono)} .fiche dd .qte .qte-n{font-size:24px} .fiche .autres{margin:6px 0 0;padding:0;list-style:none;text-align:left} .fiche .autres li{margin:2px 0} .fiche .regle{grid-column:1/-1;margin:6px 0 0;font-size:13px;color:var(--text-mid);text-align:left}
+  .fiche .actions{display:flex;flex-direction:column;gap:8px;margin-top:16px}
+  .fiche button{min-height:44px;border-radius:8px;border:1px solid var(--hairline);background:var(--panel-raised);color:var(--text);font:600 13px var(--sans);cursor:pointer}
+  .fiche button[disabled]{opacity:.6;cursor:not-allowed}
+  .fiche .dispo{font-size:12px;color:var(--text-mid);text-align:center}
+  :focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+  @media (max-width:599px){.priorites{gap:8px;margin-top:8px}.prio{padding:8px 6px;text-align:center;min-height:56px}.prio .n{font-size:24px;line-height:1.1}.prio .l{font-size:12px}h2{margin-top:14px}}
+
+  /* Lot 2 : relevé employé */
+  .ecran-titre{font-size:17px;margin:18px 0 8px}
+  .btn{min-height:48px;padding:0 18px;border-radius:10px;border:1px solid var(--hairline);background:var(--panel-raised);color:var(--text);font:600 14px var(--sans);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px}
+  .btn.prim{border-color:var(--cyan);background:var(--cyan-dim);color:var(--cyan)}
+  .btn.danger{border-color:var(--red);color:var(--red)}
+  .btn[disabled]{opacity:.55;cursor:not-allowed}
+  .btn.plein{width:100%}
+  .rang{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+  .rang .btn{flex:1 1 140px}
+  .carte{margin-top:10px;padding:14px;background:var(--panel);border:1px solid var(--hairline);border-radius:12px}
+  .carte h3{font-size:14px;overflow-wrap:anywhere}
+  .carte .meta{margin-top:4px;font-size:12px;color:var(--text-mid)}
+  .champ{display:block;margin-top:12px;font-size:12px;color:var(--text-mid)}
+  .champ input,.champ textarea,.champ select{display:block;width:100%;min-height:48px;margin-top:4px;padding:10px 12px;border-radius:10px;border:1px solid var(--hairline);background:var(--panel-raised);color:var(--text);font:500 16px var(--sans)}
+  .champ textarea{min-height:88px}
+  .bascule{display:flex;gap:0;margin-top:12px;border:1px solid var(--hairline);border-radius:10px;overflow:hidden}
+  .bascule button{flex:1;min-height:44px;border:0;background:transparent;color:var(--text-mid);font:600 13px var(--sans);cursor:pointer}
+  .bascule button[aria-pressed="true"]{background:var(--cyan-dim);color:var(--cyan)}
+  .scan{margin-top:12px;border-radius:12px;overflow:hidden;background:var(--panel);border:1px solid var(--hairline);position:relative}
+  .scan video{display:block;width:100%;max-height:46vh;object-fit:cover}
+  .scan .viseur{position:absolute;inset:22% 10%;border:2px solid var(--cyan);border-radius:10px;pointer-events:none}
+  .scan p{padding:10px 12px;font-size:12px;color:var(--text-mid)}
+  .resultats{list-style:none;margin-top:8px}
+  .resultats li button{width:100%;text-align:left;min-height:52px;padding:10px 12px;margin-top:6px;border-radius:10px;border:1px solid var(--hairline);background:var(--panel);color:var(--text);font:500 14px var(--sans);cursor:pointer}
+  .resultats .sub{display:block;font:400 12px var(--mono);color:var(--text-mid);margin-top:2px}
+  .prov{margin-top:10px;padding:12px 14px;border-radius:10px;background:var(--amber-dim);border:1px solid var(--amber);font-size:13px;line-height:1.45}
+  .qte-aff{margin-top:12px;min-height:64px;display:flex;align-items:center;justify-content:center;border-radius:12px;border:1px solid var(--hairline);background:var(--panel-raised);font:700 34px var(--mono)}
+  .clavier{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+  .clavier button{min-height:52px;border-radius:10px;border:1px solid var(--hairline);background:var(--panel);color:var(--text);font:600 20px var(--mono);cursor:pointer}
+  .lignes{list-style:none;margin-top:8px}
+  .ligne{margin-top:8px;padding:12px 14px;background:var(--panel);border:1px solid var(--hairline);border-radius:12px;display:grid;grid-template-columns:1fr auto;gap:4px 12px;align-items:center}
+  .ligne .prod{font-weight:600;font-size:14px;overflow-wrap:anywhere}
+  .ligne .date{font-size:12px;color:var(--text-mid)}
+  .ligne .qte{font:700 20px var(--mono);text-align:right}
+  .ligne .raison{grid-column:1/-1;font-size:12px;color:var(--text-mid)}
+  .ligne .acts{grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap}
+  .ligne .acts .btn{min-height:44px;font-size:13px;flex:1 1 120px}
+  .badge-e{display:inline-block;padding:2px 8px;border-radius:999px;font:600 11px var(--mono);border:1px solid var(--hairline);margin-left:6px;vertical-align:middle}
+  .badge-e.ok{color:var(--green);border-color:var(--green)}
+  .badge-e.att{color:var(--amber);border-color:var(--amber)}
+  .badge-e.ref{color:var(--red);border-color:var(--red)}
+  .bandeau-corr{margin-top:14px;padding:12px 14px;border-radius:10px;background:var(--cyan-dim);border:1px solid var(--cyan);font-size:13px;line-height:1.45}
+  .msg-fix{position:sticky;bottom:0;margin-top:12px;padding:10px 12px;border-radius:10px;background:var(--panel);border:1px solid var(--hairline);font-size:12px;color:var(--text-mid)}
+  @media (min-width:600px){.ligne{grid-template-columns:2fr 1fr auto auto}.ligne .raison,.ligne .acts{grid-column:1/-1}}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <a class="retour" href="NEXUS-App-v1.html">Retour à l'accueil</a>
+  <header class="header hero" id="heroDatesCourtes">
+    <picture>
+      <source media="(max-width:599px)" srcset="assets/telephone/dates-courtes-telephone.webp">
+      <img class="entete" src="assets/dates-courtes/dates-courtes-banniere-1200.webp" srcset="assets/dates-courtes/dates-courtes-banniere-800.webp 800w, assets/dates-courtes/dates-courtes-banniere-1200.webp 1200w, assets/dates-courtes/dates-courtes-banniere-1600.webp 1600w" sizes="(min-width:1100px) 1100px, 100vw" width="1600" height="533" alt="">
+    </picture>
+    <div class="header-texte">
+      <div class="eyebrow">NEXUS · Dates courtes</div>
+      <h1 class="title">Relevé des dates courtes</h1>
+      <p class="sous" id="sousTitre">Mes tournées</p>
+    </div>
+  </header>
+  <main id="contenu" aria-live="polite">
+    <div class="squelette" aria-label="Chargement"></div><div class="squelette"></div><div class="squelette"></div>
+  </main>
+</div>
+<dialog id="fiche" aria-label="Action sur la ligne"></dialog>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="nexus-build.js"></script>
+<script src="nexus-theme.js"></script>
+<script src="nexus-auth.js?v=20261122-0002"></script>
+<script src="nexus-icones.js?v=20261122-0001"></script>
+<script>
+(function(){
+'use strict';
+var racine=document.getElementById('contenu');
+var sous=document.getElementById('sousTitre');
+var fiche=document.getElementById('fiche');
+var employee=null, tournee=null, lignes=[], produit=null, saisie=null;
+var ZXING_URL='https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js';
+var memoire={};
+
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function pl(n,a,b){return Math.abs(n)>1?b:a;}
+function dateFr(iso){var m=/^(\d{4})-(\d{2})-(\d{2})/.exec(iso||'');return m?m[3]+'/'+m[2]+'/'+m[1]:'';}
+function norm(s){return String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s+/g,' ').trim();}
+function uuid(){try{return crypto.randomUUID();}catch(e){return 'k'+Date.now().toString(36)+Math.random().toString(36).slice(2,10);}}
+function stoc(k,v){try{if(v===undefined){var r=localStorage.getItem(k);return r==null?memoire[k]:r;}localStorage.setItem(k,v);}catch(e){if(v===undefined)return memoire[k];memoire[k]=v;}}
+
+/* ---------- File d'attente locale : clés créées au geste ---------- */
+function cleFile(){return 'nexus_dc_file_v1_'+employee.id;}
+function lireFile(){try{return JSON.parse(stoc(cleFile())||'[]')||[];}catch(e){return [];}}
+function ecrireFile(f){stoc(cleFile(),JSON.stringify(f));}
+function enAttente(tid){return lireFile().filter(function(i){return i.etat==='attente'&&(!tid||i.donnees.tournee_id===tid);});}
+var enVol=false;
+function codeErreur(err){var m=/^([a-z_]+) : (.*)$/s.exec((err&&err.message)||'');return m?{code:m[1],texte:m[2]}:null;}
+function vider(){
+  if(enVol) return Promise.resolve();
+  enVol=true;
+  function suite(){
+    var f=lireFile(), item=null, i;
+    for(i=0;i<f.length;i++){if(f[i].etat==='attente'){item=f[i];break;}}
+    if(!item){enVol=false;return Promise.resolve();}
+    return nexusClient.rpc('dates_courtes_enregistrer',{p_operation:item.op,p_cle_idempotence:item.cle,p_donnees:item.donnees}).then(function(r){
+      var g=lireFile();
+      if(r.error){
+        var c=codeErreur(r.error);
+        if(c&&c.code!=='non_authentifie'){
+          g.forEach(function(x){if(x.cle===item.cle){x.etat='refuse';x.raison=c.texte;}});
+          ecrireFile(g);return suite();
+        }
+        enVol=false;return;
+      }
+      ecrireFile(g.filter(function(x){return x.cle!==item.cle;}));
+      return suite();
+    },function(){enVol=false;});
+  }
+  return suite().then(function(){enVol=false;if(tournee) rafraichir();});
+}
+function empiler(op,donnees,libelle,date,qte){
+  donnees.tournee_id=tournee.id;
+  donnees.heure_geste=new Date().toISOString();
+  var f=lireFile();
+  f.push({cle:uuid(),op:op,donnees:donnees,etat:'attente',libelle:libelle||'',date:date||'',qte:qte,raison:''});
+  ecrireFile(f);
+  vider();
+}
+window.addEventListener('online',vider);
+
+/* ---------- États ---------- */
+function messageEtat(titre,texte,reessai){
+  racine.innerHTML='<div class="etat erreur"><strong>'+esc(titre)+'</strong><br>'+esc(texte)+(reessai?'<br><button type="button" data-act="init">Réessayer</button>':'')+'</div>';
+}
+function chargement(){racine.innerHTML='<div class="squelette" aria-label="Chargement"></div><div class="squelette"></div>';}
+
+/* ---------- Mes tournées ---------- */
+function ecranTournees(){
+  arreterScan();tournee=null;sous.textContent='Mes tournées';chargement();
+  nexusClient.from('dates_courtes_tournees').select('id,nom,etat,saisi_le').eq('saisi_par',employee.id).in('etat',['EN_COURS','CORRECTION_DEMANDEE']).order('saisi_le',{ascending:false}).then(function(r){
+    if(r.error){messageEtat('Chargement impossible','Les tournées n\'ont pas pu être lues.',true);return;}
+    var h='<h2 class="ecran-titre">Mes tournées en cours</h2>';
+    if(!r.data.length) h+='<div class="etat">Aucune tournée en cours. Commence une nouvelle tournée pour relever des dates limites.</div>';
+    r.data.forEach(function(t){
+      h+='<div class="carte"><h3>'+esc(t.nom||'Tournée sans nom')+(t.etat==='CORRECTION_DEMANDEE'?'<span class="badge-e att">Correction demandée</span>':'')+'</h3><div class="meta">Commencée le '+esc(dateFr(t.saisi_le))+'</div><div class="rang"><button type="button" class="btn prim" data-act="ouvrir" data-id="'+esc(t.id)+'" data-nom="'+esc(t.nom||'')+'" data-etat="'+esc(t.etat)+'">Reprendre</button></div></div>';
+    });
+    h+='<label class="champ">Nom de la tournée (facultatif)<input id="nomTournee" maxlength="100" autocomplete="off"></label><div class="rang"><button type="button" class="btn prim plein" data-act="nouvelle">Nouvelle tournée</button></div>';
+    var n=enAttente().length;
+    if(n) h+='<div class="msg-fix">'+n+' '+pl(n,'saisie en attente','saisies en attente')+' d\'envoi sur cet appareil.</div>';
+    racine.innerHTML=h;
+  });
+}
+function nouvelleTournee(){
+  var nom=(document.getElementById('nomTournee')||{}).value||'';
+  nexusClient.rpc('dates_courtes_creer_tournee',{p_nom:nom,p_cle_idempotence:uuid()}).then(function(r){
+    if(r.error){var c=codeErreur(r.error);messageEtat('Tournée non créée',c?c.texte:'Connexion nécessaire pour ouvrir une tournée.',true);return;}
+    ouvrirTournee({id:r.data.tournee_id,nom:nom,etat:'EN_COURS'});
+  });
+}
+function ouvrirTournee(t){tournee=t;sous.textContent=t.nom||'Tournée en cours';rafraichir().then(function(){if(t.etat==='CORRECTION_DEMANDEE') ecranCorrection(); else ecranTournee();});}
+
+/* ---------- Lecture des lignes de la tournée ---------- */
+function rafraichir(){
+  if(!tournee) return Promise.resolve();
+  var id=tournee.id;
+  return Promise.all([
+    nexusClient.from('dates_courtes_releves').select('id,ean,libelle_vu,libelle_normalise,date_limite,quantite,provisoire').eq('tournee_id',id).is('annule_le',null),
+    nexusClient.from('dates_courtes_corrections').select('id,ean,libelle_normalise,date_limite,delta,releve_id').eq('tournee_id',id).is('annule_le',null),
+    nexusClient.from('dates_courtes_retraits').select('id,ean,libelle_normalise,date_limite,quantite').eq('tournee_id',id).is('annule_le',null)
+  ]).then(function(rs){
+    if(rs[0].error) {return;}
+    var g={}, lib={};
+    function cle(x){return (x.ean||'L:'+x.libelle_normalise)+'|'+x.date_limite;}
+    (rs[0].data||[]).forEach(function(x){
+      var k=cle(x);lib[x.ean||('L:'+x.libelle_normalise)]=x.libelle_vu;
+      g[k]=g[k]||{k:k,ean:x.ean,libelle:x.libelle_vu,ln:x.libelle_normalise,date:x.date_limite,total:0,retire:0,releve_id:x.id,provisoire:x.provisoire};
+      g[k].total+=x.quantite;g[k].releve_id=x.id;
+    });
+    ((rs[1].data)||[]).forEach(function(x){var k=cle(x);if(g[k]) g[k].total+=x.delta;});
+    ((rs[2].data)||[]).forEach(function(x){var k=cle(x);if(g[k]) g[k].retire+=x.quantite;});
+    lignes=Object.keys(g).map(function(k){return g[k];}).sort(function(a,b){return a.date<b.date?-1:1;});
+    if(document.getElementById('listeLignes')) dessinerLignes();
+  });
+}
+function dessinerLignes(){
+  var el=document.getElementById('listeLignes');if(!el) return;
+  var f=lireFile().filter(function(i){return i.donnees.tournee_id===tournee.id;});
+  var h='';
+  lignes.forEach(function(l,i){
+    h+='<li class="ligne"><div><div class="prod">'+esc(l.libelle)+'</div><div class="date">Date limite '+esc(dateFr(l.date))+(l.provisoire?' · provisoire':'')+'</div></div><div class="qte">'+l.total+'<span class="badge-e ok">Enregistré</span></div>'+(l.retire?'<div class="raison">Retiré : '+l.retire+'</div>':'')+'<div class="acts"><button type="button" class="btn" data-act="action" data-i="'+i+'">Corriger</button></div></li>';
+  });
+  f.forEach(function(i){
+    var ok=i.etat==='attente';
+    h+='<li class="ligne"><div><div class="prod">'+esc(i.libelle||'Saisie')+'</div><div class="date">'+esc(i.op)+(i.date?' · '+esc(dateFr(i.date)):'')+'</div></div><div class="qte">'+(i.qte==null?'':esc(i.qte))+'<span class="badge-e '+(ok?'att':'ref')+'">'+(ok?'En attente':'Refusé')+'</span></div>'+(ok?'':'<div class="raison">'+esc(i.raison)+'</div><div class="acts"><button type="button" class="btn" data-act="oubli" data-cle="'+esc(i.cle)+'">Retirer de la file</button></div>')+'</li>';
+  });
+  el.innerHTML=h||'<li class="etat">Aucune saisie pour l\'instant.</li>';
+}
+function rafraichirAffichage(){dessinerLignes();}
+
+/* ---------- Écran de tournée ---------- */
+function ecranTournee(){
+  arreterScan();
+  racine.innerHTML='<div class="rang"><button type="button" class="btn prim plein" data-act="identifier">Identifier un produit</button></div><h2 class="ecran-titre">Saisies de ma tournée</h2><ul class="lignes" id="listeLignes"></ul><div class="rang"><button type="button" class="btn" data-act="liste">Mes tournées</button><button type="button" class="btn" data-act="terminer">Terminer ma tournée</button></div>';
+  dessinerLignes();
+}
+
+/* ---------- Identification ---------- */
+function modeSaisie(){return stoc('nexus_dc_mode_v1')==='douchette'?'douchette':'camera';}
+function ecranIdentifier(){
+  var m=modeSaisie();
+  racine.innerHTML='<h2 class="ecran-titre">Identifier un produit</h2><div class="bascule" role="group" aria-label="Mode de lecture"><button type="button" data-act="mode" data-m="camera" aria-pressed="'+(m==='camera')+'">Caméra</button><button type="button" data-act="mode" data-m="douchette" aria-pressed="'+(m==='douchette')+'">Douchette</button></div>'+
+   (m==='camera'?'<div class="scan"><video id="video" playsinline muted></video><div class="viseur"></div><p id="scanMsg">Place le code-barres dans le cadre.</p></div>':'<p class="msg-fix" id="scanMsg">Douchette prête : scanne le produit.</p>')+
+   '<label class="champ">'+(m==='douchette'?'Code lu par la douchette':'Code EAN')+'<input id="champEan" inputmode="'+(m==='douchette'?'none':'numeric')+'" autocomplete="off" autocapitalize="off" spellcheck="false"></label><div class="rang"><button type="button" class="btn" data-act="ean">Valider le code</button></div>'+
+   '<label class="champ">Chercher par nom<input id="champNom" autocomplete="off" placeholder="Nom du produit"></label><ul class="resultats" id="resultats"></ul><div class="rang"><button type="button" class="btn" data-act="retourTournee">Retour</button></div>';
+  if(m==='camera') demarrerScan(); else gardeFocus();
+}
+function gardeFocus(){
+  var c=document.getElementById('champEan');if(!c) return;
+  c.focus();
+  c.addEventListener('blur',function(){setTimeout(function(){var a=document.activeElement;if(modeSaisie()==='douchette'&&document.getElementById('champEan')===c&&!fiche.open&&(!a||a===document.body)) c.focus();},120);});
+}
+/* GS1 : (01) GTIN-14, (17) date AAMMJJ */
+function analyserCode(txt){
+  var t=String(txt||'').trim(),date=null,ean=null;
+  var p=t.replace(/[()\s]/g,'');
+  var m=/^01(\d{14})(?:17(\d{6}))?/.exec(p);
+  if(m&&p.length>=16){
+    ean=m[1].charAt(0)==='0'?m[1].slice(1):m[1];
+    if(m[2]){
+      var a=2000+parseInt(m[2].slice(0,2),10),mo=parseInt(m[2].slice(2,4),10),j=parseInt(m[2].slice(4,6),10);
+      if(mo>=1&&mo<=12){if(j===0) j=new Date(a,mo,0).getDate();date=a+'-'+('0'+mo).slice(-2)+'-'+('0'+j).slice(-2);}
+    }
+    return {ean:ean,date:date};
+  }
+  if(/^\d{8,14}$/.test(p)) return {ean:p,date:null};
+  return null;
+}
+function reconnaitre(texte){
+  var r=analyserCode(texte);
+  if(!r){var e=document.getElementById('scanMsg');if(e) e.textContent='Code non reconnu. Réessaie ou cherche par nom.';return;}
+  arreterScan();
+  nexusClient.rpc('dates_courtes_rechercher_produit',{p_requete:r.ean,p_limite:1}).then(function(x){
+    var row=(!x.error&&x.data&&x.data[0])||null;
+    produit=row?{ean:row.ean||r.ean,libelle:row.libelle,provisoire:false,date:r.date}:{ean:r.ean,libelle:'',provisoire:true,date:r.date};
+    ecranSaisie();
+  });
+}
+var flux=null,lecteur=null,boucle=null;
+function arreterScan(){
+  if(boucle){clearInterval(boucle);boucle=null;}
+  try{if(lecteur&&lecteur.reset) lecteur.reset();}catch(e){}
+  lecteur=null;
+  if(flux){flux.getTracks().forEach(function(t){t.stop();});flux=null;}
+}
+function demarrerScan(){
+  var v=document.getElementById('video'),msg=document.getElementById('scanMsg');
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){msg.textContent='Caméra indisponible : saisis le code ou cherche par nom.';return;}
+  navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false}).then(function(s){
+    flux=s;v.srcObject=s;v.play();
+    if('BarcodeDetector' in window){
+      var d=new window.BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e','code_128','itf']});
+      boucle=setInterval(function(){
+        if(v.readyState<2) return;
+        d.detect(v).then(function(b){if(b&&b.length) reconnaitre(b[0].rawValue);},function(){});
+      },300);
+    } else {
+      chargerZxing().then(function(Z){
+        if(!flux) return;
+        lecteur=new Z.BrowserMultiFormatReader();
+        lecteur.decodeFromVideoElement(v,function(res){if(res) reconnaitre(res.getText());});
+      },function(){msg.textContent='Lecture impossible ici : saisis le code ou cherche par nom.';});
+    }
+  },function(){msg.textContent='Accès caméra refusé : saisis le code ou cherche par nom.';});
+}
+function chargerZxing(){
+  return new Promise(function(ok,ko){
+    if(window.ZXing) return ok(window.ZXing);
+    var s=document.createElement('script');s.src=ZXING_URL;s.onload=function(){window.ZXing?ok(window.ZXing):ko();};s.onerror=ko;document.head.appendChild(s);
+  });
+}
+var minuteur=null;
+function chercherNom(q){
+  var ul=document.getElementById('resultats');if(!ul) return;
+  if(q.trim().length<2){ul.innerHTML='';return;}
+  nexusClient.rpc('dates_courtes_rechercher_produit',{p_requete:q,p_limite:20}).then(function(r){
+    if(r.error){ul.innerHTML='<li class="etat">Recherche impossible pour l\'instant.</li>';return;}
+    var h='';
+    (r.data||[]).forEach(function(p,i){h+='<li><button type="button" data-act="choisir" data-i="'+i+'">'+esc(p.libelle)+'<span class="sub">'+esc(p.ean||'sans code')+(p.rayon?' · '+esc(p.rayon):'')+'</span></button></li>';});
+    ul.innerHTML=h||'<li class="etat">Aucun produit trouvé.</li>';
+    ul._res=r.data||[];
+  });
+}
+
+/* ---------- Saisie date et quantité ---------- */
+function ecranSaisie(){
+  arreterScan();
+  saisie={date:produit.date||'',q:''};
+  var h='<h2 class="ecran-titre">'+esc(produit.libelle||'Produit non identifié')+'</h2><div class="meta">'+esc(produit.ean||'sans code')+'</div>';
+  if(produit.provisoire){
+    h+='<div class="prov"><strong>Produit non identifié.</strong> L\'entrée sera marquée provisoire : aucune référence n\'est créée.</div><label class="champ">Nom du produit (facultatif)<input id="nomLibre" maxlength="120" autocomplete="off"></label>';
+  }
+  h+='<label class="champ">Date limite<input type="date" id="champDate" value="'+esc(saisie.date)+'"></label><div id="existant"></div><div class="qte-aff" id="qteAff" aria-live="polite">0</div><div class="clavier" id="clavier">';
+  ['1','2','3','4','5','6','7','8','9','C','0','←'].forEach(function(k){h+='<button type="button" data-act="touche" data-k="'+k+'" aria-label="'+(k==='C'?'Effacer tout':k==='←'?'Effacer le dernier chiffre':k)+'">'+k+'</button>';});
+  h+='</div><div class="rang"><button type="button" class="btn prim" data-act="enregistrer" id="btnEnr">Enregistrer</button><button type="button" class="btn" data-act="identifier">Annuler</button></div>';
+  racine.innerHTML=h;
+  var cd=document.getElementById('champDate');cd.addEventListener('change',function(){saisie.date=cd.value;existant();});
+  existant();
+}
+function trouverLigne(){
+  var d=saisie.date;if(!d) return null;
+  for(var i=0;i<lignes.length;i++){var l=lignes[i];
+    if(l.date===d&&(produit.ean?l.ean===produit.ean:(!l.ean&&l.ln===norm(produit.libelle)))) return l;}
+  return null;
+}
+function existant(){
+  var el=document.getElementById('existant');if(!el) return;
+  var l=trouverLigne();
+  el.innerHTML=l?'<div class="bandeau-corr">Déjà relevé dans cette tournée : '+l.total+' '+pl(l.total,'unité','unités')+'. Saisis la quantité à ajouter, ou la nouvelle quantité pour corriger.<div class="rang"><button type="button" class="btn" data-act="mode-ajout" aria-pressed="true" id="mAj">Ajouter des unités</button><button type="button" class="btn" data-act="mode-corr" id="mCo">Corriger le relevé</button></div></div>':'';
+  saisie.mode='ajout';
+}
+function maj(){var e=document.getElementById('qteAff');if(e) e.textContent=saisie.q||'0';}
+function enregistrer(){
+  var q=parseInt(saisie.q||'0',10),d=saisie.date;
+  if(!d){alert('Choisis la date limite.');return;}
+  if(!(q>0)&&!(saisie.mode==='corr'&&saisie.q!=='')){alert('Saisis une quantité.');return;}
+  var l=trouverLigne(),nl=(document.getElementById('nomLibre')||{}).value||'';
+  var base={ean:produit.ean||null,libelle:produit.libelle||nl||null,date_limite:d};
+  if(l&&saisie.mode==='corr'){
+    var delta=q-l.total;if(delta===0){ecranTournee();return;}
+    base.delta=delta;base.releve_id=l.releve_id;base.motif='Correction du relevé';
+    empiler('correction',base,l.libelle,d,delta);
+  } else if(l){
+    base.quantite=q;empiler('ajout',base,l.libelle,d,q);
+  } else {
+    base.quantite=q;if(nl) base.nom_libre=nl;
+    empiler('releve',base,produit.libelle||nl||produit.ean,d,q);
+  }
+  ecranTournee();
+}
+
+/* ---------- Corrections sur une ligne ---------- */
+function ouvrirAction(i){
+  var l=lignes[i];if(!l) return;
+  fiche.innerHTML='<div class="fiche"><h2>'+esc(l.libelle)+'</h2><p class="meta">Date limite '+esc(dateFr(l.date))+' · '+l.total+' '+pl(l.total,'unité','unités')+'</p><div class="actions"><button type="button" data-act="a-date" data-i="'+i+'">Changer la date</button><button type="button" data-act="a-trouve" data-i="'+i+'">Trouvé et retiré</button><button type="button" data-act="a-annule" data-i="'+i+'">Annuler la ligne</button><button type="button" data-act="fermer">Fermer</button></div><div id="ficheZone"></div></div>';
+  if(fiche.showModal) fiche.showModal(); else fiche.setAttribute('open','');
+}
+function fermer(){if(fiche.close) fiche.close(); else fiche.removeAttribute('open');}
+function zone(h){document.getElementById('ficheZone').innerHTML=h;}
+function validerAction(a,i){
+  var l=lignes[i],v=function(id){return ((document.getElementById(id)||{}).value||'').trim();};
+  if(a==='a-date'){
+    zone('<label class="champ">Nouvelle date limite<input type="date" id="fNouv"></label><label class="champ">Motif<input id="fMotif" maxlength="200"></label><button type="button" class="btn prim plein" data-act="v-date" data-i="'+i+'">Valider</button>');
+  } else if(a==='a-trouve'){
+    zone('<label class="champ">Quantité trouvée et retirée<input id="fQte" inputmode="numeric" pattern="[0-9]*"></label><button type="button" class="btn prim plein" data-act="v-trouve" data-i="'+i+'">Valider</button>');
+  } else if(a==='a-annule'){
+    zone('<label class="champ">Motif (obligatoire)<input id="fMotif" maxlength="200"></label><button type="button" class="btn danger plein" data-act="v-annule" data-i="'+i+'">Annuler la ligne</button>');
+  } else if(a==='v-date'){
+    var nd=v('fNouv');if(!nd) return;
+    empiler('changement_date',{ean:l.ean||null,libelle:l.libelle,ancienne_date:l.date,nouvelle_date:nd,quantite:l.total,motif:v('fMotif')||'Date relue'},l.libelle,nd,l.total);fermer();ecranTournee();
+  } else if(a==='v-trouve'){
+    var q=parseInt(v('fQte'),10);if(!(q>0)) return;
+    empiler('trouve_retire',{ean:l.ean||null,libelle:l.libelle,date_limite:l.date,quantite:q},l.libelle,l.date,q);fermer();ecranTournee();
+  } else if(a==='v-annule'){
+    var mo=v('fMotif');if(!mo){return;}
+    empiler('annulation',{cible:'releves',id:l.releve_id,motif:mo},l.libelle,l.date,null);fermer();ecranTournee();
+  }
+}
+
+/* ---------- Terminer ---------- */
+function ecranTerminer(){
+  var att=enAttente(tournee.id).length,u=lignes.reduce(function(s,l){return s+l.total;},0);
+  racine.innerHTML='<h2 class="ecran-titre">Terminer ma tournée</h2><div class="carte"><h3>'+lignes.length+' '+pl(lignes.length,'ligne','lignes')+' · '+u+' '+pl(u,'unité','unités')+'</h3><div class="meta">'+(att?att+' '+pl(att,'saisie en attente','saisies en attente')+' d\'envoi.':'Tout est enregistré.')+'</div></div>'+(att?'<div class="prov">Impossible de terminer : '+att+' '+pl(att,'saisie est','saisies sont')+' encore en attente sur ce téléphone. Reviens en zone de réseau et attends « Enregistré ».</div>':'')+'<div class="rang"><button type="button" class="btn prim" data-act="confirmer-fin"'+(att?' disabled':'')+'>Terminer ma tournée</button><button type="button" class="btn" data-act="retourTournee">Retour</button></div>';
+}
+function terminer(){
+  if(enAttente(tournee.id).length){ecranTerminer();return;}
+  nexusClient.rpc('dates_courtes_terminer_tournee',{p_tournee:tournee.id}).then(function(r){
+    if(r.error){var c=codeErreur(r.error);messageEtat('Tournée non terminée',c?c.texte:'Connexion nécessaire.',true);return;}
+    racine.innerHTML='<div class="etat"><strong>Tournée terminée</strong><br>Elle est maintenant à certifier par la gestion.<div class="rang"><button type="button" class="btn prim" data-act="liste">Mes tournées</button></div></div>';
+  });
+}
+
+/* ---------- Demande de correction du manager ---------- */
+function ecranCorrection(){
+  arreterScan();chargement();
+  nexusClient.from('dates_courtes_demandes_correction').select('id,motif,releves_vises,reponse,demandee_le').eq('tournee_id',tournee.id).is('reponse',null).order('demandee_le',{ascending:false}).limit(1).then(function(r){
+    var d=(r.data||[])[0];
+    if(r.error||!d){ecranTournee();return;}
+    var vis=(d.releves_vises||[]).length;
+    racine.innerHTML='<div class="bandeau-corr"><strong>Correction demandée</strong><br>'+esc(d.motif)+(vis?'<br>'+vis+' '+pl(vis,'relevé visé','relevés visés')+'.':'')+'</div><label class="champ">Ta réponse (500 caractères au plus)<textarea id="reponse" maxlength="500"></textarea></label><div class="rang"><button type="button" class="btn prim" data-act="repondre" data-id="'+esc(d.id)+'">Envoyer la réponse</button><button type="button" class="btn" data-act="corriger-d">Corriger les saisies</button></div><h2 class="ecran-titre">Saisies de ma tournée</h2><ul class="lignes" id="listeLignes"></ul>';
+    dessinerLignes();
+  });
+}
+function repondre(id){
+  var t=((document.getElementById('reponse')||{}).value||'').trim();
+  if(!t){alert('Écris une réponse.');return;}
+  if(enAttente(tournee.id).length){alert('Des saisies sont en attente d\'envoi : attends « Enregistré ».');return;}
+  nexusClient.rpc('dates_courtes_repondre_correction',{p_demande:id,p_reponse:t}).then(function(r){
+    if(r.error){var c=codeErreur(r.error);messageEtat('Réponse non envoyée',c?c.texte:'Connexion nécessaire.',true);return;}
+    racine.innerHTML='<div class="etat"><strong>Réponse envoyée</strong><br>La tournée repasse à certifier.<div class="rang"><button type="button" class="btn prim" data-act="liste">Mes tournées</button></div></div>';
+  });
+}
+
+/* ---------- Clics ---------- */
+document.addEventListener('click',function(e){
+  var b=e.target.closest('[data-act]');if(!b) return;
+  var a=b.getAttribute('data-act'),i=parseInt(b.getAttribute('data-i'),10);
+  switch(a){
+    case 'init':init();break;
+    case 'nouvelle':nouvelleTournee();break;
+    case 'ouvrir':ouvrirTournee({id:b.getAttribute('data-id'),nom:b.getAttribute('data-nom'),etat:b.getAttribute('data-etat')});break;
+    case 'liste':ecranTournees();break;
+    case 'retourTournee':ecranTournee();break;
+    case 'identifier':ecranIdentifier();break;
+    case 'mode':stoc('nexus_dc_mode_v1',b.getAttribute('data-m'));arreterScan();ecranIdentifier();break;
+    case 'ean':reconnaitre((document.getElementById('champEan')||{}).value);break;
+    case 'choisir':var ul=document.getElementById('resultats'),p=ul&&ul._res&&ul._res[i];if(p){produit={ean:p.ean||'',libelle:p.libelle,provisoire:false,date:null};ecranSaisie();}break;
+    case 'touche':var k=b.getAttribute('data-k');if(k==='C') saisie.q='';else if(k==='←') saisie.q=saisie.q.slice(0,-1);else if(saisie.q.length<5) saisie.q=(saisie.q+k).replace(/^0+(?=\d)/,'');maj();break;
+    case 'mode-ajout':saisie.mode='ajout';document.getElementById('mAj').setAttribute('aria-pressed','true');document.getElementById('mCo').setAttribute('aria-pressed','false');break;
+    case 'mode-corr':saisie.mode='corr';document.getElementById('mCo').setAttribute('aria-pressed','true');document.getElementById('mAj').setAttribute('aria-pressed','false');break;
+    case 'enregistrer':enregistrer();break;
+    case 'action':ouvrirAction(i);break;
+    case 'fermer':fermer();break;
+    case 'a-date':case 'a-trouve':case 'a-annule':case 'v-date':case 'v-trouve':case 'v-annule':validerAction(a,i);break;
+    case 'oubli':var cle=b.getAttribute('data-cle');ecrireFile(lireFile().filter(function(x){return x.cle!==cle;}));dessinerLignes();break;
+    case 'terminer':rafraichir().then(ecranTerminer);break;
+    case 'confirmer-fin':terminer();break;
+    case 'repondre':repondre(b.getAttribute('data-id'));break;
+    case 'corriger-d':ecranTournee();break;
+  }
+});
+document.addEventListener('input',function(e){
+  if(e.target.id==='champNom'){clearTimeout(minuteur);var q=e.target.value;minuteur=setTimeout(function(){chercherNom(q);},250);}
+});
+document.addEventListener('keydown',function(e){
+  if(e.target.id==='champEan'&&e.key==='Enter'){e.preventDefault();reconnaitre(e.target.value);}
+});
+
+/* ---------- Démarrage ---------- */
+function init(){
+  chargement();
+  var role=employee.role;
+  if(role==='pompiste'||role==='vacataire'){messageEtat('Accès non autorisé','Le relevé des dates courtes n\'est pas ouvert à ce profil.',false);return;}
+  var verif=role==='caissier'&&!employee.est_createur?nexusClient.from('dates_courtes_acces_caissier').select('actif').order('saisi_le',{ascending:false}).limit(1).then(function(r){return !r.error&&r.data&&r.data[0]&&r.data[0].actif===true;}):Promise.resolve(true);
+  verif.then(function(ok){
+    if(!ok){messageEtat('Accès non ouvert','La gestion n\'a pas ouvert le relevé des dates courtes aux caissiers pour cette station.',false);return;}
+    vider();ecranTournees();
+  });
+}
+nexusRequireAuth().then(function(emp){if(!emp) return;employee=emp;init();});
+})();
+</script>
+</body>
+</html>
