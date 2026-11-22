@@ -571,12 +571,12 @@ function enregistrer(){
 var renomme=null,cleRenom='';
 function ouvrirRenommer(t){
   renomme=t;cleRenom=uuid();
-  fiche.innerHTML='<div class="fiche"><h2>Renommer la tournée</h2><label class="champ">Nom de la tournée<input id="champNom" maxlength="60" autocomplete="off" value="'+esc(t.nom)+'"></label><div class="msg-champ err" id="ficheMsg" role="alert"></div><div class="actions"><button type="button" class="prim" data-act="renommerOk">Enregistrer</button><button type="button" data-act="fermer">Annuler</button></div></div>';
+  fiche.innerHTML='<div class="fiche"><h2>Renommer la tournée</h2><label class="champ">Nom de la tournée<input id="champRenom" maxlength="60" autocomplete="off" value="'+esc(t.nom)+'"></label><div class="msg-champ err" id="ficheMsg" role="alert"></div><div class="actions"><button type="button" class="btn prim" data-act="renommerOk">Enregistrer</button><button type="button" data-act="fermer">Annuler</button></div></div>';
   if(fiche.showModal) fiche.showModal(); else fiche.setAttribute('open','');
 }
 function enregistrerNom(){
   if(!renomme) return Promise.resolve();
-  var v=((document.getElementById('champNom')||{}).value||'').replace(/\s+/g,' ').trim();
+  var v=((document.getElementById('champRenom')||{}).value||'').replace(/\s+/g,' ').trim();
   if(!v||v.length>60){ficheDit('Le nom doit faire de 1 à 60 caractères.');return Promise.resolve();}
   var t=renomme;
   return nexusClient.rpc('dates_courtes_renommer_tournee',{p_tournee:t.id,p_nom:v,p_cle_idempotence:cleRenom}).then(function(r){
