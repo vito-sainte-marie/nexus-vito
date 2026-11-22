@@ -29,7 +29,7 @@ La date saisie est une seule « Date limite », sans type. Les quantités s'addi
 | 18 | Coupure réseau pendant la saisie puis reprise | État En attente puis Enregistré, aucun doublon | 2 |
 | 19 | Alerte : date limite à 59 puis 61 jours | 59 apparaît, 61 non | 3 |
 | 20 | Ordre du tableau d'alertes | Expiré, puis jours croissants, puis quantité décroissante | 3 |
-| 21 | Tournées individuelles : R1 et R2 créent chacune une tournée dans la même station | Les deux ouvertes en même temps ; nom facultatif ; aucun produit exclu par le nom | 1 |
+| 21 | Tournées individuelles : R1 et R2 créent chacune une tournée dans la même station | Les deux ouvertes en même temps ; nom facultatif, généré par le serveur (lot 2.1) ; aucun produit exclu par le nom | 1 |
 | 22 | Addition dans une tournée : 6 puis 4 puis correction moins 2 | 8 | 1 |
 | 23 | Simultanées A et B sur le même article : A relève 6 à 10:00 et 4 à 10:30, B relève 5 à 10:15 | Courant : A = 10 ; B en historique ; mention « relevé aussi dans la tournée B (R2, 10:15), en historique » ; jamais 15 | 1 |
 | 24 | Remplacement par article entre tournées non simultanées : A relève 10, A est terminée, B relève ensuite 5 | Courant : B = 5 ; A en historique ; aucune addition | 1 |
@@ -77,3 +77,20 @@ Rappel : la recette locale du lot 5 compte 76 contrôles (banc pglite). Les cas 
 ## Lot 2 : Relevé employé
 
 Rappel : la recette locale du lot 2 compte 41 contrôles (banc pglite, `outils/recette/dates_courtes_lot2/`). Elle couvre les parties serveur des cas 6, 15, 18, 38, 43 et 44, la recherche produit (sans prix, sans autre station, 20 lignes au plus) et les refus du pompiste, du vacataire et du caissier sans accès. Le scan réel sur iPhone Safari (cas 11) et le blocage de « Terminer » avec une saisie en attente (cas 32) se jouent sur l'appareil. Aucun de ces cas n'a été joué sur Test.
+
+## Lot 2.1 : Nom de tournée généré et renommage
+
+Recette locale : `outils/recette/dates_courtes_lot2_1/` (banc pglite, 56 contrôles). Personnes fictives R1, M1, G1.
+
+| N° | Scénario | Résultat attendu |
+|---|---|---|
+| 61 | R1 touche « Nouvelle tournée » | Tournée ouverte en un geste, sans champ de nom ; nom `Contrôle DLC · <prénom> · <JJ/MM>` construit par le serveur |
+| 62 | Création à 23 h 30 heure de la station | La date du nom est celle de la station, pas celle d'UTC |
+| 63 | Deux tournées le même jour | Noms identiques acceptés, l'heure de début les distingue, aucune fusion |
+| 64 | Renommer par l'auteur | Seul le libellé change ; auteur, id, saisi_le, terminée par et le restent intacts ; trace écrite |
+| 65 | Renommer par un autre employé | Refusé (`droit_refuse`) |
+| 66 | Renommer par un manager, un gérant ou le créateur de la même station | Accepté |
+| 67 | Renommer une tournée certifiée | Refusé (`tournee_certifiee`) |
+| 68 | Même clé d'idempotence rejouée | Aucun second renommage, aucune seconde trace |
+| 69 | Ancienne tournée sans nom | Libellé de repli calculé à la lecture, ligne non réécrite |
+| 70 | Affichage | Nom sur une ligne, puis `Commencée à 14 h 05 · En cours` (idem liste et bandeau) |
