@@ -420,13 +420,13 @@ function reconnaitre(texte,camera){
   var etaitCam=scanActif;
   montrerScan(false);
   nexusClient.rpc('dates_courtes_rechercher_produit',{p_requete:r.ean,p_limite:1}).then(function(x){
-    if(x.error){if(etaitCam) montrerScan(true);dire('Recherche impossible pour l\'instant. Réessayez.');return;}
+    if(x.error){if(etaitCam){montrerScan(true);demarrerScan(true);}dire('Recherche impossible pour l\'instant. Réessayez.');return;}
     var row=(x.data&&x.data[0])||null;
     produit=row?{ean:row.ean||r.ean,libelle:row.libelle,provisoire:false,date:r.date}:{ean:r.ean,libelle:'',provisoire:true,date:r.date};
     ecranSaisie();
   });
 }
-var flux=null,lecteur=null,boucle=null,scanActif=false,scanBloque=0;
+var flux=null,lecteur=null,boucle=null,aideScan=null,scanActif=false,scanBloque=0;
 function montrerScan(on){
   scanActif=!!on;
   var z=document.getElementById('zoneScan');if(z) z.hidden=!on;
@@ -434,15 +434,22 @@ function montrerScan(on){
 function arreterScan(){
   montrerScan(false);
   if(boucle){clearInterval(boucle);boucle=null;}
+  if(aideScan){clearTimeout(aideScan);aideScan=null;}
   try{if(lecteur&&lecteur.reset) lecteur.reset();}catch(e){}
   lecteur=null;
   if(flux){flux.getTracks().forEach(function(t){t.stop();});flux=null;}
 }
-function demarrerScan(){
+function demarrerScan(silence){
   var v=document.getElementById('video');
   if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){dire('Caméra indisponible : saisissez le code ou cherchez par nom.');return;}
   navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false}).then(function(s){
     flux=s;v.srcObject=s;v.play();
+    try{
+      var piste=s.getVideoTracks&&s.getVideoTracks()[0],cap=piste&&piste.getCapabilities&&piste.getCapabilities();
+      if(cap&&cap.focusMode&&cap.focusMode.indexOf('continuous')>=0) piste.applyConstraints({advanced:[{focusMode:'continuous'}]}).catch(function(){});
+    }catch(e){}
+    if(!silence) dire('Recherche du code…');
+    aideScan=setTimeout(function(){if(scanActif) dire('Approchez le code à 10 à 15 cm, bien éclairé, ou saisissez-le ci-dessous');},8000);
     if('BarcodeDetector' in window){
       var d=new window.BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e','code_128','itf']});
       boucle=setInterval(function(){
@@ -452,8 +459,20 @@ function demarrerScan(){
     } else {
       chargerZxing().then(function(Z){
         if(!flux) return;
-        lecteur=new Z.BrowserMultiFormatReader();
-        lecteur.decodeFromVideoElement(v,function(res){if(res) reconnaitre(res.getText(),true);});
+        var hints=new Map();
+        hints.set(Z.DecodeHintType.POSSIBLE_FORMATS,[Z.BarcodeFormat.EAN_13,Z.BarcodeFormat.EAN_8,Z.BarcodeFormat.UPC_A,Z.BarcodeFormat.UPC_E,Z.BarcodeFormat.CODE_128,Z.BarcodeFormat.ITF]);
+        hints.set(Z.DecodeHintType.TRY_HARDER,true);
+        var lec=new Z.BrowserMultiFormatReader(hints);
+        lecteur=lec;
+        // Lecture continue : decodeFromVideoElement(source) renvoie une promesse et ignore tout rappel.
+        lec.decodeFromVideoElementContinuously(v,function(res){
+          if(!res||lecteur!==lec) return; // NotFoundException entre deux images : ignorée
+          var t=res.getText();
+          if(!scanActif||Date.now()<scanBloque||!analyserCode(t)) return;
+          try{if(navigator.vibrate) navigator.vibrate(60);}catch(e){}
+          reconnaitre(t,true);
+          arreterScan(); // un seul résultat : le lecteur et la caméra s'arrêtent à la première lecture valide
+        });
       },function(){dire('Lecture impossible ici : saisissez le code ou cherchez par nom.');});
     }
   },function(){montrerScan(false);dire('Accès caméra refusé : saisissez le code ou cherchez par nom.');});
