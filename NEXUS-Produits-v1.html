@@ -539,6 +539,17 @@ nexusRequireAuth().then(async employee => {
     return String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
   }
 
+  // GTIN-14 : forme commune de rapprochement (8, 12, 13 ou 14 chiffres, clé mod-10 juste). Même règle que gtin14() en base.
+  // Sert à la RECHERCHE seulement : aucun code stocké n'est réécrit, 9 à 11 chiffres ne sont jamais complétés.
+  function gtin14(x) {
+    const d = String(x == null ? '' : x).trim();
+    if (!/^[0-9]+$/.test(d) || ![8, 12, 13, 14].includes(d.length)) return null;
+    const g = d.padStart(14, '0');
+    let s = 0;
+    for (let i = 0; i < 13; i++) s += Number(g[i]) * (i % 2 === 0 ? 3 : 1);
+    return ((10 - s % 10) % 10) === Number(g[13]) ? g : null;
+  }
+
   let CACHE_LISTE = null;
   function listerPeriodes() {
     if (!CACHE_LISTE) CACHE_LISTE = listerPeriodesBrutes();
@@ -958,8 +969,9 @@ nexusRequireAuth().then(async employee => {
   searchInput.addEventListener('input', () => {
     const q = normaliserRecherche(searchInput.value);
     if (q.length < 2) { fermerSuggestions(); return; }
+    const qGtin = gtin14(q); // un UPC-A, un GTIN-14 ou un EAN-13 retrouvent le même article ; plusieurs articles = tous listés
     // Nom sans accents ni casse, ou code-barres ; articles de la période affichée d'abord.
-    const matches = PRODUCTS.filter(p => normaliserRecherche(p.article).includes(q) || (p.code_barres && String(p.code_barres).includes(q)))
+    const matches = PRODUCTS.filter(p => normaliserRecherche(p.article).includes(q) || (p.code_barres && String(p.code_barres).includes(q)) || (qGtin && gtin14(p.code_barres) === qGtin))
       .sort((a, b) => (a.source ? 1 : 0) - (b.source ? 1 : 0)).slice(0, 8);
     sugActif = -1;
     searchInput.removeAttribute('aria-activedescendant');

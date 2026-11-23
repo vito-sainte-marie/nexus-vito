@@ -71,11 +71,12 @@ const TOURNEE = { id: 'tour-1', nom: '', etat: 'EN_COURS' };
 
   await test('analyserCode : EAN-8, EAN-13, GS1 01 et 17, jour 00', () => {
     const { dc } = monde();
-    assert.deepStrictEqual(JSON.parse(JSON.stringify(dc.analyserCode('96385074'))), { ean: '96385074', date: null });
-    assert.deepStrictEqual(JSON.parse(JSON.stringify(dc.analyserCode('3168930171683'))), { ean: '3168930171683', date: null });
-    assert.deepStrictEqual(JSON.parse(JSON.stringify(dc.analyserCode('0103168930171683'))), { ean: '3168930171683', date: null });
-    assert.deepStrictEqual(JSON.parse(JSON.stringify(dc.analyserCode('(01)03168930171683(17)270615'))), { ean: '3168930171683', date: '2027-06-15' });
-    assert.deepStrictEqual(JSON.parse(JSON.stringify(dc.analyserCode('0103168930171683172702' + '00'))), { ean: '3168930171683', date: '2027-02-28' });
+    const ed = (x) => { const r = JSON.parse(JSON.stringify(dc.analyserCode(x))); return { ean: r.ean, date: r.date }; };
+    assert.deepStrictEqual(ed('96385074'), { ean: '96385074', date: null });
+    assert.deepStrictEqual(ed('3168930171683'), { ean: '3168930171683', date: null });
+    assert.deepStrictEqual(ed('0103168930171683'), { ean: '3168930171683', date: null });
+    assert.deepStrictEqual(ed('(01)03168930171683(17)270615'), { ean: '3168930171683', date: '2027-06-15' });
+    assert.deepStrictEqual(ed('0103168930171683172702' + '00'), { ean: '3168930171683', date: '2027-02-28' });
     assert.strictEqual(dc.analyserCode('abc'), null);
     assert.strictEqual(dc.analyserCode(''), null);
   });

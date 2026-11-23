@@ -398,34 +398,73 @@ function gardeFocus(){
   c.focus();
   c.addEventListener('blur',function(){setTimeout(function(){var a=document.activeElement;if(modeSaisie()==='douchette'&&document.getElementById('champEan')===c&&!fiche.open&&(!a||a===document.body)) c.focus();},120);});
 }
+/* GTIN : 8, 12, 13 ou 14 chiffres, cle mod-10 controlee. 9 a 11 chiffres : « incomplet », jamais complete.
+   Le releve enregistre la forme EAN-13 (UPC-A = 0 + 12 chiffres, GTIN-14 en 0 = ses 13 derniers chiffres, GTIN-8 inchange).
+   Un GTIN-14 qui ne commence pas par 0 (colis logistique) reste provisoire : ean null, code brut conserve. */
+function gtin14(d){
+  if(!/^\d+$/.test(d)||[8,12,13,14].indexOf(d.length)<0) return null;
+  var g=('00000000000000'+d).slice(-14),s=0;
+  for(var i=0;i<13;i++) s+=parseInt(g.charAt(i),10)*(i%2===0?3:1);
+  return ((10-s%10)%10)===parseInt(g.charAt(13),10)?g:null;
+}
+function classerCode(d){
+  if(!/^\d+$/.test(d)) return {etat:'refuse',brut:d,ean:null,g14:null};
+  if(d.length>=9&&d.length<=11) return {etat:'incomplet',brut:d,ean:null,g14:null};
+  var g=gtin14(d);
+  if(!g) return {etat:[8,12,13,14].indexOf(d.length)>=0?'cle_invalide':'refuse',brut:d,ean:null,g14:null};
+  var e=g.indexOf('000000')===0?g.slice(6):(g.charAt(0)==='0'?g.slice(1):null);
+  return {etat:e?'ok':'logistique',brut:d,ean:e,g14:g};
+}
 /* GS1 : (01) GTIN-14, (17) date AAMMJJ */
 function analyserCode(txt){
-  var t=String(txt||'').trim(),date=null,ean=null;
+  var t=String(txt||'').trim(),date=null,r=null;
   var p=t.replace(/[()\s]/g,'');
   var m=/^01(\d{14})(?:17(\d{6}))?/.exec(p);
   if(m&&p.length>=16){
-    ean=m[1].charAt(0)==='0'?m[1].slice(1):m[1];
+    r=classerCode(m[1]);
     if(m[2]){
       var a=2000+parseInt(m[2].slice(0,2),10),mo=parseInt(m[2].slice(2,4),10),j=parseInt(m[2].slice(4,6),10);
       if(mo>=1&&mo<=12){if(j===0) j=new Date(a,mo,0).getDate();date=a+'-'+('0'+mo).slice(-2)+'-'+('0'+j).slice(-2);}
     }
-    return {ean:ean,date:date};
+    r.date=date;
+    return r;
   }
-  if(/^\d{8,14}$/.test(p)) return {ean:p,date:null};
+  if(/^\d{8,14}$/.test(p)){r=classerCode(p);r.date=null;return r;}
   return null;
 }
+function codeExploitable(r){return !!r&&(r.etat==='ok'||r.etat==='logistique');}
 function reconnaitre(texte,camera){
   if(camera&&(!scanActif||Date.now()<scanBloque)) return;
   var r=analyserCode(texte);
   if(!r){dire('Code non reconnu. Réessayez ou cherchez par nom.');return;}
+  if(r.etat==='cle_invalide'||r.etat==='refuse'){dire('Code illisible : la clé de contrôle est fausse. Relisez ou ressaisissez le code.');return;}
+  if(r.etat==='incomplet'){
+    if(camera){dire('Code incomplet, à vérifier. Rapprochez-vous ou saisissez le code.');return;}
+    montrerScan(false);
+    produit={ean:null,brut:r.brut,libelle:'',provisoire:true,incomplet:true,date:r.date};
+    ecranSaisie();
+    return;
+  }
   var etaitCam=scanActif;
   montrerScan(false);
-  nexusClient.rpc('dates_courtes_rechercher_produit',{p_requete:r.ean,p_limite:1}).then(function(x){
+  nexusClient.rpc('dates_courtes_rechercher_produit',{p_requete:r.g14,p_limite:5}).then(function(x){
     if(x.error){if(etaitCam){montrerScan(true);demarrerScan(true);}dire('Recherche impossible pour l\'instant. Réessayez.');return;}
-    var row=(x.data&&x.data[0])||null;
-    produit=row?{ean:row.ean||r.ean,libelle:row.libelle,provisoire:false,date:r.date}:{ean:r.ean,libelle:'',provisoire:true,date:r.date};
+    var rows=x.data||[];
+    if(rows.length>1){ecranPlusieurs(r,rows);return;}
+    var row=rows[0]||null;
+    if(row) produit={ean:row.ean||null,brut:r.brut,libelle:row.libelle,provisoire:false,date:r.date};
+    else produit={ean:r.ean,brut:r.brut,libelle:'',provisoire:true,date:r.date};
     ecranSaisie();
   });
+}
+/* Un meme code pour plusieurs articles de la station : aucun choix automatique. Le choix manuel garde le code lu
+   a part (ean null) pour ne pas fusionner deux articles distincts dans le meme releve. */
+function ecranPlusieurs(r,rows){
+  var h='<h2 class="ecran-titre">Plusieurs articles pour ce code</h2><p class="aide">Ce code correspond à plusieurs articles de la station. Choisissez le bon, ou cherchez par nom.</p><ul class="resultats" id="resultats">';
+  rows.forEach(function(p,i){h+='<li><button type="button" data-act="choisir" data-i="'+i+'">'+esc(p.libelle)+'<span class="sub">'+esc(p.rayon||'')+'</span></button></li>';});
+  h+='</ul><div class="rang"><button type="button" class="btn" data-act="identifier">Annuler</button></div>';
+  racine.innerHTML=h;
+  var ul=document.getElementById('resultats');ul._res=rows;ul._date=r.date;ul._brut=r.brut;ul._ambigu=true;
 }
 var flux=null,lecteur=null,boucle=null,aideScan=null,scanActif=false,scanBloque=0;
 function montrerScan(on){
@@ -455,7 +494,7 @@ function demarrerScan(silence){
       var d=new window.BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e','code_128','itf']});
       boucle=setInterval(function(){
         if(!scanActif||v.readyState<2) return;
-        d.detect(v).then(function(b){if(b&&b.length) reconnaitre(b[0].rawValue,true);},function(){});
+        d.detect(v).then(function(b){if(b&&b.length&&codeExploitable(analyserCode(b[0].rawValue))) reconnaitre(b[0].rawValue,true);},function(){});
       },300);
     } else {
       chargerZxing().then(function(Z){
@@ -471,7 +510,7 @@ function demarrerScan(silence){
           var res;
           try{res=lec.decode(v);}catch(e){return;} // NotFoundException entre deux images : ignorée
           var t=res&&res.getText&&res.getText();
-          if(!t||Date.now()<scanBloque||!analyserCode(t)) return;
+          if(!t||Date.now()<scanBloque||!codeExploitable(analyserCode(t))) return;
           try{if(navigator.vibrate) navigator.vibrate(60);}catch(e){}
           reconnaitre(t,true);
           arreterScan(); // un seul résultat : boucle, lecteur et caméra s'arrêtent à la première lecture valide
@@ -516,9 +555,9 @@ function ecranSaisie(){
   var sansNom=!produit.libelle;
   var h='<h2 class="ecran-titre">'+esc(nomUtile(produit.libelle)||SANS_NOM)+'</h2>';
   if(produit.provisoire||sansNom){
-    h+='<div class="meta">Code EAN '+esc(produit.ean||'inconnu')+' · Identification à vérifier</div>';
+    h+='<div class="meta">'+(produit.incomplet?'Code incomplet, à vérifier · '+esc(produit.brut):'Code EAN '+esc(produit.ean||produit.brut||'inconnu')+(produit.ean&&produit.brut&&produit.brut!==produit.ean?' · lu : '+esc(produit.brut):'')+' · Identification à vérifier')+'</div>';
     h+='<div class="prov">L\'entrée sera marquée provisoire : aucune référence n\'est créée.</div><label class="champ">Nom du produit (facultatif)<input id="nomLibre" maxlength="120" autocomplete="off"></label>';
-  } else h+='<div class="meta">'+esc(produit.ean||'sans code')+'</div>';
+  } else h+='<div class="meta">'+esc(produit.ean||produit.brut||'sans code')+(produit.ean&&produit.brut&&produit.brut!==produit.ean?' · lu : '+esc(produit.brut):'')+(produit.ambigu?' · code partagé par plusieurs articles':'')+'</div>';
   h+='<label class="champ">Date limite<input type="date" id="champDate" value="'+esc(saisie.date)+'"></label><div id="existant"></div><div class="qte-aff" id="qteAff" aria-live="polite">0</div>'+clavierHtml('touche');
   h+='<div class="rang fixe"><button type="button" class="btn prim" data-act="enregistrer" id="btnEnr" disabled>Enregistrer</button><button type="button" class="btn" data-act="identifier">Annuler</button></div><div class="msg-champ" id="raisonSaisie" role="status"></div>';
   racine.innerHTML=h;
@@ -567,7 +606,8 @@ function enregistrer(){
   var l=trouverLigne(),nl=(document.getElementById('nomLibre')||{}).value||'';
   nl=nl.trim();
   var nom=nomUtile(l&&l.libelle)||nomUtile(produit.libelle)||nomUtile(nl)||SANS_NOM;
-  var base={ean:produit.ean||null,libelle:produit.libelle||nl||null,date_limite:d};
+  var sansEan=!produit.ean&&!!produit.brut;
+  var base={ean:produit.ean||null,libelle:produit.libelle||nl||(sansEan?'Code à vérifier '+produit.brut:null),date_limite:d};
   var msg;
   if(l&&saisie.mode==='corr'){
     var delta=q-enRayon(l);
@@ -582,7 +622,7 @@ function enregistrer(){
     msg='Enregistré : '+nom+', '+q+' '+pl(q,'unité','unités')+' ajoutées';
     if(q<=1) msg='Enregistré : '+nom+', '+q+' unité ajoutée';
   } else {
-    base.quantite=q;if(nl) base.nom_libre=nl;
+    base.quantite=q;if(sansEan) base.nom_libre='Code lu : '+produit.brut+(nl?' · '+nl:''); else if(nl) base.nom_libre=nl;
     empiler('releve',base,nom,d,q);
     msg='Enregistré : '+nom+', '+q+' '+pl(q,'unité','unités');
   }
@@ -704,7 +744,7 @@ function clic(e){
     case 'identifier':ecranIdentifier();break;
     case 'mode':stoc('nexus_dc_mode_v1',b.getAttribute('data-m'));arreterScan();ecranIdentifier();break;
     case 'ean':reconnaitre((document.getElementById('champEan')||{}).value,false);break;
-    case 'choisir':var ul=document.getElementById('resultats'),p=ul&&ul._res&&ul._res[i];if(p){produit={ean:p.ean||'',libelle:p.libelle,provisoire:false,date:null};ecranSaisie();}break;
+    case 'choisir':var ul=document.getElementById('resultats'),p=ul&&ul._res&&ul._res[i];if(p){produit=ul._ambigu?{ean:null,brut:ul._brut,libelle:p.libelle,provisoire:false,ambigu:true,date:ul._date||null}:{ean:p.ean||'',libelle:p.libelle,provisoire:false,date:null};ecranSaisie();}break;
     case 'touche':saisie.q=frappe(saisie.q,b.getAttribute('data-k'));maj();break;
     case 'f-touche':ficheQ=frappe(ficheQ,b.getAttribute('data-k'));var fq=document.getElementById('fQteAff');if(fq) fq.textContent=ficheQ||'0';break;
     case 'mode-ajout':saisie.mode='ajout';document.getElementById('mAj').setAttribute('aria-pressed','true');document.getElementById('mCo').setAttribute('aria-pressed','false');majSaisie();break;
@@ -741,7 +781,7 @@ function init(){
   });
 }
 if(window.__DC_TEST__){
-  window.__dc={analyserCode:analyserCode,vider:vider,empiler:empiler,lireFile:lireFile,ecrireFile:ecrireFile,enAttente:enAttente,ecranTerminer:ecranTerminer,init:init,clic:clic,repartir:repartir,rafraichir:rafraichir,dessinerLignes:dessinerLignes,ecranIdentifier:ecranIdentifier,ecranSaisie:ecranSaisie,ouvrirAction:ouvrirAction,ouvrirTournee:ouvrirTournee,ecranTournees:ecranTournees,ouvrirRenommer:ouvrirRenommer,enregistrerNom:enregistrerNom,etatTournee:function(){return tournee;},nomAff:nomAff,
+  window.__dc={analyserCode:analyserCode,classerCode:classerCode,gtin14:gtin14,reconnaitre:reconnaitre,vider:vider,empiler:empiler,lireFile:lireFile,ecrireFile:ecrireFile,enAttente:enAttente,ecranTerminer:ecranTerminer,init:init,clic:clic,repartir:repartir,rafraichir:rafraichir,dessinerLignes:dessinerLignes,ecranIdentifier:ecranIdentifier,ecranSaisie:ecranSaisie,ouvrirAction:ouvrirAction,ouvrirTournee:ouvrirTournee,ecranTournees:ecranTournees,ouvrirRenommer:ouvrirRenommer,enregistrerNom:enregistrerNom,etatTournee:function(){return tournee;},nomAff:nomAff,
     etat:function(o){if('employee' in o) employee=o.employee;if('tournee' in o) tournee=o.tournee;if('produit' in o) produit=o.produit;if('lignes' in o) lignes=o.lignes;if('saisie' in o) saisie=o.saisie;},
     lire:function(){return {tournee:tournee,lignes:lignes,saisie:saisie,produit:produit};}};
 }
