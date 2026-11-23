@@ -27,6 +27,26 @@ set -euo pipefail
 RACINE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$RACINE"
 
+# ── 0. Refus de construire SUR PLACE dans un dépôt git ─────────────────
+# Le build réécrit les pages à l'endroit où elles sont : il épingle chaque
+# script sur un identifiant de build et injecte la configuration, la page et
+# le bandeau. Lancé dans le dépôt de travail, il laisse un arbre construit que
+# `git add -A` commite sans que personne le voie (lot Dates courtes 2, 1d72575a).
+# Il ne s'exécute donc sur place que si on le dit : Cloudflare (CF_PAGES),
+# GitHub Actions (GITHUB_ACTIONS), `--sur-place`, ou une copie hors dépôt
+# (`outils/build-isole.sh <dossier>`).
+SUR_PLACE=0
+for a in "$@"; do [ "$a" = "--sur-place" ] && SUR_PLACE=1; done
+if [ -n "${CF_PAGES:-}" ] || [ "${GITHUB_ACTIONS:-}" = "true" ]; then SUR_PLACE=1; fi
+if [ "$SUR_PLACE" -ne 1 ] && git -C "$RACINE" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  echo "REFUS — outils/build.sh réécrit les pages sur place, et ceci est un dépôt git." >&2
+  echo "  Pour rejouer la CI en local, construisez dans une copie :" >&2
+  echo "      outils/build-isole.sh <dossier>" >&2
+  echo "  (ou passez --sur-place si vous savez ce que vous faites ; git status doit alors" >&2
+  echo "  être propre avant tout commit : ne jamais commiter un arbre construit)." >&2
+  exit 2
+fi
+
 echo "── NEXUS — construction ────────────────────────────────────────"
 echo "  environnement : ${NEXUS_ENV:-<absent>}"
 if [ -n "${CF_PAGES_COMMIT_SHA:-}" ]; then
