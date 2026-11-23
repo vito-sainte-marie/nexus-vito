@@ -26,7 +26,7 @@ Mesures Test (lecture seule) : `inventaire_zone_produit` 190 codes, 154 valides 
 ## Preuves
 - `node test_dates_courtes_releve_gtin14.js` (page relevé : caméra, douchette, saisie), `node test_produits_gtin14.js` (recherche Produits).
 - `outils/recette/dates_courtes_gtin14/01_recette_dates_courtes_gtin14.sql` : à jouer par Guardian sur Test après application de la migration (non exécutée ici, la migration n'étant pas appliquée). Jeu synthétique sur sites fictifs, `products` étant vide sur Test.
-- Comptage Production : `docs/deploiement/comptage-gtin-production-lecture-seule-20261123.sql`, md5 `0fb73baea53db97fa63482f58e6d2435`, sur GO distinct du pilote.
+- Comptage Production : `docs/deploiement/comptage-gtin-production-lecture-seule-20261123.sql`, md5 `53121040f4481040030dc223cdd70291`, sur GO distinct du pilote.
 
 ## Limites
 Empreinte d'artefact non mesurée en local ; flux caméra ZXing réel non testé ; collision théorique d'un EAN-13 commençant par 00000 (0 cas sur Test).

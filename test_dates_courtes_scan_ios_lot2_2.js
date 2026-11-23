@@ -126,7 +126,7 @@ const res = (t) => ({ getText: () => t });
     assert.strictEqual(l.continus + l.unique, 0, 'aucune fonction decodeFrom… de ZXing');
     m.z.aLire.push('3017620422003'); await tour(m);
     assert.strictEqual(l.decodes, 1);
-    assert(rech(m).some(a => a.args.p_requete === '3017620422003'), 'recherche du produit lue');
+    assert(rech(m).some(a => a.args.p_requete === '03017620422003'), 'recherche du produit lue (forme GTIN-14)');
     assert.strictEqual(m.dc.lire().produit.ean, '3017620422003');
   });
 
