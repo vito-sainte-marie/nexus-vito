@@ -156,6 +156,8 @@
   .sv-meta .num,.sv-code{font-family:var(--mono)}
   .sv-code{color:var(--text-mid);font-size:11px}
   .sv-btn{min-height:44px;padding:0 16px;border-radius:8px;border:1px solid var(--cyan);background:var(--cyan-dim);color:var(--cyan);font:600 13px var(--sans);cursor:pointer}
+  .sv-btn.danger{border-color:var(--red);background:transparent;color:var(--red)}
+  .sv-lien{min-height:44px;padding:0 4px;border:0;background:none;color:var(--text-dim,var(--text));font:500 13px var(--sans);text-decoration:underline;cursor:pointer}
   .sv-btn.second{border-color:var(--hairline);background:var(--panel-raised);color:var(--text)}
   .sv-btn[disabled]{opacity:.55;cursor:not-allowed}
   .sv-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
@@ -230,7 +232,7 @@
   const INCONNU = 'Produit non identifié';
   const hFr = iso => { try { const p = new Intl.DateTimeFormat('fr-FR', {timeZone:'America/Martinique', day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit', hour12:false}).formatToParts(new Date(iso)).reduce((o, x) => (o[x.type] = x.value, o), {}); return p.day + '/' + p.month + ' à ' + p.hour + ' h ' + p.minute; } catch (e) { return ''; } };
   const heureSeule = iso => { const t = hFr(iso); return t.split(' à ')[1] || ''; };
-  const ETAT_TOURNEE = {EN_COURS:'en cours', TERMINEE_A_CERTIFIER:'terminée', CERTIFIEE:'certifiée'};
+  const ETAT_TOURNEE = {EN_COURS:'en cours', TERMINEE_A_CERTIFIER:'terminée', CERTIFIEE:'certifiée', ANNULEE:'annulée'};
   const etatTournee = e => ETAT_TOURNEE[e] || String(e || '').toLowerCase().replace(/_/g, ' ');
   const delaiRel = j => j < 0 ? 'Périmé depuis ' + pl(-j, 'jour') : j === 0 ? 'Expire aujourd\'hui' : j === 1 ? 'Expire demain' : 'Dans ' + pl(j, 'jour');
   const provisoire = it => it.tournee_etat !== 'CERTIFIEE';
@@ -452,7 +454,8 @@
     TERMINEE_A_CERTIFIER:{niv:'a-verifier', lib:'À certifier', rang:1},
     CORRECTION_DEMANDEE:{niv:'a-verifier', lib:'Correction demandée', rang:2},
     EN_COURS:{niv:'information', lib:'En cours', rang:3},
-    CERTIFIEE:{niv:'conforme', lib:'Certifiée', rang:4}
+    CERTIFIEE:{niv:'conforme', lib:'Certifiée', rang:4},
+    ANNULEE:{niv:'information', lib:'Annulée', rang:5}
   };
   const ANOM = {code_incomplet:'Code incomplet', code_logistique_provisoire:'Code logistique provisoire', article_texte_libre:'Article saisi en texte libre', modifiee_apres_cloture:'Modifié après la clôture'};
   const anomN = n => n === 1 ? '1 anomalie' : nb(n) + ' anomalies';
@@ -498,6 +501,7 @@
       '<button type="button" class="sv-ouvrir" data-ouvrir="' + esc(t.id) + '" aria-label="Voir le détail : ' + esc(t.nom) + '">' +
       '<span class="sv-ligne1"><span class="sv-nom">' + esc(t.nom) + '</span>' + badgeSv(t.etat) + '</span>' +
       '<span class="sv-meta">' + esc(t.auteur || 'Auteur inconnu') + ' · ' + dateFr(t.jour) + ' · ' + horaire + ' · <span class="num">' + nb(t.produits) + '</span> ' + (t.produits > 1 ? 'produits' : 'produit') + an + '</span></button>';
+    if (t.etat === 'ANNULEE') h += '<div class="sv-meta">Annulée' + (t.annulee_par ? ' par ' + esc(t.annulee_par) : '') + (t.annulee_a ? ' à ' + esc(t.annulee_a) : '') + (t.motif_annulation ? ' · ' + esc(t.motif_annulation) : '') + '</div>';
     if (aCert && t.anomalies > 0) h += '<div class="sv-actions"><button type="button" class="sv-btn" data-ouvrir="' + esc(t.id) + '">Voir ' + (t.anomalies > 1 ? 'les ' + nb(t.anomalies) + ' anomalies' : 'l\'anomalie') + '</button></div>';
     else if (aCert) h += SV.conf === t.id ? blocConfirmation(t.id) : '<div class="sv-actions"><button type="button" class="sv-btn" data-certifier="' + esc(t.id) + '">Certifier</button></div>';
     return h + '</div>';
@@ -506,6 +510,33 @@
     return '<div class="sv-conf" role="group" aria-label="Confirmation"><span>Certifier ce contrôle ? Les relevés ne pourront plus être modifiés sans nouvelle demande de correction.</span>' +
       (SV.msg && SV.msg.id === id ? '<div class="sv-err" role="alert">' + esc(SV.msg.texte) + '</div>' : '') +
       '<div class="sv-actions"><button type="button" class="sv-btn" data-confirmer="' + esc(id) + '"' + (SV.occupe ? ' disabled' : '') + '>Confirmer la certification</button><button type="button" class="sv-btn second" data-annuler>Annuler</button></div></div>';
+  }
+  function blocAnnulation(id){
+    const n = SV.det && SV.det.tournee ? SV.det.tournee.produits : 0;
+    const ok = (SV.motifAnnul || '').trim().length >= 3;
+    return '<div class="sv-conf" role="group" aria-label="Annuler cette tournée"><b>Annuler cette tournée ?</b><span>Les ' + nb(n) + ' ' + (n > 1 ? 'produits relevés seront annulés' : 'produit relevé sera annulé') + ' avec elle. Cette action est irréversible.</span>' +
+      '<label for="svMotifAnnul"><b>Motif (obligatoire, 3 à 200 caractères)</b></label><input type="text" id="svMotifAnnul" maxlength="200" autocomplete="off" value="' + esc(SV.motifAnnul || '') + '">' +
+      (SV.msg && SV.msg.id === id ? '<div class="sv-err" role="alert">' + esc(SV.msg.texte) + '</div>' : '') +
+      '<div class="sv-actions"><button type="button" class="sv-btn danger" id="svAnnulOk" data-annul-ok="' + esc(id) + '"' + (ok && !SV.occupe ? '' : ' disabled') + '>Annuler définitivement</button><button type="button" class="sv-btn" id="svAnnulRetour" data-annul-retour>Revenir à la tournée</button></div></div>';
+  }
+  async function annulerTourneeSv(id){
+    const m = (SV.motifAnnul || '').trim(); if (m.length < 3 || m.length > 200) return;
+    SV.occupe = true; SV.msg = null; rendreDetail();
+    try {
+      const { data, error } = await nexusClient.rpc('dates_courtes_annuler_tournee', {p_tournee:id, p_motif:m, p_cle_idempotence:cleSv('annul:' + id)});
+      if (error) throw error;
+      const k = data && data.produits_annules != null ? data.produits_annules : 0;
+      const etatAvant = SV.det && SV.det.tournee ? SV.det.tournee.etat : null;
+      SV.occupe = false; SV.annul = null; SV.motifAnnul = ''; delete SV.cles['annul:' + id];
+      if (etatAvant === 'TERMINEE_A_CERTIFIER') { SV.total = Math.max(0, SV.total - 1); majCompteur(); }
+      majLigneLocale(id, 'ANNULEE');
+      SV.msg = {ok:true, texte:'Tournée annulée · ' + pl(k, 'produit annulé', 'produits annulés') + '.'};
+      SV.ouvert = null; SV.det = null;
+      rendreSuivi(); chargerSuivi(true);
+    } catch (e) {
+      SV.occupe = false;
+      SV.msg = {id:id, texte: e && e.message ? texteErreur(e) : 'Connexion nécessaire pour annuler une tournée'}; rendreDetail();
+    }
   }
   function rendreSuivi(){
     if (SV.ouvert) return rendreDetail();
@@ -548,6 +579,7 @@
       case 'renommee': return q + 'Renommée' + par + ' : « ' + esc(x.ancien || '') + ' » devient « ' + esc(x.nouveau || '') + ' »';
       case 'certifiee': return q + 'Certifiée' + par + (x.observations ? '<br><span class="sv-meta">Observations : ' + esc(x.observations) + '</span>' : '');
       case 'correction_demandee': return q + 'Correction demandée' + par + ' sur ' + nb(x.produits || 0) + ' ' + ((x.produits || 0) > 1 ? 'produits' : 'produit') + '<br><span class="sv-meta">Motif : ' + esc(x.motif || '') + (x.reponse ? ' · Réponse : ' + esc(x.reponse) : '') + '</span>';
+      case 'annulee': return q + 'Annulée' + par + (x.motif ? ' · ' + esc(x.motif) : '');
       default: return q + esc(x.type || '');
     }
   }
@@ -563,6 +595,10 @@
     if (SV.msg) h += '<div class="' + (SV.msg.ok ? 'sv-ok' : 'sv-err') + '" role="' + (SV.msg.ok ? 'status' : 'alert') + '">' + esc(SV.msg.texte) + '</div>';
     if (aCert && !corr) {
       h += SV.conf === t.id ? blocConfirmation(t.id) : '<div class="sv-actions"><button type="button" class="sv-btn" data-certifier="' + esc(t.id) + '">Certifier</button><button type="button" class="sv-btn second" data-corriger>Demander une correction</button></div>';
+    }
+    if (t.etat === 'ANNULEE') h += '<div class="sv-meta" style="margin-top:8px">Annulée' + (t.annulee_par ? ' par ' + esc(t.annulee_par) : '') + (t.annulee_a ? ' à ' + esc(t.annulee_a) : '') + (t.motif_annulation ? ' · ' + esc(t.motif_annulation) : '') + '</div>';
+    if (!corr && t.etat !== 'CERTIFIEE' && t.etat !== 'ANNULEE') {
+      h += SV.annul === t.id ? blocAnnulation(t.id) : '<div class="sv-actions" style="margin-top:12px"><button type="button" class="sv-lien" data-annul-tournee="' + esc(t.id) + '">Annuler la tournée</button></div>';
     }
     h += '</div>';
     if (corr) {
@@ -620,6 +656,7 @@
   window.addEventListener('hashchange', () => afficherVue(location.hash === '#suivi-dlc' ? 'suivi' : 'priorites', false));
   sv.addEventListener('input', e => {
     if (e.target.id === 'svRech') { SV.rech = e.target.value; SV.plus = false; SV.rechFocus = true; rendreSuivi(); }
+    else if (e.target.id === 'svMotifAnnul') { SV.motifAnnul = e.target.value; const b = document.getElementById('svAnnulOk'); if (b) b.disabled = SV.occupe || e.target.value.trim().length < 3; }
     else if (e.target.id === 'svMotif' && SV.corr) { SV.corr.motif = e.target.value; const pos = e.target.selectionStart; rendreDetail(); const m = document.getElementById('svMotif'); if (m) { m.focus(); m.setSelectionRange(pos, pos); } }
   });
   sv.addEventListener('change', e => {
@@ -633,9 +670,12 @@
     if (q('[data-recharger]')) { chargerSuivi(); return; }
     if (q('[data-plus]')) { SV.plus = true; rendreSuivi(); return; }
     if ((b = q('[data-ouvrir]'))) { SV.conf = null; ouvrirDetail(b.dataset.ouvrir); return; }
-    if (q('[data-retour]')) { SV.ouvert = null; SV.det = null; SV.corr = null; SV.conf = null; SV.msg = null; rendreSuivi(); return; }
+    if (q('[data-retour]')) { SV.ouvert = null; SV.det = null; SV.corr = null; SV.conf = null; SV.annul = null; SV.motifAnnul = ''; SV.msg = null; rendreSuivi(); return; }
     if ((b = q('[data-certifier]'))) { SV.conf = b.dataset.certifier; SV.msg = null; (SV.ouvert ? rendreDetail : rendreSuivi)(); const c = sv.querySelector('[data-confirmer]'); if (c) c.focus(); return; }
     if ((b = q('[data-confirmer]'))) { if (!SV.occupe) certifier(b.dataset.confirmer); return; }
+    if ((b = q('[data-annul-tournee]'))) { SV.annul = b.dataset.annulTournee; SV.motifAnnul = ''; SV.msg = null; rendreDetail(); const c = document.getElementById('svAnnulRetour'); if (c) c.focus(); return; }
+    if (q('[data-annul-retour]')) { SV.annul = null; SV.motifAnnul = ''; SV.msg = null; rendreDetail(); return; }
+    if ((b = q('[data-annul-ok]'))) { if (!SV.occupe) annulerTourneeSv(b.dataset.annulOk); return; }
     if (q('[data-annuler]')) { SV.conf = null; SV.msg = null; (SV.ouvert ? rendreDetail : rendreSuivi)(); return; }
     if (q('[data-corriger]')) { const d = SV.det; SV.corr = {coches:new Set((d.produits || []).filter(r => r.anomalies.length > 0).map(r => r.id)), motif:''}; SV.msg = null; rendreDetail(); return; }
     if (q('[data-tout]')) { SV.corr.coches = new Set((SV.det.produits || []).map(r => r.id)); rendreDetail(); return; }

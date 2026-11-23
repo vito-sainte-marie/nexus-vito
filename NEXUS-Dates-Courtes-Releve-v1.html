@@ -188,6 +188,7 @@
   body.en-tournee .retour{display:none}
   .scan[hidden]{display:none}
   .aide{margin-top:10px;font-size:12px;color:var(--text-mid)}
+  .zone-annul{margin-top:28px}
   .ok-msg{margin-top:10px;padding:10px 12px;border-radius:8px;border:1px solid var(--green);color:var(--green);font-size:13px}
   .msg-champ{margin-top:8px;font-size:12px;color:var(--text-mid)}
   .msg-champ.err{color:var(--red)}
@@ -252,7 +253,7 @@ function nomAff(l){return nomUtile(l&&l.libelle)||SANS_NOM;}
 function enRayon(l){return Math.max(0,l.total-l.retire);}
 function detailQte(l){return l.retire>0?l.total+' '+pl(l.total,'relevée','relevées')+' · '+l.retire+' '+pl(l.retire,'retirée','retirées'):'';}
 function enRayonTxt(l){return enRayon(l)+' en rayon'+(l.retire>0?' ('+l.retire+' '+pl(l.retire,'retirée','retirées')+')':'');}
-var ETATS={EN_COURS:'En cours',CORRECTION_DEMANDEE:'Correction demandée',TERMINEE_A_CERTIFIER:'Terminée, à certifier',CERTIFIEE:'Certifiée'};
+var ETATS={EN_COURS:'En cours',CORRECTION_DEMANDEE:'Correction demandée',TERMINEE_A_CERTIFIER:'Terminée, à certifier',CERTIFIEE:'Certifiée',ANNULEE:'Annulée'};
 function etatLib(e){return ETATS[e]||'En cours';}
 function ligneEtat(t){return (t&&t.commencee_a?'Commencée à '+t.commencee_a+' · ':'')+etatLib(t&&t.etat);}
 function titre(t){
@@ -310,12 +311,13 @@ function messageEtat(titre,texte,reessai){
 function chargement(){racine.innerHTML='<div class="squelette" aria-label="Chargement"></div><div class="squelette"></div>';}
 
 /* ---------- Mes tournées ---------- */
-function ecranTournees(){
+function ecranTournees(info){
   arreterScan();tournee=null;titre(null);chargement();
-  nexusClient.rpc('dates_courtes_lire_tournees',{p_etats:['EN_COURS','CORRECTION_DEMANDEE']}).then(function(r){
+  nexusClient.rpc('dates_courtes_lire_tournees',{p_etats:['EN_COURS','CORRECTION_DEMANDEE','ANNULEE']}).then(function(r){
     if(r.error){messageEtat('Chargement impossible','Les tournées n\'ont pas pu être lues.',true);return;}
-    var liste=Array.isArray(r.data)?r.data:[];
-    var h='<h2 class="ecran-titre">Mes tournées</h2><div class="rang"><button type="button" class="btn prim plein" data-act="nouvelle">Nouvelle tournée</button></div>';
+    var toutes=Array.isArray(r.data)?r.data:[];
+    var liste=toutes.filter(function(t){return t.etat!=='ANNULEE';}),annulees=toutes.filter(function(t){return t.etat==='ANNULEE';});
+    var h=(typeof info==='string'&&info?'<div class="ok-msg" role="status" id="okMsg">'+esc(info)+'</div>':'')+'<h2 class="ecran-titre">Mes tournées</h2><div class="rang"><button type="button" class="btn prim plein" data-act="nouvelle">Nouvelle tournée</button></div>';
     var n=enAttente().length;
     if(n) h+='<div class="msg-fix">'+n+' '+pl(n,'saisie en attente','saisies en attente')+' d\'envoi sur cet appareil.</div>';
     if(!liste.length) h+='<div class="etat">Aucune tournée en cours. Commencez une nouvelle tournée pour relever des dates limites.</div>';
@@ -323,6 +325,12 @@ function ecranTournees(){
     liste.forEach(function(t){
       h+='<div class="carte"><h3>'+esc(t.nom)+'</h3><div class="meta">'+esc(ligneEtat(t))+'</div><button type="button" class="lien" data-act="renommer" data-id="'+esc(t.id)+'" data-nom="'+esc(t.nom)+'">Renommer</button><div class="rang"><button type="button" class="btn prim" data-act="ouvrir" data-id="'+esc(t.id)+'" data-nom="'+esc(t.nom)+'" data-etat="'+esc(t.etat)+'" data-heure="'+esc(t.commencee_a)+'">Reprendre</button></div></div>';
     });
+    if(annulees.length){
+      h+='<h2 class="ecran-titre">Tournées annulées</h2>';
+      annulees.forEach(function(t){
+        h+='<div class="carte"><h3>'+esc(t.nom)+'</h3><div class="meta">Annulée'+(t.annulee_par_nom?' par '+esc(t.annulee_par_nom):'')+(t.annulee_a?' à '+esc(t.annulee_a):'')+' · '+esc(t.motif_annulation||'')+'</div></div>';
+      });
+    }
     racine.innerHTML=h;
   });
 }
@@ -382,7 +390,7 @@ function dessinerLignes(){
 /* ---------- Écran de tournée ---------- */
 function ecranTournee(){
   arreterScan();
-  racine.innerHTML='<button type="button" class="lien" data-act="renommer">Renommer</button><div class="rang"><button type="button" class="btn prim plein" data-act="identifier">Identifier un produit</button></div><h2 class="ecran-titre">Saisies de ma tournée</h2><ul class="lignes" id="listeLignes"></ul><div class="rang"><button type="button" class="btn" data-act="liste">Mes tournées</button><button type="button" class="btn" data-act="terminer">Terminer ma tournée</button></div>';
+  racine.innerHTML='<button type="button" class="lien" data-act="renommer">Renommer</button><div class="rang"><button type="button" class="btn prim plein" data-act="identifier">Identifier un produit</button></div><h2 class="ecran-titre">Saisies de ma tournée</h2><ul class="lignes" id="listeLignes"></ul><div class="rang"><button type="button" class="btn" data-act="liste">Mes tournées</button><button type="button" class="btn" data-act="terminer">Terminer ma tournée</button></div><div class="rang zone-annul"><button type="button" class="lien" data-act="annuler">Annuler la tournée</button></div>';
   dessinerLignes();
 }
 
@@ -698,6 +706,28 @@ function validerAction(a,i,ri){
   }
 }
 
+/* ---------- Annuler la tournée (irréversible, jamais mise en file hors ligne) ---------- */
+var cleAnnul='';
+function ecranAnnuler(){
+  arreterScan();
+  var n=lignes.reduce(function(s,l){return s+l.releves.length;},0);
+  cleAnnul=uuid();
+  racine.innerHTML='<div class="carte"><h2 class="ecran-titre">Annuler cette tournée ?</h2><p>Les '+n+' '+pl(n,'produit relevé sera annulé','produits relevés seront annulés')+' avec elle. Cette action est irréversible.</p><label class="champ">Motif (obligatoire, 3 à 200 caractères)<input id="champMotifAnnul" maxlength="200" autocomplete="off"></label><div class="msg-champ err" id="annulMsg" role="alert"></div><div class="rang"><button type="button" class="btn danger" id="btnAnnulOk" data-act="annuler-ok" disabled>Annuler définitivement</button><button type="button" class="btn prim" id="btnAnnulRetour" data-act="retourTournee">Revenir à la tournée</button></div></div>';
+  var ch=document.getElementById('champMotifAnnul'),bt=document.getElementById('btnAnnulOk');
+  if(ch&&ch.addEventListener) ch.addEventListener('input',function(){bt.disabled=ch.value.trim().length<3;});
+  var rb=document.getElementById('btnAnnulRetour');if(rb&&rb.focus) rb.focus();
+}
+function annulerTournee(){
+  var ch=document.getElementById('champMotifAnnul'),m=((ch&&ch.value)||'').replace(/\s+/g,' ').trim(),msg=document.getElementById('annulMsg');
+  if(m.length<3||m.length>200){if(msg) msg.textContent='Le motif doit faire de 3 à 200 caractères.';return;}
+  nexusClient.rpc('dates_courtes_annuler_tournee',{p_tournee:tournee.id,p_motif:m,p_cle_idempotence:cleAnnul}).then(function(r){
+    if(r.error){var c=codeErreur(r.error);if(msg) msg.textContent=c?c.texte:'Connexion nécessaire pour annuler une tournée';return;}
+    var k=r.data&&typeof r.data.produits_annules==='number'?r.data.produits_annules:null;
+    tournee=null;titre(null);
+    ecranTournees('Tournée annulée'+(k!==null?' · '+k+' '+pl(k,'produit annulé','produits annulés'):''));
+  });
+}
+
 /* ---------- Terminer ---------- */
 function ecranTerminer(){
   var att=enAttente(tournee.id).length,u=lignes.reduce(function(s,l){return s+enRayon(l);},0);
@@ -760,6 +790,8 @@ function clic(e){
     case 'a-corr':case 'a-date':case 'a-trouve':case 'a-annule':case 'v-date':case 'v-trouve':case 'v-corr':validerAction(a,i);break;
     case 'v-annule':validerAction(a,i,parseInt(b.getAttribute('data-r'),10));break;
     case 'oubli':var cle=b.getAttribute('data-cle');ecrireFile(lireFile().filter(function(x){return x.cle!==cle;}));dessinerLignes();break;
+    case 'annuler':rafraichir().then(ecranAnnuler);break;
+    case 'annuler-ok':annulerTournee();break;
     case 'terminer':rafraichir().then(ecranTerminer);break;
     case 'confirmer-fin':terminer();break;
     case 'repondre':repondre(b.getAttribute('data-id'));break;
