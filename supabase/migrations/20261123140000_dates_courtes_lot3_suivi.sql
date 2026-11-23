@@ -35,14 +35,23 @@ begin
   rel as (
     select r.* from dates_courtes_releves r join tr on tr.id = r.tournee_id and tr.site = r.site
   ),
-  an as (
-    select r.tournee_id, r.id as releve_id, 'code_incomplet' as code from rel r where r.ean ~ '^[0-9]{9,11}$'
-    union all select r.tournee_id, r.id, 'code_logistique_provisoire' from rel r where r.provisoire
-    union all select r.tournee_id, r.id, 'article_texte_libre' from rel r where r.nom_libre is not null
-    union all select r.tournee_id, r.id, 'modifiee_apres_cloture' from rel r where r.rectification or r.recu_apres_cloture
+  an0 as (
+    select r.tournee_id, r.id as releve_id, 'code_incomplet' as code from rel r where r.annule_le is null and r.ean ~ '^[0-9]{9,11}$'
+    union all select r.tournee_id, r.id, 'code_logistique_provisoire' from rel r where r.annule_le is null and r.provisoire
+    union all select r.tournee_id, r.id, 'article_texte_libre' from rel r where r.annule_le is null and r.nom_libre is not null
+    union all select r.tournee_id, r.id, 'modifiee_apres_cloture' from rel r where r.annule_le is null and (r.rectification or r.recu_apres_cloture)
     union all select c.tournee_id, c.releve_id, 'modifiee_apres_cloture' from dates_courtes_corrections c
       join tr on tr.id = c.tournee_id and tr.site = c.site
-      where c.rectification or c.recu_apres_cloture
+      where c.annule_le is null and (c.rectification or c.recu_apres_cloture)
+  ),
+  -- Une paire (produit, anomalie) ne compte qu'une fois : liste et détail partagent ce compte.
+  an_prod as (
+    select distinct a.tournee_id, a.releve_id, a.code from an0 a
+    where exists (select 1 from rel r where r.id = a.releve_id and r.annule_le is null)
+  ),
+  an_sans as (
+    select distinct a.tournee_id, a.code from an0 a
+    where not exists (select 1 from rel r where r.id = a.releve_id and r.annule_le is null)
   ),
   liste as (
     select tr.id,
@@ -54,7 +63,7 @@ begin
            to_char(tr.terminee_le at time zone v_tz, 'HH24:MI') as fin,
            tr.saisi_le,
            (select count(*) from rel r where r.tournee_id = tr.id and r.annule_le is null) as produits,
-           (select count(*) from an where an.tournee_id = tr.id) as anomalies
+           (select count(*) from an_prod where an_prod.tournee_id = tr.id) + (select count(*) from an_sans where an_sans.tournee_id = tr.id) as anomalies
     from tr left join employees a on a.id = tr.saisi_par
   )
   select case when p_tournee is null then
@@ -71,10 +80,9 @@ begin
       'produits', coalesce((select jsonb_agg(jsonb_build_object(
           'id', r.id, 'libelle', coalesce(r.nom_libre, r.libelle_normalise, r.libelle_vu, r.ean), 'ean', r.ean,
           'date_limite', r.date_limite, 'quantite', r.quantite,
-          'anomalies', coalesce((select jsonb_agg(distinct an.code) from an where an.releve_id = r.id), '[]'::jsonb))
+          'anomalies', coalesce((select jsonb_agg(an_prod.code order by an_prod.code) from an_prod where an_prod.releve_id = r.id), '[]'::jsonb))
           order by r.date_limite, r.saisi_le) from rel r where r.tournee_id = l.id and r.annule_le is null), '[]'::jsonb),
-      'anomalies_sans_produit', coalesce((select jsonb_agg(distinct an.code) from an where an.tournee_id = l.id
-          and (an.releve_id is null or not exists (select 1 from rel r where r.id = an.releve_id and r.annule_le is null))), '[]'::jsonb),
+      'anomalies_sans_produit', coalesce((select jsonb_agg(an_sans.code order by an_sans.code) from an_sans where an_sans.tournee_id = l.id), '[]'::jsonb),
       'historique', coalesce((select jsonb_agg(h order by h ->> 'le') from (
           select jsonb_build_object('type', 'commencee', 'le', tr.saisi_le, 'hhmm', l.debut, 'jour', l.jour, 'par', l.auteur) as h
           union all

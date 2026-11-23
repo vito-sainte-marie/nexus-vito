@@ -89,6 +89,7 @@ declare
   t5 uuid := '00000000-0000-4000-8000-0000000e0315'; t6 uuid := '00000000-0000-4000-8000-0000000e0316';
   ca uuid := '00000000-0000-4000-8000-0000000e0302'; m1 uuid := '00000000-0000-4000-8000-0000000e0301';
   m2 uuid := '00000000-0000-4000-8000-0000000e0304';
+  t7 uuid := '00000000-0000-4000-8000-0000000e0317'; r7 uuid := '00000000-0000-4000-8000-0000000e0327'; r8 uuid := '00000000-0000-4000-8000-0000000e0328';
   r1 uuid := '00000000-0000-4000-8000-0000000e0321'; r2 uuid := '00000000-0000-4000-8000-0000000e0322';
   r3 uuid := '00000000-0000-4000-8000-0000000e0323'; r4 uuid := '00000000-0000-4000-8000-0000000e0324';
   r5 uuid := '00000000-0000-4000-8000-0000000e0325'; r6 uuid := '00000000-0000-4000-8000-0000000e0326';
@@ -96,19 +97,42 @@ begin
   reset role;
   -- Jeu : site A (fantome) 5 tournées, site B 1 tournée.
   insert into dates_courtes_tournees (id, site, nom, cle_idempotence, saisi_par, saisi_le, etat, terminee_par, terminee_le, version_empreinte) values
-    (t1, 'site-fantome-test', null,             'r3-t1', ca, now() - interval '3 hours', 'TERMINEE_A_CERTIFIER', ca, now() - interval '2 hours', 'v-t1'),
-    (t2, 'site-fantome-test', 'Rayon boissons', 'r3-t2', ca, now() - interval '30 hours', 'CERTIFIEE',           ca, now() - interval '29 hours', 'v-t2'),
+    (t1, 'site-fantome-test', null,             'r3-t1', ca, now() - interval '3 hours', 'EN_COURS', null, null, null),
+    (t2, 'site-fantome-test', 'Rayon boissons', 'r3-t2', ca, now() - interval '30 hours', 'EN_COURS', null, null, null),
     (t3, 'site-fantome-test', null,             'r3-t3', ca, now() - interval '10 minutes', 'EN_COURS',         null, null, null),
-    (t4, 'site-fantome-test', 'Frais libre-service', 'r3-t4', ca, now() - interval '50 hours', 'CORRECTION_DEMANDEE', ca, now() - interval '49 hours', 'v-t4'),
-    (t5, 'site-fantome-test', 'Ancienne tournée', 'r3-t5', ca, now() - interval '40 days', 'TERMINEE_A_CERTIFIER', ca, now() - interval '40 days' + interval '1 hour', 'v-t5'),
-    (t6, 'nexus-station-test', 'Tournée autre station', 'r3-t6', m2, now() - interval '2 hours', 'TERMINEE_A_CERTIFIER', m2, now() - interval '1 hour', 'v-t6');
+    (t4, 'site-fantome-test', 'Frais libre-service', 'r3-t4', ca, now() - interval '50 hours', 'EN_COURS', null, null, null),
+    (t5, 'site-fantome-test', 'Ancienne tournée', 'r3-t5', ca, now() - interval '40 days', 'EN_COURS', null, null, null),
+    (t6, 'nexus-station-test', 'Tournée autre station', 'r3-t6', m2, now() - interval '2 hours', 'EN_COURS', null, null, null),
+    (t7, 'site-fantome-test', 'Égalité liste détail', 'r3-t7', ca, now() - interval '5 hours', 'EN_COURS', null, null, null);
+  -- Les déclencheurs d'insertion relisent le compte connecté : les relevés et corrections s'insèrent comme CA1 (même station, auteur des tournées).
+  perform pg_temp.comme('CA1');
+  reset role; -- identité CA1 conservée pour les gardes ; la RLS d'insertion (rôle caissier autorisé) n'est pas l'objet de cette recette.
   insert into dates_courtes_releves (id, site, ean, libelle_vu, libelle_normalise, nom_libre, date_limite, quantite, provisoire, cle_groupe, tournee_id, heure_geste, cle_idempotence, saisi_par, annule_le, annule_par, motif_annulation, rectification) values
     (r1, 'site-fantome-test', '3000000000017', 'Yaourt nature', 'yaourt nature', null, d + 2, 4, false, 'g1', t1, now(), 'r3-r1', ca, null, null, null, false),
     (r2, 'site-fantome-test', '3000000000', 'Code court', 'code court', null, d + 3, 1, false, 'g2', t1, now(), 'r3-r2', ca, null, null, null, false),
     (r3, 'site-fantome-test', '13000000000014', 'Colis logistique', 'colis logistique', null, d + 4, 2, true, 'g3', t1, now(), 'r3-r3', ca, null, null, null, false),
     (r4, 'site-fantome-test', null, null, 'article libre', 'Pâtisserie du jour', d + 1, 6, false, 'g4', t1, now(), 'r3-r4', ca, null, null, null, false),
     (r5, 'site-fantome-test', '3000000000024', 'Jus annulé', 'jus annule', null, d + 5, 3, false, 'g5', t1, now(), 'r3-r5', ca, now(), ca, 'saisie par erreur', false),
-    (r6, 'site-fantome-test', '3000000000031', 'Lait demi-écrémé', 'lait demi ecreme', null, d + 6, 8, false, 'g6', t2, now(), 'r3-r6', ca, null, null, null, true);
+    (r6, 'site-fantome-test', '3000000000031', 'Lait demi-écrémé', 'lait demi ecreme', null, d + 6, 8, false, 'g6', t2, now(), 'r3-r6', ca, null, null, null, true),
+    -- r7 cumule deux anomalies (code incomplet + code provisoire) ; r8 est annulé et porte aussi deux anomalies, qui ne doivent pas compter.
+    (r7, 'site-fantome-test', '3000000001', 'Compote', 'compote', null, d + 2, 2, true, 'g7', t7, now(), 'r3-r7', ca, null, null, null, false),
+    (r8, 'site-fantome-test', '3000000002', 'Biscuits annulés', 'biscuits annules', null, d + 2, 2, true, 'g8', t7, now(), 'r3-r8', ca, now(), ca, 'saisie par erreur', true);
+  -- Une correction rectifiée sur le produit annulé r8 : anomalie « sans produit » ; une autre sur r7 : paire (r7, modifiee_apres_cloture).
+  insert into dates_courtes_corrections (site, ean, libelle_normalise, date_limite, delta, releve_id, cle_groupe, tournee_id, heure_geste, rectification, cle_idempotence, saisi_par)
+    values ('site-fantome-test', '3000000002', 'biscuits annules', d + 2, 1, r8, 'g8c', t7, now(), true, 'r3-c8', ca),
+           ('site-fantome-test', '3000000001', 'compote', d + 2, 1, r7, 'g7c', t7, now(), true, 'r3-c7', ca);
+  reset role;
+  -- Les gestes sont saisis tournées ouvertes (sinon tournee_terminee) ; on les amène ensuite à leur état final.
+  update dates_courtes_releves set rectification = true where id in (r6, r8);
+  -- Le déclencheur d'insertion efface tout code qui n'est pas un EAN valide ; le « code incomplet » se constate sur des codes déjà stockés : on les pose après coup.
+  update dates_courtes_releves set ean = case id when r2 then '3000000000' when r7 then '3000000001' else '3000000002' end where id in (r2, r7, r8);
+  update dates_courtes_tournees set etat = 'CERTIFIEE', terminee_par = ca, terminee_le = now() - interval '29 hours', version_empreinte = 'v-t2' where id = t2;
+  update dates_courtes_corrections set rectification = true where cle_idempotence in ('r3-c8', 'r3-c7');
+  update dates_courtes_tournees set etat = 'TERMINEE_A_CERTIFIER', terminee_par = ca, terminee_le = now() - interval '2 hours', version_empreinte = 'v-t1' where id = t1;
+  update dates_courtes_tournees set etat = 'CORRECTION_DEMANDEE', terminee_par = ca, terminee_le = now() - interval '49 hours', version_empreinte = 'v-t4' where id = t4;
+  update dates_courtes_tournees set etat = 'TERMINEE_A_CERTIFIER', terminee_par = ca, terminee_le = now() - interval '40 days' + interval '1 hour', version_empreinte = 'v-t5' where id = t5;
+  update dates_courtes_tournees set etat = 'TERMINEE_A_CERTIFIER', terminee_par = m2, terminee_le = now() - interval '1 hour', version_empreinte = 'v-t6' where id = t6;
+  update dates_courtes_tournees set etat = 'TERMINEE_A_CERTIFIER', terminee_par = ca, terminee_le = now() - interval '4 hours', version_empreinte = 'v-t7' where id = t7;
   insert into dates_courtes_certifications (site, tournee_id, certifiee_par, certifiee_le, version_certifiee, observations, cle_idempotence)
     values ('site-fantome-test', t2, m1, now() - interval '28 hours', 'v-t2', 'Rien à signaler', 'r3-c2');
   insert into dates_courtes_demandes_correction (site, tournee_id, demandee_par, demandee_le, motif, releves_vises, cle_idempotence)
@@ -138,21 +162,31 @@ begin
   r := pg_temp.n(r, '2 une seule date nulle refusée', 'valeur_invalide', pg_temp.essai('M1', format($f$select dates_courtes_suivi_controles(%L, null)::text$f$, d)));
 
   -- 3 liste, site, ordre
-  r := pg_temp.n(r, '3 nombre de tournées de la liste', '=4', pg_temp.essai('M1', format($f$select jsonb_array_length(dates_courtes_suivi_controles(%L, %L)->'tournees')::text$f$, d - 6, d)));
-  r := pg_temp.n(r, '3 à certifier du site, toutes périodes (la tournée ancienne compte)', '=2', pg_temp.essai('M1', format($f$select (dates_courtes_suivi_controles(%L, %L)->>'a_certifier_total')$f$, d - 6, d)));
+  r := pg_temp.n(r, '3 nombre de tournées de la liste', '=5', pg_temp.essai('M1', format($f$select jsonb_array_length(dates_courtes_suivi_controles(%L, %L)->'tournees')::text$f$, d - 6, d)));
+  r := pg_temp.n(r, '3 à certifier du site, toutes périodes (la tournée ancienne compte)', '=3', pg_temp.essai('M1', format($f$select (dates_courtes_suivi_controles(%L, %L)->>'a_certifier_total')$f$, d - 6, d)));
   r := pg_temp.n(r, '3 ordre : 1re = à certifier', '=TERMINEE_A_CERTIFIER', pg_temp.essai('M1', format($f$select dates_courtes_suivi_controles(%L, %L)->'tournees'->0->>'etat'$f$, d - 6, d)));
-  r := pg_temp.n(r, '3 ordre : 2e = correction demandée', '=CORRECTION_DEMANDEE', pg_temp.essai('M1', format($f$select dates_courtes_suivi_controles(%L, %L)->'tournees'->1->>'etat'$f$, d - 6, d)));
-  r := pg_temp.n(r, '3 ordre : 3e = en cours', '=EN_COURS', pg_temp.essai('M1', format($f$select dates_courtes_suivi_controles(%L, %L)->'tournees'->2->>'etat'$f$, d - 6, d)));
-  r := pg_temp.n(r, '3 ordre : 4e = certifiée', '=CERTIFIEE', pg_temp.essai('M1', format($f$select dates_courtes_suivi_controles(%L, %L)->'tournees'->3->>'etat'$f$, d - 6, d)));
-  r := pg_temp.n(r, '3 manager d''une autre station ne voit pas ces tournées', '=1', pg_temp.essai('M2', format($f$select jsonb_array_length(dates_courtes_suivi_controles(%L, %L)->'tournees')::text$f$, d - 6, d)));
+  r := pg_temp.n(r, '3 ordre : 2e = à certifier (t7)', '=TERMINEE_A_CERTIFIER', pg_temp.essai('M1', format($f$select dates_courtes_suivi_controles(%L, %L)->'tournees'->1->>'etat'$f$, d - 6, d)));
+  r := pg_temp.n(r, '3 ordre : 3e = correction demandée', '=CORRECTION_DEMANDEE', pg_temp.essai('M1', format($f$select dates_courtes_suivi_controles(%L, %L)->'tournees'->2->>'etat'$f$, d - 6, d)));
+  r := pg_temp.n(r, '3 ordre : 4e = en cours', '=EN_COURS', pg_temp.essai('M1', format($f$select dates_courtes_suivi_controles(%L, %L)->'tournees'->3->>'etat'$f$, d - 6, d)));
+  r := pg_temp.n(r, '3 ordre : 5e = certifiée', '=CERTIFIEE', pg_temp.essai('M1', format($f$select dates_courtes_suivi_controles(%L, %L)->'tournees'->4->>'etat'$f$, d - 6, d)));
+  r := pg_temp.n(r, '3 manager d''une autre station ne voit pas ces tournées', '=0', pg_temp.essai('M2', format($f$select count(*)::text from jsonb_array_elements(dates_courtes_suivi_controles(%L, %L)->'tournees') e where e->>'id' in (%L, %L, %L, %L, %L, %L)$f$, d - 6, d, t1, t2, t3, t4, t5, t7)));
   r := pg_temp.n(r, '3 autre station : sa propre tournée seulement', '=Tournée autre station', pg_temp.essai('M2', format($f$select dates_courtes_suivi_controles(%L, %L)->'tournees'->0->>'nom'$f$, d - 6, d)));
-  r := pg_temp.n(r, '3 période de 30 jours : l''ancienne tournée (40 jours) reste absente', '=4', pg_temp.essai('M1', format($f$select jsonb_array_length(dates_courtes_suivi_controles(%L, %L)->'tournees')::text$f$, d - 29, d)));
+  r := pg_temp.n(r, '3 période de 30 jours : l''ancienne tournée (40 jours) reste absente', '=5', pg_temp.essai('M1', format($f$select jsonb_array_length(dates_courtes_suivi_controles(%L, %L)->'tournees')::text$f$, d - 29, d)));
   r := pg_temp.n(r, '3 auteur = nom affiché, jamais l''identifiant', '=Recette CA1', pg_temp.essai('M1', format($f$select dates_courtes_suivi_controles(%L, %L)->'tournees'->0->>'auteur'$f$, d - 6, d)));
   r := pg_temp.n(r, '3 nom de repli lisible', 'Contrôle DLC · Recette CA1 · ', pg_temp.essai('M1', format($f$select dates_courtes_suivi_controles(%L, %L)->'tournees'->0->>'nom'$f$, d - 6, d)));
-  r := pg_temp.n(r, '3 tournée en cours : pas d''heure de fin', '=', pg_temp.essai('M1', format($f$select coalesce(dates_courtes_suivi_controles(%L, %L)->'tournees'->2->>'fin', '')$f$, d - 6, d)));
+  r := pg_temp.n(r, '3 tournée en cours : pas d''heure de fin', '=', pg_temp.essai('M1', format($f$select coalesce(dates_courtes_suivi_controles(%L, %L)->'tournees'->3->>'fin', '')$f$, d - 6, d)));
   r := pg_temp.n(r, '3 heure de début HH:MM', '=true', pg_temp.essai('M1', format($f$select (dates_courtes_suivi_controles(%L, %L)->'tournees'->0->>'debut') ~ '^[0-9]{2}:[0-9]{2}$'$f$, d - 6, d)));
   r := pg_temp.n(r, '3 produits comptés hors annulés (T1 : 4)', '=4', pg_temp.essai('M1', format($f$select dates_courtes_suivi_controles(%L, %L)->'tournees'->0->>'produits'$f$, d - 6, d)));
   r := pg_temp.n(r, '3 anomalies comptées (T1 : 3)', '=3', pg_temp.essai('M1', format($f$select dates_courtes_suivi_controles(%L, %L)->'tournees'->0->>'anomalies'$f$, d - 6, d)));
+
+  -- 3b égalité liste / détail : paires (produit, anomalie) sur produits non annulés + anomalies sans produit
+  r := pg_temp.n(r, '3b T7 liste : 4 anomalies (r7 : 3 paires, r8 annulé : 1 sans produit)', '=4', pg_temp.essai('M1', format($f$select (select e->>'anomalies' from jsonb_array_elements(dates_courtes_suivi_controles(%L, %L)->'tournees') e where e->>'id' = %L)$f$, d - 6, d, t7)));
+  r := pg_temp.n(r, '3b T7 détail : même nombre dans l''en-tête', '=4', pg_temp.essai('M1', format($f$select dates_courtes_suivi_controles(null, null, %L)->'tournee'->>'anomalies'$f$, t7)));
+  r := pg_temp.n(r, '3b T7 détail : somme des anomalies des produits + sans produit = nombre de la liste', '=4', pg_temp.essai('M1', format($f$select (select coalesce(sum(jsonb_array_length(p->'anomalies')), 0) from jsonb_array_elements(x->'produits') p) + jsonb_array_length(x->'anomalies_sans_produit') from (select dates_courtes_suivi_controles(null, null, %L) x) y$f$, t7)));
+  r := pg_temp.n(r, '3b T7 détail : le produit r7 porte trois anomalies', '=3', pg_temp.essai('M1', format($f$select jsonb_array_length(p->'anomalies')::text from jsonb_array_elements(dates_courtes_suivi_controles(null, null, %L)->'produits') p where p->>'id' = %L$f$, t7, r7)));
+  r := pg_temp.n(r, '3b T7 : une seule ligne produit (l''annulé est absent)', '=1', pg_temp.essai('M1', format($f$select jsonb_array_length(dates_courtes_suivi_controles(null, null, %L)->'produits')::text$f$, t7)));
+  r := pg_temp.n(r, '3b T7 : anomalies sans produit = 1 (modifiee_apres_cloture)', '=1', pg_temp.essai('M1', format($f$select jsonb_array_length(dates_courtes_suivi_controles(null, null, %L)->'anomalies_sans_produit')::text$f$, t7)));
+  r := pg_temp.n(r, '3b liste = détail pour chaque tournée de la période', '=0', pg_temp.essai('M1', format($f$select count(*)::text from jsonb_array_elements(dates_courtes_suivi_controles(%L, %L)->'tournees') e where (e->>'anomalies')::int <> (dates_courtes_suivi_controles(null, null, (e->>'id')::uuid)->'tournee'->>'anomalies')::int$f$, d - 6, d)));
 
   -- 4 détail et anomalies déduites
   q := format($f$select dates_courtes_suivi_controles(null, null, %L)::text$f$, t1);
