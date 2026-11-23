@@ -7,7 +7,7 @@ Migration `20261123100000_dates_courtes_gtin14.sql` (additive) ; retour arrière
 - 9, 10, 11 chiffres : jamais complétés ni acceptés (« Code incomplet, à vérifier »).
 - Le GTIN-14 ne sert qu'au **rapprochement**. Aucun code stocké n'est réécrit.
 - Clés historiques inchangées : `dates_courtes_normaliser_ean`, `cle_article`, `dates_courtes_cle_canonique`, `dates_courtes_cle_groupe`, clés JS, clés d'import, `tarif_*`.
-- Un même GTIN-14 pour deux articles d'une même station : aucun choix automatique (« Plusieurs articles pour ce code »), `prix_article` ne prend aucun prix par le code.
+- Ambigu seulement si deux articles distincts portent le même GTIN-14 **dans la même période** (même import pour les ventes) : aucun choix automatique (« Plusieurs articles pour ce code »), `prix_article` ne prend aucun prix par le code. Un libellé renommé d'une période à l'autre n'est pas une ambiguïté : on retient le libellé de la période la plus récente (Production : 93 GTIN-14 dans ce cas, 0 ambiguïté réelle).
 
 ## Forme enregistrée par le relevé
 EAN-13 : UPC-A → « 0 » + 12 chiffres ; GTIN-14 commençant par 0 → ses 13 derniers chiffres ; GTIN-8 → 8 chiffres. Un GTIN-14 ne commençant pas par 0 (colis) est **provisoire** : envoyé sans ean, avec libellé, code brut dans `nom_libre` (« Code lu : … »). Le code brut lu reste affiché.

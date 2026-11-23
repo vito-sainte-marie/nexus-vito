@@ -35,9 +35,9 @@ begin
   return v_g;
 end $$;
 
--- 2. Recherche de produit : un code est cherche par GTIN-14 (en plus de l'ancienne forme). Une ligne par article distinct
--- (libelle normalise) : si plusieurs articles de la station portent le meme GTIN-14, ils sont tous renvoyes et la page
--- demande un choix manuel, rien n'est rapproche automatiquement. ean = forme EAN-13 a conserver (0 + 12 chiffres d'un UPC-A,
+-- 2. Recherche de produit : un code est cherche par GTIN-14 (en plus de l'ancienne forme). Une seule ligne (libelle de la periode la plus
+-- recente) sauf ambiguite reelle (plusieurs articles distincts dans la meme periode) : ils sont alors tous renvoyes et la page
+-- demande un choix manuel. ean = forme EAN-13 a conserver (0 + 12 chiffres d'un UPC-A,
 -- 13 derniers chiffres d'un GTIN-14 commencant par 0, 8 chiffres d'un GTIN-8) ; null pour un GTIN-14 logistique (n'ayant pas de zero initial).
 create or replace function dates_courtes_rechercher_produit(p_requete text, p_limite integer default 20)
 returns table (libelle text, ean text, rayon text)
@@ -60,22 +60,33 @@ begin
   v_g := gtin14(v_q);
   v_ean := dates_courtes_normaliser_ean(v_q);
   if v_g is not null or v_ean is not null then
+    -- Ambigu seulement si plusieurs articles distincts portent ce code DANS LA MEME PERIODE. Un libelle renomme d'une periode
+    -- a l'autre n'est pas une ambiguite : on retient le libelle de la periode la plus recente (une seule ligne).
     return query
-      select s.libelle, s.ean, s.rayon from (
-        select distinct on (dates_courtes_normaliser_libelle(c.article))
-          c.article::text as libelle, c.ean, c.categorie::text as rayon
-        from (
-          select p.article, p.categorie, p.periode_fin, p.imported_at,
-            coalesce(case when gtin14(p.code_barres) like '000000%' then right(gtin14(p.code_barres), 8)
-                          when gtin14(p.code_barres) like '0%' then right(gtin14(p.code_barres), 13) end,
-                     dates_courtes_normaliser_ean(p.code_barres)) as ean
-          from products p
-          where p.site = v_site and nullif(btrim(p.article), '') is not null
-            and ((v_g is not null and gtin14(p.code_barres) = v_g)
-              or (v_ean is not null and dates_courtes_normaliser_ean(p.code_barres) = v_ean))) c
-        order by dates_courtes_normaliser_libelle(c.article), c.periode_fin desc, c.imported_at desc nulls last) s
-      order by s.libelle
-      limit v_lim;
+      with c as (
+        select p.article::text as libelle, p.categorie::text as rayon, p.periode_debut, p.periode_fin, p.imported_at,
+          dates_courtes_normaliser_libelle(p.article) as lib_norm,
+          coalesce(case when gtin14(p.code_barres) like '000000%' then right(gtin14(p.code_barres), 8)
+                        when gtin14(p.code_barres) like '0%' then right(gtin14(p.code_barres), 13) end,
+                   dates_courtes_normaliser_ean(p.code_barres)) as ean
+        from products p
+        where p.site = v_site and nullif(btrim(p.article), '') is not null
+          and ((v_g is not null and gtin14(p.code_barres) = v_g)
+            or (v_ean is not null and dates_courtes_normaliser_ean(p.code_barres) = v_ean))),
+      amb as (
+        select c.periode_debut, c.periode_fin from c
+        group by c.periode_debut, c.periode_fin having count(distinct c.lib_norm) > 1
+        order by c.periode_fin desc, c.periode_debut desc limit 1),
+      retenu as (
+        select * from (select distinct on (c.lib_norm) c.libelle, c.ean, c.rayon
+          from c
+          where (c.periode_debut, c.periode_fin) = (select a.periode_debut, a.periode_fin from amb a)
+          order by c.lib_norm, c.imported_at desc nulls last) m
+        union all
+        select * from (select c.libelle, c.ean, c.rayon from c
+          where not exists (select 1 from amb)
+          order by c.periode_fin desc, c.periode_debut desc, c.imported_at desc nulls last limit 1) u)
+      select r.libelle, r.ean, r.rayon from retenu r order by r.libelle limit v_lim;
     return;
   end if;
   return query
@@ -90,8 +101,8 @@ begin
     limit v_lim;
 end $$;
 
--- 3. Prix d'un article : le code est compare aussi par GTIN-14. Si le GTIN-14 du code designe plusieurs articles distincts
--- de la station (libelles normalises differents), la comparaison par code est abandonnee : pas de prix pris au hasard,
+-- 3. Prix d'un article : le code est compare aussi par GTIN-14. Si le GTIN-14 designe plusieurs articles distincts dans la
+-- meme periode (ou le meme import), la comparaison par code est abandonnee : pas de prix pris au hasard,
 -- seul le libelle (s'il est donne) peut rapprocher.
 create or replace function dates_courtes_prix_article(p_site text, p_ean text, p_libelle text, p_date date)
 returns table (prix_achat numeric, prix_vente numeric, source text, periode_debut date, periode_fin date)
@@ -99,10 +110,13 @@ language plpgsql stable security definer set search_path = public, pg_temp as $$
 declare v_g text := gtin14(p_ean); v_ean_p text := p_ean; v_ean_i text := p_ean;
 begin
   if v_g is not null then
-    if (select count(distinct dates_courtes_normaliser_libelle(p.article)) from products p
-        where p.site = p_site and gtin14(p.code_barres) = v_g) > 1 then v_ean_p := null; end if;
-    if (select count(distinct dates_courtes_normaliser_libelle(v.designation_brute)) from inventaire_ventes_import v
-        where v.site = p_site and gtin14(v.code_barres_brut) = v_g) > 1 then v_ean_i := null; end if;
+    -- Ambiguite reelle : plusieurs articles distincts pour ce GTIN-14 dans la meme periode (products) ou dans le meme import.
+    if exists (select 1 from products p where p.site = p_site and gtin14(p.code_barres) = v_g
+               group by p.periode_debut, p.periode_fin having count(distinct dates_courtes_normaliser_libelle(p.article)) > 1)
+      then v_ean_p := null; end if;
+    if exists (select 1 from inventaire_ventes_import v where v.site = p_site and gtin14(v.code_barres_brut) = v_g
+               group by v.importe_le having count(distinct dates_courtes_normaliser_libelle(v.designation_brute)) > 1)
+      then v_ean_i := null; end if;
   end if;
   return query
     select p.prix_achat::numeric, nullif(p.prix_vente, 0)::numeric, 'products'::text, p.periode_debut::date, p.periode_fin::date
@@ -130,4 +144,4 @@ revoke all on function dates_courtes_prix_article(text, text, text, date) from p
 
 comment on function gtin14(text) is 'Forme GTIN-14 de rapprochement (8, 12, 13 ou 14 chiffres, cle mod-10 controlee), null sinon. Ne reecrit jamais un code stocke.';
 comment on function dates_courtes_rechercher_produit(text, integer) is 'Lot 2 + GTIN-14 : recherche de produit (libellé, EAN-13 à conserver, rayon). Un code qui désigne plusieurs articles les renvoie tous (choix manuel). Site lu depuis le compte, aucun prix ni vente.';
-comment on function dates_courtes_prix_article(text, text, text, date) is 'Lot 5 + GTIN-14 : prix d''un article. Un GTIN-14 qui désigne plusieurs articles distincts de la station ne rapproche rien par le code.';
+comment on function dates_courtes_prix_article(text, text, text, date) is 'Lot 5 + GTIN-14 : prix d''un article. Ambigu seulement si plusieurs articles distincts portent le GTIN-14 dans la même période (ou le même import) ; un libellé renommé entre deux périodes reste rapproché.';

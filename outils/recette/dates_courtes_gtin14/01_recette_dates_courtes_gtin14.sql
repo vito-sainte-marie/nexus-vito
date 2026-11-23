@@ -116,7 +116,7 @@ end $$;
 do $rapport$
 declare
   r jsonb := '[]'::jsonb; x text;
-  upca text; ean13 text; ean8 text; g14_0 text; colis text; onze text; mauvaise text; dup13 text; dup12 text;
+  upca text; ean13 text; ean8 text; g14_0 text; colis text; onze text; mauvaise text; dup13 text; dup12 text; ren13 text;
   d date := '2026-11-23';
 begin
   -- jeu de codes valides calcules (cle mod-10 ajoutee a un corps)
@@ -128,6 +128,7 @@ begin
   onze := '12345678901';
   mauvaise := left(ean13, 12) || ((right(ean13, 1)::int + 1) % 10)::text;
   dup13 := '0' || pg_temp.avec('23456789012');
+  ren13 := '0' || pg_temp.avec('34567890123');
   dup12 := right(dup13, 12);
 
   -- 1 fonction gtin14 : formes valides
@@ -165,7 +166,9 @@ begin
     ('site-fantome-test', '2026-01-01', '2026-12-31', 'BOISSONS', 'GTIN E doublon deux', dup12,           3.00, 4.00),
     ('site-fantome-test', '2026-01-01', '2026-12-31', 'EPICERIE', 'GTIN G cle fausse',  mauvaise,         5.00, 6.00),
     ('site-fantome-test', '2026-01-01', '2026-12-31', 'EPICERIE', 'GTIN H onze',        onze,             7.00, 8.00),
-    ('nexus-station-test', '2026-01-01', '2026-12-31', 'EPICERIE', 'GTIN F autre site', dup13,            6.50, 7.50);
+    ('nexus-station-test', '2026-01-01', '2026-12-31', 'EPICERIE', 'GTIN F autre site', dup13,            6.50, 7.50),
+    ('site-fantome-test', '2025-01-01', '2025-12-31', 'EPICERIE', 'GTIN R ancien nom',  ren13,           1.50, 2.50),  -- meme produit renomme entre deux periodes
+    ('site-fantome-test', '2026-01-01', '2026-12-31', 'EPICERIE', 'GTIN R nouveau nom', ren13,           1.70, 2.70);
 
   -- 4 recherche par code : une seule fiche, rapprochee quelle que soit la forme
   r := pg_temp.n(r, '4 base 12 chiffres (zero perdu), scan EAN-13 : meme article, ean a conserver = EAN-13',
@@ -182,6 +185,11 @@ begin
   r := pg_temp.n(r, '5 doublon : meme chose par la forme 12 chiffres', '=GTIN D doublon un|' || dup13 || ';GTIN E doublon deux|' || dup13, pg_temp.rech('M1', dup12));
   r := pg_temp.n(r, '5 doublon : aucun prix pris par le code', '=', pg_temp.prix('site-fantome-test', dup13, null, d));
   r := pg_temp.n(r, '5 doublon : le libelle seul rapproche', '=1.00|2.00|products', pg_temp.prix('site-fantome-test', dup13, 'gtin d doublon un', d));
+  -- 5 bis meme GTIN-14, libelle renomme entre deux periodes : pas d'ambiguite, le plus recent
+  r := pg_temp.n(r, '5b renomme : un seul article, le plus recent', '=GTIN R nouveau nom|' || ren13, pg_temp.rech('M1', ren13));
+  r := pg_temp.n(r, '5b renomme : meme chose par la forme 12 chiffres', '=GTIN R nouveau nom|' || ren13, pg_temp.rech('M1', right(ren13, 12)));
+  r := pg_temp.n(r, '5b renomme : prix trouve par le code (periode la plus recente)', '=1.70|2.70|products', pg_temp.prix('site-fantome-test', ren13, null, d));
+  r := pg_temp.n(r, '5b renomme : prix d''une date de la periode ancienne', '=1.50|2.50|products', pg_temp.prix('site-fantome-test', ren13, null, '2025-06-01'));
   -- 6 autre station : pas d'ambiguite, site filtre
   r := pg_temp.n(r, '6 meme GTIN sur une autre station : un seul article', '=GTIN F autre site|' || dup13, pg_temp.rech('M2', dup13));
   r := pg_temp.n(r, '6 autre station : prix de son propre article', '=6.50|7.50|products', pg_temp.prix('nexus-station-test', dup13, null, d));
@@ -203,7 +211,7 @@ begin
   r := pg_temp.n(r, '8 normaliser_ean : GTIN-14 toujours refuse', '=NULL', coalesce(pg_temp.val(format($f$select dates_courtes_normaliser_ean(%L)$f$, g14_0)), 'NULL'));
   r := pg_temp.n(r, '8 cle_canonique : accepte toujours (site, ean, libelle, date)', '!ERR', pg_temp.essai('M1', format($f$select dates_courtes_cle_canonique('site-fantome-test', %L, null, %L)$f$, ean13, d)));
   r := pg_temp.n(r, '8 products non modifie par la lecture : code stocke sur 12 chiffres', '=' || right(ean13, 12), pg_temp.val($f$select code_barres from products where article = 'GTIN A zero perdu'$f$));
-  r := pg_temp.n(r, '8 products : 8 lignes de jeu, aucune reecrite', '=8', pg_temp.val($f$select count(*)::text from products where article like 'GTIN %'$f$));
+  r := pg_temp.n(r, '8 products : 10 lignes de jeu, aucune reecrite', '=10', pg_temp.val($f$select count(*)::text from products where article like 'GTIN %'$f$));
 
   -- 9 article libelle : la recherche textuelle ne change pas
   r := pg_temp.n(r, '9 recherche par libelle', '=GTIN B huit|' || ean8, pg_temp.rech('M1', 'gtin b'));
