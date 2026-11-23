@@ -132,6 +132,48 @@
   .fiche .dispo{font-size:12px;color:var(--text-mid);text-align:center}
   :focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
   @media (max-width:599px){.priorites{gap:8px;margin-top:8px}.prio{padding:8px 6px;text-align:center;min-height:56px}.prio .n{font-size:24px;line-height:1.1}.prio .l{font-size:12px}h2{margin-top:14px}}
+
+  /* Lot 3 : Suivi des contrôles DLC (panneau secondaire, jetons --t-* uniquement). */
+  .segments{display:flex;gap:8px;margin-top:12px}
+  .segments button{flex:1;min-height:44px;padding:0 12px;border-radius:10px;border:1px solid var(--hairline);background:var(--panel);color:var(--text);font:600 13px var(--sans);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px}
+  .segments button[aria-pressed="true"]{border-color:var(--cyan);color:var(--cyan);background:var(--cyan-dim)}
+  .segments .cpt{font:700 12px var(--mono);min-width:22px;padding:2px 6px;border-radius:999px;background:var(--cyan);color:var(--bg)}
+  .segments .cpt[hidden]{display:none}
+  #suivi[hidden]{display:none}
+  #contenu[hidden]{display:none}
+  .sv-outils{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;align-items:center}
+  .sv-outils input[type="search"],.sv-outils select,.sv-form textarea{min-height:44px;padding:0 12px;border-radius:10px;border:1px solid var(--hairline);background:var(--panel);color:var(--text);font:14px var(--sans)}
+  .sv-outils input[type="search"]{flex:1;min-width:160px}
+  .sv-carte{background:var(--panel);border:1px solid var(--hairline);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px}
+  .sv-carte.a-certifier{border-color:var(--amber)}
+  .sv-ouvrir{all:unset;display:flex;flex-direction:column;gap:4px;cursor:pointer;min-height:44px;box-sizing:border-box}
+  .sv-ouvrir:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+  .sv-ligne1{display:flex;flex-wrap:nowrap;justify-content:space-between;gap:8px;align-items:flex-start}
+  .sv-ligne1>.sv-nom{flex:1 1 auto;min-width:0}
+  .sv-ligne1>:not(.sv-nom){flex:none}
+  .sv-nom{font-weight:600;font-size:14px;overflow-wrap:anywhere}
+  .sv-meta{font-size:12px;color:var(--text-mid);line-height:1.45}
+  .sv-meta .num,.sv-code{font-family:var(--mono)}
+  .sv-code{color:var(--text-mid);font-size:11px}
+  .sv-btn{min-height:44px;padding:0 16px;border-radius:8px;border:1px solid var(--cyan);background:var(--cyan-dim);color:var(--cyan);font:600 13px var(--sans);cursor:pointer}
+  .sv-btn.second{border-color:var(--hairline);background:var(--panel-raised);color:var(--text)}
+  .sv-btn[disabled]{opacity:.55;cursor:not-allowed}
+  .sv-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .sv-conf{padding:12px;border-radius:10px;background:var(--panel-raised);border:1px solid var(--cyan);font-size:13px;line-height:1.5;display:flex;flex-direction:column;gap:8px}
+  .sv-err{padding:10px 12px;border-radius:8px;border:1px solid var(--red);font-size:13px;line-height:1.45}
+  .sv-ok{padding:10px 12px;border-radius:8px;border:1px solid var(--green);font-size:13px;line-height:1.45}
+  .sv-raison{font-size:12px;color:var(--text-mid)}
+  .sv-anom{display:inline-flex;font-size:12px;font-weight:600;color:var(--amber)}
+  .sv-groupe{font:600 11px var(--mono);text-transform:uppercase;letter-spacing:.05em;color:var(--text-mid);margin-top:14px}
+  .sv-prod{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--hairline);font-size:13px}
+  .sv-prod label{display:flex;gap:10px;align-items:flex-start;min-height:44px;cursor:pointer;width:100%}
+  .sv-prod input[type="checkbox"]{width:22px;height:22px;flex:none;accent-color:var(--cyan)}
+  .sv-histo{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-direction:column;gap:8px;font-size:13px;line-height:1.45}
+  .sv-histo .h{font-family:var(--mono);color:var(--text-mid);margin-right:6px}
+  .sv-form{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+  .sv-form textarea{min-height:88px;padding:10px 12px;width:100%}
+  .sv-retour{all:unset;cursor:pointer;min-height:44px;display:inline-flex;align-items:center;font-size:13px;color:var(--text-mid)}
+  .sv-retour:hover{color:var(--cyan)}
 </style>
 </head>
 <body>
@@ -148,10 +190,15 @@
       <p class="sous" id="sousTitre">Lecture réservée à la gestion</p>
     </div>
   </header>
-  <p class="lien-controle"><a href="NEXUS-Dates-Courtes-Releve-v1.html">Contrôler</a></p>
+  <p class="lien-controle"><a href="NEXUS-Dates-Courtes-Releve-v1.html">Faire un contrôle</a></p>
+  <div class="segments" id="segments" role="group" aria-label="Vue">
+    <button type="button" id="segPrio" data-vue="priorites" aria-pressed="true">Priorités du jour</button>
+    <button type="button" id="segSuivi" data-vue="suivi" aria-pressed="false">Suivi des contrôles DLC <span class="cpt" id="cptSuivi" hidden aria-label="tournées à certifier"></span></button>
+  </div>
   <main id="contenu" aria-live="polite">
     <div class="squelette" aria-label="Chargement"></div><div class="squelette"></div><div class="squelette"></div>
   </main>
+  <section id="suivi" hidden aria-live="polite" aria-label="Suivi des contrôles DLC"></section>
 </div>
 <dialog id="fiche" aria-label="Fiche article"></dialog>
 
@@ -398,10 +445,210 @@
     racine.addEventListener('mouseout', e => bascule(e, false));
   }
 
+  // ===== Lot 3 : Suivi des contrôles DLC (lecture : dates_courtes_suivi_controles ; gestes : certifier, demander une correction) =====
+  const sv = document.getElementById('suivi');
+  const SV = {vue:'priorites', per:7, liste:null, total:0, rech:'', fe:'tous', plus:false, ouvert:null, det:null, conf:null, corr:null, msg:null, cles:{}};
+  const ETATS_SV = {
+    TERMINEE_A_CERTIFIER:{niv:'a-verifier', lib:'À certifier', rang:1},
+    CORRECTION_DEMANDEE:{niv:'a-verifier', lib:'Correction demandée', rang:2},
+    EN_COURS:{niv:'information', lib:'En cours', rang:3},
+    CERTIFIEE:{niv:'conforme', lib:'Certifiée', rang:4}
+  };
+  const ANOM = {code_incomplet:'Code incomplet', code_logistique_provisoire:'Code logistique provisoire', article_texte_libre:'Article saisi en texte libre', modifiee_apres_cloture:'Modifié après la clôture'};
+  const anomN = n => n === 1 ? '1 anomalie' : nb(n) + ' anomalies';
+  const codeSv = r => r.anomalies.includes('code_logistique_provisoire') ? '<span class="sv-code">code provisoire</span> · ' : (r.ean ? '<span class="sv-code">' + esc(r.ean) + '</span> · ' : '');
+  const badgeSv = e => { const x = ETATS_SV[e] || {niv:null, lib:String(e || '')}; const B = window.NexusBadgeEtat; return B && x.niv ? B.gravite(x.niv, {libelle:x.lib}) : '<span class="pastille">' + esc(x.lib) + '</span>'; };
+  const jourMq = () => new Intl.DateTimeFormat('fr-CA', {timeZone:'America/Martinique', year:'numeric', month:'2-digit', day:'2-digit'}).format(new Date());
+  function plageSv(n){
+    const [y, m, d] = jourMq().split('-').map(Number);
+    const f = t => new Date(t).toISOString().slice(0, 10);
+    return {p_du: f(Date.UTC(y, m - 1, d - (n - 1))), p_au: f(Date.UTC(y, m - 1, d))};
+  }
+  function texteErreur(err){
+    const m = String((err && err.message) || '');
+    const x = /^[a-z_]+\s*:\s*([\s\S]+)$/.exec(m);
+    return x ? x[1].trim() : 'L\'opération n\'a pas abouti. Rien n\'a été perdu, vous pouvez recommencer.';
+  }
+  const cleSv = (k) => (SV.cles[k] = SV.cles[k] || ((window.crypto && crypto.randomUUID) ? crypto.randomUUID() : 'k' + Date.now() + Math.random().toString(16).slice(2)));
+  function majCompteur(){
+    const c = document.getElementById('cptSuivi'); if (!c) return;
+    c.hidden = !(SV.total > 0); c.textContent = SV.total > 0 ? String(SV.total) : '';
+  }
+  function afficherVue(v, maj){
+    SV.vue = v === 'suivi' ? 'suivi' : 'priorites';
+    racine.hidden = SV.vue === 'suivi'; sv.hidden = SV.vue !== 'suivi';
+    document.getElementById('segPrio').setAttribute('aria-pressed', String(SV.vue === 'priorites'));
+    document.getElementById('segSuivi').setAttribute('aria-pressed', String(SV.vue === 'suivi'));
+    if (maj !== false) { try { history.replaceState(null, '', SV.vue === 'suivi' ? '#suivi-dlc' : location.pathname + location.search); } catch (e) { if (SV.vue === 'suivi') location.hash = 'suivi-dlc'; } }
+    if (SV.vue === 'suivi') { if (!SV.liste) chargerSuivi(); else rendreSuivi(); }
+  }
+  async function chargerSuivi(sansSquelette){
+    if (!sansSquelette) sv.innerHTML = '<div class="squelette" aria-label="Chargement"></div><div class="squelette"></div><div class="squelette"></div>';
+    try {
+      const { data, error } = await nexusClient.rpc('dates_courtes_suivi_controles', plageSv(SV.per));
+      if (error) { SV.erreurListe = texteErreur(error); } else { SV.liste = data.tournees || []; SV.total = data.a_certifier_total || 0; SV.erreurListe = null; }
+    } catch (e) { SV.erreurListe = 'Les contrôles n\'ont pas pu être lus. Vos relevés ne sont pas touchés.'; }
+    majCompteur(); if (SV.vue === 'suivi') rendreSuivi();
+  }
+  function ligneSv(t){
+    const aCert = t.etat === 'TERMINEE_A_CERTIFIER';
+    const horaire = t.etat === 'EN_COURS' ? 'commencée à ' + esc(t.debut) + ' · en cours' : esc(t.debut) + (t.fin ? ' à ' + esc(t.fin) : '');
+    const an = t.anomalies > 0 ? ' · <span class="sv-anom">' + anomN(t.anomalies) + '</span>' : '';
+    let h = '<div class="sv-carte' + (aCert ? ' a-certifier' : '') + '" data-carte="' + esc(t.id) + '">' +
+      '<button type="button" class="sv-ouvrir" data-ouvrir="' + esc(t.id) + '" aria-label="Voir le détail : ' + esc(t.nom) + '">' +
+      '<span class="sv-ligne1"><span class="sv-nom">' + esc(t.nom) + '</span>' + badgeSv(t.etat) + '</span>' +
+      '<span class="sv-meta">' + esc(t.auteur || 'Auteur inconnu') + ' · ' + dateFr(t.jour) + ' · ' + horaire + ' · <span class="num">' + nb(t.produits) + '</span> ' + (t.produits > 1 ? 'produits' : 'produit') + an + '</span></button>';
+    if (aCert && t.anomalies > 0) h += '<div class="sv-actions"><button type="button" class="sv-btn" data-ouvrir="' + esc(t.id) + '">Voir ' + (t.anomalies > 1 ? 'les ' + nb(t.anomalies) + ' anomalies' : 'l\'anomalie') + '</button></div>';
+    else if (aCert) h += SV.conf === t.id ? blocConfirmation(t.id) : '<div class="sv-actions"><button type="button" class="sv-btn" data-certifier="' + esc(t.id) + '">Certifier</button></div>';
+    return h + '</div>';
+  }
+  function blocConfirmation(id){
+    return '<div class="sv-conf" role="group" aria-label="Confirmation"><span>Certifier ce contrôle ? Les relevés ne pourront plus être modifiés sans nouvelle demande de correction.</span>' +
+      (SV.msg && SV.msg.id === id ? '<div class="sv-err" role="alert">' + esc(SV.msg.texte) + '</div>' : '') +
+      '<div class="sv-actions"><button type="button" class="sv-btn" data-confirmer="' + esc(id) + '"' + (SV.occupe ? ' disabled' : '') + '>Confirmer la certification</button><button type="button" class="sv-btn second" data-annuler>Annuler</button></div></div>';
+  }
+  function rendreSuivi(){
+    if (SV.ouvert) return rendreDetail();
+    let h = '<div class="filtres" role="group" aria-label="Période">' +
+      [7, 30].map(n => '<button type="button" data-per="' + n + '" aria-pressed="' + (SV.per === n) + '">' + n + ' derniers jours</button>').join('') + '</div>';
+    if (SV.msg && !SV.msg.id) h += '<div class="' + (SV.msg.ok ? 'sv-ok' : 'sv-err') + '" role="' + (SV.msg.ok ? 'status' : 'alert') + '" style="margin-top:12px">' + esc(SV.msg.texte) + '</div>';
+    if (SV.erreurListe) { sv.innerHTML = h + '<div class="etat erreur" role="alert"><b>Chargement impossible</b><br>' + esc(SV.erreurListe) + '<br><button type="button" data-recharger>Réessayer</button></div>'; return; }
+    const tout = SV.liste || [];
+    const grand = tout.length > 10;
+    let lst = tout;
+    if (grand) {
+      h += '<div class="sv-outils"><input type="search" id="svRech" placeholder="Nom ou auteur" aria-label="Rechercher par nom ou auteur" value="' + esc(SV.rech) + '">' +
+        '<select id="svEtat" aria-label="Filtrer par état"><option value="tous">Tous les états</option>' + Object.keys(ETATS_SV).sort((a, b) => ETATS_SV[a].rang - ETATS_SV[b].rang).map(k => '<option value="' + k + '"' + (SV.fe === k ? ' selected' : '') + '>' + ETATS_SV[k].lib + '</option>').join('') + '</select></div>';
+      const q = SV.rech.trim().toLowerCase();
+      lst = tout.filter(t => (SV.fe === 'tous' || t.etat === SV.fe) && (!q || ((t.nom || '') + ' ' + (t.auteur || '')).toLowerCase().includes(q)));
+    }
+    if (!tout.length) { sv.innerHTML = h + '<div class="etat" role="status"><b>Aucun contrôle sur la période</b><br>Aucune tournée de contrôle DLC n\'a été commencée sur les ' + SV.per + ' derniers jours.</div>'; return; }
+    if (!lst.length) { sv.innerHTML = h + '<div class="etat" role="status"><b>Aucun résultat</b><br>Aucun contrôle ne correspond à cette recherche.</div>'; return; }
+    const vis = grand && !SV.plus ? lst.slice(0, 10) : lst;
+    h += '<div class="liste" id="svListe">' + vis.map(ligneSv).join('') + '</div>';
+    if (vis.length < lst.length) h += '<div class="sv-actions" style="margin-top:12px"><button type="button" class="sv-btn second" data-plus>Voir la suite (' + (lst.length - vis.length) + ')</button></div>';
+    sv.innerHTML = h;
+    if (SV.rechFocus) { const i = document.getElementById('svRech'); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } SV.rechFocus = false; }
+  }
+  async function ouvrirDetail(id){
+    SV.ouvert = id; SV.det = null; SV.corr = null; SV.msg = null; SV.erreurDetail = null;
+    sv.innerHTML = '<button type="button" class="sv-retour" data-retour>← Retour à la liste</button><div class="squelette" aria-label="Chargement"></div><div class="squelette"></div>';
+    try {
+      const { data, error } = await nexusClient.rpc('dates_courtes_suivi_controles', Object.assign(plageSv(SV.per), {p_tournee:id}));
+      if (error) SV.erreurDetail = texteErreur(error); else SV.det = data;
+    } catch (e) { SV.erreurDetail = 'Le détail n\'a pas pu être lu. Vos relevés ne sont pas touchés.'; }
+    if (SV.ouvert === id) rendreDetail();
+  }
+  function histoSv(x){
+    const q = (x.hhmm ? '<span class="h">' + esc(x.hhmm) + '</span>' : '');
+    const par = x.par ? ' par ' + esc(x.par) : '';
+    switch (x.type) {
+      case 'commencee': return q + 'Commencée' + par;
+      case 'terminee': return q + 'Terminée' + par;
+      case 'renommee': return q + 'Renommée' + par + ' : « ' + esc(x.ancien || '') + ' » devient « ' + esc(x.nouveau || '') + ' »';
+      case 'certifiee': return q + 'Certifiée' + par + (x.observations ? '<br><span class="sv-meta">Observations : ' + esc(x.observations) + '</span>' : '');
+      case 'correction_demandee': return q + 'Correction demandée' + par + ' sur ' + nb(x.produits || 0) + ' ' + ((x.produits || 0) > 1 ? 'produits' : 'produit') + '<br><span class="sv-meta">Motif : ' + esc(x.motif || '') + (x.reponse ? ' · Réponse : ' + esc(x.reponse) : '') + '</span>';
+      default: return q + esc(x.type || '');
+    }
+  }
+  function rendreDetail(){
+    const retour = '<button type="button" class="sv-retour" data-retour>← Retour à la liste</button>';
+    if (SV.erreurDetail) { sv.innerHTML = retour + '<div class="etat erreur" role="alert"><b>Détail indisponible</b><br>' + esc(SV.erreurDetail) + '</div>'; return; }
+    const d = SV.det; if (!d) return;
+    const t = d.tournee, aCert = t.etat === 'TERMINEE_A_CERTIFIER';
+    const corr = SV.corr;
+    const horaire = t.etat === 'EN_COURS' ? 'commencée à ' + esc(t.debut) + ' · en cours' : esc(t.debut) + (t.fin ? ' à ' + esc(t.fin) : '');
+    let h = retour + '<div class="sv-carte' + (aCert ? ' a-certifier' : '') + '" style="margin-top:8px"><div class="sv-ligne1"><span class="sv-nom">' + esc(t.nom) + '</span>' + badgeSv(t.etat) + '</div>' +
+      '<span class="sv-meta">' + esc(t.auteur || 'Auteur inconnu') + ' · ' + dateFr(t.jour) + ' · ' + horaire + ' · <span class="num">' + nb(t.produits) + '</span> ' + (t.produits > 1 ? 'produits' : 'produit') + (t.anomalies > 0 ? ' · <span class="sv-anom">' + anomN(t.anomalies) + '</span>' : '') + '</span>';
+    if (SV.msg) h += '<div class="' + (SV.msg.ok ? 'sv-ok' : 'sv-err') + '" role="' + (SV.msg.ok ? 'status' : 'alert') + '">' + esc(SV.msg.texte) + '</div>';
+    if (aCert && !corr) {
+      h += SV.conf === t.id ? blocConfirmation(t.id) : '<div class="sv-actions"><button type="button" class="sv-btn" data-certifier="' + esc(t.id) + '">Certifier</button><button type="button" class="sv-btn second" data-corriger>Demander une correction</button></div>';
+    }
+    h += '</div>';
+    if (corr) {
+      const prods = d.produits || [];
+      const nCoches = corr.coches.size, motifOk = corr.motif.trim().length > 0;
+      const raison = !nCoches ? 'Cochez au moins un produit.' : (!motifOk ? 'Indiquez le motif de la demande.' : '');
+      h += '<h2>Demander une correction</h2><p class="aide">Cochez les produits à reprendre. Ceux qui présentent une anomalie le sont déjà.</p>' +
+        '<div class="sv-actions" style="margin-top:8px"><button type="button" class="sv-btn second" data-tout>Tout cocher</button></div><div>' +
+        prods.map(r => '<div class="sv-prod"><label><input type="checkbox" data-coche="' + esc(r.id) + '"' + (corr.coches.has(r.id) ? ' checked' : '') + '><span><b>' + esc(r.libelle || 'Produit non identifié') + '</b><br><span class="sv-meta">' + codeSv(r) + dateFr(r.date_limite) + ' · <span class="num">' + nb(r.quantite) + '</span> ' + (r.quantite > 1 ? 'unités' : 'unité') + (r.anomalies.length ? ' · <span class="sv-anom">' + r.anomalies.map(c => esc(ANOM[c] || '')).filter(Boolean).join(', ') + '</span>' : '') + '</span></span></label></div>').join('') + '</div>' +
+        '<div class="sv-form"><label for="svMotif"><b>Motif de la demande</b></label><textarea id="svMotif" maxlength="500" placeholder="Que faut-il reprendre ?">' + esc(corr.motif) + '</textarea>' +
+        '<div class="sv-actions"><button type="button" class="sv-btn" data-envoyer' + (raison || SV.occupe ? ' disabled' : '') + '>Envoyer la demande</button><button type="button" class="sv-btn second" data-annuler-corr>Annuler</button>' + (raison ? '<span class="sv-raison" id="svRaison">' + raison + '</span>' : '') + '</div></div>';
+    } else {
+      const prods = d.produits || [];
+      h += '<h2>Produits relevés</h2>' + (prods.length ? prods.map(r => '<div class="sv-prod"><span><b>' + esc(r.libelle || 'Produit non identifié') + '</b><br><span class="sv-meta">' + codeSv(r) + dateFr(r.date_limite) + ' · <span class="num">' + nb(r.quantite) + '</span> ' + (r.quantite > 1 ? 'unités' : 'unité') + (r.anomalies.length ? ' · <span class="sv-anom">' + r.anomalies.map(c => esc(ANOM[c] || '')).filter(Boolean).join(', ') + '</span>' : '') + '</span></span></div>').join('') : '<p class="aide">Aucun produit relevé.</p>');
+      const sans = (d.anomalies_sans_produit || []).map(c => ANOM[c]).filter(Boolean);
+      if (sans.length) h += '<p class="aide" style="margin-top:8px">Autres anomalies : ' + sans.map(esc).join(', ') + '.</p>';
+    }
+    h += '<h2>Historique</h2><ul class="sv-histo">' + (d.historique || []).map(x => '<li>' + dateFr(x.jour) + ' ' + histoSv(x) + '</li>').join('') + '</ul>';
+    sv.innerHTML = h;
+  }
+  function majLigneLocale(id, etat){
+    (SV.liste || []).forEach(t => { if (t.id === id) t.etat = etat; });
+    const rang = e => (ETATS_SV[e] || {rang:9}).rang;
+    SV.liste = (SV.liste || []).map((t, i) => ({t, i})).sort((a, b) => rang(a.t.etat) - rang(b.t.etat) || a.i - b.i).map(x => x.t);
+  }
+  async function certifier(id){
+    SV.occupe = true; SV.msg = null; (SV.ouvert ? rendreDetail : rendreSuivi)();
+    try {
+      const { error } = await nexusClient.rpc('dates_courtes_certifier_tournee', {p_tournee:id, p_observations:null, p_cle_idempotence:cleSv('cert:' + id)});
+      if (error) throw error;
+      SV.occupe = false; SV.conf = null; delete SV.cles['cert:' + id];
+      SV.total = Math.max(0, SV.total - 1); majCompteur(); majLigneLocale(id, 'CERTIFIEE');
+      SV.msg = {ok:true, texte:'Contrôle certifié.'};
+      if (SV.ouvert) { SV.ouvert = null; SV.det = null; }
+      rendreSuivi(); chargerSuivi(true);
+    } catch (e) {
+      SV.occupe = false; SV.msg = {id:id, texte:texteErreur(e)}; (SV.ouvert ? rendreDetail : rendreSuivi)();
+    }
+  }
+  async function envoyerCorrection(){
+    const corr = SV.corr, id = SV.ouvert; if (!corr || !id) return;
+    SV.occupe = true; SV.msg = null; rendreDetail();
+    try {
+      const { error } = await nexusClient.rpc('dates_courtes_demander_correction', {p_tournee:id, p_releves:Array.from(corr.coches), p_motif:corr.motif.trim(), p_cle_idempotence:cleSv('corr:' + id)});
+      if (error) throw error;
+      SV.occupe = false; SV.corr = null; delete SV.cles['corr:' + id];
+      SV.total = Math.max(0, SV.total - 1); majCompteur(); majLigneLocale(id, 'CORRECTION_DEMANDEE');
+      SV.msg = {ok:true, texte:'Demande de correction envoyée.'}; SV.ouvert = null; SV.det = null;
+      rendreSuivi(); chargerSuivi(true);
+    } catch (e) {
+      SV.occupe = false; SV.msg = {texte:texteErreur(e)}; rendreDetail();
+    }
+  }
+  document.getElementById('segments').addEventListener('click', e => { const b = e.target.closest('[data-vue]'); if (b) afficherVue(b.dataset.vue); });
+  window.addEventListener('hashchange', () => afficherVue(location.hash === '#suivi-dlc' ? 'suivi' : 'priorites', false));
+  sv.addEventListener('input', e => {
+    if (e.target.id === 'svRech') { SV.rech = e.target.value; SV.plus = false; SV.rechFocus = true; rendreSuivi(); }
+    else if (e.target.id === 'svMotif' && SV.corr) { SV.corr.motif = e.target.value; const pos = e.target.selectionStart; rendreDetail(); const m = document.getElementById('svMotif'); if (m) { m.focus(); m.setSelectionRange(pos, pos); } }
+  });
+  sv.addEventListener('change', e => {
+    if (e.target.id === 'svEtat') { SV.fe = e.target.value; SV.plus = false; rendreSuivi(); }
+    else if (e.target.dataset && e.target.dataset.coche && SV.corr) { const c = SV.corr.coches; if (e.target.checked) c.add(e.target.dataset.coche); else c.delete(e.target.dataset.coche); rendreDetail(); const x = sv.querySelector('[data-coche="' + e.target.dataset.coche + '"]'); if (x) x.focus(); }
+  });
+  sv.addEventListener('click', e => {
+    const q = s => e.target.closest(s);
+    let b;
+    if ((b = q('[data-per]'))) { SV.per = Number(b.dataset.per); SV.liste = null; SV.plus = false; SV.msg = null; chargerSuivi(); return; }
+    if (q('[data-recharger]')) { chargerSuivi(); return; }
+    if (q('[data-plus]')) { SV.plus = true; rendreSuivi(); return; }
+    if ((b = q('[data-ouvrir]'))) { SV.conf = null; ouvrirDetail(b.dataset.ouvrir); return; }
+    if (q('[data-retour]')) { SV.ouvert = null; SV.det = null; SV.corr = null; SV.conf = null; SV.msg = null; rendreSuivi(); return; }
+    if ((b = q('[data-certifier]'))) { SV.conf = b.dataset.certifier; SV.msg = null; (SV.ouvert ? rendreDetail : rendreSuivi)(); const c = sv.querySelector('[data-confirmer]'); if (c) c.focus(); return; }
+    if ((b = q('[data-confirmer]'))) { if (!SV.occupe) certifier(b.dataset.confirmer); return; }
+    if (q('[data-annuler]')) { SV.conf = null; SV.msg = null; (SV.ouvert ? rendreDetail : rendreSuivi)(); return; }
+    if (q('[data-corriger]')) { const d = SV.det; SV.corr = {coches:new Set((d.produits || []).filter(r => r.anomalies.length > 0).map(r => r.id)), motif:''}; SV.msg = null; rendreDetail(); return; }
+    if (q('[data-tout]')) { SV.corr.coches = new Set((SV.det.produits || []).map(r => r.id)); rendreDetail(); return; }
+    if (q('[data-annuler-corr]')) { SV.corr = null; SV.msg = null; rendreDetail(); return; }
+    if (q('[data-envoyer]')) { if (!SV.occupe) envoyerCorrection(); return; }
+  });
+
   nexusRequireAuth().then(employee => {
     if (!employee) return;
-    if (!nexusEstManager(employee)) { messageEtat('Accès réservé à la gestion', 'Prévention des pertes est réservée à la gestion.', false); return; }
+    if (!nexusEstManager(employee)) { messageEtat('Accès réservé à la gestion', 'Prévention des pertes est réservée à la gestion.', false); document.getElementById('segments').hidden = true; return; }
     charger();
+    afficherVue(location.hash === '#suivi-dlc' ? 'suivi' : 'priorites', false);
+    if (SV.vue !== 'suivi') chargerSuivi(true);
   });
 })();
 </script>
