@@ -1571,6 +1571,16 @@
         "compte_actif_obligatoire",
         "lecture_gestion_meme_site"
       ]
+    },
+    "20261123100000": {
+      "etat": "additive_compatible_avant_code",
+      "justification": "Migration GTIN-14 Dates courtes : 1 fonction NOUVELLE, gtin14(text) (immutable, aucun droit client), et deux fonctions REPRISES a l'identique de signature, de type de retour et de droits : dates_courtes_rechercher_produit(text,integer) (lot 2) et dates_courtes_prix_article(text,text,text,date) (lot 5, fonction interne sans droit client). Aucune table, colonne ni ligne touchee, aucun DDL destructif ; les cles historiques et dates_courtes_normaliser_ean ne changent pas. La page de releve deja deployee lit les memes trois colonnes (libelle, ean, rayon) : un code qui designe plusieurs articles renvoie plusieurs lignes, ce qu'elle gere deja pour un libelle. Le code qui exploite le GTIN-14 (releve, Produits) arrive dans la meme PR, apres la migration. Retour arriere : docs/deploiement/retour-arriere-dates-courtes-gtin14-20261123.sql. A MESURER par Guardian sur le catalogue apres application sur Test : sans mesure datee, cette entree ne qualifie rien.",
+      "objets_crees": [
+        "gtin14"
+      ],
+      "valide_par": null,
+      "valide_le": null,
+      "trace": "#160, ordre de Guardian 7088318599 (etape 2 du lot normalisation GTIN) ; GO du pilote du 22/11/2026 pour Test seulement ; Production et fusion : GO distincts."
     }
   },
   "prochaine_action": "Axe SS4 migration -> code : LEVE pour 20260919103000 (13/13 objets constates sur le catalogue le 01/10/2026) et pour 20261001160000 (ACL constatee fermee le 03/10/2026). Ces qualifications restent acquises tant que leur fichier de migration ne change pas : la garde compare mesure.blob_migration a l'empreinte du candidat, et une migration retouchee fait tomber sa qualification. Il n'y a plus d'echeance horaire (l'ancienne fraicheur de 72 h aurait fait retomber l'axe le 04/10/2026 sans que rien ne bouge). CE QUE LA GARDE NE VOIT PAS : une base modifiee sans que le depot bouge - c'est exactement ce que la relecture du 03/10 a trouve pour 20261001160000. Toute procedure d'application relit donc la base avant d'ecrire. CE QUE CELA N'AUTORISE PAS : aucune fusion ni aucun deploiement ; chacun reste un GO distinct de Frederic. RESTE A FAIRE, separement : (1) les 11 migrations du rail toujours non qualifiees ; (2) le cablage de garde-ordre-migration-code.js dans deploiement-production.yml. Lecture du verdict et table de decision : SS18.4 ; recit de la mesure : SS20. MISE A JOUR DU 04/10/2026 : les 13 migrations du candidat rebuild/fdj-62-20260922 sont qualifiees (12 atomiques en serie avant le code, 20261004120000 code d abord) ; ordre et gestes dans docs/deploiement/procedure-fdj-62-production.md."
