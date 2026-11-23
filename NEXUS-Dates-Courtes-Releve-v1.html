@@ -145,8 +145,13 @@
   .carte h3{font-size:14px;overflow-wrap:anywhere}
   .carte .meta{margin-top:4px;font-size:12px;color:var(--text-mid)}
   .champ{display:block;margin-top:12px;font-size:12px;color:var(--text-mid)}
-  .champ input,.champ textarea,.champ select{display:block;width:100%;min-height:48px;margin-top:4px;padding:10px 12px;border-radius:8px;border:1px solid var(--hairline);background:var(--panel-raised);color:var(--text);font:500 16px var(--sans)}
+  .champ input,.champ textarea,.champ select{display:block;box-sizing:border-box;width:100%;min-width:0;max-width:100%;min-height:48px;margin-top:4px;padding:10px 12px;border-radius:8px;border:1px solid var(--hairline);background:var(--panel-raised);color:var(--text);font:500 16px var(--sans)}
   .champ textarea{min-height:88px}
+  .champ input[type=date]{-webkit-appearance:none;appearance:none;height:48px;line-height:1.2}
+  .datewrap{position:relative;display:block}
+  .datewrap .ph{position:absolute;left:12px;right:12px;top:50%;margin-top:2px;transform:translateY(-50%);font:500 16px var(--sans);color:var(--text-mid);pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:none}
+  .datewrap.vide .ph{display:block}
+  .datewrap.vide input[type=date]{color:transparent}
   .bascule{display:flex;gap:0;margin-top:12px;border:1px solid var(--hairline);border-radius:8px;overflow:hidden}
   .bascule button{flex:1;min-height:44px;border:0;background:transparent;color:var(--text-mid);font:600 13px var(--sans);cursor:pointer}
   .bascule button[aria-pressed="true"]{background:var(--cyan-dim);color:var(--cyan)}
@@ -231,6 +236,9 @@ var ZXING_URL='https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.
 var memoire={};
 
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function champDate(id,val){return '<span class="datewrap'+(val?'':' vide')+'"><input type="date" id="'+id+'" value="'+esc(val||'')+'"><span class="ph" aria-hidden="true">Touchez pour choisir la date</span></span>';}
+document.addEventListener('input',function(e){var t=e.target;if(t&&t.type==='date'&&t.parentNode&&t.parentNode.classList)t.parentNode.classList.toggle('vide',!t.value);});
+document.addEventListener('change',function(e){var t=e.target;if(t&&t.type==='date'&&t.parentNode&&t.parentNode.classList)t.parentNode.classList.toggle('vide',!t.value);});
 function pl(n,a,b){return Math.abs(n)>1?b:a;}
 function dateFr(iso){var m=/^(\d{4})-(\d{2})-(\d{2})/.exec(iso||'');return m?m[3]+'/'+m[2]+'/'+m[1]:'';}
 function norm(s){return String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s+/g,' ').trim();}
@@ -552,10 +560,10 @@ function ecranSaisie(){
   var sansNom=!produit.libelle;
   var h='<h2 class="ecran-titre">'+esc(nomUtile(produit.libelle)||SANS_NOM)+'</h2>';
   if(produit.provisoire||sansNom){
-    h+='<div class="meta">'+(produit.incomplet?'Code incomplet, à vérifier · '+esc(produit.brut):'Code EAN '+esc(produit.ean||produit.brut||'inconnu')+(produit.ean&&produit.brut&&produit.brut!==produit.ean?' · lu : '+esc(produit.brut):'')+' · Identification à vérifier')+'</div>';
+    h+='<div class="meta">'+(produit.incomplet?'Code incomplet, à vérifier · '+esc(produit.brut):'Code lu '+esc(produit.brut||produit.ean||'inconnu')+' · Identification à vérifier')+'</div>';
     h+='<div class="prov">L\'entrée sera marquée provisoire : aucune référence n\'est créée.</div><label class="champ">Nom du produit (facultatif)<input id="nomLibre" maxlength="120" autocomplete="off"></label>';
-  } else h+='<div class="meta">'+esc(produit.ean||produit.brut||'sans code')+(produit.ean&&produit.brut&&produit.brut!==produit.ean?' · lu : '+esc(produit.brut):'')+(produit.ambigu?' · code partagé par plusieurs articles':'')+'</div>';
-  h+='<label class="champ">Date limite<input type="date" id="champDate" value="'+esc(saisie.date)+'"></label><div id="existant"></div><div class="qte-aff" id="qteAff" aria-live="polite">0</div>'+clavierHtml('touche');
+  } else h+='<div class="meta">'+esc(produit.brut||produit.ean||'sans code')+(produit.ambigu?' · code partagé par plusieurs articles':'')+'</div>';
+  h+='<label class="champ">Date limite'+champDate('champDate',saisie.date)+'</label><div id="existant"></div><div class="qte-aff" id="qteAff" aria-live="polite">0</div>'+clavierHtml('touche');
   h+='<div class="rang fixe"><button type="button" class="btn prim" data-act="enregistrer" id="btnEnr" disabled>Enregistrer</button><button type="button" class="btn" data-act="identifier">Annuler</button></div><div class="msg-champ" id="raisonSaisie" role="status"></div>';
   racine.innerHTML=h;
   var cd=document.getElementById('champDate');cd.addEventListener('change',function(){saisie.date=cd.value;existant();});
@@ -662,7 +670,7 @@ function validerAction(a,i,ri){
   if(a==='a-corr'){
     zone('<p class="meta">Saisissez la quantité réellement en rayon : le relevé est ajusté.</p><div class="qte-aff" id="fQteAff">0</div>'+clavierHtml('f-touche')+'<button type="button" class="btn prim plein" data-act="v-corr" data-i="'+i+'">Valider la quantité</button>');
   } else if(a==='a-date'){
-    zone('<label class="champ">Nouvelle date limite<input type="date" id="fNouv"></label><label class="champ">Motif<input id="fMotif" maxlength="200"></label><button type="button" class="btn prim plein" data-act="v-date" data-i="'+i+'">Valider</button>');
+    zone('<label class="champ">Nouvelle date limite'+champDate('fNouv','')+'</label><label class="champ">Motif<input id="fMotif" maxlength="200"></label><button type="button" class="btn prim plein" data-act="v-date" data-i="'+i+'">Valider</button>');
   } else if(a==='a-trouve'){
     zone('<label class="champ">Quantité trouvée et retirée<input id="fQte" inputmode="numeric" pattern="[0-9]*"></label><button type="button" class="btn prim plein" data-act="v-trouve" data-i="'+i+'">Valider</button>');
   } else if(a==='a-annule'){
