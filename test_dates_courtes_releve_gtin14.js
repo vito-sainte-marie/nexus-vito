@@ -146,7 +146,7 @@ async function enregistrer3(m) {
     const h = m.get('ecran').innerHTML;
     assert(h.includes('LAIT DEMI'));
     assert(!h.includes('Identification à vérifier'));
-    assert(h.includes(EAN13));
+    assert(h.includes(UPCA) && !h.includes(EAN13) && !h.includes('lu :'));   // l'employé ne voit que le code lu
   });
 
   await test('UPC-A (AI 01 + AI 17) puis scan 13 chiffres : même article, même ean EAN-13 enregistré', async () => {
@@ -165,13 +165,12 @@ async function enregistrer3(m) {
     assert.deepStrictEqual(eans, [EAN13, EAN13]);
   });
 
-  await test('Code valide inconnu : entrée provisoire, ean EAN-13 conservé, code lu visible', async () => {
+  await test('Code valide inconnu : entrée provisoire, code lu seul affiché, ean EAN-13 conservé en base', async () => {
     const m = nouveau();
     await lire(m, UPCA, []);
     const h = m.get('ecran').innerHTML;
     assert(h.includes('Identification à vérifier'));
-    assert(h.includes(EAN13));
-    assert(h.includes('lu : ' + UPCA));
+    assert(h.includes('Code lu ' + UPCA) && !h.includes(EAN13) && !h.includes('lu :'));
   });
 
   await test('11 chiffres saisis : « Code incomplet, à vérifier », aucune recherche, rien n\'est complété', async () => {
