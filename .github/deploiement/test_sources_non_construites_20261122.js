@@ -6,7 +6,7 @@
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
-const D = __dirname;
+const D = path.join(__dirname, '..', '..');
 let n = 0;
 function t(nom, f) { f(); n++; console.log('OK ' + nom); }
 

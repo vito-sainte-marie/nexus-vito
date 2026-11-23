@@ -59,7 +59,7 @@ jobs:
         # Garde Guardian 7089480665 : ces épreuves lisent la SOURCE ; build.sh épingle ensuite tout et masquerait l'écart.
         run: |
           node test_versions_scripts_20261121.js
-          node test_sources_non_construites_20261122.js
+          node .github/deploiement/test_sources_non_construites_20261122.js
 
       - name: Cohérence des épingles de cache
         env:
