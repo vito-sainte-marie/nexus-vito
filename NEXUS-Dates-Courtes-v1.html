@@ -148,10 +148,13 @@
   .sv-carte.a-certifier{border-color:var(--amber)}
   .sv-ouvrir{all:unset;display:flex;flex-direction:column;gap:4px;cursor:pointer;min-height:44px;box-sizing:border-box}
   .sv-ouvrir:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
-  .sv-ligne1{display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px 8px;align-items:center}
+  .sv-ligne1{display:flex;flex-wrap:nowrap;justify-content:space-between;gap:8px;align-items:flex-start}
+  .sv-ligne1>.sv-nom{flex:1 1 auto;min-width:0}
+  .sv-ligne1>:not(.sv-nom){flex:none}
   .sv-nom{font-weight:600;font-size:14px;overflow-wrap:anywhere}
   .sv-meta{font-size:12px;color:var(--text-mid);line-height:1.45}
-  .sv-meta .num{font-family:var(--mono)}
+  .sv-meta .num,.sv-code{font-family:var(--mono)}
+  .sv-code{color:var(--text-mid);font-size:11px}
   .sv-btn{min-height:44px;padding:0 16px;border-radius:8px;border:1px solid var(--cyan);background:var(--cyan-dim);color:var(--cyan);font:600 13px var(--sans);cursor:pointer}
   .sv-btn.second{border-color:var(--hairline);background:var(--panel-raised);color:var(--text)}
   .sv-btn[disabled]{opacity:.55;cursor:not-allowed}
@@ -187,11 +190,11 @@
       <p class="sous" id="sousTitre">Lecture réservée à la gestion</p>
     </div>
   </header>
+  <p class="lien-controle"><a href="NEXUS-Dates-Courtes-Releve-v1.html">Faire un contrôle</a></p>
   <div class="segments" id="segments" role="group" aria-label="Vue">
     <button type="button" id="segPrio" data-vue="priorites" aria-pressed="true">Priorités du jour</button>
     <button type="button" id="segSuivi" data-vue="suivi" aria-pressed="false">Suivi des contrôles DLC <span class="cpt" id="cptSuivi" hidden aria-label="tournées à certifier"></span></button>
   </div>
-  <p class="lien-controle"><a href="NEXUS-Dates-Courtes-Releve-v1.html">Contrôler</a></p>
   <main id="contenu" aria-live="polite">
     <div class="squelette" aria-label="Chargement"></div><div class="squelette"></div><div class="squelette"></div>
   </main>
@@ -453,6 +456,7 @@
   };
   const ANOM = {code_incomplet:'Code incomplet', code_logistique_provisoire:'Code logistique provisoire', article_texte_libre:'Article saisi en texte libre', modifiee_apres_cloture:'Modifié après la clôture'};
   const anomN = n => n === 1 ? '1 anomalie' : nb(n) + ' anomalies';
+  const codeSv = r => r.anomalies.includes('code_logistique_provisoire') ? '<span class="sv-code">code provisoire</span> · ' : (r.ean ? '<span class="sv-code">' + esc(r.ean) + '</span> · ' : '');
   const badgeSv = e => { const x = ETATS_SV[e] || {niv:null, lib:String(e || '')}; const B = window.NexusBadgeEtat; return B && x.niv ? B.gravite(x.niv, {libelle:x.lib}) : '<span class="pastille">' + esc(x.lib) + '</span>'; };
   const jourMq = () => new Intl.DateTimeFormat('fr-CA', {timeZone:'America/Martinique', year:'numeric', month:'2-digit', day:'2-digit'}).format(new Date());
   function plageSv(n){
@@ -494,7 +498,8 @@
       '<button type="button" class="sv-ouvrir" data-ouvrir="' + esc(t.id) + '" aria-label="Voir le détail : ' + esc(t.nom) + '">' +
       '<span class="sv-ligne1"><span class="sv-nom">' + esc(t.nom) + '</span>' + badgeSv(t.etat) + '</span>' +
       '<span class="sv-meta">' + esc(t.auteur || 'Auteur inconnu') + ' · ' + dateFr(t.jour) + ' · ' + horaire + ' · <span class="num">' + nb(t.produits) + '</span> ' + (t.produits > 1 ? 'produits' : 'produit') + an + '</span></button>';
-    if (aCert) h += SV.conf === t.id ? blocConfirmation(t.id) : '<div class="sv-actions"><button type="button" class="sv-btn" data-certifier="' + esc(t.id) + '">Certifier</button></div>';
+    if (aCert && t.anomalies > 0) h += '<div class="sv-actions"><button type="button" class="sv-btn" data-ouvrir="' + esc(t.id) + '">Voir ' + (t.anomalies > 1 ? 'les ' + nb(t.anomalies) + ' anomalies' : 'l\'anomalie') + '</button></div>';
+    else if (aCert) h += SV.conf === t.id ? blocConfirmation(t.id) : '<div class="sv-actions"><button type="button" class="sv-btn" data-certifier="' + esc(t.id) + '">Certifier</button></div>';
     return h + '</div>';
   }
   function blocConfirmation(id){
@@ -566,12 +571,12 @@
       const raison = !nCoches ? 'Cochez au moins un produit.' : (!motifOk ? 'Indiquez le motif de la demande.' : '');
       h += '<h2>Demander une correction</h2><p class="aide">Cochez les produits à reprendre. Ceux qui présentent une anomalie le sont déjà.</p>' +
         '<div class="sv-actions" style="margin-top:8px"><button type="button" class="sv-btn second" data-tout>Tout cocher</button></div><div>' +
-        prods.map(r => '<div class="sv-prod"><label><input type="checkbox" data-coche="' + esc(r.id) + '"' + (corr.coches.has(r.id) ? ' checked' : '') + '><span><b>' + esc(r.libelle || 'Produit non identifié') + '</b><br><span class="sv-meta">' + dateFr(r.date_limite) + ' · <span class="num">' + nb(r.quantite) + '</span> u.' + (r.anomalies.length ? ' · <span class="sv-anom">' + r.anomalies.map(c => esc(ANOM[c] || '')).filter(Boolean).join(', ') + '</span>' : '') + '</span></span></label></div>').join('') + '</div>' +
+        prods.map(r => '<div class="sv-prod"><label><input type="checkbox" data-coche="' + esc(r.id) + '"' + (corr.coches.has(r.id) ? ' checked' : '') + '><span><b>' + esc(r.libelle || 'Produit non identifié') + '</b><br><span class="sv-meta">' + codeSv(r) + dateFr(r.date_limite) + ' · <span class="num">' + nb(r.quantite) + '</span> ' + (r.quantite > 1 ? 'unités' : 'unité') + (r.anomalies.length ? ' · <span class="sv-anom">' + r.anomalies.map(c => esc(ANOM[c] || '')).filter(Boolean).join(', ') + '</span>' : '') + '</span></span></label></div>').join('') + '</div>' +
         '<div class="sv-form"><label for="svMotif"><b>Motif de la demande</b></label><textarea id="svMotif" maxlength="500" placeholder="Que faut-il reprendre ?">' + esc(corr.motif) + '</textarea>' +
         '<div class="sv-actions"><button type="button" class="sv-btn" data-envoyer' + (raison || SV.occupe ? ' disabled' : '') + '>Envoyer la demande</button><button type="button" class="sv-btn second" data-annuler-corr>Annuler</button>' + (raison ? '<span class="sv-raison" id="svRaison">' + raison + '</span>' : '') + '</div></div>';
     } else {
       const prods = d.produits || [];
-      h += '<h2>Produits relevés</h2>' + (prods.length ? prods.map(r => '<div class="sv-prod"><span><b>' + esc(r.libelle || 'Produit non identifié') + '</b><br><span class="sv-meta">' + dateFr(r.date_limite) + ' · <span class="num">' + nb(r.quantite) + '</span> u.' + (r.anomalies.length ? ' · <span class="sv-anom">' + r.anomalies.map(c => esc(ANOM[c] || '')).filter(Boolean).join(', ') + '</span>' : '') + '</span></span></div>').join('') : '<p class="aide">Aucun produit relevé.</p>');
+      h += '<h2>Produits relevés</h2>' + (prods.length ? prods.map(r => '<div class="sv-prod"><span><b>' + esc(r.libelle || 'Produit non identifié') + '</b><br><span class="sv-meta">' + codeSv(r) + dateFr(r.date_limite) + ' · <span class="num">' + nb(r.quantite) + '</span> ' + (r.quantite > 1 ? 'unités' : 'unité') + (r.anomalies.length ? ' · <span class="sv-anom">' + r.anomalies.map(c => esc(ANOM[c] || '')).filter(Boolean).join(', ') + '</span>' : '') + '</span></span></div>').join('') : '<p class="aide">Aucun produit relevé.</p>');
       const sans = (d.anomalies_sans_produit || []).map(c => ANOM[c]).filter(Boolean);
       if (sans.length) h += '<p class="aide" style="margin-top:8px">Autres anomalies : ' + sans.map(esc).join(', ') + '.</p>';
     }

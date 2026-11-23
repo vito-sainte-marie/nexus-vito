@@ -13,9 +13,10 @@ const lot3 = page.slice(page.indexOf('/* Lot 3'), page.indexOf('</style>'));
 const has = (s, r) => (r instanceof RegExp ? r.test(s) : s.includes(r));
 
 t('le script de la page est syntaxiquement valide', () => { new Function(js); });
-t('sélecteur à deux segments sous l\'en-tête, Priorités du jour actif par défaut', () => {
+t('lien de contrôle puis sélecteur à deux segments sous l\'en-tête, Priorités du jour actif par défaut', () => {
   const i = page.indexOf('</header>'), j = page.indexOf('id="segments"'), k = page.indexOf('class="lien-controle"');
-  assert.ok(i > 0 && j > i && k > j, 'ordre header, segments, lien');
+  assert.ok(i > 0 && k > i && j > k, 'ordre header, lien « Faire un contrôle », segments');
+  assert.ok(page.includes('>Faire un contrôle<'));
   assert.ok(/id="segPrio"[^>]*aria-pressed="true"/.test(page) && /id="segSuivi"[^>]*aria-pressed="false"/.test(page));
   assert.ok(page.includes('>Priorités du jour<') && page.includes('Suivi des contrôles DLC <span'));
 });
@@ -106,3 +107,9 @@ t('migration : lecture seule, security invoker, aucun octroi sur table, calculs 
   assert.ok(!/dates_courtes_prevention_pertes/.test(mig.replace(/--.*$/gm, '')));
 });
 console.log(n + '/' + n);
+
+t('liste : Certifier seulement sans anomalie, sinon « Voir les N anomalies » ; détail : code et unités en toutes lettres', () => {
+  assert.ok(/aCert && t\.anomalies > 0/.test(js) && js.includes("'l\\'anomalie'") && js.includes("' anomalies'"));
+  assert.ok(js.includes('code provisoire') && /sv-code/.test(page));
+  assert.ok(js.includes("'unités' : 'unité'") && !/ u\.'/.test(js.slice(js.indexOf('function ligneSv'))));
+});

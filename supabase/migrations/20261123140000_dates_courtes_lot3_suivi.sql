@@ -78,7 +78,7 @@ begin
       'tournee', jsonb_build_object('id', l.id, 'nom', l.nom, 'auteur', l.auteur, 'etat', l.etat, 'jour', l.jour, 'debut', l.debut, 'fin', l.fin,
                  'produits', l.produits, 'anomalies', l.anomalies),
       'produits', coalesce((select jsonb_agg(jsonb_build_object(
-          'id', r.id, 'libelle', coalesce(r.nom_libre, r.libelle_normalise, r.libelle_vu, r.ean), 'ean', r.ean,
+          'id', r.id, 'libelle', coalesce(r.nom_libre, r.libelle_vu, r.libelle_normalise, r.ean), 'ean', r.ean,
           'date_limite', r.date_limite, 'quantite', r.quantite,
           'anomalies', coalesce((select jsonb_agg(an_prod.code order by an_prod.code) from an_prod where an_prod.releve_id = r.id), '[]'::jsonb))
           order by r.date_limite, r.saisi_le) from rel r where r.tournee_id = l.id and r.annule_le is null), '[]'::jsonb),
