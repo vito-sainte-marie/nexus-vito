@@ -166,7 +166,7 @@ garde("la lecture FDJ n'est lancée que pour un service quitté au poste caissie
 
 const ORDRE_BADGE = /<script src="nexus-badge-etat\.js[^"]*"><\/script>\s*<script src="nexus-prise-de-poste\.js/;
 const mutantsSource = {
-  ["le composant de badge est chargé par l'Accueil et par la page de prise de poste"]: { src: lire('NEXUS-App-v1.html'), test: s => ORDRE_BADGE.test(s), mut: s => s.replace('<script src="nexus-badge-etat.js"></script>', '') },
+  ["le composant de badge est chargé par l'Accueil et par la page de prise de poste"]: { src: lire('NEXUS-App-v1.html'), test: s => ORDRE_BADGE.test(s), mut: s => s.replace(/<script src="nexus-badge-etat\.js[^"]*"><\/script>/, '') },
   [ACC_GARDE]: { src: ACC, test: s => /id="apMessageFdj"/.test(s) && /v\.messageFdj && v\.messageFdj\.texte/.test(s), mut: s => s.replace("v.messageFdj && v.messageFdj.texte", 'false') },
   [BUILD_GARDE]: { src: BUILD, test: s => /nexus-build-estampille';\s*s\.style\.cssText = 'display:none;/.test(s), mut: s => s.replace("s.style.cssText = 'display:none;", "s.style.cssText = 'display:block;") },
 };
