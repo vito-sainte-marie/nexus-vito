@@ -825,6 +825,16 @@
   .ap-progression{display:flex;justify-content:space-between;align-items:center;min-height:44px;font-size:14px;color:var(--ap-text);text-decoration:none;}
   .ap-pied{display:flex;justify-content:space-between;margin-top:8px;}
   .ap-pied a{display:flex;align-items:center;min-height:44px;font-size:13px;color:var(--ap-mid);text-decoration:none;}
+  /* Lot 3 bureau (24/11) : deux colonnes de l'accueil employé, en vue bureau activée seulement ; hors de cette vue, les enveloppes n'existent pas pour la mise en page (display:contents). */
+  #accueilPisteHote > .ap-col{display:contents;}
+  @media (min-width:900px){
+    body.accueil-piste.nexus-desktop #accueilPisteHote{display:grid;grid-template-columns:minmax(0,7fr) minmax(0,5fr);column-gap:16px;align-content:start;align-items:start;max-width:1040px;margin:0 auto;}
+    body.accueil-piste.nexus-desktop #accueilPisteHote > .ap-salut{grid-column:1 / -1;grid-row:1;}
+    body.accueil-piste.nexus-desktop #accueilPisteHote > .ap-col{display:flex;flex-direction:column;gap:12px;grid-row:2;min-width:0;}
+    body.accueil-piste.nexus-desktop #accueilPisteHote > .ap-col > *{margin:0;}
+    body.accueil-piste.nexus-desktop #accueilPisteHote > .ap-col-g{grid-column:1;}
+    body.accueil-piste.nexus-desktop #accueilPisteHote > .ap-col-d{grid-column:2;}
+  }
 </style>
 </head>
 <body class="accueil-attente">
@@ -3270,6 +3280,18 @@
     const hotePiste = document.getElementById('accueilPisteHote');
     if (vuePiste && hotePiste) {
       hotePiste.innerHTML = NexusAccueilPiste.html(vuePiste);
+      // Lot 3 bureau : deux colonnes réelles (enveloppes display:contents hors vue bureau, donc rien ne change ailleurs).
+      // Gauche : poste, fil, action principale du renfort. Droite : tout le reste, dans l'ordre du fil.
+      (function(){
+        if (typeof document.createElement !== 'function' || !hotePiste.children) return; // hôtes de test sans DOM réel
+        const g = document.createElement('div'); g.className = 'ap-col ap-col-g';
+        const d = document.createElement('div'); d.className = 'ap-col ap-col-d';
+        Array.from(hotePiste.children).forEach((el) => {
+          if (el.classList.contains('ap-salut')) return;
+          (el.matches('.ap-poste, .ap-fil, #apBoutonPrincipal') ? g : d).appendChild(el);
+        });
+        hotePiste.appendChild(g); hotePiste.appendChild(d);
+      })();
       document.body.classList.add('accueil-piste');
       const sortie = document.getElementById('apLogout');
       if (sortie) sortie.addEventListener('click', (e) => { e.preventDefault(); nexusLogout(); });
