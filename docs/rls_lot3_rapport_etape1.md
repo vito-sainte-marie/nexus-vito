@@ -74,4 +74,4 @@ Couvre : l'employé ne lit aucun écart ; le manager et le gérant ne lisent que
 ## Preuves
 
 - Tête avant : 7ffaa4f3 (fiche). Base : 8c4b71a4.
-- `MIGRATIONS_REELLES_NOMBRE` 353 → 354 ; `MIGRATIONS_REELLES_EMPREINTE` à fixer avec la valeur mesurée par la CI.
+- `MIGRATIONS_REELLES_NOMBRE` 353 → 354 ; `MIGRATIONS_REELLES_EMPREINTE` fixée à la valeur mesurée par la CI (4b0d05c6…). Migration appliquée sur Test puis en Production (Guardian, 24/11, version 20261124221428) : 4 vues en security_invoker, définitions inchangées, 0 vue sur 38 sans security_invoker. Qualification inscrite.
