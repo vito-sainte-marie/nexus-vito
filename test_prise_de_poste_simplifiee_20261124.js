@@ -54,7 +54,7 @@ const sur = (cible, nom, test, mutation) => garde(nom, test, mutation);
 // 1. Le poste actuel n'est pas cliquable.
 garde('la carte du poste actuel affiche « Poste actuel » et porte aria-disabled',
   m => { const f = corps(m, 'function renderChoixPoste()');
-    return /Poste actuel<\/span>/.test(f) && /aria-disabled="true"/.test(f) && /roleActuel/.test(f); },
+    return /badgePosteActuel\(\)/.test(f) && /aria-disabled="true"/.test(f) && /roleActuel/.test(f); },
   m => m.replace(/aria-disabled="true"/g, 'data-x="1"'));
 garde('le clic n\'est posé que sur les cartes non désactivées',
   m => /querySelectorAll\('\.pdp-carte:not\(\[aria-disabled="true"\]\)'\)/.test(corps(m, 'function renderChoixPoste()')),
@@ -69,7 +69,7 @@ garde('aucun mot « quart » dans les textes du chemin de changement',
   m => m.replace('Vos missions et justificatifs déjà enregistrés sont conservés.', 'Votre quart est conservé.'));
 garde('la phrase de confirmation est celle validée',
   m => m.indexOf('Votre service ${ancien.label} sera clôturé et votre service ${nouveau.label} commencera. Vos missions et justificatifs déjà enregistrés sont conservés.') !== -1
-    && /Poste actuel : <b>\$\{ancien\.label\}<\/b> · Nouveau poste : <b>\$\{nouveau\.label\}<\/b>/.test(m),
+    && /Poste actuel : <b>\$\{ancien\.label\}<\/b><\/p>\s*<p class="pdp-ligne-poste"><span>Nouveau poste : <b>\$\{nouveau\.label\}<\/b><\/span><\/p>/.test(m),
   m => m.replace('sera clôturé', 'sera terminé'));
 garde('« Confirmer le changement » est le seul bouton plein ; « Annuler » est un lien',
   m => { const f = corps(m, 'async function renderConfirmationChangement(');
@@ -137,7 +137,30 @@ garde('l\'estampille technique est posée masquée par défaut',
 let ok = 0;
 const ACC_GARDE = 'l\'accueil caisse/renfort porte la ligne FDJ discrète';
 const BUILD_GARDE = 'l\'estampille technique est posée masquée par défaut';
+// 6. Retouches de la recette Guardian 7136389619.
+garde('« Poste actuel » est un badge d\'état neutre du composant partagé, écrit en toutes lettres',
+  m => /NexusBadgeEtat\.neutre\('Poste actuel'\)/.test(m) && /function badgePosteActuel\(\)/.test(m),
+  m => m.replace("NexusBadgeEtat.neutre('Poste actuel')", "'Poste actuel'"));
+garde('la carte du poste actuel est visiblement inactive (opacité 0,6), badge compris dans le sens écrit',
+  m => /\.pdp-carte\.pdp-actuelle \.pdp-corps,\.pdp-carte\.pdp-actuelle \.pdp-visuel\{opacity:\.6;\}/.test(m),
+  m => m.replace('opacity:.6;}', 'opacity:1;}'));
+garde('la confirmation tient sur deux lignes : poste actuel, puis nouveau poste insécable',
+  m => { const f = corps(m, 'async function renderConfirmationChangement(');
+    return /<p class="pdp-ligne-poste">Poste actuel : <b>/.test(f) && /<span>Nouveau poste : <b>\$\{nouveau\.label\}<\/b><\/span>/.test(f) && /\.pdp-ligne-poste span\{white-space:nowrap;\}/.test(m) && /<b>\$\{ancien\.label\}<\/b><\/p>/.test(f); },
+  m => m.replace(/<\/b><\/p>\s*<p class="pdp-ligne-poste"><span>/, '</b> · <span>'));
+garde('le rappel de sécurité n\'a plus d\'emoji et garde son cadre rouge',
+  m => !/⚠/.test(m) && /\.pdp-securite\{[^}]*border:1px solid rgba\(var\(--red-rgb\),\.4\)/.test(m) && /<b>Rappel sécurité<\/b>/.test(m),
+  m => m.replace('<b>Rappel sécurité</b>', '⚠️ <b>Rappel sécurité</b>'));
+garde('le sélecteur « Motif » suit les jetons --t-* (fond, bordure, rayon 8 px), sans style en ligne',
+  m => /\.pdp-motif\{[^}]*background:var\(--t-raised\);border:1px solid var\(--t-line\);border-radius:8px;color:var\(--t-text\)/.test(m) && /<select id="motifChangement" class="pdp-motif">/.test(m),
+  m => m.replace('border-radius:8px;color:var(--t-text)', 'border-radius:2px;color:var(--t-text)'));
+garde('le composant de badge est chargé par l\'Accueil et par la page de prise de poste',
+  () => ['NEXUS-App-v1.html', 'NEXUS-Prise-De-Poste-v1.html'].every(f => /<script src="nexus-badge-etat\.js[^"]*"><\/script>\s*<script src="nexus-prise-de-poste\.js/.test(require('fs').readFileSync(require('path').join(__dirname, f), 'utf8'))),
+  () => '');
+
+const ORDRE_BADGE = /<script src="nexus-badge-etat\.js[^"]*"><\/script>\s*<script src="nexus-prise-de-poste\.js/;
 const mutantsSource = {
+  ["le composant de badge est chargé par l'Accueil et par la page de prise de poste"]: { src: lire('NEXUS-App-v1.html'), test: s => ORDRE_BADGE.test(s), mut: s => s.replace('<script src="nexus-badge-etat.js"></script>', '') },
   [ACC_GARDE]: { src: ACC, test: s => /id="apMessageFdj"/.test(s) && /v\.messageFdj && v\.messageFdj\.texte/.test(s), mut: s => s.replace("v.messageFdj && v.messageFdj.texte", 'false') },
   [BUILD_GARDE]: { src: BUILD, test: s => /nexus-build-estampille';\s*s\.style\.cssText = 'display:none;/.test(s), mut: s => s.replace("s.style.cssText = 'display:none;", "s.style.cssText = 'display:block;") },
 };

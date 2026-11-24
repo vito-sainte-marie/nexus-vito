@@ -194,7 +194,13 @@
 .pdp-carte[disabled]{opacity:.55;cursor:default;}
 .pdp-carte[aria-disabled="true"]{cursor:default;border-color:var(--hairline);}
 .pdp-carte[aria-disabled="true"]:active{border-color:var(--hairline);}
-.pdp-actuel{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text-mid);margin-top:4px;}
+.pdp-actuel{margin-top:6px;}
+.pdp-carte.pdp-actuelle .pdp-corps,.pdp-carte.pdp-actuelle .pdp-visuel{opacity:.6;}
+.pdp-carte.pdp-actuelle .pdp-corps .pdp-actuel{opacity:1;}
+.pdp{--t-raised:var(--nbe-raised,var(--panel));--t-line:var(--nbe-line,var(--hairline));--t-text:var(--text);}
+.pdp-motif{width:100%;margin:6px 0 10px;padding:10px;min-height:44px;box-sizing:border-box;background:var(--t-raised);border:1px solid var(--t-line);border-radius:8px;color:var(--t-text);font:inherit;font-size:14px;}
+.pdp-ligne-poste{margin:0 0 6px;}
+.pdp-ligne-poste span{white-space:nowrap;}
 .pdp-neutre{background:var(--panel);border:1px solid var(--hairline);color:var(--text);border-radius:12px;padding:14px 16px;font-size:14px;line-height:1.55;margin:0 0 14px;}
 .pdp-neutre p{margin:0 0 8px;}
 .pdp-neutre p:last-child{margin-bottom:0;}
@@ -261,7 +267,11 @@ body.nexus-desktop .pdp-corps{flex:0 0 auto;align-self:stretch;padding:14px 16px
   // base (consulter NEXUS ne crée rien, POSTE-005). Stockage absent, illisible
   // ou jour inconnu : on affiche, en cas de doute on n'efface pas un rappel de
   // sécurité. Le texte, lui, ne change pas.
-  const TEXTE_RAPPEL_SECURITE = '<div class="pdp-securite" id="rappelSecurite">⚠️ <b>Rappel sécurité</b> — N\'utilisez jamais NEXUS ni votre téléphone à la vue d\'un client. Strictement interdit sur la piste de distribution de carburant, encore plus pendant une distribution en cours.</div>';
+  // « Poste actuel » : badge d'état neutre du composant partagé (le sens reste écrit).
+  function badgePosteActuel() {
+    return (typeof NexusBadgeEtat !== 'undefined' && NexusBadgeEtat.neutre) ? NexusBadgeEtat.neutre('Poste actuel') : 'Poste actuel';
+  }
+  const TEXTE_RAPPEL_SECURITE = '<div class="pdp-securite" id="rappelSecurite"><b>Rappel sécurité</b> — N\'utilisez jamais NEXUS ni votre téléphone à la vue d\'un client. Strictement interdit sur la piste de distribution de carburant, encore plus pendant une distribution en cours.</div>';
   // Jour de la page courante déjà annoncé : un nouveau rendu dans la même page
   // (retour sur le choix) ne doit pas faire disparaître ce que l'employé lit.
   let rappelAffichePourCle = null;
@@ -299,7 +309,7 @@ body.nexus-desktop .pdp-corps{flex:0 0 auto;align-self:stretch;padding:14px 16px
           ${r.image ? `<span class="pdp-visuel"><img class="pdp-image" src="${r.image}" width="400" height="280" alt="" decoding="async"></span>` : ''}
           <span class="pdp-corps">
             <span class="pdp-nom" style="display:block;">${r.label}</span>
-            ${actuel ? '<span class="pdp-actuel" style="display:block;">Poste actuel</span>' : (badge && posteFrequent && r.value === posteFrequent.poste ? `<span class="pdp-badge" style="display:block;">${echapper(badge)}</span>` : '')}
+            ${actuel ? `<span class="pdp-actuel" style="display:block;">${badgePosteActuel()}</span>` : (badge && posteFrequent && r.value === posteFrequent.poste ? `<span class="pdp-badge" style="display:block;">${echapper(badge)}</span>` : '')}
             ${r.sousTitre ? `<span class="pdp-tag" style="display:block;">${r.sousTitre}</span>` : ''}
           </span>
         </button>`;
@@ -431,12 +441,13 @@ body.nexus-desktop .pdp-corps{flex:0 0 auto;align-self:stretch;padding:14px 16px
       <div class="pdp" id="pdpConfirmation">
         <h2 class="pdp-titre">Changer de poste</h2>
         <div class="pdp-neutre" id="avertissementChangement">
-          <p>Poste actuel : <b>${ancien.label}</b> · Nouveau poste : <b>${nouveau.label}</b></p>
+          <p class="pdp-ligne-poste">Poste actuel : <b>${ancien.label}</b></p>
+          <p class="pdp-ligne-poste"><span>Nouveau poste : <b>${nouveau.label}</b></span></p>
           <p>Votre service ${ancien.label} sera clôturé et votre service ${nouveau.label} commencera. Vos missions et justificatifs déjà enregistrés sont conservés.</p>
         </div>
         ${avertissements.length ? `<div class="pdp-avertissement" id="avertissementOuvert" role="note">${avertissements.map(t => `<p>${t}</p>`).join('')}</div>` : ''}
         <label class="pdp-sous" for="motifChangement">Motif (facultatif)</label>
-        <select id="motifChangement" style="width:100%;margin:6px 0 10px;padding:10px;">
+        <select id="motifChangement" class="pdp-motif">
           <option value="">Aucun motif</option>
           <option value="releve">${MOTIF_RELEVE}</option>
           <option value="autre">Autre motif justifié…</option>
