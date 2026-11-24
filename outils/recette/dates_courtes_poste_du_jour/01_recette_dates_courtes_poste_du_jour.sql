@@ -41,8 +41,9 @@ insert into employees (id, username, nom, role, actif, est_createur, site_id, co
 -- Services (shifts.role : caissiere sans « n » final, vocabulaire distinct de employees.role).
 -- CA1 caissière ; RE1 renfort (poste préféré caissier) ; PO1 pompiste ; NS1 aucun service ;
 -- SW1 a basculé en pompiste ; EN1 service terminé ; G1 et G2 gérants, G2 avec un service en renfort, G1 sans service.
-insert into shifts (employee_id, site, site_id, role, statut, heure_fin)
-  select v, 'nexus-station-test', 'nexus-station-test', x.sr, x.st, case when x.st = 'termine' then now() else null end
+insert into shifts (employee_id, site, site_id, role, statut, heure_fin, cloture_source, cloture_le)
+  select v, 'nexus-station-test', 'nexus-station-test', x.sr, x.st, case when x.st = 'termine' then now() else null end,
+         case when x.st = 'termine' then 'test' else null end, case when x.st = 'termine' then now() else null end
   from ids join (values ('CA1','caissiere','en_cours'), ('RE1','renfort','en_cours'), ('PO1','pompiste','en_cours'),
                         ('SW1','pompiste','en_cours'), ('EN1','pompiste','termine')) as x(k, sr, st) on x.k = ids.k;
 
