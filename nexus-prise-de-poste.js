@@ -418,9 +418,10 @@ body.nexus-desktop .pdp-corps{flex:0 0 auto;align-self:stretch;padding:14px 16px
     if (retour) return retour;
     if (estNiveauManagerCourant()) return 'NEXUS-App-v1.html';
     // Seul le pompiste entre dans le fil « Mon début de quart » (jaugeage du
-    // fil) ; caissière, renfort et polyvalent gardent leur destination d'avant.
-    if (roleChoisi !== 'pompiste') return 'NEXUS-Missions-v1.html';
-    return NexusFilDebutQuart.ACCUEIL_DEMARRAGE;
+    // fil) ; caissière et renfort arrivent sur l'accueil, qui porte leur
+    // première action (décision du pilote du 24/11/2026). Plus d'arrivée sur Missions.
+    if (roleChoisi === 'pompiste') return NexusFilDebutQuart.ACCUEIL_DEMARRAGE;
+    return 'NEXUS-App-v1.html';
   }
 
   // « Je finis » avec un service du quart 1 déjà en cours : aucune écriture, ni clôture
