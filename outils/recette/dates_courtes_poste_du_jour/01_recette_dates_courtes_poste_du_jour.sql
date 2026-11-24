@@ -105,7 +105,7 @@ declare
   r jsonb := '[]'::jsonb;
   m1 uuid; ca1 uuid; sw1 uuid; en1 uuid; po1 uuid; re1 uuid;
   base text := '00000000-0000-4000-8000-0000000e08';
-  i integer; k text;
+
 begin
   select v into m1 from ids where k = 'M1'; select v into ca1 from ids where k = 'CA1';
   select v into sw1 from ids where k = 'SW1'; select v into en1 from ids where k = 'EN1';
