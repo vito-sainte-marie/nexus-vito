@@ -158,6 +158,12 @@ garde('le composant de badge est chargé par l\'Accueil et par la page de prise 
   () => ['NEXUS-App-v1.html', 'NEXUS-Prise-De-Poste-v1.html'].every(f => /<script src="nexus-badge-etat\.js[^"]*"><\/script>\s*<script src="nexus-prise-de-poste\.js/.test(require('fs').readFileSync(require('path').join(__dirname, f), 'utf8'))),
   () => '');
 
+// 7. Précision du pilote : pas d'avertissement FDJ hors du poste Caisse.
+garde("la lecture FDJ n'est lancée que pour un service quitté au poste caissiere",
+  m => { const f = corps(m, 'async function lireAvertissementsChangement(');
+    return /quartOuvert\.role === 'caissiere'\s*\?\s*nexusClient\.from\('fdj_shifts'\)/.test(f) && /:\s*Promise\.resolve\(\{ data: \[\], error: null \}\)/.test(f); },
+  m => m.replace("quartOuvert.role === 'caissiere'\n        ?", "true\n        ?"));
+
 const ORDRE_BADGE = /<script src="nexus-badge-etat\.js[^"]*"><\/script>\s*<script src="nexus-prise-de-poste\.js/;
 const mutantsSource = {
   ["le composant de badge est chargé par l'Accueil et par la page de prise de poste"]: { src: lire('NEXUS-App-v1.html'), test: s => ORDRE_BADGE.test(s), mut: s => s.replace('<script src="nexus-badge-etat.js"></script>', '') },
@@ -279,6 +285,31 @@ for (const g of GARDES) {
   assert.ok(/NexusBuild\.reglerEstampille\(employee\.role_reel\)/.test(AUTH), 'nexusRequireAuth règle l\'estampille');
   assert.notStrictEqual(AUTH.replace('NexusBuild.reglerEstampille(employee.role_reel)', 'void 0'), AUTH);
   console.log('OK  — nexusRequireAuth règle le pied avec le rôle réel'); ok++;
+}
+
+
+// ---- Comportement : requêtes réellement lancées selon le poste quitté --------
+{
+  const f = MOD.slice(MOD.indexOf('const STATUTS_COMPTAGE_EN_COURS'), MOD.indexOf('async function renderConfirmationChangement('));
+  const lancer = async (role, fdjRows) => {
+    const tables = [];
+    const nexusClient = { from: t => { tables.push(t); const r = { data: t === 'fdj_shifts' ? fdjRows : [], error: null };
+      const q = { select: () => q, eq: () => q, then: (res, rej) => Promise.resolve(r).then(res, rej) }; return q; } };
+    const fn = new Function('nexusClient', 'employeeCourant', 'console', f + '; return lireAvertissementsChangement;')(nexusClient, { id: 'e1' }, console);
+    const lignes = JSON.parse(JSON.stringify(await fn({ id: 'q1', role })));
+    return { tables, lignes };
+  };
+  const FDJ = 'Votre caisse FDJ est encore ouverte : pensez à la clôturer.';
+  (async () => {
+    for (const r of ['renfort', 'pompiste']) {
+      const x = await lancer(r, [{ id: 1, statut: 'brouillon' }]);
+      assert.ok(!x.tables.includes('fdj_shifts'), `${r} : aucune requête fdj_shifts`);
+      assert.deepStrictEqual(x.lignes, [], `${r} : aucune ligne FDJ`);
+    }
+    const c = await lancer('caissiere', [{ id: 1, statut: 'brouillon' }]);
+    assert.ok(c.tables.includes('fdj_shifts')); assert.deepStrictEqual(c.lignes, [FDJ], 'caissière : ligne présente');
+    console.log('OK  — FDJ réservée au poste Caisse (3 cas)');
+  })().catch(e => { console.error(e); process.exit(1); });
 }
 
 console.log(`\n${ok} vérifications passées.`);

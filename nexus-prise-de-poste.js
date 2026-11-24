@@ -420,8 +420,13 @@ body.nexus-desktop .pdp-corps{flex:0 0 auto;align-self:stretch;padding:14px 16px
   async function lireAvertissementsChangement(quartOuvert) {
     if (!quartOuvert || !quartOuvert.id || !employeeCourant || !employeeCourant.id) return [];
     try {
+      // La FDJ n'existe que pour le poste Caisse : pour pompiste et renfort, la
+      // requête n'est même pas lancée (précision du pilote, 24/11/2026).
+      const lireFdj = quartOuvert.role === 'caissiere'
+        ? nexusClient.from('fdj_shifts').select('id, statut').eq('employee_id', employeeCourant.id).eq('prise_de_poste_id', quartOuvert.id).eq('statut', 'brouillon')
+        : Promise.resolve({ data: [], error: null });
       const [fdj, comptage] = await Promise.all([
-        nexusClient.from('fdj_shifts').select('id, statut').eq('employee_id', employeeCourant.id).eq('prise_de_poste_id', quartOuvert.id).eq('statut', 'brouillon'),
+        lireFdj,
         nexusClient.from('inventaire_quart_employes').select('id, inventaire_quarts(statut, cloture_le, is_simulation)').eq('employee_id', employeeCourant.id).eq('shift_id', quartOuvert.id),
       ]);
       if (fdj.error) console.error('Avertissement changement (FDJ):', fdj.error);
