@@ -24,7 +24,7 @@ t('Relevé : écran de confirmation dans la page, sans confirm()', () => {
 });
 t('Relevé : bouton inactif tant que le motif fait moins de 3 caractères, « Revenir » a le focus', () => {
   assert.ok(/id="btnAnnulOk" data-act="annuler-ok" disabled/.test(jsRel));
-  assert.ok(/bt\.disabled=ch\.value\.trim\(\)\.length<3/.test(jsRel));
+  assert.ok(/ok=ch\.value\.trim\(\)\.length>=3;bt\.disabled=!ok/.test(jsRel));
   assert.ok(/rb\.focus\(\)/.test(jsRel));
 });
 t('Relevé : jamais mise en file hors ligne, message de connexion', () => {
@@ -68,5 +68,22 @@ t('Migration : tous les codes d\'erreur attendus', () => {
 t('Migration : aucune suppression de données, pas de touche au mécanisme de qualification', () => {
   assert.ok(!/\bdelete\s+from\s+dates_courtes/i.test(mig));
   assert.ok(!/qualification-ordre-migration-code|MIGRATIONS_REELLES/.test(mig));
+});
+t('Motif invalide : raison écrite sous les boutons, dans Relevé et dans Suivi, masquée une fois le motif valide', () => {
+  const m = 'Écrivez un motif d\\\'au moins 3 caractères pour annuler';
+  assert.ok(jsRel.includes('id="annulAide"') && jsRel.includes(m));
+  assert.ok(/a\.style\.display=ok\?'none':''/.test(jsRel));
+  assert.ok(jsSuivi.includes('id="svAnnulAide"') && jsSuivi.includes(m));
+  assert.ok(/getElementById\('svAnnulAide'\); if \(a\) a\.style\.display = okm \? 'none' : ''/.test(jsSuivi));
+});
+t('Suivi : le détail d\'une tournée annulée (forme exacte du serveur, sans anomalies) ne plante pas', () => {
+  const codeSv = new Function('esc', 'return ' + jsSuivi.match(/const codeSv = (r => .*?);\n/)[1])(s => String(s == null ? '' : s));
+  const annule = { id: 'x', ean: '3999000000019', libelle: 'Yaourt nature', quantite: 2, date_limite: '2026-11-30' };
+  assert.ok(!('anomalies' in annule));
+  assert.doesNotThrow(() => codeSv(annule));
+  assert.ok(codeSv(annule).includes('3999000000019'));
+  assert.ok(/\(r\.anomalies \|\| \[\]\)\.includes\('code_logistique_provisoire'\)/.test(jsSuivi));
+  // Sans le correctif (lecture directe), la même forme plante : le test mord.
+  assert.throws(() => (r => r.anomalies.includes('x'))(annule), TypeError);
 });
 console.log(n + ' tests OK');

@@ -712,9 +712,9 @@ function ecranAnnuler(){
   arreterScan();
   var n=lignes.reduce(function(s,l){return s+l.releves.length;},0);
   cleAnnul=uuid();
-  racine.innerHTML='<div class="carte"><h2 class="ecran-titre">Annuler cette tournée ?</h2><p>Les '+n+' '+pl(n,'produit relevé sera annulé','produits relevés seront annulés')+' avec elle. Cette action est irréversible.</p><label class="champ">Motif (obligatoire, 3 à 200 caractères)<input id="champMotifAnnul" maxlength="200" autocomplete="off"></label><div class="msg-champ err" id="annulMsg" role="alert"></div><div class="rang"><button type="button" class="btn danger" id="btnAnnulOk" data-act="annuler-ok" disabled>Annuler définitivement</button><button type="button" class="btn prim" id="btnAnnulRetour" data-act="retourTournee">Revenir à la tournée</button></div></div>';
+  racine.innerHTML='<div class="carte"><h2 class="ecran-titre">Annuler cette tournée ?</h2><p>Les '+n+' '+pl(n,'produit relevé sera annulé','produits relevés seront annulés')+' avec elle. Cette action est irréversible.</p><label class="champ">Motif (obligatoire, 3 à 200 caractères)<input id="champMotifAnnul" maxlength="200" autocomplete="off"></label><div class="msg-champ err" id="annulMsg" role="alert"></div><div class="rang"><button type="button" class="btn danger" id="btnAnnulOk" data-act="annuler-ok" disabled>Annuler définitivement</button><button type="button" class="btn prim" id="btnAnnulRetour" data-act="retourTournee">Revenir à la tournée</button></div><div class="msg-champ" id="annulAide">Écrivez un motif d\'au moins 3 caractères pour annuler</div></div>';
   var ch=document.getElementById('champMotifAnnul'),bt=document.getElementById('btnAnnulOk');
-  if(ch&&ch.addEventListener) ch.addEventListener('input',function(){bt.disabled=ch.value.trim().length<3;});
+  if(ch&&ch.addEventListener) ch.addEventListener('input',function(){var ok=ch.value.trim().length>=3;bt.disabled=!ok;var a=document.getElementById('annulAide');if(a) a.style.display=ok?'none':'';});
   var rb=document.getElementById('btnAnnulRetour');if(rb&&rb.focus) rb.focus();
 }
 function annulerTournee(){

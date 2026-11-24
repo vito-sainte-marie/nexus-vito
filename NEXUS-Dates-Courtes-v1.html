@@ -459,7 +459,7 @@
   };
   const ANOM = {code_incomplet:'Code incomplet', code_logistique_provisoire:'Code logistique provisoire', article_texte_libre:'Article saisi en texte libre', modifiee_apres_cloture:'Modifié après la clôture'};
   const anomN = n => n === 1 ? '1 anomalie' : nb(n) + ' anomalies';
-  const codeSv = r => r.anomalies.includes('code_logistique_provisoire') ? '<span class="sv-code">code provisoire</span> · ' : (r.ean ? '<span class="sv-code">' + esc(r.ean) + '</span> · ' : '');
+  const codeSv = r => (r.anomalies || []).includes('code_logistique_provisoire') ? '<span class="sv-code">code provisoire</span> · ' : (r.ean ? '<span class="sv-code">' + esc(r.ean) + '</span> · ' : '');
   const badgeSv = e => { const x = ETATS_SV[e] || {niv:null, lib:String(e || '')}; const B = window.NexusBadgeEtat; return B && x.niv ? B.gravite(x.niv, {libelle:x.lib}) : '<span class="pastille">' + esc(x.lib) + '</span>'; };
   const jourMq = () => new Intl.DateTimeFormat('fr-CA', {timeZone:'America/Martinique', year:'numeric', month:'2-digit', day:'2-digit'}).format(new Date());
   function plageSv(n){
@@ -521,7 +521,7 @@
     return '<div class="sv-conf" role="group" aria-label="Annuler cette tournée"><b>Annuler cette tournée ?</b><span>Les ' + nb(n) + ' ' + (n > 1 ? 'produits relevés seront annulés' : 'produit relevé sera annulé') + ' avec elle. Cette action est irréversible.</span>' +
       '<label for="svMotifAnnul"><b>Motif (obligatoire, 3 à 200 caractères)</b></label><input type="text" id="svMotifAnnul" maxlength="200" autocomplete="off" value="' + esc(SV.motifAnnul || '') + '">' +
       (SV.msg && SV.msg.id === id ? '<div class="sv-err" role="alert">' + esc(SV.msg.texte) + '</div>' : '') +
-      '<div class="sv-actions"><button type="button" class="sv-btn danger" id="svAnnulOk" data-annul-ok="' + esc(id) + '"' + (ok && !SV.occupe ? '' : ' disabled') + '>Annuler définitivement</button><button type="button" class="sv-btn" id="svAnnulRetour" data-annul-retour>Revenir à la tournée</button></div></div>';
+      '<div class="sv-actions"><button type="button" class="sv-btn danger" id="svAnnulOk" data-annul-ok="' + esc(id) + '"' + (ok && !SV.occupe ? '' : ' disabled') + '>Annuler définitivement</button><button type="button" class="sv-btn" id="svAnnulRetour" data-annul-retour>Revenir à la tournée</button></div>' + (ok ? '' : '<div class="sv-meta" id="svAnnulAide">Écrivez un motif d\'au moins 3 caractères pour annuler</div>') + '</div>';
   }
   async function annulerTourneeSv(id){
     const m = (SV.motifAnnul || '').trim(); if (m.length < 3 || m.length > 200) return;
@@ -662,7 +662,7 @@
   window.addEventListener('hashchange', () => afficherVue(location.hash === '#suivi-dlc' ? 'suivi' : 'priorites', false));
   sv.addEventListener('input', e => {
     if (e.target.id === 'svRech') { SV.rech = e.target.value; SV.plus = false; SV.rechFocus = true; rendreSuivi(); }
-    else if (e.target.id === 'svMotifAnnul') { SV.motifAnnul = e.target.value; const b = document.getElementById('svAnnulOk'); if (b) b.disabled = SV.occupe || e.target.value.trim().length < 3; }
+    else if (e.target.id === 'svMotifAnnul') { SV.motifAnnul = e.target.value; const b = document.getElementById('svAnnulOk'); const okm = e.target.value.trim().length >= 3; if (b) b.disabled = SV.occupe || !okm; const a = document.getElementById('svAnnulAide'); if (a) a.style.display = okm ? 'none' : ''; }
     else if (e.target.id === 'svMotif' && SV.corr) { SV.corr.motif = e.target.value; const pos = e.target.selectionStart; rendreDetail(); const m = document.getElementById('svMotif'); if (m) { m.focus(); m.setSelectionRange(pos, pos); } }
   });
   sv.addEventListener('change', e => {
