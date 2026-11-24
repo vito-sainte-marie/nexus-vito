@@ -163,7 +163,7 @@
   function injecter(src, cle) {
     if (document.querySelector('script[data-nexus-carburants-p0="' + cle + '"]')) return;
     var script = document.createElement('script');
-    script.src = src;
+    script.src = NexusBuild.versionner(src);
     script.async = false;
     script.setAttribute('data-nexus-carburants-p0', cle);
     document.head.appendChild(script);
