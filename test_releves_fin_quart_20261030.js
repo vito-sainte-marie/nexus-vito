@@ -45,7 +45,7 @@ const tue = (nom, src, orig, ep, mk) => { assert.notStrictEqual(src, orig, 'muta
   ['ligne même si final', (s) => s.replace(' && !f.finQuartFait)', ')')],
   ['ligne pendant le fil', (s) => s.replace('(!avecFermeture && filTermine && f.finQuartLien', '(!avecFermeture && f.finQuartLien')],
   ['cible figée', (s) => s.replace('href: f.finQuartLien', "href: 'NEXUS-Releves-Piste-v1.html?moment=fin_q1'")],
-  ['bouton plein', (s) => s.replace('ap-bouton ap-secondaire', 'ap-bouton')],
+  ['bouton plein', (s) => s.replace('ap-bouton ap-secondaire" id="apFinQuart', 'ap-bouton" id="apFinQuart')],
   ['avant les missions', (s) => { const m = s.match(/    \/\/ Bouton secondaire[\s\S]*?\n    \}\n    if \(v\.finQuart\) \{[\s\S]*?\n    \}\n/)[0]; return s.replace(m, '').replace("    if (v.missions) {", m + "    if (v.missions) {"); }],
   ['impasse non signalée', (s) => s.replace('incoherent: !filTermine && !f.filLien', 'incoherent: false')],
 ].forEach(([n, m]) => tue(n, m(ACC), ACC, epreuvesAcc, charger));
