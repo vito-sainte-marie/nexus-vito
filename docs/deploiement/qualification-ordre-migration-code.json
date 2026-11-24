@@ -1631,9 +1631,9 @@
       "justification": "Migration du lot B Dates courtes (annuler une tournee) : 1 fonction NOUVELLE, dates_courtes_annuler_tournee(uuid,text,text) ; 4 fonctions REMPLACEES (dates_courtes_lire_tournees, dates_courtes_porte_tournee, dates_courtes_renommer_tournee, dates_courtes_suivi_controles) ; 3 colonnes ajoutees a dates_courtes_tournees (annulee_le, annulee_par, motif_annulation) ; 4 contraintes de dates_courtes_tournees recreees (cle_idempotence_check, cloture, etat_valide, nom_check). Aucune ligne supprimee. Appliquee en Production par Guardian sur GO du pilote (23/11/2026), avant le code qui l'appelle (ecrans Releve et Suivi, meme PR).",
       "objets_crees": [
         "dates_courtes_annuler_tournee",
-        "dates_courtes_tournees.annulee_le",
-        "dates_courtes_tournees.annulee_par",
-        "dates_courtes_tournees.motif_annulation"
+        "annulee_le",
+        "annulee_par",
+        "motif_annulation"
       ],
       "objets_constates": [
         "dates_courtes_annuler_tournee",
@@ -1641,13 +1641,13 @@
         "dates_courtes_porte_tournee",
         "dates_courtes_renommer_tournee",
         "dates_courtes_suivi_controles",
-        "dates_courtes_tournees.annulee_le",
-        "dates_courtes_tournees.annulee_par",
-        "dates_courtes_tournees.motif_annulation",
-        "dates_courtes_tournees.cle_idempotence_check",
-        "dates_courtes_tournees.cloture",
-        "dates_courtes_tournees.etat_valide",
-        "dates_courtes_tournees.nom_check"
+        "annulee_le",
+        "annulee_par",
+        "motif_annulation",
+        "dates_courtes_tournees_etat_valide",
+        "dates_courtes_tournees_cloture",
+        "dates_courtes_tournees_cle_idempotence_check",
+        "dates_courtes_tournees_nom_check"
       ],
       "valide_par": null,
       "valide_le": null,
