@@ -190,18 +190,24 @@ begin
   -- 6 Créateur : deux stations dédiées, accès posé à l'insertion (jamais modifié)
   r := pg_temp.n(r, '6.0 garde : recette-createur-non sans accès, recette-createur-oui avec accès', '=true',
     pg_temp.val($q$select ((select not acces_createur_autorise from sites where site_id = 'recette-createur-non') and (select acces_createur_autorise from sites where site_id = 'recette-createur-oui'))::text$q$));
-  r := pg_temp.n(r, '6.1 créateur, accès non autorisé : aucune évaluation d''autrui', '=0',
-    pg_temp.essai('CRN', 'select count(*)::text from public.evaluations_employes'));
-  r := pg_temp.n(r, '6.2 créateur, accès non autorisé : aucune tenue d''autrui', '=0',
-    pg_temp.essai('CRN', 'select count(*)::text from public.controles_tenue'));
-  r := pg_temp.n(r, '6.3 créateur, accès autorisé : évaluations de la station', '=2',
-    pg_temp.essai('CRO', 'select count(*)::text from public.evaluations_employes'));
-  r := pg_temp.n(r, '6.4 créateur, accès autorisé : tenue de la station', '=2',
-    pg_temp.essai('CRO', 'select count(*)::text from public.controles_tenue'));
-  r := pg_temp.n(r, '6.5 créateur, accès autorisé : rien des autres stations', '=0',
-    pg_temp.essai('CRO', format($f$select count(*)::text from public.evaluations_employes where site <> 'recette-createur-oui'$f$)));
-  r := pg_temp.n(r, '6.6 créateur sans accès : rien de la station avec accès', '=0',
+  -- Règle créateur (inchangée par RLS-1) : je_suis_createur() ET la station de la ligne a acces_createur_autorise = true.
+  -- Le créateur lit donc toutes les stations autorisées, et aucune ligne d'une station à false. Attendus calculés, pas en dur.
+  r := pg_temp.n(r, '6.1 créateur : 0 évaluation de recette-createur-non (même rattaché à cette station)', '=0',
+    pg_temp.essai('CRN', $q$select count(*)::text from public.evaluations_employes where site = 'recette-createur-non'$q$));
+  r := pg_temp.n(r, '6.2 créateur : 0 tenue de recette-createur-non', '=0',
+    pg_temp.essai('CRN', $q$select count(*)::text from public.controles_tenue where site = 'recette-createur-non'$q$));
+  r := pg_temp.n(r, '6.3 créateur : toutes les évaluations de recette-createur-oui', '=2',
+    pg_temp.essai('CRO', $q$select count(*)::text from public.evaluations_employes where site = 'recette-createur-oui'$q$));
+  r := pg_temp.n(r, '6.4 créateur : toute la tenue de recette-createur-oui', '=2',
+    pg_temp.essai('CRO', $q$select count(*)::text from public.controles_tenue where site = 'recette-createur-oui'$q$));
+  r := pg_temp.n(r, '6.5 créateur sans station autorisée à lui : voit aussi recette-createur-oui (règle prestataire)', '=2',
     pg_temp.essai('CRN', $q$select count(*)::text from public.evaluations_employes where site = 'recette-createur-oui'$q$));
+  r := pg_temp.n(r, '6.6 créateur : total évaluations = lignes des stations à true', '=' || pg_temp.val($q$select count(*)::text from public.evaluations_employes e where e.site in (select site_id from sites where acces_createur_autorise)$q$),
+    pg_temp.essai('CRO', 'select count(*)::text from public.evaluations_employes'));
+  r := pg_temp.n(r, '6.7 créateur : total tenue = lignes des stations à true', '=' || pg_temp.val($q$select count(*)::text from public.controles_tenue e where e.site in (select site_id from sites where acces_createur_autorise)$q$),
+    pg_temp.essai('CRN', 'select count(*)::text from public.controles_tenue'));
+  r := pg_temp.n(r, '6.8 créateur : 0 ligne d''une station à false', '=0',
+    pg_temp.essai('CRO', $q$select count(*)::text from public.evaluations_employes where site in (select site_id from sites where not acces_createur_autorise)$q$));
 
   raise exception 'RAPPORT_RLS_LOT1 %', jsonb_build_object('total', jsonb_array_length(r),
     'ko', (select count(*) from jsonb_array_elements(r) e where not (e->>'ok')::boolean), 'cas', r);
