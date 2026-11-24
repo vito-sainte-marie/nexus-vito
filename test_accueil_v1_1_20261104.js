@@ -51,9 +51,9 @@ cas('prise de poste : toute règle V1.1 est sous body.nexus-desktop', () => {
 });
 
 cas('prise de poste : cartes, ordre et gestionnaires inchangés', () => {
-  assert(/rolesDisponibles\(\)\.map\(r => `/.test(PDP));
-  assert(/querySelectorAll\('\.pdp-carte'\)\.forEach\(el => \{\s*el\.addEventListener\('click', \(\) => confirmerPriseDePoste\(el\.dataset\.role, el\)\);/.test(PDP));
-  assert(/<button type="button" class="pdp-carte" data-role="\$\{r\.value\}">/.test(PDP));
+  assert(/rolesDisponibles\(\)\.map\(r => \{/.test(PDP));
+  assert(/querySelectorAll\('\.pdp-carte:not\(\[aria-disabled="true"\]\)'\)\.forEach\(el => \{\s*el\.addEventListener\('click', \(\) => confirmerPriseDePoste\(el\.dataset\.role, el\)\);/.test(PDP));
+  assert(/<button type="button" class="pdp-carte\$\{actuel \? ' pdp-actuelle' : ''\}" data-role="\$\{r\.value\}"/.test(PDP));
 });
 
 cas('Auto : Jour de 6 h à 18 h (fuseau de la station) et la prise de poste le pose', () => {

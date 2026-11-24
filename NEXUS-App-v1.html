@@ -1599,7 +1599,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
 <script src="nexus-station.js?v=20260904-0104"></script>
-<script src="nexus-auth.js?v=20261122-0002"></script>
+<script src="nexus-auth.js?v=20261124-0004"></script>
 <script src="nexus-pointage-regles.js?v=20260904-0104"></script>
 <script src="nexus-icones.js?v=20261122-0001"></script>
 <script src="nexus-desktop.js?v=20261122-1900"></script>
@@ -1607,7 +1607,7 @@
 <script src="nexus-fil-fin-quart.js?v=20261031-0001"></script>
 <script src="nexus-pilotes-inventaire.js?v=20261102-1"></script>
 <script src="nexus-fil-caisse.js?v=20261103-0002"></script>
-<script src="nexus-accueil-piste.js?v=20261124-0003"></script>
+<script src="nexus-accueil-piste.js?v=20261124-0004"></script>
 <script src="nexus-menu-accueil.js?v=20261124-0001"></script>
 <script src="nexus-prise-de-poste.js"></script>
 <script src="nexus-recherche.js"></script>
@@ -3247,6 +3247,7 @@
       inventaireLien: inventaireApplicable ? 'NEXUS-Inventaire-v1.html' : null,
       fdjFait,
     });
+    if (vuePiste) vuePiste.messageFdj = NexusAccueilPiste.consommerMessageFdj(typeof sessionStorage !== 'undefined' ? sessionStorage : null, employee.id, Date.now());
     const faitsMenu = { estNiveauManager: false, enService, roleDuJour, receptionApplicable, fdjApplicable, datesCourtesApplicable, fermetureLien, pointageActif: pointageActifSite === true };
     monterMenuAccueil(faitsMenu);
     if (!NexusMenuAccueil.rechercheVisible(faitsMenu) && enService) {

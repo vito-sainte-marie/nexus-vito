@@ -147,9 +147,9 @@ t('Accueil : les deux lignes « Service en cours » portent l\'icône du rôle �
   assert.strictEqual((APP.match(/iconeRole\(serviceCourant\.role, 20\)/g) || []).length, 2);
   assert.ok(/ap-poste-nom/.test(APP) && /\.nexus-role-pict\{/.test(APP));
 });
-t('Prise de poste : récap à 24 px, confirmation de changement à 20 px', () => {
+t('Prise de poste : récap à 24 px, confirmation de changement sans vignette (Lot 2)', () => {
   assert.ok(PDP.includes('${iconeRole(info.value, 24)}${info.label}'));
-  assert.ok(PDP.includes('iconeRole(ancien.value, 20)') && PDP.includes('iconeRole(nouveau.value, 20)'));
+  assert.ok(!PDP.includes('iconeRole(ancien.value') && !PDP.includes('iconeRole(nouveau.value'));
 });
 t('Planning : icône 16 px pour manager et renfort seulement, script du registre chargé', () => {
   assert.ok(/<script src="nexus-icones\.js\?v=[^"]+"><\/script>/.test(PLAN));
@@ -183,7 +183,6 @@ garde('Inventaire : repli sur l\'ancien pictogramme', INV, c => c.includes('anci
 garde('Contrôle inventaire : 24 px', MGR, c => c.includes('iconeCategorie(c.nom, 24)'), 'iconeCategorie(c.nom, 24)', 'iconeCategorie(c.nom, 64)');
 garde('Accueil : icône du rôle sur la première ligne', APP, c => (c.match(/iconeRole\(serviceCourant\.role, 20\)/g) || []).length === 2, 'iconeRole(serviceCourant.role, 20)', 'iconeRole(serviceCourant.role, 99)');
 garde('Prise de poste : récap', PDP, c => c.includes('${iconeRole(info.value, 24)}${info.label}'), '${iconeRole(info.value, 24)}${info.label}', '${info.label}');
-garde('Prise de poste : confirmation de changement', PDP, c => c.includes('iconeRole(nouveau.value, 20)'), 'iconeRole(nouveau.value, 20)', 'nouveau.value');
 garde('Planning : seulement manager et renfort', PLAN, c => c.includes("(statut !== 'manager' && statut !== 'renfort')"), "(statut !== 'manager' && statut !== 'renfort')", "(statut === 'zzz')");
 garde('Planning : icône 16 px', PLAN, c => c.includes('imgRole(id, 16,'), 'imgRole(id, 16,', 'imgRole(id, 48,');
 

@@ -292,21 +292,45 @@ fs.writeFileSync(path.join(RACINE, 'nexus-build.js'), `// Généré par outils/p
     console.error('NEXUS — mélange de générations détecté (attendu ' + IDENTITE.id + ') : ' + hors.join(', '));
   }
 
+  // Pied de page (lot « prise de poste simplifiée »). L'estampille technique
+  // (commit, génération, construction) est un outil de diagnostic du manager et
+  // du gérant : l'employé ne la voit pas. Elle est posée MASQUÉE, puis révélée
+  // par reglerEstampille(roleReel), appelé par nexusRequireAuth une fois le rôle
+  // réel connu. Seule exception pour l'employé : une génération incomplète
+  // affiche UNE ligne d'action, sans commit ni numéro de génération.
+  // console.error reste dans verifierCoherence.
   function estampiller() {
     var pied = document.querySelector('footer');
     if (!pied || pied.querySelector('.nexus-build-estampille')) return;
     var s = document.createElement('span');
     s.className = 'nexus-build-estampille';
-    s.style.cssText = 'display:block; margin-top:4px; font-size:10px; opacity:.55;';
+    s.style.cssText = 'display:none; margin-top:4px; font-size:10px; opacity:.55;';
     s.textContent = 'NEXUS ' + IDENTITE.environnement + ' · commit ' + IDENTITE.commitCourt
       + ' · génération ' + IDENTITE.id + ' · construit le ' + IDENTITE.construitLe
       + (IDENTITE.coherent ? '' : ' · ⚠ GÉNÉRATIONS MÉLANGÉES');
     pied.appendChild(s);
+    var r = document.createElement('span');
+    r.className = 'nexus-build-rechargez';
+    r.style.cssText = 'display:none; margin-top:4px; font-size:12px;';
+    r.textContent = 'Application incomplète : rechargez la page';
+    pied.appendChild(r);
+    reglerEstampille(null);
+  }
+
+  function reglerEstampille(roleReel) {
+    var pied = document.querySelector('footer');
+    if (!pied) return;
+    var technique = pied.querySelector('.nexus-build-estampille');
+    var rechargez = pied.querySelector('.nexus-build-rechargez');
+    var pilote = roleReel === 'manager' || roleReel === 'gerant';
+    if (technique) technique.style.display = pilote ? 'block' : 'none';
+    if (rechargez) rechargez.style.display = (!pilote && !IDENTITE.coherent) ? 'block' : 'none';
   }
 
   function demarrer() { verifierCoherence(); estampiller(); }
 
   IDENTITE.versionner = versionner;
+  IDENTITE.reglerEstampille = reglerEstampille;
   global.NEXUS_BUILD = IDENTITE;
   // NexusBuild est le nom par lequel les modules appellent la primitive ;
   // NEXUS_BUILD reste le nom historique de l'identité. Même objet.

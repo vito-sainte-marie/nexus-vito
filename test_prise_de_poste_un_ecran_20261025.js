@@ -47,12 +47,11 @@ garde('la carte Manager porte son image, au poids et à l\'empreinte annoncés',
   m => m.replace('poste-manager.webp?v=b5f80d09', 'poste-manager.webp?v=00000000'));
 garde('aucune carte présélectionnée',
   m => { const f = corps(m, 'function renderChoixPoste()'); return !/selected|checked|aria-pressed="true"/.test(f); },
-  m => m.replace('class="pdp-carte" data-role', 'class="pdp-carte selected" data-role'));
+  m => m.replace('class="pdp-carte${actuel', 'class="pdp-carte selected${actuel'));
 
-garde('« Continuer » (#pdpSuite) a sa classe de bouton, pas celle des cartes photo',
-  m => /class="pdp-bouton" id="pdpSuite"/.test(m) && !/class="pdp-carte"[^>]*id="pdpSuite"/.test(m)
-    && /\.pdp-bouton\{[^}]*min-height:44px[^}]*background:var\(--cyan\)/.test(m),
-  m => m.replace('class="pdp-bouton" id="pdpSuite"', 'class="pdp-carte" id="pdpSuite"'));
+garde('aucun écran intermédiaire « Votre poste est pris » : plus de bouton Continuer',
+  m => !/id="pdpSuite"/.test(m) && !/Votre poste est pris/.test(m),
+  m => m.replace('<button class="pdp-btn" id="btnConfirmerChangement">', '<button class="pdp-btn" id="pdpSuite">Continuer</button><button class="pdp-btn" id="btnConfirmerChangement">'));
 
 // 2. Un seul appui.
 garde('le clic d’une carte appelle directement la prise de poste',
@@ -86,7 +85,7 @@ garde('« Poste le plus fréquent » / « Dernier poste » rétablis, sous la se
   m => m.replace('return `Poste le plus fréquent, ${pf.retenus} sur ${pf.eligibles}`', "return ''"));
 garde('le badge n\'est jamais une présélection',
   m => !/pdp-avant/.test(corps(m, 'function renderChoixPoste()')),
-  m => m.replace('class="pdp-carte" data-role', 'class="pdp-carte pdp-avant" data-role'));
+  m => m.replace('class="pdp-carte${actuel', 'class="pdp-carte pdp-avant${actuel'));
 garde('dégradé CSS du fond de carte sur la photo, sans image retouchée',
   m => /\.pdp-visuel::after\{[^}]*linear-gradient\(to right,var\(--panel\) 0%,rgba\(var\(--panel-rgb\),0\) (4\d|50)%\)/.test(m)
     && /<span class="pdp-visuel"><img class="pdp-image"/.test(m) && /\.pdp-carte\.pdp-avant\{border:2px solid var\(--cyan\)/.test(m),

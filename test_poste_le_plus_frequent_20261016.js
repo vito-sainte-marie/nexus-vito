@@ -114,6 +114,6 @@ verifier('les cartes s\'affichent : Piste, Caisse, Renfort ; valeurs inchangées
   && /value: 'caissiere',\s+label: 'Caisse',/.test(page)
   && /value: 'renfort',\s+label: 'Renfort',/.test(page)
   && !/label: '(Pompiste|Caissière|Boutique|Renfort opérationnel)'/.test(page));
-verifier('la question parle du lieu', /Où travaillez-vous pour ce quart \?/.test(page));
+verifier('la question parle du lieu', /Où travaillez-vous \?/.test(page));
 
 console.log(`\n${passes} vérifications OK`);
