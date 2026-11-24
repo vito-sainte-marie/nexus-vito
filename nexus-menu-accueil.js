@@ -16,6 +16,7 @@
     index: 'NEXUS-Releves-Piste-v1.html',
     inventaire: 'NEXUS-Inventaire-v1.html',
     missions: 'NEXUS-Missions-v1.html',
+    datesCourtes: 'NEXUS-Dates-Courtes-Releve-v1.html',
     pointage: 'NEXUS-Pointage-v1.html',
     coachFdj: 'NEXUS-Coach-FDJ-v1.html',
     fdj: 'NEXUS-FDJ-v1.html',
@@ -55,7 +56,10 @@
       : { code: 'inventaire', libelle: 'Inventaire', href: URL.inventaire };
     g.push({ code: 'inventaire', titre: 'Inventaire', entrees: [inventaire] });
     // Pointage : seulement si la station l'a activé (station_config.pointage_actif, lu par l'Accueil).
-    const travail = [{ code: 'missions', libelle: 'Missions', href: URL.missions }];
+    const travail = [];
+    // Dates courtes (poste du jour) : employé seulement, quand l'Accueil a établi le droit ; manager et gérant gardent leur menu inchangé.
+    if (!manager && f.datesCourtesApplicable === true) travail.push({ code: 'dates_courtes', libelle: 'Dates courtes', href: URL.datesCourtes });
+    travail.push({ code: 'missions', libelle: 'Missions', href: URL.missions });
     if (f.pointageActif === true) travail.push({ code: 'pointage', libelle: 'Pointage', href: URL.pointage });
     g.push({ code: 'travail', titre: 'Mon travail', entrees: travail });
     const caisse = [];

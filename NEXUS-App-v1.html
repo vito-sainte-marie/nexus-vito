@@ -3121,13 +3121,14 @@
     // défaut) ET le réglage du site doit l'autoriser côté employé.
     const receptionApplicable = enService && roleADroitModule('reception', roleDuJour) && (receptionRole === 'employe' || receptionRole === 'les_deux');
 
-    // Dates courtes : renfort, manager, gérant, créateur ; le caissier seulement si l'accès de la station est ouvert
-    // (dernière ligne de dates_courtes_acces_caissier). Pompiste et vacataire : jamais. Le serveur refuse de toute façon.
+    // Dates courtes. Manager, gérant et créateur : inchangé (rôle enregistré). Pour un employé, c'est le POSTE DU JOUR qui décide
+    // (`employees.role` n'est que le poste préféré) : renfort → oui ; caissière → seulement si l'accès de la station est ouvert
+    // (dernière ligne de dates_courtes_acces_caissier) ; pompiste → jamais. Le serveur refuse de toute façon.
     let datesCourtesApplicable = false;
     if (enService) {
-      const rolesDatesCourtes = ['renfort', 'manager', 'gerant'];
-      if (employee.est_createur || rolesDatesCourtes.includes(employee.role)) datesCourtesApplicable = true;
-      else if (employee.role === 'caissier') {
+      if (employee.est_createur || ['manager', 'gerant'].includes(employee.role)) datesCourtesApplicable = true;
+      else if (roleDuJour === 'renfort') datesCourtesApplicable = true;
+      else if (roleDuJour === 'caissiere') {
         try {
           const { data: acc, error: eAcc } = await nexusClient.from('dates_courtes_acces_caissier').select('actif').eq('site', employee.site_id).order('saisi_le', { ascending: false }).limit(1);
           datesCourtesApplicable = !eAcc && !!(acc && acc[0] && acc[0].actif);
@@ -3239,10 +3240,10 @@
       pointageActif: pointageActifSite === true, recap: recapQuart,
       // Variante caissière (toutes les caissières en service) : faits déjà chargés plus haut, aucune lecture ajoutée.
       // Pilote : fil (filCaisseLien) ; autre caissière : Inventaire classique, comme la prochaine action d'aujourd'hui.
-      piloteCaisse: piloteCaisse === true, filCaisseLien, fermetureCaisseDue, fdjApplicable,
+      piloteCaisse: piloteCaisse === true, filCaisseLien, fermetureCaisseDue, fdjApplicable, datesCourtesApplicable,
       inventaireLien: inventaireApplicable ? 'NEXUS-Inventaire-v1.html' : null,
     });
-    const faitsMenu = { estNiveauManager: false, enService, roleDuJour, receptionApplicable, fdjApplicable, fermetureLien, pointageActif: pointageActifSite === true };
+    const faitsMenu = { estNiveauManager: false, enService, roleDuJour, receptionApplicable, fdjApplicable, datesCourtesApplicable, fermetureLien, pointageActif: pointageActifSite === true };
     monterMenuAccueil(faitsMenu);
     if (!NexusMenuAccueil.rechercheVisible(faitsMenu) && enService) {
       const zone = document.getElementById('zoneRecherche');
@@ -3569,7 +3570,7 @@
           + (lib ? ' — ' + (typeof iconeRole === 'function' ? iconeRole(serviceCourant.role, 20) : '') + lib : '')
           + (serviceCourant.quart ? ' · ' + serviceCourant.quart : '') + '</div>'
           + '<a class="chemins-rappel-lien am-poste-lien" href="NEXUS-Prise-De-Poste-v1.html">'
-          + 'Changer de rôle / refaire ma prise de poste</a></div>'
+          + 'Changer de poste</a></div>'
           + '</div>';
       } else {
         hote.innerHTML = entete + '<a class="ap-poste am-poste" id="cheminService" href="NEXUS-Prise-De-Poste-v1.html">'
@@ -3591,7 +3592,7 @@
         + (serviceCourant.quart ? ' · ' + serviceCourant.quart : '')
         + '<div id="prisePosteRecap"></div>'
         + '<a class="chemins-rappel-lien" href="NEXUS-Prise-De-Poste-v1.html">'
-        + 'Changer de rôle / refaire ma prise de poste</a></div>';
+        + 'Changer de poste</a></div>';
       NexusPriseDePoste.recapitulatif(document.getElementById('prisePosteRecap'), employee, serviceCourant.role)
         .catch(() => {});
       return;
