@@ -88,7 +88,7 @@ for (const [nom, mut] of MUTATIONS) {
 // Câblage : l'Accueil donne les faits déjà chargés, sans nouvelle lecture ; le libellé du fil caisse remplace celui du pompiste.
 assert(/piloteCaisse: piloteCaisse === true, filCaisseLien, fermetureCaisseDue, fdjApplicable, datesCourtesApplicable,\s*\n\s*inventaireLien: inventaireApplicable \? 'NEXUS-Inventaire-v1.html' : null,\s*\n\s*fdjFait,/.test(APP), 'App ne câble pas la variante');
 assert(APP.includes("const FIL_CAISSE_LIEN_TEXTE = 'Commencer l’inventaire →'") && /ctx\.filLien \? FIL_LIEN_TEXTE : ctx\.filCaisseLien \? FIL_CAISSE_LIEN_TEXTE/.test(APP));
-assert(/roleDuJour === NexusFilCaisse\.ROLE && fuseauStation && \(quartDuJour === 'matin' \|\| quartDuJour === 'soir'\)\) \{\s*\n\s*finMinutes = NexusStation\.finDuQuartMinutes/.test(APP), 'App ne charge pas la fin de quart de la caissière');
+assert(/\(roleDuJour === NexusFilCaisse\.ROLE \|\| roleDuJour === 'renfort'\) && fuseauStation && \(quartDuJour === 'matin' \|\| quartDuJour === 'soir'\)\) \{\s*\n\s*finMinutes = NexusStation\.finDuQuartMinutes/.test(APP), 'App ne charge pas la fin de quart de la caissière');
 console.log('OK — ' + Object.keys(EPREUVES).length + ' épreuves, ' + MUTATIONS.length + ' mutations tuées, câblage vérifié');
 // Retouche #177 : la carte du soir montre l'étape Clôture et « Commencer la clôture → » quand la fermeture est due.
 {

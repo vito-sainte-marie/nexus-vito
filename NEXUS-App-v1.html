@@ -97,6 +97,8 @@
      données côté manager (voir initPosteManager), jamais une valeur
      inventée — reste vide pour un employé, qui n'a pas de recalcul
      équivalent. */
+  /* Une ligne de l'en-tête sans contenu ne réserve aucune place (Guardian 7138807292) ; un petit décalage quand la ligne se remplit vaut mieux qu'un trou. */
+  #sessionInfo:empty, #headerLive:empty{display:none;}
   .header-statut-row{display:flex; align-items:center; justify-content:center; gap:10px; margin-top:12px; flex-wrap:wrap;}
   .header-statut{display:inline-flex; align-items:center; gap:7px; padding:6px 14px; border-radius:100px; border:1px solid var(--hairline); background:var(--panel); font-family:var(--mono); font-size:10.5px; letter-spacing:0.05em; color:var(--text-mid);}
   .header-live{font-family:var(--mono); font-size:10px; letter-spacing:0.03em; color:var(--text-dim);}
@@ -2862,7 +2864,8 @@
     // Entrée du fil « Ma caisse » (L1, incrément 3) : pilote + caissière du jour en service ; étape 2 (comptage) puis 3 (fermeture, 45 min avant la fin).
     const piloteCaisse = (enService && roleDuJour === NexusFilCaisse.ROLE) ? await chargerPiloteCaisse(employee.site_id, employee.id) : false;
     // Heure de fin du quart affichée dans le bandeau de la caissière (lecture seule des horaires, comme pour le pompiste).
-    if (enService && roleDuJour === NexusFilCaisse.ROLE && fuseauStation && (quartDuJour === 'matin' || quartDuJour === 'soir')) {
+    // Le renfort lit la même source (horaires de la station) ; quart inconnu : pas de « fin à ».
+    if (enService && (roleDuJour === NexusFilCaisse.ROLE || roleDuJour === 'renfort') && fuseauStation && (quartDuJour === 'matin' || quartDuJour === 'soir')) {
       finMinutes = NexusStation.finDuQuartMinutes(await chargerHorairesStation(employee.site_id), quartDuJour === 'matin' ? 'quart1' : 'quart2', fuseauStation, new Date());
     }
     let fermetureCaisseDue = false;

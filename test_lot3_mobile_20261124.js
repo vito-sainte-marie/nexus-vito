@@ -41,6 +41,18 @@ const garde = {
     assert(/e\.key === 'Escape'[^\n]*basculer\(false\); bouton\.focus\(\)/.test(app));
     assert(/aria-expanded/.test(app));
   },
+  'en-tête : aucune ligne vide de l’en-tête ne prend de place': (app) => {
+    assert(/#sessionInfo:empty, #headerLive:empty\{display:none;\}/.test(app));
+  },
+  'renfort : « fin à » calculé aux horaires de la station, quart connu seulement': (app) => {
+    assert(/roleDuJour === NexusFilCaisse\.ROLE \|\| roleDuJour === 'renfort'\) && fuseauStation && \(quartDuJour === 'matin' \|\| quartDuJour === 'soir'\)/.test(app));
+  },
+  'carte renfort : « fin à » présent avec l\'heure, absent sans': () => {
+    const V = navigateur();
+    const f = Object.assign({}, base, { roleDuJour: 'renfort', enService: true, quart: 'matin', finMinutes: 795 });
+    assert(/fin à/.test(V.P.html(V.P.modele(f))), 'fin à absent');
+    assert(!/fin à/.test(V.P.html(V.P.modele(Object.assign({}, f, { finMinutes: null })))), 'fin à inventé');
+  },
   '« fin à » absent sans heure de fin dans les données': () => {
     const h = P.html(P.modele(Object.assign({}, base, { roleDuJour: 'pompiste' })));
     assert(!/fin à/.test(h));
@@ -77,6 +89,8 @@ const garde = {
 };
 
 const MUT_APP = [
+  ['lignes vides réservées', 'en-tête : aucune ligne vide de l’en-tête ne prend de place', (s) => s.replace('#sessionInfo:empty, #headerLive:empty{display:none;}', '#sessionInfo:empty, #headerLive:empty{display:block;}')],
+  ['renfort sans fin', 'renfort : « fin à » calculé aux horaires de la station, quart connu seulement', (s) => s.replace("roleDuJour === NexusFilCaisse.ROLE || roleDuJour === 'renfort') && fuseauStation", "roleDuJour === NexusFilCaisse.ROLE) && fuseauStation")],
   ['Inter revenue', 'police : aucune Inter sur l\'Accueil employé (Plex Sans, Plex Mono pour les chiffres)', (s) => s.replace('#accueilPisteHote, #accueilPisteHote *{font-family:var(--sans),', "#accueilPisteHote, #accueilPisteHote *{font-family:'Inter',")],
   ['rayon 16', 'rayon des cartes : 12 px, plus de 16 px', (s) => s.replace('.ap-reception{display:flex;align-items:center;gap:12px;min-height:64px;box-sizing:border-box;padding:0 16px;border:1px solid var(--rec-bord);background:var(--rec-fond);border-radius:12px', '.ap-reception{display:flex;align-items:center;gap:12px;min-height:64px;box-sizing:border-box;padding:0 16px;border:1px solid var(--rec-bord);background:var(--rec-fond);border-radius:16px')],
   ['Voir en dur', 'lien « Voir » : variable existante, aucune couleur en dur', (s) => s.replace('.ap-voir{color:var(--cyan)', '.ap-voir{color:#4FC3D9')],
