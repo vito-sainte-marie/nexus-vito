@@ -21,7 +21,11 @@ $garde_recette$;
 
 insert into sites (site_id, timezone) select 'nexus-station-test', 'America/Martinique' where not exists (select 1 from sites where site_id = 'nexus-station-test');
 insert into sites (site_id, nom_entreprise, timezone) select 'recette-autre-station', 'Station de recette', 'America/Martinique' where not exists (select 1 from sites where site_id = 'recette-autre-station');
-update sites set acces_createur_autorise = false where site_id in ('nexus-station-test', 'recette-autre-station');
+-- Deux stations dédiées au cas « créateur » : l'accès créateur est posé À L'INSERTION (le déclencheur
+-- nexus_acces_createur_immuable ne vise que l'UPDATE) ; la recette ne modifie jamais sites.acces_createur_autorise.
+insert into sites (site_id, nom_entreprise, timezone, acces_createur_autorise) values
+  ('recette-createur-non', 'Station de recette créateur sans accès', 'America/Martinique', false),
+  ('recette-createur-oui', 'Station de recette créateur avec accès', 'America/Martinique', true);
 
 create temp table ids (k text primary key, v uuid, role text, site text, createur boolean) on commit drop;
 grant all on ids to public;
@@ -30,8 +34,13 @@ insert into ids values
   ('E2',  '00000000-0000-4000-8000-0000000f0102', 'pompiste', 'nexus-station-test', false),
   ('M1',  '00000000-0000-4000-8000-0000000f0103', 'manager',  'nexus-station-test', false),
   ('G1',  '00000000-0000-4000-8000-0000000f0104', 'gerant',   'nexus-station-test', false),
-  ('CR1', '00000000-0000-4000-8000-0000000f0105', 'caissier', 'nexus-station-test', true),
-  ('X1',  '00000000-0000-4000-8000-0000000f0106', 'caissier', 'recette-autre-station', false);
+  ('X1',  '00000000-0000-4000-8000-0000000f0106', 'caissier', 'recette-autre-station', false),
+  ('CRN', '00000000-0000-4000-8000-0000000f0107', 'caissier', 'recette-createur-non', true),
+  ('EN1', '00000000-0000-4000-8000-0000000f0108', 'caissier', 'recette-createur-non', false),
+  ('EN2', '00000000-0000-4000-8000-0000000f0109', 'pompiste', 'recette-createur-non', false),
+  ('CRO', '00000000-0000-4000-8000-0000000f010a', 'caissier', 'recette-createur-oui', true),
+  ('EO1', '00000000-0000-4000-8000-0000000f010b', 'caissier', 'recette-createur-oui', false),
+  ('EO2', '00000000-0000-4000-8000-0000000f010c', 'pompiste', 'recette-createur-oui', false);
 
 insert into auth.users (id, aud, role, email) select v, 'authenticated', 'authenticated', 'recette-rls1-' || lower(k) || '@invalid.test' from ids;
 insert into employees (id, username, nom, role, actif, est_createur, site_id, compte_test)
@@ -49,9 +58,9 @@ insert into fdj_shift_counts (site, shift_id, game_id, stock_initial, appro, sto
 
 -- Évaluations et tenue : une ligne pour E1, une pour E2 (même station), une pour X1 (autre station).
 insert into evaluations_employes (site, employee_id, evaluateur_id, type, criteres, total)
-  select i.site, i.v, (select v from ids where k = 'M1'), 'standard', '{}'::jsonb, 10 from ids i where i.k in ('E1', 'E2', 'X1');
+  select i.site, i.v, (select v from ids where k = 'M1'), 'standard', '{}'::jsonb, 10 from ids i where i.k in ('E1', 'E2', 'X1', 'EN1', 'EN2', 'EO1', 'EO2');
 insert into controles_tenue (site, employee_id, controleur_id, conforme, items)
-  select i.site, i.v, (select v from ids where k = 'M1'), true, '{}'::jsonb from ids i where i.k in ('E1', 'E2', 'X1');
+  select i.site, i.v, (select v from ids where k = 'M1'), true, '{}'::jsonb from ids i where i.k in ('E1', 'E2', 'X1', 'EN1', 'EN2', 'EO1', 'EO2');
 
 create function pg_temp.comme(k text) returns void language plpgsql as $$
 declare u uuid;
@@ -178,19 +187,21 @@ begin
     pg_temp.essai('M1', format($f$select count(*)::text from public.controles_tenue where site = %L$f$, os)));
   r := pg_temp.n(r, '5.6 tenue : employé d''une autre station ne voit que la sienne', '=1', pg_temp.essai('X1', 'select count(*)::text from public.controles_tenue'));
 
-  -- 6 Créateur : selon sites.acces_createur_autorise (état posé ici, jamais supposé)
-  perform pg_temp.exec(format('update sites set acces_createur_autorise = false where site_id = %L', st));
+  -- 6 Créateur : deux stations dédiées, accès posé à l'insertion (jamais modifié)
+  r := pg_temp.n(r, '6.0 garde : recette-createur-non sans accès, recette-createur-oui avec accès', '=true',
+    pg_temp.val($q$select ((select not acces_createur_autorise from sites where site_id = 'recette-createur-non') and (select acces_createur_autorise from sites where site_id = 'recette-createur-oui'))::text$q$));
   r := pg_temp.n(r, '6.1 créateur, accès non autorisé : aucune évaluation d''autrui', '=0',
-    pg_temp.essai('CR1', 'select count(*)::text from public.evaluations_employes'));
+    pg_temp.essai('CRN', 'select count(*)::text from public.evaluations_employes'));
   r := pg_temp.n(r, '6.2 créateur, accès non autorisé : aucune tenue d''autrui', '=0',
-    pg_temp.essai('CR1', 'select count(*)::text from public.controles_tenue'));
-  perform pg_temp.exec(format('update sites set acces_createur_autorise = true where site_id = %L', st));
+    pg_temp.essai('CRN', 'select count(*)::text from public.controles_tenue'));
   r := pg_temp.n(r, '6.3 créateur, accès autorisé : évaluations de la station', '=2',
-    pg_temp.essai('CR1', 'select count(*)::text from public.evaluations_employes'));
+    pg_temp.essai('CRO', 'select count(*)::text from public.evaluations_employes'));
   r := pg_temp.n(r, '6.4 créateur, accès autorisé : tenue de la station', '=2',
-    pg_temp.essai('CR1', 'select count(*)::text from public.controles_tenue'));
-  r := pg_temp.n(r, '6.5 créateur, accès autorisé : pas l''autre station', '=0',
-    pg_temp.essai('CR1', format($f$select count(*)::text from public.evaluations_employes where site = %L$f$, os)));
+    pg_temp.essai('CRO', 'select count(*)::text from public.controles_tenue'));
+  r := pg_temp.n(r, '6.5 créateur, accès autorisé : rien des autres stations', '=0',
+    pg_temp.essai('CRO', format($f$select count(*)::text from public.evaluations_employes where site <> 'recette-createur-oui'$f$)));
+  r := pg_temp.n(r, '6.6 créateur sans accès : rien de la station avec accès', '=0',
+    pg_temp.essai('CRN', $q$select count(*)::text from public.evaluations_employes where site = 'recette-createur-oui'$q$));
 
   raise exception 'RAPPORT_RLS_LOT1 %', jsonb_build_object('total', jsonb_array_length(r),
     'ko', (select count(*) from jsonb_array_elements(r) e where not (e->>'ok')::boolean), 'cas', r);
