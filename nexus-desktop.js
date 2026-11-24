@@ -564,7 +564,7 @@ function nexusChargerScript(src) {
   return new Promise((ok, ko) => {
     if (document.querySelector('script[data-nexus-dyn="' + src + '"]')) return ok();
     const s = document.createElement('script');
-    s.src = src; s.dataset.nexusDyn = src; s.onload = () => ok(); s.onerror = () => ko(new Error(src));
+    s.src = NexusBuild.versionner(src.split('?')[0]); s.dataset.nexusDyn = src; s.onload = () => ok(); s.onerror = () => ko(new Error(src));
     document.head.appendChild(s);
   });
 }

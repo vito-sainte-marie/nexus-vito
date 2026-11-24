@@ -43,7 +43,7 @@
   function injecter(src,cle){
     if(document.querySelector('script[data-nexus-carburants-polish="'+cle+'"]')) return;
     const s=document.createElement('script');
-    s.src=src;
+    s.src=NexusBuild.versionner(src.split('?')[0]);
     s.defer=true;
     s.dataset.nexusCarburantsPolish=cle;
     document.head.appendChild(s);

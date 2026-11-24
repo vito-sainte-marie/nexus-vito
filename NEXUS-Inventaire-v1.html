@@ -23,13 +23,13 @@
 <script src="nexus-station.js?v=20260904-0104"></script>
 <script src="nexus-auth.js?v=20261124-0004"></script>
 <script src="nexus-pointage-regles.js?v=20260904-0104"></script>
-<script src="nexus-header-nav.js?v=20260904-0104"></script>
+<script src="nexus-header-nav.js?v=20261124-1200"></script>
 <script src="nexus-rayons-familles.js?v=20261121-0001"></script>
 <script src="nexus-icones.js?v=20261122-0001"></script>
-<script src="nexus-desktop.js?v=20261122-1900"></script>
+<script src="nexus-desktop.js?v=20261124-1200"></script>
 <script src="nexus-inventaire-moteur.js?v=20260904-0104"></script>
 <script src="nexus-inventaire-plan-donnees.js?v=20260904-0104"></script>
-<script src="nexus-inventaire-mission-rules-donnees.js?v=20260904-0104"></script>
+<script src="nexus-inventaire-mission-rules-donnees.js?v=20261124-1200"></script>
 <script src="nexus-pilotes-inventaire.js?v=20261102-1"></script>
 <script src="nexus-inventaire-missions-donnees.js?v=20260904-0104"></script>
 <script src="nexus-jours-feries.js?v=20261106-0100"></script>
@@ -290,7 +290,7 @@
   .calc-barre{display:flex; align-items:center; gap:6px;}
   .calc-op-btn{font-family:var(--mono); font-size:16px; font-weight:700; color:var(--cyan); background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px; width:32px; height:28px; cursor:pointer; flex-shrink:0; line-height:1;}
   .calc-op-btn:active{background:rgba(var(--cyan-rgb),0.18);}
-  .calc-pop-btn{font-size:14px; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px; width:32px; height:28px; cursor:pointer; flex-shrink:0; margin-left:auto; line-height:1;}
+  .calc-pop-btn{font-size:12px; font-weight:600; color:var(--text); background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px; min-width:44px; padding:0 8px; height:28px; cursor:pointer; flex-shrink:0; margin-left:auto; line-height:1;}
   .calc-pop-btn:active{background:var(--hairline);}
   .calc-apercu{font-family:var(--mono); font-size:11.5px; color:var(--cyan); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
 
@@ -386,7 +386,7 @@
 <script src="nexus-fil-debut-quart.js?v=20261021-0001"></script>
 <script src="nexus-fil-fin-quart.js?v=20261031-0001"></script>
 <script src="nexus-fil-caisse.js?v=20261103-0001"></script>
-<script src="nexus-inventaire-mode-test.js?v=20260904-0104"></script>
+<script src="nexus-inventaire-mode-test.js?v=20261124-1200"></script>
 <script>
   // ------------------------------------------------------------
   // NEXUS Inventaire v1 (02/08/2026) — construit avec Frédéric à partir
@@ -4353,7 +4353,7 @@
   //  1) Addition en chaîne — boutons [+]/[−] sous le champ, qui ajoutent
   //     l'opérateur au texte déjà saisi (evaluerAdditionChainee calcule le
   //     total à la volée, voir plus haut).
-  //  2) Calculatrice complète (+ − × ÷) — icône 🖩, ouvre un clavier en
+  //  2) Calculatrice complète (+ − × ÷) — bouton « Calc. », ouvre un clavier en
   //     recouvrement ; "Utiliser ce résultat" remplace le contenu du champ
   //     par le résultat final.
   // ------------------------------------------------------------
@@ -4365,7 +4365,7 @@
         <button type="button" class="calc-op-btn" data-calc-op="*">×</button>
         <button type="button" class="calc-op-btn" data-calc-op="/">÷</button>
         <span class="calc-apercu"></span>
-        <button type="button" class="calc-pop-btn" title="Calculatrice">🖩</button>
+        <button type="button" class="calc-pop-btn" title="Calculatrice" aria-label="Ouvrir la calculatrice">Calc.</button>
       </div>
     `;
   }
