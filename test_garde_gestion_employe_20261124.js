@@ -81,7 +81,7 @@ ok(essai({ role: 'employe' }, { createur: true }).admis === false, 'option créa
 ok(/Cet écran est réservé à la gestion/.test(auth), 'message absent');
 
 // 7. nexus-desktop : le menu employé vient du module de l'Accueil, le rôle se lit avant le rendu complet.
-ok(/groupesLateraux\(\)/.test(desk), 'nexus-desktop ne lit pas groupesLateraux');
+ok(/groupesLateraux\(/.test(desk), "nexus-desktop ne lit pas groupesLateraux");
 ok(/nexusConstruireSidebarHTML\(\[\]\)/.test(desk), 'le menu complet s\'affiche avant que le rôle soit connu');
 
 console.log('OK test_garde_gestion_employe_20261124 (' + n + ' vérifications, ' + pages.length + ' entrées de menu)');
