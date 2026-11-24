@@ -69,6 +69,7 @@
     'mod-prise-de-poste':      { libelle: 'Prise de poste' },
     'mod-rayon':               { libelle: 'Rayon' },
     'mod-tracabilite':         { libelle: 'Traçabilité' },
+    'act-calculatrice':        { libelle: 'Calculatrice' },
   };
 
   function esc(s) {
