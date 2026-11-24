@@ -17,8 +17,12 @@ const EPREUVES = {
     assert(!c.includes('coach_fdj') && !c.includes('fdj'));
     assert(!codes(M, emp('pompiste')).includes('reception'));
   },
-  'aucun employé n\'a le Jaugeage ; tout employé en service a « Relevés d\'index » (écran de choix, sans moment)': (M) => {
-    ['pompiste', 'caissiere', 'renfort', 'polyvalent'].forEach((r) => {
+  'aucun employé n\'a le Jaugeage ; seul le pompiste du jour a « Relevés d\'index » (écran de choix, sans moment)': (M) => {
+    ['caissiere', 'renfort', 'polyvalent'].forEach((r) => {
+      assert(!codes(M, emp(r, { receptionApplicable: true, fdjApplicable: true })).includes('index'), 'index absent : ' + r);
+      assert(!codes(M, emp(r)).includes('jaugeage'), r);
+    });
+    ['pompiste'].forEach((r) => {
       const gs = M.groupes(emp(r, { receptionApplicable: true, fdjApplicable: true }));
       const c = codes(M, emp(r, { receptionApplicable: true, fdjApplicable: true }));
       assert(!c.includes('jaugeage'), r);
@@ -33,20 +37,20 @@ const EPREUVES = {
     assert(c.includes('coach_fdj') && c.includes('fdj') && c.includes('inventaire') && !c.includes('reception'));
     assert(!codes(M, emp('caissiere')).includes('fdj') && codes(M, emp('caissiere')).includes('coach_fdj'));
   },
-  'renfort : Inventaire présent mais grisé, sans lien, avec « Désactivé par le manager » ; pas de Coach FDJ': (M) => {
+  'renfort : Inventaire présent mais grisé, sans lien, avec « Non prévu pour le poste de renfort » ; pas de Coach FDJ': (M) => {
     const gs = M.groupes(emp('renfort'));
     const c = codes(M, emp('renfort'));
     assert(c.includes('inventaire') && c.includes('missions') && c.includes('pointage') && !c.includes('coach_fdj'));
     const e = [].concat(...gs.map((g) => g.entrees)).find((x) => x.code === 'inventaire');
-    assert(e.desactive === true && !e.href && e.mention === 'Désactivé par le manager');
+    assert(e.desactive === true && !e.href && e.mention === 'Non prévu pour le poste de renfort');
     const h = M.html(gs);
-    assert(h.includes('aria-disabled="true"') && h.includes('Désactivé par le manager') && !h.includes('NEXUS-Inventaire-v1.html'));
+    assert(h.includes('aria-disabled="true"') && h.includes('Non prévu pour le poste de renfort') && !h.includes('Désactivé par le manager') && !h.includes('NEXUS-Inventaire-v1.html'));
   },
   'les autres postes gardent le lien Inventaire actif, sans mention': (M) => {
     ['pompiste', 'caissiere', 'polyvalent'].forEach((r) => {
       const e = [].concat(...M.groupes(emp(r)).map((g) => g.entrees)).find((x) => x.code === 'inventaire');
       assert(!e.desactive && e.href === 'NEXUS-Inventaire-v1.html', r);
-      assert(!M.html(M.groupes(emp(r))).includes('Désactivé par le manager'), r);
+      assert(!M.html(M.groupes(emp(r))).includes('Non prévu pour le poste de renfort'), r);
     });
     const m = [].concat(...M.groupes({ estNiveauManager: true, enService: false, roleDuJour: 'renfort' }).map((g) => g.entrees)).find((x) => x.code === 'inventaire');
     assert(!m.desactive && m.href);
@@ -54,6 +58,14 @@ const EPREUVES = {
   'manager et gérant : toutes les entrées, Jaugeage et Index compris': (M) => {
     const c = codes(M, { estNiveauManager: true, enService: false, roleDuJour: 'gerant', fdjApplicable: true, pointageActif: true });
     ['reception', 'jaugeage', 'index', 'inventaire', 'missions', 'pointage', 'coach_fdj', 'fdj', 'progression', 'changer_poste', 'deconnexion'].forEach((x) => assert(c.includes(x), x));
+  },
+  'manager et gérant : le menu reste identique, index compris, quel que soit le poste du jour': (M) => {
+    ['manager', 'gerant', 'renfort', 'caissiere', 'pompiste'].forEach((r) => {
+      const gs = M.groupes({ estNiveauManager: true, enService: false, roleDuJour: r, receptionApplicable: false, fdjApplicable: true, pointageActif: true });
+      const idx = [].concat(...gs.map((g) => g.entrees)).find((x) => x.code === 'index');
+      assert(idx && idx.href === 'NEXUS-Releves-Piste-v1.html', 'index ' + r);
+      assert(codes(M, { estNiveauManager: true, roleDuJour: r }).includes('jaugeage'), 'jaugeage ' + r);
+    });
   },
   'employé hors service : pas de menu': (M) => { assert.deepStrictEqual(M.groupes(emp('pompiste', { enService: false })), []); },
   'recherche : manager et gérant la gardent, pompiste, caisse et renfort non': (M) => {
@@ -93,12 +105,13 @@ Object.keys(EPREUVES).forEach((nom) => {
 // Mutations : chaque exigence doit rougir si le module est abîmé.
 const MUTANTS = [
   ['jaugeage employé', (s) => s.replace("if (manager) carburant.push({ code: 'jaugeage'", "if (true) carburant.push({ code: 'jaugeage'")],
-  ['index absent pour l\'employé', (s) => s.replace("if (manager || (f.enService && !f.fermetureLien)) carburant.push({ code: 'index'", "if (manager) carburant.push({ code: 'index'")],
+  ['index absent pour l\'employé', (s) => s.replace("if (manager || (f.enService && !f.fermetureLien && role === 'pompiste')) carburant.push({ code: 'index'", "if (manager) carburant.push({ code: 'index'")],
+  ['index ouvert à tout employé', (s) => s.replace(" && role === 'pompiste')) carburant.push", "))  carburant.push")],
   ['index vers un moment', (s) => s.replace("index: 'NEXUS-Releves-Piste-v1.html',", "index: 'NEXUS-Releves-Piste-v1.html?moment=debut_q1',")],
   ['coach caisse', (s) => s.replace("role === 'caissiere')", "role === 'renfort')")],
   ['recherche renfort', (s) => s.replace("['pompiste', 'caissiere', 'renfort']", "['pompiste']")],
   ['inventaire renfort actif', (s) => s.replace("role === 'renfort' && !manager", 'false')],
-  ['mention retirée', (s) => s.replace("'Désactivé par le manager'", "''")],
+  ['mention retirée', (s) => s.replace("'Non prévu pour le poste de renfort'", "''")],
   ['pointage toujours affiché', (s) => s.replace("f.pointageActif === true", 'true')],
   ['hors service', (s) => s.replace('!f.enService', 'false')],
 ];

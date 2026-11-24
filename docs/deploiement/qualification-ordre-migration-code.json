@@ -1665,6 +1665,39 @@
         "blob_provenance": "git hash-object du fichier a b776037e (md5 03e2e605ae7e337f81873105b2dffac8, celui que Guardian a verifie avant execution, compte rendu 7118552046). Heure de la mesure (mesure.le) : heure du compte rendu ; la mesure l'a precede de quelques minutes."
       },
       "trace": "#160, compte rendu de Guardian 7118552046 ; GO du pilote : application en Production constatee par Guardian ; fusion : GO distinct."
+    },
+    "20261124140000": {
+      "etat": "migration_deja_appliquee",
+      "justification": "Migration Dates courtes, droit selon le poste du jour : 2 fonctions NOUVELLES (dates_courtes_poste_du_jour, dates_courtes_acces_caissier_ouvert) ; 4 fonctions REMPLACEES a signature et droits identiques (dates_courtes_operer, dates_courtes_caissier_autorise, dates_courtes_terminer_tournee, dates_courtes_annuler_tournee) ; 1 policy RECREE (lecture_meme_site sur dates_courtes_acces_caissier). Aucune table, colonne ni ligne touchee, aucune ecriture de donnees. Appliquee sur Test puis en Production par Guardian sur GO du pilote (24/11/2026), avant le code qui l'appelle (accueils renfort et caissiere, meme PR).",
+      "objets_crees": [
+        "dates_courtes_poste_du_jour",
+        "dates_courtes_acces_caissier_ouvert"
+      ],
+      "objets_constates": [
+        "dates_courtes_poste_du_jour",
+        "dates_courtes_acces_caissier_ouvert",
+        "dates_courtes_operer",
+        "dates_courtes_caissier_autorise",
+        "dates_courtes_terminer_tournee",
+        "dates_courtes_annuler_tournee",
+        "lecture_meme_site"
+      ],
+      "valide_par": null,
+      "valide_le": null,
+      "mesure": {
+        "source": "catalogue",
+        "le": "2026-11-24T12:56:41Z",
+        "cible": "uzhjpqpctpvxytxpxoqz",
+        "par": "guardian",
+        "outil": "application de la migration sur GO du pilote, puis left(md5(prosrc),8) pour les fonctions et md5(pg_get_expr(polqual, polrelid)) (8 premiers caracteres) pour la policy sur le catalogue ; resultat identique sur Test (udljdqxerrbbbajxubfn)",
+        "identite_constatee": "non communiquee dans le compte rendu de Guardian",
+        "lecture_seule": "non communiquee",
+        "moteur": "non communique",
+        "verdict": "MIGRATION_APPLIQUEE — left(md5(prosrc),8) : dates_courtes_poste_du_jour 856fbeb0 (definer) ; dates_courtes_acces_caissier_ouvert 980d8f06 (definer) ; dates_courtes_operer 2bc765db (definer) ; dates_courtes_caissier_autorise 411b2c99 (definer) ; dates_courtes_terminer_tournee aad8221e (definer) ; dates_courtes_annuler_tournee 6e8d8d34 (definer) ; dates_courtes_gestion 7a4c6edf inchangee. Policy lecture_meme_site sur dates_courtes_acces_caissier 9c3ab2ff. anon sans EXECUTE, authenticated avec EXECUTE pour les sept fonctions. Etat avant application : operer 59115f0d, caissier_autorise b22b5b14, terminer 36537b6d, annuler 8b4540e9, policy df1ab2ad.",
+        "blob_migration": "ca6434e2d1368658bb7d88ba4b1a2782a5c734be",
+        "blob_provenance": "git hash-object du fichier a 6560e0c0 (md5 0deb44c2f430bd23cff9ba57cd99dcac, celui que Guardian a verifie avant execution, compte rendu 7132131974). Heure de la mesure (mesure.le) : heure du compte rendu ; la mesure l'a precede de quelques minutes."
+      },
+      "trace": "#160, compte rendu de Guardian 7132131974 ; GO du pilote : application sur Test puis en Production constatee par Guardian ; fusion : GO distinct."
     }
   },
   "prochaine_action": "Axe SS4 migration -> code : LEVE pour 20260919103000 (13/13 objets constates sur le catalogue le 01/10/2026) et pour 20261001160000 (ACL constatee fermee le 03/10/2026). Ces qualifications restent acquises tant que leur fichier de migration ne change pas : la garde compare mesure.blob_migration a l'empreinte du candidat, et une migration retouchee fait tomber sa qualification. Il n'y a plus d'echeance horaire (l'ancienne fraicheur de 72 h aurait fait retomber l'axe le 04/10/2026 sans que rien ne bouge). CE QUE LA GARDE NE VOIT PAS : une base modifiee sans que le depot bouge - c'est exactement ce que la relecture du 03/10 a trouve pour 20261001160000. Toute procedure d'application relit donc la base avant d'ecrire. CE QUE CELA N'AUTORISE PAS : aucune fusion ni aucun deploiement ; chacun reste un GO distinct de Frederic. RESTE A FAIRE, separement : (1) les 11 migrations du rail toujours non qualifiees ; (2) le cablage de garde-ordre-migration-code.js dans deploiement-production.yml. Lecture du verdict et table de decision : SS18.4 ; recit de la mesure : SS20. MISE A JOUR DU 04/10/2026 : les 13 migrations du candidat rebuild/fdj-62-20260922 sont qualifiees (12 atomiques en serie avant le code, 20261004120000 code d abord) ; ordre et gestes dans docs/deploiement/procedure-fdj-62-production.md."

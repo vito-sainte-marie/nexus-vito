@@ -16,13 +16,14 @@
     index: 'NEXUS-Releves-Piste-v1.html',
     inventaire: 'NEXUS-Inventaire-v1.html',
     missions: 'NEXUS-Missions-v1.html',
+    datesCourtes: 'NEXUS-Dates-Courtes-Releve-v1.html',
     pointage: 'NEXUS-Pointage-v1.html',
     coachFdj: 'NEXUS-Coach-FDJ-v1.html',
     fdj: 'NEXUS-FDJ-v1.html',
     progression: 'NEXUS-Progression-v1.html',
     prisePoste: 'NEXUS-Prise-De-Poste-v1.html',
   };
-  const MENTION_DESACTIVE = 'Désactivé par le manager';
+  const MENTION_DESACTIVE = 'Non prévu pour le poste de renfort';
   const POSTES_SANS_RECHERCHE = ['pompiste', 'caissiere', 'renfort'];
 
   function esc(s) {
@@ -46,7 +47,8 @@
     if (manager) carburant.push({ code: 'jaugeage', libelle: 'Jaugeage', href: URL.jaugeage });
     // Sans fil de fermeture connu, l'écran de choix des relevés (sans `moment`) reste la porte des index de fin de quart.
     // Le Jaugeage reste hors menu employé.
-    if (manager || (f.enService && !f.fermetureLien)) carburant.push({ code: 'index', libelle: 'Relevés d\'index', href: URL.index });
+    // Employé : « Relevés d'index » est un geste du pompiste du jour ; manager et gérant gardent l'entrée telle quelle.
+    if (manager || (f.enService && !f.fermetureLien && role === 'pompiste')) carburant.push({ code: 'index', libelle: 'Relevés d\'index', href: URL.index });
     if (carburant.length) g.push({ code: 'carburant', titre: 'Carburant', entrees: carburant });
     // Option B (Frédéric, 30/10) : le renfort voit l'entrée Inventaire grisée, non cliquable, avec sa mention,
     // jusqu'au lot dédié « Inventaire renfort ». L'exclusion de l'Accueil (roleDuJour !== 'renfort') n'est pas touchée.
@@ -55,7 +57,10 @@
       : { code: 'inventaire', libelle: 'Inventaire', href: URL.inventaire };
     g.push({ code: 'inventaire', titre: 'Inventaire', entrees: [inventaire] });
     // Pointage : seulement si la station l'a activé (station_config.pointage_actif, lu par l'Accueil).
-    const travail = [{ code: 'missions', libelle: 'Missions', href: URL.missions }];
+    const travail = [];
+    // Dates courtes (poste du jour) : employé seulement, quand l'Accueil a établi le droit ; manager et gérant gardent leur menu inchangé.
+    if (!manager && f.datesCourtesApplicable === true) travail.push({ code: 'dates_courtes', libelle: 'Dates courtes', href: URL.datesCourtes });
+    travail.push({ code: 'missions', libelle: 'Missions', href: URL.missions });
     if (f.pointageActif === true) travail.push({ code: 'pointage', libelle: 'Pointage', href: URL.pointage });
     g.push({ code: 'travail', titre: 'Mon travail', entrees: travail });
     const caisse = [];

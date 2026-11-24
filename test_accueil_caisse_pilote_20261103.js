@@ -43,7 +43,7 @@ const EPREUVES = {
     const v = M.modele(Object.assign({}, base, { piloteCaisse: false, inventaireFait: true }));
     assert.strictEqual(v.faites, 1); assert.strictEqual(v.bouton, null);
   },
-  'renfort, manager, polyvalent, même pilote : aucun modèle': (M) => { for (const r of ['renfort', 'manager', 'polyvalent']) assert.strictEqual(M.modele(Object.assign({}, base, { roleDuJour: r })), null); },
+  'manager, polyvalent, même pilote : aucun modèle': (M) => { for (const r of ['manager', 'polyvalent']) assert.strictEqual(M.modele(Object.assign({}, base, { roleDuJour: r })), null); },
   'hors service ou consultation externe : aucun modèle': (M) => {
     assert.strictEqual(M.modele(Object.assign({}, base, { enService: false })), null);
     assert.strictEqual(M.modele(Object.assign({}, base, { consultationExterne: true })), null);
@@ -79,7 +79,7 @@ for (const [nom, mut] of MUTATIONS) {
   assert(rouge, 'mutation survivante : ' + nom);
 }
 // Câblage : l'Accueil donne les faits déjà chargés, sans nouvelle lecture ; le libellé du fil caisse remplace celui du pompiste.
-assert(/piloteCaisse: piloteCaisse === true, filCaisseLien, fermetureCaisseDue, fdjApplicable,\s*\n\s*inventaireLien: inventaireApplicable \? 'NEXUS-Inventaire-v1.html' : null/.test(APP), 'App ne câble pas la variante');
+assert(/piloteCaisse: piloteCaisse === true, filCaisseLien, fermetureCaisseDue, fdjApplicable, datesCourtesApplicable,\s*\n\s*inventaireLien: inventaireApplicable \? 'NEXUS-Inventaire-v1.html' : null/.test(APP), 'App ne câble pas la variante');
 assert(APP.includes("const FIL_CAISSE_LIEN_TEXTE = 'Commencer l’inventaire →'") && /ctx\.filLien \? FIL_LIEN_TEXTE : ctx\.filCaisseLien \? FIL_CAISSE_LIEN_TEXTE/.test(APP));
 assert(/roleDuJour === NexusFilCaisse\.ROLE && fuseauStation && \(quartDuJour === 'matin' \|\| quartDuJour === 'soir'\)\) \{\s*\n\s*finMinutes = NexusStation\.finDuQuartMinutes/.test(APP), 'App ne charge pas la fin de quart de la caissière');
 console.log('OK — ' + Object.keys(EPREUVES).length + ' épreuves, ' + MUTATIONS.length + ' mutations tuées, câblage vérifié');

@@ -119,7 +119,24 @@
       reception: null, finQuart: null, fermeture: null, termine: null,
       incoherent: (!fait || fermetureAFaire) && !bouton,
       missions: null,
-      raccourcis: { missions: { restantes: Math.max(0, m.total - m.faites), total: m.total }, fdj: f.fdjApplicable === true },
+      raccourcis: { missions: { restantes: Math.max(0, m.total - m.faites), total: m.total }, fdj: f.fdjApplicable === true, datesCourtes: f.datesCourtesApplicable === true },
+      points: Number(f.points) || 0,
+    };
+  }
+
+  // Variante renfort en service : même entête que la caissière (carte de poste, pied « Changer de poste » / « Se déconnecter »),
+  // sans comptage ni inventaire. Dates courtes y est toujours ouvert pour le poste du jour (décision du pilote) ; Missions suit.
+  function modeleRenfort(f) {
+    const m = f.missions || { total: 0, faites: 0 };
+    return {
+      variante: 'renfort',
+      mode: 'ouverture',
+      prenom: f.prenom || '',
+      poste: { libelle: 'Renfort', quart: libelleQuart(f.quart), depuis: heureLocale(f.heureDebut, f.fuseau), fin: f.finMinutes != null ? heureDeMinutes(Number(f.finMinutes)) : null, image: IMAGES_POSTE.renfort },
+      etapes: [], faites: 0, total: 0, filTermine: true,
+      bouton: f.datesCourtesApplicable === true ? { libelle: 'Relever les dates courtes', href: 'NEXUS-Dates-Courtes-Releve-v1.html' } : null,
+      reception: null, finQuart: null, fermeture: null, termine: null, incoherent: false, missions: null,
+      raccourcis: { missions: { restantes: Math.max(0, m.total - m.faites), total: m.total }, fdj: false, datesCourtes: false },
       points: Number(f.points) || 0,
     };
   }
@@ -127,6 +144,7 @@
   // f : faits de l'Accueil. Rend null quand le mode ne s'applique pas.
   function modele(f) {
     if (f && f.enService && !f.consultationExterne && f.roleDuJour === 'caissiere') return modeleCaisse(f);
+    if (f && f.enService && !f.consultationExterne && f.roleDuJour === 'renfort') return modeleRenfort(f);
     if (!f || !f.enService || f.consultationExterne || f.roleDuJour !== 'pompiste') return null;
     const etapes = etapesOuverture(f);
     const faites = etapes.filter((e) => e.etat !== 'a_faire').length;
@@ -210,17 +228,23 @@
     }).join('');
     const segments = v.etapes.map((e) => '<i class="' + (e.etat === 'a_faire' ? '' : 'ap-plein') + '"></i>').join('');
     let out = '';
-    if (v.variante === 'caisse') {
+    if (v.variante === 'caisse' || v.variante === 'renfort') {
       out += '<div class="ap-salut"><h1 class="ap-h1">Bonjour ' + esc(v.prenom) + '</h1></div>' + carte;
-      out += '<section class="ap-fil" id="apFil"><div class="ap-fil-titre">Comptage Boutique</div>'
-        + '<div class="ap-fil-compte">' + v.faites + ' sur ' + v.total + '</div><div class="ap-segments">' + segments + '</div><ul class="ap-etapes">' + lignes + '</ul>'
-        + (v.bouton ? '<a class="ap-bouton ap-bouton-caisse" id="apBoutonPrincipal" href="' + esc(v.bouton.href) + '">' + esc(v.bouton.libelle) + '</a>' : '')
-        + '</section>';
+      if (v.variante === 'caisse') {
+        out += '<section class="ap-fil" id="apFil"><div class="ap-fil-titre">Comptage Boutique</div>'
+          + '<div class="ap-fil-compte">' + v.faites + ' sur ' + v.total + '</div><div class="ap-segments">' + segments + '</div><ul class="ap-etapes">' + lignes + '</ul>'
+          + (v.bouton ? '<a class="ap-bouton ap-bouton-caisse" id="apBoutonPrincipal" href="' + esc(v.bouton.href) + '">' + esc(v.bouton.libelle) + '</a>' : '')
+          + '</section>';
+      } else if (v.bouton) {
+        out += '<a class="ap-bouton ap-bouton-caisse ap-bouton-seul" id="apBoutonPrincipal" href="' + esc(v.bouton.href) + '">' + esc(v.bouton.libelle) + '</a>';
+      }
+      // Ordre : fil, FDJ, Dates courtes (si le droit est ouvert), Missions.
+      if (v.raccourcis.fdj) out += '<a class="ap-lien-discret" id="apFdj" href="NEXUS-FDJ-v1.html">FDJ</a>';
+      if (v.raccourcis.datesCourtes) out += '<a class="ap-lien-discret" id="apDatesCourtes" href="NEXUS-Dates-Courtes-Releve-v1.html">Dates courtes</a>';
       const r = v.raccourcis.missions.restantes;
       out += '<section class="ap-missions" id="apMissions"><div class="ap-fil-titre">Missions du jour</div><div class="ap-missions-sous">'
         + (r > 0 ? r + ' mission' + (r > 1 ? 's' : '') + ' à faire · <a href="' + URL_MISSIONS + '" id="apVoirMissions">Voir</a>' : (v.raccourcis.missions.total ? 'Toutes les missions sont faites' : 'Aucune mission aujourd’hui'))
         + '</div></section>';
-      if (v.raccourcis.fdj) out += '<a class="ap-lien-discret" id="apFdj" href="NEXUS-FDJ-v1.html">FDJ</a>';
       out += '<a class="ap-progression" id="apProgression" href="' + URL_PROGRESSION + '"><span>Ma progression · +' + v.points + ' point' + (v.points > 1 ? 's' : '') + ' aujourd’hui</span><span>Mes séries ›</span></a>';
       out += '<div class="ap-pied"><a href="' + URL_PRISE_DE_POSTE + '" id="apChangerPoste">Changer de poste</a><a href="#" id="apLogout">Se déconnecter</a></div>';
       return out;
