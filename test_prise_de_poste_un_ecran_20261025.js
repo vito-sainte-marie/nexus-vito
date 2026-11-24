@@ -62,10 +62,10 @@ garde('aucun bouton « Continuer » entre la carte et la suite',
   m => { const c = corps(m, 'async function confirmerPriseDePoste('); const f = corps(m, 'function renderChoixPoste()');
     return !/Continuer/.test(c) && !/Continuer/.test(f) && !/id="btnConfirmer"/.test(m); },
   m => m.replace('<p class="pdp-sous">', '<button id="btnConfirmer">Continuer</button><p class="pdp-sous">'));
-garde('Piste ouvre le jaugeage du fil, les autres Missions',
+garde('Piste ouvre le jaugeage du fil, les autres l’accueil, jamais Missions (décision du pilote du 24/11)',
   m => { const f = corps(m, 'function destinationApresPriseDePoste()');
-    return /roleChoisi !== 'pompiste'\) return 'NEXUS-Missions-v1\.html'/.test(f) && /return NexusFilDebutQuart\.ACCUEIL_DEMARRAGE/.test(f); },
-  m => m.replace("return NexusFilDebutQuart.ACCUEIL_DEMARRAGE;", "return 'NEXUS-Missions-v1.html';"));
+    return /if \(roleChoisi === 'pompiste'\) return NexusFilDebutQuart\.ACCUEIL_DEMARRAGE;\s*return 'NEXUS-App-v1\.html';/.test(f) && !/NEXUS-Missions-v1\.html/.test(f.replace(/\/\/.*$/gm, '')); },
+  m => m.replace("return 'NEXUS-App-v1.html';\n  }\n\n  // « Je finis »", "return 'NEXUS-Missions-v1.html';\n  }\n\n  // « Je finis »"));
 garde('une seule écriture : nexus_changer_de_quart',
   m => (m.match(/\.rpc\('nexus_changer_de_quart'/g) || []).length === 1 && !/\.from\('(shifts|pointages)'\)\s*\.(insert|upsert|update)/.test(m),
   m => m.replace("function preparer(", "async function ecrire(){ await nexusClient.from('shifts').insert({}); }\n  function preparer("));
