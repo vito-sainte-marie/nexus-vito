@@ -61,6 +61,12 @@ begin
   select id into ca from employees where username = 'employe-test-a' and site_id = st;
   select id into po from employees where username = 'employe-test-b' and site_id = st;
 
+  -- Accès caissier : fermé par défaut sur la station ; on l'ouvre par le geste de gestion réel (identité du manager).
+  perform set_config('request.jwt.claims', json_build_object('sub', m1, 'role', 'authenticated')::text, true);
+  perform set_config('request.jwt.claim.sub', m1::text, true);
+  perform set_config('request.jwt.claim.role', 'authenticated', true);
+  perform dates_courtes_regler_acces_caissier(true);
+
   for s in 1 .. array_length(spec, 1) loop
     n := spec[s][1]::int; j := spec[s][2]::int; nb := spec[s][7]::int; v_nom := nullif(spec[s][6], ''); v_etat := spec[s][5]; v_motif := nullif(spec[s][8], '');
     auteur := case spec[s][4] when 'm' then m1 when 'p' then po else ca end;

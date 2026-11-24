@@ -243,7 +243,9 @@ begin
 
   -- 9 lecture : lire_tournees et suivi.
   r := pg_temp.n(r, '43 lire_tournees expose l''annulation (auteur)', 'saisie sur le mauvais rayon',
-                 pg_temp.essai('CA1', format($f$select dates_courtes_lire_tournees(%L, array['ANNULEE'])::text$f$, null)));
+                 pg_temp.essai('CA1', format($f$select (select motif_annulation from dates_courtes_lire_tournees(%L, array['ANNULEE']) limit 1)$f$, base || '11')));
+  r := pg_temp.n(r, '43b lire_tournees : tournée annulée par la gestion, visible de l''auteur', 'contrôle à reprendre',
+                 pg_temp.essai('CA1', format($f$select (select motif_annulation || ' / ' || coalesce(annulee_par_nom, '?') from dates_courtes_lire_tournees(%L, array['ANNULEE']) limit 1)$f$, base || '20')));
   r := pg_temp.n(r, '44 lire_tournees : un caissier ne voit pas la tournée d''un autre', '!'||'00000000-0000-4000-8000-0000000e0616',
                  pg_temp.essai('CA1', $f$select (select string_agg(id::text, ',') from dates_courtes_lire_tournees(null, array['ANNULEE']))$f$));
   r := pg_temp.n(r, '45 suivi : Annulée en dernier', '=ANNULEE',
