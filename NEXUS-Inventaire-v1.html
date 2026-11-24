@@ -25,7 +25,7 @@
 <script src="nexus-pointage-regles.js?v=20260904-0104"></script>
 <script src="nexus-header-nav.js?v=20261124-1200"></script>
 <script src="nexus-rayons-familles.js?v=20261121-0001"></script>
-<script src="nexus-icones.js?v=20261122-0001"></script>
+<script src="nexus-icones.js?v=20261124-0001"></script>
 <script src="nexus-desktop.js?v=20261124-1200"></script>
 <script src="nexus-inventaire-moteur.js?v=20260904-0104"></script>
 <script src="nexus-inventaire-plan-donnees.js?v=20260904-0104"></script>
@@ -290,7 +290,8 @@
   .calc-barre{display:flex; align-items:center; gap:6px;}
   .calc-op-btn{font-family:var(--mono); font-size:16px; font-weight:700; color:var(--cyan); background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px; width:32px; height:28px; cursor:pointer; flex-shrink:0; line-height:1;}
   .calc-op-btn:active{background:rgba(var(--cyan-rgb),0.18);}
-  .calc-pop-btn{font-size:12px; font-weight:600; color:var(--text); background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px; min-width:44px; padding:0 8px; height:28px; cursor:pointer; flex-shrink:0; margin-left:auto; line-height:1;}
+  .calc-pop-btn{font-size:12px; font-weight:600; color:var(--text); background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px; min-width:44px; min-height:44px; padding:0 8px; height:44px; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0; margin-left:auto; line-height:1;}
+  .calc-pop-btn img{width:24px; height:24px; display:block; pointer-events:none;}
   .calc-pop-btn:active{background:var(--hairline);}
   .calc-apercu{font-family:var(--mono); font-size:11.5px; color:var(--cyan); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
 
@@ -4365,7 +4366,7 @@
         <button type="button" class="calc-op-btn" data-calc-op="*">×</button>
         <button type="button" class="calc-op-btn" data-calc-op="/">÷</button>
         <span class="calc-apercu"></span>
-        <button type="button" class="calc-pop-btn" title="Calculatrice" aria-label="Ouvrir la calculatrice">Calc.</button>
+        <button type="button" class="calc-pop-btn" title="Calculatrice" aria-label="Ouvrir la calculatrice">${window.NexusIcones ? NexusIcones.img('act-calculatrice', 24, { decoratif: true, ancien: 'Calc.' }) : 'Calc.'}</button>
       </div>
     `;
   }

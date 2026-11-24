@@ -19,3 +19,6 @@ Familles de rayon (18 icônes ajoutées le 21/11/2026) : cat-alcools, cat-auto, 
 Origine et licence : images générées avec ChatGPT, commandées par le pilote. Les sources (fond vert uni) ne sont pas dans le dépôt, seulement les fichiers produits.
 Traitement : retrait du fond vert par clé de couleur, recadrage sur l'objet, placement à 80 % dans la tuile Nuit ou Jour, mêmes formats et mêmes plafonds de poids que ci-dessus.
 Planches de contrôle : planche-controle-familles-nuit.png et planche-controle-familles-jour.png (16, 24, 48, 96 px).
+
+Calculatrice (act-calculatrice, 24/11/2026) : image générée avec ChatGPT, commandée par le pilote ; la source (fond vert uni) n'est pas dans le dépôt, seulement les fichiers produits.
+Traitement : retrait du fond vert par clé de couleur (alpha estimé, dominante verte retirée sur les bords), recadrage sur l'objet, placement à 80 % dans la tuile Nuit, WebP @1x/@2x/@3x, simplifié 24 px (PNG et SVG), planches de contrôle planche-controle-nuit.png et planche-controle-jour.png (16, 24, 48, 96 px) dans act-calculatrice/.
