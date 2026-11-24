@@ -1735,6 +1735,45 @@
         "blob_provenance": "git hash-object du fichier a 83ea30d9 (md5 9954345ab845e191ccf6a8d470d79d45, celui que Guardian a verifie avant execution, compte rendu 7142180363). Heure de la mesure (mesure.le) : heure du compte rendu ; la mesure l'a precede de quelques minutes."
       },
       "trace": "#160, compte rendu de Guardian 7142180363 ; GO du pilote : application sur Test puis en Production constatee par Guardian ; fusion : GO distinct."
+    },
+    "20261125140000": {
+          "etat": "migration_deja_appliquee",
+          "justification": "Migration RLS lot 2 : lectures de 12 tables closes a la gestion (select_gestion_*, remplacent les politiques « meme station »), INSERT controles_stock reserve a la gestion, ecriture inventaire_lots scindee en trois politiques par role (la politique ALL disparait). recette_ci_site_test absente de Production avant et apres. Aucun objet de donnees cree, aucune table, colonne ni ligne touchee. Appliquee sur Test puis en Production par Guardian sur GO du pilote (24/11/2026), avant la fusion du code (meme PR).",
+          "objets_crees": [],
+          "objets_constates": [
+                "select_gestion_campagnes_nexus",
+                "select_gestion_campagnes_nexus_imports",
+                "select_gestion_carburant_sonde_alertes",
+                "select_gestion_moteur_documentaire_etat",
+                "select_gestion_employee_contraintes",
+                "select_gestion_employee_indisponibilites",
+                "select_gestion_controles_stock",
+                "select_gestion_panier_moyen_quotidien",
+                "select_gestion_stock_releves",
+                "select_gestion_marge_exceptions",
+                "select_gestion_product_locations",
+                "select_gestion_product_photos",
+                "insert_gestion_controles_stock",
+                "insert_gestion_inventaire_lots",
+                "update_gestion_inventaire_lots",
+                "delete_gestion_inventaire_lots"
+          ],
+          "valide_par": null,
+          "valide_le": null,
+          "mesure": {
+                "source": "catalogue",
+                "le": "2026-11-24T20:10:24Z",
+                "cible": "uzhjpqpctpvxytxpxoqz",
+                "par": "guardian",
+                "outil": "left(md5(polqual||'|'||polwithcheck),8) politique par politique sur les 13 tables (12 tables + inventaire_lots, commandes r/a/w/d), compare a Test (udljdqxerrbbbajxubfn)",
+                "identite_constatee": "non communiquee dans le compte rendu de Guardian",
+                "lecture_seule": "non communiquee",
+                "moteur": "non communique",
+                "verdict": "MIGRATION_APPLIQUEE — 41 politiques des 13 tables identiques en Production et sur Test ; plus aucune politique ALL sur inventaire_lots. Empreintes : select_gestion_campagnes_nexus e61b9794, campagnes_nexus_imports 170984e2, carburant_sonde_alertes b734b29a, moteur_documentaire_etat 6e866c4d, employee_contraintes f9f14cd7, employee_indisponibilites 92566c09, controles_stock 4d09070b, panier_moyen_quotidien 2f26d02b, stock_releves 88867990, marge_exceptions 1933e1b2, product_locations cb950983, product_photos 24abe898 ; insert_gestion_controles_stock et insert_gestion_inventaire_lots 7430c2de, update_gestion_inventaire_lots 8a12a28a, delete_gestion_inventaire_lots fce9cf35.",
+                "blob_migration": "83cdd23b8db720daf5c5e28b51dd0688bca79808",
+                "blob_provenance": "git hash-object du fichier a 1575f255 (md5 675b68ad286545fc39fdf0b6cb6ced46, celui que Guardian a verifie avant execution, compte rendu 7143142994). Heure de la mesure (mesure.le) : heure du compte rendu ; la mesure l'a precede."
+          },
+          "trace": "#160, compte rendu de Guardian 7143142994 ; GO du pilote : application sur Test puis en Production constatee par Guardian ; fusion : GO distinct."
     }
   },
   "prochaine_action": "Axe SS4 migration -> code : LEVE pour 20260919103000 (13/13 objets constates sur le catalogue le 01/10/2026) et pour 20261001160000 (ACL constatee fermee le 03/10/2026). Ces qualifications restent acquises tant que leur fichier de migration ne change pas : la garde compare mesure.blob_migration a l'empreinte du candidat, et une migration retouchee fait tomber sa qualification. Il n'y a plus d'echeance horaire (l'ancienne fraicheur de 72 h aurait fait retomber l'axe le 04/10/2026 sans que rien ne bouge). CE QUE LA GARDE NE VOIT PAS : une base modifiee sans que le depot bouge - c'est exactement ce que la relecture du 03/10 a trouve pour 20261001160000. Toute procedure d'application relit donc la base avant d'ecrire. CE QUE CELA N'AUTORISE PAS : aucune fusion ni aucun deploiement ; chacun reste un GO distinct de Frederic. RESTE A FAIRE, separement : (1) les 11 migrations du rail toujours non qualifiees ; (2) le cablage de garde-ordre-migration-code.js dans deploiement-production.yml. Lecture du verdict et table de decision : SS18.4 ; recit de la mesure : SS20. MISE A JOUR DU 04/10/2026 : les 13 migrations du candidat rebuild/fdj-62-20260922 sont qualifiees (12 atomiques en serie avant le code, 20261004120000 code d abord) ; ordre et gestes dans docs/deploiement/procedure-fdj-62-production.md."
