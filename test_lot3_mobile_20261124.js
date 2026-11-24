@@ -44,6 +44,9 @@ const garde = {
   'en-tête : aucune ligne vide de l’en-tête ne prend de place': (app) => {
     assert(/#sessionInfo:empty, #headerLive:empty\{display:none;\}/.test(app));
   },
+  'accueil employé : en-tête sans hauteur minimale': (app) => {
+    assert(/body\.accueil-piste \.header\{min-height:0 !important;\}/.test(app));
+  },
   'renfort : « fin à » calculé aux horaires de la station, quart connu seulement': (app) => {
     assert(/roleDuJour === NexusFilCaisse\.ROLE \|\| roleDuJour === 'renfort'\) && fuseauStation && \(quartDuJour === 'matin' \|\| quartDuJour === 'soir'\)/.test(app));
   },
@@ -89,6 +92,7 @@ const garde = {
 };
 
 const MUT_APP = [
+  ['hauteur minimale héritée', 'accueil employé : en-tête sans hauteur minimale', (s) => s.replace('body.accueil-piste .header{min-height:0 !important;}', 'body.accueil-piste .header{min-height:0;}')],
   ['lignes vides réservées', 'en-tête : aucune ligne vide de l’en-tête ne prend de place', (s) => s.replace('#sessionInfo:empty, #headerLive:empty{display:none;}', '#sessionInfo:empty, #headerLive:empty{display:block;}')],
   ['renfort sans fin', 'renfort : « fin à » calculé aux horaires de la station, quart connu seulement', (s) => s.replace("roleDuJour === NexusFilCaisse.ROLE || roleDuJour === 'renfort') && fuseauStation", "roleDuJour === NexusFilCaisse.ROLE) && fuseauStation")],
   ['Inter revenue', 'police : aucune Inter sur l\'Accueil employé (Plex Sans, Plex Mono pour les chiffres)', (s) => s.replace('#accueilPisteHote, #accueilPisteHote *{font-family:var(--sans),', "#accueilPisteHote, #accueilPisteHote *{font-family:'Inter',")],

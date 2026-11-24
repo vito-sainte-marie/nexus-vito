@@ -759,6 +759,8 @@
   #accueilPisteHote{display:none;}
   body.accueil-piste{font-family:var(--sans),-apple-system,sans-serif;font-variant-numeric:tabular-nums;}
   body.accueil-piste #accueilPisteHote{display:block;padding:0 20px 24px;}
+  /* Accueil employé : pas de bannière, donc pas la hauteur minimale de l'en-tête commun (nexus-banniere-station.js) — Guardian 7138967263. */
+  body.accueil-piste .header{min-height:0 !important;}
   body.accueil-piste .header-statut-row, body.accueil-piste #taglineRole, body.accueil-piste #sessionInfo, body.accueil-piste #prisePosteHote{display:none !important;}
   body.accueil-piste #conseillerEmployeWrap > *:not(#accueilPisteHote){display:none !important;}
   #accueilPisteHote, #accueilPisteHote *{font-family:var(--sans),-apple-system,sans-serif;}
