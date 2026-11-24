@@ -952,12 +952,31 @@ async function nexusRoleGestion() {
     return !!e && (e.role === 'manager' || e.role === 'gerant' || e.est_createur === true);
   } catch (err) { return false; }
 }
-// Gestion : la liste complète. Sinon : la liste de nexus-menu-accueil.js (une seule source), rendue au format du bureau.
+// Gestion : la liste complète. Sinon : les entrées de l'Accueil établies sur les FAITS RÉELS de l'employé
+// (service du jour, forfait, réglages de la station : nexus-menu-faits.js), rendues au format du bureau.
+// Un fait illisible retire son entrée ; employé hors service : aucune entrée (comme le menu ☰ de l'Accueil).
+async function nexusEmployeConnecte() {
+  try {
+    if (typeof nexusClient === 'undefined') return null;
+    const { data: { session } } = await nexusClient.auth.getSession();
+    if (!session) return null;
+    const { data: e } = await nexusClient.from('employees').select('id, role, est_createur, site_id').eq('id', session.user.id).maybeSingle();
+    return e || null;
+  } catch (err) { return null; }
+}
 async function nexusGroupesPourRole(gestion) {
   if (gestion) return NEXUS_SIDEBAR_GROUPES;
   try {
     await nexusChargerScript('nexus-menu-accueil.js');
-    return window.NexusMenuAccueil.groupesLateraux().map((g) => ({
+    await nexusChargerScript('nexus-menu-faits.js');
+    if (typeof NexusForfait === 'undefined') await nexusChargerScript('nexus-forfait.js');
+    const employee = await nexusEmployeConnecte();
+    const f = await window.NexusMenuFaits.faits(employee, {
+      client: nexusClient,
+      serviceCourant: (e) => nexusServiceCourant(e),
+      forfait: typeof NexusForfait === 'undefined' ? null : NexusForfait,
+    });
+    return window.NexusMenuFaits.groupesLateraux(window.NexusMenuAccueil, f).map((g) => ({
       nom: g.titre,
       items: g.entrees.map((e) => ({ label: e.libelle, href: e.href, module: window.NexusMenuAccueil.ICONE[e.code], emoji: '•' })),
     }));
