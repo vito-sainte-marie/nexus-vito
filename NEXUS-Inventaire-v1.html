@@ -86,10 +86,11 @@
     box-shadow:0 4px 14px rgba(var(--shadow-rgb),0.25); transition:transform .15s;
   }
   .choix-card:active{transform:scale(0.98);}
-  .choix-card.disabled{opacity:0.4; pointer-events:none;}
+  .choix-card.disabled{pointer-events:none;}
+  .choix-card.disabled .choix-icone,.choix-card.disabled .choix-titre,.choix-card.disabled .choix-sub{opacity:0.4;}
   .choix-icone{width:52px; height:52px; border-radius:14px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:24px;}
   .choix-icone.ouverture{background:radial-gradient(circle at 32% 28%, rgba(var(--cyan-rgb),0.30), var(--panel-raised) 72%); box-shadow:inset 0 0 0 1px rgba(var(--cyan-rgb),0.25);}
-  .choix-icone.cloture{background:radial-gradient(circle at 32% 28%, rgba(var(--gold-rgb),0.30), var(--panel-raised) 72%); box-shadow:inset 0 0 0 1px rgba(var(--gold-rgb),0.3);}
+  .choix-icone.cloture{background:radial-gradient(circle at 32% 28%, rgba(var(--cyan-rgb),0.30), var(--panel-raised) 72%); box-shadow:inset 0 0 0 1px rgba(var(--cyan-rgb),0.25);}
   .choix-titre{font-size:15.5px; font-weight:700;}
   .choix-sub{font-size:11.5px; color:var(--text-mid); margin-top:3px; line-height:1.4;}
   .choix-statut{font-family:var(--mono); font-size:9.5px; letter-spacing:0.05em; text-transform:uppercase; margin-top:5px;}
@@ -337,7 +338,8 @@
   .titre-ico .ico-inv{vertical-align:0;color:var(--cyan)}
   .titre-missions .ico-inv{color:var(--cyan)}
   .choix-icone .ico-inv{color:var(--cyan)}
-  .choix-statut .ico-verrou{color:var(--text-dim);margin-right:5px;vertical-align:-3px}
+  .choix-statut .ico-verrou{color:var(--text-mid);margin-right:5px;vertical-align:-4px}
+  .choix-card.disabled .choix-statut.attente{color:var(--text-mid);}
 /* Fil « Mon début de quart » : pas de retour vers le catalogue des catégories. */
 .fil-revue-cat{font-weight:600; margin-bottom:6px;}
 .fil-revue-ligne{display:flex !important; justify-content:space-between; gap:12px; text-align:left; font-size:14px !important; color:var(--text) !important; border-top:1px solid var(--hairline) !important;}
@@ -1876,7 +1878,7 @@
             <div class="choix-titre">Clôturer mon inventaire</div>
             <div class="choix-sub">Mouvements du quart + stock final avant de passer la main.</div>
             ${clotureFaite ? '<div class="choix-statut fait">✓ Fait pour ce quart</div>' : ''}
-            ${!ouvertureFaite && !clotureFaite ? `<div class="choix-statut attente">${NexusIcones.svg('lock-keyhole', 14, 'ico-inv ico-verrou')}Commencez d'abord votre inventaire</div>` : ''}
+            ${!ouvertureFaite && !clotureFaite ? `<div class="choix-statut attente">${NexusIcones.svg('lock-keyhole', 16, 'ico-inv ico-verrou')}Commencez d'abord votre inventaire</div>` : ''}
           </div>
         </div>
       </div>
