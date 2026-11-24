@@ -31,7 +31,8 @@ insert into ids values
   ('NS1', '00000000-0000-4000-8000-0000000e0806', 'caissier', 'nexus-station-test', false),
   ('SW1', '00000000-0000-4000-8000-0000000e0807', 'caissier', 'nexus-station-test', false),
   ('EN1', '00000000-0000-4000-8000-0000000e0808', 'pompiste', 'nexus-station-test', false),
-  ('G2',  '00000000-0000-4000-8000-0000000e0809', 'gerant',   'nexus-station-test', false);
+  ('G2',  '00000000-0000-4000-8000-0000000e0809', 'gerant',   'nexus-station-test', false),
+  ('OS1', '00000000-0000-4000-8000-0000000e080a', 'caissier', 'nexus-station-test', false);
 
 insert into auth.users (id, aud, role, email) select v, 'authenticated', 'authenticated', 'recette-pdj-' || lower(k) || '@invalid.test' from ids;
 insert into employees (id, username, nom, role, actif, est_createur, site_id, compte_test)
@@ -44,6 +45,11 @@ insert into shifts (employee_id, site, site_id, role, statut, heure_fin)
   select v, 'nexus-station-test', 'nexus-station-test', x.sr, x.st, case when x.st = 'termine' then now() else null end
   from ids join (values ('CA1','caissiere','en_cours'), ('RE1','renfort','en_cours'), ('PO1','pompiste','en_cours'),
                         ('SW1','pompiste','en_cours'), ('EN1','pompiste','termine')) as x(k, sr, st) on x.k = ids.k;
+
+-- OS1 : fiche de nexus-station-test, mais son seul service en_cours est posé sur une autre station, en renfort.
+insert into sites (site_id, nom_entreprise, timezone) select 'recette-autre-station', 'Station de recette', 'America/Martinique' where not exists (select 1 from sites where site_id = 'recette-autre-station');
+insert into shifts (employee_id, site, site_id, role, statut, heure_fin)
+  select v, 'recette-autre-station', 'recette-autre-station', 'renfort', 'en_cours', null from ids where k = 'OS1';
 
 create function pg_temp.comme(k text) returns void language plpgsql as $$
 declare u uuid;
@@ -167,6 +173,11 @@ begin
   r := pg_temp.n(r, '38 authenticated avec EXECUTE', '=true', pg_temp.val($f$select has_function_privilege('authenticated', 'public.dates_courtes_poste_du_jour()', 'execute')::text$f$));
   r := pg_temp.n(r, '39 anon sans EXECUTE sur operer', '=false', pg_temp.val($f$select has_function_privilege('anon', 'public.dates_courtes_operer()', 'execute')::text$f$));
   r := pg_temp.n(r, '40 anon sans EXECUTE sur terminer', '=false', pg_temp.val($f$select has_function_privilege('anon', 'public.dates_courtes_terminer_tournee(uuid)', 'execute')::text$f$));
+
+  -- 6 service d'une autre station : refusé (le poste du jour se lit sur la station de la fiche)
+  r := pg_temp.n(r, '41 service d''une autre station : aucun poste', '=', pg_temp.essai('OS1', 'select dates_courtes_poste_du_jour()'));
+  r := pg_temp.n(r, '42 service d''une autre station : opérer refusé', '=false', pg_temp.essai('OS1', 'select dates_courtes_operer()::text'));
+  r := pg_temp.n(r, '43 service d''une autre station : créer une tournée refusé', 'droit_refuse', pg_temp.essai('OS1', $f$select dates_courtes_creer_tournee('Tournée autre station','pdj-os1')::text$f$));
 
   raise exception 'RAPPORT_ACCUEIL_RENFORT %', jsonb_build_object('total', jsonb_array_length(r),
     'ko', (select count(*) from jsonb_array_elements(r) e where not (e->>'ok')::boolean), 'cas', r);

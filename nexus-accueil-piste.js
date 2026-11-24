@@ -133,9 +133,10 @@
       mode: 'ouverture',
       prenom: f.prenom || '',
       poste: { libelle: 'Renfort', quart: libelleQuart(f.quart), depuis: heureLocale(f.heureDebut, f.fuseau), fin: f.finMinutes != null ? heureDeMinutes(Number(f.finMinutes)) : null, image: IMAGES_POSTE.renfort },
-      etapes: [], faites: 0, total: 0, filTermine: true, bouton: null,
+      etapes: [], faites: 0, total: 0, filTermine: true,
+      bouton: f.datesCourtesApplicable === true ? { libelle: 'Relever les dates courtes', href: 'NEXUS-Dates-Courtes-Releve-v1.html' } : null,
       reception: null, finQuart: null, fermeture: null, termine: null, incoherent: false, missions: null,
-      raccourcis: { missions: { restantes: Math.max(0, m.total - m.faites), total: m.total }, fdj: false, datesCourtes: f.datesCourtesApplicable === true },
+      raccourcis: { missions: { restantes: Math.max(0, m.total - m.faites), total: m.total }, fdj: false, datesCourtes: false },
       points: Number(f.points) || 0,
     };
   }
@@ -234,6 +235,8 @@
           + '<div class="ap-fil-compte">' + v.faites + ' sur ' + v.total + '</div><div class="ap-segments">' + segments + '</div><ul class="ap-etapes">' + lignes + '</ul>'
           + (v.bouton ? '<a class="ap-bouton ap-bouton-caisse" id="apBoutonPrincipal" href="' + esc(v.bouton.href) + '">' + esc(v.bouton.libelle) + '</a>' : '')
           + '</section>';
+      } else if (v.bouton) {
+        out += '<a class="ap-bouton ap-bouton-caisse" id="apBoutonPrincipal" href="' + esc(v.bouton.href) + '">' + esc(v.bouton.libelle) + '</a>';
       }
       // Ordre : fil, FDJ, Dates courtes (si le droit est ouvert), Missions.
       if (v.raccourcis.fdj) out += '<a class="ap-lien-discret" id="apFdj" href="NEXUS-FDJ-v1.html">FDJ</a>';

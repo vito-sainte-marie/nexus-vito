@@ -10,6 +10,7 @@ create or replace function dates_courtes_poste_du_jour() returns text
 language sql stable security definer set search_path = public, pg_temp as $$
   select s.role from shifts s join employees e on e.id = s.employee_id
   where s.employee_id = auth.uid() and e.actif and s.statut = 'en_cours'
+    and s.site_id = e.site_id
   order by s.created_at desc, s.id desc limit 1
 $$;
 

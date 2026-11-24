@@ -13,10 +13,17 @@ const T = {
   'renfort : pied Changer de poste et Se déconnecter, pas de comptage': () => {
     const h = P.html(P.modele(Object.assign({}, base, { roleDuJour: 'renfort', datesCourtesApplicable: true })));
     assert.ok(/id="apChangerPoste"[^>]*>Changer de poste/.test(h)); assert.ok(/id="apLogout"/.test(h));
-    assert.ok(!/Comptage Boutique/.test(h)); assert.ok(/id="apDatesCourtes"/.test(h)); assert.ok(/id="apMissions"/.test(h));
+    assert.ok(!/Comptage Boutique/.test(h)); assert.ok(/id="apMissions"/.test(h));
+  },
+  'renfort avec droit : Dates courtes est le bouton principal, avant Missions, sans lien en doublon': () => {
+    const v = P.modele(Object.assign({}, base, { roleDuJour: 'renfort', datesCourtesApplicable: true }));
+    assert.strictEqual(v.bouton.libelle, 'Relever les dates courtes'); assert.strictEqual(v.bouton.href, 'NEXUS-Dates-Courtes-Releve-v1.html');
+    const h = P.html(v);
+    assert.ok(/id="apBoutonPrincipal"/.test(h) && /ap-bouton ap-bouton-caisse/.test(h) && !/apDatesCourtes/.test(h));
+    assert.ok(h.indexOf('id="apBoutonPrincipal"') < h.indexOf('id="apMissions"') && h.indexOf('id="apMissions"') < h.indexOf('id="apChangerPoste"'));
   },
   'renfort sans droit : pas de lien Dates courtes': () => {
-    assert.ok(!/apDatesCourtes/.test(P.html(P.modele(Object.assign({}, base, { roleDuJour: 'renfort' })))));
+    { const h = P.html(P.modele(Object.assign({}, base, { roleDuJour: 'renfort' }))); assert.ok(!/apDatesCourtes|apBoutonPrincipal|Relever les dates courtes/.test(h)); }
   },
   'caissière : ordre fil, FDJ, Dates courtes, Missions': () => {
     const h = P.html(P.modele(Object.assign({}, base, { roleDuJour: 'caissiere', fdjApplicable: true, datesCourtesApplicable: true })));

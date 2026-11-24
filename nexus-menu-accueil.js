@@ -23,7 +23,7 @@
     progression: 'NEXUS-Progression-v1.html',
     prisePoste: 'NEXUS-Prise-De-Poste-v1.html',
   };
-  const MENTION_DESACTIVE = 'Désactivé par le manager';
+  const MENTION_DESACTIVE = 'Non prévu pour le poste de renfort';
   const POSTES_SANS_RECHERCHE = ['pompiste', 'caissiere', 'renfort'];
 
   function esc(s) {
@@ -47,7 +47,8 @@
     if (manager) carburant.push({ code: 'jaugeage', libelle: 'Jaugeage', href: URL.jaugeage });
     // Sans fil de fermeture connu, l'écran de choix des relevés (sans `moment`) reste la porte des index de fin de quart.
     // Le Jaugeage reste hors menu employé.
-    if (manager || (f.enService && !f.fermetureLien)) carburant.push({ code: 'index', libelle: 'Relevés d\'index', href: URL.index });
+    // Employé : « Relevés d'index » est un geste du pompiste du jour ; manager et gérant gardent l'entrée telle quelle.
+    if (manager || (f.enService && !f.fermetureLien && role === 'pompiste')) carburant.push({ code: 'index', libelle: 'Relevés d\'index', href: URL.index });
     if (carburant.length) g.push({ code: 'carburant', titre: 'Carburant', entrees: carburant });
     // Option B (Frédéric, 30/10) : le renfort voit l'entrée Inventaire grisée, non cliquable, avec sa mention,
     // jusqu'au lot dédié « Inventaire renfort ». L'exclusion de l'Accueil (roleDuJour !== 'renfort') n'est pas touchée.
