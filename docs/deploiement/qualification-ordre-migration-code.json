@@ -1698,6 +1698,43 @@
         "blob_provenance": "git hash-object du fichier a 6560e0c0 (md5 0deb44c2f430bd23cff9ba57cd99dcac, celui que Guardian a verifie avant execution, compte rendu 7132131974). Heure de la mesure (mesure.le) : heure du compte rendu ; la mesure l'a precede de quelques minutes."
       },
       "trace": "#160, compte rendu de Guardian 7132131974 ; GO du pilote : application sur Test puis en Production constatee par Guardian ; fusion : GO distinct."
+    },
+    "20261125100000": {
+      "etat": "migration_deja_appliquee",
+      "justification": "Migration RLS lot 1 : 12 vues view_fdj_* passees en security_invoker=true (elles ne lisaient plus avec les droits du proprietaire) ; 2 policies RECREEES (select_evaluations_employes sur evaluations_employes, select_controles_tenue sur controles_tenue). Aucun objet cree, aucune table, colonne ni ligne touchee, aucune ecriture de donnees. Appliquee sur Test puis en Production par Guardian sur GO du pilote (24/11/2026), avant la fusion du code (meme PR).",
+      "objets_crees": [],
+      "objets_constates": [
+        "view_fdj_daily_summary",
+        "view_fdj_discrepancy_daily",
+        "view_fdj_employee_daily",
+        "view_fdj_employee_price_tier_daily",
+        "view_fdj_game_daily",
+        "view_fdj_game_daily_mouvements",
+        "view_fdj_game_daily_ventes",
+        "view_fdj_monthly_summary",
+        "view_fdj_price_tier_daily",
+        "view_fdj_shift_facts",
+        "view_fdj_weekly_summary",
+        "view_fdj_yearly_summary",
+        "select_evaluations_employes",
+        "select_controles_tenue"
+      ],
+      "valide_par": null,
+      "valide_le": null,
+      "mesure": {
+        "source": "catalogue",
+        "le": "2026-11-24T19:29:49Z",
+        "cible": "uzhjpqpctpvxytxpxoqz",
+        "par": "guardian",
+        "outil": "application de la migration sur GO du pilote, puis reloptions @> array['security_invoker=true'] sur les 12 vues view_fdj_* et left(md5(pg_get_expr(polqual, polrelid)),8) pour les deux politiques ; resultat identique sur Test (udljdqxerrbbbajxubfn)",
+        "identite_constatee": "non communiquee dans le compte rendu de Guardian",
+        "lecture_seule": "non communiquee",
+        "moteur": "non communique",
+        "verdict": "MIGRATION_APPLIQUEE — vues view_fdj_* en security_invoker=true : 12/12. select_evaluations_employes : md5 de polqual 6df3607d (identique a Test). select_controles_tenue : md5 de polqual 8b165fbc (identique a Test). Etat avant, identique a Test : 12 vues sans reloptions ; les deux politiques « meme station » ; une politique SELECT sur chacune des 6 tables fdj_*.",
+        "blob_migration": "e674414d70f475a862433ac83ecbbfc7f31eed46",
+        "blob_provenance": "git hash-object du fichier a 83ea30d9 (md5 9954345ab845e191ccf6a8d470d79d45, celui que Guardian a verifie avant execution, compte rendu 7142180363). Heure de la mesure (mesure.le) : heure du compte rendu ; la mesure l'a precede de quelques minutes."
+      },
+      "trace": "#160, compte rendu de Guardian 7142180363 ; GO du pilote : application sur Test puis en Production constatee par Guardian ; fusion : GO distinct."
     }
   },
   "prochaine_action": "Axe SS4 migration -> code : LEVE pour 20260919103000 (13/13 objets constates sur le catalogue le 01/10/2026) et pour 20261001160000 (ACL constatee fermee le 03/10/2026). Ces qualifications restent acquises tant que leur fichier de migration ne change pas : la garde compare mesure.blob_migration a l'empreinte du candidat, et une migration retouchee fait tomber sa qualification. Il n'y a plus d'echeance horaire (l'ancienne fraicheur de 72 h aurait fait retomber l'axe le 04/10/2026 sans que rien ne bouge). CE QUE LA GARDE NE VOIT PAS : une base modifiee sans que le depot bouge - c'est exactement ce que la relecture du 03/10 a trouve pour 20261001160000. Toute procedure d'application relit donc la base avant d'ecrire. CE QUE CELA N'AUTORISE PAS : aucune fusion ni aucun deploiement ; chacun reste un GO distinct de Frederic. RESTE A FAIRE, separement : (1) les 11 migrations du rail toujours non qualifiees ; (2) le cablage de garde-ordre-migration-code.js dans deploiement-production.yml. Lecture du verdict et table de decision : SS18.4 ; recit de la mesure : SS20. MISE A JOUR DU 04/10/2026 : les 13 migrations du candidat rebuild/fdj-62-20260922 sont qualifiees (12 atomiques en serie avant le code, 20261004120000 code d abord) ; ordre et gestes dans docs/deploiement/procedure-fdj-62-production.md."
