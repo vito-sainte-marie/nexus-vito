@@ -467,6 +467,10 @@
     const f = t => new Date(t).toISOString().slice(0, 10);
     return {p_du: f(Date.UTC(y, m - 1, d - (n - 1))), p_au: f(Date.UTC(y, m - 1, d))};
   }
+  function produitsSv(t){
+    if (t.etat === 'ANNULEE') { const k = t.produits_annules || 0; return '<span class="num">' + nb(k) + '</span> ' + (k > 1 ? 'produits annulés' : 'produit annulé'); }
+    return '<span class="num">' + nb(t.produits) + '</span> ' + (t.produits > 1 ? 'produits' : 'produit');
+  }
   function texteErreur(err){
     const m = String((err && err.message) || '');
     const x = /^[a-z_]+\s*:\s*([\s\S]+)$/.exec(m);
@@ -500,7 +504,7 @@
     let h = '<div class="sv-carte' + (aCert ? ' a-certifier' : '') + '" data-carte="' + esc(t.id) + '">' +
       '<button type="button" class="sv-ouvrir" data-ouvrir="' + esc(t.id) + '" aria-label="Voir le détail : ' + esc(t.nom) + '">' +
       '<span class="sv-ligne1"><span class="sv-nom">' + esc(t.nom) + '</span>' + badgeSv(t.etat) + '</span>' +
-      '<span class="sv-meta">' + esc(t.auteur || 'Auteur inconnu') + ' · ' + dateFr(t.jour) + ' · ' + horaire + ' · <span class="num">' + nb(t.produits) + '</span> ' + (t.produits > 1 ? 'produits' : 'produit') + an + '</span></button>';
+      '<span class="sv-meta">' + esc(t.auteur || 'Auteur inconnu') + ' · ' + dateFr(t.jour) + ' · ' + horaire + ' · ' + produitsSv(t) + an + '</span></button>';
     if (t.etat === 'ANNULEE') h += '<div class="sv-meta">Annulée' + (t.annulee_par ? ' par ' + esc(t.annulee_par) : '') + (t.annulee_a ? ' à ' + esc(t.annulee_a) : '') + (t.motif_annulation ? ' · ' + esc(t.motif_annulation) : '') + '</div>';
     if (aCert && t.anomalies > 0) h += '<div class="sv-actions"><button type="button" class="sv-btn" data-ouvrir="' + esc(t.id) + '">Voir ' + (t.anomalies > 1 ? 'les ' + nb(t.anomalies) + ' anomalies' : 'l\'anomalie') + '</button></div>';
     else if (aCert) h += SV.conf === t.id ? blocConfirmation(t.id) : '<div class="sv-actions"><button type="button" class="sv-btn" data-certifier="' + esc(t.id) + '">Certifier</button></div>';
@@ -591,7 +595,7 @@
     const corr = SV.corr;
     const horaire = t.etat === 'EN_COURS' ? 'commencée à ' + esc(t.debut) + ' · en cours' : esc(t.debut) + (t.fin ? ' à ' + esc(t.fin) : '');
     let h = retour + '<div class="sv-carte' + (aCert ? ' a-certifier' : '') + '" style="margin-top:8px"><div class="sv-ligne1"><span class="sv-nom">' + esc(t.nom) + '</span>' + badgeSv(t.etat) + '</div>' +
-      '<span class="sv-meta">' + esc(t.auteur || 'Auteur inconnu') + ' · ' + dateFr(t.jour) + ' · ' + horaire + ' · <span class="num">' + nb(t.produits) + '</span> ' + (t.produits > 1 ? 'produits' : 'produit') + (t.anomalies > 0 ? ' · <span class="sv-anom">' + anomN(t.anomalies) + '</span>' : '') + '</span>';
+      '<span class="sv-meta">' + esc(t.auteur || 'Auteur inconnu') + ' · ' + dateFr(t.jour) + ' · ' + horaire + ' · ' + produitsSv(t) + (t.anomalies > 0 ? ' · <span class="sv-anom">' + anomN(t.anomalies) + '</span>' : '') + '</span>';
     if (SV.msg) h += '<div class="' + (SV.msg.ok ? 'sv-ok' : 'sv-err') + '" role="' + (SV.msg.ok ? 'status' : 'alert') + '">' + esc(SV.msg.texte) + '</div>';
     if (aCert && !corr) {
       h += SV.conf === t.id ? blocConfirmation(t.id) : '<div class="sv-actions"><button type="button" class="sv-btn" data-certifier="' + esc(t.id) + '">Certifier</button><button type="button" class="sv-btn second" data-corriger>Demander une correction</button></div>';
@@ -612,7 +616,9 @@
         '<div class="sv-actions"><button type="button" class="sv-btn" data-envoyer' + (raison || SV.occupe ? ' disabled' : '') + '>Envoyer la demande</button><button type="button" class="sv-btn second" data-annuler-corr>Annuler</button>' + (raison ? '<span class="sv-raison" id="svRaison">' + raison + '</span>' : '') + '</div></div>';
     } else {
       const prods = d.produits || [];
-      h += '<h2>Produits relevés</h2>' + (prods.length ? prods.map(r => '<div class="sv-prod"><span><b>' + esc(r.libelle || 'Produit non identifié') + '</b><br><span class="sv-meta">' + codeSv(r) + dateFr(r.date_limite) + ' · <span class="num">' + nb(r.quantite) + '</span> ' + (r.quantite > 1 ? 'unités' : 'unité') + (r.anomalies.length ? ' · <span class="sv-anom">' + r.anomalies.map(c => esc(ANOM[c] || '')).filter(Boolean).join(', ') + '</span>' : '') + '</span></span></div>').join('') : '<p class="aide">Aucun produit relevé.</p>');
+      h += '<h2>Produits relevés</h2>' + (prods.length ? prods.map(r => '<div class="sv-prod"><span><b>' + esc(r.libelle || 'Produit non identifié') + '</b><br><span class="sv-meta">' + codeSv(r) + dateFr(r.date_limite) + ' · <span class="num">' + nb(r.quantite) + '</span> ' + (r.quantite > 1 ? 'unités' : 'unité') + (r.anomalies.length ? ' · <span class="sv-anom">' + r.anomalies.map(c => esc(ANOM[c] || '')).filter(Boolean).join(', ') + '</span>' : '') + '</span></span></div>').join('') : (t.etat === 'ANNULEE' ? '<p class="aide">Aucun produit actif : la tournée est annulée.</p>' : '<p class="aide">Aucun produit relevé.</p>'));
+      const ann = d.produits_annules || [];
+      if (ann.length) h += '<h2>Produits annulés avec la tournée</h2>' + ann.map(r => '<div class="sv-prod"><span><b>' + esc(r.libelle || 'Produit non identifié') + '</b><br><span class="sv-meta">' + codeSv(r) + dateFr(r.date_limite) + ' · <span class="num">' + nb(r.quantite) + '</span> ' + (r.quantite > 1 ? 'unités' : 'unité') + '</span></span></div>').join('');
       const sans = (d.anomalies_sans_produit || []).map(c => ANOM[c]).filter(Boolean);
       if (sans.length) h += '<p class="aide" style="margin-top:8px">Autres anomalies : ' + sans.map(esc).join(', ') + '.</p>';
     }

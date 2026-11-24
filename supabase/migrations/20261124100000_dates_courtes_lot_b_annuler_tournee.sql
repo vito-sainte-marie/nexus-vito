@@ -10,17 +10,23 @@ alter table dates_courtes_tournees
   add column if not exists annulee_par uuid references employees(id),
   add column if not exists motif_annulation text;
 
+-- Suppression explicite (noms connus), ré-applicable : jamais de repérage par le contenu.
+alter table dates_courtes_tournees
+  drop constraint if exists dates_courtes_tournees_etat_check,
+  drop constraint if exists dates_courtes_tournees_cloture,
+  drop constraint if exists dates_courtes_tournees_etat_valide;
+
+-- Garde : toute autre contrainte CHECK qui parle de l'état aurait survécu et refuserait « ANNULEE » ; on s'arrête plutôt que de deviner.
 do $$
-declare c record;
+declare v_autres text;
 begin
-  for c in select conname from pg_constraint
-           where conrelid = 'public.dates_courtes_tournees'::regclass and contype = 'c'
-             and (conname = 'dates_courtes_tournees_cloture'
-                  or (pg_get_constraintdef(oid) like '%EN_COURS%' and pg_get_constraintdef(oid) like '%CORRECTION_DEMANDEE%' and conname <> 'dates_courtes_tournees_cloture'
-                      and pg_get_constraintdef(oid) not like '%terminee_par%'))
-  loop
-    execute format('alter table dates_courtes_tournees drop constraint %I', c.conname);
-  end loop;
+  select string_agg(conname, ', ') into v_autres from pg_constraint
+   where conrelid = 'public.dates_courtes_tournees'::regclass and contype = 'c'
+     and conname not in ('dates_courtes_tournees_etat_check', 'dates_courtes_tournees_cloture', 'dates_courtes_tournees_etat_valide')
+     and pg_get_constraintdef(oid) ~ '\metat\M';
+  if v_autres is not null then
+    raise exception 'CHECK_ETAT_INCONNU : autre(s) contrainte(s) sur l''état de la tournée : %, à traiter explicitement', v_autres;
+  end if;
 end $$;
 
 alter table dates_courtes_tournees add constraint dates_courtes_tournees_etat_valide
@@ -160,12 +166,20 @@ begin
   v_motif_ligne := left('Tournée annulée : ' || v_motif, 500);
   select count(*) into v_nb from dates_courtes_releves r where r.tournee_id = p_tournee and r.site = v_site and r.annule_le is null;
   -- Les corrections négatives d'abord : les annuler ne peut que relever le total du produit (plancher à zéro respecté).
-  update dates_courtes_corrections c set annule_le = now(), annule_par = auth.uid(), motif_annulation = v_motif_ligne
-    where c.tournee_id = p_tournee and c.site = v_site and c.annule_le is null and c.delta < 0;
-  update dates_courtes_corrections c set annule_le = now(), annule_par = auth.uid(), motif_annulation = v_motif_ligne
-    where c.tournee_id = p_tournee and c.site = v_site and c.annule_le is null;
-  update dates_courtes_releves r set annule_le = now(), annule_par = auth.uid(), motif_annulation = v_motif_ligne
-    where r.tournee_id = p_tournee and r.site = v_site and r.annule_le is null;
+  begin
+    update dates_courtes_corrections c set annule_le = now(), annule_par = auth.uid(), motif_annulation = v_motif_ligne
+      where c.tournee_id = p_tournee and c.site = v_site and c.annule_le is null and c.delta < 0;
+    update dates_courtes_corrections c set annule_le = now(), annule_par = auth.uid(), motif_annulation = v_motif_ligne
+      where c.tournee_id = p_tournee and c.site = v_site and c.annule_le is null;
+    update dates_courtes_releves r set annule_le = now(), annule_par = auth.uid(), motif_annulation = v_motif_ligne
+      where r.tournee_id = p_tournee and r.site = v_site and r.annule_le is null;
+  exception when raise_exception then
+    -- Un autre contrôle (une autre tournée) dépend de ces quantités : le plancher à zéro refuse. Tout est annulé, message clair.
+    if sqlerrm like 'plancher_zero%' then
+      raise exception 'plancher_zero : annulation impossible, un autre contrôle dépend des quantités de cette tournée' using errcode = 'P0001';
+    end if;
+    raise;
+  end;
   update dates_courtes_tournees set etat = 'ANNULEE', annulee_le = now(), annulee_par = auth.uid(), motif_annulation = v_motif
     where id = p_tournee and site = v_site;
   return jsonb_build_object('statut', 'annulee', 'etat', 'ANNULEE', 'tournee_id', p_tournee, 'produits_annules', v_nb);
@@ -266,6 +280,7 @@ begin
            tr.saisi_le,
            ea.nom as annulee_par, to_char(tr.annulee_le at time zone v_tz, 'HH24:MI') as annulee_a, tr.motif_annulation,
            (select count(*) from rel r where r.tournee_id = tr.id and r.annule_le is null) as produits,
+           (select count(*) from rel r where r.tournee_id = tr.id and r.annule_le is not null and r.motif_annulation like 'Tournée annulée : %') as produits_annules,
            (select count(*) from an_prod where an_prod.tournee_id = tr.id) + (select count(*) from an_sans where an_sans.tournee_id = tr.id) as anomalies
     from tr left join employees a on a.id = tr.saisi_par left join employees ea on ea.id = tr.annulee_par
   )
@@ -274,19 +289,23 @@ begin
       'a_certifier_total', v_a_certifier,
       'tournees', coalesce((select jsonb_agg(jsonb_build_object(
           'id', l.id, 'nom', l.nom, 'auteur', l.auteur, 'etat', l.etat, 'jour', l.jour, 'debut', l.debut, 'fin', l.fin,
-          'produits', l.produits, 'anomalies', l.anomalies,
+          'produits', l.produits, 'produits_annules', l.produits_annules, 'anomalies', l.anomalies,
           'annulee_par', l.annulee_par, 'annulee_a', l.annulee_a, 'motif_annulation', l.motif_annulation)
         order by case l.etat when 'TERMINEE_A_CERTIFIER' then 1 when 'CORRECTION_DEMANDEE' then 2 when 'EN_COURS' then 3 when 'CERTIFIEE' then 4 else 5 end, l.saisi_le desc) from liste l), '[]'::jsonb))
   else
     (select jsonb_build_object(
       'tournee', jsonb_build_object('id', l.id, 'nom', l.nom, 'auteur', l.auteur, 'etat', l.etat, 'jour', l.jour, 'debut', l.debut, 'fin', l.fin,
-                 'produits', l.produits, 'anomalies', l.anomalies,
+                 'produits', l.produits, 'produits_annules', l.produits_annules, 'anomalies', l.anomalies,
                  'annulee_par', l.annulee_par, 'annulee_a', l.annulee_a, 'motif_annulation', l.motif_annulation),
       'produits', coalesce((select jsonb_agg(jsonb_build_object(
           'id', r.id, 'libelle', coalesce(r.nom_libre, r.libelle_vu, r.libelle_normalise, r.ean), 'ean', r.ean,
           'date_limite', r.date_limite, 'quantite', r.quantite,
           'anomalies', coalesce((select jsonb_agg(an_prod.code order by an_prod.code) from an_prod where an_prod.releve_id = r.id), '[]'::jsonb))
           order by r.date_limite, r.saisi_le) from rel r where r.tournee_id = l.id and r.annule_le is null), '[]'::jsonb),
+      'produits_annules', coalesce((select jsonb_agg(jsonb_build_object(
+          'id', r.id, 'libelle', coalesce(r.nom_libre, r.libelle_vu, r.libelle_normalise, r.ean), 'ean', r.ean,
+          'date_limite', r.date_limite, 'quantite', r.quantite)
+          order by r.date_limite, r.saisi_le) from rel r where r.tournee_id = l.id and r.annule_le is not null and r.motif_annulation like 'Tournée annulée : %'), '[]'::jsonb),
       'anomalies_sans_produit', coalesce((select jsonb_agg(an_sans.code order by an_sans.code) from an_sans where an_sans.tournee_id = l.id), '[]'::jsonb),
       'historique', coalesce((select jsonb_agg(h order by h ->> 'le') from (
           select jsonb_build_object('type', 'commencee', 'le', tr.saisi_le, 'hhmm', l.debut, 'jour', l.jour, 'par', l.auteur) as h

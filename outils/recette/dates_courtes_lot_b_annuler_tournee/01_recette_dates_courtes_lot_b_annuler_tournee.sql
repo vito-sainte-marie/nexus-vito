@@ -116,10 +116,11 @@ begin
               '2026-11-22 14:00:00+00', 'EN_COURS', null, null, null);
   end loop;
 
-  perform pg_temp.comme('CA1'); reset role;
   -- 3 relevés par tournée (sauf 8 : 0), sur la station de la tournée.
   for i in 1 .. 13 loop
     continue when i = 8;
+    -- Le déclencheur d'insertion relit le compte connecté : on prend l'identité de l'auteur de la tournée (même station).
+    perform pg_temp.comme(case when i = 6 then 'CA2' when i = 7 then 'M2' else 'CA1' end); reset role;
     for t in select array[g::text] from generate_series(1, case when i = 9 then 2 else 3 end) g loop
       insert into dates_courtes_releves (id, site, ean, libelle_vu, libelle_normalise, nom_libre, date_limite, quantite, provisoire, cle_groupe,
                                          tournee_id, heure_geste, cle_idempotence, saisi_par, rectification)
@@ -219,6 +220,14 @@ begin
 
   -- 8 prévention des pertes : les relevés annulés disparaissent.
   r := pg_temp.n(r, '40 produit annulé absent de la prévention des pertes', '!Produit 11-1', pg_temp.lire('M1')::text);
+  r := pg_temp.n(r, '41a suivi liste : produits annulés de la tournée annulée', '=3',
+                 pg_temp.essai('M1', format($f$select (select e->>'produits_annules' from jsonb_array_elements(dates_courtes_suivi_controles(date '2026-11-22', date '2026-11-22')->'tournees') e where e->>'id' = %L)$f$, base || '11')));
+  r := pg_temp.n(r, '41b suivi détail : produits annulés comptés', '=3',
+                 pg_temp.essai('M1', format($f$select (dates_courtes_suivi_controles(null, null, %L)->'tournee'->>'produits_annules')$f$, base || '11')));
+  r := pg_temp.n(r, '41c suivi détail : liste des produits annulés', '=3',
+                 pg_temp.essai('M1', format($f$select jsonb_array_length(dates_courtes_suivi_controles(null, null, %L)->'produits_annules')::text$f$, base || '11')));
+  r := pg_temp.n(r, '41d suivi détail : aucun produit actif', '=0',
+                 pg_temp.essai('M1', format($f$select jsonb_array_length(dates_courtes_suivi_controles(null, null, %L)->'produits')::text$f$, base || '11')));
   r := pg_temp.n(r, '42 aucun relevé actif des tournées annulées', '=0',
                  pg_temp.val($f$select count(*)::text from dates_courtes_releves r join dates_courtes_tournees t on t.id = r.tournee_id and t.site = r.site where t.etat = 'ANNULEE' and r.annule_le is null$f$));
 
