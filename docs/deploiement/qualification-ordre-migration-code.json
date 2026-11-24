@@ -1653,7 +1653,7 @@
       "valide_le": null,
       "mesure": {
         "source": "catalogue",
-        "le": "2026-11-23T00:00:00Z",
+        "le": "2026-11-24T00:54:05Z",
         "cible": "uzhjpqpctpvxytxpxoqz",
         "par": "guardian",
         "outil": "application de la migration sur GO du pilote, puis md5(prosrc) (8 premiers caracteres) pour les fonctions et md5(pg_get_constraintdef) (8 premiers caracteres) pour les contraintes sur le catalogue ; resultat identique sur Test (udljdqxerrbbbajxubfn)",
@@ -1662,7 +1662,7 @@
         "moteur": "non communique",
         "verdict": "MIGRATION_APPLIQUEE — md5(prosrc) : dates_courtes_annuler_tournee 8b4540e9 (definer) ; dates_courtes_lire_tournees b22bef73 (definer) ; dates_courtes_porte_tournee 93a96afc (definer) ; dates_courtes_renommer_tournee de701ccd (definer) ; dates_courtes_suivi_controles d57baaf2 (invoker). md5(pg_get_constraintdef) sur dates_courtes_tournees : cle_idempotence_check 4749b06e, cloture 211be782, etat_valide c7d2b9c4, nom_check eaff5feb. Colonnes annulee_le, annulee_par, motif_annulation presentes. La garde CHECK_ETAT_INCONNU n'a pas leve. Aucune lecture de donnees de Production.",
         "blob_migration": "2fd41863f09bb7aac3bdd8ab9c29dfca80e16f65",
-        "blob_provenance": "git hash-object du fichier a b776037e (md5 03e2e605ae7e337f81873105b2dffac8, celui que Guardian a verifie avant execution, compte rendu 7118552046)."
+        "blob_provenance": "git hash-object du fichier a b776037e (md5 03e2e605ae7e337f81873105b2dffac8, celui que Guardian a verifie avant execution, compte rendu 7118552046). Heure de la mesure (mesure.le) : heure du compte rendu ; la mesure l'a precede de quelques minutes."
       },
       "trace": "#160, compte rendu de Guardian 7118552046 ; GO du pilote : application en Production constatee par Guardian ; fusion : GO distinct."
     }
