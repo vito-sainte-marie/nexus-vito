@@ -236,7 +236,7 @@
           + (v.bouton ? '<a class="ap-bouton ap-bouton-caisse" id="apBoutonPrincipal" href="' + esc(v.bouton.href) + '">' + esc(v.bouton.libelle) + '</a>' : '')
           + '</section>';
       } else if (v.bouton) {
-        out += '<a class="ap-bouton ap-bouton-caisse" id="apBoutonPrincipal" href="' + esc(v.bouton.href) + '">' + esc(v.bouton.libelle) + '</a>';
+        out += '<a class="ap-bouton ap-bouton-caisse ap-bouton-seul" id="apBoutonPrincipal" href="' + esc(v.bouton.href) + '">' + esc(v.bouton.libelle) + '</a>';
       }
       // Ordre : fil, FDJ, Dates courtes (si le droit est ouvert), Missions.
       if (v.raccourcis.fdj) out += '<a class="ap-lien-discret" id="apFdj" href="NEXUS-FDJ-v1.html">FDJ</a>';

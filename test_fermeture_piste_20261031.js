@@ -157,7 +157,10 @@ const EPREUVES = {
     const caisse = M.modele(apres({ roleDuJour: 'caissiere' }));
     assert(caisse && caisse.variante === 'caisse');
     assert(caisse.fermeture === null && caisse.finQuart === null && caisse.reception === null, 'aucune fermeture piste, ni index, ni réception pour la caissière');
-    assert.strictEqual(M.modele(apres({ roleDuJour: 'renfort' })), null);
+    // Décision du pilote (24/11/2026) : le renfort en service a le même accueil que la caissière, variante « renfort » ; jamais le mode fermeture.
+    const renfort = M.modele(apres({ roleDuJour: 'renfort' }));
+    assert(renfort && renfort.variante === 'renfort');
+    assert(renfort.fermeture === null && renfort.finQuart === null && renfort.reception === null, 'aucune fermeture piste, ni index, ni réception pour le renfort');
     assert.strictEqual(M.modele(apres({ roleDuJour: 'polyvalent' })), null);
     assert.strictEqual(M.modele(apres({ enService: false })), null);
   },
@@ -271,8 +274,8 @@ const MUTATIONS = [
   ['régime toujours normal', SRC_STATION, (s) => s.replace("const regime = cleHoraireDuJour(timezone, instant);", "const regime = 'normal';"), (s) => { const M = charger(SRC); jouer(M, MENU0, chargerStation(s)); }],
   ['pas de repli en bloc sur normal', SRC_STATION, (s) => s.replace("|| q['fin_normal']", ''), (s) => { jouer(M0, MENU0, chargerStation(s)); }],
   ['menu : lien différent', SRC_MENU, (s) => s.replace('href: f.fermetureLien', "href: URL.index"), (s) => { jouer(M0, charger(s), ST0); }],
-  ['menu : le pompiste garde les index', SRC_MENU, (s) => s.replace("if (manager || (f.enService && !f.fermetureLien)) carburant.push({ code: 'index'", "if (true) carburant.push({ code: 'index'"), (s) => { epreuvesMenu(charger(s)); }],
-  ['menu : le manager perd son écran de choix', SRC_MENU, (s) => s.replace("if (manager || (f.enService && !f.fermetureLien)) carburant.push({ code: 'index'", "if (!manager && f.enService) carburant.push({ code: 'index'"), (s) => { epreuvesMenu(charger(s)); }],
+  ['menu : le pompiste garde les index', SRC_MENU, (s) => s.replace("if (manager || (f.enService && !f.fermetureLien && role === 'pompiste')) carburant.push({ code: 'index'", "if (true) carburant.push({ code: 'index'"), (s) => { epreuvesMenu(charger(s)); }],
+  ['menu : le manager perd son écran de choix', SRC_MENU, (s) => s.replace("if (manager || (f.enService && !f.fermetureLien && role === 'pompiste')) carburant.push({ code: 'index'", "if (!manager && f.enService) carburant.push({ code: 'index'"), (s) => { epreuvesMenu(charger(s)); }],
   ['pointer son départ sans pointage actif', SRC, (s) => s.replace('t.pointageActif\n          ?', 'true\n          ?').replace("(t.pointageActif\n", "(true\n"), (s) => { const M = charger(s); jouer(M, MENU0, ST0); }],
   ['coche posée sur ce qui n\'est pas fait', SRC, (s) => s.replace("['Missions', t.missions, t.missionsToutes]", "['Missions', t.missions, true]"), (s) => { const M = charger(s); jouer(M, MENU0, ST0); }],
   ['point sans coche conditionnelle', SRC, (s) => s.replace("v.points > 0) + '</ul>'", "true) + '</ul>'"), (s) => { const M = charger(s); jouer(M, MENU0, ST0); }],
