@@ -113,7 +113,7 @@ t('les boutons de pli et de masquage : SVG, aria-controls, aria-expanded, aria-l
   assert.ok(!/Replier le menu/.test(DESK), 'plus d\'étiquette « Replier » qui ne dit pas ce que fait le bouton');
   assert.ok(/<svg viewBox="0 0 16 16"[^>]*aria-hidden="true"/.test(DESK));
   assert.ok(DESK.includes("sidebar.id = 'nexus-sidebar-principal'"));
-  assert.ok(DESK.includes('nexusInstallerPliMenuSidebar();\n    nexusVerifierAlertesFdj();'), 'installé à l\'init');
+  assert.ok(/nexusInstallerPliMenuSidebar\(\);\s+nexusVerifierAlertesFdj\(\);/.test(DESK), 'installé à l\'init');
 });
 t('masquer : bouton séparé, visible en rail seulement, sous le bouton qui rouvre', () => {
   assert.ok(/\.nexus-sb-masque\{display:none;/.test(css));

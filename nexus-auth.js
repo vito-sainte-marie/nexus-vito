@@ -417,6 +417,33 @@ function nexusEcranOperationnelAtteignable(etat){
 function nexusEstManager(employee){
   return !!employee && (employee.role === 'manager' || employee.role === 'gerant');
 }
+// Garde des écrans de gestion (lot GARDE-GESTION-EMPLOYE-20261124) — LA fonction, une seule fois. À appeler juste après
+// `nexusRequireAuth()`, AVANT tout chargement de données : `if (!nexusRequireGestion(employee)) return;`.
+// Manager et gérant passent ; le créateur aussi quand l'écran le prévoit (`{ createur: true }`). Un employé est renvoyé à
+// l'Accueil avec un court message. Comme `nexusEstManager`, ce n'est pas une habilitation : la RLS reste la seule vraie porte.
+function nexusRequireGestion(employee, options){
+  const admis = nexusEstManager(employee) || (!!(options && options.createur) && !!employee && employee.est_createur === true);
+  if (admis) return true;
+  window.location.replace('NEXUS-App-v1.html?garde=gestion');
+  return false;
+}
+// Message affiché sur l'Accueil après un renvoi de la garde ; le paramètre est retiré de l'adresse.
+function nexusAfficherMessageGarde(){
+  try {
+    const u = new URL(window.location.href);
+    if (u.searchParams.get('garde') !== 'gestion') return;
+    u.searchParams.delete('garde');
+    window.history.replaceState(null, '', u.pathname + (u.search || '') + u.hash);
+    const bandeau = document.createElement('div');
+    bandeau.id = 'nexus-message-garde';
+    bandeau.setAttribute('role', 'status');
+    bandeau.style.cssText = 'position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:99999;background:#1b2530;color:#fff;border:1px solid #3a4a5a;border-radius:10px;padding:10px 16px;font:14px/1.3 sans-serif;box-shadow:0 4px 16px rgba(0,0,0,.35)';
+    bandeau.textContent = 'Cet écran est réservé à la gestion';
+    document.body.appendChild(bandeau);
+    setTimeout(() => { if (bandeau.parentNode) bandeau.parentNode.removeChild(bandeau); }, 6000);
+  } catch (e) { /* message de courtoisie : jamais bloquant */ }
+}
+document.addEventListener('DOMContentLoaded', nexusAfficherMessageGarde);
 
 async function nexusPointageArriveeManquant(employee){const page=NexusPage.identifiant();if(!nexusPageExigeServiceOperationnel(page)||employee.consultation_externe)return false;const siteId=employee.site_id;const manager=nexusEstManager(employee);const {data:config}=await nexusClient.from('station_config').select('pointage_actif, manager_pointage_requis').eq('site',siteId).maybeSingle();if(config&&config.pointage_actif===false)return false;if(manager&&(!config||!config.manager_pointage_requis))return false;
   // 19/09/2026 — LE FUSEAU NE VIENT PLUS DE CETTE REQUETE. Il venait de la

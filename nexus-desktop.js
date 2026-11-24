@@ -194,7 +194,8 @@ function nexusEchapperAttribut(s) {
   return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
 }
 
-function nexusConstruireSidebarHTML() {
+function nexusConstruireSidebarHTML(groupes) {
+  const lesGroupes = Array.isArray(groupes) ? groupes : NEXUS_SIDEBAR_GROUPES;
   const pageActuelle = window.location.pathname.split('/').pop();
   const lienIcone = (item) => {
     const ancien = item.icon
@@ -205,7 +206,7 @@ function nexusConstruireSidebarHTML() {
       ? window.NexusIcones.img(item.module, 16, { decoratif: true, ancien })
       : ancien;
   };
-  const groupesHTML = NEXUS_SIDEBAR_GROUPES.map(g => `
+  const groupesHTML = lesGroupes.map(g => `
     <div class="nexus-sidebar-group">${g.nom}</div>
     ${g.items.map(item => `
       <a class="nexus-sidebar-link${item.href === pageActuelle ? ' active' : ''}" href="${item.href}"${item.desc ? ` data-tooltip="${nexusEchapperAttribut(item.label)}" data-tooltip-desc="${nexusEchapperAttribut(item.desc)}"` : ''}>
@@ -941,6 +942,27 @@ function nexusInstallerPliMenuSidebar() {
   if (defil) defil.addEventListener('scroll', cacher, { passive: true });
 }
 
+// Vrai pour le manager, le gérant et le créateur ; faux pour tout autre cas (employé, session absente, erreur).
+async function nexusRoleGestion() {
+  try {
+    if (typeof nexusClient === 'undefined') return false;
+    const { data: { session } } = await nexusClient.auth.getSession();
+    if (!session) return false;
+    const { data: e } = await nexusClient.from('employees').select('role, est_createur').eq('id', session.user.id).maybeSingle();
+    return !!e && (e.role === 'manager' || e.role === 'gerant' || e.est_createur === true);
+  } catch (err) { return false; }
+}
+// Gestion : la liste complète. Sinon : la liste de nexus-menu-accueil.js (une seule source), rendue au format du bureau.
+async function nexusGroupesPourRole(gestion) {
+  if (gestion) return NEXUS_SIDEBAR_GROUPES;
+  try {
+    await nexusChargerScript('nexus-menu-accueil.js');
+    return window.NexusMenuAccueil.groupesLateraux().map((g) => ({
+      nom: g.titre,
+      items: g.entrees.map((e) => ({ label: e.libelle, href: e.href, module: window.NexusMenuAccueil.ICONE[e.code], emoji: '•' })),
+    }));
+  } catch (err) { return []; }
+}
 function nexusInitVueBureau() {
   const style = document.createElement('style');
   style.textContent = NEXUS_DESKTOP_CSS;
@@ -951,15 +973,20 @@ function nexusInitVueBureau() {
     const sidebar = document.createElement('div');
     sidebar.className = 'nexus-sidebar';
     sidebar.id = 'nexus-sidebar-principal';
-    sidebar.innerHTML = nexusConstruireSidebarHTML();
+    // Lot GARDE-GESTION-EMPLOYE-20261124 : le menu suit le rôle réel. Avant de le connaître, seul « Accueil » est offert ;
+    // un employé (ou une erreur de lecture) reçoit la liste de l'Accueil, jamais les écrans de gestion.
+    sidebar.innerHTML = nexusConstruireSidebarHTML([]);
     document.body.insertBefore(sidebar, document.body.firstChild);
-    nexusInstallerCurseurSidebar();
-    nexusInstallerTooltipsSidebar();
-    nexusInstallerReplisIconesSidebar();
-    nexusInstallerLoupeSidebar();
-    nexusInstallerPliMenuSidebar();
-    nexusVerifierAlertesFdj();
-    nexusVerifierAlerteAchats();
+    nexusRoleGestion().then((gestion) => nexusGroupesPourRole(gestion)).then((groupes) => {
+      sidebar.innerHTML = nexusConstruireSidebarHTML(groupes);
+      nexusInstallerCurseurSidebar();
+      nexusInstallerTooltipsSidebar();
+      nexusInstallerReplisIconesSidebar();
+      nexusInstallerLoupeSidebar();
+      nexusInstallerPliMenuSidebar();
+      nexusVerifierAlertesFdj();
+      nexusVerifierAlerteAchats();
+    });
   } else {
     const bouton = document.createElement('button');
     bouton.type = 'button';

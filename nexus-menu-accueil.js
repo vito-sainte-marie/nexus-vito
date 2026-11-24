@@ -99,7 +99,17 @@
       + '</div>').join('');
   }
 
-  const api = { groupes, rechercheVisible, html, URL, ICONE };
+  // Menu latéral du bureau pour un employé (lot GARDE-GESTION-EMPLOYE-20261124). UNE seule liste : celle de l'Accueil.
+  // Le menu latéral n'a pas les faits du jour (poste, service) ; il offre donc le plus large de ce que l'Accueil peut
+  // proposer à un employé, et chaque écran garde sa propre règle. Sans « Se déconnecter » ni fermeture (qui exige un lien du fil).
+  function groupesLateraux() {
+    return groupes({ estNiveauManager: false, enService: true, roleDuJour: 'caissiere', receptionApplicable: true,
+      fdjApplicable: true, datesCourtesApplicable: true, pointageActif: true })
+      .map((gr) => ({ code: gr.code, titre: gr.titre, entrees: gr.entrees.filter((e) => e.code !== 'deconnexion' && e.code !== 'fermeture') }))
+      .filter((gr) => gr.entrees.length);
+  }
+
+  const api = { groupes, groupesLateraux, rechercheVisible, html, URL, ICONE };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NexusMenuAccueil = api;
 })(typeof self !== 'undefined' ? self : (typeof window !== 'undefined' ? window : null));

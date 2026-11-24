@@ -141,7 +141,7 @@ t('flèche des analyses : toujours cyan NEXUS', () => {
 
 t('le JS de la page est celui du lot Conseiller NEXUS et pictogrammes (empreinte du bloc script)', () => {
   const h = crypto.createHash('sha256').update(scripts).digest('hex');
-  assert.strictEqual(h, 'df2429f64a1965c88e35f2b5a38bd9d032063cc01107240fc2f49e0351e0e2bc');
+  assert.strictEqual(h, 'd4ea1773eb92b12c2a6afe537e23151e0f09426f5396f03aad0d997f95f7449c');
 });
 
 t('nexus-tempo.js intact (aucune référence aux classes de signature)', () => {

@@ -24,6 +24,7 @@ const sandbox = { window: global, console, document: { getElementById: el, query
   NexusVocab: global.NexusVocab, NexusSimulateurPromo: global.NexusSimulateurPromo,
   NexusTempo: { dateLocale: d => new Date(d + 'T00:00:00') },
   nexusClient: { from: table },
+  nexusRequireGestion: (e) => e.role === 'manager' || e.role === 'gerant',
   nexusRequireAuth: () => Promise.resolve({ role: 'manager', site_id: 's', id: 'e1' }),
   NexusForfait: { nexusRequireProfessional: () => Promise.resolve(true) } };
 sandbox.globalThis = sandbox; vm.createContext(sandbox);

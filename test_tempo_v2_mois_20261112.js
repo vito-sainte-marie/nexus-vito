@@ -39,7 +39,7 @@ const mois = () => {
 };
 
 t('la page est protégée : manager et forfait Professionnel', () => {
-  ['nexusRequireAuth()', 'nexusEstManager(employee)', "NexusForfait.nexusRequireProfessional('NEXUS-Tempo-v2-Mois.html', employee.site_id)"]
+  ['nexusRequireAuth()', 'nexusRequireGestion(employee)', "NexusForfait.nexusRequireProfessional('NEXUS-Tempo-v2-Mois.html', employee.site_id)"]
     .forEach(s => assert.ok(html.includes(s), 'manque : ' + s));
   assert.ok(lire('nexus-forfait.js').includes("'NEXUS-Tempo-v2-Mois.html'"));
   assert.ok(lire('nexus-auth.js').includes("'NEXUS-Tempo-v2-Mois.html'"));

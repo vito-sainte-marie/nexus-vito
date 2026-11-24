@@ -80,7 +80,7 @@ console.log('ok');
     assert(/objValider/.test(objPage) && /objTable/.test(objPage));
     assert(/<details class="compar"(?![^>]*\bopen\b)/.test(objPage), 'détails repliés par défaut');
     assert(/SIM\.analyserObjectif/.test(objPage) && /nexusRequireProfessional\('NEXUS-Campagne-v2-Objectifs\.html'/.test(objPage));
-    assert(/employee\.role !== 'manager' && employee\.role !== 'gerant'/.test(objPage));
+    assert(/nexusRequireGestion\(employee\)/.test(objPage));
     assert(/valider: 'Valider les objectifs'/.test(voc));
   });
   t2('simulateur : prix TTC convertis en HT via le moteur, TVA manquante suspend', () => {

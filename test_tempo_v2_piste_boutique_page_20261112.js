@@ -19,7 +19,7 @@ t('la page appelle le moteur et lit les bonnes sources', () => {
 });
 t('la page porte les éléments attendus et le contrôle d’accès', () => {
   ['titrePage', 'sousTitrePage', 'comparaison', 'corps', 'notes', 'piedSources'].forEach(i => assert.ok(html.includes('id="' + i + '"'), i));
-  assert.ok(html.includes('nexusEstManager') && html.includes('nexusRequireProfessional'));
+  assert.ok(html.includes('nexusRequireGestion') && html.includes('nexusRequireProfessional'));
 });
 t('aucun mot « marge », conseil ou cause dans la page, le lexique ou le moteur', () => {
   const lex = lexique.slice(lexique.indexOf('pisteBoutique'));

@@ -127,7 +127,7 @@ t('le moteur ne porte aucune phrase d’affichage pour les jours', () => {
 });
 t('la page charge le lexique avant le moteur, garde manager et forfait, lectures bornées par site, sans products', () => {
   assert.ok(html.indexOf('nexus-vocabulaire.js') > -1 && html.indexOf('nexus-vocabulaire.js') < html.indexOf('nexus-tempo.js'));
-  ['nexusEstManager(employee)', "nexusRequireProfessional('NEXUS-Tempo-v2-Jours.html'", "'audits_caisse'", "'view_fdj_daily_summary'",
+  ['nexusRequireGestion(employee)', "nexusRequireProfessional('NEXUS-Tempo-v2-Jours.html'", "'audits_caisse'", "'view_fdj_daily_summary'",
     'T.joursFortsFaiblesMesures(', 'T.joursCaBoutique(', 'T.joursLitresCompletsPiste(', 'T.joursCaFdjComplets(', 'J.marge.indisponible',
     'id="margeBoutique"', 'id="precisionBoutique"', 'bornes.fin'
   ].forEach(s => assert.ok(html.includes(s), 'manque : ' + s));
