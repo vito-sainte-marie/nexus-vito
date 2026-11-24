@@ -119,7 +119,7 @@
       reception: null, finQuart: null, fermeture: null, termine: null,
       incoherent: (!fait || fermetureAFaire) && !bouton,
       missions: null,
-      raccourcis: { missions: { restantes: Math.max(0, m.total - m.faites), total: m.total }, fdj: f.fdjApplicable === true, datesCourtes: f.datesCourtesApplicable === true },
+      raccourcis: { missions: { restantes: Math.max(0, m.total - m.faites), total: m.total }, fdj: f.fdjApplicable === true, fdjFait: f.fdjFait === true, datesCourtes: f.datesCourtesApplicable === true },
       points: Number(f.points) || 0,
     };
   }
@@ -136,7 +136,7 @@
       etapes: [], faites: 0, total: 0, filTermine: true,
       bouton: f.datesCourtesApplicable === true ? { libelle: 'Relever les dates courtes', href: 'NEXUS-Dates-Courtes-Releve-v1.html' } : null,
       reception: null, finQuart: null, fermeture: null, termine: null, incoherent: false, missions: null,
-      raccourcis: { missions: { restantes: Math.max(0, m.total - m.faites), total: m.total }, fdj: false, datesCourtes: false },
+      raccourcis: { missions: { restantes: Math.max(0, m.total - m.faites), total: m.total }, fdj: false, fdjFait: false, datesCourtes: false },
       points: Number(f.points) || 0,
     };
   }
@@ -239,7 +239,12 @@
         out += '<a class="ap-bouton ap-bouton-caisse ap-bouton-seul" id="apBoutonPrincipal" href="' + esc(v.bouton.href) + '">' + esc(v.bouton.libelle) + '</a>';
       }
       // Ordre : fil, FDJ, Dates courtes (si le droit est ouvert), Missions.
-      if (v.raccourcis.fdj) out += '<a class="ap-lien-discret" id="apFdj" href="NEXUS-FDJ-v1.html">FDJ</a>';
+      // FDJ pas encore compté : vrai bouton secondaire (contour), sans concurrencer celui du fil. Compté : simple ligne pour consulter.
+      if (v.raccourcis.fdj) {
+        out += v.raccourcis.fdjFait
+          ? '<a class="ap-lien-discret" id="apFdj" href="NEXUS-FDJ-v1.html">✓ FDJ comptée</a>'
+          : '<a class="ap-bouton ap-secondaire ap-bouton-fdj" id="apFdj" href="NEXUS-FDJ-v1.html">FDJ · Il est temps de compter vos jeux de grattage</a>';
+      }
       if (v.raccourcis.datesCourtes) out += '<a class="ap-lien-discret" id="apDatesCourtes" href="NEXUS-Dates-Courtes-Releve-v1.html">Dates courtes</a>';
       const r = v.raccourcis.missions.restantes;
       out += '<section class="ap-missions" id="apMissions"><div class="ap-fil-titre">Missions du jour</div><div class="ap-missions-sous">'
