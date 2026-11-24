@@ -130,6 +130,9 @@ begin
   r := pg_temp.n(r, '5 service terminé : aucun poste', '=', pg_temp.essai('EN1', 'select dates_courtes_poste_du_jour()'));
 
   -- 2 accès caissier fermé : seul le renfort (et la gestion) opère
+  -- L'état testé est posé ici, jamais supposé : dernière ligne de la station = fermée (annulé en fin de recette).
+  reset role;
+  insert into dates_courtes_acces_caissier (site, actif, saisi_par) values (st, false, m1);
   r := pg_temp.n(r, '6 accès fermé', '=false', pg_temp.essai('CA1', 'select dates_courtes_acces_caissier_ouvert()::text'));
   r := pg_temp.n(r, '7 renfort opère accès fermé', '=true', pg_temp.essai('RE1', 'select dates_courtes_operer()::text'));
   r := pg_temp.n(r, '8 caissière refusée accès fermé', '=false', pg_temp.essai('CA1', 'select dates_courtes_operer()::text'));
@@ -179,6 +182,10 @@ begin
   r := pg_temp.n(r, '41 service d''une autre station : aucun poste', '=', pg_temp.essai('OS1', 'select dates_courtes_poste_du_jour()'));
   r := pg_temp.n(r, '42 service d''une autre station : opérer refusé', '=false', pg_temp.essai('OS1', 'select dates_courtes_operer()::text'));
   r := pg_temp.n(r, '43 service d''une autre station : créer une tournée refusé', 'droit_refuse', pg_temp.essai('OS1', $f$select dates_courtes_creer_tournee('Tournée autre station','pdj-os1')::text$f$));
+
+  -- 7 jamais NULL : un NULL ferait passer « if not (...) » sans lever le refus
+  r := pg_temp.n(r, '44 sans service : operer et caissier_autorise non nuls', '=false', pg_temp.essai('NS1', 'select ((dates_courtes_operer() is null) or (dates_courtes_caissier_autorise() is null))::text'));
+  r := pg_temp.n(r, '45 autre station : operer et caissier_autorise non nuls', '=false', pg_temp.essai('OS1', 'select ((dates_courtes_operer() is null) or (dates_courtes_caissier_autorise() is null))::text'));
 
   raise exception 'RAPPORT_ACCUEIL_RENFORT %', jsonb_build_object('total', jsonb_array_length(r),
     'ko', (select count(*) from jsonb_array_elements(r) e where not (e->>'ok')::boolean), 'cas', r);

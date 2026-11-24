@@ -25,23 +25,23 @@ $$;
 -- 3. Peut opérer : gestion, OU renfort du jour, OU caissière du jour avec accès ouvert.
 create or replace function dates_courtes_operer() returns boolean
 language sql stable security definer set search_path = public, pg_temp as $$
-  select exists (select 1 from employees e where e.id = auth.uid() and e.actif
+  select coalesce(exists (select 1 from employees e where e.id = auth.uid() and e.actif
       and (e.role in ('manager', 'gerant')
         or (e.est_createur and exists (select 1 from sites s where s.site_id = e.site_id and s.acces_createur_autorise))))
-    or dates_courtes_poste_du_jour() = 'renfort'
-    or (dates_courtes_poste_du_jour() = 'caissiere' and dates_courtes_acces_caissier_ouvert())
+    or dates_courtes_poste_du_jour() is not distinct from 'renfort'
+    or (dates_courtes_poste_du_jour() is not distinct from 'caissiere' and dates_courtes_acces_caissier_ouvert()), false)
 $$;
 
 -- 4. Caissière du jour avec accès ouvert (gardée pour les appelants existants).
 create or replace function dates_courtes_caissier_autorise() returns boolean
 language sql stable security definer set search_path = public, pg_temp as $$
-  select dates_courtes_poste_du_jour() = 'caissiere' and dates_courtes_acces_caissier_ouvert()
+  select coalesce(dates_courtes_poste_du_jour() is not distinct from 'caissiere' and dates_courtes_acces_caissier_ouvert(), false)
 $$;
 
 -- 5. Lecture de l'accès caissier : opérateurs, et caissière du jour (pour savoir si l'accès est ouvert).
 drop policy if exists lecture_meme_site on dates_courtes_acces_caissier;
 create policy lecture_meme_site on dates_courtes_acces_caissier for select to authenticated using (site = (select current_employee_site_id())
-  and ((select dates_courtes_operer()) or (select dates_courtes_poste_du_jour()) = 'caissiere'));
+  and ((select dates_courtes_operer()) or (select dates_courtes_poste_du_jour()) is not distinct from 'caissiere'));
 
 -- 6. Terminer : exception pour sa propre tournée EN_COURS.
 create or replace function dates_courtes_terminer_tournee(p_tournee uuid) returns jsonb
