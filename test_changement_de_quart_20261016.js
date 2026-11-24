@@ -64,12 +64,11 @@ verifier('l\'avertissement n\'est affiché que sur la réponse confirmation_requ
   assert.ok(/renderConfirmationChangement\(reponse\.data\.quart_ouvert\)/.test(T_CONFIRMER));
   assert.ok(!/renderConfirmationChangement/.test(T_TERMINER));
 });
-verifier('l\'avertissement dit : définitif, non rouvrable, même opération, échec = quart conservé, missions conservées', () => {
-  assert.ok(/clôturé définitivement/.test(T_CONFIRMATION));
-  assert.ok(/ne pourrez pas le rouvrir/.test(T_CONFIRMATION));
-  assert.ok(/même opération/.test(T_CONFIRMATION));
-  assert.ok(/reste ouvert/.test(T_CONFIRMATION));
-  assert.ok(/missions et justificatifs/.test(T_CONFIRMATION));
+verifier('l\'écran dit : poste actuel, nouveau poste, service clôturé, missions et justificatifs conservés', () => {
+  assert.ok(/Poste actuel : <b>/.test(T_CONFIRMATION));
+  assert.ok(/Nouveau poste : <b>/.test(T_CONFIRMATION));
+  assert.ok(/sera clôturé et votre service/.test(T_CONFIRMATION));
+  assert.ok(/missions et justificatifs déjà enregistrés sont conservés/.test(T_CONFIRMATION));
 });
 verifier('seul le bouton de confirmation renvoie p_cloture_confirmee = true', () => {
   const vrais = page.match(/appelerChangementDeQart\(true/g) || [];
@@ -111,7 +110,7 @@ verifier('une erreur n\'ouvre pas le FDJ, ne simule aucun succès et réactive l
   const echec = T_TERMINER.slice(0, T_TERMINER.indexOf('ouvrirQuartFdjDepuisPriseDePoste'));
   assert.ok(/error \|\| !data \|\| data\.ok !== true/.test(echec));
   assert.ok(/reactiver\(\)/.test(echec) && /return;/.test(echec));
-  assert.ok(/Votre quart en cours n\\'a pas été modifié/.test(echec));
+  assert.ok(/Votre service en cours n\\'a pas été modifié/.test(echec));
   assert.ok(!/renderFinal/.test(echec));
 });
 verifier('le quart FDJ est ouvert depuis l\'identifiant renvoyé par la fonction', () => {

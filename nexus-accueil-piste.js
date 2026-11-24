@@ -245,6 +245,8 @@
           ? '<a class="ap-lien-discret" id="apFdj" href="NEXUS-FDJ-v1.html">✓ FDJ comptée</a>'
           : '<a class="ap-bouton ap-secondaire ap-bouton-fdj" id="apFdj" href="NEXUS-FDJ-v1.html">FDJ · Il est temps de compter vos jeux de grattage</a>';
       }
+      // Message FDJ de la prise de poste (plus d'écran intermédiaire) : une ligne discrète, même texte.
+      if (v.messageFdj && v.messageFdj.texte) out += '<p class="ap-lien-discret" id="apMessageFdj" style="text-decoration:none;">' + esc(v.messageFdj.texte) + '</p>';
       if (v.raccourcis.datesCourtes) out += '<a class="ap-lien-discret" id="apDatesCourtes" href="NEXUS-Dates-Courtes-Releve-v1.html">Dates courtes</a>';
       const r = v.raccourcis.missions.restantes;
       out += '<section class="ap-missions" id="apMissions"><div class="ap-fil-titre">Missions du jour</div><div class="ap-missions-sous">'
@@ -320,7 +322,21 @@
     return out;
   }
 
-  const api = { etapesOuverture, livraisonAttendue, heureLocale, heureDeMinutes, DELAI_FERMETURE_MIN, modele, html, STATUTS_COMMANDE_ATTENDUE, URL_RECEPTION };
+  // Le message FDJ confié par la prise de poste : lu UNE fois (effacé), pour cet employé, pas périmé (4 h).
+  const CLE_MESSAGE_FDJ = 'nexus_message_fdj_prise_de_poste';
+  function consommerMessageFdj(stockage, employeeId, maintenant) {
+    try {
+      const brut = stockage.getItem(CLE_MESSAGE_FDJ);
+      if (!brut) return null;
+      stockage.removeItem(CLE_MESSAGE_FDJ);
+      const m = JSON.parse(brut);
+      if (!m || !m.texte || String(m.employee) !== String(employeeId)) return null;
+      if (!(maintenant - Number(m.t) < 4 * 3600 * 1000)) return null;
+      return { texte: String(m.texte), ton: m.ton === 'conflit' ? 'conflit' : 'info' };
+    } catch (e) { return null; }
+  }
+
+  const api = { consommerMessageFdj, CLE_MESSAGE_FDJ, etapesOuverture, livraisonAttendue, heureLocale, heureDeMinutes, DELAI_FERMETURE_MIN, modele, html, STATUTS_COMMANDE_ATTENDUE, URL_RECEPTION };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NexusAccueilPiste = api;
 })(typeof self !== 'undefined' ? self : (typeof window !== 'undefined' ? window : null));

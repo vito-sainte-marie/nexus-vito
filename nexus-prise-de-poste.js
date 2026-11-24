@@ -42,6 +42,8 @@
   // que non lu ou si la lecture échoue ; l'écran reste alors pleinement utilisable.
   let posteFrequent = null;
   let catalogue = [];
+  // Service ouvert au moment où l'écran s'affiche (nexusServiceCourant, seule source) : { role } ou null.
+  let serviceActuel = null;
 
   // Famille Rôles v2 (Guardian 6722548885), surfaces compactes seulement (récapitulatif, confirmation) : les grandes
   // cartes de choix gardent leurs illustrations de poste. Rôle inconnu ou ICONES_ROLES_V2 = false → aucune icône.
@@ -190,6 +192,23 @@
 .pdp-carte:active{border-color:var(--cyan);}
 .pdp-carte:focus-visible{outline:2px solid var(--cyan);outline-offset:2px;}
 .pdp-carte[disabled]{opacity:.55;cursor:default;}
+.pdp-carte[aria-disabled="true"]{cursor:default;border-color:var(--hairline);}
+.pdp-carte[aria-disabled="true"]:active{border-color:var(--hairline);}
+.pdp-actuel{margin-top:6px;}
+.pdp-carte.pdp-actuelle .pdp-corps,.pdp-carte.pdp-actuelle .pdp-visuel{opacity:.6;}
+.pdp-carte.pdp-actuelle .pdp-corps .pdp-actuel{opacity:1;}
+.pdp{--t-raised:var(--nbe-raised,var(--panel));--t-line:var(--nbe-line,var(--hairline));--t-text:var(--text);}
+.pdp-motif{width:100%;margin:6px 0 10px;padding:10px;min-height:44px;box-sizing:border-box;background:var(--t-raised);border:1px solid var(--t-line);border-radius:8px;color:var(--t-text);font:inherit;font-size:14px;}
+.pdp-ligne-poste{margin:0 0 6px;}
+.pdp-ligne-poste span{white-space:nowrap;}
+.pdp-neutre{background:var(--panel);border:1px solid var(--hairline);color:var(--text);border-radius:12px;padding:14px 16px;font-size:14px;line-height:1.55;margin:0 0 14px;}
+.pdp-neutre p{margin:0 0 8px;}
+.pdp-neutre p:last-child{margin-bottom:0;}
+.pdp-avertissement{background:var(--amber-dim);border:1px solid rgba(var(--amber-rgb),.4);color:var(--text);border-radius:12px;padding:10px 14px;font-size:13px;line-height:1.45;margin:0 0 12px;}
+.pdp-avertissement p{margin:0 0 4px;}
+.pdp-avertissement p:last-child{margin-bottom:0;}
+.pdp-lien{display:block;width:100%;background:none;border:none;color:var(--text-mid);font:inherit;font-size:14px;text-decoration:underline;text-align:center;padding:14px 8px;cursor:pointer;}
+.pdp-lien:focus-visible{outline:2px solid var(--cyan);outline-offset:2px;}
 .pdp-bouton{display:block;width:100%;min-height:44px;padding:14px;margin-top:18px;border:none;border-radius:10px;font:inherit;font-size:14px;font-weight:600;text-align:center;background:var(--cyan);color:var(--on-cyan);cursor:pointer;-webkit-tap-highlight-color:transparent;}
 .pdp-bouton:focus-visible{outline:2px solid var(--text);outline-offset:2px;}
 .pdp-carte.pdp-avant{border:2px solid var(--cyan);}
@@ -248,7 +267,11 @@ body.nexus-desktop .pdp-corps{flex:0 0 auto;align-self:stretch;padding:14px 16px
   // base (consulter NEXUS ne crée rien, POSTE-005). Stockage absent, illisible
   // ou jour inconnu : on affiche, en cas de doute on n'efface pas un rappel de
   // sécurité. Le texte, lui, ne change pas.
-  const TEXTE_RAPPEL_SECURITE = '<div class="pdp-securite" id="rappelSecurite">⚠️ <b>Rappel sécurité</b> — N\'utilisez jamais NEXUS ni votre téléphone à la vue d\'un client. Strictement interdit sur la piste de distribution de carburant, encore plus pendant une distribution en cours.</div>';
+  // « Poste actuel » : badge d'état neutre du composant partagé (le sens reste écrit).
+  function badgePosteActuel() {
+    return (typeof NexusBadgeEtat !== 'undefined' && NexusBadgeEtat.neutre) ? NexusBadgeEtat.neutre('Poste actuel') : 'Poste actuel';
+  }
+  const TEXTE_RAPPEL_SECURITE = '<div class="pdp-securite" id="rappelSecurite"><b>Rappel sécurité</b> — N\'utilisez jamais NEXUS ni votre téléphone à la vue d\'un client. Strictement interdit sur la piste de distribution de carburant, encore plus pendant une distribution en cours.</div>';
   // Jour de la page courante déjà annoncé : un nouveau rendu dans la même page
   // (retour sur le choix) ne doit pas faire disparaître ce que l'employé lit.
   let rappelAffichePourCle = null;
@@ -278,23 +301,27 @@ body.nexus-desktop .pdp-corps{flex:0 0 auto;align-self:stretch;padding:14px 16px
   function renderChoixPoste() {
     const rappelSecurite = rappelSecuriteAAfficher() ? TEXTE_RAPPEL_SECURITE : '';
     const badge = libelleFrequence(posteFrequent);
-    const cartes = rolesDisponibles().map(r => `
-        <button type="button" class="pdp-carte" data-role="${r.value}">
+    const roleActuel = serviceActuel && serviceActuel.role;
+    const cartes = rolesDisponibles().map(r => {
+      const actuel = !!roleActuel && r.value === roleActuel;
+      return `
+        <button type="button" class="pdp-carte${actuel ? ' pdp-actuelle' : ''}" data-role="${r.value}"${actuel ? ' aria-disabled="true"' : ''}>
           ${r.image ? `<span class="pdp-visuel"><img class="pdp-image" src="${r.image}" width="400" height="280" alt="" decoding="async"></span>` : ''}
           <span class="pdp-corps">
             <span class="pdp-nom" style="display:block;">${r.label}</span>
-            ${badge && posteFrequent && r.value === posteFrequent.poste ? `<span class="pdp-badge" style="display:block;">${echapper(badge)}</span>` : ''}
+            ${actuel ? `<span class="pdp-actuel" style="display:block;">${badgePosteActuel()}</span>` : (badge && posteFrequent && r.value === posteFrequent.poste ? `<span class="pdp-badge" style="display:block;">${echapper(badge)}</span>` : '')}
             ${r.sousTitre ? `<span class="pdp-tag" style="display:block;">${r.sousTitre}</span>` : ''}
           </span>
-        </button>`).join('');
+        </button>`;
+    }).join('');
     hoteCourant.innerHTML = `
       <div class="pdp" id="pdpChoix">
         <h2 class="pdp-titre">Bonjour ${echapper(employeeCourant.nom)}</h2>
-        <p class="pdp-sous">Où travaillez-vous pour ce quart ?</p>
+        <p class="pdp-sous">Où travaillez-vous ?</p>
         ${rappelSecurite}
         <div class="pdp-cartes" id="pdpCartes">${cartes}</div>
       </div>`;
-    hoteCourant.querySelectorAll('.pdp-carte').forEach(el => {
+    hoteCourant.querySelectorAll('.pdp-carte:not([aria-disabled="true"])').forEach(el => {
       el.addEventListener('click', () => confirmerPriseDePoste(el.dataset.role, el));
     });
   }
@@ -331,19 +358,26 @@ body.nexus-desktop .pdp-corps{flex:0 0 auto;align-self:stretch;padding:14px 16px
   // que l'employé doit recevoir : seul ce cas retient la navigation (une note,
   // un bouton). Une ouverture réussie ou déjà faite ne coûte aucun appui.
   let messageOuvertureFdj = null;
+  // Le message n'a plus d'écran : il est confié à l'accueil Caisse/Renfort, qui
+  // l'affiche une fois en ligne discrète (nexus-accueil-piste.js).
+  const CLE_MESSAGE_FDJ = 'nexus_message_fdj_prise_de_poste';
+  function confierMessageFdj(message) {
+    try { global.sessionStorage.setItem(CLE_MESSAGE_FDJ, JSON.stringify({ texte: message.texte, ton: message.ton, employee: employeeCourant && employeeCourant.id, t: Date.now() })); } catch (e) { /* tant pis : le quart FDJ reste ouvert, la ligne manquera */ }
+  }
 
   async function ouvrirQuartFdjDepuisPriseDePoste(priseDePosteId) {
     messageOuvertureFdj = null;
     if (!priseDePosteId) return;
+    // Seule la caissière ouvre un quart FDJ (décision du pilote du 24/11/2026) :
+    // pompiste, renfort et manager ne déclenchent aucun appel et ne reçoivent aucun message.
+    if (roleChoisi !== 'caissiere') return;
     const { data, error } = await nexusClient.rpc('fdj_ouvrir_quart_depuis_prise_de_poste', {
       p_prise_de_poste_id: priseDePosteId,
     });
     if (error) { console.error('Ouverture du quart FDJ depuis la prise de poste:', error); return; }
     if (!data) return;
-    // Le pompiste n'est jamais retenu par un message FDJ (recette du 25/10) :
-    // l'appui sur « Piste » ouvre directement le fil. Seul un conflit de
-    // responsable retient la navigation, et seulement hors piste.
-    if (roleChoisi === 'pompiste') return;
+    // Rien à dire si l'ouverture a réussi ou était déjà faite : seul un conflit
+    // de responsable ou un échec réel d'ouverture arrive sur l'accueil.
     if (data.conflit) { messageOuvertureFdj = { ton: 'conflit', texte: data.message }; return; }
     if (data.ouvert === false && data.message) { messageOuvertureFdj = { ton: 'info', texte: data.message }; return; }
   }
@@ -365,23 +399,68 @@ body.nexus-desktop .pdp-corps{flex:0 0 auto;align-self:stretch;padding:14px 16px
     });
   }
 
-  function renderConfirmationChangement(quartOuvert) {
+  // Avertissement NON BLOQUANT (arbitrage du pilote, 24/11/2026). Deux lectures
+  // seules, déjà permises à l'employé (RLS par site), liées au service QUITTÉ
+  // (shifts.id = quart_ouvert.id) : une caisse FDJ encore en brouillon
+  // (fdj_shifts.prise_de_poste_id) et une session d'inventaire non terminée
+  // (inventaire_quart_employes.shift_id). Toute erreur de lecture : aucune
+  // ligne, jamais un blocage.
+  const STATUTS_COMPTAGE_EN_COURS = ['ouverture_en_cours', 'ouvert', 'cloture_en_cours'];
+  const TEXTE_FDJ_OUVERTE = 'Votre caisse FDJ est encore ouverte : pensez à la clôturer.';
+  const TEXTE_COMPTAGE_EN_COURS = 'Un comptage est en cours : il restera à terminer.';
+  function avertissementsChangement(fdjRows, comptageRows) {
+    const lignes = [];
+    if ((fdjRows || []).some(r => r && r.statut === 'brouillon')) lignes.push(TEXTE_FDJ_OUVERTE);
+    const enCours = (comptageRows || []).some(r => {
+      const q = r && r.inventaire_quarts;
+      return q && STATUTS_COMPTAGE_EN_COURS.indexOf(q.statut) !== -1 && !q.cloture_le && q.is_simulation !== true;
+    });
+    if (enCours) lignes.push(TEXTE_COMPTAGE_EN_COURS);
+    return lignes;
+  }
+  async function lireAvertissementsChangement(quartOuvert) {
+    if (!quartOuvert || !quartOuvert.id || !employeeCourant || !employeeCourant.id) return [];
+    try {
+      // La FDJ n'existe que pour le poste Caisse : pour pompiste et renfort, la
+      // requête n'est même pas lancée (précision du pilote, 24/11/2026).
+      const lireFdj = quartOuvert.role === 'caissiere'
+        ? nexusClient.from('fdj_shifts').select('id, statut').eq('employee_id', employeeCourant.id).eq('prise_de_poste_id', quartOuvert.id).eq('statut', 'brouillon')
+        : Promise.resolve({ data: [], error: null });
+      const [fdj, comptage] = await Promise.all([
+        lireFdj,
+        nexusClient.from('inventaire_quart_employes').select('id, inventaire_quarts(statut, cloture_le, is_simulation)').eq('employee_id', employeeCourant.id).eq('shift_id', quartOuvert.id),
+      ]);
+      if (fdj.error) console.error('Avertissement changement (FDJ):', fdj.error);
+      if (comptage.error) console.error('Avertissement changement (comptage):', comptage.error);
+      return avertissementsChangement(fdj.error ? [] : fdj.data, comptage.error ? [] : comptage.data);
+    } catch (e) {
+      console.error('Avertissement changement:', e);
+      return [];
+    }
+  }
+
+  async function renderConfirmationChangement(quartOuvert) {
+    const avertissements = await lireAvertissementsChangement(quartOuvert);
     const ancien = roleInfo(quartOuvert && quartOuvert.role);
     const nouveau = roleInfo(roleChoisi);
     hoteCourant.innerHTML = `
       <div class="pdp" id="pdpConfirmation">
-        <h2 class="pdp-titre">Un quart est déjà ouvert</h2>
-        <p class="pdp-sous">Confirmez avant de changer de quart.</p>
-        <div class="pdp-securite" id="avertissementChangement">⚠️ <b>Votre quart en cours (${iconeRole(ancien.value, 20)}${ancien.label}) sera clôturé définitivement.</b> Vous ne pourrez pas le rouvrir depuis votre espace. Votre nouvelle prise de poste (${iconeRole(nouveau.value, 20)}${nouveau.label}) sera enregistrée dans la même opération ; si elle échoue, votre quart en cours reste ouvert. Vos missions et justificatifs du jour sont conservés.</div>
+        <h2 class="pdp-titre">Changer de poste</h2>
+        <div class="pdp-neutre" id="avertissementChangement">
+          <p class="pdp-ligne-poste">Poste actuel : <b>${ancien.label}</b></p>
+          <p class="pdp-ligne-poste"><span>Nouveau poste : <b>${nouveau.label}</b></span></p>
+          <p>Votre service ${ancien.label} sera clôturé et votre service ${nouveau.label} commencera. Vos missions et justificatifs déjà enregistrés sont conservés.</p>
+        </div>
+        ${avertissements.length ? `<div class="pdp-avertissement" id="avertissementOuvert" role="note">${avertissements.map(t => `<p>${t}</p>`).join('')}</div>` : ''}
         <label class="pdp-sous" for="motifChangement">Motif (facultatif)</label>
-        <select id="motifChangement" style="width:100%;margin:6px 0 10px;padding:10px;">
+        <select id="motifChangement" class="pdp-motif">
           <option value="">Aucun motif</option>
           <option value="releve">${MOTIF_RELEVE}</option>
           <option value="autre">Autre motif justifié…</option>
         </select>
         <input type="text" id="motifAutre" maxlength="200" placeholder="Précisez le motif" style="display:none;width:100%;margin-bottom:10px;padding:10px;box-sizing:border-box;">
-        <button class="pdp-btn" id="btnConfirmerChangement">Clôturer mon quart et prendre mon poste</button>
-        <button class="pdp-btn pdp-texte" id="btnAnnulerChangement">Annuler</button>
+        <button class="pdp-btn" id="btnConfirmerChangement">Confirmer le changement</button>
+        <button type="button" class="pdp-lien" id="btnAnnulerChangement">Annuler</button>
       </div>`;
     const sel = document.getElementById('motifChangement');
     const autre = document.getElementById('motifAutre');
@@ -391,13 +470,13 @@ body.nexus-desktop .pdp-corps{flex:0 0 auto;align-self:stretch;padding:14px 16px
     document.getElementById('btnConfirmerChangement').addEventListener('click', async () => {
       const btn = document.getElementById('btnConfirmerChangement');
       btn.disabled = true;
-      btn.textContent = 'Changement de quart…';
+      btn.textContent = 'Changement en cours…';
       let motif = null;
       if (sel.value === 'releve') motif = MOTIF_RELEVE;
       else if (sel.value === 'autre') motif = (autre.value || '').trim() || null;
       await terminerPriseDePoste(await appelerChangementDeQart(true, motif), () => {
         btn.disabled = false;
-        btn.textContent = 'Clôturer mon quart et prendre mon poste';
+        btn.textContent = 'Confirmer le changement';
       });
     });
   }
@@ -448,7 +527,7 @@ body.nexus-desktop .pdp-corps{flex:0 0 auto;align-self:stretch;padding:14px 16px
     const { data, error } = reponse;
     if (error || !data || data.ok !== true) {
       console.error('Confirmation prise de poste:', error || data);
-      alert('Un problème est survenu, réessayez. Votre quart en cours n\'a pas été modifié.');
+      alert('Un problème est survenu, réessayez. Votre service en cours n\'a pas été modifié.');
       reactiver();
       return;
     }
@@ -458,16 +537,8 @@ body.nexus-desktop .pdp-corps{flex:0 0 auto;align-self:stretch;padding:14px 16px
       if (typeof optionsCourantes.aller === 'function') optionsCourantes.aller(destination);
       else window.location.href = destination;
     };
-    if (messageOuvertureFdj) {
-      hoteCourant.innerHTML = `
-        <div class="pdp">
-          <h2 class="pdp-titre">Votre poste est pris</h2>
-          <div class="pdp-securite" id="noteFdj">${messageOuvertureFdj.texte}</div>
-          <button type="button" class="pdp-bouton" id="pdpSuite">Continuer</button>
-        </div>`;
-      document.getElementById('pdpSuite').addEventListener('click', aller);
-      return;
-    }
+    // Aucun écran intermédiaire : un message FDJ suit l'employé sur son accueil.
+    if (messageOuvertureFdj && !estNiveauManagerCourant()) confierMessageFdj(messageOuvertureFdj);
     aller();
   }
 
@@ -509,6 +580,11 @@ body.nexus-desktop .pdp-corps{flex:0 0 auto;align-self:stretch;padding:14px 16px
       return false;
     }
     posteFrequent = await chargerPosteFrequent();
+    serviceActuel = null;
+    try {
+      const r = await nexusServiceCourant(employee);
+      if (r && r.service && r.service.role) serviceActuel = { role: r.service.role };
+    } catch (e) { /* sans service lisible : aucune carte marquée, comme à la première prise de poste */ }
     if (enFenetreDeReleve()) renderChoixReleve();
     else renderChoixPoste();
     return true;
@@ -543,5 +619,5 @@ body.nexus-desktop .pdp-corps{flex:0 0 auto;align-self:stretch;padding:14px 16px
       </div>`;
   }
 
-  global.NexusPriseDePoste = { monter, recapitulatif, ROLES, enFenetreDeReleve };
+  global.NexusPriseDePoste = { monter, recapitulatif, ROLES, enFenetreDeReleve, avertissementsChangement, CLE_MESSAGE_FDJ };
 })(window);

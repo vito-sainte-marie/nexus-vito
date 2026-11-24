@@ -156,6 +156,8 @@ async function nexusRequireAuth() {
   // pas le réseau. Même doctrine qu'en B1 : nom réel, sinon identifiant du
   // commerce, sinon libellé neutre. Jamais le nom d'un autre.
   nexusRemplirNomDuCommerce(employee);
+  // Pied de page : l'estampille technique n'est visible que du manager et du gérant.
+  if (typeof NexusBuild !== 'undefined' && typeof NexusBuild.reglerEstampille === 'function') NexusBuild.reglerEstampille(employee.role_reel);
   return employee;
 }
 
