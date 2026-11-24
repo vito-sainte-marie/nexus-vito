@@ -5,22 +5,30 @@ Fiche des lecteurs : `docs/rls_lot3_releve_lecteurs.md`. Migration : `supabase/m
 
 ## 1. Définition de chaque vue : Production contre migration GitHub
 
-**Non mesuré en Production.** Je ne lis pas Production sans GO, ni sans filtre de station, et une définition de vue n'a pas de station. Ce que j'ai comparé : la définition lue sur **Test** et les migrations GitHub qui créent les vues (`20260728222354_creer_vue_caisse_ecart_a_traiter.sql`, `20260731172849_remote_schema.sql`, `20260731174437_remote_schema.sql`). Pour clore ce point il faut l'un des deux :
-- un GO de Guardian pour que je lise `pg_get_viewdef`, `pg_class.relowner`, `reloptions` et `information_schema.role_table_grants` sur les 4 vues en Production (catalogue seulement, aucune donnée) ;
-- ou que Guardian colle ces quatre résultats dans #160.
+Mesuré par Guardian en Production (catalogue seulement, aucune donnée lue), reporté ici :
 
-Tant que ce n'est pas fait, l'écart éventuel Production ↔ GitHub reste **inconnu**, pas « nul ».
+| Vue | Propriétaire | reloptions | md5 de pg_get_viewdef | Droits |
+|---|---|---|---|---|
+| v_caisse_ecart_a_traiter | postgres | aucune | b97e780f | authenticated : tous |
+| nexus_stock_etat_v2 | postgres | aucune | 558fb9d4 | authenticated : tous |
+| nexus_stock_etat_v3 | postgres | aucune | 0ab34cb2 | authenticated : tous |
+| view_inventaire_dernier_controle_produit | postgres | aucune | e8abb6ab | authenticated : tous |
+| nexus_stock_etat (référence) | postgres | security_invoker=true | 0dfb92a9 | anon et authenticated : tous |
+
+- Les définitions sont identiques en Production et sur Test.
+- Les politiques SELECT des 6 tables sources sont identiques pour `authenticated`. Seules différences : `recette_ci_site_test` sur Test, `audit_nexus_readonly_select` (rôle `nexus_prod_readonly`) en Production. Aucune ne concerne les utilisateurs de l'application.
+- La recette sur Test vaut donc pour la Production.
 
 ## 2. Propriétaire, droits, dépendances, lecteurs (mesuré sur Test)
 
 | Vue | Propriétaire | SELECT | Dépend de | Lecteur applicatif |
 |---|---|---|---|---|
-| `v_caisse_ecart_a_traiter` | postgres | anon/authenticated (privilèges complets accordés) | audits_caisse, employees | Conseiller et Brief (`nexus-conseiller-donnees.js:92`), manager/gérant |
-| `nexus_stock_etat_v2` | postgres | idem | nexus_stock_etat (déjà invoker) | aucun |
+| `v_caisse_ecart_a_traiter` | postgres | authenticated (tous privilèges) ; `anon` : aucun droit, en Production comme sur Test | audits_caisse, employees | Conseiller et Brief (`nexus-conseiller-donnees.js:92`), manager/gérant |
+| `nexus_stock_etat_v2` | postgres | idem (authenticated seul) | nexus_stock_etat (déjà invoker) | aucun |
 | `nexus_stock_etat_v3` | postgres | idem | v2, inventaire_categories_zones_stock, inventaire_stock_localise_releves, inventaire_mouvements | aucun (la fonction DEFINER `nexus_stock_lire_etat_json` la lit, sans effet du lot) |
 | `view_inventaire_dernier_controle_produit` | postgres | idem | inventaire_comptages | `nexus-inventaire-plan-donnees.js:94,299`, tout employé du site |
 
-Détail des droits à reconfirmer en Production (point 1).
+Droits confirmés en Production par Guardian (point 1).
 
 ## 3. Tables lues sans leur RLS, et ce que chaque rôle lit à tort aujourd'hui
 
@@ -61,8 +69,7 @@ Couvre : l'employé ne lit aucun écart ; le manager et le gérant ne lisent que
 
 ## Anomalies restantes, hors lot, non traitées
 
-- `authenticated` garde tous les privilèges (écriture comprise) sur les 4 vues, et `anon` aussi sur `nexus_stock_etat`. Dette existante, à traiter dans un lot à part si le pilote le décide.
-- Écart Production ↔ GitHub des définitions : inconnu (point 1).
+- `authenticated` garde tous les privilèges (écriture comprise) sur les 4 vues ; `anon` n'en a aucun sur ces 4 vues, mais en garde sur `nexus_stock_etat`. Dette inscrite au registre de l'étape 3, hors de ce lot.
 
 ## Preuves
 

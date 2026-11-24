@@ -45,5 +45,5 @@ Tests qui ne font que simuler ou citer les vues : `test_conseiller_precharge_con
 ## Points à arbitrer ou à savoir
 
 - **Créateur** : sur `view_inventaire_dernier_controle_produit` et la chaîne stock, il ne lit plus que sa propre station (aucune branche créateur sur ces tables). Les écrans ci-dessus filtrent par `employee.site_id`, donc aucun ne lit une autre station : **pas de politique ajoutée**, pas de régression. Sur `v_caisse_ecart_a_traiter`, il suit `acces_createur_autorise`. La recette calcule ces valeurs attendues.
-- **Droits d'écriture sur les vues** : `authenticated` garde tous les privilèges sur les 4 vues (et `anon` aussi sur `nexus_stock_etat`). Dette existante, hors de ce lot ; à traiter à part si le pilote le souhaite.
+- **Droits d'écriture sur les vues** : `authenticated` garde tous les privilèges sur les 4 vues (`anon` n'en a aucun sur ces 4 vues ; il en garde sur `nexus_stock_etat`). Dette existante, hors de ce lot ; à traiter à part si le pilote le souhaite.
 - La migration est idempotente et ne modifie aucune donnée. `MIGRATIONS_REELLES_NOMBRE` passe à 354 ; l'empreinte est à mesurer par la CI ou Guardian.
