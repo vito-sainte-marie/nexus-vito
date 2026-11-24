@@ -807,15 +807,17 @@ document.addEventListener('keydown',function(e){
 });
 
 /* ---------- Démarrage ---------- */
+function posteIndisponible(){
+  racine.innerHTML='<div class="etat erreur"><strong>Relevé non disponible pour votre poste</strong><br>Le relevé des dates courtes s\'ouvre au poste de renfort, et au poste de caisse quand la station l\'a autorisé.<br><a class="retour" href="NEXUS-Prise-De-Poste-v1.html">Changer de poste</a><br><a class="retour" href="NEXUS-App-v1.html">Retour à l\'accueil</a></div>';
+}
+/* Le droit est décidé par le serveur (poste du jour), jamais par le rôle du fichier employé. */
 function init(){
   chargement();
-  var role=employee.role;
-  if(role==='pompiste'||role==='vacataire'){messageEtat('Accès non autorisé','Le relevé des dates courtes n\'est pas ouvert à ce profil.',false);return;}
-  var verif=role==='caissier'&&!employee.est_createur?nexusClient.from('dates_courtes_acces_caissier').select('actif').order('saisi_le',{ascending:false}).limit(1).then(function(r){return !r.error&&r.data&&r.data[0]&&r.data[0].actif===true;}):Promise.resolve(true);
-  verif.then(function(ok){
-    if(!ok){messageEtat('Accès non ouvert','La gestion n\'a pas ouvert le relevé des dates courtes aux caissiers pour cette station.',false);return;}
+  nexusClient.rpc('dates_courtes_operer').then(function(r){
+    if(r.error||(r.data!==true&&r.data!==false)){messageEtat('Impossible de vérifier votre accès, réessayez','',true);return;}
+    if(r.data!==true){posteIndisponible();return;}
     vider();ecranTournees();
-  });
+  },function(){messageEtat('Impossible de vérifier votre accès, réessayez','',true);});
 }
 if(window.__DC_TEST__){
   window.__dc={analyserCode:analyserCode,classerCode:classerCode,gtin14:gtin14,reconnaitre:reconnaitre,vider:vider,empiler:empiler,lireFile:lireFile,ecrireFile:ecrireFile,enAttente:enAttente,ecranTerminer:ecranTerminer,init:init,clic:clic,repartir:repartir,rafraichir:rafraichir,dessinerLignes:dessinerLignes,ecranIdentifier:ecranIdentifier,ecranSaisie:ecranSaisie,ouvrirAction:ouvrirAction,ouvrirTournee:ouvrirTournee,ecranTournees:ecranTournees,ouvrirRenommer:ouvrirRenommer,enregistrerNom:enregistrerNom,etatTournee:function(){return tournee;},nomAff:nomAff,

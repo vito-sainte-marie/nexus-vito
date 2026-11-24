@@ -32,7 +32,7 @@ function monde() {
   const ecouteurs = { doc: {}, win: {} };
   const appels = [];
   const intervalles = [];
-  const reponses = { rpc: () => ({ data: {}, error: null }), acces: [{ actif: true }] };
+  const reponses = { operer: { data: true, error: null }, rpc: () => ({ data: {}, error: null }), acces: [{ actif: true }] };
   const requete = (table) => {
     const q = { select() { return q; }, eq() { return q; }, in() { return q; }, is() { return q; }, order() { return q; }, limit() { return q; },
       then(ok, ko) { const data = table === 'dates_courtes_acces_caissier' ? reponses.acces : []; return Promise.resolve({ data, error: null }).then(ok, ko); } };
@@ -49,7 +49,7 @@ function monde() {
     navigator: {},
     crypto: { randomUUID: (() => { let n = 0; return () => 'uuid-' + (++n); })() },
     nexusClient: {
-      rpc: (nom, args) => { appels.push({ nom, args }); return Promise.resolve(reponses.rpc(nom, args)); },
+      rpc: (nom, args) => { appels.push({ nom, args }); return Promise.resolve(nom === 'dates_courtes_operer' ? reponses.operer : reponses.rpc(nom, args)); },
       from: requete,
     },
     nexusRequireAuth: () => Promise.resolve(null),
@@ -145,27 +145,50 @@ const TOURNEE = { id: 'tour-1', nom: '', etat: 'EN_COURS' };
     assert.strictEqual(m.appels.filter(a => a.nom === 'dates_courtes_terminer_tournee').length, 1);
   });
 
-  for (const role of ['pompiste', 'vacataire']) {
-    await test('refus de ' + role + ' (aucun appel, écran de refus)', async () => {
-      const m = monde(); m.dc.etat({ employee: { id: 'e', role } });
-      m.dc.init(); await tick();
-      assert(/Accès non autorisé/.test(m.get('ecran').innerHTML));
-      assert.strictEqual(m.appels.length, 0);
-    });
-  }
-
-  await test('caissier sans accès ouvert : écran de refus', async () => {
-    const m = monde(); m.reponses.acces = [{ actif: false }];
-    m.dc.etat({ employee: { id: 'e', role: 'caissier', est_createur: false } });
+  // Le droit vient du serveur (poste du jour), jamais du rôle du fichier employé.
+  const ouvre = async (role, operer) => {
+    const m = monde(); m.reponses.operer = operer;
+    m.dc.etat({ employee: { id: 'e', role, est_createur: false } });
     m.dc.init(); await tick(); await tick();
-    assert(/Accès non ouvert/.test(m.get('ecran').innerHTML));
-  });
-
-  await test('caissier avec accès ouvert : accède aux tournées', async () => {
-    const m = monde(); m.reponses.acces = [{ actif: true }];
-    m.dc.etat({ employee: { id: 'e', role: 'caissier', est_createur: false } });
-    m.dc.init(); await tick(); await tick();
+    return m;
+  };
+  await test('fichier pompiste au poste de renfort : la page s\'ouvre', async () => {
+    const m = await ouvre('pompiste', { data: true, error: null });
     assert(/Mes tournées/.test(m.get('ecran').innerHTML));
+    assert.strictEqual(m.appels[0].nom, 'dates_courtes_operer');
+  });
+  await test('fichier renfort au poste de pompiste : message et liens', async () => {
+    const m = await ouvre('renfort', { data: false, error: null });
+    const h = m.get('ecran').innerHTML;
+    assert(/Relevé non disponible pour votre poste/.test(h));
+    assert(/s'ouvre au poste de renfort, et au poste de caisse quand la station l'a autorisé/.test(h));
+    assert(/href="NEXUS-Prise-De-Poste-v1\.html">Changer de poste/.test(h));
+    assert(/href="NEXUS-App-v1\.html">Retour à l'accueil/.test(h));
+    assert(!/profil/i.test(h));
+  });
+  await test('caissier au poste de caisse, accès fermé : message', async () => {
+    const m = await ouvre('caissier', { data: false, error: null });
+    assert(/Relevé non disponible pour votre poste/.test(m.get('ecran').innerHTML));
+    assert(!m.appels.some(a => a.nom === 'dates_courtes_lire_tournees'));
+  });
+  await test('manager sans service : la page s\'ouvre', async () => {
+    const m = await ouvre('manager', { data: true, error: null });
+    assert(/Mes tournées/.test(m.get('ecran').innerHTML));
+  });
+  await test('erreur du serveur : message avec Réessayer, jamais ouvert par défaut', async () => {
+    const m = await ouvre('renfort', { data: null, error: { message: 'x' } });
+    const h = m.get('ecran').innerHTML;
+    assert(/Impossible de vérifier votre accès, réessayez/.test(h));
+    assert(/data-act="init">Réessayer/.test(h));
+    assert(!/Mes tournées/.test(h));
+    m.reponses.operer = { data: true, error: null };
+    m.dc.clic(bouton('init')); await tick(); await tick();
+    assert(/Mes tournées/.test(m.get('ecran').innerHTML));
+  });
+  await test('la page ne lit plus le rôle du fichier employé pour le droit', () => {
+    const f = require('fs').readFileSync(require('path').join(__dirname, 'NEXUS-Dates-Courtes-Releve-v1.html'), 'utf8');
+    const init = f.slice(f.indexOf('function init(){'), f.indexOf('function init(){') + 600);
+    assert(!/employee\.role/.test(init) && !/dates_courtes_acces_caissier/.test(init));
   });
 
   await test('reprise automatique : visibilitychange et toutes les 30 s', async () => {
