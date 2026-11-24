@@ -85,6 +85,8 @@ testSync('jaugePerimetre — même fonction générique pour jauge de mission ET
   ].join('\n\n');
   const ctx = { globalThis: {}, console, __moteur: M };
   ctx.globalThis = ctx;
+  // Le vrai registre d'icônes (pas de doublure) : renderBlocMesMissions appelle NexusIcones.svg.
+  vm.runInNewContext(fs.readFileSync(path.join(PROJET, 'nexus-icones.js'), 'utf8'), ctx, { filename: 'nexus-icones.js' });
   vm.runInNewContext(srcParts, ctx);
   const T = ctx.__test;
 

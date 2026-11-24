@@ -291,6 +291,26 @@
     else appliquer();
   }
 
+  // ── Pictogrammes en SVG en ligne (trait, currentColor) ──────────────────────────────────────────
+  // Tracés Lucide (https://lucide.dev), licence ISC, voir docs/licences_icones.md. viewBox 24, trait arrondi.
+  // La couleur vient du texte parent (currentColor) : aucune couleur ici, tout passe par les jetons --t-* du CSS.
+  const SVG_LIGNE = {
+    'sun': '<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>',
+    'moon': '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
+    'clipboard-check': '<rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/>',
+    'clipboard-list': '<rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/>',
+    'list-checks': '<path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/>',
+    'lock-keyhole': '<rect width="18" height="11" x="3" y="10" rx="2"/><circle cx="12" cy="16" r="1"/><path d="M7 10V7a5 5 0 0 1 10 0v3"/>'
+  };
+  // svg(nom, taille, classe) : pictogramme décoratif (aria-hidden). taille en px (18 à 28), classe CSS facultative.
+  function svg(nom, taille, classe) {
+    const d = SVG_LIGNE[nom];
+    if (!d) return '';
+    const t = Number(taille) > 0 ? Number(taille) : 20;
+    const c = String(classe || '').replace(/[^a-zA-Z0-9_ -]/g, '');
+    return '<svg class="nexus-icone-svg' + (c ? ' ' + c : '') + '" width="' + t + '" height="' + t + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' + d + '</svg>';
+  }
+
   global.NexusIcones = { ICONES_V2, ICONES_CATEGORIES_V2, ICONES_ROLES_V2, MODULES, CATEGORIES, ROLES, SEUIL_SIMPLIFIE,
-    chemins, attributs, img, appliquer, idCategorie, idRole, attributsCategorie, attributsRole, imgCategorie, imgRole, rafraichirTheme };
+    chemins, attributs, img, appliquer, idCategorie, idRole, attributsCategorie, attributsRole, imgCategorie, imgRole, rafraichirTheme, svg, SVG_LIGNE };
 })(typeof window !== 'undefined' ? window : globalThis);
