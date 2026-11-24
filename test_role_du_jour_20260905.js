@@ -186,10 +186,14 @@ const servicePompiste = { service: { id: 's-1', role: 'pompiste', quart: 'matin'
   // est la règle elle-même. La compter reviendrait à dire qu'écrire la règle
   // une fois de plus renforce les permissions.
   const sansLaDefinition = t => {
-    const i = t.indexOf('function nexusEstManager(');
-    if (i === -1) return t;
-    const j = t.indexOf('\n}', i);
-    return t.slice(0, i) + t.slice(j === -1 ? t.length : j);
+    const retirer = (src, signature) => {
+      const i = src.indexOf(signature);
+      if (i === -1) return src;
+      const j = src.indexOf('\n}', i);
+      return src.slice(0, i) + src.slice(j === -1 ? src.length : j);
+    };
+    // Re-pin 75 → 81 : +6 points, aucun perdu (Cockpit-v2 gardé, 5 pages gardées en plus de leur test propre). Idem pour la garde partagée nexusRequireGestion (lot GARDE-GESTION-EMPLOYE-20261124) : sa définition est la règle, pas un point d'appel.
+    return retirer(retirer(t, 'function nexusEstManager('), 'function nexusRequireGestion(');
   };
 
   const pointsParFichier = {};
@@ -198,14 +202,14 @@ const servicePompiste = { service: { id: 's-1', role: 'pompiste', quart: 'matin'
     for (const l of sansLaDefinition(lire(f)).split('\n')) {
       if (l.trim().startsWith('//')) continue;
       const copie = RE_SOURCE.test(l) && /'(manager|gerant)'/.test(l);
-      const appel = /nexusEstManager\(/.test(l);
+      const appel = /nexusEstManager\(|nexusRequireGestion\(/.test(l);
       if (copie || appel) pointsParFichier[f] = (pointsParFichier[f] || 0) + (copie ? 1 : 0) + (appel ? 1 : 0);
     }
   }
   const permissions = Object.values(pointsParFichier).reduce((a, b) => a + b, 0);
   verifier(`les contrôles de permission sur la fiche sont intacts (${permissions}` +
-    `${permissions === 75 ? '' : ' — répartition : ' + JSON.stringify(pointsParFichier)})`,
-    permissions === 75);
+    `${permissions === 81 ? '' : ' — répartition : ' + JSON.stringify(pointsParFichier)})`,
+    permissions === 81);
   verifier('les ensembles de rôles autorisés restent sur la fiche employé',
     /ROLES_AUTORISES = new Set\(\['manager', 'gerant'\]\)/.test(lire('nexus-inventaire-transferts-internes.js'))
     && /ROLES = new Set\(\['manager', 'gerant'\]\)/.test(lire('nexus-inventaire-stock-controle-cible-v2.js')));

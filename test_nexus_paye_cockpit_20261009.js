@@ -357,7 +357,7 @@ verifier('le fichier exporté nomme sa station et son mois, jamais une autre',
 // le périmètre des écritures. On le vérifie sur le fichier réel, parce
 // qu'une refonte de présentation peut très bien les perdre en chemin.
 verifier('l’écran reste réservé aux managers et gérants',
-  dans(html, "['manager','gerant'].includes(employee.role)")
+  dans(html, 'nexusRequireGestion(employee)')
   && dans(html, 'NEXUS PAYE est réservé aux managers et gérants.'));
 verifier('le site lu est celui de la session, jamais un site choisi à l’écran',
   dans(html, 'SITE=employee.site_id') && !/SITE\s*=\s*document\./.test(html));

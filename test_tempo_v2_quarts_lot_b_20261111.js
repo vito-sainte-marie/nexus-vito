@@ -56,7 +56,7 @@ const html = fs.readFileSync(path.join(__dirname, 'NEXUS-Tempo-v2-Quarts.html'),
 const scripts = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)].map(m => m[1]).join('\n');
 const corps = html.slice(html.indexOf('<body>'));
 t('garde manager et message de réserve', () => {
-  assert.ok(/nexusRequireAuth\s*\(/.test(scripts) && /nexusEstManager\s*\(/.test(scripts));
+  assert.ok(/nexusRequireAuth\s*\(/.test(scripts) && /nexusRequireGestion\s*\(/.test(scripts));
   assert.ok(/Cet écran est réservé aux managers\./.test(scripts));
 });
 t('lecture seule : aucune écriture, aucune RPC ; chaque lecture filtrée par site', () => {

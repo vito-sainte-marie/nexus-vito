@@ -10,7 +10,7 @@
 <script src="nexus-build.js"></script>
 <script src="nexus-mesure.js?v=20260904-0104"></script>
 <script src="nexus-ecart-affichage.js?v=20260904-0104"></script>
-<script src="nexus-auth.js?v=20261124-0004"></script>
+<script src="nexus-auth.js?v=20261124-1500"></script>
 <style>
   :root{
     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
@@ -749,7 +749,7 @@
 
   nexusRequireAuth().then(employee => {
     if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
-    if (employee.role !== 'manager' && employee.role !== 'gerant') {
+    if (!nexusRequireGestion(employee)) {
       document.getElementById('root').innerHTML = `<div class="locked">Cet écran est réservé aux managers.</div>`;
       return;
     }

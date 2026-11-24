@@ -123,7 +123,7 @@ t('NEXUS-Tempo-v1.html inchangé (empreinte ; avatar recadré le 12/11/2026, seu
     .replace(/<script src="nexus-(?:config|page|bandeau-environnement)\.js[^"]*"><\/script>\n?/g, '')
     .replace(/\?v=[^"']*/g, '?v=');
   const h = crypto.createHash('sha256').update(src).digest('hex');
-  assert.strictEqual(h, '8c665900aaff6271ed13fdee790a40e54de82130fc6dfdd9ab1580ce9f90311f');
+  assert.strictEqual(h, 'fb50172b74c2bc1082470b7081b5885160f9b0dafe979ccfbc2f6fed74bdf70f');
 });
 
 t('carte vide : aucun niveau, sauf « Hypothèse » de la colonne CA FDJ (G4)', () => {

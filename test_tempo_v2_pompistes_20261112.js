@@ -103,7 +103,7 @@ t('compte manager : le classement s’affiche avec les noms, sans mention du cr�
 });
 
 t('compte employé : page refusée avant tout chargement de données, déclarée opérationnelle', () => {
-  const g = html.indexOf('nexusEstManager(employee)');
+  const g = html.indexOf('nexusRequireGestion(employee)');
   assert.ok(g > 0, 'garde manager présente');
   const garde = html.slice(g, g + 200);
   assert.ok(/return;/.test(garde), 'la garde interrompt le chargement');

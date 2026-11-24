@@ -136,7 +136,7 @@
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
-<script src="nexus-auth.js?v=20261124-0004"></script>
+<script src="nexus-auth.js?v=20261124-1500"></script>
 <script src="nexus-vocabulaire.js?v=20260904-0104"></script>
 <script src="nexus-periodes.js?v=20260904-0104"></script>
 <script src="nexus-rayon-moteur.js?v=20260904-0104"></script>
@@ -221,7 +221,7 @@ let SITE_ACTUEL = null; // jamais 'vito-sainte-marie' par defaut (de-Vito-isatio
 
 nexusRequireAuth().then(async employee => {
   if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
-  if (employee.role !== 'manager' && employee.role !== 'gerant') {
+  if (!nexusRequireGestion(employee)) {
     document.body.innerHTML = '<div style="padding:60px 20px; text-align:center; color:var(--text-dim); font-family:sans-serif;">Cet écran est réservé aux managers.</div>';
     return;
   }

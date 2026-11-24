@@ -179,10 +179,10 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
-<script src="nexus-auth.js?v=20261124-0004"></script>
+<script src="nexus-auth.js?v=20261124-1500"></script>
 <script src="nexus-forfait.js?v=20260904-0104"></script>
 <script src="nexus-icones.js?v=20261124-0001"></script>
-<script src="nexus-desktop.js?v=20261124-1200"></script>
+<script src="nexus-desktop.js?v=20261124-1500"></script>
 <script src="nexus-voir-document.js?v=20261006"></script>
 <script>
   // ============================================================
@@ -228,6 +228,7 @@
     employeeCourant = await nexusRequireAuth();
     if (!employeeCourant) return;
     const estNiveauManager = employeeCourant.role === 'manager' || employeeCourant.role === 'gerant';
+    if (!nexusRequireGestion(employeeCourant, { createur: true })) return;
     if (!estNiveauManager && !employeeCourant.est_createur) {
       window.location.href = 'NEXUS-App-v1.html';
       return;

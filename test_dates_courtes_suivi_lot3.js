@@ -99,7 +99,7 @@ t('non-régression : Priorités du jour inchangé (même RPC, mêmes fonctions, 
   assert.ok(/SV = \{vue:'priorites'/.test(js));
 });
 t('non-régression : accès réservé à la gestion conservé', () => {
-  assert.ok(/nexusEstManager\(employee\)/.test(js) && /Prévention des pertes est réservée à la gestion/.test(js));
+  assert.ok(/nexusRequireGestion\(employee\)/.test(js) && /Prévention des pertes est réservée à la gestion/.test(js));
 });
 t('migration : lecture seule, security invoker, aucun octroi sur table, calculs de prévention intacts', () => {
   assert.ok(/security invoker/.test(mig) && !/\b(insert|update|delete)\s+(into|from)?\s*dates_courtes/i.test(mig.replace(/--.*$/gm, '')));

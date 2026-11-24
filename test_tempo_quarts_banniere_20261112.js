@@ -30,7 +30,7 @@ t('la bannière reste réservée aux sites de la liste', () => {
   assert.ok(html.includes('NexusBanniereStation.siteAvecBanniere(employee.site_id, NexusBanniereStation.apercuDemande())'));
 });
 t('les gardes de la page sont intactes', () => {
-  assert.ok(html.includes('nexusEstManager(employee)') && html.includes("NexusForfait.nexusRequireProfessional('NEXUS-Tempo-v2-Quarts.html'"));
+  assert.ok(html.includes('nexusRequireGestion(employee)') && html.includes("NexusForfait.nexusRequireProfessional('NEXUS-Tempo-v2-Quarts.html'"));
 });
 console.log(echecs ? echecs + ' échec(s)' : 'tous ok');
 process.exit(echecs ? 1 : 0);

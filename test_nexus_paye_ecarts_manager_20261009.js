@@ -395,7 +395,7 @@ const D = lire('NexusPayeDonnees');
 
   // ── §10 : la saisie reste réservée au manager ──────────────────────────
   verifier('l’écran PAYE reste fermé aux rôles autres que manager et gérant',
-    /\['manager','gerant'\]\.includes\(employee\.role\)/.test(script[1]));
+    /nexusRequireGestion\(employee\)/.test(script[1]));
   verifier('aucune boîte native du navigateur n’a été réintroduite',
     !/\b(prompt|alert|confirm)\s*\(/.test(html));
 

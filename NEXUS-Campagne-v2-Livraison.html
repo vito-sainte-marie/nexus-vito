@@ -397,10 +397,10 @@ details.lv-det[open] summary::after{transform:rotate(180deg);}
 </div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
-<script src="nexus-auth.js?v=20261124-0004"></script>
+<script src="nexus-auth.js?v=20261124-1500"></script>
 <script src="nexus-forfait.js?v=20260904-0104"></script>
 <script src="nexus-icones.js?v=20261124-0001"></script>
-<script src="nexus-desktop.js?v=20261124-1200"></script>
+<script src="nexus-desktop.js?v=20261124-1500"></script>
 <script src="nexus-vocabulaire.js?v=20261115-1000"></script>
 <script src="nexus-import-moteur.js?v=20260904-0104"></script>
 <script src="nexus-import-donnees.js?v=20260904-0104"></script>
@@ -673,7 +673,7 @@ $('lvHistoCorps').addEventListener('click', e => {
 
 nexusRequireAuth().then(async employee => {
   if (!employee) return;
-  if (employee.role !== 'manager' && employee.role !== 'gerant'){ $('app').innerHTML = '<div class="reserve">' + esc(V.reserve) + '</div>'; return; }
+  if (!nexusRequireGestion(employee)){ $('app').innerHTML = '<div class="reserve">' + esc(V.reserve) + '</div>'; return; }
   EMPLOYEE = employee; SITE_ID = employee.site_id;
   if (!(await NexusForfait.nexusRequireProfessional('NEXUS-Campagne-v2-Livraison.html', SITE_ID))) return;
   await demarrer();
