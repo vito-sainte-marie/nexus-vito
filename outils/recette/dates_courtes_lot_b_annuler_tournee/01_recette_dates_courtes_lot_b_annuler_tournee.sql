@@ -133,6 +133,16 @@ begin
   end loop;
   reset role;
 
+  -- Accès caissier : la station de recette ne l'ouvre pas par défaut, donc dates_courtes_caissier_autorise() y est faux.
+  -- On l'ouvre par le geste réel de la gestion (rollback final : aucun résidu). Dernière ligne par saisi_le : celle-ci l'emporte.
+  perform pg_temp.comme('M1');
+  perform dates_courtes_regler_acces_caissier(true);
+  perform pg_temp.comme('CA1');
+  if not dates_courtes_caissier_autorise() then
+    raise exception 'PREPARATION_RECETTE : accès caissier non ouvert après dates_courtes_regler_acces_caissier(true), arrêt';
+  end if;
+  reset role;
+
   -- Tournée 9 : une correction négative active et une correction déjà annulée.
   insert into dates_courtes_corrections (site, ean, libelle_normalise, date_limite, delta, releve_id, cle_groupe, tournee_id, heure_geste, rectification, cle_idempotence, saisi_par)
     select st, r.ean, r.libelle_normalise, r.date_limite, -1, r.id, 'r6-gc9a', r.tournee_id, '2026-11-22 14:10:00+00', false, 'r6-c9a', ca1
