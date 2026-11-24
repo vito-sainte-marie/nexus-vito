@@ -94,8 +94,8 @@ garde('cartes basses : texte à gauche, photo à droite',
   m => /\.pdp-carte\{display:flex/.test(m) && /\.pdp-visuel\{[^}]*order:2/.test(m) && !/\.pdp-carte\{[^}]*min-height:(1[5-9]|[2-9])\d\dpx/.test(m),
   m => m.replace('.pdp-visuel{position:relative;display:block;order:2;', '.pdp-visuel{position:relative;display:block;'));
 garde('le pompiste ne reçoit aucun message FDJ en cadre rouge',
-  m => /if \(roleChoisi === 'pompiste'\) return;\s*if \(data\.conflit\)/.test(m),
-  m => m.replace("if (roleChoisi === 'pompiste') return;", ''));
+  m => /if \(roleChoisi !== 'caissiere'\) return;[\s\S]*?const \{ data, error \} = await nexusClient\.rpc\('fdj_ouvrir_quart_depuis_prise_de_poste'/.test(m),
+  m => m.replace("if (roleChoisi !== 'caissiere') return;", ''));
 
 // 4. Manager inchangé.
 garde('le manager garde son arrivée (Manager-App, pas de choix forcé)',

@@ -312,4 +312,42 @@ for (const g of GARDES) {
   })().catch(e => { console.error(e); process.exit(1); });
 }
 
+// ---- Comportement : l'ouverture du quart FDJ n'appartient qu'à la caissière ----
+{
+  const debut = MOD.indexOf('async function ouvrirQuartFdjDepuisPriseDePoste(');
+  const fin = MOD.indexOf('// CHANGEMENT DE QUART');
+  assert.ok(debut !== -1 && fin > debut, 'fonction FDJ introuvable');
+  const f = MOD.slice(debut, fin);
+  const jouer = async (src, role, reponse) => {
+    const appels = [];
+    const nexusClient = { rpc: async (nom) => { appels.push(nom); return reponse; } };
+    const fn = new Function('nexusClient', 'console', 'roleChoisi', 'let messageOuvertureFdj = null;\n' + src
+      + '\n; return async () => { await ouvrirQuartFdjDepuisPriseDePoste("p1"); return messageOuvertureFdj; };')(nexusClient, console, role);
+    const message = JSON.parse(JSON.stringify(await fn()));
+    return { appels, message };
+  };
+  const mutation = f.replace("roleChoisi !== 'caissiere'", 'false');
+  assert.notStrictEqual(mutation, f, 'mutation sans effet (FDJ caissière)');
+  (async () => {
+    const conflit = { data: { ouvert: false, conflit: true, message: 'Conflit FDJ' }, error: null };
+    const refus = { data: { ouvert: false, message: 'Ouverture refusée' }, error: null };
+    const reussi = { data: { ouvert: true }, error: null };
+    for (const r of ['pompiste', 'renfort', 'manager']) {
+      for (const rep of [conflit, refus, reussi]) {
+        const x = await jouer(f, r, rep);
+        assert.deepStrictEqual(x.appels, [], `${r} : aucun appel FDJ`);
+        assert.strictEqual(x.message, null, `${r} : aucun message FDJ`);
+      }
+      const m = await jouer(mutation, r, conflit);
+      assert.ok(m.appels.length === 1 && m.message, `${r} : la mutation (appel hors caisse) est détectée`);
+    }
+    const c = await jouer(f, 'caissiere', conflit);
+    assert.deepStrictEqual(c.appels, ['fdj_ouvrir_quart_depuis_prise_de_poste']);
+    assert.deepStrictEqual(c.message, { ton: 'conflit', texte: 'Conflit FDJ' }, 'caissière : conflit signalé');
+    assert.deepStrictEqual((await jouer(f, 'caissiere', refus)).message, { ton: 'info', texte: 'Ouverture refusée' }, 'caissière : échec signalé');
+    assert.strictEqual((await jouer(f, 'caissiere', reussi)).message, null, 'caissière : rien si ouverture réussie');
+    console.log('OK  — ouverture FDJ : aucun appel ni message hors Caisse ; conflit et échec signalés à la caissière');
+  })().catch(e => { console.error(e); process.exit(1); });
+}
+
 console.log(`\n${ok} vérifications passées.`);

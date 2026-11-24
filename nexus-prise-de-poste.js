@@ -368,15 +368,16 @@ body.nexus-desktop .pdp-corps{flex:0 0 auto;align-self:stretch;padding:14px 16px
   async function ouvrirQuartFdjDepuisPriseDePoste(priseDePosteId) {
     messageOuvertureFdj = null;
     if (!priseDePosteId) return;
+    // Seule la caissière ouvre un quart FDJ (décision du pilote du 24/11/2026) :
+    // pompiste, renfort et manager ne déclenchent aucun appel et ne reçoivent aucun message.
+    if (roleChoisi !== 'caissiere') return;
     const { data, error } = await nexusClient.rpc('fdj_ouvrir_quart_depuis_prise_de_poste', {
       p_prise_de_poste_id: priseDePosteId,
     });
     if (error) { console.error('Ouverture du quart FDJ depuis la prise de poste:', error); return; }
     if (!data) return;
-    // Le pompiste n'est jamais retenu par un message FDJ (recette du 25/10) :
-    // l'appui sur « Piste » ouvre directement le fil. Seul un conflit de
-    // responsable retient la navigation, et seulement hors piste.
-    if (roleChoisi === 'pompiste') return;
+    // Rien à dire si l'ouverture a réussi ou était déjà faite : seul un conflit
+    // de responsable ou un échec réel d'ouverture arrive sur l'accueil.
     if (data.conflit) { messageOuvertureFdj = { ton: 'conflit', texte: data.message }; return; }
     if (data.ouvert === false && data.message) { messageOuvertureFdj = { ton: 'info', texte: data.message }; return; }
   }
