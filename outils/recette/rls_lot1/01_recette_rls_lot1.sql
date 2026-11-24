@@ -26,12 +26,12 @@ update sites set acces_createur_autorise = false where site_id in ('nexus-statio
 create temp table ids (k text primary key, v uuid, role text, site text, createur boolean) on commit drop;
 grant all on ids to public;
 insert into ids values
-  ('E1',  '00000000-0000-4000-8000-0000000f0101', 'caissiere', 'nexus-station-test', false),
+  ('E1',  '00000000-0000-4000-8000-0000000f0101', 'caissier', 'nexus-station-test', false),
   ('E2',  '00000000-0000-4000-8000-0000000f0102', 'pompiste', 'nexus-station-test', false),
   ('M1',  '00000000-0000-4000-8000-0000000f0103', 'manager',  'nexus-station-test', false),
   ('G1',  '00000000-0000-4000-8000-0000000f0104', 'gerant',   'nexus-station-test', false),
-  ('CR1', '00000000-0000-4000-8000-0000000f0105', 'caissiere', 'nexus-station-test', true),
-  ('X1',  '00000000-0000-4000-8000-0000000f0106', 'caissiere', 'recette-autre-station', false);
+  ('CR1', '00000000-0000-4000-8000-0000000f0105', 'caissier', 'nexus-station-test', true),
+  ('X1',  '00000000-0000-4000-8000-0000000f0106', 'caissier', 'recette-autre-station', false);
 
 insert into auth.users (id, aud, role, email) select v, 'authenticated', 'authenticated', 'recette-rls1-' || lower(k) || '@invalid.test' from ids;
 insert into employees (id, username, nom, role, actif, est_createur, site_id, compte_test)
