@@ -30,6 +30,23 @@ const T = {
     const i = ['apFil', 'apFdj', 'apDatesCourtes', 'apMissions'].map((k) => h.indexOf('id="' + k + '"'));
     assert.ok(i.every((x) => x > -1) && i.every((x, k) => !k || x > i[k - 1]), String(i));
   },
+  'FDJ à compter : vrai bouton secondaire vers FDJ, juste après le fil': () => {
+    const h = P.html(P.modele(Object.assign({}, base, { roleDuJour: 'caissiere', fdjApplicable: true, fdjFait: false })));
+    assert.ok(/<a class="ap-bouton ap-secondaire ap-bouton-fdj" id="apFdj" href="NEXUS-FDJ-v1\.html">FDJ · Il est temps de compter vos jeux de grattage<\/a>/.test(h));
+    assert.ok(h.indexOf('id="apFil"') < h.indexOf('id="apFdj"') && h.indexOf('id="apFdj"') < h.indexOf('id="apMissions"'));
+    assert.ok(!/✓ FDJ comptée/.test(h));
+  },
+  'FDJ comptée : plus de bouton, une ligne discrète vers FDJ': () => {
+    const h = P.html(P.modele(Object.assign({}, base, { roleDuJour: 'caissiere', fdjApplicable: true, fdjFait: true })));
+    assert.ok(/<a class="ap-lien-discret" id="apFdj" href="NEXUS-FDJ-v1\.html">✓ FDJ comptée<\/a>/.test(h));
+    assert.ok(!/ap-bouton-fdj|compter vos jeux/.test(h));
+  },
+  'FDJ non applicable : rien, même si le fait « compté » est donné': () => {
+    for (const fait of [true, false]) assert.ok(!/apFdj/.test(P.html(P.modele(Object.assign({}, base, { roleDuJour: 'caissiere', fdjApplicable: false, fdjFait: fait })))));
+  },
+  'renfort : jamais de bouton FDJ': () => {
+    assert.ok(!/apFdj/.test(P.html(P.modele(Object.assign({}, base, { roleDuJour: 'renfort', fdjApplicable: true, fdjFait: false, datesCourtesApplicable: true })))));
+  },
   'caissière sans droit : pas de Dates courtes': () => {
     assert.ok(!/apDatesCourtes/.test(P.html(P.modele(Object.assign({}, base, { roleDuJour: 'caissiere' })))));
   },
