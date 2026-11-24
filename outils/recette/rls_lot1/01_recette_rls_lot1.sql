@@ -105,7 +105,7 @@ declare
   r jsonb := '[]';
   st constant text := 'nexus-station-test';
   os constant text := 'recette-autre-station';
-  v text;
+  nom_vue text;
   vues constant text[] := array['view_fdj_daily_summary','view_fdj_discrepancy_daily','view_fdj_employee_daily','view_fdj_employee_price_tier_daily',
     'view_fdj_game_daily','view_fdj_game_daily_mouvements','view_fdj_game_daily_ventes','view_fdj_monthly_summary','view_fdj_price_tier_daily',
     'view_fdj_shift_facts','view_fdj_weekly_summary','view_fdj_yearly_summary'];
@@ -114,10 +114,10 @@ declare
   n int := 0;
 begin
   -- 1 Réglage : les 12 vues sont en security_invoker
-  foreach v in array vues loop
+  foreach nom_vue in array vues loop
     n := n + 1;
-    r := pg_temp.n(r, '1.' || n || ' ' || v || ' en security_invoker', '=true',
-      pg_temp.val(format($f$select coalesce((select c.reloptions @> array['security_invoker=true'] from pg_class c where c.oid = to_regclass('public.%s')), false)::text$f$, v)));
+    r := pg_temp.n(r, '1.' || n || ' ' || nom_vue || ' en security_invoker', '=true',
+      pg_temp.val(format($f$select coalesce((select c.reloptions @> array['security_invoker=true'] from pg_class c where c.oid = to_regclass('public.%s')), false)::text$f$, nom_vue)));
   end loop;
 
   -- 2 Avant / après : lignes d'une autre station vues par l'employé E1
@@ -127,19 +127,19 @@ begin
   r := pg_temp.n(r, '2.1 AVANT : l''employé voyait l''autre station (shift_facts)', '=true', avant);
   perform pg_temp.exec('alter view public.view_fdj_shift_facts set (security_invoker = true)');
   n := 0;
-  foreach v in array vues loop
+  foreach nom_vue in array vues loop
     n := n + 1;
-    perform pg_temp.exec(format('alter view public.%s set (security_invoker = false)', v));
-    avant := pg_temp.essai('E1', format($f$select count(*)::text from public.%s where site = %L$f$, v, os));
-    perform pg_temp.exec(format('alter view public.%s set (security_invoker = true)', v));
-    apres := pg_temp.essai('E1', format($f$select count(*)::text from public.%s where site = %L$f$, v, os));
+    perform pg_temp.exec(format('alter view public.%s set (security_invoker = false)', nom_vue));
+    avant := pg_temp.essai('E1', format($f$select count(*)::text from public.%s where site = %L$f$, nom_vue, os));
+    perform pg_temp.exec(format('alter view public.%s set (security_invoker = true)', nom_vue));
+    apres := pg_temp.essai('E1', format($f$select count(*)::text from public.%s where site = %L$f$, nom_vue, os));
     -- l'avant est informatif (une vue sans ligne de recette peut afficher 0) ; l'après est une exigence
-    r := r || jsonb_build_array(jsonb_build_object('cas', '2.' || (n + 1) || ' avant (info) ' || v, 'attendu', 'info', 'obtenu', avant, 'ok', true));
-    r := pg_temp.n(r, '2.' || (n + 1) || ' APRÈS ' || v || ' : 0 ligne d''une autre station (employé)', '=0', apres);
-    r := pg_temp.n(r, '2.' || (n + 1) || ' APRÈS ' || v || ' : 0 ligne d''une autre station (manager)', '=0',
-      pg_temp.essai('M1', format($f$select count(*)::text from public.%s where site = %L$f$, v, os)));
-    r := pg_temp.n(r, '2.' || (n + 1) || ' APRÈS ' || v || ' : 0 ligne de la station vue par l''employé d''une autre station', '=0',
-      pg_temp.essai('X1', format($f$select count(*)::text from public.%s where site = %L$f$, v, st)));
+    r := r || jsonb_build_array(jsonb_build_object('cas', '2.' || (n + 1) || ' avant (info) ' || nom_vue, 'attendu', 'info', 'obtenu', avant, 'ok', true));
+    r := pg_temp.n(r, '2.' || (n + 1) || ' APRÈS ' || nom_vue || ' : 0 ligne d''une autre station (employé)', '=0', apres);
+    r := pg_temp.n(r, '2.' || (n + 1) || ' APRÈS ' || nom_vue || ' : 0 ligne d''une autre station (manager)', '=0',
+      pg_temp.essai('M1', format($f$select count(*)::text from public.%s where site = %L$f$, nom_vue, os)));
+    r := pg_temp.n(r, '2.' || (n + 1) || ' APRÈS ' || nom_vue || ' : 0 ligne de la station vue par l''employé d''une autre station', '=0',
+      pg_temp.essai('X1', format($f$select count(*)::text from public.%s where site = %L$f$, nom_vue, st)));
   end loop;
 
   -- 3 Coach FDJ : les vues lues par l'employé restent lisibles sur sa station
@@ -157,7 +157,7 @@ begin
   -- 4 Évaluations : l'employé ne voit que les siennes ; la gestion voit toute la station
   r := pg_temp.n(r, '4.1 évaluations : E1 ne voit que les siennes', '=1', pg_temp.essai('E1', 'select count(*)::text from public.evaluations_employes'));
   r := pg_temp.n(r, '4.2 évaluations : E1 ne voit pas celle de E2', '=0',
-    pg_temp.essai('E1', format($f$select count(*)::text from public.evaluations_employes where employee_id = %L$f$, (select v from ids where k = 'E2'))));
+    pg_temp.essai('E1', format($f$select count(*)::text from public.evaluations_employes where employee_id = %L$f$, (select ids.v from ids where ids.k = 'E2'))));
   r := pg_temp.n(r, '4.3 évaluations : manager voit toute la station', '=2',
     pg_temp.essai('M1', format($f$select count(*)::text from public.evaluations_employes where site = %L$f$, st)));
   r := pg_temp.n(r, '4.4 évaluations : gérant voit toute la station', '=2',
@@ -169,7 +169,7 @@ begin
   -- 5 Tenue : mêmes règles
   r := pg_temp.n(r, '5.1 tenue : E1 ne voit que la sienne', '=1', pg_temp.essai('E1', 'select count(*)::text from public.controles_tenue'));
   r := pg_temp.n(r, '5.2 tenue : E1 ne voit pas celle de E2', '=0',
-    pg_temp.essai('E1', format($f$select count(*)::text from public.controles_tenue where employee_id = %L$f$, (select v from ids where k = 'E2'))));
+    pg_temp.essai('E1', format($f$select count(*)::text from public.controles_tenue where employee_id = %L$f$, (select ids.v from ids where ids.k = 'E2'))));
   r := pg_temp.n(r, '5.3 tenue : manager voit toute la station', '=2',
     pg_temp.essai('M1', format($f$select count(*)::text from public.controles_tenue where site = %L$f$, st)));
   r := pg_temp.n(r, '5.4 tenue : gérant voit toute la station', '=2',
