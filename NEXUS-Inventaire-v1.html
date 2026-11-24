@@ -330,6 +330,14 @@
   .choix-icone .inv-cat-icone{margin:0;width:30px;height:30px}
   .titre-missions{display:flex;align-items:center;gap:8px;font-weight:600;margin-bottom:2px}
   .titre-missions .inv-cat-icone{width:20px;height:20px;margin:0}
+  /* Pictogrammes SVG (Lucide, ISC) : trait currentColor, aucune couleur en dur. Même principe que .icone-fn de Paye (viewBox 24, trait arrondi). */
+  .ico-inv{display:inline-block;vertical-align:-4px;flex-shrink:0}
+  .quart-visuel-item .ico-inv{margin-right:6px;vertical-align:-4px}
+  .titre-ico{display:inline-flex;align-items:center;gap:8px}
+  .titre-ico .ico-inv{vertical-align:0;color:var(--cyan)}
+  .titre-missions .ico-inv{color:var(--cyan)}
+  .choix-icone .ico-inv{color:var(--cyan)}
+  .choix-statut .ico-verrou{color:var(--text-dim);margin-right:5px;vertical-align:-3px}
 /* Fil « Mon début de quart » : pas de retour vers le catalogue des catégories. */
 .fil-revue-cat{font-weight:600; margin-bottom:6px;}
 .fil-revue-ligne{display:flex !important; justify-content:space-between; gap:12px; text-align:left; font-size:14px !important; color:var(--text) !important; border-top:1px solid var(--hairline) !important;}
@@ -1643,7 +1651,7 @@
     }).join('');
     return `
       <div class="etat-banner">
-        <div class="titre-missions">${svgKit('comptage', 'inv-cat-icone')}<span>Mes missions aujourd'hui</span></div>
+        <div class="titre-missions">${NexusIcones.svg('list-checks', 20, 'ico-inv')}<span>Mes missions aujourd'hui</span></div>
         ${blocs}
       </div>
     `;
@@ -1667,7 +1675,7 @@
       <div class="etat-banner">
         <div class="progression-bloc" style="margin:0;">
           <div class="progression-haut">
-            <span><b>📋 Couverture du quart</b></span>
+            <span><b class="titre-ico">${NexusIcones.svg('clipboard-check', 20, 'ico-inv')}Couverture du quart</b></span>
           </div>
           <div class="progression-barre"><div class="progression-remplie" style="width:${jauge.pct}%"></div></div>
           <div class="progression-globale">${jauge.faits} sur ${jauge.total}</div>
@@ -1839,7 +1847,7 @@
       ${renderBlocJaugeageCarburant()}
       <div class="choix-grid">
         <div class="choix-card ${clotureFaite ? 'disabled' : ''}" id="carteOuverture">
-          <div class="choix-icone ouverture">🟢</div>
+          <div class="choix-icone ouverture">${NexusIcones.svg('clipboard-list', 26, 'ico-inv')}</div>
           <div style="flex:1;">
             <div class="choix-titre">Commencer mon inventaire</div>
             <div class="choix-sub">Comptage d'ouverture — stock transmis, comptage réel, écart éventuel.</div>
@@ -1863,12 +1871,12 @@
         </div>
         ` : ''}
         <div class="choix-card ${!ouvertureFaite || clotureFaite ? 'disabled' : ''}" id="carteCloture">
-          <div class="choix-icone cloture">🔴</div>
+          <div class="choix-icone cloture">${NexusIcones.svg('clipboard-check', 26, 'ico-inv')}</div>
           <div style="flex:1;">
             <div class="choix-titre">Clôturer mon inventaire</div>
             <div class="choix-sub">Mouvements du quart + stock final avant de passer la main.</div>
             ${clotureFaite ? '<div class="choix-statut fait">✓ Fait pour ce quart</div>' : ''}
-            ${!ouvertureFaite && !clotureFaite ? '<div class="choix-statut attente">Commencez d\'abord votre inventaire</div>' : ''}
+            ${!ouvertureFaite && !clotureFaite ? `<div class="choix-statut attente">${NexusIcones.svg('lock-keyhole', 14, 'ico-inv ico-verrou')}Commencez d'abord votre inventaire</div>` : ''}
           </div>
         </div>
       </div>
@@ -2512,8 +2520,8 @@
   function renderQuartVisuel() {
     return `
       <div class="quart-visuel">
-        <div class="quart-visuel-item ${quartActuel === 'matin' ? 'actif' : ''}" data-quart="matin">☀️ Matin</div>
-        <div class="quart-visuel-item ${quartActuel === 'soir' ? 'actif' : ''}" data-quart="soir">🌙 Soir</div>
+        <div class="quart-visuel-item ${quartActuel === 'matin' ? 'actif' : ''}" data-quart="matin">${NexusIcones.svg('sun', 18, 'ico-inv')}Matin</div>
+        <div class="quart-visuel-item ${quartActuel === 'soir' ? 'actif' : ''}" data-quart="soir">${NexusIcones.svg('moon', 18, 'ico-inv')}Soir</div>
       </div>
     `;
   }
