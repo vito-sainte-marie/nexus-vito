@@ -6,7 +6,7 @@ Migration : `supabase/migrations/20261125180000_rls_lot3_vues_security_invoker.s
 
 ```sql
 begin read only;
-select c.relname, c.reloptions, left(md5(pg_get_viewdef(c.oid)), 8) as md5_def
+select c.relname, c.reloptions, left(md5(pg_get_viewdef(c.oid, true)), 8) as md5_def
 from pg_class c join pg_namespace n on n.oid = c.relnamespace
 where n.nspname = 'public' and c.relkind = 'v'
   and c.relname in ('v_caisse_ecart_a_traiter','nexus_stock_etat_v2','nexus_stock_etat_v3','view_inventaire_dernier_controle_produit')
