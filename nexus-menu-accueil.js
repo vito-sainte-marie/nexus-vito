@@ -23,7 +23,13 @@
     progression: 'NEXUS-Progression-v1.html',
     prisePoste: 'NEXUS-Prise-De-Poste-v1.html',
   };
-  const MENTION_DESACTIVE = 'Non prévu pour le poste de renfort';
+  // Icône du registre NexusIcones, par entrée. Sans icône de bibliothèque (fermeture, jaugeage, index, déconnexion),
+  // l'entrée reste en texte seul : on n'en invente pas.
+  const ICONE = {
+    reception: 'mod-reception-carburant', inventaire: 'mod-inventaire', dates_courtes: 'mod-dates-courtes',
+    missions: 'mod-missions', pointage: 'mod-pointage', fdj: 'mod-fdj', coach_fdj: 'mod-coach-fdj',
+    progression: 'mod-progression', changer_poste: 'mod-prise-de-poste',
+  };
   const POSTES_SANS_RECHERCHE = ['pompiste', 'caissiere', 'renfort'];
 
   function esc(s) {
@@ -50,12 +56,9 @@
     // Employé : « Relevés d'index » est un geste du pompiste du jour ; manager et gérant gardent l'entrée telle quelle.
     if (manager || (f.enService && !f.fermetureLien && role === 'pompiste')) carburant.push({ code: 'index', libelle: 'Relevés d\'index', href: URL.index });
     if (carburant.length) g.push({ code: 'carburant', titre: 'Carburant', entrees: carburant });
-    // Option B (Frédéric, 30/10) : le renfort voit l'entrée Inventaire grisée, non cliquable, avec sa mention,
-    // jusqu'au lot dédié « Inventaire renfort ». L'exclusion de l'Accueil (roleDuJour !== 'renfort') n'est pas touchée.
-    const inventaire = role === 'renfort' && !manager
-      ? { code: 'inventaire', libelle: 'Inventaire', desactive: true, mention: MENTION_DESACTIVE }
-      : { code: 'inventaire', libelle: 'Inventaire', href: URL.inventaire };
-    g.push({ code: 'inventaire', titre: 'Inventaire', entrees: [inventaire] });
+    // Lot 3 mobile (24/11) : le menu montre ce qu'on peut faire. Le renfort n'a plus d'entrée Inventaire grisée :
+    // le groupe est absent pour lui. L'exclusion de l'Accueil (roleDuJour !== 'renfort') n'est pas touchée.
+    if (manager || role !== 'renfort') g.push({ code: 'inventaire', titre: 'Inventaire', entrees: [{ code: 'inventaire', libelle: 'Inventaire', href: URL.inventaire }] });
     // Pointage : seulement si la station l'a activé (station_config.pointage_actif, lu par l'Accueil).
     const travail = [];
     // Dates courtes (poste du jour) : employé seulement, quand l'Accueil a établi le droit ; manager et gérant gardent leur menu inchangé.
@@ -82,15 +85,21 @@
     return POSTES_SANS_RECHERCHE.indexOf(f.roleDuJour) === -1;
   }
 
+  // Icône 24 px décorative (alt="") : le libellé visible reste la seule information.
+  function icone(code) {
+    const reg = root && root.NexusIcones;
+    if (!ICONE[code] || !reg || !reg.img) return '';
+    return reg.img(ICONE[code], 24, { decoratif: true });
+  }
+
   function html(gs) {
     return (gs || []).map((gr) => '<div class="mm-groupe" data-groupe="' + esc(gr.code) + '"><div class="mm-titre">' + esc(gr.titre) + '</div>'
-      + gr.entrees.map((e) => e.desactive
-        ? '<span class="mm-entree mm-desactive" data-entree="' + esc(e.code) + '" aria-disabled="true">' + esc(e.libelle) + '<span class="mm-mention">' + esc(e.mention) + '</span></span>'
-        : '<a class="mm-entree" data-entree="' + esc(e.code) + '"' + (e.id ? ' id="' + esc(e.id) + '"' : '') + ' href="' + esc(e.href) + '">' + esc(e.libelle) + (e.sousTitre ? '<span class="mm-mention">' + esc(e.sousTitre) + '</span>' : '') + '</a>').join('')
+      + gr.entrees.map((e) => '<a class="mm-entree" data-entree="' + esc(e.code) + '"' + (e.id ? ' id="' + esc(e.id) + '"' : '') + ' href="' + esc(e.href) + '">'
+        + icone(e.code) + '<span class="mm-texte">' + esc(e.libelle) + (e.sousTitre ? '<span class="mm-mention">' + esc(e.sousTitre) + '</span>' : '') + '</span></a>').join('')
       + '</div>').join('');
   }
 
-  const api = { groupes, rechercheVisible, html, URL, MENTION_DESACTIVE };
+  const api = { groupes, rechercheVisible, html, URL, ICONE };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NexusMenuAccueil = api;
 })(typeof self !== 'undefined' ? self : (typeof window !== 'undefined' ? window : null));

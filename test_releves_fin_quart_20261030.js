@@ -15,7 +15,7 @@ function epreuvesAcc(M) {
   const h = M.html(M.modele(base));
   assert(h.includes('id="apFinQuart"') && h.includes('Fin de quart : relevé des index') && h.includes('href="NEXUS-Releves-Piste-v1.html?moment=fin_q1"'), 'ligne de fin présente après le fil');
   assert(h.includes('class="ap-bouton ap-secondaire" id="apFinQuart"'), 'bouton secondaire');
-  assert(h.indexOf('apBoutonMissions') > -1 && h.indexOf('apBoutonMissions') < h.indexOf('apFinQuart'), 'sous « Commencer les missions »');
+  assert(h.indexOf('apMesMissions') > h.indexOf('apFinQuart'), 'lien « Mes missions » sous la ligne de fin');
   assert(!M.html(M.modele(Object.assign({}, base, { finQuartFait: true }))).includes('apFinQuart'), 'absente si le relevé de fin est final');
   assert(!M.html(M.modele(Object.assign({}, base, { inventaireFait: false, filLien: 'NEXUS-Inventaire-v1.html' }))).includes('apFinQuart'), 'absente pendant le fil');
   assert(M.html(M.modele(Object.assign({}, base, { finQuartLien: 'NEXUS-Releves-Piste-v1.html?moment=fin_q2' }))).includes('moment=fin_q2'), 'cible = lien donné');

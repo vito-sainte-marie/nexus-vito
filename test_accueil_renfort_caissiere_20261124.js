@@ -68,9 +68,8 @@ const T = {
       assert.strictEqual(P.modele(f), null);
     }
   },
-  'renfort : Inventaire grisé conservé': () => {
-    const e = M.groupes({ enService: true, roleDuJour: 'renfort' }).find((x) => x.code === 'inventaire').entrees[0];
-    assert.strictEqual(e.desactive, true);
+  'renfort : plus d\'entrée Inventaire grisée (lot 3 mobile)': () => {
+    assert(!M.groupes({ enService: true, roleDuJour: 'renfort' }).find((x) => x.code === 'inventaire'));
   },
 };
 let ko = 0; for (const [n, f] of Object.entries(T)) { try { f(); console.log('ok  - ' + n); } catch (e) { ko++; console.log('KO  - ' + n + ' : ' + e.message); } }

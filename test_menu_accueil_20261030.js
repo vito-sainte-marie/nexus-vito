@@ -37,20 +37,17 @@ const EPREUVES = {
     assert(c.includes('coach_fdj') && c.includes('fdj') && c.includes('inventaire') && !c.includes('reception'));
     assert(!codes(M, emp('caissiere')).includes('fdj') && codes(M, emp('caissiere')).includes('coach_fdj'));
   },
-  'renfort : Inventaire présent mais grisé, sans lien, avec « Non prévu pour le poste de renfort » ; pas de Coach FDJ': (M) => {
+  'renfort : plus d\'entrée Inventaire (ni grisée) ; Missions et Pointage restent ; pas de Coach FDJ': (M) => {
     const gs = M.groupes(emp('renfort'));
     const c = codes(M, emp('renfort'));
-    assert(c.includes('inventaire') && c.includes('missions') && c.includes('pointage') && !c.includes('coach_fdj'));
-    const e = [].concat(...gs.map((g) => g.entrees)).find((x) => x.code === 'inventaire');
-    assert(e.desactive === true && !e.href && e.mention === 'Non prévu pour le poste de renfort');
+    assert(!c.includes('inventaire') && c.includes('missions') && c.includes('pointage') && !c.includes('coach_fdj'));
     const h = M.html(gs);
-    assert(h.includes('aria-disabled="true"') && h.includes('Non prévu pour le poste de renfort') && !h.includes('Désactivé par le manager') && !h.includes('NEXUS-Inventaire-v1.html'));
+    assert(!h.includes('aria-disabled') && !h.includes('mm-desactive') && !h.includes('Non prévu pour le poste') && !h.includes('NEXUS-Inventaire-v1.html'));
   },
   'les autres postes gardent le lien Inventaire actif, sans mention': (M) => {
     ['pompiste', 'caissiere', 'polyvalent'].forEach((r) => {
       const e = [].concat(...M.groupes(emp(r)).map((g) => g.entrees)).find((x) => x.code === 'inventaire');
       assert(!e.desactive && e.href === 'NEXUS-Inventaire-v1.html', r);
-      assert(!M.html(M.groupes(emp(r))).includes('Non prévu pour le poste de renfort'), r);
     });
     const m = [].concat(...M.groupes({ estNiveauManager: true, enService: false, roleDuJour: 'renfort' }).map((g) => g.entrees)).find((x) => x.code === 'inventaire');
     assert(!m.desactive && m.href);
@@ -110,8 +107,7 @@ const MUTANTS = [
   ['index vers un moment', (s) => s.replace("index: 'NEXUS-Releves-Piste-v1.html',", "index: 'NEXUS-Releves-Piste-v1.html?moment=debut_q1',")],
   ['coach caisse', (s) => s.replace("role === 'caissiere')", "role === 'renfort')")],
   ['recherche renfort', (s) => s.replace("['pompiste', 'caissiere', 'renfort']", "['pompiste']")],
-  ['inventaire renfort actif', (s) => s.replace("role === 'renfort' && !manager", 'false')],
-  ['mention retirée', (s) => s.replace("'Non prévu pour le poste de renfort'", "''")],
+  ['inventaire renfort revenu', (s) => s.replace("role !== 'renfort'", 'true')],
   ['pointage toujours affiché', (s) => s.replace("f.pointageActif === true", 'true')],
   ['hors service', (s) => s.replace('!f.enService', 'false')],
 ];

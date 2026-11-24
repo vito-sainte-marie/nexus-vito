@@ -208,7 +208,7 @@
     <div class="header-texte">
       <div class="eyebrow">NEXUS · Dates courtes</div>
       <h1 class="title">Relevé des dates courtes</h1>
-      <p class="sous" id="sousTitre">Mes tournées</p>
+      <p class="sous" id="sousTitre"></p>
     </div>
   </header>
   <div class="bande" id="bandeNom"></div>
@@ -259,7 +259,7 @@ function ligneEtat(t){return (t&&t.commencee_a?'Commencée à '+t.commencee_a+' 
 function titre(t){
   document.body.classList.toggle('en-tournee',t!==null);
   if(bande) bande.textContent=t===null?'':(t.nom||'Tournée en cours');
-  sous.textContent=t===null?'Mes tournées':ligneEtat(t);
+  sous.textContent=t===null?'':ligneEtat(t);
 }
 
 /* ---------- File d'attente locale : clés créées au geste ---------- */

@@ -142,12 +142,19 @@
   }
 
   // f : faits de l'Accueil. Rend null quand le mode ne s'applique pas.
+  function iconeReception() {
+    const reg = root && root.NexusIcones;
+    return reg && reg.img ? reg.img('mod-reception-carburant', 24, { decoratif: true }) : '';
+  }
+
   function modele(f) {
     if (f && f.enService && !f.consultationExterne && f.roleDuJour === 'caissiere') return modeleCaisse(f);
     if (f && f.enService && !f.consultationExterne && f.roleDuJour === 'renfort') return modeleRenfort(f);
     if (!f || !f.enService || f.consultationExterne || f.roleDuJour !== 'pompiste') return null;
     const etapes = etapesOuverture(f);
-    const faites = etapes.filter((e) => e.etat !== 'a_faire').length;
+    // Lot 3 mobile : rang et total ne comptent pas les étapes « sans objet » (même total que l'Accueil).
+    const comptees = etapes.filter((e) => e.etat !== 'sans_objet');
+    const faites = comptees.filter((e) => e.etat === 'fait').length;
     const prochaine = etapes.find((e) => e.etat === 'a_faire') || null;
     const filTermine = !prochaine;
     const livraison = f.receptionApplicable ? livraisonAttendue(f.commandes, f.dateLocale) : null;
@@ -201,7 +208,7 @@
       ouvertureFaiteA: heureOuvertureFin,
       prenom: f.prenom || '',
       poste: { libelle: f.libelleRole || 'Pompiste', quart: libelleQuart(f.quart), depuis: heureLocale(f.heureDebut, f.fuseau), fin: avecFermeture ? heureDeMinutes(Number(f.finMinutes)) : null, image: IMAGES_POSTE.pompiste },
-      etapes, faites, total: etapes.length, filTermine,
+      etapes, faites, total: comptees.length, filTermine,
       // Le bouton ne pointe que vers le fil de l'Accueil, jamais vers une étape recalculée ici.
       bouton: (!filTermine && f.filLien) ? { libelle: 'Continuer : ' + prochaine.libelle, href: f.filLien } : null,
       reception: f.receptionApplicable ? { href: URL_RECEPTION, livraison: livraison && livraison.length ? livraison : null } : null,
@@ -226,7 +233,7 @@
       const note = e.etat === 'sans_objet' ? ' <span class="ap-sans-objet">sans objet</span>' : '';
       return '<li class="ap-etape ap-' + e.etat + '"><span class="ap-marque" aria-hidden="true">' + marque + '</span>' + esc(e.libelle) + note + '</li>';
     }).join('');
-    const segments = v.etapes.map((e) => '<i class="' + (e.etat === 'a_faire' ? '' : 'ap-plein') + '"></i>').join('');
+    const segments = v.etapes.filter((e) => e.etat !== 'sans_objet').map((e) => '<i class="' + (e.etat === 'a_faire' ? '' : 'ap-plein') + '"></i>').join('');
     let out = '';
     if (v.variante === 'caisse' || v.variante === 'renfort') {
       out += '<div class="ap-salut"><h1 class="ap-h1">Bonjour ' + esc(v.prenom) + '</h1></div>' + carte;
@@ -250,7 +257,7 @@
       if (v.raccourcis.datesCourtes) out += '<a class="ap-lien-discret" id="apDatesCourtes" href="NEXUS-Dates-Courtes-Releve-v1.html">Dates courtes</a>';
       const r = v.raccourcis.missions.restantes;
       out += '<section class="ap-missions" id="apMissions"><div class="ap-fil-titre">Missions du jour</div><div class="ap-missions-sous">'
-        + (r > 0 ? r + ' mission' + (r > 1 ? 's' : '') + ' à faire · <a href="' + URL_MISSIONS + '" id="apVoirMissions">Voir</a>' : (v.raccourcis.missions.total ? 'Toutes les missions sont faites' : 'Aucune mission aujourd’hui'))
+        + (r > 0 ? r + ' mission' + (r > 1 ? 's' : '') + ' à faire · <a href="' + URL_MISSIONS + '" id="apVoirMissions" class="ap-voir">Voir</a>' : (v.raccourcis.missions.total ? 'Toutes les missions sont faites' : 'Aucune mission aujourd’hui'))
         + '</div></section>';
       out += '<a class="ap-progression" id="apProgression" href="' + URL_PROGRESSION + '"><span>Ma progression · +' + v.points + ' point' + (v.points > 1 ? 's' : '') + ' aujourd’hui</span><span>Mes séries ›</span></a>';
       out += '<div class="ap-pied"><a href="' + URL_PRISE_DE_POSTE + '" id="apChangerPoste">Changer de poste</a><a href="#" id="apLogout">Se déconnecter</a></div>';
@@ -286,7 +293,7 @@
         + '<ul class="ap-etapes" id="apEtapesFermeture">' + fe.etapes.map((e) => '<li class="ap-etape ' + (e.fait ? 'ap-fait' : 'ap-a_faire') + (e.nonFait ? ' ap-non-fait' : '') + '"><span class="ap-marque" aria-hidden="true">' + (e.fait ? '✓' : e.nonFait ? '!' : '○') + '</span>' + esc(e.libelle) + '</li>').join('') + '</ul>'
         + (fe.href ? '<a class="ap-bouton" id="apBoutonFermeture" href="' + esc(fe.href) + '">' + (fe.tardive ? 'Faire ma clôture (en retard)' : fe.commence ? 'Continuer la fermeture' : 'Commencer la fermeture') + '</a>' : '')
         + '<div class="ap-fil-resume">' + (v.ouvertureFaiteA ? '✓ Ouverture faite à ' + esc(v.ouvertureFaiteA) : '✓ Ouverture faite') + '</div>'
-        + (v.missions && v.missions.restantes > 0 ? '<div class="ap-fil-resume">' + v.missions.restantes + ' mission' + (v.missions.restantes > 1 ? 's' : '') + ' restante' + (v.missions.restantes > 1 ? 's' : '') + ' · <a href="' + URL_MISSIONS + '" id="apVoirMissions">Voir</a></div>' : '')
+        + (v.missions && v.missions.restantes > 0 ? '<div class="ap-fil-resume">' + v.missions.restantes + ' mission' + (v.missions.restantes > 1 ? 's' : '') + ' restante' + (v.missions.restantes > 1 ? 's' : '') + ' · <a href="' + URL_MISSIONS + '" id="apVoirMissions" class="ap-voir">Voir</a></div>' : '')
         + '</section>';
     } else if (v.mode === 'ouverture_reduite') {
       out += '<section class="ap-fil" id="apFil"><div class="ap-fil-titre">✓ Ouverture de la piste terminée</div>'
@@ -299,16 +306,8 @@
     }
     if (v.reception) {
       const l = v.reception.livraison;
-      out += '<a class="ap-reception' + (l ? ' ap-attendue' : '') + '" id="apReception" href="' + esc(v.reception.href) + '"><span class="ap-camion" aria-hidden="true">🚚</span><span><b>Réception carburant</b><br><span class="ap-reception-sous">'
+      out += '<a class="ap-reception' + (l ? ' ap-attendue' : '') + '" id="apReception" href="' + esc(v.reception.href) + '"><span class="ap-camion">' + iconeReception() + '</span><span><b>Réception carburant</b><br><span class="ap-reception-sous">'
         + (l ? 'Livraison prévue aujourd’hui · ' + esc(listeCarburants(l)) : 'Un camion arrive ? Commencez ici') + '</span></span></a>';
-    }
-    if (v.missions && v.mode !== 'fermeture') {
-      const r = v.missions.restantes;
-      out += '<section class="ap-missions" id="apMissions"><div class="ap-fil-titre">Missions du jour</div>'
-        + (r > 0
-          ? '<div class="ap-missions-sous">' + r + ' mission' + (r > 1 ? 's' : '') + ' à faire</div><a class="ap-bouton" id="apBoutonMissions" href="' + URL_MISSIONS + '">Commencer les missions</a>'
-          : '<div class="ap-missions-sous">' + (v.missions.total ? 'Toutes les missions sont faites' : 'Aucune mission aujourd’hui') + '</div>')
-        + '</section>';
     }
     // Bouton secondaire (encadré) sous les missions : « Commencer les missions » reste le seul bouton principal.
     if (v.mode === 'ouverture_reduite' && v.fermeture.href) {
@@ -317,6 +316,8 @@
     if (v.finQuart) {
       out += '<a class="ap-bouton ap-secondaire" id="apFinQuart" href="' + esc(v.finQuart.href) + '">' + esc(v.finQuart.libelle) + '</a>';
     }
+    // Lot 3 mobile : la mission n'apparaît que dans le fil ; ce lien reste toujours visible en bas de l'Accueil du pompiste.
+    out += '<a class="ap-lien-discret" id="apMesMissions" href="' + URL_MISSIONS + '">Mes missions</a>';
     out += '<a class="ap-progression" id="apProgression" href="' + URL_PROGRESSION + '"><span>Ma progression · +' + v.points + ' point' + (v.points > 1 ? 's' : '') + ' aujourd’hui</span><span>Mes séries ›</span></a>';
     out += '<div class="ap-pied"><a href="' + URL_PRISE_DE_POSTE + '" id="apChangerPoste">Changer de poste</a><a href="#" id="apLogout">Se déconnecter</a></div>';
     return out;

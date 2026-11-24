@@ -63,10 +63,10 @@ const EPREUVES = {
   },
   // 4
   'un seul bouton plein par écran': (M) => {
-    assert.strictEqual(pleins(M.html(M.modele(avant()))), 1);               // A : Commencer les missions
+    assert.strictEqual(pleins(M.html(M.modele(avant()))), 0);               // A : plus de bouton « Commencer les missions » (lien « Mes missions »)
     assert.strictEqual(pleins(M.html(M.modele(apres()))), 1);               // B : Commencer la fermeture
     assert.strictEqual(pleins(M.html(M.modele(terminee()))), 1);            // C : Pointer mon départ
-    assert(M.html(M.modele(avant())).includes('Commencer les missions'));
+    assert(!M.html(M.modele(avant())).includes('Commencer les missions') && M.html(M.modele(avant())).includes('id="apMesMissions"'));
     assert(M.html(M.modele(apres())).includes('Commencer la fermeture'));
   },
   // 5

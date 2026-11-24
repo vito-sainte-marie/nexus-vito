@@ -97,6 +97,8 @@
      données côté manager (voir initPosteManager), jamais une valeur
      inventée — reste vide pour un employé, qui n'a pas de recalcul
      équivalent. */
+  /* Une ligne de l'en-tête sans contenu ne réserve aucune place (Guardian 7138807292) ; un petit décalage quand la ligne se remplit vaut mieux qu'un trou. */
+  #sessionInfo:empty, #headerLive:empty{display:none;}
   .header-statut-row{display:flex; align-items:center; justify-content:center; gap:10px; margin-top:12px; flex-wrap:wrap;}
   .header-statut{display:inline-flex; align-items:center; gap:7px; padding:6px 14px; border-radius:100px; border:1px solid var(--hairline); background:var(--panel); font-family:var(--mono); font-size:10.5px; letter-spacing:0.05em; color:var(--text-mid);}
   .header-live{font-family:var(--mono); font-size:10px; letter-spacing:0.03em; color:var(--text-dim);}
@@ -755,11 +757,14 @@
   body.nexus-desktop .outils-grid{grid-template-columns:repeat(4,1fr);}
   /* Accueil du pompiste en service (lot ACCUEIL-EN-SERVICE-20261030) : une seule police, une seule colonne. */
   #accueilPisteHote{display:none;}
-  body.accueil-piste{font-family:'Inter',-apple-system,sans-serif;font-variant-numeric:tabular-nums;}
+  body.accueil-piste{font-family:var(--sans),-apple-system,sans-serif;font-variant-numeric:tabular-nums;}
   body.accueil-piste #accueilPisteHote{display:block;padding:0 20px 24px;}
+  /* Accueil employé : pas de bannière, donc pas la hauteur minimale de l'en-tête commun (nexus-banniere-station.js) — Guardian 7138967263. */
+  body.accueil-piste .header{min-height:0 !important;}
   body.accueil-piste .header-statut-row, body.accueil-piste #taglineRole, body.accueil-piste #sessionInfo, body.accueil-piste #prisePosteHote{display:none !important;}
   body.accueil-piste #conseillerEmployeWrap > *:not(#accueilPisteHote){display:none !important;}
-  #accueilPisteHote, #accueilPisteHote *{font-family:'Inter',-apple-system,sans-serif;}
+  #accueilPisteHote, #accueilPisteHote *{font-family:var(--sans),-apple-system,sans-serif;}
+  #accueilPisteHote .ap-chiffre, #accueilPisteHote .ap-fil-compte{font-family:var(--mono),monospace;}
   /* Recherche libre : absente de l'Accueil du pompiste en service (le pied de page est le dernier élément). */
   body.accueil-piste #zoneRecherche{display:none !important;}
   /* Avant que le poste soit connu : seul l'en-tête, jamais la page générique. Levé par accueilPret(). */
@@ -773,23 +778,23 @@
   .mm-theme-btn.mm-theme-actif{border-color:var(--cyan);color:var(--cyan);}
   .header{position:relative;}
   .mm-titre{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--mm-titre);padding:8px 12px 4px;}
-  .mm-entree{display:block;padding:10px 12px;border-radius:8px;color:var(--ap-text);text-decoration:none;font-size:15px;}
+  .mm-entree{display:flex;align-items:center;gap:12px;min-height:44px;padding:10px 12px;border-radius:8px;color:var(--ap-text);text-decoration:none;font-size:15px;}
+  .mm-entree img{width:24px;height:24px;flex-shrink:0;object-fit:contain;}
   .mm-entree:hover{background:var(--mm-hover);}
-  .mm-desactive,.mm-desactive:hover{opacity:.45;cursor:default;background:none;}
   .mm-mention{display:block;font-size:12px;color:var(--mm-titre);margin-top:2px;}
   /* Tout l'en-tête (marque, nom de station, ligne d'état) est invisible tant que le poste n'est pas connu : sa mise en page
      dépend du marqueur .am-marqueur, posé plus tard. visibility garde la place réservée, donc aucun saut au dévoilement. */
   body.accueil-attente .app > *:not(.header){visibility:hidden !important;}
   body.accueil-attente .header > *, body.accueil-attente .header-brandrow *, body.accueil-attente .menu-accueil-bouton{visibility:hidden !important;}
   .ap-h1{font-size:24px;font-weight:700;margin:8px 0 14px;color:var(--ap-text);}
-  .ap-poste{position:relative;display:flex;height:104px;flex-shrink:0;border:1px solid var(--hairline);background:var(--panel);border-radius:16px;overflow:hidden;margin-bottom:12px;}
+  .ap-poste{position:relative;display:flex;height:104px;flex-shrink:0;border:1px solid var(--hairline);background:var(--panel);border-radius:12px;overflow:hidden;margin-bottom:12px;}
   .ap-poste-texte{position:relative;z-index:1;padding:16px;display:flex;flex-direction:column;justify-content:center;gap:2px;}
   .ap-poste-nom{font-size:18px;font-weight:700;color:var(--ap-text);}
   .nexus-role-pict{vertical-align:middle;margin-right:4px;object-fit:contain}
   .ap-poste-sous{font-size:13px;color:var(--ap-mid);}
   .ap-poste-image{position:absolute;top:0;right:0;bottom:0;width:62%;background-size:cover;background-position:center;}
   .ap-poste::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,var(--panel) 38%,rgba(var(--panel-rgb),.85) 55%,rgba(var(--panel-rgb),0) 100%);}
-  .ap-fil, .ap-missions{background:var(--panel);border:1px solid var(--hairline);border-radius:16px;padding:16px;margin-bottom:12px;}
+  .ap-fil, .ap-missions{background:var(--panel);border:1px solid var(--hairline);border-radius:12px;padding:16px;margin-bottom:12px;}
   .ap-fil-titre{font-size:16px;font-weight:600;color:var(--ap-text);}
   .ap-fil-compte, .ap-missions-sous{font-size:13px;color:var(--ap-mid);margin-top:2px;}
   .ap-segments{display:flex;gap:6px;margin:12px 0;}
@@ -809,10 +814,14 @@
   .ap-fil-resume a{color:var(--ap-dim);text-decoration:underline;}
   .ap-etape.ap-a_faire{color:var(--ap-dim);}
   .ap-bouton.ap-secondaire{background:transparent;border:1.5px solid var(--cyan);color:var(--cyan);}
-  .ap-reception{display:flex;align-items:center;gap:12px;min-height:64px;box-sizing:border-box;padding:0 16px;border:1px solid var(--rec-bord);background:var(--rec-fond);border-radius:16px;color:var(--rec-texte);text-decoration:none;margin-bottom:12px;font-size:15px;}
+  .ap-reception{display:flex;align-items:center;gap:12px;min-height:64px;box-sizing:border-box;padding:0 16px;border:1px solid var(--rec-bord);background:var(--rec-fond);border-radius:12px;color:var(--rec-texte);text-decoration:none;margin-bottom:12px;font-size:15px;}
   .ap-reception.ap-attendue{border:1.5px solid var(--rec-texte);background:var(--rec-attendue);}
   .ap-reception-sous{font-size:13px;color:var(--rec-sous);}
-  .ap-camion{font-size:22px;}
+  .ap-camion{display:inline-flex;align-items:center;}
+  .ap-camion img{width:24px;height:24px;}
+  #accueilPisteHote a#apVoirMissions, #accueilPisteHote .ap-voir{color:var(--cyan);font-weight:600;text-decoration:underline;}
+  body.accueil-piste .header-sitewrap{min-width:0;}
+  body.accueil-piste .header-sitename{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;max-width:100%;}
   .ap-progression{display:flex;justify-content:space-between;align-items:center;min-height:44px;font-size:14px;color:var(--ap-text);text-decoration:none;}
   .ap-pied{display:flex;justify-content:space-between;margin-top:8px;}
   .ap-pied a{display:flex;align-items:center;min-height:44px;font-size:13px;color:var(--ap-mid);text-decoration:none;}
@@ -1607,8 +1616,8 @@
 <script src="nexus-fil-fin-quart.js?v=20261031-0001"></script>
 <script src="nexus-pilotes-inventaire.js?v=20261102-1"></script>
 <script src="nexus-fil-caisse.js?v=20261103-0002"></script>
-<script src="nexus-accueil-piste.js?v=20261124-0004"></script>
-<script src="nexus-menu-accueil.js?v=20261124-0001"></script>
+<script src="nexus-accueil-piste.js?v=20261124-0005"></script>
+<script src="nexus-menu-accueil.js?v=20261124-0002"></script>
 <script src="nexus-badge-etat.js"></script>
 <script src="nexus-prise-de-poste.js"></script>
 <script src="nexus-recherche.js"></script>
@@ -2727,6 +2736,8 @@
     };
     bouton.addEventListener('click', (e) => { e.stopPropagation(); basculer(!panneau.classList.contains('mm-ouvert')); });
     document.addEventListener('click', (e) => { if (!panneau.contains(e.target)) basculer(false); });
+    // Lot 3 mobile : Échap ferme le menu et rend le focus au bouton ☰.
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && panneau.classList.contains('mm-ouvert')) { basculer(false); bouton.focus(); } });
     const sortie = document.getElementById('menuLogout');
     if (sortie) sortie.addEventListener('click', (e) => { e.preventDefault(); nexusLogout(); });
   }
@@ -2855,7 +2866,8 @@
     // Entrée du fil « Ma caisse » (L1, incrément 3) : pilote + caissière du jour en service ; étape 2 (comptage) puis 3 (fermeture, 45 min avant la fin).
     const piloteCaisse = (enService && roleDuJour === NexusFilCaisse.ROLE) ? await chargerPiloteCaisse(employee.site_id, employee.id) : false;
     // Heure de fin du quart affichée dans le bandeau de la caissière (lecture seule des horaires, comme pour le pompiste).
-    if (enService && roleDuJour === NexusFilCaisse.ROLE && fuseauStation && (quartDuJour === 'matin' || quartDuJour === 'soir')) {
+    // Le renfort lit la même source (horaires de la station) ; quart inconnu : pas de « fin à ».
+    if (enService && (roleDuJour === NexusFilCaisse.ROLE || roleDuJour === 'renfort') && fuseauStation && (quartDuJour === 'matin' || quartDuJour === 'soir')) {
       finMinutes = NexusStation.finDuQuartMinutes(await chargerHorairesStation(employee.site_id), quartDuJour === 'matin' ? 'quart1' : 'quart2', fuseauStation, new Date());
     }
     let fermetureCaisseDue = false;
@@ -3907,6 +3919,7 @@
         return;
       }
       titre.textContent = site.nom_entreprise;
+      titre.title = site.nom_entreprise;
       if (site.logo_url) {
         const hote = document.getElementById('logoFrameHote');
         if (hote) {
