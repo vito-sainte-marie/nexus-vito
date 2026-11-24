@@ -825,6 +825,16 @@
   .ap-progression{display:flex;justify-content:space-between;align-items:center;min-height:44px;font-size:14px;color:var(--ap-text);text-decoration:none;}
   .ap-pied{display:flex;justify-content:space-between;margin-top:8px;}
   .ap-pied a{display:flex;align-items:center;min-height:44px;font-size:13px;color:var(--ap-mid);text-decoration:none;}
+  /* Lot 3 bureau (24/11) : deux colonnes de l'accueil employé, en vue bureau activée seulement (la largeur utile y dépasse 900 px).
+     Colonne de gauche : poste et fil du jour. Colonne de droite : missions, réception, progression, pied. Sans vue bureau
+     ou sous 900 px de fenêtre, la colonne unique reste telle quelle. */
+  @media (min-width:900px){
+    body.accueil-piste.nexus-desktop #accueilPisteHote{display:grid;grid-template-columns:minmax(0,7fr) minmax(0,5fr);column-gap:16px;align-items:start;grid-auto-flow:row dense;max-width:1040px;margin:0 auto;}
+    body.accueil-piste.nexus-desktop #accueilPisteHote > *{grid-column:2;}
+    body.accueil-piste.nexus-desktop #accueilPisteHote > .ap-salut{grid-column:1 / -1;}
+    body.accueil-piste.nexus-desktop #accueilPisteHote > .ap-poste{grid-column:1;grid-row:2;}
+    body.accueil-piste.nexus-desktop #accueilPisteHote > .ap-fil{grid-column:1;grid-row:3 / span 12;}
+  }
 </style>
 </head>
 <body class="accueil-attente">

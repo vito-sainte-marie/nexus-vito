@@ -574,7 +574,10 @@ t('cas 14 — les deux chemins tiennent sur un écran de téléphone', () => {
     const entete = m[0].slice(0, m[0].indexOf('{')).trim();
     // 08/11/2026 : taille des icônes de « Vos raccourcis » sous 600 px (taille seule, aucune règle ne masque rien : vérifié plus bas).
     const tailleIconesMobile = /^@media\s*\(max-width:\s*599px\)\s*$/.test(entete) && /^\s*(\.outil-icon(?: img| > span)?\{[^}]*\}\s*)+$/.test(m[1]);
-    const presentation = tailleIconesMobile || /^@media\s*\((?:hover:\s*hover|prefers-reduced-motion:\s*reduce)\)\s*$/.test(entete);
+    // 24/11/2026 (Lot 3 bureau) : deux colonnes de l'accueil employé, en vue bureau activée seulement (≥ 900 px) ; mise en page seule,
+    // toute règle est préfixée par body.accueil-piste.nexus-desktop #accueilPisteHote et rien n'est masqué (vérifié plus bas).
+    const deuxColonnesBureau = /^@media\s*\(min-width:\s*900px\)\s*$/.test(entete) && /^\s*(body\.accueil-piste\.nexus-desktop #accueilPisteHote[^{]*\{[^}]*\}\s*)+$/.test(m[1]);
+    const presentation = tailleIconesMobile || deuxColonnesBureau || /^@media\s*\((?:hover:\s*hover|prefers-reduced-motion:\s*reduce)\)\s*$/.test(entete);
     assert.ok(presentation || /^\s*(body(?:\.nexus-desktop)?:has\(\.am-marqueur\)[^{]*\{[^}]*\}\s*)+$/.test(m[1]),
       'une media query hors du bloc dirigeant pourrait masquer un chemin selon la largeur — à réexaminer');
     assert.ok(!/display:\s*none|visibility:\s*hidden|opacity:\s*0\b|height:\s*0\b/.test(m[1]),
