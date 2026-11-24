@@ -22,22 +22,27 @@ const EPREUVES = {
     assert.strictEqual((h.match(/class="ap-bouton"/g) || []).length, 1);
     assert(h.includes('href="NEXUS-Carburant-Jaugeage-v1.html?x=1"') && h.includes('Continuer : Jaugeage Veeder-Root'));
   },
-  'fil terminé : aucun bouton du fil, un seul bouton Missions': (M) => {
+  'fil terminé : aucun bouton du fil, aucun bouton Missions (lien « Mes missions » en bas)': (M) => {
     const v = M.modele(Object.assign({}, base, { jaugeageFait: true, indexFait: true, inventaireFait: true }));
     const h = M.html(v);
     assert(h.includes('Ouverture de la piste terminée') && !h.includes('apBoutonPrincipal'));
-    assert.strictEqual((h.match(/class="ap-bouton"/g) || []).length, 1);
-    assert(h.includes('apMissions'));
+    assert.strictEqual((h.match(/class="ap-bouton"/g) || []).length, 0);
+    assert(h.includes('id="apMesMissions"') && !h.includes('apBoutonMissions'));
   },
-  'Missions absente pendant le fil': (M) => { assert(!M.html(M.modele(base)).includes('apMissions')); },
+  'Missions : jamais de bloc dans l\'Accueil du pompiste, un lien « Mes missions » toujours visible': (M) => {
+    [base, Object.assign({}, base, { jaugeageFait: true, indexFait: true, inventaireFait: true })].forEach((b) => {
+      const h = M.html(M.modele(b));
+      assert(!h.includes('id="apMissions"') && h.includes('id="apMesMissions"') && h.includes('>Mes missions<'));
+    });
+  },
   'missions toutes faites : plus de bouton': (M) => {
     const h = M.html(M.modele(Object.assign({}, base, { jaugeageFait: true, indexFait: true, inventaireFait: true, missions: { total: 3, faites: 3 } })));
     assert(!h.includes('class="ap-bouton"'));
   },
-  'progression n sur 3 et étape sans objet comptée': (M) => {
+  'progression : l\'étape sans objet n\'est ni comptée ni numérotée (lot 3 mobile)': (M) => {
     const v = M.modele(Object.assign({}, base, { jaugeageApplicable: false, indexFait: true }));
-    assert.strictEqual(v.total, 3); assert.strictEqual(v.faites, 2);
-    assert(M.html(v).includes('2 sur 3'));
+    assert.strictEqual(v.total, 2); assert.strictEqual(v.faites, 1);
+    assert(M.html(v).includes('1 sur 2'));
   },
   'tuile Réception visible sans livraison : texte neutre': (M) => {
     const h = M.html(M.modele(base));
@@ -111,7 +116,7 @@ for (const [nom, mut] of MUTATIONS_APP) {
 const MUTATIONS = [
   ['deux boutons', (s) => s.replace("(v.bouton ? '<a class=\"ap-bouton\"", "(true ? '<a class=\"ap-bouton\"").replace("' + esc(v.bouton.libelle) + '</a>' : '')", "' + esc(v.bouton ? v.bouton.libelle : '') + '</a>' : '') + '<a class=\"ap-bouton\" href=\"#\">x</a>'")],
   ['bouton hors filLien', (s) => s.replace('href: f.filLien }', "href: 'NEXUS-Missions-v1.html' }")],
-  ['Missions pendant le fil', (s) => s.replace('missions: filTermine ?', 'missions: true ?')],
+  ['Missions pendant le fil', (s) => s.replace("out += '<a class=\"ap-lien-discret\" id=\"apMesMissions\"", "out += '<a class=\"ap-lien-discret\" id=\"apMesMissionsX\"")],
   ['tuile sans commande du jour', (s) => s.replace("c.livraison_prevue_le !== dateLocale", 'false')],
   ['statut quelconque', (s) => s.replace('STATUTS_COMMANDE_ATTENDUE.indexOf(c.statut) === -1', 'false')],
   ['tuile ignore le rôle du site', (s) => s.replace('reception: f.receptionApplicable ?', 'reception: true ?')],
@@ -119,7 +124,7 @@ const MUTATIONS = [
   ['mode consultation externe', (s) => s.replace(' || f.consultationExterne', '')],
   ['mode tout rôle', (s) => s.replace(" || f.roleDuJour !== 'pompiste'", '')],
   ['heure en UTC', (s) => s.replace('timeZone: fuseau || undefined', "timeZone: 'UTC'")],
-  ['étape sans objet non comptée', (s) => s.replace("e.etat !== 'a_faire'", "e.etat === 'fait'")],
+  ['étape sans objet non comptée', (s) => s.replace("const comptees = etapes.filter((e) => e.etat !== 'sans_objet')", 'const comptees = etapes')],
   ['bouton sans filLien', (s) => s.replace('(!filTermine && f.filLien)', '(!filTermine)')],
 ];
 for (const [nom, mut] of MUTATIONS) {
