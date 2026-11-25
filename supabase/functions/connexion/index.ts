@@ -123,6 +123,8 @@ async function connexion(body: any, c: Ctx): Promise<Response> {
 
   if (av.etat === "a_migrer") {
     // Ancien mot de passe Auth = le code lui-même ; on le vérifie une dernière fois puis on passe au schéma dérivé.
+    // Budget global d'appels à Auth (IP de sortie partagée) : au-delà, 503 sans appeler Auth ni toucher aucun compteur.
+    if ((await sql`select nexus_connexion.budget_auth() as r`)[0].r?.ok !== true) throw new LimiteAuth();
     const ancien = await session(email, code);
     if (!ancien) { await sql`select nexus_connexion.apres_echec(${uid}, ${c.fp})`; return rep(401, REFUS, c.origin); }
     const h = await hasher(alias, code);

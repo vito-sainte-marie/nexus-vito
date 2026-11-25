@@ -12,3 +12,9 @@ Un 503 « indisponible » n'est rendu que si Auth répond lui-même 429. `compte
 Toute écriture double passe par `ecrireAtomique` : Auth d'abord, puis la base. Si la base échoue, le mot de passe Auth précédent est restauré. Si cette compensation échoue, l'événement `incoherence_auth` est journalisé et `nexus_connexion.comptes_incoherents()` (lecture seule) liste le compte ; la réparation est la réinitialisation par un gérant (`reinitialiser_code`).
 
 Injection de pannes (Test seulement) : table `nexus_connexion.panne_injectee` (user_id, étape `auth`, `base` ou `compensation`), lue seulement si la variable d'environnement `RECETTE_PANNES=1` est posée. Ce code (table, `panne_pour`, appels) est retiré du source avant toute demande de GO Production ; le md5 de Production différera donc de celui de Test.
+
+## Budget d'appels à Auth et migration station par station
+
+Tous les comptes `a_migrer` d'une station sortent par la même IP vers Auth, qui limite par IP (mesure sur Test : seau de jetons, 429 vers 0,8 à 2 appels par seconde, récupération en quelques secondes). `nexus_connexion.budget_auth()` plafonne donc les appels `a_migrer` à `budget_auth_min` par minute (20 par défaut). Au-delà : 503 « indisponible », sans appel à Auth, sans toucher aucun compteur de compte ; le plancher de durée s'applique. L'événement `budget_auth` est journalisé (au plus un par minute) avec le nombre de comptes `a_migrer` restants. Il sera repris dans l'alerte gérant.
+
+La migration se fait **station par station**, et le nombre de comptes `a_migrer` est suivi jusqu'à zéro avant de passer à la station suivante.
