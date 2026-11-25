@@ -56,7 +56,8 @@ function clientFactice() {
   // ---- Données ----
   await ta('une absence crée UN seul événement RH sur la période', async () => {
     const c = clientFactice();
-    await D.declarerAbsenceDepuisVariable(c, { siteId: 's', employeeId: 'e1', dateDebut: '2026-11-03', dateFin: '2026-11-07', motifTexte: 'Absence injustifiée', actorId: 'm' });
+    await D.declarerAbsenceDepuisVariable(c, { siteId: 's', employeeId: 'e1', dateDebut: '2026-11-03', dateFin: '2026-11-07', motifTexte: 'Absence injustifiée', actorId: 'm', justifiee: false });
+    assert.strictEqual(c.lignes[0].justifiee, false);
     assert.strictEqual(c.lignes.length, 1);
     assert.strictEqual(c.lignes[0].date_debut, '2026-11-03');
     assert.strictEqual(c.lignes[0].date_fin, '2026-11-07');
@@ -67,7 +68,16 @@ function clientFactice() {
     const c = clientFactice();
     for (const m of ['', '   ', undefined]) {
       let refuse = false;
-      try { await D.declarerAbsenceDepuisVariable(c, { siteId: 's', employeeId: 'e1', dateDebut: '2026-11-03', dateFin: '2026-11-03', motifTexte: m }); } catch (e) { refuse = /motif/i.test(e.message); }
+      try { await D.declarerAbsenceDepuisVariable(c, { siteId: 's', employeeId: 'e1', dateDebut: '2026-11-03', dateFin: '2026-11-03', motifTexte: m, justifiee: true }); } catch (e) { refuse = /motif/i.test(e.message); }
+      assert.ok(refuse);
+    }
+    assert.strictEqual(c.lignes.length, 0);
+  });
+  await ta('sans précision justifiée ou injustifiée, l’absence est refusée et rien n’est écrit', async () => {
+    const c = clientFactice();
+    for (const j of [undefined, null, 'oui', '']) {
+      let refuse = false;
+      try { await D.declarerAbsenceDepuisVariable(c, { siteId: 's', employeeId: 'e1', dateDebut: '2026-11-03', dateFin: '2026-11-03', motifTexte: 'x', justifiee: j }); } catch (e) { refuse = /justifi/i.test(e.message); }
       assert.ok(refuse);
     }
     assert.strictEqual(c.lignes.length, 0);

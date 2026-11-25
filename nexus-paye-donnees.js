@@ -185,7 +185,7 @@
   // regroupement et de la mémoire. Désormais, une absence constatée après
   // coup suit exactement le même chemin — déclarée une fois, plus jamais
   // redemandée.
-  async function declarerIndisponibilite(client, { siteId, employeeId, dateDebut, dateFin, motif, finIndeterminee, commentaire, actorId }) {
+  async function declarerIndisponibilite(client, { siteId, employeeId, dateDebut, dateFin, motif, finIndeterminee, commentaire, actorId, justifiee }) {
     if (!employeeId || !dateDebut) throw new Error('Employé et date de début requis.');
     if (!motif) throw new Error('Un motif est requis : NEXUS ne qualifie jamais une absence à votre place.');
     const motifsConnus = (global.NexusPayeMoteur && global.NexusPayeMoteur.MOTIFS_INDISPO) || null;
@@ -200,6 +200,7 @@
       confirme_le: new Date().toISOString(), confirme_par: actorId || null,
       cree_par: actorId || null,
     };
+    if (typeof justifiee === 'boolean') ligne.justifiee = justifiee;
     const { data, error } = await client.from('employee_indisponibilites').insert(ligne).select().maybeSingle();
     if (error) throw error;
     return data;
@@ -211,10 +212,11 @@
   // jamais une absence à la place du manager. Le code de motif en base reste
   // `autre` (contrainte employee_indisponibilites_motif_check : aucune
   // migration), libellé « Absence » partout.
-  async function declarerAbsenceDepuisVariable(client, { siteId, employeeId, dateDebut, dateFin, motifTexte, actorId }) {
+  async function declarerAbsenceDepuisVariable(client, { siteId, employeeId, dateDebut, dateFin, motifTexte, actorId, justifiee }) {
+    if (typeof justifiee !== 'boolean') throw new Error('Précisez si l’absence est justifiée ou injustifiée : NEXUS ne le décide pas à votre place.');
     const texte = String(motifTexte || '').trim();
     if (!texte) throw new Error('Un motif est obligatoire pour une absence : NEXUS ne qualifie jamais une absence à votre place.');
-    return declarerIndisponibilite(client, { siteId, employeeId, dateDebut, dateFin: dateFin || dateDebut, motif: 'autre', finIndeterminee: false, commentaire: texte, actorId });
+    return declarerIndisponibilite(client, { siteId, employeeId, dateDebut, dateFin: dateFin || dateDebut, motif: 'autre', finIndeterminee: false, commentaire: texte, actorId, justifiee });
   }
 
   // Clôture : le salarié a repris. La date de reprise prime sur date_fin et

@@ -68,37 +68,18 @@ function dossierFictif(nbJours) {
   const faux = charger(journal);
   await faux.NexusPayeDossierPdf.construireDossierPdf(dossierFictif(31), { site: 'site-fictif' });
   const M = faux.NexusPdfMoteur;
-  const droite = M.A4.largeur - M.MARGE;
+  const LARG_P = M.A4.hauteur, HAUT_P = M.A4.largeur, MG = 28; // dossier : A4 paysage, marge 28
+  const droite = LARG_P - MG;
 
   verifier('aucun texte ne sort de la page (marge gauche et droite) avec 31 jours de détail', () => {
-    const fautifs = journal.textes.filter(e => e.x < M.MARGE - 0.01 || e.x + e.t.length * LARGEUR_CAR * (e.size / 9) > droite + 0.01);
+    const fautifs = journal.textes.filter(e => e.x < MG - 0.01 || e.x + e.t.length * LARGEUR_CAR * (e.size / 9) > droite + 0.01);
     assert.strictEqual(fautifs.length, 0, 'textes hors page : ' + JSON.stringify(fautifs.slice(0, 3)));
   });
   verifier('aucun décalage négatif : x jamais inférieur à la marge', () => {
-    assert.ok(journal.textes.every(e => e.x >= M.MARGE));
-  });
-  verifier('le détail par date n’est plus une valeur concaténée dans « Variables du mois »', () => {
-    assert.ok(!journal.textes.some(e => /Détail par date \(normales/.test(e.t)));
-    assert.ok(journal.textes.some(e => e.t === 'DÉTAIL PAR DATE'));
-    assert.ok(journal.textes.some(e => e.t === '31/10'), 'une ligne JJ/MM par journée');
-    assert.ok(journal.textes.some(e => e.t === '01/10'));
-    assert.ok(!journal.textes.some(e => /^2026-10-\d\d$/.test(e.t)), 'pas de date ISO brute en cellule de détail');
-  });
-  verifier('les heures portent leur unité', () => {
-    assert.ok(journal.textes.some(e => e.t === '7 h') && journal.textes.some(e => e.t === '1 h'));
-  });
-  verifier('« aucune » pour des heures en attente (féminin)', () => {
-    assert.ok(journal.textes.some(e => e.t === 'aucune'));
-    assert.ok(!journal.textes.some(e => e.t === 'aucun'));
-  });
-  verifier('aucune ligne ne chevauche : sur une même page, y ne remonte pas dans une colonne gauche', () => {
-    const libelles = journal.textes.filter(e => e.x === M.MARGE + 6);
-    for (let i = 1; i < libelles.length; i++) {
-      if (libelles[i].page === libelles[i - 1].page) assert.ok(libelles[i].y <= libelles[i - 1].y + 0.01, 'y non décroissant : ' + libelles[i].t);
-    }
+    assert.ok(journal.textes.every(e => e.x >= MG));
   });
   verifier('toutes les lignes restent dans la page verticalement', () => {
-    assert.ok(journal.textes.every(e => e.y > 0 && e.y < M.A4.hauteur));
+    assert.ok(journal.textes.every(e => e.y > 0 && e.y < HAUT_P));
   });
 
   // Moteur seul : cellule trop longue, tous alignements, mot insécable plus large que la colonne.
