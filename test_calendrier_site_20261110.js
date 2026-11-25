@@ -201,11 +201,11 @@ t('page Tempo : charge les vacances de la table, repli sur la liste figée si la
 const WF = { feries: lire('.github/workflows/calendrier-feries.yml'), vacances: lire('.github/workflows/calendrier-vacances.yml') };
 Object.keys(WF).forEach(k => {
   const w = WF[k];
-  t('workflow ' + k + ' : cron, PR depuis production, [Vigie] sur #160, silencieux si rien à faire', () => {
+  t('workflow ' + k + ' : cron, PR depuis production, [Vigie] sur #383, silencieux si rien à faire', () => {
     assert.ok(k === 'feries' ? /cron: '0 10 1 1 \*'/.test(w) : /cron: '0 10 1 \* \*'/.test(w));
     assert.ok(/ref: production/.test(w) && /gh pr create --base production/.test(w));
     assert.ok(/if: steps\.calcul\.outputs\.fichier != ''/.test(w), 'étape PR/commentaire non conditionnée');
-    assert.ok(/gh issue comment 160 --body "\[Vigie\] À Claude et Guardian/.test(w));
+    assert.ok(/gh issue comment 383 --body "\[Vigie\] À Claude et Guardian/.test(w));
   });
   t('workflow ' + k + ' : aucune mention de robot, aucune notification à Frédéric, aucune base jointe', () => {
     assert.ok(!/@claude/i.test(w) && !/@fredericbragance|@fred/i.test(w), 'mention interdite');
