@@ -100,7 +100,7 @@ const aTexte = (j, re) => j.textes.some(e => re.test(e.t));
     const noms = j.textes.filter(e => /^Salarié [A-I]$/.test(e.t) && e.size === 11.5);
     assert.strictEqual(noms.length, 9);
     assert.ok(new Set(noms.map(e => e.page)).size <= 2, 'au plus deux pages');
-    const ordre = noms.map(e => e.t).join('');
+    const ordre = noms.map(e => e.t.slice(-1)).join('');
     assert.strictEqual(ordre, 'ABCDEFGHI');
     for (let i = 1; i < noms.length; i++) {
       const a = noms[i - 1], b = noms[i];
@@ -193,7 +193,8 @@ const aTexte = (j, re) => j.textes.some(e => re.test(e.t));
     assert.strictEqual(f('2026-12-01T01:00:00Z', '2026-11-01', 'America/Martinique'), false);
     // 29/11 23:00 en Martinique = 30/11 03:00 UTC : veille du dernier jour, donc provisoire.
     assert.strictEqual(f('2026-11-30T03:00:00Z', '2026-11-01', 'America/Martinique'), true);
-    assert.strictEqual(f('2027-02-15T12:00:00Z', '2027-02-01', 'America/Martinique'), false);
+    assert.strictEqual(f('2027-02-15T12:00:00Z', '2027-02-01', 'America/Martinique'), true);
+    assert.strictEqual(f('2027-02-28T12:00:00Z', '2027-02-01', 'America/Martinique'), false);
   });
 
   await verifier('deux générations : contenu identique page par page, hors ligne « Généré le »', async () => {

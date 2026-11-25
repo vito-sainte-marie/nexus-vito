@@ -16,6 +16,10 @@
  * du PDF diffère de l'écran, c'est un bug de mise en page, jamais une
  * divergence de calcul.
  *
+ * Refonte du 25/11/2026 (GO gérant, #383) : A4 paysage, trois colonnes, une fiche
+ * compacte par salarié, rubriques vides omises. Le dossier provisoire est
+ * téléchargeable en brouillon, marqué « Provisoire ».
+ *
  * Charger APRÈS pdf-lib, nexus-pdf-moteur.js et nexus-paye-moteur.js.
  * ------------------------------------------------------------ */
 (function (global) {
@@ -36,15 +40,8 @@
   }
 
   function euros(centimes) {
-    if (centimes == null) return '—';
-    const v = Number(centimes) / 100;
-    return `${v > 0 ? '+' : ''}${v.toFixed(2).replace('.', ',')} €`;
-  }
-
-  // « -6,53 € » : une seule valeur, même ligne que le bloc « Pour le comptable » (pas de détail par origine).
-  function ecartsMois(m) {
-    if (!m || (!m.totalCentimes && !m.boutiqueCentimes && !m.pisteCentimes && !m.fdjCentimes)) return '—';
-    return euros(m.totalCentimes);
+    if (centimes == null) return 'donnée manquante';
+    return `${(Number(centimes) / 100).toFixed(2).replace('.', ',')} €`;
   }
 
   function heures(valeur) {
@@ -101,158 +98,172 @@
     return lignes;
   }
 
-  function ficheSalarie(rapport, salarie, periodeISO) {
-    const v = salarie.variables;
-    rapport._nouvellePage();
-    rapport.titre(salarie.nom || '—', { taille: 16 });
-    rapport.sousTitre(`${salarie.role || 'poste non précisé'} · ${moisLabel(periodeISO)} · ${salarie.statutLibelle}`);
-
-    if (salarie.statut !== 'pret') {
-      rapport.bandeau(salarie.statut === 'donnee_manquante'
-        ? 'Donnée manquante : cette fiche est incomplète, elle ne doit pas être traitée en l’état.'
-        : `${v.elementsEnAttente} élément(s) restent à vérifier — ils ne sont PAS comptés dans les variables ci-dessous.`);
+  // Provisoire = généré avant le dernier jour du mois, au fuseau du site.
+  function estProvisoire(genereLeISO, periodeISO, fuseau) {
+    const t = new Date(genereLeISO);
+    const p = String(periodeISO || '').slice(0, 10).split('-').map(Number);
+    if (isNaN(t.getTime()) || p.length !== 3 || !p[0]) return true;
+    let local;
+    try {
+      local = new Intl.DateTimeFormat('en-CA', { timeZone: fuseau || 'UTC', year: 'numeric', month: '2-digit', day: '2-digit' }).format(t);
+    } catch (e) {
+      local = t.toISOString().slice(0, 10);
     }
-
-    rapport.sectionTitre('Variables du mois');
-    rapport.tableau(
-      [{ label: 'Variable', cle: 'variable', largeur: 0.62 }, { label: 'Valeur', cle: 'valeur', largeur: 0.38, align: 'droite' }],
-      lignesVariables(v),
-    );
-
-    // Détail par date : un tableau pleine largeur (une ligne par journée), jamais une valeur concaténée dans « Variables du mois ».
-    rapport.sectionTitre('Détail par date');
-    const jours = v.presence.detailJours || [];
-    if (jours.length) {
-      rapport.tableau(
-        [{ label: 'Date', cle: 'date', largeur: 0.4 }, { label: 'Normales', cle: 'normales', largeur: 0.3, align: 'droite' }, { label: 'Sup.', cle: 'sup', largeur: 0.3, align: 'droite' }],
-        jours.map(j => ({ date: `${String(j.date).slice(8, 10)}/${String(j.date).slice(5, 7)}`, normales: heures(j.normales), sup: heures(j.supplementaires) })),
-      );
-    } else {
-      rapport.encadre([{ texte: 'Aucune journée.' }]);
-    }
-
-    const evenements = [...v.congesPayes.detail, ...v.maladieMaternite.detail, ...v.autresAbsences.detail];
-    if (evenements.length) {
-      rapport.sectionTitre('Événements RH couvrant le mois');
-      rapport.tableau(
-        [{ label: 'Motif', cle: 'motif', largeur: 0.3 }, { label: 'Période', cle: 'periode', largeur: 0.52 }, { label: 'Jours', cle: 'jours', largeur: 0.18, align: 'droite' }],
-        evenements.map(ev => ({ motif: ev.libelle, periode: periodeEvenement(ev), jours: String(ev.jours) })),
-      );
-    }
-
-    if (v.financier.lignes.length) {
-      rapport.sectionTitre('Éléments financiers');
-      rapport.tableau(
-        [{ label: 'Date', cle: 'date', largeur: 0.16 }, { label: 'Libellé', cle: 'libelle', largeur: 0.64 }, { label: 'Montant', cle: 'montant', largeur: 0.2, align: 'droite' }],
-        v.financier.lignes.map(l => ({ date: l.date ? jjmmaaaa(l.date) : '—', libelle: l.libelle, montant: euros(l.montantCentimes) })),
-      );
-    }
-
-    const notes = [];
-    if (v.presence.joursReconstitues) notes.push(`${v.presence.joursMesures} journée(s) sur ${v.presence.joursMesures + v.presence.joursReconstitues} constatée(s) confirmée(s) par deux sources (Verify et pointage).`);
-    if (v.presence.joursPlanifies) notes.push(`${v.presence.joursPlanifies} journée(s) de renfort comptée(s) sur le seul planning officiel, qui fait foi pour le renfort.`);
-    if (v.presence.heuresParDefaut) notes.push(`${heures(v.presence.heuresParDefaut)} calculées d’après la durée de référence du poste (journée longue = 7 h + 1 h supplémentaire, règle du 10/10), pour les journées constatées dans Verify.`);
-    if (v.heuresSupplementaires.heuresDejaIncluses) notes.push(`${heures(v.heuresSupplementaires.heuresDejaIncluses)} d’une décision antérieure décrivent la même heure que la 8e heure du barème : elles ne sont pas ajoutées. Aucun taux de majoration n’est appliqué ici : il relève du cadre légal et de la convention.`);
-    if (v.financier.ecartsInformatifs) notes.push(`${v.financier.ecartsInformatifs} écart(s) de caisse restent informatifs : aucune retenue.`);
-    if (notes.length) rapport.encadre(notes.map(n => ({ texte: `- ${n}` })));
+    const dernier = new Date(Date.UTC(p[0], p[1], 0)).getUTCDate();
+    const finDeMois = `${p[0]}-${String(p[1]).padStart(2, '0')}-${String(dernier).padStart(2, '0')}`;
+    return local < finDeMois;
   }
 
+  const FONCTION = { caissier: 'Caisse', caissiere: 'Caisse', pompiste: 'Piste', renfort: 'Renfort' };
+  const MARGE = 28;
+  const GOUTTIERE = 14;
+  const TAILLE = 8.5;
+  const INTERLIGNE = 10.5;
+
+  function joursCal(n) { return `${Number(n || 0)} j cal.`; }
+
+  // Une fiche = une liste de lignes ; seules les rubriques non vides sont présentes.
+  function lignesFiche(s) {
+    const v = s.variables;
+    const L = [];
+    const ligne = (label, valeur, o) => L.push(Object.assign({ label, valeur }, o || {}));
+    if (s.statut === 'donnee_manquante') ligne('Donnée manquante : fiche incomplète', '', { couleur: 'rouge', gras: true });
+    else if (s.statut === 'a_verifier') ligne(`${v.elementsEnAttente} élément(s) à vérifier`, '', { couleur: 'ambre', gras: true });
+    ligne('Jours travaillés', `${v.presence.jours} j`);
+    ligne('Heures', heures(v.presence.heures));
+    if (v.absence.jours) ligne('Présence à vérifier', `${v.absence.jours} j`, { couleur: 'ambre' });
+    const evenements = (typeLabel, bloc) => {
+      if (!bloc.jours && !(bloc.detail || []).length) return;
+      ligne(typeLabel, joursCal(bloc.jours));
+      (bloc.detail || []).forEach(ev => {
+        const deborde = (ev.evenementDebut && ev.evenementDebut < ev.debut) || (ev.evenementFin && ev.evenementFin > ev.fin) || ev.finIndeterminee;
+        if (deborde) ligne(`période réelle du ${jjmmaaaa(ev.evenementDebut)} au ${ev.finIndeterminee ? 'retour non daté' : jjmmaaaa(ev.evenementFin)}`, '', { couleur: 'texteDim', petit: true });
+      });
+    };
+    evenements('Congés payés', v.congesPayes);
+    evenements('Maladie / maternité', v.maladieMaternite);
+    if (v.autresAbsences.jours || (v.autresAbsences.detail || []).length) {
+      const detail = v.autresAbsences.detail || [];
+      if (!detail.length) ligne('Autres absences', joursCal(v.autresAbsences.jours));
+      detail.forEach(ev => {
+        let lib = ev.libelle || 'Autre absence';
+        if (ev.motif === 'autre') lib = ev.justifiee === true ? 'Absence justifiée' : (ev.justifiee === false ? 'Absence injustifiée' : 'Absence (justification non renseignée)');
+        ligne(lib, joursCal(ev.jours), ev.motif === 'autre' && ev.justifiee !== true ? { couleur: 'ambre' } : {});
+      });
+    }
+    if (v.retards.occurrences) ligne('Retards', `${v.retards.minutes} min`);
+    ligne('Heures supplémentaires', heures(v.heuresSupplementaires.heures));
+    if (v.heuresSupplementaires.enAttente) ligne('Heures sup. à arbitrer', String(v.heuresSupplementaires.enAttente), { couleur: 'ambre' });
+    if (v.joursFeries.jours) ligne('Jours fériés travaillés', `${v.joursFeries.jours} j`);
+    if (v.financier.acompteCentimes) ligne('Acompte', euros(v.financier.acompteCentimes));
+    if (v.financier.detteCentimes) ligne('Avance', euros(v.financier.detteCentimes));
+    if (v.financier.retenueEcartCentimes) ligne('Retenue décidée', euros(v.financier.retenueEcartCentimes));
+    const g = v.financier.ecartGeneralCentimes;
+    ligne('Écart général du mois', g == null ? 'donnée manquante' : euros(g), g == null ? { couleur: 'rouge' } : {});
+    return L;
+  }
+
+  function hauteurFiche(lignes) { return 16 + lignes.length * INTERLIGNE + 8; }
+
   /**
-   * Construit le dossier comptable PDF et renvoie
-   * `{ bytes, nomFichier, titre }`. `dossier` vient de
-   * `NexusPayeMoteur.dossierComptable(rapport)`.
+   * Construit le dossier comptable PDF (A4 paysage, trois colonnes) et
+   * renvoie `{ bytes, nomFichier, titre }`. `dossier` vient de
+   * `NexusPayeMoteur.dossierComptable(rapport)`. Aucun calcul ici.
    */
   async function construireDossierPdf(dossier, options) {
     const opts = options || {};
+    const M = global.NexusPdfMoteur;
+    const C = M.COULEUR;
     const label = moisLabel(dossier.periode);
-    const rapport = await global.NexusPdfMoteur.creerRapport({
-      titre: `NEXUS PAYE — Dossier comptable ${label}`,
-      sujet: 'Variables de paie préparées par NEXUS — la comptabilité établit le bulletin.',
-      entete: { app: 'NEXUS PAYE', sousTitre: `Dossier comptable · ${label}` },
+    const provisoire = opts.provisoire != null ? !!opts.provisoire : estProvisoire(dossier.genereLe, dossier.periode, opts.fuseau);
+    const titre = `Dossier comptable ${label}`;
+    const rapport = await M.creerRapport({
+      titre: `NEXUS PAYE : ${titre}`,
+      sujet: 'Variables de paie préparées par NEXUS, la comptabilité établit le bulletin.',
+      orientation: 'paysage',
+      marge: MARGE,
+    });
+    const entreprise = opts.nomEntreprise || opts.site || 'Commerce non identifié';
+    const W = rapport.pageLargeur;
+    const H = rapport.pageHauteur;
+    const colL = (W - 2 * MARGE - 2 * GOUTTIERE) / 3;
+    const bas = MARGE + 6;
+
+    const texte = (t, x, y, taille, gras, couleur) => {
+      rapport.page.drawText(rapport._assainir(String(t), gras), { x, y, size: taille, font: gras ? rapport.policeGrasse : rapport.police, color: C[couleur || 'texte'] });
+    };
+    const largeur = (t, taille, gras) => (gras ? rapport.policeGrasse : rapport.police).widthOfTextAtSize(rapport._assainir(String(t), gras), taille);
+    const tronquer = (t, max, taille, gras) => {
+      let s = String(t);
+      if (largeur(s, taille, gras) <= max) return s;
+      while (s.length > 1 && largeur(`${s}...`, taille, gras) > max) s = s.slice(0, -1);
+      return `${s}...`;
+    };
+
+    let premiere = true;
+    const entete = () => {
+      texte('NEXUS PAYE', MARGE, H - MARGE - 12, 14, true, 'cyan');
+      texte(titre, MARGE + 92, H - MARGE - 11, 10, false, 'texte');
+      const mode = provisoire ? 'Provisoire' : 'Validé';
+      texte(mode, W - MARGE - largeur(mode, 11, true), H - MARGE - 12, 11, true, provisoire ? 'ambre' : 'vert');
+      let y = H - MARGE - 26;
+      if (premiere) {
+        texte(`${entreprise} · ${dossier.synthese.salaries} salarié(s)`, MARGE, y, 8.5, false, 'texteDim');
+        texte('NEXUS prépare des variables : aucune retenue automatique, la comptabilité établit le bulletin.', MARGE, y - 10, 8.5, false, 'texteDim');
+        y -= 20;
+      }
+      rapport.page.drawLine({ start: { x: MARGE, y: y - 4 }, end: { x: W - MARGE, y: y - 4 }, thickness: 0.6, color: C.ligne });
+      premiere = false;
+      return y - 12;
+    };
+
+    let haut = entete();
+    const fiches = dossier.salaries.map(s => { const lignes = lignesFiche(s); return { s, lignes, h: hauteurFiche(lignes) }; });
+    const capacite = haut - bas;
+    // Pages : remplissage glouton sur trois colonnes, puis colonnes équilibrées par page.
+    const pages = [];
+    let cour = null;
+    fiches.forEach(f => {
+      if (!cour || cour.col > 2) { cour = { liste: [], col: 0, acc: 0 }; pages.push(cour); }
+      if (cour.acc + f.h > capacite && cour.acc > 0) {
+        cour.col += 1; cour.acc = 0;
+        if (cour.col > 2) { cour = { liste: [], col: 0, acc: 0 }; pages.push(cour); }
+      }
+      cour.liste.push(f); cour.acc += f.h;
+    });
+    pages.forEach((pg, ip) => {
+      if (ip > 0) { rapport._nouvellePage({ sansBandeau: true }); haut = entete(); }
+      const cible = pg.liste.reduce((t, f) => t + f.h, 0) / 3;
+      let col = 0;
+      let y = haut;
+      let acc = 0;
+      pg.liste.forEach(f => {
+        if (col < 2 && acc > 0 && (acc + f.h / 2 > cible || y - f.h < bas)) { col += 1; y = haut; acc = 0; }
+        const x = MARGE + col * (colL + GOUTTIERE);
+        texte(f.s.nom || 'Salarié sans nom', x, y - 11, 11.5, true, 'texte');
+        const fct = FONCTION[String(f.s.role || '').toLowerCase()] || String(f.s.role || '');
+        if (fct) texte(fct, x + colL - largeur(fct, 8, false), y - 10, 8, false, 'texteDim');
+        rapport.page.drawLine({ start: { x, y: y - 15 }, end: { x: x + colL, y: y - 15 }, thickness: 0.4, color: C.ligne });
+        let ly = y - 16 - INTERLIGNE + 2;
+        f.lignes.forEach(l => {
+          const taille = l.petit ? 7.5 : TAILLE;
+          const vW = l.valeur ? largeur(l.valeur, taille, false) : 0;
+          texte(tronquer(l.label, colL - vW - 6, taille, l.gras), x, ly, taille, l.gras, l.couleur);
+          if (l.valeur) texte(l.valeur, x + colL - vW, ly, taille, false, l.couleur);
+          ly -= INTERLIGNE;
+        });
+        y -= f.h; acc += f.h;
+      });
     });
 
-    rapport.pageDeGarde({
-      titre: 'DOSSIER COMPTABLE',
-      // A3 / B1-c (05/09/2026) — le repli était 'ViTO Sainte-Marie'. Un
-      // dossier comptable ne reste pas dans l'application : il part chez une
-      // comptable. Un PDF portant le nom d'un autre commerce n'est pas une
-      // approximation d'affichage, c'est une contamination d'identité client.
-      // Repli sur l'identifiant du site courant, jamais sur un nom propre.
-      nomEntreprise: opts.nomEntreprise || opts.site || 'Commerce non identifié',
-      periodeBornes: label.charAt(0).toUpperCase() + label.slice(1),
-      accroche: 'Variables de paie préparées par NEXUS',
-      sousAccroche: 'La comptabilité reste responsable du bulletin.',
-      mentionBas: `Généré le ${jjmmaaaa(String(dossier.genereLe).slice(0, 10))}`,
-    });
-
-    rapport._nouvellePage();
-    rapport.titre('Synthèse mensuelle');
-    rapport.sousTitre(`${label.charAt(0).toUpperCase() + label.slice(1)} · ${dossier.synthese.salaries} salarié(s) suivis`);
-
-    if (dossier.statutGlobal !== 'pret') {
-      rapport.bandeau(dossier.statutGlobal === 'donnee_manquante'
-        ? 'Dossier incomplet : au moins un salarié a une donnée manquante. Ne pas traiter en l’état.'
-        : 'Dossier provisoire : des éléments restent à vérifier. Ils ne sont pas comptés dans les variables.');
-    }
-
-    rapport.sectionTitre('État du dossier');
-    rapport.ligneCle('Salariés prêts', String(dossier.synthese.prets));
-    rapport.ligneCle('Salariés avec un arbitrage en attente', String(dossier.synthese.aVerifier));
-    rapport.ligneCle('Salariés avec une donnée manquante', String(dossier.synthese.donneeManquante));
-    if (dossier.ecartsNonAttribues) rapport.ligneCle('Écarts de caisse non attribués', String(dossier.ecartsNonAttribues));
-
-    rapport.sectionTitre('Totaux du mois');
-    rapport.ligneCle('Jours travaillés', String(dossier.synthese.joursTravailles));
-    rapport.ligneCle('Heures confirmées', heures(dossier.synthese.heuresConfirmees));
-    rapport.ligneCle('Jours de congés payés', String(dossier.synthese.joursCongesPayes));
-    rapport.ligneCle('Jours maladie / maternité / paternité', String(dossier.synthese.joursMaladieMaternite));
-    rapport.ligneCle('Jours d’absence non déclarée', String(dossier.synthese.joursAbsenceNonDeclaree));
-    rapport.ligneCle('Retards cumulés', minutes(dossier.synthese.retardsMinutes));
-    rapport.ligneCle('Heures supplémentaires', heures(dossier.synthese.heuresSupplementaires));
-    rapport.ligneCle('Jours fériés travaillés', String(dossier.synthese.joursFeries));
-    rapport.ligneCle('Acomptes', euros(dossier.synthese.acompteCentimes));
-    rapport.ligneCle('Dettes / avances', euros(dossier.synthese.detteCentimes));
-    if (dossier.synthese.retenueEcartCentimes) rapport.ligneCle('Retenues sur écart de caisse (décision antérieure)', euros(dossier.synthese.retenueEcartCentimes));
-    rapport.ligneCle('Écarts de caisse du mois', euros(dossier.synthese.ecartsCaisseMoisCentimes || 0));
-
-    rapport.sectionTitre('Récapitulatif par salarié');
-    rapport.tableau(
-      [
-        { label: 'Salarié', cle: 'nom', largeur: 0.28 },
-        { label: 'Statut', cle: 'statut', largeur: 0.17 },
-        { label: 'Jours', cle: 'jours', largeur: 0.1, align: 'droite' },
-        { label: 'Heures', cle: 'heures', largeur: 0.13, align: 'droite' },
-        { label: 'CP', cle: 'cp', largeur: 0.08, align: 'droite' },
-        { label: 'Mal./Mat.', cle: 'maladie', largeur: 0.12, align: 'droite' },
-        { label: 'Retards', cle: 'retards', largeur: 0.12, align: 'droite' },
-      ],
-      dossier.salaries.map(s => ({
-        nom: s.nom, statut: s.statutLibelle,
-        jours: String(s.variables.presence.jours),
-        heures: heures(s.variables.presence.heures),
-        cp: String(s.variables.congesPayes.jours),
-        maladie: String(s.variables.maladieMaternite.jours),
-        retards: s.variables.retards.minutes ? `${s.variables.retards.minutes} min` : '—',
-      })),
-    );
-
-    rapport.encadre([
-      { texte: 'Ce que NEXUS garantit', gras: true },
-      { texte: 'NEXUS prépare des variables : il n’établit aucun bulletin et n’applique aucune retenue.' },
-      { texte: 'Seuls les éléments arbitrés figurent dans ce dossier ; ce qui reste à vérifier en est exclu et signalé.' },
-      { texte: 'Un écart de caisse ne devient une retenue que sur décision explicite du manager, montant saisi à la main.' },
-    ]);
-
-    dossier.salaries.forEach(s => ficheSalarie(rapport, s, dossier.periode));
-
-    rapport.piedDePageToutesPages(`NEXUS PAYE · Dossier comptable ${label} · généré le ${jjmmaaaa(String(dossier.genereLe).slice(0, 10))}`);
-    const bytes = await global.NexusPdfMoteur.finaliser(rapport);
+    rapport.piedDePageToutesPages(`NEXUS PAYE · ${titre} · Généré le ${jjmmaaaa(String(dossier.genereLe).slice(0, 10))}`);
+    const bytes = await M.finaliser(rapport);
     return {
       bytes,
-      nomFichier: `NEXUS-Dossier-comptable-${opts.site || 'station'}-${String(dossier.periode).slice(0, 7)}.pdf`,
-      titre: `Dossier comptable ${label}`,
+      nomFichier: `NEXUS_Paye_${opts.site || 'station'}_${String(dossier.periode).slice(0, 7)}${provisoire ? '_PROVISOIRE' : ''}.pdf`,
+      titre,
     };
   }
 
-  global.NexusPayeDossierPdf = { construireDossierPdf, moisLabel, periodeEvenement, lignesVariables, euros, heures, minutes, nombre, jjmmaaaa };
+  global.NexusPayeDossierPdf = { construireDossierPdf, estProvisoire, moisLabel, periodeEvenement, lignesVariables, euros, heures, minutes, nombre, jjmmaaaa };
 })(typeof window !== 'undefined' ? window : globalThis);
