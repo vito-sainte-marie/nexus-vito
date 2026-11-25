@@ -195,8 +195,12 @@
    * page, contrairement à un simple rendu navigateur figé).
    */
   class ConstructeurRapport {
-    constructor(doc, police, policeGrasse, entete) {
+    constructor(doc, police, policeGrasse, entete, options) {
       this.doc = doc;
+      const paysage = !!(options && options.orientation === 'paysage');
+      this.pageLargeur = paysage ? A4.hauteur : A4.largeur;
+      this.pageHauteur = paysage ? A4.largeur : A4.hauteur;
+      this.marge = (options && options.marge) || MARGE;
       this.police = police;
       this.policeGrasse = policeGrasse;
       this.entete = entete || null; // { app, sousTitre } répété en haut de chaque page
@@ -229,9 +233,9 @@
     }
 
     _nouvellePage(options) {
-      this.page = this.doc.addPage([A4.largeur, A4.hauteur]);
+      this.page = this.doc.addPage([this.pageLargeur, this.pageHauteur]);
       this.numeroPage += 1;
-      this.y = A4.hauteur - MARGE;
+      this.y = this.pageHauteur - this.marge;
       if (this.entete && !(options && options.sansBandeau)) this._dessinerBandeauEntete();
     }
 
@@ -248,7 +252,7 @@
     }
 
     /** Espace vertical restant avant la marge basse (réserve 20pt pour le pied de page). */
-    espaceDisponible() { return this.y - MARGE - 20; }
+    espaceDisponible() { return this.y - this.marge - 20; }
 
     /** Force une nouvelle page si l'espace restant est insuffisant pour `hauteurRequise`. */
     assurerEspace(hauteurRequise) {
@@ -450,11 +454,11 @@
       const gauche = this._assainir(texteGauche || '', false);
       const pages = this.doc.getPages();
       pages.forEach((p, i) => {
-        p.drawLine({ start: { x: MARGE, y: MARGE - 8 }, end: { x: A4.largeur - MARGE, y: MARGE - 8 }, thickness: 0.5, color: COULEUR.ligne });
-        p.drawText(gauche, { x: MARGE, y: MARGE - 20, size: 7.5, font: this.police, color: COULEUR.texteDim });
+        p.drawLine({ start: { x: this.marge, y: this.marge - 8 }, end: { x: this.pageLargeur - this.marge, y: this.marge - 8 }, thickness: 0.5, color: COULEUR.ligne });
+        p.drawText(gauche, { x: this.marge, y: this.marge - 20, size: 7.5, font: this.police, color: COULEUR.texteDim });
         const texteDroite = `Page ${i + 1} / ${pages.length}`;
         const largeur = this.police.widthOfTextAtSize(texteDroite, 7.5);
-        p.drawText(texteDroite, { x: A4.largeur - MARGE - largeur, y: MARGE - 20, size: 7.5, font: this.police, color: COULEUR.texteDim });
+        p.drawText(texteDroite, { x: this.pageLargeur - this.marge - largeur, y: this.marge - 20, size: 7.5, font: this.police, color: COULEUR.texteDim });
       });
     }
   }
@@ -886,7 +890,7 @@
    * gras) et un ConstructeurRapport prêt à l'emploi. `entete` :
    * { app, sousTitre } affiché en haut de chaque page.
    */
-  async function creerRapport({ titre, auteur = 'NEXUS OS', sujet, entete } = {}) {
+  async function creerRapport({ titre, auteur = 'NEXUS OS', sujet, entete, orientation, marge } = {}) {
     const doc = await PDFDocument.create();
     if (titre) doc.setTitle(titre);
     doc.setAuthor(auteur);
@@ -895,7 +899,7 @@
     doc.setProducer('NEXUS PDF Moteur (pdf-lib)');
     const police = await doc.embedFont(StandardFonts.Helvetica);
     const policeGrasse = await doc.embedFont(StandardFonts.HelveticaBold);
-    return new ConstructeurRapport(doc, police, policeGrasse, entete);
+    return new ConstructeurRapport(doc, police, policeGrasse, entete, { orientation, marge });
   }
 
   /** Termine le document et renvoie les octets PDF (Uint8Array). */
