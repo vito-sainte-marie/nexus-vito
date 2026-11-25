@@ -9,7 +9,7 @@ Migrations : les douze fichiers `supabase/migrations/2026112609*` à `2026112622
 L'injection de pannes (`nexus_connexion.panne_injectee`, `nexus_connexion.panne_pour`, variable `RECETTE_PANNES`) est un outil de recette Test. Elle est exclue de deux façons, qui se contrôlent séparément.
 
 1. **Côté base : migration 2i** (`20261126200000_connexion_lot1_etape2i_retrait_pannes_injectees.sql`). La 2f crée la table et la fonction ; la 2i les retire. Appliquées dans l'ordre sur une base neuve, elles laissent 16 fonctions et 7 tables (17 fonctions avec l’étape 4, `equipe_pour`). Ni la table ni la fonction n'existent donc jamais durablement en Production.
-2. **Côté fonction : retrait du code avant déploiement.** Avant la demande de GO, un commit retire du source `index.ts` la constante `RECETTE_PANNES`, la fonction `panne()` et ses appels. Le md5 du source Production diffère alors de celui de Test, et il est noté dans la demande de GO.
+2. **Côté fonction : code retiré du source.** Le commit de retrait de la constante `RECETTE_PANNES`, de la fonction `panne()` et de ses appels est fait : le source `index.ts` du dépôt ne contient plus aucun code de pannes. Ce source est celui qui sera déployé en Production ; son md5 est à renoter dans la demande de GO (voir §5).
 
 **Preuve sur Test (25/11/2026, projet `udljdqxerrbbbajxubfn`), après application de la 2i :**
 - `to_regclass('nexus_connexion.panne_injectee')` = null ; `to_regprocedure('nexus_connexion.panne_pour(uuid,text)')` = null.
@@ -19,18 +19,28 @@ L'injection de pannes (`nexus_connexion.panne_injectee`, `nexus_connexion.panne_
 
 ## 1. Ordre réel Production
 
+**Sauvegarde Production avant l'étape 1.** Le plan FREE n'offre pas de restauration à un instant donné. Avant toute migration, le gérant (ou Guardian sur GO distinct) exporte hors dépôt : les tables `public.employees` et `auth.users` (colonnes d'identité et état, pas de mot de passe en clair) et la définition des fonctions `public.nexus_*` touchées. Précisez au GO : qui exporte, où le fichier est rangé, qui peut le lire. Aucun export, aucun secret, aucun hash dans le dépôt.
+
+**Fusion de #381 et fonction.** Fusionner #381 publie aussi la section « Comptes de l'équipe », qui appelle `lister_equipe`. L'étape 3 (fonction déployée) doit donc précéder la fusion de l'étape 4, sans quoi la section répond « indisponible ».
+
 | # | Étape | Qui | Condition |
 |---|---|---|---|
 | 1 | Migrations, dans l'ordre des horodatages (étape 1 … 4b) | Guardian | GO distinct |
 | 2 | Secrets de la fonction : `AUTH_MASTER_SECRET`, `PEPPER`, `IP_FP_SECRET`, `ORIGINES_AUTORISEES=https://app.nexusconseil.net` | le gérant, jamais lus ni journalisés par l'exécutant | GO distinct ; étape 1 faite |
 | 3 | Déploiement de la fonction `connexion` (source sans code de pannes) | Guardian | GO distinct ; étapes 1 et 2 faites |
-| 4 | Bascule de `NEXUS-Login-v1.html` vers la fonction | fusion de la PR | GO distinct ; recette navigateur publiée (375 et 1280, Jour et Nuit) ; étape 3 faite |
+| 4 | Bascule de `NEXUS-Login-v1.html` vers la fonction | fusion de la PR | GO distinct ; recette navigateur publiée (375 et 1280, Jour et Nuit) ; étape 3 faite ; comptes `Recette…` et inactifs traités (voir ci-dessous) ; limites Auth relues |
+
+**Avant l'étape 4, deux contrôles présentés au gérant.**
+(a) Comptes `Recette…` et comptes inactifs qui peuvent encore se connecter (défaut P1). Requête en lecture seule, sur GO, filtrée par site (`where site_id = '<site_du_GO>'`) : nombre et liste (nom, rôle, actif) ; le gérant décide de la désactivation AVANT la bascule. Aucun compte incertain `a_migrer` n'est touché.
+(b) Relire les limites Auth de Production (taux de connexion par IP) et les comparer au budget de 20 appels Auth par minute.
 
 Le secret `AUTH_MASTER_SECRET` ne se change plus après l'étape 4 sans réinitialiser tous les comptes migrés (le mot de passe Auth en dérive). La date de rotation est une décision du gérant, à prendre avant le GO.
 
 Étape 1 : la migration 2 de l'étape 1 sauvegarde les mots de passe Auth dans `sauvegarde_auth` ; elle ne les modifie pas. Aucun compte n'est migré par les migrations : le passage `a_migrer` → `migre` se fait à la première connexion réussie, station par station (budget 20 appels Auth par minute).
 
 ## 2. Retour arrière de chaque étape
+
+**ATTENTION : pas de retour arrière de la page après la première migration réelle d'un compte.** Les comptes migrés ont un mot de passe Auth dérivé que l'ancienne page ne peut pas utiliser.
 
 | Étape | Retour arrière |
 |---|---|
@@ -72,12 +82,12 @@ Attendu (mesuré sur Test le 25/11/2026 après 4b) : 7 tables, 7 avec RLS, 17 fo
 ```sql
 begin read only;
 select s.site_id, count(*) as comptes
-from public.staff s
+from public.employees s
 where s.site_id = '<site_du_GO>'
 group by 1;
 rollback;
 ```
-Les colonnes exactes de `staff` se vérifient au GO, sur le catalogue, avant de lancer la requête. Les comptes `a_migrer` incertains ne sont pas touchés.
+Les colonnes exactes de `employees` se vérifient au GO, sur le catalogue, avant de lancer la requête. Les comptes `a_migrer` incertains ne sont pas touchés.
 
 **Après l'étape 4** : par station, nombre de comptes `a_migrer` restants (`select count(*) from nexus_connexion.compte where etat = 'a_migrer'`, rapproché du site), jusqu'à zéro avant la station suivante ; nombre d'événements `budget_auth`, `egress_proche` et `incoherence_auth` au journal ; alerte gérant : au moins 3 réponses 5xx en 1 minute sur `connexion`.
 

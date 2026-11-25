@@ -235,20 +235,20 @@
   // POST vers la fonction. Un 5xx (dont 546) déclenche UNE seule reprise
   // après 1 à 3 s tirées au hasard ; aucune autre boucle.
   async function appeler(corps) {
-    async function une() {
+    async function une(relance) {
       const r = await fetch(ENDPOINT, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(corps)
+        body: JSON.stringify(relance ? Object.assign({}, corps, { relance: "5xx" }) : corps)
       });
       let json = null;
       try { json = await r.json(); } catch (e) { /* corps absent */ }
       return { status: r.status, json };
     }
-    let rep = await une();
+    let rep = await une(false);
     if (rep.status >= 500) {
       await new Promise(ok => setTimeout(ok, 1000 + Math.random() * 2000));
-      rep = await une();
+      rep = await une(true); // la reprise porte relance: "5xx" : la fonction journalise « indisponible »
     }
     return rep;
   }

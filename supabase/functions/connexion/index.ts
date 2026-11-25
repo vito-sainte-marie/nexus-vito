@@ -54,11 +54,18 @@ function entetes(origin: string | null): Record<string, string> {
 const rep = (status: number, body: unknown, origin: string | null) => new Response(JSON.stringify(body), { status, headers: entetes(origin) });
 const REFUS = { ok: false, erreur: "refus" };
 
+// Source d'alerte « connexion indisponible » : journalise 'indisponible' (jamais d'identifiant, jamais de corps). Sans effet sur la réponse si l'écriture échoue.
+// Deux sources : 'relance_5xx' (la page a reçu un 5xx et relance une fois) et 'limite_auth' (Auth a répondu 429).
+async function journaliserIndisponible(source: string) {
+  try { await sql`insert into nexus_connexion.journal (evenement, detail) values ('indisponible', ${sql.json({ source })})`; }
+  catch { console.error("indisponible non journalisé"); }
+}
+
 // Toute réponse, succès comme refus, dure au moins PLANCHER_MS : la durée ne distingue ni compte inconnu, ni compte verrouillé, ni mauvais code.
 async function avecPlancher(debut: number, p: Promise<Response>): Promise<Response> {
   let r: Response;
   try { r = await p; } catch (e) {
-    if (e instanceof LimiteAuth) { r = new Response(JSON.stringify({ ok: false, erreur: "indisponible" }), { status: 503, headers: { "content-type": "application/json", "cache-control": "no-store" } }); }
+    if (e instanceof LimiteAuth) { await journaliserIndisponible("limite_auth"); r = new Response(JSON.stringify({ ok: false, erreur: "indisponible" }), { status: 503, headers: { "content-type": "application/json", "cache-control": "no-store" } }); }
     else { console.log("erreur interne", (e as Error)?.name ?? "?"); r = new Response(JSON.stringify(REFUS), { status: 401, headers: { "content-type": "application/json", "cache-control": "no-store" } }); } }
   const reste = PLANCHER_MS - (performance.now() - debut);
   if (reste > 0) await attendre(reste);
@@ -277,6 +284,11 @@ Deno.serve(async (req) => {
     let body: any = null;
     try { body = JSON.parse(brut); } catch { /* corps mal formé : refus neutre plus bas */ }
     if (!body || typeof body !== "object" || Array.isArray(body)) { await bcrypt.compare("x", FACTICE); return rep(401, REFUS, origin); }
+    // Seul champ de relance accepté : "5xx", posé par la page sur sa reprise unique. Toute autre valeur : refus neutre.
+    if (body.relance !== undefined) {
+      if (body.relance !== "5xx" || (body.action ?? "connexion") !== "connexion") { await bcrypt.compare("x", FACTICE); return rep(401, REFUS, origin); }
+      await journaliserIndisponible("relance_5xx");
+    }
     const fp = await empreinteIp(req.headers.get("cf-connecting-ip"));
     const c: Ctx = { origin, fp };
     switch (body.action ?? "connexion") {
