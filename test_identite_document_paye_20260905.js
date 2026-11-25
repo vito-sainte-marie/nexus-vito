@@ -21,6 +21,13 @@ function moteurTemoin(journal) {
   const noter = (...a) => { journal.textes.push(a.map(x => typeof x === 'string' ? x : JSON.stringify(x)).join(' ')); };
   const socle = {
     pageDeGarde(o) { journal.pageDeGarde = o; noter(...Object.values(o).filter(v => typeof v === 'string')); },
+    // Primitives de dessin utilisées par la mise en page en trois colonnes : on note chaque texte posé.
+    pageLargeur: 842, pageHauteur: 595,
+    police: { widthOfTextAtSize: t => String(t).length * 4 },
+    policeGrasse: { widthOfTextAtSize: t => String(t).length * 4.5 },
+    _assainir: t => String(t),
+    _nouvellePage() {},
+    page: { drawText(t) { noter(t); }, drawLine() {}, drawRectangle() {} },
     async enregistrer() { return { bytes: new Uint8Array([37, 80, 68, 70]), nomFichier: 'essai.pdf', titre: 'essai' }; },
   };
   // `then` doit rester ABSENT : un proxy qui renvoie une fonction pour `then`
@@ -33,6 +40,12 @@ function moteurTemoin(journal) {
     async creerRapport() { return rapport; },
     async finaliser() { return new Uint8Array([37, 80, 68, 70]); },
   }, passePlat);
+}
+
+// Le dossier n'a plus de page de garde : l'identité figure dans l'en-tête de la première page.
+function entrepriseImprimee(journal) {
+  const ligne = journal.textes.find(t => / · \d+ salarié\(s\) · Généré le /.test(t));
+  return ligne ? ligne.split(' · ')[0] : undefined;
 }
 
 async function genererAvec(nomEntreprise, site) {
@@ -70,17 +83,17 @@ const NOM_INTERDIT = /v\s*i\s*t\s*o[\s-]*sainte[\s-]*marie/i;
 (async () => {
   const testNexus = await genererAvec('NEXUS STATION TEST', 'nexus-station-test');
   verifier('le nom du commerce de recette figure sur le document', () => {
-    assert.strictEqual(testNexus.pageDeGarde.nomEntreprise, 'NEXUS STATION TEST');
+    assert.strictEqual(entrepriseImprimee(testNexus), 'NEXUS STATION TEST');
   });
 
   const sansNom = await genererAvec(undefined, 'nexus-station-test');
   verifier('sans nom, le document porte l’identifiant du site, jamais un nom propre', () => {
-    assert.strictEqual(sansNom.pageDeGarde.nomEntreprise, 'nexus-station-test');
+    assert.strictEqual(entrepriseImprimee(sansNom), 'nexus-station-test');
   });
 
   const sansRien = await genererAvec(undefined, undefined);
   verifier('sans nom ni site, le document porte un libellé neutre', () => {
-    assert.strictEqual(sansRien.pageDeGarde.nomEntreprise, 'Commerce non identifié');
+    assert.strictEqual(entrepriseImprimee(sansRien), 'Commerce non identifié');
   });
 
   verifier('aucun document généré ne porte le nom de Sainte-Marie', () => {

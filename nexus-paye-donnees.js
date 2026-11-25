@@ -166,7 +166,7 @@
   // `finIndeterminee` couvre le retour dont la date n'est pas connue :
   // date_fin reste alors un horizon provisoire, et NEXUS maintient
   // l'indisponibilité sans réafficher le salarié chaque mois.
-  async function qualifierIndisponibilite(client, { id, motif, dateFin, finIndeterminee, commentaire, actorId }) {
+  async function qualifierIndisponibilite(client, { id, motif, dateFin, finIndeterminee, commentaire, actorId, justifiee }) {
     const patch = {
       motif: motif || null,
       confirme_le: motif ? new Date().toISOString() : null,
@@ -175,8 +175,9 @@
     if (finIndeterminee != null) patch.fin_indeterminee = !!finIndeterminee;
     if (dateFin) patch.date_fin = dateFin;
     if (commentaire !== undefined) patch.commentaire = commentaire || null;
+    if (typeof justifiee === 'boolean') patch.justifiee = justifiee;
     const { error } = await client.from('employee_indisponibilites').update(patch).eq('id', id);
-    if (error) throw error;
+    if (error) throw erreurJustifieeAbsente(error);
   }
 
   // Transforme une série d'absences DÉTECTÉE en événement RH déclaré
@@ -202,8 +203,32 @@
     };
     if (typeof justifiee === 'boolean') ligne.justifiee = justifiee;
     const { data, error } = await client.from('employee_indisponibilites').insert(ligne).select().maybeSingle();
-    if (error) throw error;
+    if (error) throw erreurJustifieeAbsente(error);
     return data;
+  }
+
+  // La colonne `justifiee` vient d'une migration (20261125200000). Tant qu'elle
+  // n'est pas appliquée, Postgres répond 42703 : on le dit clairement plutôt
+  // que de laisser un message technique. La migration doit PRÉCÉDER le code.
+  function erreurJustifieeAbsente(error) {
+    const msg = String((error && error.message) || '');
+    if (error && (error.code === '42703' || (/justifiee/i.test(msg) && /column|colonne/i.test(msg)))) {
+      return new Error('La base n’a pas encore la colonne « justifiée / injustifiée » : la migration 20261125200000 doit être appliquée avant d’utiliser cette fonction. Rien n’a été modifié.');
+    }
+    return error;
+  }
+
+  // Précise après coup si une absence déjà déclarée est justifiée ou non.
+  // C'est toujours le manager qui tranche ; la date et l'auteur sont tracés
+  // dans confirme_le / confirme_par (aucune colonne dédiée n'existe).
+  async function preciserJustification(client, { id, justifiee, actorId }) {
+    if (!id) throw new Error('Absence à préciser introuvable.');
+    if (typeof justifiee !== 'boolean') throw new Error('Précisez si l’absence est justifiée ou injustifiée : NEXUS ne le décide pas à votre place.');
+    const { error } = await client.from('employee_indisponibilites')
+      .update({ justifiee, confirme_le: new Date().toISOString(), confirme_par: actorId || null })
+      .eq('id', id);
+    if (error) throw erreurJustifieeAbsente(error);
+    return { id, justifiee };
   }
 
   // Type « Absence » de la carte « Ajouter une variable du mois » (07/11/2026).
@@ -368,5 +393,5 @@
     if (error) throw error;
   }
 
-  global.NexusPayeDonnees = { declarerIndisponibilite, declarerAbsenceDepuisVariable, qualifierIndisponibilite, cloturerIndisponibilite, chargerRapport, enregistrerReglageEmploye, enregistrerDecision, ajouterItemManuel, ajouterItemsManuels, datesInclusives, enregistrerPeriode, refuserEvenementRHParJournee, sonderSaisiesManager, enregistrerHoraireExceptionnel, marquerTraitementAnomalie, STATUTS_TRAITEMENT };
+  global.NexusPayeDonnees = { declarerIndisponibilite, preciserJustification, declarerAbsenceDepuisVariable, qualifierIndisponibilite, cloturerIndisponibilite, chargerRapport, enregistrerReglageEmploye, enregistrerDecision, ajouterItemManuel, ajouterItemsManuels, datesInclusives, enregistrerPeriode, refuserEvenementRHParJournee, sonderSaisiesManager, enregistrerHoraireExceptionnel, marquerTraitementAnomalie, STATUTS_TRAITEMENT };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -52,8 +52,8 @@ function salarie(nom, role, surcharge, statut) {
       absence: { jours: 0 }, congesPayes: vide(), maladieMaternite: vide(), autresAbsences: vide(),
       retards: { occurrences: 0, minutes: 0, detail: [] },
       heuresSupplementaires: { heures: 0, enAttente: 0, heuresDejaIncluses: 0 },
-      joursFeries: { jours: 0, dates: [] },
-      financier: { acompteCentimes: 0, detteCentimes: 0, retenueEcartCentimes: 0, ecartsCaisseMois: [], ecartsInformatifs: 0, ecartGeneralCentimes: 0, lignes: [] },
+      joursFeries: { jours: 0, dates: [], detail: [] },
+      financier: { acompteCentimes: 0, detteCentimes: 0, retenueEcartCentimes: 0, ecartsCaisseMois: { boutiqueCentimes: 0, pisteCentimes: 0, fdjCentimes: 0, totalCentimes: 0 }, ecartsInformatifs: 0, lignes: [] },
     },
   };
   return Object.assign(base, surcharge || {});
@@ -129,7 +129,7 @@ const aTexte = (j, re) => j.textes.some(e => re.test(e.t));
   });
 
   await verifier('écart sans montant : « donnée manquante » (jamais confondu avec 0,00 €)', async () => {
-    const s = salarie('Salarié X', 'caissier'); s.variables.financier.ecartGeneralCentimes = null;
+    const s = salarie('Salarié X', 'caissier'); s.variables.financier.ecartsCaisseMois = { boutiqueCentimes: null, pisteCentimes: 0, fdjCentimes: 0, totalCentimes: null };
     const { j } = await generer(dossierFictif([s]), { provisoire: false });
     assert.ok(aTexte(j, /^donnée manquante$/));
     assert.ok(!aTexte(j, /^0,00 €$/));
@@ -157,6 +157,32 @@ const aTexte = (j, re) => j.textes.some(e => re.test(e.t));
     assert.ok(aTexte(j, /^Absence justifiée$/));
     assert.ok(aTexte(j, /^Absence injustifiée$/));
     assert.ok(aTexte(j, /^Absence \(justification non renseignée\)$/));
+  });
+
+  await verifier('forme réelle : écart lu dans ecartsCaisseMois.totalCentimes (négatif en rouge, sans recalcul)', async () => {
+    const s = salarie('Salarié X', 'caissier');
+    s.variables.financier.ecartsCaisseMois = { boutiqueCentimes: -1500, pisteCentimes: 0, fdjCentimes: -500, totalCentimes: -2000 };
+    const { j } = await generer(dossierFictif([s]), { provisoire: false });
+    assert.ok(aTexte(j, /^-20,00 €$|^−20,00 €$|^-20,00\s?€$/) || aTexte(j, /20,00/), 'écart -20,00');
+    assert.ok(!aTexte(j, /^donnée manquante$/));
+  });
+
+  await verifier('forme réelle : fériés en tableau (date, nom, heures) et retards datés avec total', async () => {
+    const s = salarie('Salarié X', 'caissier');
+    s.variables.joursFeries = { jours: 1, dates: ['2026-11-01'], detail: [{ date: '2026-11-01', nom: 'Toussaint' }] };
+    s.variables.presence.detailJours = [{ date: '2026-11-01', poste: 'caisse', presence: 8, normales: 7, supplementaires: 1, autres: 0, source: 'mesure' }];
+    s.variables.retards = { occurrences: 2, minutes: 25, detail: [{ date: '2026-11-03', minutes: 10 }, { date: '2026-11-09', minutes: 15 }] };
+    const { j } = await generer(dossierFictif([s]), { provisoire: false });
+    assert.ok(aTexte(j, /^01\/11$/) && aTexte(j, /^Toussaint$/));
+    assert.ok(aTexte(j, /^03\/11$/) && aTexte(j, /^10 min$/) && aTexte(j, /^Total retards$/) && aTexte(j, /^25 min$/));
+  });
+
+  await verifier('provisoire : un mois validé suit snapshot.genere_le, un brouillon est toujours provisoire', async () => {
+    const { faux } = await generer(dossierFictif(neuf(1)), { provisoire: false });
+    const d = faux.NexusPayeDossierPdf.dossierProvisoire;
+    assert.strictEqual(d('brouillon', '2026-11-30T12:00:00Z', '2026-11-01', 'America/Martinique'), true);
+    assert.strictEqual(d('valide', '2026-11-20T12:00:00Z', '2026-11-01', 'America/Martinique'), true);
+    assert.strictEqual(d('valide', '2026-11-30T12:00:00Z', '2026-11-01', 'America/Martinique'), false);
   });
 
   await verifier('salarié bloqué : son statut est écrit sur la fiche', async () => {

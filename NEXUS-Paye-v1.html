@@ -374,12 +374,12 @@ table.sal th,table.sal td{border-bottom:1px solid var(--line)}
 <script src="nexus-desktop.js?v=20261124-1500"></script>
 <script src="nexus-ecarts-moteur.js?v=20260904-0104"></script>
 <script src="nexus-ecarts-donnees.js?v=20260904-0104"></script>
-<script src="nexus-pdf-moteur.js?v=20260904-0104"></script>
+<script src="nexus-pdf-moteur.js?v=20261125-2300"></script>
 <script src="nexus-jours-feries.js?v=20261106-0100"></script>
 <script src="nexus-paye-moteur.js?v=20260904-0104"></script>
-<script src="nexus-paye-donnees.js?v=20260904-0104"></script>
+<script src="nexus-paye-donnees.js?v=20261125-2300"></script>
 <script src="nexus-paye-validation.js?v=20261106-0100"></script>
-<script src="nexus-paye-dossier-pdf.js?v=20260904-0104"></script>
+<script src="nexus-paye-dossier-pdf.js?v=20261125-2300"></script>
 <script src="nexus-station.js?v=20260904-0104"></script>
 <script src="nexus-banniere-station.js"></script>
 <script src="nexus-paye-regularisations.js?v=20261009-g3"></script>
@@ -754,7 +754,7 @@ function renderDecisions(){
  ${informations.length?`<div class="bloc-titre">Informations sans impact paie · ${informations.length} ${infoBtn('ecart','écarts informatifs')}</div><div class="help" style="margin-top:0">Ces éléments restent visibles pour la traçabilité mais ne bloquent pas le dossier.</div>${informations.map(i=>renderItem(null,i)).join('')}`:''}`;
 }
 function renderDossier(){
- const s=RAPPORT.synthese, statut=etatPeriode(), p=RAPPORT.periodeEnregistree||null;
+ const s=RAPPORT.synthese, statut=etatPeriode(), p=RAPPORT.periodeEnregistree||null, e=etatValidation();
  const inclus=(RAPPORT.employes||[]).filter(f=>f.reglage.inclus);
  const bloques=inclus.filter(f=>f.statut!=='pret');
  let transmis=0,nonRetenus=0,justificatifs=0;
@@ -762,27 +762,36 @@ function renderDossier(){
   if(i.statut==='valide')transmis++; else if(i.statut==='exclu')nonRetenus++;
   if(i.deepLink||i.evenementRH)justificatifs++;
  }));
+ const datee=(d)=>d?` le ${jjmmaaaaFR(d)}`:'';
+ const etapes=[
+  {n:1,fait:statut!=='brouillon',texte:statut!=='brouillon'?`Mois validé${datee(p&&p.verifie_le)}`:'Mois à valider'},
+  {n:2,fait:false,texte:statut==='brouillon'?'Dossier PDF : provisoire, téléchargeable dès maintenant':'Dossier PDF : prêt à télécharger'},
+  {n:3,fait:statut==='transmis',texte:statut==='transmis'?`Dossier transmis${datee(p&&p.transmis_le)}`:'Dossier à transmettre à la comptabilité'}
+ ];
  const hist=[];
  if(p&&p.verifie_le)hist.push(`Mois validé le ${jjmmaaaaFR(p.verifie_le)}`);
  if(p&&p.transmis_le)hist.push(`Dossier transmis le ${jjmmaaaaFR(p.transmis_le)}`);
  if(p&&p.updated_at&&!hist.length)hist.push(`Dernière mise à jour le ${jjmmaaaaFR(p.updated_at)}`);
  return `<div class="bloc-titre">Dossier comptable ${infoBtn('export','export comptable')}</div>
- ${RAPPORT.bloqueurs.length?`<div class="alert"><b>${RAPPORT.bloqueurs.length} point(s) empêchent encore la préparation finale.</b><br>Traitez l’onglet « Décisions » avant de valider le mois.</div>`:'<div class="ok">✓ Toutes les variables sont arbitrées. Le mois peut être validé.</div>'}
- <div class="lignes">
-  <div class="ligne">Salariés prêts<b>${s.salariesPrets}/${s.salariesInclus}</b></div>
-  <div class="ligne${bloques.length?'':' muet'}">Salariés encore bloqués<b>${bloques.length}</b></div>
-  <div class="ligne${s.salariesDonneeManquante?'':' muet'}">Dont données manquantes<b>${s.salariesDonneeManquante}</b></div>
-  <div class="ligne">Éléments transmis (arbitrés « retenu »)<b>${transmis}</b></div>
-  <div class="ligne${nonRetenus?'':' muet'}">Éléments non retenus<b>${nonRetenus}</b></div>
-  <div class="ligne${justificatifs?'':' muet'}">Éléments avec justificatif ou source consultable<b>${justificatifs}</b></div>
- </div>
- ${bloques.length?`<div class="bloc-titre">Salariés bloqués</div><div class="lignes">${bloques.map(f=>`<div class="ligne"><button type="button" class="lien-salarie" data-employee="${ECHAPPE(f.employee.id)}">${ECHAPPE(f.employee.nom)}</button>${pillStatut(f.statut)}</div>`).join('')}</div>`:''}
- <div class="bloc-titre">Ce que contient le dossier</div>
- <div class="accountant-list"><div class="accountant-line">Synthèse mensuelle : totaux et statut de chaque salarié</div><div class="accountant-line">Une fiche par salarié : présence, absences, retards, heures supplémentaires, éléments financiers</div><div class="accountant-line">Événements RH reportés en une ligne, avec leur période réelle</div><div class="accountant-line">Écarts de caisse et régularisations présentés à part, comme informations de contrôle</div><div class="accountant-line">Historique figé au moment de la validation du mois</div></div>
- <div class="actions"><button class="btn success" id="ready" ${RAPPORT.bloqueurs.length||statut!=='brouillon'?'disabled':''}>1 · Valider le mois</button><button class="btn primary" id="dossierPdf">2 · Télécharger le PDF${statut==='brouillon'?' (provisoire)':''}</button><a class="btn" id="apercuPdf" target="_blank" rel="noopener" hidden>Aperçu</a><button class="btn" id="sent" ${statut!=='verifie'?'disabled':''}>3 · Marquer transmis</button></div>
- <div class="actions" style="margin-top:8px"><button class="btn" id="export" ${statut==='brouillon'?'disabled':''}>Export CSV (technique)</button><button class="btn danger" id="reopen" ${statut==='brouillon'?'disabled':''}>Rouvrir</button></div>
- <div class="help">Le dossier comptable PDF est la sortie destinée à la comptabilité. Le CSV reste disponible pour un import dans un logiciel de paie.</div>
- ${hist.length?`<div class="bloc-titre">Historique de préparation</div><div class="lignes">${hist.map(l=>`<div class="ligne muet">${ECHAPPE(l)}</div>`).join('')}</div>`:''}`;
+ <div class="ligne"><span>${ECHAPPE(e.capsule)}</span><b>${s.salariesPrets} salarié${s.salariesPrets>1?'s':''} sur ${s.salariesInclus} prêt${s.salariesPrets>1?'s':''}.</b></div>
+ ${RAPPORT.bloqueurs.length?`<div class="alert"><b>${RAPPORT.bloqueurs.length} point(s) empêchent encore la préparation finale.</b><br>Traitez l’onglet « Décisions » avant de valider le mois.</div>`:(statut==='brouillon'?'<div class="ok">✓ Toutes les variables sont arbitrées. Le mois peut être validé.</div>':'')}
+ <div class="lignes">${etapes.map(x=>`<div class="ligne${x.fait?'':' muet'}">${x.fait?'✓ ':''}${x.n} · ${ECHAPPE(x.texte)}</div>`).join('')}</div>
+ <div class="actions"><button class="btn success" id="ready" ${RAPPORT.bloqueurs.length||statut!=='brouillon'?'disabled':''}>1 · Valider le mois</button><button class="btn primary" id="dossierPdf">2 · Télécharger le PDF${statut==='brouillon'?' (provisoire)':''}</button><a class="btn" id="apercuPdf" target="_blank" rel="noopener" aria-disabled="true">Aperçu</a><button class="btn" id="sent" ${statut!=='verifie'?'disabled':''}>3 · Marquer transmis</button></div>
+ <div class="help" id="pdfEtat">Le dossier PDF est préparé à l’ouverture de cet onglet.</div>
+ <details class="detail-dossier"><summary>Détails, historique et export technique</summary>
+  <div class="lignes">
+   <div class="ligne${bloques.length?'':' muet'}">Salariés encore bloqués<b>${bloques.length}</b></div>
+   <div class="ligne${s.salariesDonneeManquante?'':' muet'}">Dont données manquantes<b>${s.salariesDonneeManquante}</b></div>
+   <div class="ligne">Éléments transmis (arbitrés « retenu »)<b>${transmis}</b></div>
+   <div class="ligne${nonRetenus?'':' muet'}">Éléments non retenus<b>${nonRetenus}</b></div>
+   <div class="ligne${justificatifs?'':' muet'}">Éléments avec justificatif ou source consultable<b>${justificatifs}</b></div>
+  </div>
+  ${bloques.length?`<div class="bloc-titre">Salariés bloqués</div><div class="lignes">${bloques.map(f=>`<div class="ligne"><button type="button" class="lien-salarie" data-employee="${ECHAPPE(f.employee.id)}">${ECHAPPE(f.employee.nom)}</button>${pillStatut(f.statut)}</div>`).join('')}</div>`:''}
+  ${hist.length?`<div class="bloc-titre">Historique de préparation</div><div class="lignes">${hist.map(l=>`<div class="ligne muet">${ECHAPPE(l)}</div>`).join('')}</div>`:''}
+  <div class="actions" style="margin-top:8px"><button class="btn" id="export" ${statut==='brouillon'?'disabled':''}>Export CSV (technique)</button><button class="btn danger" id="reopen" ${statut==='brouillon'?'disabled':''}>Rouvrir</button></div>
+  <div class="help">Écarts de caisse et régularisations présentés à part, comme informations de contrôle (sans montant dans le PDF).</div>
+  <div class="help">Le dossier comptable PDF est la sortie destinée à la comptabilité. Le CSV reste disponible pour un import dans un logiciel de paie.</div>
+ </details>`;
 }
 function renderSaisie(){
  const options=RAPPORT.employes.filter(f=>f.reglage.inclus).map(f=>`<option value="${f.employee.id}">${ECHAPPE(f.employee.nom)}</option>`).join('');
@@ -1099,6 +1108,11 @@ function blocQualification(i){
   <label style="font-size:11px;opacity:.75">Motif de l'absence
    <select class="rh-motif" data-ev="${ECHAPPE(i.evenementId)}" style="width:100%;margin-top:4px;padding:8px;border-radius:8px">
     <option value="">— à qualifier —</option>${sel}</select></label>
+  <label style="font-size:11px;opacity:.75">Absence justifiée ? (vous seul décidez)
+   <select class="rh-justifiee" data-ev="${ECHAPPE(i.evenementId)}" style="width:100%;margin-top:4px;padding:8px;border-radius:8px">
+    <option value=""${i.justifiee==null?' selected':''}>— non précisé —</option>
+    <option value="oui"${i.justifiee===true?' selected':''}>Justifiée</option>
+    <option value="non"${i.justifiee===false?' selected':''}>Injustifiée</option></select></label>
   <label style="font-size:11px;opacity:.75;display:flex;align-items:center;gap:6px">
    <input type="checkbox" class="rh-indetermine" data-ev="${ECHAPPE(i.evenementId)}"${i.finIndeterminee?' checked':''}> Date de retour non connue</label>
   <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -1334,7 +1348,8 @@ function bind(){
   if(!motif){nexusErreur('Motif requis','Choisissez d’abord un motif : NEXUS ne qualifie jamais une absence à votre place.');return;}
   const indet=(document.querySelector(`.rh-indetermine[data-ev="${ev}"]`)||{}).checked;
   b.disabled=true;
-  try{await NexusPayeDonnees.qualifierIndisponibilite(nexusClient,{id:ev,motif,finIndeterminee:indet,actorId:EMPLOYEE.id});reload();}
+  try{await NexusPayeDonnees.qualifierIndisponibilite(nexusClient,{id:ev,motif,finIndeterminee:indet,actorId:EMPLOYEE.id,
+   justifiee:({oui:true,non:false})[(document.querySelector(`.rh-justifiee[data-ev="${ev}"]`)||{}).value]});reload();}
   catch(e){b.disabled=false;nexusErreur('Qualification impossible',messageErreur(e));}});
  document.querySelectorAll('.rh-reprise').forEach(b=>b.onclick=async()=>{
   const ev=b.dataset.ev;
@@ -1373,6 +1388,7 @@ function bind(){
  document.getElementById('reopen').onclick=async()=>{if(!await nexusConfirmer('Rouvrir le dossier ?','Le dossier repasse en brouillon et l’instantané validé est supprimé. Les arbitrages déjà rendus, eux, sont conservés.','Rouvrir le dossier',true))return;await NexusPayeDonnees.enregistrerPeriode(nexusClient,{siteId:SITE,periode:MOIS,statut:'brouillon',snapshot:null,actorId:EMPLOYEE.id});reload()};
  document.getElementById('export').onclick=exportCSV;
  document.getElementById('dossierPdf').onclick=genererDossierPdf;
+ if(ONGLET==='dossier'){PDF_PRET=null;preparerDossierPdf().catch(()=>{});}
  bindCockpit();
 }
 // Interactions du cockpit (09/10/2026). Deux rafraîchissements ciblés —
@@ -1624,22 +1640,38 @@ async function nomDuCommerce(){
 // l'instantané figé à la validation du mois quand il existe — la
 // comptable doit pouvoir régénérer deux fois le même document — et
 // seulement à défaut d'un calcul en direct.
-async function genererDossierPdf(){
- const btn=document.getElementById('dossierPdf');
- const lien=document.getElementById('apercuPdf');
+var PDF_PRET=null;
+async function preparerDossierPdf(){
+ if(typeof NexusPayeDossierPdf==='undefined')return null;
+ const lien=document.getElementById('apercuPdf'), etat=document.getElementById('pdfEtat');
  const snap=RAPPORT.periodeEnregistree&&RAPPORT.periodeEnregistree.snapshot;
  const dossier=(snap&&snap.dossier)||NexusPayeMoteur.dossierComptable(RAPPORT);
+ try{
+  let fuseau=null;try{const f=await NexusStation.fuseauDeLaStation(SITE);fuseau=f&&f.timezone||null}catch(_){}
+  // Brouillon toujours provisoire ; mois validé : on compare la date de validation (snapshot.genere_le) à la fin du mois.
+  const provisoire=NexusPayeDossierPdf.dossierProvisoire(etatPeriode(),snap&&snap.genere_le,MOIS,fuseau);
+  const pdf=await NexusPayeDossierPdf.construireDossierPdf(dossier,{site:SITE,nomEntreprise:await nomDuCommerce(),provisoire,fuseau});
+  if(PDF_PRET&&PDF_PRET.url)URL.revokeObjectURL(PDF_PRET.url);
+  const url=URL.createObjectURL(new Blob([pdf.bytes],{type:'application/pdf'}));
+  PDF_PRET={pdf,url};
+  // Le lien est prêt avant tout clic : aucune ouverture de fenêtre après un await.
+  const l=document.getElementById('apercuPdf');if(l){l.href=url;l.removeAttribute('aria-disabled')}
+  const e=document.getElementById('pdfEtat');if(e)e.textContent=provisoire?'Dossier prêt, marqué « Provisoire » : le mois n’est pas validé ou n’est pas terminé.':'Dossier prêt.';
+  return PDF_PRET;
+ }catch(err){
+  console.error('NEXUS PAYE — dossier comptable PDF :',err);
+  const e=document.getElementById('pdfEtat');if(e)e.textContent=`NEXUS n'a pas pu produire le dossier comptable : ${messageErreur(err)}`;
+  throw err;
+ }
+}
+async function genererDossierPdf(){
+ const btn=document.getElementById('dossierPdf');
  const etiquette=btn.textContent;
  btn.disabled=true;btn.textContent='Génération…';
  try{
-  let fuseau=null;try{const f=await NexusStation.fuseauDeLaStation(SITE);fuseau=f&&f.timezone||null}catch(_){}
-  // Un mois non terminé reste provisoire : le PDF le dit, il se télécharge quand même comme brouillon.
-  const provisoire=NexusPayeDossierPdf.estProvisoire(new Date().toISOString(),MOIS,fuseau);
-  const pdf=await NexusPayeDossierPdf.construireDossierPdf(dossier,{site:SITE,nomEntreprise:await nomDuCommerce(),provisoire,fuseau});
-  // L'aperçu est un lien préparé avant le clic : aucune ouverture de fenêtre après un await.
-  if(lien){if(lien.dataset.blob)URL.revokeObjectURL(lien.dataset.blob);const url=URL.createObjectURL(new Blob([pdf.bytes],{type:'application/pdf'}));lien.dataset.blob=url;lien.href=url;lien.hidden=false}
-  await NexusPdfMoteur.partagerOuTelechargerPdf(pdf.bytes,pdf.nomFichier,{titre:pdf.titre,texte:'Variables de paie préparées par NEXUS.'});
- }catch(e){console.error('NEXUS PAYE — dossier comptable PDF :',e);nexusErreur('Dossier non généré',`NEXUS n'a pas pu produire le dossier comptable : ${messageErreur(e)}`);}
+  const prete=PDF_PRET||await preparerDossierPdf();
+  await NexusPdfMoteur.partagerOuTelechargerPdf(prete.pdf.bytes,prete.pdf.nomFichier,{titre:prete.pdf.titre,texte:'Variables de paie préparées par NEXUS.'});
+ }catch(e){nexusErreur('Dossier non généré',`NEXUS n'a pas pu produire le dossier comptable : ${messageErreur(e)}`);}
  finally{btn.disabled=false;btn.textContent=etiquette}
 }
 function csvCell(v){const s=String(v??'');return `"${s.replace(/"/g,'""')}"`}

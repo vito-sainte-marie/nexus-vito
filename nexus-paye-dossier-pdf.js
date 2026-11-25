@@ -44,6 +44,12 @@
     return `${(Number(centimes) / 100).toFixed(2).replace('.', ',')} €`;
   }
 
+  // « -6,53 € » : une seule valeur, pas de détail par origine. Absent ou nul : « — ».
+  function ecartsMois(m) {
+    if (!m || (!m.totalCentimes && !m.boutiqueCentimes && !m.pisteCentimes && !m.fdjCentimes)) return '—';
+    return euros(m.totalCentimes);
+  }
+
   function heures(valeur) {
     const v = Number(valeur || 0);
     return `${(Math.round(v * 100) / 100).toString().replace('.', ',')} h`;
@@ -114,68 +120,128 @@
     return local < finDeMois;
   }
 
-  const FONCTION = { caissier: 'Caisse', caissiere: 'Caisse', pompiste: 'Piste', renfort: 'Renfort' };
+  const FONCTION = { caissier: 'Caisse', caissiere: 'Caisse', pompiste: 'Piste', renfort: 'Renfort', manager: 'Manager', gerant: 'Gérant', 'gérant': 'Gérant' };
   const MARGE = 28;
   const GOUTTIERE = 14;
   const TAILLE = 8.5;
   const INTERLIGNE = 10.5;
 
   function joursCal(n) { return `${Number(n || 0)} j cal.`; }
+  function jjmm(iso) { const p = String(iso || '').slice(0, 10).split('-'); return p.length === 3 ? `${p[2]}/${p[1]}` : String(iso || ''); }
+  function plage(debut, fin) { return (!fin || fin === debut) ? jjmm(debut) : `du ${jjmm(debut)} au ${jjmm(fin)}`; }
 
-  // Une fiche = une liste de lignes ; seules les rubriques non vides sont présentes.
+  // Le dossier d'un mois validé est provisoire tant que sa date de génération (genere_le du
+  // snapshot, fuseau du site) précède le dernier jour du mois ; un brouillon l'est toujours.
+  // Aucune horloge du jour de génération du PDF.
+  function dossierProvisoire(statutPeriode, genereLeISO, periodeISO, fuseau) {
+    if (!statutPeriode || statutPeriode === 'brouillon') return true;
+    return estProvisoire(genereLeISO, periodeISO, fuseau);
+  }
+
+  // Total d'écart du mois : objet {boutique, piste, fdj, total}. Absent ou total nul de valeur
+  // (null) = donnée manquante ; 0 = vrai zéro. Jamais recalculé ici.
+  function ecartGeneral(v) {
+    const e = v.financier && v.financier.ecartsCaisseMois;
+    if (!e || typeof e !== 'object' || e.totalCentimes == null) return null;
+    return Number(e.totalCentimes);
+  }
+
+  function envelopper(texte, max) {
+    const lignes = [];
+    let cur = '';
+    String(texte).split(' ').forEach(m => {
+      if (cur && (cur + ' ' + m).length > max) { lignes.push(cur); cur = '  ' + m; } else cur = cur ? cur + ' ' + m : m;
+    });
+    if (cur) lignes.push(cur);
+    return lignes;
+  }
+
+  // Une fiche = une liste de rangées typées ; seules les rubriques non vides sont présentes.
   function lignesFiche(s) {
     const v = s.variables;
     const L = [];
-    const ligne = (label, valeur, o) => L.push(Object.assign({ label, valeur }, o || {}));
-    if (s.statut === 'donnee_manquante') ligne('Donnée manquante : fiche incomplète', '', { couleur: 'rouge', gras: true });
-    else if (s.statut === 'a_verifier') ligne(`${v.elementsEnAttente} élément(s) à vérifier`, '', { couleur: 'ambre', gras: true });
-    ligne('Jours travaillés', `${v.presence.jours} j`);
-    ligne('Heures', heures(v.presence.heures));
-    if (v.absence.jours) ligne('Présence à vérifier', `${v.absence.jours} j`, { couleur: 'ambre' });
-    const evenements = (typeLabel, bloc) => {
-      if (!bloc.jours && !(bloc.detail || []).length) return;
-      ligne(typeLabel, joursCal(bloc.jours));
-      (bloc.detail || []).forEach(ev => {
-        const deborde = (ev.evenementDebut && ev.evenementDebut < ev.debut) || (ev.evenementFin && ev.evenementFin > ev.fin) || ev.finIndeterminee;
-        if (deborde) ligne(`période réelle du ${jjmmaaaa(ev.evenementDebut)} au ${ev.finIndeterminee ? 'retour non daté' : jjmmaaaa(ev.evenementFin)}`, '', { couleur: 'texteDim', petit: true });
-      });
+    const add = (k, o) => L.push(Object.assign({ k }, o));
+    if (s.statut === 'donnee_manquante') add('alerte', { t: 'Donnée manquante : fiche incomplète', couleur: 'rouge' });
+    else if (s.statut === 'a_verifier') add('alerte', { t: `${v.elementsEnAttente} élément(s) à vérifier`, couleur: 'ambre' });
+    add('banniere', { label: 'Heures supplémentaires', valeur: heures(v.heuresSupplementaires.heures) });
+    const j = Number(v.presence.jours || 0);
+    add('gris', { t: `${j} jour${j > 1 ? 's' : ''} travaillé${j > 1 ? 's' : ''} · ${heures(v.presence.heuresNormales)} normales` });
+    if (v.heuresSupplementaires.enAttente) add('lv', { label: 'Heures sup. à arbitrer', valeur: String(v.heuresSupplementaires.enAttente), couleur: 'ambre' });
+
+    const tab = [];
+    const t3 = (nature, periode, duree, o) => {
+      // Un libellé long prend sa propre ligne : la date et la durée suivent dessous.
+      if (String(nature).length > 26) { tab.push(Object.assign({ k: 't3', nature, periode: '', duree: '', large: true }, o || {})); nature = ''; }
+      tab.push(Object.assign({ k: 't3', nature, periode, duree }, o || {}));
     };
-    evenements('Congés payés', v.congesPayes);
-    evenements('Maladie / maternité', v.maladieMaternite);
-    if (v.autresAbsences.jours || (v.autresAbsences.detail || []).length) {
-      const detail = v.autresAbsences.detail || [];
-      if (!detail.length) ligne('Autres absences', joursCal(v.autresAbsences.jours));
-      detail.forEach(ev => {
-        let lib = ev.libelle || 'Autre absence';
-        if (ev.motif === 'autre') lib = ev.justifiee === true ? 'Absence justifiée' : (ev.justifiee === false ? 'Absence injustifiée' : 'Absence (justification non renseignée)');
-        ligne(lib, joursCal(ev.jours), ev.motif === 'autre' && ev.justifiee !== true ? { couleur: 'ambre' } : {});
-      });
+    const sousReel = ev => {
+      const deborde = (ev.evenementDebut && ev.evenementDebut < ev.debut) || (ev.evenementFin && ev.evenementFin > ev.fin) || ev.finIndeterminee;
+      if (deborde) tab.push({ k: 'sous', t: `période réelle du ${jjmmaaaa(ev.evenementDebut)} au ${ev.finIndeterminee ? 'retour non daté' : jjmmaaaa(ev.evenementFin)}` });
+    };
+    if (v.absence.jours) t3('Présence à vérifier', '', `${v.absence.jours} j`, { couleur: 'ambre' });
+    (v.congesPayes.detail || []).forEach(ev => { t3('Congés payés', plage(ev.debut, ev.fin), joursCal(ev.jours)); sousReel(ev); });
+    (v.maladieMaternite.detail || []).forEach(ev => { t3(ev.libelle || 'Maladie / maternité', plage(ev.debut, ev.fin), joursCal(ev.jours)); sousReel(ev); });
+    const autres = v.autresAbsences.detail || [];
+    if (!autres.length && v.autresAbsences.jours) t3('Autres absences', '', joursCal(v.autresAbsences.jours));
+    autres.forEach(ev => {
+      let lib = ev.libelle || 'Autre absence';
+      if (ev.motif === 'autre') lib = ev.justifiee === true ? 'Absence justifiée' : (ev.justifiee === false ? 'Absence injustifiée' : 'Absence (justification non renseignée)');
+      t3(lib, plage(ev.debut, ev.fin), joursCal(ev.jours), ev.motif === 'autre' && ev.justifiee == null ? { couleur: 'ambre' } : {});
+      sousReel(ev);
+    });
+    const ret = v.retards.detail || [];
+    if (v.retards.occurrences) {
+      ret.forEach(r => t3('Retard', jjmm(r.date), `${r.minutes} min`));
+      t3('Total retards', '', `${v.retards.minutes} min`, { gras: true });
     }
-    if (v.retards.occurrences) ligne('Retards', `${v.retards.minutes} min`);
-    ligne('Heures supplémentaires', heures(v.heuresSupplementaires.heures));
-    if (v.heuresSupplementaires.enAttente) ligne('Heures sup. à arbitrer', String(v.heuresSupplementaires.enAttente), { couleur: 'ambre' });
-    if (v.joursFeries.jours) ligne('Jours fériés travaillés', `${v.joursFeries.jours} j`);
-    if (v.financier.acompteCentimes) ligne('Acompte', euros(v.financier.acompteCentimes));
-    if (v.financier.detteCentimes) ligne('Avance', euros(v.financier.detteCentimes));
-    if (v.financier.retenueEcartCentimes) ligne('Retenue décidée', euros(v.financier.retenueEcartCentimes));
-    const g = v.financier.ecartGeneralCentimes;
-    ligne('Écart général du mois', g == null ? 'donnée manquante' : euros(g), g == null ? { couleur: 'rouge' } : {});
+    tab.forEach(r => L.push(r));
+
+    const fer = (v.joursFeries.detail || []);
+    if (fer.length || v.joursFeries.jours) {
+      const parDate = {};
+      (v.presence.detailJours || []).forEach(d => { parDate[d.date] = d; });
+      add('ferieEntete', {});
+      fer.forEach(f => {
+        const d = parDate[f.date];
+        const n = d ? Number(d.normales || 0) : null;
+        const sp = d ? Number(d.supplementaires || 0) + Number(d.autres || 0) : null;
+        add('ferie', { date: jjmm(f.date), nom: f.nom || 'Jour férié', n: n == null ? '' : heures(n), sp: sp == null ? '' : heures(sp), tot: d ? heures(n + sp) : '' });
+      });
+      if (!fer.length) add('lv', { label: 'Jours fériés travaillés', valeur: `${v.joursFeries.jours} j` });
+    }
+    if (v.financier.acompteCentimes) add('lv', { label: 'Acompte', valeur: euros(v.financier.acompteCentimes) });
+    if (v.financier.detteCentimes) add('lv', { label: 'Avance', valeur: euros(v.financier.detteCentimes) });
+    if (v.financier.retenueEcartCentimes) add('lv', { label: 'Retenue décidée', valeur: euros(v.financier.retenueEcartCentimes) });
+    // Notes de lecture : sans elles, le comptable ne sait pas d'où viennent les heures.
+    const notes = [];
+    if (v.presence.joursReconstitues) notes.push(`${v.presence.joursMesures} journée(s) sur ${v.presence.joursMesures + v.presence.joursReconstitues} constatée(s) confirmée(s) par deux sources (Verify et pointage).`);
+    if (v.presence.joursPlanifies) notes.push(`${v.presence.joursPlanifies} journée(s) de renfort comptée(s) sur le seul planning officiel, qui fait foi pour le renfort.`);
+    if (v.presence.heuresParDefaut) notes.push(`${heures(v.presence.heuresParDefaut)} calculées d’après la durée de référence du poste (journée longue = 7 h + 1 h supplémentaire, règle du 10/10), pour les journées constatées dans Verify.`);
+    if (v.heuresSupplementaires.heuresDejaIncluses) notes.push(`${heures(v.heuresSupplementaires.heuresDejaIncluses)} d’une décision antérieure décrivent la même heure que la 8e heure du barème : elles ne sont pas ajoutées. Aucun taux de majoration n’est appliqué ici : il relève du cadre légal et de la convention.`);
+    if (v.financier.ecartsInformatifs) notes.push(`${v.financier.ecartsInformatifs} écart(s) de caisse restent informatifs : aucune retenue.`);
+    notes.forEach(n => envelopper(`- ${n}`, 64).forEach(t => add('note', { t })));
+    add('regle', {});
+    const g = ecartGeneral(v);
+    add('ecart', { valeur: g == null ? 'donnée manquante' : euros(g), couleur: g == null ? 'rouge' : (g < 0 ? 'rouge' : 'texte') });
     return L;
   }
 
-  function hauteurFiche(lignes) { return 16 + lignes.length * INTERLIGNE + 8; }
+  const HAUT = { alerte: 12, banniere: 22, gris: 13, lv: INTERLIGNE, t3: 10.5, sous: 9, ferieEntete: 11, ferie: 10.5, note: 8.5, regle: 7, ecart: 14 };
+  function hauteurFiche(lignes) { return 20 + lignes.reduce((t, l) => t + (HAUT[l.k] || INTERLIGNE), 0) + 10; }
 
   /**
    * Construit le dossier comptable PDF (A4 paysage, trois colonnes) et
    * renvoie `{ bytes, nomFichier, titre }`. `dossier` vient de
    * `NexusPayeMoteur.dossierComptable(rapport)`. Aucun calcul ici.
+   * `options.genereLe` : date de génération du snapshot validé (sinon celle du dossier).
    */
   async function construireDossierPdf(dossier, options) {
     const opts = options || {};
     const M = global.NexusPdfMoteur;
     const C = M.COULEUR;
     const label = moisLabel(dossier.periode);
-    const provisoire = opts.provisoire != null ? !!opts.provisoire : estProvisoire(dossier.genereLe, dossier.periode, opts.fuseau);
+    const genereLe = opts.genereLe || dossier.genereLe;
+    const provisoire = opts.provisoire != null ? !!opts.provisoire : estProvisoire(genereLe, dossier.periode, opts.fuseau);
     const titre = `Dossier comptable ${label}`;
     const rapport = await M.creerRapport({
       titre: `NEXUS PAYE : ${titre}`,
@@ -199,16 +265,17 @@
       while (s.length > 1 && largeur(`${s}...`, taille, gras) > max) s = s.slice(0, -1);
       return `${s}...`;
     };
+    const droite = (t, xDroit, y, taille, gras, couleur) => texte(t, xDroit - largeur(t, taille, gras), y, taille, gras, couleur);
 
     let premiere = true;
     const entete = () => {
       texte('NEXUS PAYE', MARGE, H - MARGE - 12, 14, true, 'cyan');
       texte(titre, MARGE + 92, H - MARGE - 11, 10, false, 'texte');
       const mode = provisoire ? 'Provisoire' : 'Validé';
-      texte(mode, W - MARGE - largeur(mode, 11, true), H - MARGE - 12, 11, true, provisoire ? 'ambre' : 'vert');
+      droite(mode, W - MARGE, H - MARGE - 12, 11, true, provisoire ? 'ambre' : 'vert');
       let y = H - MARGE - 26;
       if (premiere) {
-        texte(`${entreprise} · ${dossier.synthese.salaries} salarié(s)`, MARGE, y, 8.5, false, 'texteDim');
+        texte(`${entreprise} · ${dossier.synthese.salaries} salarié(s) · Généré le ${jjmmaaaa(String(genereLe).slice(0, 10))}`, MARGE, y, 8.5, false, 'texteDim');
         texte('NEXUS prépare des variables : aucune retenue automatique, la comptabilité établit le bulletin.', MARGE, y - 10, 8.5, false, 'texteDim');
         y -= 20;
       }
@@ -220,7 +287,6 @@
     let haut = entete();
     const fiches = dossier.salaries.map(s => { const lignes = lignesFiche(s); return { s, lignes, h: hauteurFiche(lignes) }; });
     const capacite = haut - bas;
-    // Pages : remplissage glouton sur trois colonnes, puis colonnes équilibrées par page.
     const pages = [];
     let cour = null;
     fiches.forEach(f => {
@@ -231,6 +297,54 @@
       }
       cour.liste.push(f); cour.acc += f.h;
     });
+
+    const dessinerFiche = (f, x, y0) => {
+      texte(f.s.nom || 'Salarié sans nom', x, y0 - 11, 11.5, true, 'texte');
+      const fct = FONCTION[String(f.s.role || '').toLowerCase()] || String(f.s.role || '');
+      if (fct) droite(fct, x + colL, y0 - 10, 8, false, 'texteDim');
+      rapport.page.drawLine({ start: { x, y: y0 - 15 }, end: { x: x + colL, y: y0 - 15 }, thickness: 0.4, color: C.ligne });
+      let y = y0 - 20;
+      const xP = x + colL * 0.5;
+      const xD = x + colL;
+      f.lignes.forEach(l => {
+        const h = HAUT[l.k] || INTERLIGNE;
+        const base = y - h + 3;
+        if (l.k === 'alerte') texte(l.t, x, base, TAILLE, true, l.couleur);
+        else if (l.k === 'banniere') {
+          rapport.page.drawRectangle({ x, y: y - h + 2, width: colL, height: h - 3, color: C.fondEntete });
+          texte(l.label, x + 4, base + 2, TAILLE, false, 'cyan');
+          droite(l.valeur, xD - 4, base + 1, 14, true, 'cyan');
+        } else if (l.k === 'gris') texte(l.t, x, base, 8, false, 'texteDim');
+        else if (l.k === 'lv') {
+          const vW = largeur(l.valeur, TAILLE, false);
+          texte(tronquer(l.label, colL - vW - 6, TAILLE, false), x, base, TAILLE, false, l.couleur);
+          droite(l.valeur, xD, base, TAILLE, false, l.couleur);
+        } else if (l.k === 't3') {
+          texte(tronquer(l.nature, l.large ? colL : colL * 0.5 - 6, TAILLE, l.gras), x, base, TAILLE, !!l.gras, l.couleur);
+          if (l.periode) texte(tronquer(l.periode, colL * 0.5 - 50, TAILLE, false), xP, base, TAILLE, false, l.couleur);
+          droite(l.duree, xD, base, TAILLE, !!l.gras, l.couleur);
+        } else if (l.k === 'note') texte(l.t, x, base, 6.8, false, 'texteDim');
+        else if (l.k === 'sous') texte(tronquer(l.t, colL - 10, 7.5, false), x + 6, base, 7.5, false, 'texteDim');
+        else if (l.k === 'ferieEntete') {
+          texte('Jours fériés', x, base, 7.5, true, 'texteDim');
+          droite('Normales', x + colL * 0.62, base, 7.5, false, 'texteDim');
+          droite('Sup.', x + colL * 0.8, base, 7.5, false, 'texteDim');
+          droite('Total', xD, base, 7.5, false, 'texteDim');
+        } else if (l.k === 'ferie') {
+          texte(l.date, x, base, TAILLE, false);
+          texte(tronquer(l.nom, colL * 0.62 - 44 - largeur(l.n, TAILLE), TAILLE, false), x + 34, base, TAILLE, false);
+          if (l.n) droite(l.n, x + colL * 0.62, base, TAILLE, false);
+          if (l.sp) droite(l.sp, x + colL * 0.8, base, TAILLE, false);
+          if (l.tot) droite(l.tot, xD, base, TAILLE, false);
+        } else if (l.k === 'regle') rapport.page.drawLine({ start: { x, y: y - 3 }, end: { x: xD, y: y - 3 }, thickness: 0.5, color: C.ligne });
+        else if (l.k === 'ecart') {
+          texte('Écart général du mois', x, base, 9, true, 'texte');
+          droite(l.valeur, xD, base, 9, true, l.couleur);
+        }
+        y -= h;
+      });
+    };
+
     pages.forEach((pg, ip) => {
       if (ip > 0) { rapport._nouvellePage({ sansBandeau: true }); haut = entete(); }
       const cible = pg.liste.reduce((t, f) => t + f.h, 0) / 3;
@@ -239,24 +353,12 @@
       let acc = 0;
       pg.liste.forEach(f => {
         if (col < 2 && acc > 0 && (acc + f.h / 2 > cible || y - f.h < bas)) { col += 1; y = haut; acc = 0; }
-        const x = MARGE + col * (colL + GOUTTIERE);
-        texte(f.s.nom || 'Salarié sans nom', x, y - 11, 11.5, true, 'texte');
-        const fct = FONCTION[String(f.s.role || '').toLowerCase()] || String(f.s.role || '');
-        if (fct) texte(fct, x + colL - largeur(fct, 8, false), y - 10, 8, false, 'texteDim');
-        rapport.page.drawLine({ start: { x, y: y - 15 }, end: { x: x + colL, y: y - 15 }, thickness: 0.4, color: C.ligne });
-        let ly = y - 16 - INTERLIGNE + 2;
-        f.lignes.forEach(l => {
-          const taille = l.petit ? 7.5 : TAILLE;
-          const vW = l.valeur ? largeur(l.valeur, taille, false) : 0;
-          texte(tronquer(l.label, colL - vW - 6, taille, l.gras), x, ly, taille, l.gras, l.couleur);
-          if (l.valeur) texte(l.valeur, x + colL - vW, ly, taille, false, l.couleur);
-          ly -= INTERLIGNE;
-        });
+        dessinerFiche(f, MARGE + col * (colL + GOUTTIERE), y);
         y -= f.h; acc += f.h;
       });
     });
 
-    rapport.piedDePageToutesPages(`NEXUS PAYE · ${titre} · Généré le ${jjmmaaaa(String(dossier.genereLe).slice(0, 10))}`);
+    rapport.piedDePageToutesPages('');
     const bytes = await M.finaliser(rapport);
     return {
       bytes,
@@ -265,5 +367,5 @@
     };
   }
 
-  global.NexusPayeDossierPdf = { construireDossierPdf, estProvisoire, moisLabel, periodeEvenement, lignesVariables, euros, heures, minutes, nombre, jjmmaaaa };
+  global.NexusPayeDossierPdf = { construireDossierPdf, estProvisoire, dossierProvisoire, ecartGeneral, lignesFiche, moisLabel, periodeEvenement, lignesVariables, euros, heures, minutes, nombre, jjmmaaaa };
 })(typeof window !== 'undefined' ? window : globalThis);

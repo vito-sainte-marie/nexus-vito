@@ -248,9 +248,9 @@ verifier('… et le tri le dit à l’écran', /data-tri="heures"[^>]*>Heures �
 
 // ── §6 — espace dossier comptable ───────────────────────────────────────
 vm.runInContext("FILTRE='tous'; TRI={cle:'nom',sens:1}; ONGLET='dossier'; render();", ctx);
-['Salariés prêts', 'Salariés encore bloqués', 'Dont données manquantes',
+['sur ', 'Salariés encore bloqués', 'Dont données manquantes',
   'Éléments transmis', 'Éléments non retenus', 'Éléments avec justificatif',
-  'Générer le dossier comptable', 'Export CSV (technique)'].forEach(l =>
+  '2 · Télécharger le PDF', 'Export CSV (technique)'].forEach(l =>
   verifier(`le dossier comptable annonce « ${l} »`, dans(ecran(), l)));
 verifier('le dossier dit qui bloque, et permet d’y aller', dans(ecran(), 'class="lien-salarie"'));
 verifier('l’export sépare paie, contrôle et informations sans impact',
