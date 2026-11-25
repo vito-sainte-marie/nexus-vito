@@ -76,18 +76,20 @@
   @media (min-width:1024px){
     body{display:grid; grid-template-columns:minmax(0,1.25fr) minmax(420px,1fr); align-items:stretch; justify-items:stretch;}
     .vue-large{display:block;}
-    .visuel{position:relative; overflow:hidden; min-height:100vh; background:var(--bg);}
-    .visuel img.fond{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:center top;}
+    .visuel{position:relative; overflow:hidden; min-height:100vh; background:var(--bg); display:flex; flex-direction:column;}
+    .visuel img.fond{flex:1 1 0; min-height:0; width:100%; height:auto; object-fit:cover; object-position:center top;}
     /* Bord droit fondu en CSS vers le fond du panneau formulaire (jetons du thème). */
     .visuel::after{content:""; position:absolute; top:0; right:0; bottom:0; width:18%; background:linear-gradient(to right, transparent, var(--bg)); pointer-events:none;}
-    .visuel .bas{position:absolute; left:0; right:0; bottom:0; z-index:1; padding:28px 48px 32px; text-align:center;
-      background:linear-gradient(to top, rgba(8,20,30,.55), rgba(8,20,30,0));}
-    .visuel .bas .logo{width:72px; height:72px; display:block; margin:0 auto 6px;}
-    .visuel .bas .sous-titre{font-family:var(--mono); font-size:13px; letter-spacing:.08em; color:#EAF2F7; margin-bottom:18px;}
+    /* Bande bleu pétrole unie sous l'image : rien ne chevauche l'avatar ni la vague. */
+    .visuel .bas{position:relative; z-index:2; flex:none; padding:22px 48px 28px; text-align:center; background:var(--bande-visuel,#0B2A36);}
+    .visuel .bas .marque{display:flex; align-items:center; justify-content:center; gap:12px; margin-bottom:4px;}
+    .visuel .bas .logo{width:48px; height:48px; display:block;}
+    .visuel .bas .mot{font-family:var(--sans); font-size:26px; font-weight:700; letter-spacing:.14em; color:var(--bande-texte-fort,#fff);}
+    .visuel .bas .sous-titre{font-family:var(--mono); font-size:13px; letter-spacing:.08em; color:var(--bande-texte,#EAF2F7); margin-bottom:18px;}
     .visuel .blocs{display:grid; grid-template-columns:repeat(3,1fr); gap:18px; text-align:left;}
-    .visuel .bloc{display:flex; gap:10px; align-items:flex-start; font-size:13.5px; line-height:1.45; color:#EAF2F7;}
+    .visuel .bloc{display:flex; gap:10px; align-items:flex-start; font-size:13.5px; line-height:1.45; color:var(--bande-texte,#EAF2F7);}
     .visuel .bloc img{width:32px; height:32px; flex:none;}
-    .visuel .bloc b{display:block; font-weight:600; color:#fff;}
+    .visuel .bloc b{display:block; font-weight:600; color:var(--bande-texte-fort,#fff);}
     .carte-formulaire{display:flex; flex-direction:column; justify-content:center; align-items:center; min-height:100vh; background:var(--bg);}
     body .hero-avatar, body .logo-footer{display:none;}
     .souvenir.vue-large{display:flex;}
@@ -100,7 +102,7 @@
 <aside class="visuel vue-large" aria-label="Présentation de NEXUS">
   <img class="fond" id="fondVisuel" alt="" width="1182" height="1330">
   <div class="bas">
-    <img class="logo" src="assets/nexus-logo-cyan.png" alt="NEXUS">
+    <div class="marque"><img class="logo" src="assets/nexus-logo-cyan.png" alt=""><span class="mot">NEXUS</span></div>
     <div class="sous-titre">Pilotage de station-service</div>
     <div class="blocs">
       <div class="bloc"><img src="assets/icons/01_principales/48px/progression.png" alt=""><span><b>Piloter</b>vos ventes, vos stocks, votre équipe, au même endroit.</span></div>
@@ -126,7 +128,7 @@
 
   <div class="field">
     <label for="pin">Code PIN</label>
-    <input type="password" id="pin" maxlength="6" inputmode="numeric" placeholder="••••">
+    <input type="password" id="pin" maxlength="6" inputmode="numeric" placeholder="••••••">
   </div>
 
   <label class="souvenir vue-large" for="souvenir"><input type="checkbox" id="souvenir"> Se souvenir de mon prénom sur cet appareil</label>
@@ -336,7 +338,11 @@
     if (!large.matches) return;
     const nom = themeCourant() === "jour" ? "jour" : "nuit";
     const taille = (document.querySelector(".visuel").clientWidth * (window.devicePixelRatio || 1)) > 800 ? 1182 : 800;
-    const src = "assets/connexion-fond-" + nom + "-" + taille + ".webp";
+    const FONDS = {
+      "jour-1182": "assets/connexion-fond-jour-1182.webp", "jour-800": "assets/connexion-fond-jour-800.webp",
+      "nuit-1182": "assets/connexion-fond-nuit-1182.webp", "nuit-800": "assets/connexion-fond-nuit-800.webp"
+    };
+    const src = FONDS[nom + "-" + taille];
     if (fond.getAttribute("src") !== src) fond.setAttribute("src", src);
   }
   majFond();
