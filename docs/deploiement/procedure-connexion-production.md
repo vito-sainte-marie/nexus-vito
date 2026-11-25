@@ -1,6 +1,6 @@
 # Connexion sécurité, lot 1 — procédure Production
 
-Migrations : les onze fichiers `supabase/migrations/2026112609*` à `20261126210000_*` (étapes 1, 2, 2b à 2i, 4). Fonction : `supabase/functions/connexion/index.ts`. Page : `NEXUS-Login-v1.html`.
+Migrations : les douze fichiers `supabase/migrations/2026112609*` à `20261126220000_*` (étapes 1, 2, 2b à 2i, 4, 4b). Fonction : `supabase/functions/connexion/index.ts`. Page : `NEXUS-Login-v1.html`.
 
 **Rien de ceci ne s'exécute sans un GO distinct du gérant pour chaque étape.** Toutes les mesures citées dans les fiches de qualification sont des mesures Test (projet `udljdqxerrbbbajxubfn`). La mesure Production sera faite au GO. Aucune lecture Production n'a été faite pour ce lot.
 
@@ -87,4 +87,4 @@ Durée de conservation du journal, destinataires de l'alerte, date de rotation d
 
 ## 5. Source de la fonction (mise à jour étape 4)
 
-Le source `index.ts` ajoute l'action `lister_equipe` (md5 `cb99578bea5650269a4bd9d8acea03ef`, déployé sur Test le 25/11/2026, sans code de pannes). Le md5 du source Production est à renoter dans la demande de GO. Mesure Test : `lister_equipe` sans JWT → 403 neutre ; les autres actions répondent comme avant.
+Le source `index.ts` ajoute l'action `lister_equipe` (md5 `97dbf34dafd22aefe1f13dc8f8f89325`, déployé sur Test le 25/11/2026, version 13, sans code de pannes ; l’étape 4b journalise le refus de `lister_equipe` et applique la règle gérant/manager validée). Le md5 du source Production est à renoter dans la demande de GO. Mesure Test : `lister_equipe` sans JWT → 403 neutre ; les autres actions répondent comme avant.
