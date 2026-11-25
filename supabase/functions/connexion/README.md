@@ -13,7 +13,7 @@ Un 503 « indisponible » n'est rendu que si Auth répond lui-même 429. `compte
 ## Atomicité Auth/base et recette de pannes (étape 2f)
 Toute écriture double passe par `ecrireAtomique` : Auth d'abord, puis la base. Si la base échoue, le mot de passe Auth précédent est restauré. Si cette compensation échoue, l'événement `incoherence_auth` est journalisé et `nexus_connexion.comptes_incoherents()` (lecture seule) liste le compte ; la réparation est la réinitialisation par un gérant (`reinitialiser_code`).
 
-Injection de pannes (Test seulement) : table `nexus_connexion.panne_injectee` (user_id, étape `auth`, `base` ou `compensation`), lue seulement si la variable d'environnement `RECETTE_PANNES=1` est posée. Ce code (table, `panne_pour`, appels) est retiré du source avant toute demande de GO Production ; le md5 de Production différera donc de celui de Test.
+Injection de pannes (Test seulement) : table `nexus_connexion.panne_injectee` (user_id, étape `auth`, `base` ou `compensation`), lue seulement si la variable d'environnement `RECETTE_PANNES=1` est posée. La table et `panne_pour` sont retirées de la base par la migration 20261126200000 (étape 2i) ; la fonction déployée fonctionne sans elles (401 neutre / 200 avec session, mesuré sur Test le 25/11/2026). Le code `RECETTE_PANNES` est retiré du source avant toute demande de GO Production ; le md5 de Production différera donc de celui de Test. Voir `docs/deploiement/procedure-connexion-production.md`.
 
 ## Budget d'appels à Auth et migration station par station
 
