@@ -1,5 +1,5 @@
 # Jours fériés N+1 du site : chaque 1er janvier, 06 h (Martinique, UTC-4) = 10 h UTC.
-# Prépare une migration (jamais appliquée ici), ouvre une PR depuis `production` et poste un [Vigie] sur #160
+# Prépare une migration (jamais appliquée ici), ouvre une PR depuis `production` et poste un [Vigie] sur #383
 # à l'attention de Claude et de Guardian. Silencieux quand rien n'est à faire : aucune PR, aucun commentaire.
 # Aucune mention de robot, aucune notification à Frédéric. Aucune base n'est jointe : l'application reste un geste du rail.
 # Le calcul vient de nexus-calendrier-site.js, le même module que l'épreuve.
@@ -29,7 +29,7 @@ jobs:
           echo "$sortie"
           echo "fichier=$(echo "$sortie" | node -e 'process.stdin.on("data",d=>{const j=JSON.parse(d);process.stdout.write(j.fichier||"")})')" >> "$GITHUB_OUTPUT"
           echo "resume=$(echo "$sortie" | node -e 'process.stdin.on("data",d=>{process.stdout.write(JSON.parse(d).resume)})')" >> "$GITHUB_OUTPUT"
-      - name: Ouvrir la PR et prévenir sur #160
+      - name: Ouvrir la PR et prévenir sur #383
         if: steps.calcul.outputs.fichier != ''
         env:
           GH_TOKEN: ${{ github.token }}
@@ -44,4 +44,4 @@ jobs:
           git commit -m "Calendrier du site : $RESUME"
           git push origin "HEAD:refs/heads/$branche"
           url=$(gh pr create --base production --head "$branche" --title "Calendrier du site : $RESUME" --body "Migration préparée automatiquement ($RESUME). Idempotente (on conflict do nothing), conditionnelle au site. Rien n'est appliqué : fusion par Guardian, application sur Test puis Production par le rail.")
-          gh issue comment 160 --body "[Vigie] À Claude et Guardian : $RESUME. PR ouverte : $url. À fusionner puis à appliquer sur Test, puis Production."
+          gh issue comment 383 --body "[Vigie] À Claude et Guardian : $RESUME. PR ouverte : $url. À fusionner puis à appliquer sur Test, puis Production."
