@@ -250,7 +250,11 @@ const aTexte = (j, re) => j.textes.some(e => re.test(e.t));
     assert.ok(/PROVISOIRE|provisoire/.test(html) && /dossierComptable\(RAPPORT\)/.test(html));
     // Désactivé seulement le temps de la préparation ou tant que des points bloquent ; réactivé dès que le PDF est prêt.
     assert.ok(/function boutonsDossier/.test(html) && /boutonsDossier\(true\)/.test(html));
-    assert.ok(/if\(ONGLET==='dossier'&&!RAPPORT\.bloqueurs\.length\)/.test(html));
+    // Décision du gérant (7175292222, point 3) : le provisoire se télécharge même avec des points bloquants ; seuls « Valider » et « Transmis » restent bloqués.
+    assert.ok(/if\(ONGLET==='dossier'\)\{PDF_PRET=null;preparerDossierPdf/.test(html));
+    assert.ok(!/if\(ONGLET==='dossier'&&!RAPPORT/.test(html));
+    assert.ok(!html.includes('sera téléchargeable quand'));
+    assert.ok(/id="ready" \$\{bloquant\|\|statut!=='brouillon'\?'hidden':''\}/.test(html));
   });
   await verifier('panneau : téléchargement direct, jamais de feuille de partage au clic principal', () => {
     const g = html.slice(html.indexOf('async function genererDossierPdf'), html.indexOf('// Partager n')).replace(/\/\/.*$/gm, '');
@@ -267,8 +271,10 @@ const aTexte = (j, re) => j.textes.some(e => re.test(e.t));
     assert.ok(/console\.error\('NEXUS PAYE — dossier comptable PDF/.test(html));
   });
   await verifier('panneau : état réel, 3 étapes datées, « Préparation du dossier… », « Détails et outils »', () => {
-    for (const t of ['Brouillon','Validé · provisoire','Validé · définitif','Transmis','Préparation du dossier…','Détails et outils','Dossier généré le','Mois validé','Dossier transmis','empêche'])
+    for (const t of ['Brouillon','Provisoire','Validé','Transmis','Préparation du dossier…','Détails et outils','Télécharger le dossier','Mois validé','Dossier transmis','empêche'])
       assert.ok(html.includes(t), t);
+    assert.ok(!html.includes('Validé · provisoire') && !html.includes('Validé · définitif'));
+    assert.ok(!html.includes('Dossier généré le') && !html.includes('PDF_GENERE_LE') && !html.includes('dossierGenere'));
     assert.ok(!html.includes('Le mois peut être validé'), 'texte « Le mois peut être validé » encore présent');
     assert.ok(!html.includes('Détails, historique et export technique'));
   });
