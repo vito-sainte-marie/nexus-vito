@@ -179,6 +179,18 @@ async function reinitialiserCode(req: Request, body: any, c: Ctx): Promise<Respo
   return rep(200, { ok: true, code_temporaire: tmp }, c.origin);
 }
 
+// Liste de l'équipe du gérant : mêmes plancher et refus neutre que les autres actions ; le refus est journalisé par equipe_pour.
+async function listerEquipe(req: Request, c: Ctx): Promise<Response> {
+  const par = await appelant(req);
+  if (!par) return rep(403, REFUS, c.origin);
+  try {
+    const lignes = await sql`select user_id, nom, site_id, etat, a_deverrouiller from nexus_connexion.equipe_pour(${par})`;
+    return rep(200, { ok: true, equipe: lignes }, c.origin);
+  } catch (_e) {
+    return rep(403, REFUS, c.origin);
+  }
+}
+
 // Code trop faible : six chiffres identiques, ou suite croissante / décroissante (123456, 654321, 012345…).
 function codeFaible(n: string): boolean {
   if (/^(\d)\1{5}$/.test(n)) return true;
@@ -270,6 +282,7 @@ Deno.serve(async (req) => {
       case "connexion": return await connexion(body, c);
       case "lever_verrou": return await leverVerrou(req, body, c);
       case "reinitialiser_code": return await reinitialiserCode(req, body, c);
+      case "lister_equipe": return await listerEquipe(req, c);
       case "changer_code": return await changerCode(req, body, c);
       default: await bcrypt.compare("x", FACTICE); return rep(401, REFUS, origin);
     }
