@@ -21,7 +21,7 @@ L'injection de pannes (`nexus_connexion.panne_injectee`, `nexus_connexion.panne_
 
 | # | Étape | Qui | Condition |
 |---|---|---|---|
-| 1 | Migrations, dans l'ordre des horodatages (étape 1 … 2i) | Guardian | GO distinct |
+| 1 | Migrations, dans l'ordre des horodatages (étape 1 … 4b) | Guardian | GO distinct |
 | 2 | Secrets de la fonction : `AUTH_MASTER_SECRET`, `PEPPER`, `IP_FP_SECRET`, `ORIGINES_AUTORISEES=https://app.nexusconseil.net` | le gérant, jamais lus ni journalisés par l'exécutant | GO distinct ; étape 1 faite |
 | 3 | Déploiement de la fonction `connexion` (source sans code de pannes) | Guardian | GO distinct ; étapes 1 et 2 faites |
 | 4 | Bascule de `NEXUS-Login-v1.html` vers la fonction | fusion de la PR | GO distinct ; recette navigateur publiée (375 et 1280, Jour et Nuit) ; étape 3 faite |
@@ -37,7 +37,7 @@ Le secret `AUTH_MASTER_SECRET` ne se change plus après l'étape 4 sans réiniti
 | 4 Page | Revenir au `NEXUS-Login-v1.html` précédent (revert de la fusion). L'ancienne page appelle Auth directement avec `nexus_identifiant_de_connexion`, qui doit donc rester en place. Les comptes déjà migrés ont un mot de passe Auth dérivé : l'ancienne page ne peut plus les connecter. **La page ne se rebascule donc qu'avant la première migration réelle d'un compte**, sinon seule la réinitialisation par un gérant les répare. |
 | 3 Fonction | Supprimer la fonction `connexion` (ou la redéployer à la version précédente). Sans elle, la page bascule rend « indisponible ». |
 | 2 Secrets | Supprimer les secrets. Ne jamais les journaliser. |
-| 1 Migrations | `outils/recette/connexion_lot1/99_retour_arriere.sql`, `99b`, `99c` (pannes, comptes incohérents), `99d` (budget), `99e` (limite IP), dans l'ordre inverse. Pour la 2i : recréer la table et la fonction depuis la 2f est inutile en Production (outil de recette), aucun retour arrière n'est requis. Le schéma est supprimé en dernier. |
+| 1 Migrations | `outils/recette/connexion_lot1/99_retour_arriere.sql`, `99b`, `99c` (pannes, comptes incohérents), `99d` (budget), `99e` (limite IP), `99f` (étapes 4 et 4b : `equipe_pour` retirée, `auteur_autorise` rétablie), dans l'ordre inverse. Pour la 2i : recréer la table et la fonction depuis la 2f est inutile en Production (outil de recette), aucun retour arrière n'est requis. Le schéma est supprimé en dernier. |
 
 ## 3. Mesures à refaire en Production (lecture seule, catalogue)
 
@@ -66,7 +66,7 @@ select count(*) as select_anon_auth from pg_class c join pg_namespace n on n.oid
 where n.nspname = 'nexus_connexion' and c.relkind = 'r' and (has_table_privilege('anon', c.oid, 'select') or has_table_privilege('authenticated', c.oid, 'select'));
 rollback;
 ```
-Attendu : 7 tables, 7 avec RLS, 17 fonctions (16 avant l’étape 4), `panne_table` et `panne_fonction` null, 0 EXECUTE, 0 SELECT.
+Attendu (mesuré sur Test le 25/11/2026 après 4b) : 7 tables, 7 avec RLS, 17 fonctions (16 avant l’étape 4), `panne_table` et `panne_fonction` null, 0 EXECUTE, 0 SELECT.
 
 **Avant l'étape 4 : comptage des comptes par station** (à lancer seulement sur GO ; le filtre par site est obligatoire)
 ```sql
