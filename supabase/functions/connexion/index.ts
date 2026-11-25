@@ -14,6 +14,9 @@ const MASTER = Deno.env.get("AUTH_MASTER_SECRET") ?? "";
 const PEPPER = Deno.env.get("PEPPER") ?? "";
 const IP_FP = Deno.env.get("IP_FP_SECRET") ?? "";
 const ORIGINES = (Deno.env.get("ORIGINES_AUTORISEES") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+// Configuration obligatoire : une variable absente ou vide empêche tout traitement (jamais de valeur par défaut). Seuls les NOMS sont journalisés.
+const MANQUANTES = [["AUTH_MASTER_SECRET", MASTER], ["PEPPER", PEPPER], ["IP_FP_SECRET", IP_FP], ["ORIGINES_AUTORISEES", ORIGINES.join("")]].filter(([, v]) => !v).map(([n]) => n);
+if (MANQUANTES.length) console.error("configuration incomplète : " + MANQUANTES.join(", "));
 const PLANCHER_MS = Number(Deno.env.get("PLANCHER_MS") ?? "2000");
 const COST = 12;
 // Hachage bcrypt factice (coût 12, non secret) : sert au travail identique quand le compte est inconnu ou refusé.
@@ -173,7 +176,8 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { status: permise ? 204 : 403, headers: entetes(origin) });
   if (req.method !== "POST") return new Response(JSON.stringify(REFUS), { status: 405, headers: { ...entetes(origin), allow: "POST, OPTIONS" } });
   return await avecPlancher(debut, (async () => {
-    if (!permise || !MASTER || !PEPPER || !IP_FP) return rep(401, REFUS, origin);
+    if (MANQUANTES.length) { console.error("configuration incomplète : " + MANQUANTES.join(", ")); return rep(401, REFUS, origin); }
+    if (!permise) return rep(401, REFUS, origin);
     const brut = await req.text();
     if (brut.length > 2048) return rep(401, REFUS, origin);
     let body: any = null;
