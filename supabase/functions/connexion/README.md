@@ -1,6 +1,8 @@
 # Edge Function `connexion` (Test)
 
-Variables : `AUTH_MASTER_SECRET`, `PEPPER`, `IP_FP_SECRET` (saisies par le gérant, jamais lues ni journalisées), `ORIGINES_AUTORISEES`, `PLANCHER_MS` (2000 par défaut).
+Variables : `AUTH_MASTER_SECRET`, `PEPPER`, `IP_FP_SECRET` (saisies par le gérant, jamais lues ni journalisées), `ORIGINES_AUTORISEES`, `PLANCHER_MS` (1500 par défaut, décision Guardian 7152223292 ; non défini comme secret sur Test).
+
+Corps : lu en flux, borné à 2 048 octets. Refus immédiat si `content-length` dépasse 2 048, sinon arrêt de la lecture au 2 049e octet. Même réponse neutre 401 et même durée plancher que tout autre refus.
 
 `ORIGINES_AUTORISEES` : liste exacte, sans joker, séparée par des virgules.
 - Test : `https://nexus-test-ddf.pages.dev,https://claude-connexion-securite.nexus-test-ddf.pages.dev`

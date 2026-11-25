@@ -18,7 +18,7 @@ const ORIGINES = (Deno.env.get("ORIGINES_AUTORISEES") ?? "").split(",").map((s) 
 const MANQUANTES = [["AUTH_MASTER_SECRET", MASTER], ["PEPPER", PEPPER], ["IP_FP_SECRET", IP_FP], ["ORIGINES_AUTORISEES", ORIGINES.join("")]].filter(([, v]) => !v).map(([n]) => n);
 if (MANQUANTES.length) console.error("configuration incomplète : " + MANQUANTES.join(", "));
 const RECETTE_PANNES = Deno.env.get("RECETTE_PANNES") === "1"; // Test seulement ; sans elle, panne_injectee n'est jamais lue
-const PLANCHER_MS = Number(Deno.env.get("PLANCHER_MS") ?? "2000");
+const PLANCHER_MS = Number(Deno.env.get("PLANCHER_MS") ?? "1500");
 const COST = 10; // mesuré sur Test : coût 12 ≈ 346 ms CPU (médiane), coût 10 ≈ 86 ms ; les hachages coût 12 existants restent valides
 // Hachage bcrypt factice (coût 10, non secret) : sert au travail identique quand le compte est inconnu ou refusé.
 const FACTICE = "$2a$10$z0Kt9LHS7dw1h60sgsxeweAf/rzVnKNUUF0HqDu8yx1paZ3QLtL1e";
@@ -205,6 +205,27 @@ async function changerCode(req: Request, body: any, c: Ctx): Promise<Response> {
   return rep(200, { ok: true, session: s }, c.origin);
 }
 
+// Lit le corps sans jamais dépasser max octets : refus sur content-length annoncé trop grand, sinon arrêt de la lecture au (max+1)e octet.
+async function lireCorpsBorne(req: Request, max: number): Promise<string | null> {
+  const cl = req.headers.get("content-length");
+  if (cl !== null && Number(cl) > max) { try { await req.body?.cancel(); } catch { /* ignoré */ } return null; }
+  if (!req.body) return "";
+  const lecteur = req.body.getReader();
+  const morceaux: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await lecteur.read();
+    if (done) break;
+    total += value.length;
+    if (total > max) { try { await lecteur.cancel(); } catch { /* ignoré */ } return null; }
+    morceaux.push(value);
+  }
+  const tout = new Uint8Array(total);
+  let o = 0;
+  for (const m of morceaux) { tout.set(m, o); o += m.length; }
+  return new TextDecoder().decode(tout);
+}
+
 Deno.serve(async (req) => {
   const debut = performance.now();
   const origin = req.headers.get("origin");
@@ -214,8 +235,8 @@ Deno.serve(async (req) => {
   return await avecPlancher(debut, (async () => {
     if (MANQUANTES.length) { console.error("configuration incomplète : " + MANQUANTES.join(", ")); return rep(401, REFUS, origin); }
     if (!permise) return rep(401, REFUS, origin);
-    const brut = await req.text();
-    if (brut.length > 2048) return rep(401, REFUS, origin);
+    const brut = await lireCorpsBorne(req, 2048);
+    if (brut === null) return rep(401, REFUS, origin);
     let body: any = null;
     try { body = JSON.parse(brut); } catch { /* corps mal formé : refus neutre plus bas */ }
     if (!body || typeof body !== "object" || Array.isArray(body)) { await bcrypt.compare("x", FACTICE); return rep(401, REFUS, origin); }
