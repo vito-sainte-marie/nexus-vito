@@ -18,3 +18,7 @@ Injection de pannes (Test seulement) : table `nexus_connexion.panne_injectee` (u
 Tous les comptes `a_migrer` d'une station sortent par la même IP vers Auth, qui limite par IP (mesure sur Test : seau de jetons, 429 vers 0,8 à 2 appels par seconde, récupération en quelques secondes). `nexus_connexion.budget_auth()` plafonne donc les appels `a_migrer` à `budget_auth_min` par minute (20 par défaut). Au-delà : 503 « indisponible », sans appel à Auth, sans toucher aucun compteur de compte ; le plancher de durée s'applique. L'événement `budget_auth` est journalisé (au plus un par minute) avec le nombre de comptes `a_migrer` restants. Il sera repris dans l'alerte gérant.
 
 La migration se fait **station par station**, et le nombre de comptes `a_migrer` est suivi jusqu'à zéro avant de passer à la station suivante.
+
+## Limite par IP : seuls les échecs réels comptent (étape 2h)
+
+`nexus_connexion.essais_ip.type` vaut `echec`, `succes`, `refus_ip` ou `refus_verrou`. Les fenêtres de 10 min et d'1 h ne comptent que les `echec` (code faux sur un compte existant, prénom inconnu ou ambigu). Un refus ne prolonge donc pas le blocage de l'IP, et une station dont les employés se connectent avec succès ne se bloque pas. Les lignes `refus_*` et `succes` servent à la lecture et à l'alerte. Limite connue : des essais simultanés passent tous `avant_essai` avant que le premier échec soit inscrit. Retour arrière : `outils/recette/connexion_lot1/99e_retour_arriere_etape2h.sql`.
