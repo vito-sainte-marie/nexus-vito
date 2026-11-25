@@ -1,6 +1,6 @@
 # Connexion sécurité, lot 1 — procédure Production
 
-Migrations : les dix fichiers `supabase/migrations/2026112609*` à `20261126200000_*` (étapes 1, 2, 2b à 2i). Fonction : `supabase/functions/connexion/index.ts`. Page : `NEXUS-Login-v1.html`.
+Migrations : les onze fichiers `supabase/migrations/2026112609*` à `20261126210000_*` (étapes 1, 2, 2b à 2i, 4). Fonction : `supabase/functions/connexion/index.ts`. Page : `NEXUS-Login-v1.html`.
 
 **Rien de ceci ne s'exécute sans un GO distinct du gérant pour chaque étape.** Toutes les mesures citées dans les fiches de qualification sont des mesures Test (projet `udljdqxerrbbbajxubfn`). La mesure Production sera faite au GO. Aucune lecture Production n'a été faite pour ce lot.
 
@@ -8,7 +8,7 @@ Migrations : les dix fichiers `supabase/migrations/2026112609*` à `202611262000
 
 L'injection de pannes (`nexus_connexion.panne_injectee`, `nexus_connexion.panne_pour`, variable `RECETTE_PANNES`) est un outil de recette Test. Elle est exclue de deux façons, qui se contrôlent séparément.
 
-1. **Côté base : migration 2i** (`20261126200000_connexion_lot1_etape2i_retrait_pannes_injectees.sql`). La 2f crée la table et la fonction ; la 2i les retire. Appliquées dans l'ordre sur une base neuve, elles laissent 16 fonctions et 7 tables. Ni la table ni la fonction n'existent donc jamais durablement en Production.
+1. **Côté base : migration 2i** (`20261126200000_connexion_lot1_etape2i_retrait_pannes_injectees.sql`). La 2f crée la table et la fonction ; la 2i les retire. Appliquées dans l'ordre sur une base neuve, elles laissent 16 fonctions et 7 tables (17 fonctions avec l’étape 4, `equipe_pour`). Ni la table ni la fonction n'existent donc jamais durablement en Production.
 2. **Côté fonction : retrait du code avant déploiement.** Avant la demande de GO, un commit retire du source `index.ts` la constante `RECETTE_PANNES`, la fonction `panne()` et ses appels. Le md5 du source Production diffère alors de celui de Test, et il est noté dans la demande de GO.
 
 **Preuve sur Test (25/11/2026, projet `udljdqxerrbbbajxubfn`), après application de la 2i :**
@@ -66,7 +66,7 @@ select count(*) as select_anon_auth from pg_class c join pg_namespace n on n.oid
 where n.nspname = 'nexus_connexion' and c.relkind = 'r' and (has_table_privilege('anon', c.oid, 'select') or has_table_privilege('authenticated', c.oid, 'select'));
 rollback;
 ```
-Attendu : 7 tables, 7 avec RLS, 16 fonctions, `panne_table` et `panne_fonction` null, 0 EXECUTE, 0 SELECT.
+Attendu : 7 tables, 7 avec RLS, 17 fonctions (16 avant l’étape 4), `panne_table` et `panne_fonction` null, 0 EXECUTE, 0 SELECT.
 
 **Avant l'étape 4 : comptage des comptes par station** (à lancer seulement sur GO ; le filtre par site est obligatoire)
 ```sql
@@ -84,3 +84,7 @@ Les colonnes exactes de `staff` se vérifient au GO, sur le catalogue, avant de 
 ## 4. Décisions du gérant à prendre avant le GO
 
 Durée de conservation du journal, destinataires de l'alerte, date de rotation des secrets, code à 6 chiffres, validité du code temporaire (24 h).
+
+## 5. Source de la fonction (mise à jour étape 4)
+
+Le source `index.ts` ajoute l'action `lister_equipe` (md5 `cb99578bea5650269a4bd9d8acea03ef`, déployé sur Test le 25/11/2026, sans code de pannes). Le md5 du source Production est à renoter dans la demande de GO. Mesure Test : `lister_equipe` sans JWT → 403 neutre ; les autres actions répondent comme avant.
