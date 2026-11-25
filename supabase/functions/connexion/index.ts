@@ -54,7 +54,9 @@ const REFUS = { ok: false, erreur: "refus" };
 // Toute réponse, succès comme refus, dure au moins PLANCHER_MS : la durée ne distingue ni compte inconnu, ni compte verrouillé, ni mauvais code.
 async function avecPlancher(debut: number, p: Promise<Response>): Promise<Response> {
   let r: Response;
-  try { r = await p; } catch (e) { console.log("erreur interne", (e as Error)?.name ?? "?"); r = new Response(JSON.stringify(REFUS), { status: 401, headers: { "content-type": "application/json", "cache-control": "no-store" } }); }
+  try { r = await p; } catch (e) {
+    if (e instanceof LimiteAuth) { r = new Response(JSON.stringify({ ok: false, erreur: "indisponible" }), { status: 503, headers: { "content-type": "application/json", "cache-control": "no-store" } }); }
+    else { console.log("erreur interne", (e as Error)?.name ?? "?"); r = new Response(JSON.stringify(REFUS), { status: 401, headers: { "content-type": "application/json", "cache-control": "no-store" } }); } }
   const reste = PLANCHER_MS - (performance.now() - debut);
   if (reste > 0) await attendre(reste);
   return r;
@@ -62,8 +64,11 @@ async function avecPlancher(debut: number, p: Promise<Response>): Promise<Respon
 
 type Ctx = { origin: string | null; fp: string };
 
+class LimiteAuth extends Error {}
+
 async function session(email: string, mdp: string) {
   const { data, error } = await anon().auth.signInWithPassword({ email, password: mdp });
+  if (error && (error as any).status === 429) throw new LimiteAuth();
   if (error || !data.session) return null;
   const s = data.session;
   return { access_token: s.access_token, refresh_token: s.refresh_token, expires_in: s.expires_in, token_type: s.token_type };
@@ -74,9 +79,8 @@ async function connexion(body: any, c: Ctx): Promise<Response> {
   const valide = typeof prenom === "string" && prenom.length > 0 && prenom.length <= 60 && typeof code === "string" && code.length > 0 && code.length <= 32;
   if (!valide) { await bcrypt.compare("x", FACTICE); return rep(401, REFUS, c.origin); }
 
-  // Plafond de connexions réussies depuis l'IP de sortie : pour tout le monde, avant tout calcul propre au compte.
-  const cs = (await sql`select nexus_connexion.compter_succes() as r`)[0].r;
-  if (cs.sature) return rep(503, { ok: false, erreur: "indisponible" }, c.origin);
+  // Surveillance seule : journalise 'egress_proche' à 60 succès en 5 min. Ne bloque jamais ; seul un 429 d'Auth donne « indisponible ».
+  await sql`select nexus_connexion.compter_succes()`;
 
   const av = (await sql`select nexus_connexion.avant_essai(${prenom}, ${c.fp}) as r`)[0].r;
   const uid: string | null = av.user_id ?? null;
