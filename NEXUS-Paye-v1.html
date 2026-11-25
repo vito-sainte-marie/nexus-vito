@@ -753,6 +753,12 @@ function renderDecisions(){
  ${ec.lignes.length?ec.lignes.map(i=>`<div class="review-card"><div class="review-name">${ECHAPPE(i.employeeNom||'Employé à identifier')}</div>${renderItem(null,i)}</div>`).join(''):'<div class="ok">✓ Aucun écart de caisse sur la période.</div>'}
  ${informations.length?`<div class="bloc-titre">Informations sans impact paie · ${informations.length} ${infoBtn('ecart','écarts informatifs')}</div><div class="help" style="margin-top:0">Ces éléments restent visibles pour la traçabilité mais ne bloquent pas le dossier.</div>${informations.map(i=>renderItem(null,i)).join('')}`:''}`;
 }
+var PDF_GENERE_LE=null;
+function etiquetteEtatDossier(statut,provisoire){
+ if(statut==='brouillon')return 'Brouillon';
+ if(statut==='transmis')return 'Transmis';
+ return provisoire?'Validé · provisoire':'Validé · définitif';
+}
 function renderDossier(){
  const s=RAPPORT.synthese, statut=etatPeriode(), p=RAPPORT.periodeEnregistree||null, e=etatValidation();
  const inclus=(RAPPORT.employes||[]).filter(f=>f.reglage.inclus);
@@ -763,22 +769,27 @@ function renderDossier(){
   if(i.deepLink||i.evenementRH)justificatifs++;
  }));
  const datee=(d)=>d?` le ${jjmmaaaaFR(d)}`:'';
+ const snapP=p&&p.snapshot;
+ const provisoire0=typeof NexusPayeDossierPdf!=='undefined'?NexusPayeDossierPdf.dossierProvisoire(statut,snapP&&snapP.genere_le,MOIS,null):statut==='brouillon';
  const etapes=[
-  {n:1,fait:statut!=='brouillon',texte:statut!=='brouillon'?`Mois validé${datee(p&&p.verifie_le)}`:'Mois à valider'},
-  {n:2,fait:false,texte:statut==='brouillon'?'Dossier PDF : provisoire, téléchargeable dès maintenant':'Dossier PDF : prêt à télécharger'},
-  {n:3,fait:statut==='transmis',texte:statut==='transmis'?`Dossier transmis${datee(p&&p.transmis_le)}`:'Dossier à transmettre à la comptabilité'}
+  {id:'etape1',fait:statut!=='brouillon',texte:statut!=='brouillon'?`Mois validé${datee(p&&p.verifie_le)}`:'Mois à valider'},
+  {id:'etape2',fait:!!PDF_GENERE_LE,texte:PDF_GENERE_LE?`Dossier généré le ${jjmmaaaaFR(PDF_GENERE_LE)}`:'Dossier à télécharger'},
+  {id:'etape3',fait:statut==='transmis',texte:statut==='transmis'?`Dossier transmis${datee(p&&p.transmis_le)}`:'Dossier à transmettre à la comptabilité'}
  ];
+ const bloquant=RAPPORT.bloqueurs.length>0;
+ const partageable=typeof NexusPdfMoteur!=='undefined'&&NexusPdfMoteur.webShareDisponible&&NexusPdfMoteur.webShareDisponible();
  const hist=[];
  if(p&&p.verifie_le)hist.push(`Mois validé le ${jjmmaaaaFR(p.verifie_le)}`);
  if(p&&p.transmis_le)hist.push(`Dossier transmis le ${jjmmaaaaFR(p.transmis_le)}`);
  if(p&&p.updated_at&&!hist.length)hist.push(`Dernière mise à jour le ${jjmmaaaaFR(p.updated_at)}`);
  return `<div class="bloc-titre">Dossier comptable ${infoBtn('export','export comptable')}</div>
- <div class="ligne"><span>${ECHAPPE(e.capsule)}</span><b>${s.salariesPrets} salarié${s.salariesPrets>1?'s':''} sur ${s.salariesInclus} prêt${s.salariesPrets>1?'s':''}.</b></div>
- ${RAPPORT.bloqueurs.length?`<div class="alert"><b>${RAPPORT.bloqueurs.length} point(s) empêchent encore la préparation finale.</b><br>Traitez l’onglet « Décisions » avant de valider le mois.</div>`:(statut==='brouillon'?'<div class="ok">✓ Toutes les variables sont arbitrées. Le mois peut être validé.</div>':'')}
- <div class="lignes">${etapes.map(x=>`<div class="ligne${x.fait?'':' muet'}">${x.fait?'✓ ':''}${x.n} · ${ECHAPPE(x.texte)}</div>`).join('')}</div>
- <div class="actions"><button class="btn success" id="ready" ${RAPPORT.bloqueurs.length||statut!=='brouillon'?'disabled':''}>1 · Valider le mois</button><button class="btn primary" id="dossierPdf">2 · Télécharger le PDF${statut==='brouillon'?' (provisoire)':''}</button><a class="btn" id="apercuPdf" target="_blank" rel="noopener" aria-disabled="true">Aperçu</a><button class="btn" id="sent" ${statut!=='verifie'?'disabled':''}>3 · Marquer transmis</button></div>
- <div class="help" id="pdfEtat">Le dossier PDF est préparé à l’ouverture de cet onglet.</div>
- <details class="detail-dossier"><summary>Détails, historique et export technique</summary>
+ <div class="ligne"><span class="status ${statut}" id="dossierEtat">${ECHAPPE(etiquetteEtatDossier(statut,provisoire0))}</span><b>${s.salariesPrets} salarié${s.salariesPrets>1?'s':''} sur ${s.salariesInclus} prêt${s.salariesPrets>1?'s':''}.</b></div>
+ ${bloquant?`<div class="alert"><b>${RAPPORT.bloqueurs.length} point${RAPPORT.bloqueurs.length>1?'s':''} empêche${RAPPORT.bloqueurs.length>1?'nt':''} encore la préparation finale.</b><br><a href="#" id="versDecisions">Ouvrir l’onglet « Décisions »</a></div>`:(statut==='brouillon'?'<div class="ok">✓ Toutes les variables sont arbitrées.</div>':'')}
+ <div class="lignes">${etapes.map((x,i)=>`<div class="ligne${x.fait?'':' muet'}" id="${x.id}">${x.fait?'✓ ':''}${i+1} · ${ECHAPPE(x.texte)}</div>`).join('')}</div>
+ <div class="actions principal"><button class="btn primary" id="dossierPdf" disabled>Télécharger le PDF</button><a class="btn" id="apercuPdf" target="_blank" rel="noopener" aria-disabled="true">Aperçu</a><button class="btn" id="partagerPdf" ${partageable?'':'hidden'} disabled>Partager</button></div>
+ <div class="help" id="pdfEtat" role="status">${bloquant?'Le dossier sera téléchargeable quand les points ci-dessus seront traités.':'Préparation du dossier…'}</div>
+ <div class="actions"><button class="btn success" id="ready" ${bloquant||statut!=='brouillon'?'hidden':''}>Valider le mois</button><button class="btn" id="sent" ${statut!=='verifie'?'hidden':''}>Marquer transmis</button></div>
+ <details class="detail-dossier"><summary>Détails et outils</summary>
   <div class="lignes">
    <div class="ligne${bloques.length?'':' muet'}">Salariés encore bloqués<b>${bloques.length}</b></div>
    <div class="ligne${s.salariesDonneeManquante?'':' muet'}">Dont données manquantes<b>${s.salariesDonneeManquante}</b></div>
@@ -1388,7 +1399,9 @@ function bind(){
  document.getElementById('reopen').onclick=async()=>{if(!await nexusConfirmer('Rouvrir le dossier ?','Le dossier repasse en brouillon et l’instantané validé est supprimé. Les arbitrages déjà rendus, eux, sont conservés.','Rouvrir le dossier',true))return;await NexusPayeDonnees.enregistrerPeriode(nexusClient,{siteId:SITE,periode:MOIS,statut:'brouillon',snapshot:null,actorId:EMPLOYEE.id});reload()};
  document.getElementById('export').onclick=exportCSV;
  document.getElementById('dossierPdf').onclick=genererDossierPdf;
- if(ONGLET==='dossier'){PDF_PRET=null;preparerDossierPdf().catch(()=>{});}
+ document.getElementById('partagerPdf').onclick=partagerDossierPdf;
+ {const v=document.getElementById('versDecisions');if(v)v.onclick=ev=>{ev.preventDefault();const t=document.querySelector('[data-onglet="decisions"],#tab-decisions');if(t)t.click()}}
+ if(ONGLET==='dossier'&&!RAPPORT.bloqueurs.length){PDF_PRET=null;preparerDossierPdf().catch(()=>{});}
  bindCockpit();
 }
 // Interactions du cockpit (09/10/2026). Deux rafraîchissements ciblés —
@@ -1641,12 +1654,20 @@ async function nomDuCommerce(){
 // comptable doit pouvoir régénérer deux fois le même document — et
 // seulement à défaut d'un calcul en direct.
 var PDF_PRET=null;
+var MESSAGE_ECHEC_DOSSIER="Le dossier comptable n'a pas pu être généré. Vos données sont conservées. Veuillez réessayer.";
+function boutonsDossier(actifs){
+ const d=document.getElementById('dossierPdf'),pa=document.getElementById('partagerPdf'),l=document.getElementById('apercuPdf');
+ if(d)d.disabled=!actifs;if(pa)pa.disabled=!actifs;
+ if(l){if(actifs)l.removeAttribute('aria-disabled');else l.setAttribute('aria-disabled','true')}
+}
 async function preparerDossierPdf(){
  if(typeof NexusPayeDossierPdf==='undefined')return null;
- const lien=document.getElementById('apercuPdf'), etat=document.getElementById('pdfEtat');
+ const etat=document.getElementById('pdfEtat');
+ if(etat)etat.textContent='Préparation du dossier…';
+ boutonsDossier(false);
  const snap=RAPPORT.periodeEnregistree&&RAPPORT.periodeEnregistree.snapshot;
- const dossier=(snap&&snap.dossier)||NexusPayeMoteur.dossierComptable(RAPPORT);
  try{
+  const dossier=(snap&&snap.dossier)||NexusPayeMoteur.dossierComptable(RAPPORT);
   let fuseau=null;try{const f=await NexusStation.fuseauDeLaStation(SITE);fuseau=f&&f.timezone||null}catch(_){}
   // Brouillon toujours provisoire ; mois validé : on compare la date de validation (snapshot.genere_le) à la fin du mois.
   const provisoire=NexusPayeDossierPdf.dossierProvisoire(etatPeriode(),snap&&snap.genere_le,MOIS,fuseau);
@@ -1655,26 +1676,45 @@ async function preparerDossierPdf(){
   const pdf=await NexusPayeDossierPdf.construireDossierPdf(dossier,{logoDataUrl,site:SITE,nomEntreprise:await nomDuCommerce(),provisoire,fuseau});
   if(PDF_PRET&&PDF_PRET.url)URL.revokeObjectURL(PDF_PRET.url);
   const url=URL.createObjectURL(new Blob([pdf.bytes],{type:'application/pdf'}));
-  PDF_PRET={pdf,url};
-  // Le lien est prêt avant tout clic : aucune ouverture de fenêtre après un await.
-  const l=document.getElementById('apercuPdf');if(l){l.href=url;l.removeAttribute('aria-disabled')}
-  const e=document.getElementById('pdfEtat');if(e)e.textContent=provisoire?'Dossier prêt, marqué « Provisoire » : le mois n’est pas validé ou n’est pas terminé.':'Dossier prêt.';
+  PDF_PRET={pdf,url,provisoire};
+  // Tout est prêt avant le clic : aucun await entre le geste de l'utilisateur et l'ouverture, le partage ou le téléchargement.
+  const l=document.getElementById('apercuPdf');if(l)l.href=url;
+  boutonsDossier(true);
+  const pill=document.getElementById('dossierEtat');if(pill)pill.textContent=etiquetteEtatDossier(etatPeriode(),provisoire);
+  if(etat)etat.textContent=provisoire?'Dossier prêt, marqué « Provisoire » : le mois n’est pas validé ou n’est pas terminé.':'Dossier prêt.';
   return PDF_PRET;
  }catch(err){
   console.error('NEXUS PAYE — dossier comptable PDF :',err);
-  const e=document.getElementById('pdfEtat');if(e)e.textContent=`NEXUS n'a pas pu produire le dossier comptable : ${messageErreur(err)}`;
+  boutonsDossier(false);
+  const d=document.getElementById('dossierPdf');if(d)d.disabled=false; // permet de réessayer
+  if(etat)etat.textContent=MESSAGE_ECHEC_DOSSIER;
   throw err;
  }
 }
+function dossierGenere(){
+ PDF_GENERE_LE=new Date().toISOString();
+ const e=document.getElementById('etape2');
+ if(e){e.classList.remove('muet');e.textContent=`✓ 2 · Dossier généré le ${jjmmaaaaFR(PDF_GENERE_LE)}`}
+}
 async function genererDossierPdf(){
  const btn=document.getElementById('dossierPdf');
- const etiquette=btn.textContent;
- btn.disabled=true;btn.textContent='Génération…';
  try{
+  // PDF déjà prêt : téléchargement direct, jamais de feuille de partage ici.
   const prete=PDF_PRET||await preparerDossierPdf();
-  await NexusPdfMoteur.partagerOuTelechargerPdf(prete.pdf.bytes,prete.pdf.nomFichier,{titre:prete.pdf.titre,texte:'Variables de paie préparées par NEXUS.'});
- }catch(e){nexusErreur('Dossier non généré',`NEXUS n'a pas pu produire le dossier comptable : ${messageErreur(e)}`);}
- finally{btn.disabled=false;btn.textContent=etiquette}
+  await NexusPdfMoteur.telechargerPdf(prete.pdf.bytes,prete.pdf.nomFichier);
+  dossierGenere();
+ }catch(e){
+  console.error('NEXUS PAYE — téléchargement du dossier :',e);
+  nexusErreur('Dossier non généré',MESSAGE_ECHEC_DOSSIER);
+ }
+}
+// Partager n'existe que si le PDF est prêt avant le clic : le geste de l'utilisateur doit atteindre navigator.share sans await entre les deux.
+function partagerDossierPdf(){
+ if(!PDF_PRET)return;
+ NexusPdfMoteur.partagerPdf(PDF_PRET.pdf.bytes,PDF_PRET.pdf.nomFichier,{titre:PDF_PRET.pdf.titre,texte:'Variables de paie préparées par NEXUS.'}).then(r=>{
+  if(r==='partage')dossierGenere();
+  else if(r==='indisponible'||r==='echec')nexusErreur('Dossier non partagé','Le partage n’est pas possible ici. Utilisez « Télécharger le PDF ».');
+ });
 }
 function csvCell(v){const s=String(v??'');return `"${s.replace(/"/g,'""')}"`}
 function exportCSV(){const snap=RAPPORT.periodeEnregistree&&RAPPORT.periodeEnregistree.snapshot;const lignes=snap&&snap.lignes?snap.lignes:NexusPayeMoteur.lignesExport(RAPPORT);const cols=['employe','type','date','source','ecart_initial','ecart_final','statut','quantite_minutes','montant_euros','impact_paye','commentaire','auteur','saisi_le'];const csv='\uFEFF'+[cols.join(';'),...lignes.map(l=>cols.map(c=>csvCell(l[c])).join(';'))].join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download=`NEXUS-Paye-${SITE}-${MOIS.slice(0,7)}.csv`;a.click();URL.revokeObjectURL(a.href)}

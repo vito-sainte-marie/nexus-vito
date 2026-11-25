@@ -248,7 +248,29 @@ const aTexte = (j, re) => j.textes.some(e => re.test(e.t));
   await verifier('panneau : « Télécharger le PDF » actif en brouillon (dossier provisoire)', () => {
     assert.ok(/Télécharger le PDF/.test(html));
     assert.ok(/PROVISOIRE|provisoire/.test(html) && /dossierComptable\(RAPPORT\)/.test(html));
-    assert.ok(!/id="dossierPdf"[^>]*disabled/.test(html));
+    // Désactivé seulement le temps de la préparation ou tant que des points bloquent ; réactivé dès que le PDF est prêt.
+    assert.ok(/function boutonsDossier/.test(html) && /boutonsDossier\(true\)/.test(html));
+    assert.ok(/if\(ONGLET==='dossier'&&!RAPPORT\.bloqueurs\.length\)/.test(html));
+  });
+  await verifier('panneau : téléchargement direct, jamais de feuille de partage au clic principal', () => {
+    const g = html.slice(html.indexOf('async function genererDossierPdf'), html.indexOf('// Partager n')).replace(/\/\/.*$/gm, '');
+    assert.ok(/telechargerPdf\(/.test(g) && !/partagerOuTelechargerPdf|navigator\.share|partagerPdf/.test(g));
+  });
+  await verifier('panneau : « Partager » masqué sans Web Share, appelé sans await avant le geste', () => {
+    assert.ok(/id="partagerPdf" \$\{partageable\?'':'hidden'\}/.test(html) && /webShareDisponible\(\)/.test(html));
+    const f = html.slice(html.indexOf('function partagerDossierPdf'));
+    assert.ok(!/await/.test(f.slice(0, f.indexOf('\n}\n'))), 'await dans partagerDossierPdf');
+  });
+  await verifier('panneau : message d\'échec exact du gérant, détail en console', () => {
+    assert.ok(html.includes("Le dossier comptable n'a pas pu être généré. Vos données sont conservées. Veuillez réessayer."));
+    assert.ok(!/NEXUS n'a pas pu produire le dossier comptable/.test(html));
+    assert.ok(/console\.error\('NEXUS PAYE — dossier comptable PDF/.test(html));
+  });
+  await verifier('panneau : état réel, 3 étapes datées, « Préparation du dossier… », « Détails et outils »', () => {
+    for (const t of ['Brouillon','Validé · provisoire','Validé · définitif','Transmis','Préparation du dossier…','Détails et outils','Dossier généré le','Mois validé','Dossier transmis','empêche'])
+      assert.ok(html.includes(t), t);
+    assert.ok(!html.includes('Le mois peut être validé'), 'texte « Le mois peut être validé » encore présent');
+    assert.ok(!html.includes('Détails, historique et export technique'));
   });
   await verifier('panneau : aperçu en <a target="_blank"> sur blob préparé, sans window.open après await', () => {
     assert.ok(/target="_blank"/.test(html) && /createObjectURL/.test(html) && /revokeObjectURL/.test(html));
