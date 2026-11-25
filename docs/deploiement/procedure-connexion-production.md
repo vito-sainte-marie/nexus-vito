@@ -15,7 +15,7 @@ L'injection de pannes (`nexus_connexion.panne_injectee`, `nexus_connexion.panne_
 - `to_regclass('nexus_connexion.panne_injectee')` = null ; `to_regprocedure('nexus_connexion.panne_pour(uuid,text)')` = null.
 - 16 fonctions et 7 tables dans `nexus_connexion` (avant : 17 et 8) ; 0 EXECUTE et 0 SELECT pour `anon` et `authenticated` ; 7 tables sur 7 avec RLS.
 - La fonction `connexion` déployée (variable `RECETTE_PANNES` non posée) répond sans la table : mauvais code → 401 neutre `{"ok":false,"erreur":"refus"}` ; bon code → 200 avec session.
-- Reste à prouver sur Test avant le GO : le déploiement du source sans le code de pannes (même contrôle 401/200).
+- Source sans code de pannes déployé sur Test le 25/11/2026 (version 10, md5 `7a0a9530e017d7758e0872ab1bce3b22`, c'est le source Production) : mauvais code → 401 neutre `{"ok":false,"erreur":"refus"}` ; bon code → 200 avec session. Le source de Production est celui du dépôt à ce md5.
 
 ## 1. Ordre réel Production
 
