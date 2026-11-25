@@ -41,6 +41,10 @@
     display:none; background:var(--red-dim); color:var(--red); border-radius:8px; padding:10px 14px;
     font-size:12.5px; margin-top:14px; text-align:center;
   }
+  [hidden]{display:none !important;}
+  .intro{font-size:13px; color:var(--text-mid); text-align:center; line-height:1.5; margin:-14px 0 20px;}
+  .voir{background:none; border:none; color:var(--cyan); font-size:12.5px; cursor:pointer; padding:4px 0; margin-top:-8px; margin-bottom:8px;}
+  #nouveau,#confirmation{font-family:var(--mono); letter-spacing:8px; font-size:20px; text-align:center;}
   .note{font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; margin-top:24px; line-height:1.6;}
 
   .logo-footer{
@@ -63,6 +67,7 @@
   <span class="mark">NEXUS</span>
   <div class="title">Connexion</div>
 
+  <div id="ecranConnexion">
   <div class="field">
     <label for="prenom">Prénom</label>
     <input type="text" id="prenom" placeholder="Thomas" autocomplete="off">
@@ -74,6 +79,21 @@
   </div>
 
   <button class="btn" id="connexion">Se connecter</button>
+  </div>
+
+  <div id="ecranChangement" hidden>
+    <p class="intro">Votre code est temporaire. Choisissez un nouveau code de 6 chiffres que vous seul connaissez.</p>
+    <div class="field">
+      <label for="nouveau">Nouveau code</label>
+      <input type="password" id="nouveau" maxlength="6" inputmode="numeric" autocomplete="new-password" placeholder="••••••">
+    </div>
+    <div class="field">
+      <label for="confirmation">Confirmer le code</label>
+      <input type="password" id="confirmation" maxlength="6" inputmode="numeric" autocomplete="new-password" placeholder="••••••">
+    </div>
+    <button type="button" class="voir" id="voirCodes" aria-pressed="false">Afficher</button>
+    <button class="btn" id="changer">Enregistrer le nouveau code</button>
+  </div>
 
   <div class="error" id="errorConnexion"></div>
 
@@ -82,7 +102,7 @@
     <div class="logo-caption" id="logoCaption">Votre commerce vous parle en permanence. NEXUS vous aide à le comprendre, à décider et à progresser chaque jour.</div>
   </div>
 
-  <div class="note">Connexion sécurisée · Supabase Auth</div>
+  <div class="note">Connexion sécurisée</div>
 </div>
 
 <script>
@@ -110,90 +130,145 @@
     if (session) window.location.href = "NEXUS-App-v1.html";
   });
 
-  // Message unique pour tous les refus d'identification — prénom inconnu,
-  // PIN incorrect, compte désactivé. Distinguer les deux premiers revenait à
-  // confirmer, sans PIN, qu'un prénom donné correspond à un compte : l'écran
-  // devenait un oracle d'énumération, un prénom à la fois. Exigence posée par
-  // .github/recettes/CADRAGE-nexus-test.md.
+  // Connexion par la fonction `connexion` (étape 3, lot Connexion sécurité).
+  // Le navigateur n'appelle plus ni la recherche d'identifiant ni Auth : la
+  // fonction répond 401 neutre à tout refus, 503 ou 5xx si elle est
+  // indisponible, et rend une session seulement quand le compte est prêt.
+  const ENDPOINT = SUPABASE_URL.replace(/\/$/, "") + "/functions/v1/connexion";
   const REFUS = "Prénom ou code PIN incorrect.";
+  const INDISPONIBLE = "Connexion indisponible pour le moment. Réessayez dans un instant.";
+  const RESEAU = "Connexion au serveur impossible. Vérifiez votre connexion et réessayez.";
 
   const prenomInput = document.getElementById("prenom");
   const pinInput = document.getElementById("pin");
   const btn = document.getElementById("connexion");
   const errBox = document.getElementById("errorConnexion");
+  const ecranConnexion = document.getElementById("ecranConnexion");
+  const ecranChangement = document.getElementById("ecranChangement");
+  const nouveauInput = document.getElementById("nouveau");
+  const confirmInput = document.getElementById("confirmation");
+  const btnChanger = document.getElementById("changer");
+  const btnVoir = document.getElementById("voirCodes");
+
+  // Le code temporaire et le prénom restent en mémoire de page seulement.
+  let codeTemporaire = null;
+  let prenomEnCours = null;
+
+  function afficherErreur(msg) { errBox.textContent = msg; errBox.style.display = "block"; }
+  function masquerErreur() { errBox.style.display = "none"; }
+  function repos() {
+    btn.disabled = false; btn.textContent = "Se connecter";
+    btnChanger.disabled = false; btnChanger.textContent = "Enregistrer le nouveau code";
+  }
+
+  // Un code est faible s'il compte six chiffres identiques ou forme une suite
+  // croissante ou décroissante. Même règle que la fonction côté serveur.
+  function codeFaible(n) {
+    if (!/^\d{6}$/.test(n)) return true;
+    if (/^(\d)\1{5}$/.test(n)) return true;
+    let crois = true, decrois = true;
+    for (let i = 1; i < 6; i++) {
+      const d = Number(n[i]) - Number(n[i - 1]);
+      if (d !== 1) crois = false;
+      if (d !== -1) decrois = false;
+    }
+    return crois || decrois;
+  }
+
+  // POST vers la fonction. Un 5xx (dont 546) déclenche UNE seule reprise
+  // après 1 à 3 s tirées au hasard ; aucune autre boucle.
+  async function appeler(corps) {
+    async function une() {
+      const r = await fetch(ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(corps)
+      });
+      let json = null;
+      try { json = await r.json(); } catch (e) { /* corps absent */ }
+      return { status: r.status, json };
+    }
+    let rep = await une();
+    if (rep.status >= 500) {
+      await new Promise(ok => setTimeout(ok, 1000 + Math.random() * 2000));
+      rep = await une();
+    }
+    return rep;
+  }
+
+  async function poserSession(session) {
+    const { error } = await client.auth.setSession({
+      access_token: session.access_token,
+      refresh_token: session.refresh_token
+    });
+    if (error) throw error;
+    window.location.href = "NEXUS-App-v1.html";
+  }
 
   async function tryLogin() {
     const prenom = prenomInput.value.trim();
     const pin = pinInput.value.trim();
-    errBox.style.display = "none";
+    masquerErreur();
+    if (!prenom || !pin) { afficherErreur("Entrez votre prénom et votre code PIN."); return; }
 
-    if (!prenom || !pin) {
-      errBox.textContent = "Entrez votre prénom et votre code PIN.";
-      errBox.style.display = "block";
-      return;
+    btn.disabled = true; btn.textContent = "Connexion...";
+    let rep;
+    try { rep = await appeler({ prenom, code: pin }); }
+    catch (e) { afficherErreur(RESEAU); repos(); return; }
+
+    if (rep.status === 200 && rep.json && rep.json.ok) {
+      if (rep.json.changer_code) {
+        prenomEnCours = prenom; codeTemporaire = pin;
+        pinInput.value = "";
+        ecranConnexion.hidden = true; ecranChangement.hidden = false;
+        nouveauInput.focus();
+        repos();
+        return;
+      }
+      if (rep.json.session) {
+        try { await poserSession(rep.json.session); return; }
+        catch (e) { afficherErreur(RESEAU); repos(); return; }
+      }
     }
-
-    btn.disabled = true;
-    btn.textContent = "Connexion...";
-
-    // On retrouve le username (identifiant technique) à partir du prénom
-    // affiché. Passer par une fonction et non par une vue lisible en
-    // anonyme : une vue accepte aussi une requête SANS filtre, et rendait
-    // donc l'annuaire complet — tous sites confondus — à un visiteur muni de
-    // la seule clé publiable. La fonction ne répond qu'à ce prénom-là, et
-    // renvoie NULL s'il est inconnu ou porté par plusieurs comptes.
-    let identifiant, lookupError;
-    try {
-      ({ data: identifiant, error: lookupError } = await client
-        .rpc("nexus_identifiant_de_connexion", { p_prenom: prenom }));
-    } catch (networkError) {
-      lookupError = networkError;
-    }
-
-    if (lookupError) {
-      errBox.textContent = "Connexion au serveur impossible. Vérifiez votre connexion et réessayez.";
-      errBox.style.display = "block";
-      btn.disabled = false;
-      btn.textContent = "Se connecter";
-      return;
-    }
-
-    if (!identifiant) {
-      errBox.textContent = REFUS;
-      errBox.style.display = "block";
-      btn.disabled = false;
-      btn.textContent = "Se connecter";
-      return;
-    }
-
-    let authError;
-    try {
-      ({ error: authError } = await client.auth.signInWithPassword({
-        email: `${identifiant}@vito-nexus.local`,
-        password: pin
-      }));
-    } catch (networkError) {
-      errBox.textContent = "Connexion au serveur impossible. Vérifiez votre connexion et réessayez.";
-      errBox.style.display = "block";
-      btn.disabled = false;
-      btn.textContent = "Se connecter";
-      return;
-    }
-
-    if (authError) {
-      errBox.textContent = REFUS;
-      errBox.style.display = "block";
-      pinInput.value = "";
-      btn.disabled = false;
-      btn.textContent = "Se connecter";
-      return;
-    }
-
-    window.location.href = "NEXUS-App-v1.html";
+    if (rep.status >= 500) afficherErreur(INDISPONIBLE);
+    else { afficherErreur(REFUS); pinInput.value = ""; }
+    repos();
   }
 
+  async function changerCode() {
+    masquerErreur();
+    const nouveau = nouveauInput.value.trim();
+    if (!/^\d{6}$/.test(nouveau)) { afficherErreur("Le code doit compter exactement 6 chiffres."); return; }
+    if (nouveau !== confirmInput.value.trim()) { afficherErreur("Les deux codes ne sont pas identiques."); return; }
+    if (nouveau === codeTemporaire) { afficherErreur("Choisissez un code différent du code temporaire."); return; }
+    if (codeFaible(nouveau)) { afficherErreur("Ce code est trop simple. Évitez les chiffres identiques et les suites."); return; }
+
+    btnChanger.disabled = true; btnChanger.textContent = "Enregistrement...";
+    let rep;
+    try {
+      rep = await appeler({ action: "changer_code", prenom: prenomEnCours, code_actuel: codeTemporaire, nouveau_code: nouveau });
+    } catch (e) { afficherErreur(RESEAU); repos(); return; }
+
+    if (rep.status === 200 && rep.json && rep.json.ok && rep.json.session) {
+      codeTemporaire = null;
+      try { await poserSession(rep.json.session); return; }
+      catch (e) { afficherErreur(RESEAU); repos(); return; }
+    }
+    if (rep.status >= 500) afficherErreur(INDISPONIBLE);
+    else afficherErreur("Le code n'a pas pu être changé. Reprenez depuis l'écran de connexion ou demandez un nouveau code temporaire à votre manager.");
+    repos();
+  }
+
+  btnVoir.addEventListener("click", () => {
+    const visible = nouveauInput.type === "password";
+    nouveauInput.type = confirmInput.type = visible ? "text" : "password";
+    btnVoir.textContent = visible ? "Masquer" : "Afficher";
+    btnVoir.setAttribute("aria-pressed", visible ? "true" : "false");
+  });
   btn.addEventListener("click", tryLogin);
+  btnChanger.addEventListener("click", changerCode);
   pinInput.addEventListener("keypress", (e) => { if (e.key === "Enter") tryLogin(); });
+  confirmInput.addEventListener("keypress", (e) => { if (e.key === "Enter") changerCode(); });
 </script>
 </body>
 </html>
