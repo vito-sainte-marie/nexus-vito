@@ -90,8 +90,7 @@
       { variable: 'Autres absences qualifiées', valeur: nombre(v.autresAbsences.jours, 'jour') },
       { variable: 'Retards', valeur: v.retards.occurrences ? `${minutes(v.retards.minutes)} sur ${nombre(v.retards.occurrences, 'jour')}${(v.retards.detail || []).length ? ` (${v.retards.detail.map(r => `${String(r.date).slice(8, 10)}/${String(r.date).slice(5, 7)} : ${minutes(r.minutes)}`).join(' ; ')})` : ''}` : '—' },
       { variable: 'Heures supplémentaires', valeur: v.heuresSupplementaires.heures ? `${heures(v.heuresSupplementaires.heures)} (comprises dans la présence)` : 'aucune' },
-      { variable: 'Heures supplémentaires en attente d’arbitrage', valeur: v.heuresSupplementaires.enAttente ? nombre(v.heuresSupplementaires.enAttente, 'élément') : 'aucun' },
-      { variable: 'Détail par date (normales / sup.)', valeur: (v.presence.detailJours || []).length ? v.presence.detailJours.map(j => `${j.date} ${j.normales} h + ${j.supplementaires} h`).join(' ; ') : 'aucune journée' },
+      { variable: 'Heures supplémentaires en attente d’arbitrage', valeur: v.heuresSupplementaires.enAttente ? nombre(v.heuresSupplementaires.enAttente, 'élément') : 'aucune' },
       { variable: 'Jours fériés travaillés', valeur: nombre(v.joursFeries.jours, 'jour') + ((v.joursFeries.dates || []).length ? ` (${v.joursFeries.dates.join(', ')})` : '') },
       { variable: 'Acomptes', valeur: v.financier.acompteCentimes ? euros(v.financier.acompteCentimes) : '—' },
       { variable: 'Dettes / avances', valeur: v.financier.detteCentimes ? euros(v.financier.detteCentimes) : '—' },
@@ -119,6 +118,18 @@
       [{ label: 'Variable', cle: 'variable', largeur: 0.62 }, { label: 'Valeur', cle: 'valeur', largeur: 0.38, align: 'droite' }],
       lignesVariables(v),
     );
+
+    // Détail par date : un tableau pleine largeur (une ligne par journée), jamais une valeur concaténée dans « Variables du mois ».
+    rapport.sectionTitre('Détail par date');
+    const jours = v.presence.detailJours || [];
+    if (jours.length) {
+      rapport.tableau(
+        [{ label: 'Date', cle: 'date', largeur: 0.4 }, { label: 'Normales', cle: 'normales', largeur: 0.3, align: 'droite' }, { label: 'Sup.', cle: 'sup', largeur: 0.3, align: 'droite' }],
+        jours.map(j => ({ date: `${String(j.date).slice(8, 10)}/${String(j.date).slice(5, 7)}`, normales: heures(j.normales), sup: heures(j.supplementaires) })),
+      );
+    } else {
+      rapport.encadre([{ texte: 'Aucune journée.' }]);
+    }
 
     const evenements = [...v.congesPayes.detail, ...v.maladieMaternite.detail, ...v.autresAbsences.detail];
     if (evenements.length) {
