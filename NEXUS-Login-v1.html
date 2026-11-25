@@ -63,9 +63,53 @@
   body.changement .intro{margin:-6px 0 14px;}
   body.changement .logo-footer{display:none;}
   body.changement .note{margin-top:14px;}
+
+  /* Éléments réservés à la vue large : absents du flux sur téléphone. */
+  .vue-large{display:none;}
+  .souvenir{align-items:center; gap:10px; font-size:13.5px; color:var(--text-mid); margin:2px 0 6px; cursor:pointer;}
+  .souvenir input{width:18px; height:18px; accent-color:var(--cyan); flex:none;}
+  .oubli{background:none; border:none; color:var(--cyan); font-size:13px; cursor:pointer; padding:10px 0 2px; margin:0 auto; text-decoration:underline;}
+  .aide-pin{background:var(--panel); border:1px solid var(--hairline); border-radius:8px; padding:10px 14px; font-size:13px; color:var(--text); text-align:center; margin-top:10px; line-height:1.5;}
+  .consigne{font-size:13.5px; color:var(--text-mid); text-align:center; margin:-14px 0 20px; line-height:1.5;}
+  .btn:focus-visible,.oubli:focus-visible,.souvenir input:focus-visible{outline:2px solid var(--cyan); outline-offset:2px;}
+
+  @media (min-width:1024px){
+    body{display:grid; grid-template-columns:minmax(0,1.25fr) minmax(420px,1fr); align-items:stretch; justify-items:stretch;}
+    .vue-large{display:block;}
+    .visuel{position:relative; overflow:hidden; min-height:100vh; background:var(--bg);}
+    .visuel img.fond{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:center top;}
+    /* Bord droit fondu en CSS vers le fond du panneau formulaire (jetons du thème). */
+    .visuel::after{content:""; position:absolute; top:0; right:0; bottom:0; width:18%; background:linear-gradient(to right, transparent, var(--bg)); pointer-events:none;}
+    .visuel .bas{position:absolute; left:0; right:0; bottom:0; z-index:1; padding:28px 48px 32px; text-align:center;
+      background:linear-gradient(to top, rgba(8,20,30,.55), rgba(8,20,30,0));}
+    .visuel .bas .logo{width:72px; height:72px; display:block; margin:0 auto 6px;}
+    .visuel .bas .sous-titre{font-family:var(--mono); font-size:13px; letter-spacing:.08em; color:#EAF2F7; margin-bottom:18px;}
+    .visuel .blocs{display:grid; grid-template-columns:repeat(3,1fr); gap:18px; text-align:left;}
+    .visuel .bloc{display:flex; gap:10px; align-items:flex-start; font-size:13.5px; line-height:1.45; color:#EAF2F7;}
+    .visuel .bloc img{width:32px; height:32px; flex:none;}
+    .visuel .bloc b{display:block; font-weight:600; color:#fff;}
+    .carte-formulaire{display:flex; flex-direction:column; justify-content:center; align-items:center; min-height:100vh; background:var(--bg);}
+    body .hero-avatar, body .logo-footer{display:none;}
+    .souvenir.vue-large{display:flex;}
+    .oubli.vue-large{display:block;}
+    #ecranConnexion[hidden] .vue-large, body.changement .consigne{display:none;}
+  }
 </style>
 </head>
 <body>
+<aside class="visuel vue-large" aria-label="Présentation de NEXUS">
+  <img class="fond" id="fondVisuel" alt="" width="1182" height="1330">
+  <div class="bas">
+    <img class="logo" src="assets/nexus-logo-cyan.png" alt="NEXUS">
+    <div class="sous-titre">Pilotage de station-service</div>
+    <div class="blocs">
+      <div class="bloc"><img src="assets/icons/01_principales/48px/progression.png" alt=""><span><b>Piloter</b>vos ventes, vos stocks, votre équipe, au même endroit.</span></div>
+      <div class="bloc"><img src="assets/icons/01_principales/48px/inventaire.png" alt=""><span><b>Contrôler</b>ce qui est fait, ce qui reste à faire.</span></div>
+      <div class="bloc"><img src="assets/icons/01_principales/48px/missions.png" alt=""><span><b>Décider</b>des conseils clairs pour agir chaque jour.</span></div>
+    </div>
+  </div>
+</aside>
+<div class="carte-formulaire">
 <div class="card">
 
   <img class="hero-avatar" src="assets/nexus-avatar.png" alt="NEXUS">
@@ -74,6 +118,7 @@
   <div class="title" id="titreEcran">Connexion</div>
 
   <div id="ecranConnexion">
+  <p class="consigne vue-large">Connectez-vous avec votre prénom et votre code.</p>
   <div class="field">
     <label for="prenom">Prénom</label>
     <input type="text" id="prenom" placeholder="Thomas" autocomplete="off">
@@ -84,7 +129,10 @@
     <input type="password" id="pin" maxlength="6" inputmode="numeric" placeholder="••••">
   </div>
 
+  <label class="souvenir vue-large" for="souvenir"><input type="checkbox" id="souvenir"> Se souvenir de mon prénom sur cet appareil</label>
   <button class="btn" id="connexion">Se connecter</button>
+  <button type="button" class="oubli vue-large" id="oubliPin" aria-expanded="false" aria-controls="aidePin">Code PIN oublié ?</button>
+  <div class="aide-pin vue-large" id="aidePin" role="status" hidden>Demandez un code temporaire à votre manager.</div>
   </div>
 
   <div id="ecranChangement" hidden>
@@ -109,6 +157,7 @@
   </div>
 
   <div class="note">Connexion sécurisée</div>
+</div>
 </div>
 
 <script>
@@ -273,9 +322,54 @@
     btnVoir.textContent = visible ? "Masquer" : "Afficher";
     btnVoir.setAttribute("aria-pressed", visible ? "true" : "false");
   });
-  btn.addEventListener("click", tryLogin);
+  // ---- Vue large (>= 1024 px) ----
+  // Image de fond choisie par script : une seule image est téléchargée, jamais sur téléphone.
+  const large = window.matchMedia("(min-width:1024px)");
+  const fond = document.getElementById("fondVisuel");
+  function themeCourant() {
+    const t = document.documentElement.getAttribute("data-theme");
+    if (t === "jour" || t === "sombre") return t;
+    try { return window.NexusTheme && window.NexusTheme.calculerTheme ? window.NexusTheme.calculerTheme() : "sombre"; }
+    catch (e) { return "sombre"; }
+  }
+  function majFond() {
+    if (!large.matches) return;
+    const nom = themeCourant() === "jour" ? "jour" : "nuit";
+    const taille = (document.querySelector(".visuel").clientWidth * (window.devicePixelRatio || 1)) > 800 ? 1182 : 800;
+    const src = "assets/connexion-fond-" + nom + "-" + taille + ".webp";
+    if (fond.getAttribute("src") !== src) fond.setAttribute("src", src);
+  }
+  majFond();
+  large.addEventListener("change", majFond);
+  new MutationObserver(majFond).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+
+  // Se souvenir du prénom (vue large seulement, prénom seul, décoché par défaut).
+  const CLE_PRENOM = "nexus_login_prenom";
+  const souvenir = document.getElementById("souvenir");
+  try {
+    const p = localStorage.getItem(CLE_PRENOM);
+    if (p && large.matches) { prenomInput.value = p; souvenir.checked = true; }
+  } catch (e) { /* stockage indisponible */ }
+  function memoriserPrenom() {
+    try {
+      if (large.matches && souvenir.checked && prenomInput.value.trim()) localStorage.setItem(CLE_PRENOM, prenomInput.value.trim());
+      else localStorage.removeItem(CLE_PRENOM);
+    } catch (e) { /* ignoré */ }
+  }
+  souvenir.addEventListener("change", memoriserPrenom);
+  prenomInput.addEventListener("change", memoriserPrenom);
+
+  // Aide « Code PIN oublié ? » : simple message sur la page, aucun appel serveur.
+  const oubli = document.getElementById("oubliPin");
+  const aide = document.getElementById("aidePin");
+  oubli.addEventListener("click", () => {
+    aide.hidden = !aide.hidden;
+    oubli.setAttribute("aria-expanded", aide.hidden ? "false" : "true");
+  });
+
+  btn.addEventListener("click", () => { memoriserPrenom(); tryLogin(); });
   btnChanger.addEventListener("click", changerCode);
-  pinInput.addEventListener("keypress", (e) => { if (e.key === "Enter") tryLogin(); });
+  pinInput.addEventListener("keypress", (e) => { if (e.key === "Enter") { memoriserPrenom(); tryLogin(); } });
   confirmInput.addEventListener("keypress", (e) => { if (e.key === "Enter") changerCode(); });
 </script>
 </body>
