@@ -22,3 +22,13 @@ La migration se fait **station par station**, et le nombre de comptes `a_migrer`
 ## Limite par IP : seuls les échecs réels comptent (étape 2h)
 
 `nexus_connexion.essais_ip.type` vaut `echec`, `succes`, `refus_ip` ou `refus_verrou`. Les fenêtres de 10 min et d'1 h ne comptent que les `echec` (code faux sur un compte existant, prénom inconnu ou ambigu). Un refus ne prolonge donc pas le blocage de l'IP, et une station dont les employés se connectent avec succès ne se bloque pas. Les lignes `refus_*` et `succes` servent à la lecture et à l'alerte. Limite connue : des essais simultanés passent tous `avant_essai` avant que le premier échec soit inscrit. Retour arrière : `outils/recette/connexion_lot1/99e_retour_arriere_etape2h.sql`.
+
+## Coût bcrypt et plafond de CPU (décision Guardian 7151083028)
+
+bcryptjs est en JavaScript pur. Mesure dans la fonction sur Test (`performance.now()` autour de bcrypt, 20 appels par coût, un appel par requête) : coût 12 = 347 ms en médiane (p95 354 ms) ; coût 10 = 86 ms (p95 92 ms). Au-dessus de 300 ms de CPU, le coût passe à 10 (`COST = 10`). Une requête qui dépasse environ 2 s de CPU est coupée par la plateforme (HTTP 546, `WORKER_RESOURCE_LIMIT`, cause visible seulement dans le corps de la réponse, absente de `query_logs`).
+
+Les hachages coût 12 existants restent valides (le coût est lu dans le hachage). Au prochain succès d'un compte `migre` dont le hachage n'est pas au coût courant, la fonction le re-hache au coût 10 : une écriture (`poser_code`), sans toucher Auth ni la version, sans effet sur la réponse si elle échoue.
+
+Client (étape 3) : un 546 ou tout autre 5xx s'affiche « indisponible, réessayez », avec une seule reprise automatique après 1 à 3 s tirées au hasard, sans autre boucle. Pas de sémaphore dans ce lot.
+
+Alerte retenue : au moins 3 réponses 5xx en 1 minute sur `connexion`.

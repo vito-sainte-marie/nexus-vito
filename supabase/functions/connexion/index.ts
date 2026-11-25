@@ -19,9 +19,9 @@ const MANQUANTES = [["AUTH_MASTER_SECRET", MASTER], ["PEPPER", PEPPER], ["IP_FP_
 if (MANQUANTES.length) console.error("configuration incomplète : " + MANQUANTES.join(", "));
 const RECETTE_PANNES = Deno.env.get("RECETTE_PANNES") === "1"; // Test seulement ; sans elle, panne_injectee n'est jamais lue
 const PLANCHER_MS = Number(Deno.env.get("PLANCHER_MS") ?? "2000");
-const COST = 12;
-// Hachage bcrypt factice (coût 12, non secret) : sert au travail identique quand le compte est inconnu ou refusé.
-const FACTICE = "$2a$12$muBEER0PLRNyF6EUFgOmh.UT62dSczRUIq/QqJc7N8dn18Cd649Iy";
+const COST = 10; // mesuré sur Test : coût 12 ≈ 346 ms CPU (médiane), coût 10 ≈ 86 ms ; les hachages coût 12 existants restent valides
+// Hachage bcrypt factice (coût 10, non secret) : sert au travail identique quand le compte est inconnu ou refusé.
+const FACTICE = "$2a$10$z0Kt9LHS7dw1h60sgsxeweAf/rzVnKNUUF0HqDu8yx1paZ3QLtL1e";
 
 const sql = postgres(Deno.env.get("SUPABASE_DB_URL")!, { prepare: false, max: 1, idle_timeout: 20 });
 const admin = createClient(URL_, SERVICE, { auth: { persistSession: false, autoRefreshToken: false } });
@@ -143,6 +143,10 @@ async function connexion(body: any, c: Ctx): Promise<Response> {
     const s = await session(email, await motDePasseDerive(uid, version));
     if (!s) throw new Error("session derive");
     await sql`select nexus_connexion.apres_succes(${uid}, ${c.fp})`;
+    // Re-hachage au coût courant (décision Guardian 7151083028) : une écriture, sans toucher Auth ni la version.
+    if (av.etat === "migre" && !av.code_hash.startsWith(`$2a$${COST}$`)) {
+      try { const h2 = await hasher(alias, code); await sql`select nexus_connexion.poser_code(${uid}, ${h2}, 'migre', ${version})`; } catch { console.log("rehash ignoré"); }
+    }
     return rep(200, { ok: true, session: s, ...(av.etat === "code_temporaire_requis" ? { changer_code: true } : {}) }, c.origin);
   }
   await bcrypt.compare("x", FACTICE);
