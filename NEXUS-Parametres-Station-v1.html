@@ -177,6 +177,11 @@
   .cpt-etat{font-size:11px; margin-top:2px; color:var(--text-mid);}
   .cpt-etat.verrouille{color:var(--amber);}
   .cpt-btns{display:flex; flex-direction:column; gap:6px; align-items:flex-end;}
+  /* Confirmation : le nom complet reste lisible (passe sur deux lignes si besoin), le message prend toute la largeur. */
+  .exception-item.cpt-confirme{flex-wrap:wrap; align-items:flex-start;}
+  .exception-item.cpt-confirme .en{white-space:normal; overflow:visible; text-overflow:clip; overflow-wrap:anywhere;}
+  .exception-item.cpt-confirme .cpt-btns{flex:1 1 100%; align-items:stretch;}
+  .exception-item.cpt-confirme .cpt-btns .cpt-etat{font-size:12px; color:var(--text);}
   .cpt-code{margin-top:10px; padding:12px; background:var(--amber-dim); border-radius:8px; display:none;}
   .cpt-code.visible{display:block;}
   .cpt-code .cc-val{font-family:var(--mono); font-size:22px; font-weight:600; letter-spacing:2px; margin:6px 0;}
@@ -3253,6 +3258,7 @@
 
     function rendreBoutons(ligne, etat) {
       const verrou = etat === 'verrouille';
+      ligne.classList.remove('cpt-confirme');
       ligne.querySelector('.cpt-etat').textContent = MOTS[etat] || MOTS.normal;
       ligne.querySelector('.cpt-etat').classList.toggle('verrouille', verrou);
       ligne.querySelector('.cpt-btns').innerHTML =
@@ -3270,6 +3276,7 @@
       masquerCode(); msg.textContent = '';
       // Confirmation intégrée à la ligne (pas de confirm() natif : il ne suit ni la charte ni le thème).
       if (act === 'code') {
+        ligne.classList.add('cpt-confirme');
         ligne.querySelector('.cpt-btns').innerHTML =
           '<div class="cpt-etat" role="alert">Donner un code temporaire à ' + esc(nom) + ' ? Son code actuel ne marchera plus.</div>' +
           '<button type="button" class="btn-mini exclure" data-act="confirmer">Donner le code</button>' +

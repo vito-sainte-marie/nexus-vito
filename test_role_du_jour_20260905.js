@@ -192,7 +192,7 @@ const servicePompiste = { service: { id: 's-1', role: 'pompiste', quart: 'matin'
       const j = src.indexOf('\n}', i);
       return src.slice(0, i) + src.slice(j === -1 ? src.length : j);
     };
-    // Re-pin 75 → 81 : +6 points, aucun perdu (Cockpit-v2 gardé, 5 pages gardées en plus de leur test propre). Idem pour la garde partagée nexusRequireGestion (lot GARDE-GESTION-EMPLOYE-20261124) : sa définition est la règle, pas un point d'appel.
+    // Re-pin 75 → 81 : +6 points, aucun perdu (Cockpit-v2 gardé, 5 pages gardées en plus de leur test propre). Idem pour la garde partagée nexusRequireGestion (lot GARDE-GESTION-EMPLOYE-20261124) : sa définition est la règle, pas un point d'appel. Re-pin 81 → 82 : +1, section Comptes de l'équipe, Paramètres-Station (garde `nexusEstManager(employee)` sur le rôle réel, jamais le rôle du jour).
     return retirer(retirer(t, 'function nexusEstManager('), 'function nexusRequireGestion(');
   };
 
@@ -208,8 +208,8 @@ const servicePompiste = { service: { id: 's-1', role: 'pompiste', quart: 'matin'
   }
   const permissions = Object.values(pointsParFichier).reduce((a, b) => a + b, 0);
   verifier(`les contrôles de permission sur la fiche sont intacts (${permissions}` +
-    `${permissions === 81 ? '' : ' — répartition : ' + JSON.stringify(pointsParFichier)})`,
-    permissions === 81);
+    `${permissions === 82 ? '' : ' — répartition : ' + JSON.stringify(pointsParFichier)})`,
+    permissions === 82);
   verifier('les ensembles de rôles autorisés restent sur la fiche employé',
     /ROLES_AUTORISES = new Set\(\['manager', 'gerant'\]\)/.test(lire('nexus-inventaire-transferts-internes.js'))
     && /ROLES = new Set\(\['manager', 'gerant'\]\)/.test(lire('nexus-inventaire-stock-controle-cible-v2.js')));
