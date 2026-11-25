@@ -17,6 +17,7 @@ const ORIGINES = (Deno.env.get("ORIGINES_AUTORISEES") ?? "").split(",").map((s) 
 // Configuration obligatoire : une variable absente ou vide empêche tout traitement (jamais de valeur par défaut). Seuls les NOMS sont journalisés.
 const MANQUANTES = [["AUTH_MASTER_SECRET", MASTER], ["PEPPER", PEPPER], ["IP_FP_SECRET", IP_FP], ["ORIGINES_AUTORISEES", ORIGINES.join("")]].filter(([, v]) => !v).map(([n]) => n);
 if (MANQUANTES.length) console.error("configuration incomplète : " + MANQUANTES.join(", "));
+const RECETTE_PANNES = Deno.env.get("RECETTE_PANNES") === "1"; // Test seulement ; sans elle, panne_injectee n'est jamais lue
 const PLANCHER_MS = Number(Deno.env.get("PLANCHER_MS") ?? "2000");
 const COST = 12;
 // Hachage bcrypt factice (coût 12, non secret) : sert au travail identique quand le compte est inconnu ou refusé.
@@ -77,6 +78,33 @@ async function session(email: string, mdp: string) {
   return { access_token: s.access_token, refresh_token: s.refresh_token, expires_in: s.expires_in, token_type: s.token_type };
 }
 
+// Écriture double Auth + base : Auth d'abord, base ensuite ; si la base échoue, Auth est remis dans l'état précédent.
+// Si la compensation échoue aussi, on journalise 'incoherence_auth' (contrôle : nexus_connexion.comptes_incoherents()).
+// Les pannes injectées (table panne_injectee, vide en temps normal) ne servent qu'à la recette sur Test.
+async function panne(uid: string, etape: string): Promise<boolean> {
+  if (!RECETTE_PANNES) return false;
+  return (await sql`select nexus_connexion.panne_pour(${uid}, ${etape}) as r`)[0].r === true;
+}
+async function ecrireAtomique(uid: string, chemin: string, nouveauMdp: string, ancienMdp: string, ecrireBase: () => Promise<boolean>): Promise<boolean> {
+  const compenser = async (etape: string) => {
+    let ok = false;
+    try {
+      if (!(await panne(uid, "compensation"))) {
+        const { error } = await admin.auth.admin.updateUserById(uid, { password: ancienMdp });
+        ok = !error;
+      }
+    } catch { ok = false; }
+    if (!ok) { try { await sql`select nexus_connexion.journaliser_incoherence(${uid}, ${chemin}, ${etape})`; } catch { console.error("incoherence_auth non journalisée"); } console.error("incoherence_auth", chemin, etape); }
+  };
+  let errAuth = await panne(uid, "auth");
+  if (!errAuth) { const { error } = await admin.auth.admin.updateUserById(uid, { password: nouveauMdp }); errAuth = !!error; }
+  if (errAuth) { await compenser("auth"); return false; }
+  let okBase = false;
+  try { okBase = !(await panne(uid, "base")) && await ecrireBase(); } catch { okBase = false; }
+  if (!okBase) { await compenser("base"); return false; }
+  return true;
+}
+
 async function connexion(body: any, c: Ctx): Promise<Response> {
   const prenom = body?.prenom, code = body?.code;
   const valide = typeof prenom === "string" && prenom.length > 0 && prenom.length <= 60 && typeof code === "string" && code.length > 0 && code.length <= 32;
@@ -98,9 +126,9 @@ async function connexion(body: any, c: Ctx): Promise<Response> {
     const ancien = await session(email, code);
     if (!ancien) { await sql`select nexus_connexion.apres_echec(${uid}, ${c.fp})`; return rep(401, REFUS, c.origin); }
     const h = await hasher(alias, code);
-    await sql`select nexus_connexion.poser_code(${uid}, ${h}, 'migre', ${version})`;
-    const { error } = await admin.auth.admin.updateUserById(uid, { password: await motDePasseDerive(uid, version) });
-    if (error) throw new Error("migration auth");
+    const ecrit = await ecrireAtomique(uid, "a_migrer", await motDePasseDerive(uid, version), code,
+      async () => { await sql`select nexus_connexion.poser_code(${uid}, ${h}, 'migre', ${version})`; return true; });
+    if (!ecrit) throw new Error("migration atomique");
     const s = await session(email, await motDePasseDerive(uid, version));
     if (!s) throw new Error("session migre");
     await sql`select nexus_connexion.apres_succes(${uid}, ${c.fp})`;
@@ -143,10 +171,12 @@ async function reinitialiserCode(req: Request, body: any, c: Ctx): Promise<Respo
   const version = Number(cpt.version) + 1;
   const tmp = String(crypto.getRandomValues(new Uint32Array(1))[0] % 1000000).padStart(6, "0");
   const h = await hasher(cpt.alias, tmp);
-  const r = (await sql`select nexus_connexion.reinitialiser_code(${body.cible}, ${h}, ${version}, ${par}) as r`)[0].r;
-  if (!r?.ok) return rep(403, REFUS, c.origin);
-  const { error } = await admin.auth.admin.updateUserById(body.cible, { password: await motDePasseDerive(body.cible, version) });
-  if (error) throw new Error("reinit auth");
+  // Auteur non autorisé : la fonction SQL journalise le refus et n'écrit rien ; Auth n'est alors jamais touché.
+  const permis = (await sql`select nexus_connexion.auteur_autorise(${par}, ${body.cible}) as r`)[0].r === true;
+  if (!permis) { await sql`select nexus_connexion.reinitialiser_code(${body.cible}, ${h}, ${version}, ${par})`; return rep(403, REFUS, c.origin); }
+  const ecrit = await ecrireAtomique(body.cible, "reinitialiser_code", await motDePasseDerive(body.cible, version), await motDePasseDerive(body.cible, Number(cpt.version)),
+    async () => (await sql`select nexus_connexion.reinitialiser_code(${body.cible}, ${h}, ${version}, ${par}) as r`)[0].r?.ok === true);
+  if (!ecrit) throw new Error("reinit atomique");
   return rep(200, { ok: true, code_temporaire: tmp }, c.origin);
 }
 
@@ -161,9 +191,9 @@ async function changerCode(req: Request, body: any, c: Ctx): Promise<Response> {
   if (!bon) { await sql`select nexus_connexion.apres_echec(${uid}, ${c.fp})`; return rep(401, REFUS, c.origin); }
   const version = Number(cpt.version) + 1;
   const h = await hasher(cpt.alias, nouveau);
-  await sql`select nexus_connexion.poser_code(${uid}, ${h}, 'migre', ${version})`;
-  const { error } = await admin.auth.admin.updateUserById(uid, { password: await motDePasseDerive(uid, version) });
-  if (error) throw new Error("changer auth");
+  const ecrit = await ecrireAtomique(uid, "changer_code", await motDePasseDerive(uid, version), await motDePasseDerive(uid, Number(cpt.version)),
+    async () => { await sql`select nexus_connexion.poser_code(${uid}, ${h}, 'migre', ${version})`; return true; });
+  if (!ecrit) throw new Error("changer atomique");
   const s = await session(`${cpt.alias}@vito-nexus.local`, await motDePasseDerive(uid, version));
   if (!s) throw new Error("session changer");
   return rep(200, { ok: true, session: s }, c.origin);
