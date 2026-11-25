@@ -3251,26 +3251,50 @@
         </div>`).join('');
     }
 
+    function rendreBoutons(ligne, etat) {
+      const verrou = etat === 'verrouille';
+      ligne.querySelector('.cpt-etat').textContent = MOTS[etat] || MOTS.normal;
+      ligne.querySelector('.cpt-etat').classList.toggle('verrouille', verrou);
+      ligne.querySelector('.cpt-btns').innerHTML =
+        (verrou ? '<button type="button" class="btn-mini exclure" data-act="debloquer">Débloquer</button>' : '') +
+        '<button type="button" class="btn-mini" data-act="code">Donner un code temporaire</button>';
+    }
+
     liste.addEventListener('click', async (e) => {
       const b = e.target.closest('button[data-act]');
       if (!b) return;
       const ligne = b.closest('.exception-item');
       const id = ligne.dataset.id, nom = ligne.dataset.nom;
+      const act = b.dataset.act;
+      if (act === 'annuler') { charger(); return; }
       masquerCode(); msg.textContent = '';
-      if (b.dataset.act === 'code' && !confirm('Donner un code temporaire à ' + nom + ' ? Son code actuel ne fonctionnera plus.')) return;
-      b.disabled = true;
-      const r = await appeler(b.dataset.act === 'debloquer' ? 'lever_verrou' : 'reinitialiser_code', { cible: id });
-      if (!r.ok) {
-        msg.textContent = r.session ? 'Session expirée — reconnecte-toi.' : 'Action refusée ou indisponible. Rien n\'a été modifié.';
-        b.disabled = false;
+      // Confirmation intégrée à la ligne (pas de confirm() natif : il ne suit ni la charte ni le thème).
+      if (act === 'code') {
+        ligne.querySelector('.cpt-btns').innerHTML =
+          '<div class="cpt-etat" role="alert">Donner un code temporaire à ' + esc(nom) + ' ? Son code actuel ne marchera plus.</div>' +
+          '<button type="button" class="btn-mini exclure" data-act="confirmer">Donner le code</button>' +
+          '<button type="button" class="btn-mini" data-act="annuler">Annuler</button>';
         return;
       }
-      if (b.dataset.act === 'code') {
+      const action = act === 'debloquer' ? 'lever_verrou' : 'reinitialiser_code';
+      ligne.querySelectorAll('button').forEach(x => { x.disabled = true; });
+      const r = await appeler(action, { cible: id });
+      if (!r.ok) {
+        msg.textContent = r.session ? 'Session expirée — reconnecte-toi.' : 'Action refusée ou indisponible. Rien n\'a été modifié.';
+        charger();
+        return;
+      }
+      if (act === 'confirmer') {
+        rendreBoutons(ligne, 'code_temporaire');
         document.getElementById('cptCodeNom').textContent = 'Code temporaire pour ' + nom;
         document.getElementById('cptCodeVal').textContent = r.data.code_temporaire;
         zoneCode.classList.add('visible');
         zoneCode.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        msg.textContent = 'Code temporaire donné à ' + nom + '.';
       } else {
+        rendreBoutons(ligne, 'normal');
+        const n = document.getElementById('cptNbVerrous');
+        if (/^\d+$/.test(n.textContent)) n.textContent = String(Math.max(0, Number(n.textContent) - 1));
         msg.textContent = 'Compte de ' + nom + ' débloqué.';
       }
       charger();
