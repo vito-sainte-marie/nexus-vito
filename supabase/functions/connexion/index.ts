@@ -179,13 +179,14 @@ async function reinitialiserCode(req: Request, body: any, c: Ctx): Promise<Respo
   return rep(200, { ok: true, code_temporaire: tmp }, c.origin);
 }
 
-// Liste de l'équipe du gérant : mêmes plancher et refus neutre que les autres actions ; le refus est journalisé par equipe_pour.
+// Liste de l'équipe du gérant : mêmes plancher et refus neutre que les autres actions ; le refus est journalisé par equipe_pour (retour jsonb, sans exception).
 async function listerEquipe(req: Request, c: Ctx): Promise<Response> {
   const par = await appelant(req);
   if (!par) return rep(403, REFUS, c.origin);
   try {
-    const lignes = await sql`select user_id, nom, site_id, etat, a_deverrouiller from nexus_connexion.equipe_pour(${par})`;
-    return rep(200, { ok: true, equipe: lignes }, c.origin);
+    const r = (await sql`select nexus_connexion.equipe_pour(${par}) as r`)[0]?.r;
+    if (r?.ok !== true) return rep(403, REFUS, c.origin);
+    return rep(200, { ok: true, equipe: r.equipe }, c.origin);
   } catch (_e) {
     return rep(403, REFUS, c.origin);
   }
