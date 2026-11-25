@@ -376,10 +376,10 @@ table.sal th,table.sal td{border-bottom:1px solid var(--line)}
 <script src="nexus-ecarts-donnees.js?v=20260904-0104"></script>
 <script src="nexus-pdf-moteur.js?v=20261125-2300"></script>
 <script src="nexus-jours-feries.js?v=20261106-0100"></script>
-<script src="nexus-paye-moteur.js?v=20260904-0104"></script>
-<script src="nexus-paye-donnees.js?v=20261125-2300"></script>
+<script src="nexus-paye-moteur.js?v=20261125-2330"></script>
+<script src="nexus-paye-donnees.js?v=20261125-2330"></script>
 <script src="nexus-paye-validation.js?v=20261106-0100"></script>
-<script src="nexus-paye-dossier-pdf.js?v=20261125-2300"></script>
+<script src="nexus-paye-dossier-pdf.js?v=20261125-2330"></script>
 <script src="nexus-station.js?v=20260904-0104"></script>
 <script src="nexus-banniere-station.js"></script>
 <script src="nexus-paye-regularisations.js?v=20261009-g3"></script>
@@ -1110,7 +1110,7 @@ function blocQualification(i){
     <option value="">— à qualifier —</option>${sel}</select></label>
   <label style="font-size:11px;opacity:.75">Absence justifiée ? (vous seul décidez)
    <select class="rh-justifiee" data-ev="${ECHAPPE(i.evenementId)}" style="width:100%;margin-top:4px;padding:8px;border-radius:8px">
-    <option value=""${i.justifiee==null?' selected':''}>— non précisé —</option>
+    <option value=""${i.justifiee==null?' selected':''}>Non précisé</option>
     <option value="oui"${i.justifiee===true?' selected':''}>Justifiée</option>
     <option value="non"${i.justifiee===false?' selected':''}>Injustifiée</option></select></label>
   <label style="font-size:11px;opacity:.75;display:flex;align-items:center;gap:6px">
@@ -1650,7 +1650,9 @@ async function preparerDossierPdf(){
   let fuseau=null;try{const f=await NexusStation.fuseauDeLaStation(SITE);fuseau=f&&f.timezone||null}catch(_){}
   // Brouillon toujours provisoire ; mois validé : on compare la date de validation (snapshot.genere_le) à la fin du mois.
   const provisoire=NexusPayeDossierPdf.dossierProvisoire(etatPeriode(),snap&&snap.genere_le,MOIS,fuseau);
-  const pdf=await NexusPayeDossierPdf.construireDossierPdf(dossier,{site:SITE,nomEntreprise:await nomDuCommerce(),provisoire,fuseau});
+  let logoDataUrl=null;
+  try{const rl=await fetch('assets/icons/06_marque_et_avatars/96px/logo_nexus_full.png');if(rl.ok){const bl=await rl.blob();logoDataUrl=await new Promise((ok,ko)=>{const fr=new FileReader();fr.onload=()=>ok(fr.result);fr.onerror=ko;fr.readAsDataURL(bl);});}}catch(e){logoDataUrl=null;}
+  const pdf=await NexusPayeDossierPdf.construireDossierPdf(dossier,{logoDataUrl,site:SITE,nomEntreprise:await nomDuCommerce(),provisoire,fuseau});
   if(PDF_PRET&&PDF_PRET.url)URL.revokeObjectURL(PDF_PRET.url);
   const url=URL.createObjectURL(new Blob([pdf.bytes],{type:'application/pdf'}));
   PDF_PRET={pdf,url};

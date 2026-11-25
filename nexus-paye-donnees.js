@@ -54,9 +54,24 @@
     const auditsEnrichis = (audits.data || []).map(a => (parCle.has(`${a.date}|${a.quart}`)
       ? Object.assign({}, a, { employes_renfort: parCle.get(`${a.date}|${a.quart}`) })
       : a));
+    // `employee_indisponibilites.justifiee` (migration 20261125200000, non
+    // appliquée) se lit à part, comme les renforts : colonne absente = 42703,
+    // le select principal tomberait en entier. Ici elle échoue seule, le
+    // rapport le dit (`justificationLisible`), et le mois se calcule.
+    let justifs = null;
+    try {
+      const r = await client.from('employee_indisponibilites')
+        .select('id, justifiee')
+        .eq('site_id', siteId).lte('date_debut', fin).gte('date_fin', debut);
+      if (!r.error) justifs = r.data || [];
+    } catch (e) { justifs = null; }
+    const justifParId = new Map((justifs || []).map(l => [l.id, l.justifiee]));
+    const indisposEnrichies = (indispos.data || []).map(i => (justifParId.has(i.id)
+      ? Object.assign({}, i, { justifiee: justifParId.get(i.id) })
+      : i));
     const rapport = M.construireRapport({
       periode: debut, employees: emp.data || [], settings: settings.data || [], planning: planning.data || [],
-      pointages: pointages.data || [], indisponibilites: indispos.data || [], audits: auditsEnrichis,
+      pointages: pointages.data || [], indisponibilites: indisposEnrichies, audits: auditsEnrichis,
       items: items.data || [], config: (configRes.data && configRes.data.paye_config) || {}, ecarts: ecarts || [],
       pointageActif: !(configRes.data && configRes.data.pointage_actif === false),
       horaires: (configRes.data && configRes.data.horaires) || null,
@@ -64,6 +79,7 @@
     // Le manager doit savoir qu'il lit un mois sans renforts PARCE QUE la
     // colonne manque, et non parce qu'il n'y en a pas eu.
     rapport.renfortsLisibles = renforts !== null;
+    rapport.justificationLisible = justifs !== null;
     rapport.periodeEnregistree = periodeRes.data || null;
     rapport.config = (configRes.data && configRes.data.paye_config) || {};
     rapport.planningOfficiel = {

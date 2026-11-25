@@ -149,14 +149,14 @@ const aTexte = (j, re) => j.textes.some(e => re.test(e.t));
     assert.ok(aTexte(j, /^période réelle/));
   });
 
-  await verifier('absence : « Absence justifiée », « Absence injustifiée », « Absence (justification non renseignée) »', async () => {
+  await verifier('absence : « Absence justifiée », « Absence injustifiée », « Absence » suivie de « justification non renseignée »', async () => {
     const mk = (justifiee, debut) => ({ motif: 'autre', libelle: 'Autre', debut, fin: debut, jours: 1, evenementDebut: debut, evenementFin: debut, justifiee });
     const s = salarie('Salarié X', 'caissier');
     s.variables.autresAbsences = { jours: 3, detail: [mk(true, '2026-11-04'), mk(false, '2026-11-05'), mk(null, '2026-11-06')] };
     const { j } = await generer(dossierFictif([s]), { provisoire: false });
     assert.ok(aTexte(j, /^Absence justifiée$/));
     assert.ok(aTexte(j, /^Absence injustifiée$/));
-    assert.ok(aTexte(j, /^Absence \(justification non renseignée\)$/));
+    assert.ok(aTexte(j, /^Absence$/) && aTexte(j, /^justification non renseignée$/));
   });
 
   await verifier('forme réelle : écart lu dans ecartsCaisseMois.totalCentimes (négatif en rouge, sans recalcul)', async () => {

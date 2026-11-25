@@ -142,7 +142,7 @@
   // (null) = donnée manquante ; 0 = vrai zéro. Jamais recalculé ici.
   function ecartGeneral(v) {
     const e = v.financier && v.financier.ecartsCaisseMois;
-    if (!e || typeof e !== 'object' || e.totalCentimes == null) return null;
+    if (!e || typeof e !== 'object' || e.totalCentimes == null || e.sansMontant > 0) return null;
     return Number(e.totalCentimes);
   }
 
@@ -185,8 +185,10 @@
     if (!autres.length && v.autresAbsences.jours) t3('Autres absences', '', joursCal(v.autresAbsences.jours));
     autres.forEach(ev => {
       let lib = ev.libelle || 'Autre absence';
-      if (ev.motif === 'autre') lib = ev.justifiee === true ? 'Absence justifiée' : (ev.justifiee === false ? 'Absence injustifiée' : 'Absence (justification non renseignée)');
-      t3(lib, plage(ev.debut, ev.fin), joursCal(ev.jours), ev.motif === 'autre' && ev.justifiee == null ? { couleur: 'ambre' } : {});
+      const sansReponse = ev.motif === 'autre' && ev.justifiee == null;
+      if (ev.motif === 'autre') lib = ev.justifiee === true ? 'Absence justifiée' : (ev.justifiee === false ? 'Absence injustifiée' : 'Absence');
+      t3(lib, plage(ev.debut, ev.fin), joursCal(ev.jours), sansReponse ? { couleur: 'ambre' } : {});
+      if (sansReponse) tab.push({ k: 'sous', t: 'justification non renseignée' });
       sousReel(ev);
     });
     const ret = v.retards.detail || [];
@@ -226,7 +228,7 @@
     return L;
   }
 
-  const HAUT = { alerte: 12, banniere: 22, gris: 13, lv: INTERLIGNE, t3: 10.5, sous: 9, ferieEntete: 11, ferie: 10.5, note: 8.5, regle: 7, ecart: 14 };
+  const HAUT = { alerte: 12, banniere: 22, gris: 13, lv: INTERLIGNE, t3: 10.5, sous: 9, ferieEntete: 17, ferie: 10.5, note: 8.5, regle: 7, ecart: 20 };
   function hauteurFiche(lignes) { return 20 + lignes.reduce((t, l) => t + (HAUT[l.k] || INTERLIGNE), 0) + 10; }
 
   /**
@@ -267,10 +269,15 @@
     };
     const droite = (t, xDroit, y, taille, gras, couleur) => texte(t, xDroit - largeur(t, taille, gras), y, taille, gras, couleur);
 
+    let logo = null;
+    if (opts.logoDataUrl) { try { logo = await rapport.doc.embedPng(opts.logoDataUrl); } catch (e) { logo = null; } }
+    const logoDims = logo ? logo.scaleToFit(60, 18) : null;
+    const decalLogo = logoDims ? logoDims.width + 6 : 0;
     let premiere = true;
     const entete = () => {
-      texte('NEXUS PAYE', MARGE, H - MARGE - 12, 14, true, 'cyan');
-      texte(titre, MARGE + 92, H - MARGE - 11, 10, false, 'texte');
+      if (logo) rapport.page.drawImage(logo, { x: MARGE, y: H - MARGE - 15, width: logoDims.width, height: logoDims.height });
+      texte('NEXUS PAYE', MARGE + decalLogo, H - MARGE - 12, 14, true, 'cyan');
+      texte(titre, MARGE + decalLogo + 92, H - MARGE - 11, 10, false, 'texte');
       const mode = provisoire ? 'Provisoire' : 'Validé';
       droite(mode, W - MARGE, H - MARGE - 12, 11, true, provisoire ? 'ambre' : 'vert');
       let y = H - MARGE - 26;
