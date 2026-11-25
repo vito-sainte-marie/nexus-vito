@@ -57,6 +57,12 @@
     display:block; margin:0 auto 12px; max-width:200px; width:60%; height:auto;
     filter: drop-shadow(0 0 18px rgba(var(--cyan-rgb),0.45)) drop-shadow(0 0 40px rgba(var(--cyan-rgb),0.22));
   }
+  /* Écran de changement de code : identité compacte (sous-page), pour que le bouton reste au-dessus du pli à 375 x 812. */
+  body.changement .hero-avatar{width:56px; max-width:56px; margin-bottom:6px;}
+  body.changement .title{font-size:20px; margin-bottom:16px;}
+  body.changement .intro{margin:-6px 0 14px;}
+  body.changement .logo-footer{display:none;}
+  body.changement .note{margin-top:14px;}
 </style>
 </head>
 <body>
@@ -65,7 +71,7 @@
   <img class="hero-avatar" src="assets/nexus-avatar.png" alt="NEXUS">
 
   <span class="mark">NEXUS</span>
-  <div class="title">Connexion</div>
+  <div class="title" id="titreEcran">Connexion</div>
 
   <div id="ecranConnexion">
   <div class="field">
@@ -221,6 +227,8 @@
         prenomEnCours = prenom; codeTemporaire = pin;
         pinInput.value = "";
         ecranConnexion.hidden = true; ecranChangement.hidden = false;
+        document.body.classList.add("changement");
+        document.getElementById("titreEcran").textContent = "Choisissez votre code";
         nouveauInput.focus();
         repos();
         return;
