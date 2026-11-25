@@ -31,6 +31,12 @@ bcryptjs est en JavaScript pur. Mesure dans la fonction sur Test (`performance.n
 
 Les hachages coût 12 existants restent valides (le coût est lu dans le hachage). Au prochain succès d'un compte `migre` dont le hachage n'est pas au coût courant, la fonction le re-hache au coût 10 : une écriture (`poser_code`), sans toucher Auth ni la version, sans effet sur la réponse si elle échoue.
 
+## Code temporaire : aucune session avant le changement (revue Guardian 7152664607)
+
+Un compte `code_temporaire_requis` qui présente le bon code temporaire reçoit `200 {"ok":true,"changer_code":true}` **sans session**. Un mauvais code compte un échec et rend le 401 neutre habituel.
+
+Le changement se fait par `POST {action:"changer_code", prenom, code_actuel, nouveau_code}` **sans JWT**, avec les mêmes verrous que la connexion (`avant_essai`, `apres_echec`, plancher de durée, limite par IP). Il n'aboutit que si le compte est à l'état `code_temporaire_requis` et que `code_actuel` est le bon code temporaire. Le nouveau code compte 6 chiffres, diffère du code actuel et n'est pas faible (six chiffres identiques, suite croissante ou décroissante, refusés côté serveur comme côté client). Succès : version + 1, état `migre`, session rendue. Le chemin avec JWT refuse aussi les codes faibles.
+
 Client (étape 3) : un 546 ou tout autre 5xx s'affiche « indisponible, réessayez », avec une seule reprise automatique après 1 à 3 s tirées au hasard, sans autre boucle. Pas de sémaphore dans ce lot.
 
 Alerte retenue : au moins 3 réponses 5xx en 1 minute sur `connexion`.

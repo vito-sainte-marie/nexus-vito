@@ -140,14 +140,16 @@ async function connexion(body: any, c: Ctx): Promise<Response> {
   if (av.etat === "migre" || av.etat === "code_temporaire_requis") {
     const bon = typeof av.code_hash === "string" ? await comparer(alias, code, av.code_hash) : (await bcrypt.compare("x", FACTICE), false);
     if (!bon) { await sql`select nexus_connexion.apres_echec(${uid}, ${c.fp})`; return rep(401, REFUS, c.origin); }
+    // Code temporaire correct : aucune session. Le client doit d'abord appeler changer_code (mêmes verrous, même plancher).
+    if (av.etat === "code_temporaire_requis") return rep(200, { ok: true, changer_code: true }, c.origin);
     const s = await session(email, await motDePasseDerive(uid, version));
     if (!s) throw new Error("session derive");
     await sql`select nexus_connexion.apres_succes(${uid}, ${c.fp})`;
     // Re-hachage au coût courant (décision Guardian 7151083028) : une écriture, sans toucher Auth ni la version.
-    if (av.etat === "migre" && !av.code_hash.startsWith(`$2a$${COST}$`)) {
+    if (!av.code_hash.startsWith(`$2a$${COST}$`)) {
       try { const h2 = await hasher(alias, code); await sql`select nexus_connexion.poser_code(${uid}, ${h2}, 'migre', ${version})`; } catch { console.log("rehash ignoré"); }
     }
-    return rep(200, { ok: true, session: s, ...(av.etat === "code_temporaire_requis" ? { changer_code: true } : {}) }, c.origin);
+    return rep(200, { ok: true, session: s }, c.origin);
   }
   await bcrypt.compare("x", FACTICE);
   return rep(401, REFUS, c.origin);
@@ -186,10 +188,41 @@ async function reinitialiserCode(req: Request, body: any, c: Ctx): Promise<Respo
   return rep(200, { ok: true, code_temporaire: tmp }, c.origin);
 }
 
+// Code trop faible : six chiffres identiques, ou suite croissante / décroissante (123456, 654321, 012345…).
+function codeFaible(n: string): boolean {
+  if (/^(\d)\1{5}$/.test(n)) return true;
+  const d = n.split("").map(Number);
+  return d.every((x, i) => i === 0 || x === d[i - 1] + 1) || d.every((x, i) => i === 0 || x === d[i - 1] - 1);
+}
+
+// Premier login avec code temporaire : sans JWT, mêmes verrous que la connexion. La session n'est rendue qu'après l'écriture atomique.
+async function changerCodeTemporaire(body: any, c: Ctx): Promise<Response> {
+  const prenom = body?.prenom, actuel = body?.code_actuel, nouveau = body?.nouveau_code;
+  if (typeof prenom !== "string" || !prenom || prenom.length > 60 || typeof actuel !== "string" || !actuel || actuel.length > 32
+    || typeof nouveau !== "string" || !/^[0-9]{6}$/.test(nouveau) || nouveau === actuel || codeFaible(nouveau)) {
+    await bcrypt.compare("x", FACTICE); return rep(401, REFUS, c.origin);
+  }
+  const av = (await sql`select nexus_connexion.avant_essai(${prenom}, ${c.fp}) as r`)[0].r;
+  const uid: string | null = av.user_id ?? null;
+  if (av.decision !== "ok" || !uid || av.etat !== "code_temporaire_requis") { await bcrypt.compare("x", FACTICE); return rep(401, REFUS, c.origin); }
+  const bon = typeof av.code_hash === "string" ? await comparer(av.alias, actuel, av.code_hash) : (await bcrypt.compare("x", FACTICE), false);
+  if (!bon) { await sql`select nexus_connexion.apres_echec(${uid}, ${c.fp})`; return rep(401, REFUS, c.origin); }
+  const version = Number(av.version ?? 1) + 1;
+  const h = await hasher(av.alias, nouveau);
+  const ecrit = await ecrireAtomique(uid, "changer_code", await motDePasseDerive(uid, version), await motDePasseDerive(uid, Number(av.version ?? 1)),
+    async () => { await sql`select nexus_connexion.poser_code(${uid}, ${h}, 'migre', ${version})`; return true; });
+  if (!ecrit) throw new Error("changer atomique");
+  const s = await session(`${av.alias}@vito-nexus.local`, await motDePasseDerive(uid, version));
+  if (!s) throw new Error("session changer");
+  await sql`select nexus_connexion.apres_succes(${uid}, ${c.fp})`;
+  return rep(200, { ok: true, session: s }, c.origin);
+}
+
 async function changerCode(req: Request, body: any, c: Ctx): Promise<Response> {
+  if (body?.prenom !== undefined) return await changerCodeTemporaire(body, c);
   const uid = await appelant(req);
   const actuel = body?.code_actuel, nouveau = body?.nouveau_code;
-  if (!uid || typeof actuel !== "string" || typeof nouveau !== "string" || !/^[0-9]{6}$/.test(nouveau) || nouveau === actuel) {
+  if (!uid || typeof actuel !== "string" || typeof nouveau !== "string" || !/^[0-9]{6}$/.test(nouveau) || nouveau === actuel || codeFaible(nouveau)) {
     await bcrypt.compare("x", FACTICE); return rep(401, REFUS, c.origin);
   }
   const cpt = (await sql`select nexus_connexion.lire_compte(${uid}) as r`)[0].r;
