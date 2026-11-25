@@ -9,13 +9,13 @@ Migrations : les douze fichiers `supabase/migrations/2026112609*` à `2026112622
 L'injection de pannes (`nexus_connexion.panne_injectee`, `nexus_connexion.panne_pour`, variable `RECETTE_PANNES`) est un outil de recette Test. Elle est exclue de deux façons, qui se contrôlent séparément.
 
 1. **Côté base : migration 2i** (`20261126200000_connexion_lot1_etape2i_retrait_pannes_injectees.sql`). La 2f crée la table et la fonction ; la 2i les retire. Appliquées dans l'ordre sur une base neuve, elles laissent 16 fonctions et 7 tables (17 fonctions avec l’étape 4, `equipe_pour`). Ni la table ni la fonction n'existent donc jamais durablement en Production.
-2. **Côté fonction : code retiré du source.** Le commit de retrait de la constante `RECETTE_PANNES`, de la fonction `panne()` et de ses appels est fait : le source `index.ts` du dépôt ne contient plus aucun code de pannes. Ce source est celui qui sera déployé en Production ; son md5 est à renoter dans la demande de GO (voir §5).
+2. **Côté fonction : code retiré du source.** Le commit de retrait de la constante `RECETTE_PANNES`, de la fonction `panne()` et de ses appels est fait : le source `index.ts` du dépôt ne contient plus aucun code de pannes. Ce source est celui qui sera déployé en Production (md5 au §5).
 
 **Preuve sur Test (25/11/2026, projet `udljdqxerrbbbajxubfn`), après application de la 2i :**
 - `to_regclass('nexus_connexion.panne_injectee')` = null ; `to_regprocedure('nexus_connexion.panne_pour(uuid,text)')` = null.
 - 16 fonctions et 7 tables dans `nexus_connexion` (avant : 17 et 8) ; 0 EXECUTE et 0 SELECT pour `anon` et `authenticated` ; 7 tables sur 7 avec RLS.
 - La fonction `connexion` déployée (variable `RECETTE_PANNES` non posée) répond sans la table : mauvais code → 401 neutre `{"ok":false,"erreur":"refus"}` ; bon code → 200 avec session.
-- Source sans code de pannes déployé sur Test le 25/11/2026 (version 10, md5 `7a0a9530e017d7758e0872ab1bce3b22`, c'est le source Production) : mauvais code → 401 neutre `{"ok":false,"erreur":"refus"}` ; bon code → 200 avec session. Le source de Production est celui du dépôt à ce md5.
+- Source sans code de pannes déployé sur Test le 25/11/2026 (version 10, md5 `7a0a9530…`, jalon antérieur ; le source Production est celui du §5) : mauvais code → 401 neutre `{"ok":false,"erreur":"refus"}` ; bon code → 200 avec session. Le source de Production est celui du dépôt à ce md5.
 
 ## 1. Ordre réel Production
 
@@ -89,7 +89,9 @@ rollback;
 ```
 Les colonnes exactes de `employees` se vérifient au GO, sur le catalogue, avant de lancer la requête. Les comptes `a_migrer` incertains ne sont pas touchés.
 
-**Après l'étape 4** : par station, nombre de comptes `a_migrer` restants (`select count(*) from nexus_connexion.compte where etat = 'a_migrer'`, rapproché du site), jusqu'à zéro avant la station suivante ; nombre d'événements `budget_auth`, `egress_proche` et `incoherence_auth` au journal ; alerte gérant : au moins 3 réponses 5xx en 1 minute sur `connexion`.
+**Après l'étape 4** : par station, nombre de comptes `a_migrer` restants (`select count(*) from nexus_connexion.compte where etat = 'a_migrer'`, rapproché du site), jusqu'à zéro avant la station suivante ; nombre d'événements `budget_auth`, `egress_proche` et `incoherence_auth` au journal ; alerte gérant : au moins 3 réponses 5xx en 1 minute sur `connexion`. Source de l'alerte : la ligne `indisponible` du journal (Auth 429, ou relance unique de la page après un 5xx, `detail.source` = `limite_auth` ou `relance_5xx`). Preuve Test du 25/11/2026 : lignes 1510 à 1512, `relance_5xx` ; contrôles (`relance` inconnue, `relance` sur `lister_equipe`) : 401 neutre, aucune ligne.
+
+**Limite connue.** Si la fonction est entièrement indisponible, la relance échoue aussi et rien n'est journalisé : la carte ne s'allume pas lors d'une panne totale. Une sonde externe (Vigie) est une piste pour l'étape 7, hors de ce lot.
 
 ## 4. Décisions du gérant à prendre avant le GO
 
@@ -97,4 +99,4 @@ Durée de conservation du journal, destinataires de l'alerte, date de rotation d
 
 ## 5. Source de la fonction (mise à jour étape 4)
 
-Le source `index.ts` ajoute l'action `lister_equipe` (md5 `97dbf34dafd22aefe1f13dc8f8f89325`, déployé sur Test le 25/11/2026, version 13, sans code de pannes ; l’étape 4b journalise le refus de `lister_equipe` et applique la règle gérant/manager validée). Le md5 du source Production est à renoter dans la demande de GO. Mesure Test : `lister_equipe` sans JWT → 403 neutre ; les autres actions répondent comme avant.
+Le source `index.ts` ajoute l'action `lister_equipe` (md5 `3abbf3c88d33d1c59b3944f053776dd5`, déployé sur Test le 25/11/2026, version 14, sans code de pannes ; l’étape 4b journalise le refus de `lister_equipe` et applique la règle gérant/manager validée). Le source Production est ce fichier, md5 `3abbf3c8…` ; à re-vérifier dans la demande de GO. Mesure Test : `lister_equipe` sans JWT → 403 neutre ; les autres actions répondent comme avant.
