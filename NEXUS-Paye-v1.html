@@ -208,13 +208,18 @@ table.sal tr.selected{background:rgba(36,216,227,.10);box-shadow:inset 0 0 0 1px
 .decision-zone{border:1px solid rgba(245,161,42,.45);background:rgba(245,161,42,.08);border-radius:14px;padding:12px 14px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:10px}
 .fiche-pied{display:flex;gap:10px;flex-wrap:wrap}
 .fiche-pied .btn:disabled{opacity:.5;cursor:not-allowed}
-.retour-liste,.pied-mobile{display:none}
+.retour-liste,.pied-mobile,.retour-feuille,.valid-mobile{display:none}
 @media(max-width:1180px){.kpi3{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:820px){
  .hero h1{font-size:24px}.kpi3{grid-template-columns:repeat(3,1fr);gap:8px}
  .kpi3 .kpi{padding:10px;flex-direction:column;align-items:flex-start}.kpi3 .kpi.discret{display:none}.kpi3 .anneau{display:none}.kpi3 .kpi b{font-size:22px}
  .workspace.fiche-ouverte .tablewrap{display:none}
- .workspace:not(.fiche-ouverte) .panel{display:none}
+ .workspace:not(.fiche-ouverte):not(.feuille) .panel{display:none}
+ .workspace.feuille .panel{display:block;position:fixed;inset:0;z-index:40;overflow-y:auto;background:var(--bg);padding-bottom:24px}
+ .workspace.feuille .retour-feuille{display:inline-flex;align-items:center;margin:12px 16px 0}
+ .workspace.feuille .retour-panneau{display:none}
+ .valid-mobile{display:block;margin-top:12px}.valid-mobile .btn{width:100%;min-height:48px;margin-bottom:8px}.valid-mobile .raison{margin:0 0 10px;font-size:13px;color:var(--mid)}
+ .actions-bureau{display:none}
  .retour-liste{display:inline-block;margin-bottom:10px}
  .pied-mobile{display:block;margin-top:12px}.pied-mobile .btn{width:100%;min-height:48px}.pied-mobile .btn:disabled{opacity:.5}
  .minis{grid-template-columns:1fr}
@@ -334,9 +339,11 @@ table.sal th,table.sal td{border-bottom:1px solid var(--line)}
  .monthnav strong{min-width:0;padding:0 8px}
  .hero>.topacts{max-width:none;position:fixed;left:0;right:0;bottom:0;z-index:20;margin:0;padding:8px 16px;gap:8px;flex-wrap:nowrap;background:var(--panel);border-top:1px solid var(--line)}
  .hero>.topacts .btn{flex:1 1 0;min-width:0;padding:0 8px;font-size:13px;line-height:1.2}
- .hero>.topacts .btn.nouveau{position:fixed;right:16px;bottom:72px;flex:none;width:56px;height:56px;min-height:56px;padding:0;border-radius:50%;font-size:0}
+ .hero>.topacts .capsule-valides,.hero>.topacts .badge-verif,.hero>.topacts #validerMois,.hero>.topacts #transmettreMois{display:none}
+ .hero>.topacts .btn .n{margin-left:6px}
+ .hero>.topacts .btn.nouveau{position:fixed;right:16px;bottom:84px;flex:none;width:56px;height:56px;min-height:56px;padding:0;border-radius:50%;font-size:0}
  .hero>.topacts .btn.nouveau::before{content:"+";font:600 32px/1 var(--sans)}
- body{padding-bottom:80px}
+ body{padding-bottom:152px}
  table.sal tbody tr{grid-template-columns:auto minmax(0,1fr) auto;column-gap:0;row-gap:0;align-items:center;min-height:64px;padding:8px 16px}
  table.sal tbody td::before{display:none}
  table.sal tbody td{display:block;padding:0;min-height:0}
@@ -424,6 +431,12 @@ function nbATraiter(){const s=RAPPORT.synthese;return NexusPayeValidation.aTrait
 function ecartsCaisseModifies(){const p=RAPPORT.periodeEnregistree;return NexusPayeValidation.ecartsCaisseModifies(p&&p.snapshot,NexusPayeMoteur.dossierComptable(RAPPORT).salaries);}
 function etatValidation(){const s=RAPPORT.synthese;return NexusPayeValidation.etat({statut:etatPeriode(),ecartsModifies:ecartsCaisseModifies(),bloqueurs:RAPPORT.bloqueurs,parametrages:nomsParametrages(),salariesInclus:s.salariesInclus,salariesPrets:s.salariesPrets});}
 function nomVerificateur(p){if(!p||!p.verifie_par)return 'un responsable';const f=(RAPPORT.employes||[]).find(x=>x.employee.id===p.verifie_par);return f?f.employee.nom:(EMPLOYEE&&EMPLOYEE.id===p.verifie_par?EMPLOYEE.nom:'un responsable');}
+function raisonsValidation(){
+ const e=etatValidation();const l=[];
+ if(e.validerVisible&&!e.validerActif&&e.validerTitre)l.push(e.validerTitre);
+ if(!e.transmettreActif&&e.transmettreTitre)l.push(e.transmettreTitre);
+ return l.map(t=>`<p class="raison">${ECHAPPE(t)}</p>`).join('');
+}
 function boutonsValidation(mobile){
  const e=etatValidation(), p=RAPPORT.periodeEnregistree||null;
  const valider=e.validerVisible?`<button type="button" class="btn${e.validerActif?' primary':''}" id="validerMois" ${e.validerActif?'':`disabled title="${ECHAPPE(e.validerTitre)}"`}>${ECHAPPE(e.validerLibelle)}</button>`:'';
@@ -454,7 +467,7 @@ function itemMeta(i){const q=i.quantiteMinutes!=null?`${i.quantiteMinutes} min`:
 // Tout ce qui suit est de la PRÉSENTATION. Les totaux, les statuts et les
 // arbitrages viennent de NexusPayeMoteur ; aucun calcul métier n'est
 // refait ici, et aucun chiffre affiché n'est inventé.
-let FICHE_ONGLET='synthese', FICHE_OUVERTE=false;
+let FICHE_ONGLET='synthese', FICHE_OUVERTE=false, FEUILLE_OUVERTE=false;
 // Écart mis en surbrillance dans l'onglet Événements après un clic depuis la liste ou la tuile (sourceCle ; '*' = tous ceux à qualifier).
 let ECART_SURLIGNE=null;
 let SELECTION=null, ONGLET='fiche', FILTRE='inclus', RECHERCHE='', TRI={cle:'statut',sens:1}, COMMERCE='';
@@ -688,7 +701,7 @@ function renderCaisseConsultation(s,ec){
 function renderPanneau(){
  const f=trouverFiche(SELECTION);
  const retour=ONGLET==='fiche'?'':'<button type="button" class="btn retour-panneau" data-onglet="fiche">‹ Fiche salarié</button>';
- return `<div class="panelbody">${retour}
+ return `<button type="button" class="btn retour-feuille" id="retourFeuille">‹ Retour</button><div class="panelbody">${retour}
   <div id="ficheSection" ${ONGLET==='fiche'?'':'hidden'}>${renderFiche(f)}</div>
   <div id="reviewSection" ${ONGLET==='decisions'?'':'hidden'}>${renderDecisions()}</div>
   <div id="accountantSection" ${ONGLET==='dossier'?'':'hidden'}>${renderDossier()}</div>
@@ -787,7 +800,8 @@ function renderDossier(){
  <div class="lignes">${etapes.map((x,i)=>`<div class="ligne${x.fait||x.sans?'':' muet'}" id="${x.id}">${x.fait?'✓ ':''}${i+1} · ${ECHAPPE(x.texte)}</div>`).join('')}</div>
  <div class="actions principal"><button class="btn primary" id="dossierPdf" disabled>Télécharger le PDF</button><a class="btn" id="apercuPdf" target="_blank" rel="noopener" aria-disabled="true">Aperçu</a><button class="btn" id="partagerPdf" ${partageable?'':'hidden'} disabled>Partager</button></div>
  <div class="help" id="pdfEtat" role="status">Préparation du dossier…</div>
- <div class="actions"><button class="btn success" id="ready" ${bloquant||statut!=='brouillon'?'hidden':''}>Valider le mois</button><button class="btn" id="sent" ${statut!=='verifie'?'hidden':''}>Marquer transmis</button></div>
+ <div class="valid-mobile" id="validMobile"><div class="bloc-titre">Valider et transmettre</div>${boutonsValidation(true)}${raisonsValidation()}</div>
+ <div class="actions actions-bureau"><button class="btn success" id="ready" ${bloquant||statut!=='brouillon'?'hidden':''}>Valider le mois</button><button class="btn" id="sent" ${statut!=='verifie'?'hidden':''}>Marquer transmis</button></div>
  <details class="detail-dossier"><summary>Détails et outils</summary>
   <div class="lignes">
    <div class="ligne${bloques.length?'':' muet'}">Salariés encore bloqués<b>${bloques.length}</b></div>
@@ -824,7 +838,7 @@ function render(){
  </header>
  ${renderKpis(s,ec,a)}
  ${renderCaisseConsultation(s,ec)}
- <div class="workspace${FICHE_OUVERTE?' fiche-ouverte':''}">
+ <div class="workspace${FICHE_OUVERTE?' fiche-ouverte':''}${FEUILLE_OUVERTE?' feuille':''}">
   <div class="tablewrap" id="employeesSection">${renderTable()}</div>
   <aside class="panel" id="panelInner" aria-label="Panneau de travail">${renderPanneau()}</aside>
  </div>
@@ -1448,6 +1462,7 @@ function bindLignes(){
 }
 function ouvrirOnglet(onglet,ancre){
  ONGLET=onglet;majPanneau();
+ if(onglet!=='fiche'&&window.matchMedia&&window.matchMedia('(max-width:820px)').matches){FEUILLE_OUVERTE=true;const w=document.querySelector('.workspace');if(w)w.classList.add('feuille');const pn0=document.getElementById('panelInner');if(pn0)pn0.scrollTop=0}
  if(!ancre){const pn=document.getElementById('panelInner');if(pn&&pn.scrollIntoView)pn.scrollIntoView({behavior:'smooth',block:'start'})}
  if(ancre){const el=document.getElementById(ancre);if(el&&el.scrollIntoView)el.scrollIntoView({behavior:'smooth',block:'start'})}
 }
@@ -1480,6 +1495,7 @@ function bindCockpit(){
  document.querySelectorAll('.jump-first').forEach(b=>b.onclick=()=>{ouvrirOnglet('decisions','reviewSection');const c=document.querySelector('#reviewSection .review-card .btn, #reviewSection .review-card select');if(c&&c.focus)c.focus({preventScroll:true})});
  document.querySelectorAll('.jump-employees').forEach(b=>b.onclick=()=>{FILTRE='inclus';majTable();const i=document.getElementById('recherche');if(i&&i.focus)i.focus()});
  document.querySelectorAll('[data-ftab]').forEach(b=>b.onclick=()=>{ECART_SURLIGNE=null;FICHE_ONGLET=b.dataset.ftab;ONGLET='fiche';majPanneau()});
+ document.querySelectorAll('#retourFeuille').forEach(b=>b.onclick=()=>{FEUILLE_OUVERTE=false;const w=document.querySelector('.workspace');if(w)w.classList.remove('feuille')});
  document.querySelectorAll('.retour-liste').forEach(b=>b.onclick=()=>{FICHE_OUVERTE=false;const w=document.querySelector('.workspace');if(w)w.classList.remove('fiche-ouverte')});
  bindLignes();
 }
