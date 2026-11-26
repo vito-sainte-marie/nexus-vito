@@ -1,4 +1,4 @@
-# Référentiel des objectifs de station : étapes 1 à 4 (inventaire, autorité, catalogue, requêtes, modèle, maquettes)
+# Référentiel des objectifs de station : étapes 1 à 5 (inventaire, autorité, catalogue, requêtes, modèle, maquettes, recette, arbitrages)
 
 Branche `claude/objectifs-station` · mandat Guardian (#383, commentaire 7201798072) · **conception seule : aucun code, aucune migration, aucune lecture Production.**
 Base : audit des moteurs (PR #393, `docs/audit/audit-moteurs-nexus.md`, V1–V12).
@@ -159,9 +159,12 @@ Trois classes, appliquées sans exception (article 5 : pas de valeur fabriquée)
 | CARB-RUPTURE | Non disponible | seule une rupture projetée existe dans le moteur de commande ; aucune rupture observée n'est stockée | sans objet |
 | CARB-MARGE | Non disponible | aucun coût d'achat stocké | sans objet |
 | FDJ-COMMISSION | Non disponible | aucune source de commission lue | sans objet |
-| OPS-CTRL, OPS-CLOT, OPS-INV, OPS-ANO-DELAI, OPS-DELAI-RES, OPS-TOURNEES, OPS-EQUIP, MAR-ANO-TARIF, MAR-DEMARQUE, MAR-PERTE-DC, MAR-EVITE, FDJ-ANO-NR, COM-DISPO-REF | À instruire | source non relue à cette étape ; classés « non disponible » tant qu'une lecture du code et du schéma n'a pas établi le contraire | sans objet |
+| OPS-CTRL, OPS-CLOT, OPS-INV, OPS-ANO-DELAI, OPS-DELAI-RES | À fiabiliser | la source existe (matrice §2) mais la définition manque : liste des contrôles obligatoires, sens de « conforme », délai de référence, notion de « délai » non partagée entre moteurs | ratio ; moyenne sur anomalies résolues pour OPS-DELAI-RES |
+| MAR-ANO-TARIF, MAR-DEMARQUE, FDJ-ANO-NR, COM-DISPO-REF | À fiabiliser | la source existe (matrice §2) mais « confirmée », « démarque connue », « référence prioritaire » ne sont pas définis ; FDJ-ANO-NR se lit comme un stock à date, pas comme une somme | additif ; stock à date pour FDJ-ANO-NR ; ratio pour COM-DISPO-REF |
+| MAR-PERTE-DC, MAR-EVITE, OPS-TOURNEES | Non disponible | source du lot Dates courtes (#352 / #354), absente de Production tant que le lot n'est pas déployé | sans objet |
+| OPS-EQUIP | Non disponible | aucune table d'équipements critiques | sans objet |
 
-Cette dernière ligne est volontairement prudente : je ne range pas en « à fiabiliser » ce que je n'ai pas lu. L'étape suivante ou une relecture de Guardian les fera passer d'un côté ou de l'autre.
+Les anciennes lignes « à instruire » sont reclassées à l'étape 5 sur la seule base de la matrice d'autorité (§2), sans nouvelle lecture du code. Règle suivie : source nommée mais définition absente = à fiabiliser ; source absente de Production = non disponible. Aucune n'est promue en « disponible » : aucune requête de lecture n'est livrée pour elles.
 
 ### Agrégation selon l'horizon (mois, trimestre, année)
 
@@ -399,7 +402,7 @@ Une table `objectif_recommandation(site, objectif_id, recommandation_id, ecart, 
 
 ## 6. Suite
 
-Étape 4 : maquette du bureau de gestion et maquette de restitution dans le Brief (données fictives, charte Brief v4). Étape 5 : critères de recette, tests de sécurité, arbitrages consolidés. Les lignes « À instruire » du catalogue seront reclassées avant l'étape 5.
+Étape 4 : maquettes (données fictives, charte Brief v4). Étape 5 : recette, tests de sécurité, arbitrages consolidés (§8 et §9). Les lignes « à instruire » sont reclassées (§3).
 
 ## 7. Maquettes (étape 4)
 
@@ -409,3 +412,77 @@ Deux maquettes statiques, charte du Brief v4, station fictive « Station Exemple
 - `maquettes/objectifs-brief.html` : restitution dans le Brief. Par objectif : atteint, cible, % de progression, niveau attendu aujourd'hui, écart, tendance, période, fraîcheur, jours couverts. Cas traités : cumul en retard et en avance, moyenne sans projection faute de jours complets, plafond de réduction dépassé, cible zéro sans pourcentage, indicateurs sans lecture, recommandations du Conseiller avec cause démontrée ou supposée et potentiel non doublé, parité avec l'A4 et version des objectifs citée.
 
 Version mobile : non commencée, comme demandé.
+
+## 8. Recette et tests de sécurité (livrable 8, étape 5)
+
+Rien de ce qui suit n'est exécuté : aucune migration, aucun code, aucun accès Production. Ce sont les critères que le lot devra satisfaire, à rejouer sur Test avec des stations de recette. Chaque critère nomme la preuve attendue.
+
+### 8.1 Sécurité (base)
+
+| Id | Critère | Preuve attendue |
+|---|---|---|
+| S1 | `anon` n'a aucun privilège (select, insert, update, delete, truncate) sur `objectif_catalogue`, `station_objectifs`, `objectif_recommandation` | lecture de `has_table_privilege` sur chaque couple rôle/privilège ; un appel REST anonyme est refusé |
+| S2 | `TRUNCATE` est révoqué de `authenticated` et `anon` sur les trois tables | `has_table_privilege(..., 'TRUNCATE')` faux ; `revoke from public` seul ne suffit pas |
+| S3 | Un employé de la station A ne lit aucune ligne de la station B | requête avec le jeton d'un employé de A filtrée sur B : zéro ligne |
+| S4 | Un employé de A ne peut pas insérer pour B, ni déplacer une ligne vers B | insertion refusée par la politique ; test sur `with check` |
+| S5 | Seuls `manager` et `gerant` écrivent ; un rôle employé est refusé en insertion | essai avec chaque rôle |
+| S6 | `valider_objectif(id)` est `security invoker` et refuse un rôle non autorisé | appel par un employé : erreur ; par le gérant de la station : succès |
+| S7 | Aucune politique UPDATE ni DELETE n'existe | liste de `pg_policies` : aucune commande UPDATE/DELETE |
+| S8 | Une ligne `officiel` ou `remplace` est immuable (trigger) | tentative d'UPDATE par le propriétaire de la table : refus du trigger |
+| S9 | Un seul objectif officiel par (station, indicateur, horizon, début de période) | seconde insertion `officiel` : violation de l'index unique partiel |
+| S10 | Aucune colonne sensible n'est exposée par la RLS : la RLS ne masque pas les colonnes | revue des colonnes ; aucun secret ni donnée personnelle dans les trois tables |
+| S11 | Les vues et fonctions ajoutées n'héritent pas de privilèges par défaut vers `anon` | contrôle des default privileges après création |
+| S12 | La station figure dans le `where` de chaque requête de lecture, sans s'appuyer sur la RLS | revue des requêtes Q-CARB, Q-COM, Q-PANIER, Q-FDJ, Q-ECART |
+
+### 8.2 Règles métier portées par la base
+
+| Id | Critère | Preuve attendue |
+|---|---|---|
+| R1 | Aucune cible sur un indicateur « non disponible » | insertion refusée |
+| R2 | Aucun objectif officiel sur un indicateur « à fiabiliser » sans arbitrage consigné | insertion `officiel` refusée ; avec arbitrage référencé : acceptée |
+| R3 | Cible zéro acceptée seulement si `cible_zero_ok` ; aucun pourcentage d'atteinte n'est calculé sur une cible nulle | affichage « 0 attendu », pas de division |
+| R4 | `sens = 'baisse'` : un recul est un progrès ; l'atteinte est plafonnée à 100 % sans dépasser | série fictive décroissante |
+| R5 | Cohérence entre horizons des indicateurs additifs : la somme des cibles mensuelles tend vers la cible trimestrielle puis annuelle ; l'écart déclenche un avertissement, jamais un blocage | trois horizons incohérents : avertissement visible |
+| R6 | Taux, moyennes et ratios portent leur propre cible par horizon, sans somme ni moyenne des mois | cible annuelle d'un ratio indépendante des cibles mensuelles |
+| R7 | Un objectif remplacé garde sa version ; la nouvelle version référence l'ancienne | historique complet lisible |
+
+### 8.3 Données et lecture
+
+| Id | Critère | Preuve attendue |
+|---|---|---|
+| D1 | Parité Tempo : valeur Brief = valeur A4 = valeur Tempo pour litres, CA boutique, FDJ, sur au moins trois mois de la station de recette | tableau de comparaison, écart nul |
+| D2 | Mois civils en heure de Martinique (`at time zone 'America/Martinique'`) ; les colonnes `date` sont déjà locales | jeu avec des saisies proches de minuit : rattachement au bon mois |
+| D3 | Seuls les jours complets Tempo comptent ; la colonne de jours couverts accompagne chaque valeur mensuelle | mois partiel : valeur et couverture affichées ensemble |
+| D4 | Écarts de caisse en valeur absolue par quart, sans compensation | quart +10 et quart −10 : 20, pas 0 |
+| D5 | Pas de projection quand les données sont insuffisantes ; le Brief l'écrit au lieu de calculer | panier moyen avec peu de jours : mention « données insuffisantes » |
+| D6 | Chaque objectif affiche courant, cible, avancement, niveau attendu à date, écart, tendance, période, fraîcheur | contrôle champ par champ |
+| D7 | Fraîcheur : un indicateur dont la dernière donnée est ancienne est signalé comme périmé | jeu sans saisie récente |
+| D8 | A4 conserve la version des objectifs utilisée : un rapport ancien se relit avec ses cibles d'alors | changement de cible après édition d'un A4 : l'ancien A4 inchangé |
+
+### 8.4 Conseiller
+
+| Id | Critère | Preuve attendue |
+|---|---|---|
+| C1 | Une recommandation porte l'écart, la cause (démontrée ou supposée, distinguée), l'action, le potentiel estimé, le résultat obtenu | contrôle des champs |
+| C2 | Un même potentiel n'est jamais compté deux fois quand deux recommandations touchent le même objectif | deux recommandations, un seul potentiel retenu |
+| C3 | Le potentiel détecté par un moteur n'est jamais présenté comme objectif validé | libellés distincts ; trois natures jamais mélangées |
+
+### 8.5 Mise en œuvre de la recette
+
+Ordre : sécurité (8.1) avant tout jeu de données ; règles de base (8.2) ; lecture (8.3) ; Conseiller (8.4). La recette navigateur sur Test se fait sur un artefact déployé, pas sur le local. Un résultat sans code d'échec nommé n'est pas arbitrable : chaque échec porte l'identifiant du critère. Les mesures de recette sur l'historique réel de Sainte-Marie restent hors canal : Guardian les mène.
+
+## 9. Arbitrages consolidés pour le gérant (livrable 9)
+
+Rien n'est tranché ici. Chaque ligne dit ce qui change selon la réponse et ce que je recommande.
+
+| Id | Question | Recommandation | Ce qui dépend de la réponse |
+|---|---|---|---|
+| G-1 | La progression se mesure-t-elle en périodes calendaires (mois contre mois précédent, en moyenne par jour complet) ou en fenêtres glissantes de 7 jours comme aujourd'hui dans le Brief ? | périodes calendaires, seules cohérentes avec des objectifs mensuels | CARB-PROGRES, COM-PROGRES, FDJ-EVOL |
+| G-3 | Les horaires de `station_config.horaires` valent-ils horaires d'ouverture ? Sinon : les saisir une fois, ou renoncer aux quatre indicateurs « par heure » | les confirmer si le gérant les reconnaît ; sinon renoncer | CARB-PROD-H, COM-CA-H, MAR-H (et leur voisin par heure) passent de « à fiabiliser » à « disponible » |
+| G-4 | Quels rôles proposent, et le gérant seul valide-t-il ? (`manager` et `gerant` partagent aujourd'hui la plupart des politiques) | proposition par manager ou gérant, validation par le gérant | S5, S6, flux de validation de la maquette |
+| G-5 | Une cible officielle de période en cours peut-elle être révisée, avec motif, ou seulement à la période suivante ? | révisable avec motif, par une nouvelle version qui remplace l'ancienne, jamais par modification | R7, D8 |
+| G-6 | Cible trimestrielle et annuelle saisies directement, ou seulement déduites de la somme des mois ? | dérivées pour les additifs, saisies pour les ratios | R5, R6 |
+| G-7 | « Écart de caisse » : `ecart_total` tel que stocké, ou somme des valeurs absolues piste + boutique par quart ? | somme des valeurs absolues par quart, sans compensation | OPS-ECART-CAISSE, D4 |
+| G-8 | Pour les indicateurs de maîtrise reclassés « à fiabiliser » (contrôles, clôtures, inventaires, délais, anomalies, référence prioritaire), quelle définition de « conforme » et quel délai de référence ? | une définition écrite par indicateur avant toute cible | OPS-CTRL, OPS-CLOT, OPS-INV, OPS-ANO-DELAI, OPS-DELAI-RES, MAR-ANO-TARIF, MAR-DEMARQUE, FDJ-ANO-NR, COM-DISPO-REF |
+
+Ordre conseillé des réponses : G-4 et G-5 (ils fixent le flux), puis G-7 et G-1 (ils fixent les mesures déjà disponibles), puis G-3 et G-8 (ils ouvrent de nouveaux indicateurs).
