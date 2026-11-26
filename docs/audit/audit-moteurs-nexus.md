@@ -184,11 +184,11 @@ Constantes : `SEUIL_IMPACT_MESURE_MATERIEL_EUR = 500`, `SEUIL_IMPACT_POTENTIEL_S
 
 Seconde dimension, indépendante du niveau : exposition → immédiate ; risque avéré → moyenne si le signal est installé depuis ≥ 14 jours (`SEUIL_ANCIENNETE_INSTALLEE_JOURS`), sinon immédiate ; signal faible → moyenne ; anomalie → faible.
 
-**Constat** : un risque avéré ancien devient « moyenne » alors qu'une simple exposition reste « immédiate ». Au tri « urgence puis niveau » du Brief (§6.3), une exposition passe donc **devant** un risque avéré installé depuis deux semaines. C'est voulu par la règle, mais le gérant lira « exposition » avant « risque avéré » sans comprendre pourquoi.
+**Constat (V6 : touche la majorité des signaux, près de deux tiers sont « risque avéré », tous « surveillé », aucun clos ; l'urgence est calculée à l'affichage, non stockée)** : un risque avéré ancien devient « moyenne » alors qu'une simple exposition reste « immédiate ». Au tri « urgence puis niveau » du Brief (§6.3), une exposition passe donc **devant** un risque avéré installé depuis deux semaines. C'est voulu par la règle, mais le gérant lira « exposition » avant « risque avéré » sans comprendre pourquoi.
 
 ### 5.3 Qualificateurs
 
-- **Caisse** (`qualifierEcartCaisse`, l.295) : impact = **somme nette** des écarts (`ecartCumule`) ; récurrence = nombre d'audits en anomalie ou critique ; échantillon = total d'audits. *Limite* : la somme est nette, un manque de 40 € et un excédent de 40 € se compensent à zéro. À vérifier en donnée (V4).
+- **Caisse** (`qualifierEcartCaisse`, l.295) : impact = **somme nette** des écarts (`ecartCumule`) ; récurrence = nombre d'audits en anomalie ou critique ; échantillon = total d'audits. *Limite confirmée (V4)* : la somme est nette, un manque et un excédent se compensent. En Production, la somme nette ne vaut qu'environ un tiers de la somme des valeurs absolues : l'impact est **nettement sous-estimé** (risque élevé).
 - **Marge d'une catégorie** (`qualifierMargeCategorie`, l.343) : compare la catégorie à **sa propre histoire** (moyenne des périodes précédentes), pas à la moyenne du magasin ni aux pairs (cohérent avec §1.2). CA « stable » si l'écart ≤ `seuilCaStablePct = 0,15` : impact **mesuré** = écart de points / 100 × CA actuel si le CA est stable, impact **potentiel** sinon. Récurrence = périodes historiques sous la moyenne, +1 si la période courante l'est.
 - **Historique de marge** : assemblé de **deux façons** : `assemblerHistoriqueMargeCategorie` (l.411, en mémoire, 3 périodes, hors période courante et hors CA = 0) et `NexusRisquesDonnees.chargerHistoriqueMargeCategorie` (requête Supabase ciblée). Deux chemins pour une même histoire.
 - **Ponctualité d'un collaborateur** (`qualifierPonctualiteCollaborateur`, `SEUIL_RETARDS_RECURRENTS = 3`, l.637) : ≥ 3 retards fixent la sévérité « majeure », donc **risque avéré immédiat sans aucun montant en euros**. Troisième version de la ponctualité (voir §3.6 et §4.3), même seuil de 3, périmètre encore différent (14 jours).
@@ -197,7 +197,7 @@ Seconde dimension, indépendante du niveau : exposition → immédiate ; risque 
 
 - Filtre de station **explicite** partout : `audits_caisse` (l.308, 325), `products` (l.554, 572), `pointages` (l.702, 708). Bon point, opposé au Brief (§3.6).
 - Dates en **UTC** (l.305, 322, 625–626, 660, 700), alors que le chargeur du coach (`nexus-conseiller-donnees.js:204`) utilise le fuseau de la station (`NexusStation.dateLocaleStation`). Une même journée ne désigne pas le même jour selon l'écran, près de minuit.
-- Commentaire l.690 : un possible décalage entre `site_id` et la colonne `site` de `pointages`. Non tranché dans le code (à vérifier, V5).
+- Commentaire l.690 sur un possible décalage `site_id` / `site` : **caduc** (V5 : `pointages` n'a que la colonne `site`, le filtre est le bon ; seule incohérence, 2 lignes d'avant août sans effet).
 
 ### 5.5 Consommateurs et doublons
 
@@ -213,9 +213,9 @@ Chaque moteur métier propose des candidats (normaliseurs l.790–1112) ; `fusio
 
 ### 6.2 Graine du jour : UTC, pas la station
 
-`genererGraineJour(site)` (l.1131) = site + `new Date().toISOString().slice(0,10)`. La graine change à 00:00 UTC, soit **01:00 ou 02:00 heure locale**. Entre minuit et 01:00/02:00, la sélection d'hier reste affichée ; et à rang égal, le choix change d'un jour à l'autre sans fait nouveau. `normaliserRappel` (l.1011) utilise aussi « aujourd'hui » UTC.
+`genererGraineJour(site)` (l.1131) = site + `new Date().toISOString().slice(0,10)`. La station est en Martinique (UTC−4, sans changement d'heure) : la graine change à 00:00 UTC, soit **20:00 heure locale**. Entre 20:00 et minuit, les décisions du lendemain s'affichent déjà ; et à rang égal, le choix change d'un jour à l'autre sans fait nouveau (il change donc le soir, pas le matin). `normaliserRappel` (l.1011) utilise aussi « aujourd'hui » UTC.
 
-**Effet visible pour le gérant** : deux décisions de rang égal peuvent s'échanger d'un jour à l'autre sans que rien n'ait changé. Pas une faute de calcul, mais l'impression d'un outil qui se contredit.
+**Effet visible pour le gérant** : en fin de journée (à partir de 20:00), la liste change alors que la journée n'est pas finie ; deux décisions de rang égal peuvent s'échanger d'un jour à l'autre sans que rien n'ait changé. Pas une faute de calcul, mais l'impression d'un outil qui se contredit.
 
 ### 6.3 Trois ordres différents pour « le plus important »
 
@@ -252,7 +252,7 @@ Les `constatsSectoriels` (écart cumulé Verify, valeur d'inventaire, marges « 
 
 ### 7.3 Projection (`construireProjection`, l.600)
 
-Rythme = CA / jours écoulés × jours de la période. Scénario « moyenne » = moyenne des 3 derniers mois / 30 (approximation documentée). Scénario N-1 : toujours nul. **Horloge** : `dateReference || new Date()`, soit l'horloge de la machine, pas le fuseau de la station (le chapitre commerce, lui, utilise `nexusFuseauSite`). Près de minuit, jours écoulés et projection peuvent différer d'un jour entre la machine et la station.
+Rythme = CA / jours écoulés × jours de la période. Scénario « moyenne » = moyenne des 3 derniers mois / 30 (approximation documentée). Scénario N-1 : toujours nul. **Horloge** : `dateReference || new Date()`, soit l'horloge de la machine, pas le fuseau de la station (le chapitre commerce, lui, utilise `nexusFuseauSite`). Si la machine n'est pas réglée sur UTC−4, jours écoulés et projection peuvent différer d'un jour de la station ; pour un navigateur de la station, l'écart est nul.
 
 ### 7.4 Suggestions (`construireSuggestions`, l.634)
 
@@ -281,10 +281,10 @@ Résultats communiqués par le Guardian le 26/11 (aucune donnée réelle sur le 
 | V2 | Les familles de marge sont-elles reconnues ? | `select distinct categorie from products where site = :site` passé dans `NexusMarge.familleMarge` | Familles réglementées toutes exclues | **Conforme**. Constat annexe : deux libellés « tabac à rouler » à l'encodage abîmé et au double espace, donc deux catégories d'affichage |
 | V3 | Existe-t-il une cible de marge ? | `select * from tarif_seuils where site = :site` (vue `v_tarif_seuils_actifs`) | Règle `defaut` ou aucune | **Conforme : aucune ligne, pour aucune station.** La carte Marge du Brief v4 affichera « objectif à définir dans Produits » |
 
-Demandes nouvelles, issues de l'étape 3 :
+Vérifications issues de l'étape 3 (résultats du Guardian, 26/11, sans donnée réelle) :
 
-| # | Question | Requête (lecture seule) | Attendu |
+| # | Question | Requête (lecture seule) | Résultat |
 |---|---|---|---|
-| V4 | Les écarts de caisse se compensent-ils dans la somme nette ? | `select count(*) filter (where ecart > 0), count(*) filter (where ecart < 0), sum(ecart), sum(abs(ecart)) from audits_caisse where site = :site and date >= current_date - 30` | Si `sum(ecart)` est proche de 0 alors que `sum(abs(ecart))` est élevé, le signal de caisse sous-estime l'impact |
-| V5 | `site_id` et `site` de `pointages` désignent-ils la même station ? | `select count(*) from pointages where site = :site and (site_id is null or site_id::text <> :site_id)` | 0 |
-| V6 | Combien de signaux qualifiés par niveau et urgence ? | `select niveau, urgence, count(*) from nexus_risk_signals where site_id = :site group by 1,2` | Voir si des « risque avéré / moyenne » sont placés après des « exposition / immédiate » |
+| V4 | Les écarts de caisse se compensent-ils dans la somme nette ? | somme nette et somme des valeurs absolues de `ecart_piste` et `ecart_boutique` sur `audits_caisse` / quarts, filtrées par station, 30 jours (il n'existe pas de colonne `ecart`) | **Non conforme.** La somme nette n'atteint qu'environ un tiers de la somme des valeurs absolues ; les quarts en excédent sont deux fois plus nombreux que les quarts en manque. Le signal de caisse sous-estime nettement l'impact : **risque élevé**, même défaut que la compensation entre quarts d'Opérations |
+| V5 | `site` et `site_id` de `pointages` désignent-ils la même station ? | colonnes de `pointages`, lignes dont `site` diffère du site de l'employé | **Conforme.** `pointages` n'a que la colonne `site` ; le filtre `.eq('site', siteId)` est correct et le commentaire l.690 de `nexus-risques-donnees.js` est caduc. Incohérence de données : 2 lignes d'avant août, effet nul aujourd'hui |
+| V6 | Niveaux des signaux | comptage de `nexus_risk_signals` par niveau et statut, filtré par station | **Constat.** L'urgence n'est pas stockée : elle est calculée à l'affichage. « Risque avéré » = près des deux tiers des signaux, tous « surveillé », aucun jamais clos. Le défaut du §5.2 touche donc la majorité des signaux |
