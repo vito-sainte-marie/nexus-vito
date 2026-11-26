@@ -143,7 +143,7 @@ Fonction `supabase/functions/connexion/index.ts` : md5 `c106b325a0e92a8b8aad5b3d
    - la page est déployée (approbation de l'environnement `github-pages` par le gérant) ;
    - **avec GO distinct pour le compte fictif en Production** : connexion et changement de code du compte fictif, puis contrôle de la page servie (version attendue, parcours Connexion, Brief et déconnexion) ; ensuite seulement, connexion du gérant ;
    - **sans ce GO** : pas de compte fictif. Le contrôle de la page servie se limite à la lecture de la page (version, formulaire, appel de la fonction avec un faux compte : refus neutre 401), et la connexion du gérant devient la première migration réelle. Le gérant le sait avant d'accepter ;
-   - **durée de session** : à la première connexion, lire `expires_in` (journalisé par la fonction) et la comparer à la durée voulue ; l'écart se règle dans Auth, pas dans la page.
+   - **durée de session** : à la première connexion, lire `expires_in` dans la réponse de la fonction côté page (la fonction le renvoie, elle ne le journalise pas : aucune ligne de `nexus_connexion.journal` ne le porte) et le comparer à la durée voulue ; l'écart se règle dans Auth, pas dans la page.
 6. **Stations** une à une, jusqu'à zéro compte `a_migrer` parmi les comptes actifs (budget de 20 appels Auth par minute).
 
 ### 6.3 Panne de la fonction après la migration d'un compte
@@ -172,3 +172,16 @@ Créneau proposé (simple proposition, à valider ou changer par le gérant) : u
 | Total | environ 1 h 30 |
 
 Les durées sont des estimations, sans mesure Production.
+
+### 6.5 Déroulé réel de la bascule du 26/11/2026 (compte rendu de Guardian, #383)
+
+Cette section consigne ce qui s'est passé ; elle ne remplace pas le §6.2.
+
+1. Sauvegarde : 17 comptes, identités et états seulement, remise au gérant hors dépôt.
+2. Migrations : les 14 du §6.1 appliquées, md5 conformes. **Écart d'ordre 2c/2d** : la migration 2d (`20261126150000`) a été enregistrée avant la 2c (`20261126140000`), parce que les deux appels ont été lancés en parallèle. Le contenu appliqué est conforme aux md5 ; seul l'ordre d'enregistrement diffère de l'ordre des fichiers. À l'avenir, appliquer les migrations l'une après l'autre, jamais en parallèle.
+3. Secrets : posés par le gérant.
+4. Fonction `connexion` déployée en Production, version 1, `verify_jwt=false`, empreinte identique à celle de la version 16 de Test. **Contrôle par pg_net** : appel de la fonction avec un prénom inconnu. Réponse attendue et obtenue : 401 neutre, plus une ligne `essais_ip` de type `echec`. Ce contrôle prouve que les secrets sont lus et que la base est jointe, sans toucher à aucun compte.
+5. Page : #381 fusionnée, déploiement `github-pages` approuvé par le gérant.
+6. Compte témoin : créé, connexion par la page réussie (journal `code_pose`, `succes` ; état `migre`), puis supprimé (0 témoin, 0 orphelin, 0 ligne Auth).
+7. Gérant : connexion avec son code habituel, compte `migre`.
+8. Aucun `incoherence_auth`, `indisponible` ni `budget_auth`. Il restait 13 comptes actifs `a_migrer`, qui basculent à leur première connexion.
