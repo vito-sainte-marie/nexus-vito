@@ -1,0 +1,167 @@
+<!doctype html><html lang="fr" data-theme="nuit"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Objectifs de station : restitution dans le Brief</title><style>
+/* Jetons repris de NEXUS-Tempo-v2.html (--t-*, piste / boutique / FDJ). */
+:root{--t-bg:#07131E;--t-panel:#0D202E;--t-raised:#0F2433;--t-line:#254354;--t-text:#EDF1F5;--t-mid:#9AA8B6;--t-cyan:#24D8E3;--t-green:#29C98A;--t-amber:#F5A12A;--t-red:#F0786E;--t-bar2:#5B7A8E;--piste:#22C7B8;--boutique:#C47A55;--fdj:#A18BF2;--ombre:0 1px 2px rgba(0,0,0,.35),0 8px 24px rgba(0,0,0,.18);--t-mono:"IBM Plex Mono",ui-monospace,monospace;--t-sans:"IBM Plex Sans",system-ui,sans-serif}
+:root[data-theme="jour"]{--t-bg:#F4F6F8;--t-panel:#FFFFFF;--t-raised:#EEF2F5;--t-line:#D5DCE3;--t-text:#0F172A;--t-mid:#475569;--t-cyan:#0B7285;--t-green:#047857;--t-amber:#B45309;--t-red:#B42318;--t-bar2:#94A3B8;--piste:#0F766E;--boutique:#7A4A3A;--fdj:#6246C9;--ombre:0 1px 2px rgba(15,23,42,.05),0 8px 24px rgba(15,23,42,.06)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--t-bg);color:var(--t-text);font:14px/1.45 var(--t-sans);padding:24px}
+.hors{display:flex;gap:8px;align-items:center;margin:0 auto 16px;width:1280px;max-width:100%;color:var(--t-mid);font-size:12px}
+.hors button{min-height:36px;padding:0 14px;border-radius:8px;border:1px solid var(--t-line);background:var(--t-panel);color:var(--t-text);font:inherit;cursor:pointer}
+.hors button[aria-pressed=true]{border-color:var(--t-cyan);color:var(--t-cyan)}
+:focus-visible{outline:2px solid var(--t-cyan);outline-offset:2px;border-radius:6px}
+.page{width:1280px;max-width:100%;margin:0 auto;display:grid;gap:24px}
+.mono{font-family:var(--t-mono)}
+.unite{font:400 13px var(--t-mono);color:var(--t-mid);margin-left:4px}
+.lect h3 .ico{background:color-mix(in srgb,var(--t-text) 14%,transparent);border-radius:8px;padding:3px;box-sizing:content-box}
+.ico{width:24px;height:24px;flex:none;display:block}.ico.g{width:32px;height:32px}
+/* En-tête */
+.bandeau{position:relative;margin:0;border-radius:12px;overflow:hidden;background:#07131E;height:200px}.bandeau .titre{position:absolute;left:32px;top:50%;transform:translateY(-50%);display:flex;align-items:center;gap:20px;color:#fff}.bandeau .titre img{width:72px;height:72px;object-fit:contain;flex:none}.bandeau .titre h1{margin:0;font:600 44px/1 'IBM Plex Sans',system-ui,sans-serif;letter-spacing:-.01em;color:#fff}.bandeau .titre p{margin:6px 0 0;font:500 16px/1.2 'IBM Plex Sans',system-ui,sans-serif;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.45)}.bandeau img{display:block;width:100%;height:100%;object-fit:cover;object-position:left 30%}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.tete{display:flex;align-items:center;gap:16px}
+.tete h1{margin:0;font-size:22px;font-weight:600;letter-spacing:-.01em}
+.tete .sous{color:var(--t-mid);font-size:13px}
+.tete .fin{margin-left:auto;text-align:right;font:12px var(--t-mono);color:var(--t-mid)}
+/* Titre de section façon Tempo */
+.ts{display:flex;align-items:center;gap:12px;margin:0 0 12px;font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--t-mid)}
+.ts::after{content:"";flex:1;height:1px;background:var(--t-line)}
+.carte{background:var(--t-panel);border:1px solid var(--t-line);border-radius:12px;padding:20px;box-shadow:var(--ombre)}
+.carte h3{margin:0;font-size:13px;font-weight:600;display:flex;align-items:center;gap:10px}
+.grille{display:grid;gap:16px;align-items:stretch}
+.g3{grid-template-columns:repeat(3,1fr)}.g5{grid-template-columns:repeat(5,1fr)}.g2{grid-template-columns:1fr 1fr}.g4{grid-template-columns:repeat(4,1fr)}.g21{grid-template-columns:2fr 1fr}
+.pastille{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;border-radius:999px;padding:2px 10px;color:var(--c);background:color-mix(in srgb,var(--c) 13%,transparent);white-space:nowrap}
+.pastille::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--c)}
+.ok{--c:var(--t-green)}.av{--c:var(--t-amber)}.mal{--c:var(--t-red)}.nd{--c:var(--t-bar2)}
+.vert{color:var(--t-green)}.amb{color:var(--t-amber)}.rouge{color:var(--t-red)}
+/* Lectures : chiffre en grand */
+.lect{display:flex;flex-direction:column;gap:10px;min-height:196px}
+.lect .nb{font:600 40px/1 var(--t-mono);letter-spacing:-.02em;margin-top:4px}
+.lect .nb .unite{font-size:14px}
+.lect .ligne{margin-top:auto;display:flex;align-items:center;gap:8px;justify-content:space-between;color:var(--t-mid);font-size:12px}
+/* Fiche secteur */
+.sect{display:flex;flex-direction:column;gap:10px;min-height:292px}
+.sect .nom{display:flex;align-items:center;gap:10px;font-size:13px;font-weight:600}
+.sect .nom .pastille{margin-left:auto}
+.sect .nb{font:600 30px/1 var(--t-mono);letter-spacing:-.02em}
+.sect .nb .unite{font-size:12px}
+.sect .tend{font:13px var(--t-mono)}
+.sect .viz{height:44px;margin-top:2px;display:flex;align-items:flex-end}
+.sect .pied{margin-top:auto;font-size:12px;color:var(--t-mid)}
+details.det{border-top:1px solid var(--t-line);padding-top:8px;font-size:12px;color:var(--t-mid)}
+details.det summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;color:var(--t-cyan);font-weight:600;border-radius:6px}
+details.det summary::-webkit-details-marker{display:none}
+details.det summary::after{content:"▾";transition:transform .2s}
+details.det[open] summary::after{transform:rotate(180deg)}
+details.det p{margin:8px 0 0}
+/* Jauge */
+.jauge{--p:0;width:100%;height:10px;border-radius:5px;background:var(--t-raised);position:relative}
+.jauge i{display:block;height:100%;border-radius:5px;background:var(--c,var(--t-cyan));width:calc(var(--p)*1%);transition:width .3s ease-out}
+.jauge.avant i{width:0}
+.jauge b{position:absolute;top:-4px;width:2px;height:18px;background:var(--t-text);border-radius:1px}
+.anneau{width:64px;height:64px;flex:none}
+.anneau circle{fill:none;stroke-width:7}.anneau .f{stroke:var(--t-raised)}.anneau .v{stroke:var(--c);stroke-linecap:round;transform:rotate(-90deg);transform-origin:50% 50%;transition:stroke-dashoffset .3s ease-out}
+/* Segments de couverture */
+.couv{display:flex;gap:4px}.couv i{flex:1;height:8px;border-radius:2px;background:var(--t-green)}.couv i.p{background:var(--t-amber)}.couv i.a{background:none;border:1px dashed var(--t-bar2)}
+/* Graphiques */
+.chart{width:100%;display:block}
+.chart text{font:10px var(--t-mono);fill:var(--t-mid)}
+.chart .grid{stroke:var(--t-line);stroke-width:1}
+.chart .ref{stroke:var(--t-mid);stroke-dasharray:3 4}
+.chart [data-tip]{cursor:pointer;transition:opacity .15s}
+.chart [data-tip]:hover,.chart [data-tip]:focus-visible{opacity:.78}
+.entete-graph{display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+.entete-graph .fin{margin-left:auto;display:flex;gap:8px;align-items:center}
+.seg{display:inline-flex;border:1px solid var(--t-line);border-radius:8px;overflow:hidden}
+.seg button{min-height:32px;padding:0 12px;border:0;background:none;color:var(--t-mid);font:600 12px var(--t-sans);cursor:pointer}
+.seg button[aria-pressed=true]{background:var(--t-raised);color:var(--t-text)}
+.seg button:disabled{opacity:.4;cursor:not-allowed}
+.puce{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 12px;border:1px solid var(--t-line);border-radius:999px;background:none;color:var(--t-text);font:12px var(--t-sans);cursor:pointer}
+.puce i{width:10px;height:10px;border-radius:3px;background:var(--c)}
+.puce[aria-pressed=false]{color:var(--t-mid)}.puce[aria-pressed=false] i{background:none;box-shadow:inset 0 0 0 1.5px var(--c)}
+.lien{background:none;border:0;color:var(--t-cyan);font:600 12px var(--t-sans);cursor:pointer;min-height:32px;padding:0 4px;border-radius:6px}
+table.val{width:100%;border-collapse:collapse;font:12px var(--t-mono);margin-top:12px}
+table.val th{font:600 11px var(--t-sans);color:var(--t-mid);text-align:right;padding:6px 8px;border-bottom:1px solid var(--t-line)}
+table.val td{text-align:right;padding:6px 8px;border-bottom:1px solid color-mix(in srgb,var(--t-line) 60%,transparent)}
+table.val th:first-child,table.val td:first-child{text-align:left}
+.note{font-size:12px;color:var(--t-mid);margin-top:10px}
+/* Objectifs */
+.obj{display:flex;flex-direction:column;gap:8px;min-height:156px}
+.obj .t{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--t-mid)}
+.obj .nb{font:600 28px/1 var(--t-mono)}
+.obj.vide{border-style:dashed;box-shadow:none;background:transparent;justify-content:center;align-items:flex-start}
+.obj .prop{font-size:12px;color:var(--t-amber)}
+.btn{min-height:36px;padding:0 14px;border-radius:8px;border:1px solid var(--t-line);background:var(--t-raised);color:var(--t-text);font:600 12px var(--t-sans);cursor:pointer;align-self:flex-start}
+.btn:hover{border-color:var(--t-cyan)}
+/* Listes */
+.lig{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--t-line)}.lig:last-child{border:0;padding-bottom:0}
+.lig .m{margin-left:auto;font:600 20px var(--t-mono);text-align:right}
+.lig small{display:block;color:var(--t-mid);font-size:12px}
+.lig .pastille{margin-left:auto}
+/* Info-bulle */
+#tip{position:fixed;z-index:9;pointer-events:none;background:var(--t-text);color:var(--t-bg);font:12px var(--t-mono);padding:6px 10px;border-radius:8px;opacity:0;transform:translateY(4px);transition:opacity .15s,transform .15s;max-width:260px}
+#tip.on{opacity:1;transform:none}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+.fic{display:inline-block;font-size:11px;font-weight:600;color:var(--t-amber);border:1px dashed var(--t-amber);border-radius:6px;padding:2px 8px}
+.progres{display:flex;flex-direction:column;gap:6px}
+table.val td.l,table.val th.l{text-align:left}
+.vers{font:11px var(--t-mono);color:var(--t-mid)}
+.bandeau-ficti{background:color-mix(in srgb,var(--t-amber) 12%,transparent);border:1px dashed var(--t-amber);border-radius:10px;padding:10px 14px;font-size:12px}
+</style></head><body>
+<div class="hors"><span>Maquette · Brief 1280 · données fictives</span><button id="th" aria-pressed="false">Thème jour</button></div>
+<main class="page">
+<div class="bandeau-ficti"><b>Maquette, station fictive « Station Exemple », arrêtée au 15 novembre.</b> Aucune valeur réelle.</div>
+<div class="tete"><h1>Objectifs du mois</h1><span class="sous">Novembre 2026 · 15 jours sur 30</span><span class="fin">Objectifs version <b>v3</b> · lus le 15/11 à 07:30</span></div>
+<div class="entete-graph"><div class="seg" role="group" aria-label="Horizon"><button aria-pressed="true">Mois</button><button aria-pressed="false">Trimestre</button><button aria-pressed="false">Année</button></div><span class="note">Chaque carte garde sa règle d'agrégation selon l'horizon.</span></div>
+
+<section><h2 class="ts">Cumuls : atteint, attendu aujourd'hui, écart</h2>
+<div class="grille g3">
+<article class="carte lect"><h3>Volume carburant total</h3>
+<div class="nb">142 000<span class="unite">L</span></div>
+<div class="progres"><div class="jauge" style="--c:var(--t-amber);--p:47"><i></i><b style="left:50%"></b></div><span class="note">47 % de 300 000 L · attendu aujourd'hui 150 000 L (repère)</span></div>
+<div class="ligne"><span class="pastille av">Écart −8 000 L</span><span>Tendance : en retard, stable sur 7 jours</span></div>
+<div class="ligne"><span>Jours couverts 14 / 15</span><span>Frais : hier</span></div></article>
+<article class="carte lect"><h3>CA boutique</h3>
+<div class="nb">61 500<span class="unite">€</span></div>
+<div class="progres"><div class="jauge" style="--c:var(--t-green);--p:51"><i></i><b style="left:50%"></b></div><span class="note">51 % de 120 000 € · attendu 60 000 €</span></div>
+<div class="ligne"><span class="pastille ok">Écart +1 500 €</span><span>Tendance : en avance</span></div>
+<div class="ligne"><span>Jours couverts 15 / 15</span><span>Frais : hier</span></div></article>
+<article class="carte lect"><h3>Panier moyen</h3>
+<div class="nb">-<span class="unite">€</span></div>
+<div class="progres"><span class="note">Moyenne pondérée par les tickets. Seulement 3 jours complets sur 15 : <b>pas de lecture, pas de projection</b>.</span></div>
+<div class="ligne"><span class="pastille nd">Données insuffisantes</span><span>Cible 9,50 €</span></div>
+<div class="ligne"><span>Jours couverts 3 / 15</span><span>Frais : il y a 12 jours</span></div></article>
+</div></section>
+
+<section><h2 class="ts">Objectifs de réduction et cible zéro</h2>
+<div class="grille g2">
+<article class="carte lect"><h3>Écart de caisse (valeur absolue par quart)</h3>
+<div class="nb">62<span class="unite">€</span></div>
+<div class="progres"><div class="jauge" style="--c:var(--t-red);--p:100"><i></i><b style="left:100%"></b></div><span class="note">Plafond 40 €, dépassé de 22 €. Plafond au prorata aujourd'hui : 20 €. Un chiffre bas est bon, la jauge ne se lit pas comme une progression.</span></div>
+<div class="ligne"><span class="pastille mal">Au-dessus du plafond</span><span>Jours couverts 15 / 15</span></div></article>
+<article class="carte lect"><h3>Écarts non justifiés</h3>
+<div class="nb">2<span class="unite">cas</span></div>
+<div class="progres"><span class="note">Cible zéro : pas de pourcentage de progression (division par zéro), on affiche l'écart brut. Chaque cas est détaillé dans l'A4.</span></div>
+<div class="ligne"><span class="pastille mal">Cible 0 non tenue</span><span>Frais : hier</span></div></article>
+</div></section>
+
+<section><h2 class="ts">Indicateurs sans lecture possible</h2>
+<div class="grille g2">
+<article class="carte obj"><span class="t">Marge brute boutique</span><span class="pastille av">À fiabiliser</span><span class="note">Aucun chiffre affiché tant que la source n'est pas fiabilisée. Pas de valeur de remplacement.</span></article>
+<article class="carte obj vide"><span class="t">Taux de rupture</span><span class="pastille nd">Non disponible</span><span class="note">Aucune source. L'objectif n'existe pas dans le Brief.</span></article>
+</div></section>
+
+<section><h2 class="ts">Conseiller : recommandations liées aux objectifs</h2>
+<div class="carte">
+<div class="lig"><div><b>Volume carburant : rattraper 8 000 L</b><small>Cause <span class="pastille av">supposée</span> : deux jours de pluie, non démontrée. Action : relancer l'offre fidélité. Potentiel estimé : 3 000 L. Résultat obtenu : à mesurer.</small></div><span class="m">−8 000 L</span></div>
+<div class="lig"><div><b>Écart de caisse : fermer l'écart récurrent du quart 2</b><small>Cause <span class="pastille ok">démontrée</span> : 4 écarts sur 5 au même quart. Action : double comptage à la passation. Potentiel : 22 €. Résultat obtenu : -.</small></div><span class="m">+22 €</span></div>
+<p class="note">Un même potentiel n'est compté qu'une fois, même s'il touche deux objectifs : le premier objectif lié le porte, l'autre le cite sans l'additionner.</p>
+</div></section>
+
+<section><h2 class="ts">Parité avec l'A4</h2>
+<div class="carte"><table class="val"><thead><tr><th class="l">Indicateur</th><th>Brief</th><th>A4</th><th class="l">Version des objectifs</th><th class="l">Parité</th></tr></thead><tbody>
+<tr><td class="l">Volume carburant total</td><td>142 000 L</td><td>142 000 L</td><td class="l">v3</td><td class="l"><span class="pastille ok">Identique</span></td></tr>
+<tr><td class="l">CA boutique</td><td>61 500 €</td><td>61 500 €</td><td class="l">v3</td><td class="l"><span class="pastille ok">Identique</span></td></tr>
+</tbody></table>
+<p class="note">Les deux lisent la même requête et la même version. L'A4 imprime la version utilisée au pied de la page.</p></div></section>
+</main>
+<script>(function(){var r=document.documentElement,b=document.getElementById('th');b.onclick=function(){var j=r.dataset.theme==='jour';r.dataset.theme=j?'nuit':'jour';b.setAttribute('aria-pressed',String(!j))}})();</script>
+</body></html>

@@ -400,3 +400,12 @@ Une table `objectif_recommandation(site, objectif_id, recommandation_id, ecart, 
 ## 6. Suite
 
 Étape 4 : maquette du bureau de gestion et maquette de restitution dans le Brief (données fictives, charte Brief v4). Étape 5 : critères de recette, tests de sécurité, arbitrages consolidés. Les lignes « À instruire » du catalogue seront reclassées avant l'étape 5.
+
+## 7. Maquettes (étape 4)
+
+Deux maquettes statiques, charte du Brief v4, station fictive « Station Exemple », aucune valeur réelle, aucun branchement.
+
+- `maquettes/objectifs-bureau.html` : bureau de gestion. Liste par indicateur et horizon (mois, trimestre, année), classe disponible / à fiabiliser / non disponible, règle d'agrégation affichée, parcours brouillon → proposé → officiel → remplacé, historique des versions, cible trimestre ou année dérivée ou saisie avec écart de cohérence (G-6), indicateurs non posables sans bouton.
+- `maquettes/objectifs-brief.html` : restitution dans le Brief. Par objectif : atteint, cible, % de progression, niveau attendu aujourd'hui, écart, tendance, période, fraîcheur, jours couverts. Cas traités : cumul en retard et en avance, moyenne sans projection faute de jours complets, plafond de réduction dépassé, cible zéro sans pourcentage, indicateurs sans lecture, recommandations du Conseiller avec cause démontrée ou supposée et potentiel non doublé, parité avec l'A4 et version des objectifs citée.
+
+Version mobile : non commencée, comme demandé.
