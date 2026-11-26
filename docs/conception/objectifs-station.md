@@ -459,10 +459,23 @@ Une table `objectif_recommandation(site, objectif_id, recommandation_id, ecart, 
 
 ## 7. Maquettes (étape 4)
 
-Deux maquettes statiques, charte du Brief v4, station fictive « Station Exemple », aucune valeur réelle, aucun branchement.
+### Fiche de conception
 
-- `maquettes/objectifs-bureau.html` : bureau de gestion. Liste par indicateur et horizon (mois, trimestre, année), classe disponible / à fiabiliser / non disponible, règle d'agrégation affichée, parcours brouillon → proposé → officiel → remplacé, historique des versions, cible trimestre ou année dérivée ou saisie avec écart de cohérence (G-6), indicateurs non posables sans bouton.
-- `maquettes/objectifs-brief.html` : restitution dans le Brief. Par objectif : atteint, cible, % de progression, niveau attendu aujourd'hui, écart, tendance, période, fraîcheur, jours couverts. Cas traités : cumul en retard et en avance, moyenne sans projection faute de jours complets, plafond de réduction dépassé, cible zéro sans pourcentage, indicateurs sans lecture, recommandations du Conseiller avec cause démontrée ou supposée et potentiel non doublé, parité avec l'A4 et version des objectifs citée.
+- **Qui, quand, pourquoi** : le gérant, une fois par an (puis pour un ajustement). Il veut fixer ce qu'il attend de sa station et vérifier d'un coup d'œil où il en est.
+- **Première question à l'écran** : « Quel objectif pour l'année ? » Le gérant donne un chiffre ou une hypothèse (par exemple +3 %). NEXUS montre sa base d'historique et sa limite (« 4 mois d'historique »), propose la répartition sur 12 mois et 4 trimestres, une barre par mois. Le gérant ajuste un mois, puis valide l'ensemble. Le tableau mois par mois est au second niveau.
+- **Pas de cartes pédagogiques** : les trois natures et le parcours de validation sont retirés du premier niveau, ils restent au §0 et au §5. Une seule ligne d'aide repliée.
+- **Groupement** : les cinq secteurs (Carburant, Commerce, FDJ, Opérations, Marge), avec les icônes NEXUS (`assets/icones`, `nexus-icones.js`).
+- **Chaque objectif** : valeur, objectif, avancement, attendu à la date, écart, tendance. La méthode est dans le détail.
+- **Écart de caisse** : en euros, moyenne en valeur absolue par quart, jamais « ≤ 40 € » par mois. Le signe est sans ambiguïté : « 7 € au-dessus de l'objectif », jamais « +22 € » sur un écart à réduire.
+- **Retiré** : « Écarts non justifiés » (pas un indicateur de ce lot), le jargon, « Parité avec l'A4 » (voir D1, §8). Le Brief ne garde qu'une mention discrète de la version des objectifs.
+- **Conseiller** : avatar officiel (`assets/avatar`). Il n'énonce que des faits mesurés et une cause que NEXUS peut établir, sinon il l'écrit (« aucune cause établie »). Jamais de météo ni de cause inventée.
+- **Vocabulaire** : « repère linéaire » est écrit en toutes lettres : progression en ligne droite entre le début de la période et l'objectif.
+- **Données** : toutes fictives. Valeurs de la maquette : Station Exemple.
+
+### Livrables
+
+- `maquettes/objectifs-bureau.html` : première vue « l'année d'abord » (hypothèse, base et limite, 12 barres, 4 trimestres, ajustement, validation d'ensemble), puis lecture par secteur, puis tableau mensuel au second niveau.
+- `maquettes/objectifs-brief.html` : variante intégrée de `brief-v4.html` (draft #392) : le bloc « Objectifs » remplace l'ancien, une fiche par secteur, Conseiller avec avatar officiel, version des objectifs citée en titre. L'en-tête image du Brief n'est pas reprise (actif absent de cette branche).
 
 Version mobile : non commencée, comme demandé.
 
@@ -507,7 +520,7 @@ Rien de ce qui suit n'est exécuté : aucune migration, aucun code, aucun accès
 
 | Id | Critère | Preuve attendue |
 |---|---|---|
-| D1 | Parité Tempo : valeur Brief = valeur A4 = valeur Tempo pour litres, CA boutique, FDJ, sur au moins trois mois de la station de recette | tableau de comparaison, écart nul |
+| D1 | Parité A4 : valeur Brief = valeur du rapport A4 = valeur Tempo pour litres, CA boutique, FDJ, sur au moins trois mois de la station de recette | tableau de comparaison, écart nul |
 | D2 | Mois civils en heure de Martinique (`at time zone 'America/Martinique'`) ; les colonnes `date` sont déjà locales | jeu avec des saisies proches de minuit : rattachement au bon mois |
 | D3 | Seuls les jours complets Tempo comptent ; la colonne de jours couverts accompagne chaque valeur mensuelle | mois partiel : valeur et couverture affichées ensemble |
 | D4 | Écarts de caisse en valeur absolue par quart, sans compensation | quart +10 et quart −10 : 20, pas 0 ; un quart à +20 en piste et −20 en boutique vaut 40 en colonne principale, 0 en colonne secondaire (différence écrite en Q-ECART) |
