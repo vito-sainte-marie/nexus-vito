@@ -23,7 +23,7 @@ Colonnes : fichiers touchés · migration (retour arrière) · tests · recette 
 | A0 | Rapprocher la liste de §18.2 de l'audit #393 §13 ; fiche de conformité par moteur. Document. | aucune | aucun | S |
 | A1 | **Compensation de caisse** (rang 1) : écart = Σ \|piste\| + \|boutique\| par quart (G-7) ; supprimer le doublon `calculerStatutOperations` / alias du Brief (§18.2 pt 3) | A0 | GO code | S |
 | A2 | **Filtre de station** (rang 3) : correction de code dans chaque lecteur sans filtre explicite de site (liste de l'audit) | A0 | GO code | M |
-| A3 | **Fuseau** : le chargeur carburant du Brief passe de l'UTC au fuseau de la station (§18.2 pt 4, audit §13.3) ; mois civils en Martinique | A0 | GO code | S |
+| A3 | **Fuseau** : une fonction « aujourd'hui de la station » (UTC−4) remplace l'UTC dans huit emplacements (audit §13.3, A0 §1 pt 4) : risques, Conseiller, Tempo, projection A4, rappels, coach FDJ, carburant (chargeur du Brief inclus), inventaire ; mois civils en Martinique | A0 | GO code | M |
 | A4 | **Doublons suivants de §18.2** : Commerce (produits d'appel, pt 1), Marge (deux moteurs d'écarts, pt 2), note globale (pt 5), potentiel compté deux fois (pt 6, repris en C1) | A0 | GO code, un par doublon | M |
 
 | Lot | Fichiers touchés | Migration | Tests | Recette | Risque |
