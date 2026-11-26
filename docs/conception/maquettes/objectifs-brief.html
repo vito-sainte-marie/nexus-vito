@@ -57,7 +57,7 @@ details.det p{margin:8px 0 0}
 /* Jauge */
 .jauge{--p:0;width:100%;height:10px;border-radius:5px;background:var(--t-raised);position:relative}
 .jauge i{display:block;height:100%;border-radius:5px;background:var(--c,var(--t-cyan));width:calc(var(--p)*1%);transition:width .3s ease-out}
-.jauge.avant i{width:0}
+.jauge.avant i{width:0}.jm{position:relative;height:10px;border-radius:5px;background:var(--t-raised);margin:10px 7px 18px}.jm .zone{position:absolute;top:0;height:100%;background:color-mix(in srgb,var(--t-red) 28%,transparent)}.jm .cible{position:absolute;top:-5px;width:2px;height:20px;background:var(--t-text);border-radius:1px}.jm .pos{position:absolute;top:-2px;width:14px;height:14px;margin-left:-7px;border-radius:50%;background:var(--c,var(--t-amber));border:2px solid var(--t-card,var(--t-bg))}.jm .ech{position:absolute;top:14px;font-size:10px;color:var(--t-mid);white-space:nowrap}
 .jauge b{position:absolute;top:-4px;width:2px;height:18px;background:var(--t-text);border-radius:1px}
 .anneau{width:64px;height:64px;flex:none}
 .anneau circle{fill:none;stroke-width:7}.anneau .f{stroke:var(--t-raised)}.anneau .v{stroke:var(--c);stroke-linecap:round;transform:rotate(-90deg);transform-origin:50% 50%;transition:stroke-dashoffset .3s ease-out}
@@ -125,12 +125,13 @@ const jours40=(b,a,ph)=>Array.from({length:40},(_,i)=>Math.round(b+a*Math.sin(i/
 const C40={piste:jours40(11500,1600,0),marge:jours40(3100,500,1),fdj:jours40(1150,160,2)};
 const M6={piste:[352,336,361,371,365,358].map(x=>x*1000),marge:[6700,6350,7020,6890,6440,6150],fdj:[5020,4650,5300,5070,5390,5280]};
 
-const objc=(ic,t,lib,val,cib,p,pt,att,ec,ecc,te,met)=>`<div class="carte objc"><div class="nom">${ic}${t}</div><small>${lib}</small><div class="vv">${val}</div>${jauge(p,'var(--t-cyan)',null)}<div class="ligne2"><span>objectif ${cib}</span><span>${pt}</span></div><div class="ligne2"><span>attendu ${att}</span><span>${te}</span></div><div class="${ecc}" style="font:600 13px var(--t-mono)">${ec}</div><details class="det"><summary>Méthode</summary><p>${met}</p></details></div>`;
+const objc=(ic,t,lib,val,cib,p,pt,att,ec,ecc,te,met)=>`<div class="carte objc"><div class="nom">${ic}${t}</div><small>${lib}</small><div class="vv">${val}</div>${typeof p==='string'?p:jauge(p,'var(--t-cyan)',null)}<div class="ligne2"><span>objectif ${cib}</span><span>${pt}</span></div><div class="ligne2"><span>attendu ${att}</span><span>${te}</span></div><div class="${ecc}" style="font:600 13px var(--t-mono)">${ec}</div><details class="det"><summary>Méthode</summary><p>${met}</p></details></div>`;
 /* Pièces */
 const lecture=(ic,t,nb,u,pa,det,pied)=>`<div class="carte lect"><h3>${ic}${t}</h3><div class="nb ${pa[1]}">${nb}<span class="unite">${u}</span></div><div>${pa[0]}</div><div class="ligne"><span>${det}</span>${pied||''}</div></div>`;
 const past=(t,c)=>`<span class="pastille ${c}">${t}</span>`;
 function bars(v,c){const m=Math.max(...v,1),w=100/v.length;return `<svg class="chart" viewBox="0 0 100 44" preserveAspectRatio="none" style="height:44px" role="img" aria-label="7 derniers jours">`+v.map((x,i)=>`<rect x="${i*w+1.5}" y="${44-Math.max(x/m*40,1)}" width="${w-3}" height="${Math.max(x/m*40,1)}" rx="1.5" fill="${c}" opacity="${i==v.length-1?1:.55}"/>`).join('')+'</svg>'}
 const sect=(ic,t,cov,nb,u,viz,tend,tc,pa,pied,det)=>`<div class="carte sect"><div class="nom">${ic}${t}${cov}</div><div class="nb">${nb}<span class="unite">${u}</span></div><div class="tend ${tc}">${tend}</div><div class="viz">${viz}</div><div>${pa}</div><div class="pied">${pied}</div><details class="det"><summary>Détail</summary><p>${det}</p></details></div>`;
+const jmarque=(mn,mx,pos,obj,zone,c,lab)=>{const P=v=>((v-mn)/(mx-mn)*100).toFixed(1),z=zone==='haut'?`left:${P(obj)}%;width:${(100-P(obj)).toFixed(1)}%`:`left:0;width:${P(obj)}%`;return `<div class="jm" role="img" aria-label="${lab}" style="--c:var(--${c})"><i class="zone" style="${z}"></i><b class="cible" style="left:${P(obj)}%"></b><u class="pos" style="left:${P(pos)}%"></u></div>`};
 const jauge=(p,c,cible)=>`<div class="jauge avant" data-p="${p}" style="--c:${c}"><i style="--p:${p}"></i>${cible!=null?`<b style="left:${cible}%"></b>`:''}</div>`;
 const vide=(msg)=>`<div style="display:flex;align-items:center;justify-content:center;height:44px;width:100%;border:1px dashed var(--t-line);border-radius:8px;color:var(--t-mid);font-size:12px">${msg}</div>`;
 
@@ -161,7 +162,7 @@ function courbes(){return `<div class="grille g3">${courbe('piste','var(--piste)
 
 function monter(){
 document.getElementById('p').innerHTML=`
-<header class="bandeau"><div class="titre"><img src="../../../assets/nexus-logo-cyan.png" alt="NEXUS" width="72" height="72"><div><h1>Brief</h1><p>Tableau de direction</p></div></div></header>
+<header class="bandeau"><picture><source type="image/webp" srcset="../../../assets/brief/brief-entete-1280.webp 1280w, ../../../assets/brief/brief-entete-2172.webp 2172w" sizes="1240px"><img src="../../../assets/brief/brief-entete-2172.jpg" alt="" width="2172" height="724"></picture><div class="titre"><img src="../../../assets/nexus-logo-cyan.png" alt="NEXUS" width="72" height="72"><div><h1>Brief</h1><p>Tableau de direction</p></div></div></header>
 <div class="tete"><div class="sous">Jeudi 26 novembre · station fictive</div><div class="fin">Données les plus anciennes<br><b style="color:var(--t-text)">14/11</b></div></div>
 
 <section><h2 class="ts">À retenir</h2>
@@ -173,11 +174,11 @@ ${lecture(tp('tempo-fiabilite-donnees'),'Fiabilité des données','4 / 5','secte
 
 <section><h2 class="ts">Secteurs</h2>
 <div class="grille g5">
-${sect(v2('mod-carburants'),'Carburant',past('Complet','ok'),'86 800','L · 7 j',bars([11,12,13,12,14,13,12],'var(--piste)'),'▼ 3,2 %','rouge',past('Sous contrôle','ok'),'Litres vendus par jour, 7 derniers jours','Volumes du jour comparés aux sept jours précédents. Source : caisse piste.')}
+${sect(v2('mod-carburants'),'Carburant',past('Complet','ok'),'86 700','L · 7 j',bars([11,12,13,12,14,13,12],'var(--piste)'),'▼ 3,2 %','rouge',past('Sous contrôle','ok'),'Litres vendus par jour, 7 derniers jours','Volumes du jour comparés aux sept jours précédents. Source : caisse piste.')}
 ${sect(v2('mod-produits'),'Commerce',past('Complet','ok'),'22 050','€ · 7 j',bars([3000,3300,3100,3400,3200,3150,2900],'var(--boutique)'),'▲ 1,8 %','vert',past('Stable','ok'),'Ventes boutique par jour, 7 derniers jours','Ventes quotidiennes : indépendantes de l’import.')}
 ${sect(v2('mod-fdj'),'FDJ',past('Complet','ok'),'1 180','€ CA · 7 j',bars([160,170,180,175,165,170,160],'var(--fdj)'),'▲ 0,4 %','vert',past('À confirmer','av'),'Chiffre FDJ, sans marge','Aucune marge FDJ n’est calculée dans NEXUS.')}
 ${sect(v2('mod-prise-de-poste'),'Opérations',past('Complet','ok'),'1','écart · 18 € · 7 j',bars([0,0,18,0,0,0,0],'var(--t-red)'),'récurrent','rouge',past('À corriger','mal'),'Maîtrise seule','Performance : non applicable.')}
-${sect(v2('mod-capital'),'Marge',past('Partiel','av'),'24,1','% réel',`<div style="width:100%;padding-bottom:6px">${jauge(94,'var(--t-amber)',96)}</div>`,'cible 25,5 %','amb',past('Sous la cible','av'),'Taux tarifaire validé','Import du 14/11. Performance attendue, non disponible.')}
+${sect(v2('mod-capital'),'Marge',past('Partiel','av'),'24,1','% réel',`<div style="width:100%;padding-bottom:6px">${jmarque(22,28,24.1,25.5,'bas','t-amber','Taux de 24,1 % sur une échelle de 22 à 28, objectif 25,5, zone d’alerte en dessous')}</div>`,'cible 25,5 %','amb',past('Sous la cible','av'),'Taux tarifaire validé','Import du 14/11. Performance attendue, non disponible.')}
 </div></section>
 
 <section><h2 class="ts">Tendance des trois moteurs</h2>
@@ -191,14 +192,14 @@ ${sect(v2('mod-capital'),'Marge',past('Partiel','av'),'24,1','% réel',`<div sty
 
 <section><h2 class="ts">Objectifs <span style="font-weight:400;text-transform:none;letter-spacing:0">· version du 01/11</span></h2>
 <div class="grille g5">
-${objc(v2('mod-carburants'),'Carburant','Litres du mois','358 000 L','400 000 L',89,'89 %','373 000 L','15 000 L sous le repère','rouge','stable','Repère : progression en ligne droite sur le mois.')}
-${objc(v2('mod-produits'),'Commerce','Ventes boutique','22 050 €','24 000 €',92,'92 %','21 800 €','250 € au-dessus du repère','vert','en hausse','Ventes du mois, hors import.')}
-${objc(v2('mod-fdj'),'FDJ','Chiffre d’affaires','5 280 €','5 500 €',96,'96 %','5 100 €','180 € au-dessus du repère','vert','stable','Chiffre d’affaires seul, aucune marge.')}
-${objc(v2('mod-prise-de-poste'),'Opérations','Écart de caisse moyen par quart','22 €','15 €',100,'à réduire','15 €','7 € au-dessus de l’objectif','rouge','en baisse','Moyenne en valeur absolue, par quart.')}
-${objc(v2('mod-capital'),'Marge','Taux de marge','24,1 %','25,5 %',94,'94 %','25,5 %','1,4 point sous l’objectif','amb','stable','Fixé par le tarif de la station.')}
+${objc(v2('mod-carburants'),'Carburant','Litres du mois','322 000 L','400 000 L',81,'81 %','346 700 L','24 700 L sous le repère','rouge','stable','Repère : progression en ligne droite sur le mois.')}
+${objc(v2('mod-produits'),'Commerce','Ventes boutique','81 900 €','90 000 €',91,'91 %','78 000 €','3 900 € au-dessus du repère','vert','en hausse','Ventes du mois, hors import.')}
+${objc(v2('mod-fdj'),'FDJ','Chiffre d’affaires','4 380 €','5 000 €',88,'88 %','4 330 €','50 € au-dessus du repère','vert','stable','Chiffre d’affaires seul, aucune marge.')}
+${objc(v2('mod-prise-de-poste'),'Opérations','Écart de caisse moyen par quart','22 €','15 €',jmarque(0,30,22,15,'haut','t-red','Écart moyen de 22 euros sur une échelle de 0 à 30, objectif 15, zone d’alerte au-delà'),'à réduire','15 €','+7 € au-dessus de l’objectif','rouge','en baisse','Moyenne en valeur absolue, par quart.')}
+${objc(v2('mod-capital'),'Marge','Taux de marge','24,1 %','25,5 %',jmarque(22,28,24.1,25.5,'bas','t-amber','Taux de 24,1 % sur une échelle de 22 à 28, objectif 25,5, zone d’alerte en dessous'),'objectif à tenir','25,5 %','−1,4 pt','amb','stable','Fixé par le tarif de la station.')}
 </div>
 <div class="carte" style="margin-top:16px;display:flex;gap:16px;align-items:flex-start"><img src="../../../assets/avatar/nexus-avatar-96.png" alt="Conseiller NEXUS" width="56" height="56" style="border-radius:50%;flex:none">
-<div><b>Le Conseiller</b><p style="margin:4px 0 0;color:var(--t-mid)">Les litres du mois sont à 89 % de l’objectif, avec 15 000 L de retard sur le repère. NEXUS n’a établi aucune cause à ce retard. L’écart de caisse moyen est de 22 € par quart, soit 7 € de plus que l’objectif.</p></div></div></section>
+<div><b>Le Conseiller</b><p style="margin:4px 0 0;color:var(--t-mid)">Les litres du mois sont à 81 % de l’objectif au 26 novembre, avec 24 700 L de retard sur le repère. NEXUS n’a établi aucune cause à ce retard. L’écart de caisse moyen est de 22 € par quart, soit 7 € de plus que l’objectif.</p></div></div></section>
 <section><h2 class="ts">À traiter</h2>
 <div class="grille g2">
  <div class="carte"><h3>${v2('mod-evolution')}Potentiel financier</h3><div class="note" style="margin-top:0">Le premier est un fait constaté ; le dernier, une estimation.</div><div style="margin-top:8px">

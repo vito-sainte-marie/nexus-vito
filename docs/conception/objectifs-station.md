@@ -493,12 +493,15 @@ Une table `objectif_recommandation(site, objectif_id, recommandation_id, ecart, 
 - **Retiré** : « Écarts non justifiés » (pas un indicateur de ce lot), le jargon, « Parité avec l'A4 » (voir D1, §8). Le Brief ne garde qu'une mention discrète de la version des objectifs.
 - **Conseiller** : avatar officiel (`assets/avatar`). Il n'énonce que des faits mesurés et une cause que NEXUS peut établir, sinon il l'écrit (« aucune cause établie »). Jamais de météo ni de cause inventée.
 - **Vocabulaire** : « repère linéaire » est écrit en toutes lettres : progression en ligne droite entre le début de la période et l'objectif.
+- **Répartition mensuelle** : par défaut au prorata du nombre de jours de chaque mois, étiquetée comme telle. Le profil saisonnier n'est qu'un second état, présenté avec sa source (exemple fictif, 12 mois réels requis).
+- **Jauge à repère** : pour l'écart de caisse et le taux de marge, position, ligne d'objectif et zone d'alerte ; aucun pourcentage d'avancement (écarts écrits « +7 € » et « −1,4 pt »).
+- **Données cohérentes** : tout est lu au 26 novembre (26 jours sur 30, repère linéaire à 87 %) ; Commerce 81 900 € sur 26 jours soit 22 050 € sur 7 jours, objectif 90 000 €.
 - **Données** : toutes fictives. Valeurs de la maquette : Station Exemple.
 
 ### Livrables
 
 - `maquettes/objectifs-bureau.html` : première vue « l'année d'abord » (hypothèse, base et limite, 12 barres, 4 trimestres, ajustement, validation d'ensemble), puis lecture par secteur, puis tableau mensuel au second niveau.
-- `maquettes/objectifs-brief.html` : variante intégrée de `brief-v4.html` (draft #392) : le bloc « Objectifs » remplace l'ancien, une fiche par secteur, Conseiller avec avatar officiel, version des objectifs citée en titre. L'en-tête image du Brief n'est pas reprise (actif absent de cette branche).
+- `maquettes/objectifs-brief.html` : variante intégrée de `brief-v4.html` (draft #392) : le bloc « Objectifs » remplace l'ancien, une fiche par secteur, Conseiller avec avatar officiel, version des objectifs citée en titre. L'en-tête image du Brief (`assets/brief/brief-entete-*`, version f066dd82) est reprise dans les deux maquettes, titre en vrai texte.
 
 Version mobile : non commencée, comme demandé.
 

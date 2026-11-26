@@ -54,7 +54,7 @@ details.det p{margin:8px 0 0}
 /* Jauge */
 .jauge{--p:0;width:100%;height:10px;border-radius:5px;background:var(--t-raised);position:relative}
 .jauge i{display:block;height:100%;border-radius:5px;background:var(--c,var(--t-cyan));width:calc(var(--p)*1%);transition:width .3s ease-out}
-.jauge.avant i{width:0}
+.jauge.avant i{width:0}.jm{position:relative;height:10px;border-radius:5px;background:var(--t-raised);margin:10px 7px 18px}.jm .zone{position:absolute;top:0;height:100%;background:color-mix(in srgb,var(--t-red) 28%,transparent)}.jm .cible{position:absolute;top:-5px;width:2px;height:20px;background:var(--t-text);border-radius:1px}.jm .pos{position:absolute;top:-2px;width:14px;height:14px;margin-left:-7px;border-radius:50%;background:var(--c,var(--t-amber));border:2px solid var(--t-card,var(--t-bg))}.jm .ech{position:absolute;top:14px;font-size:10px;color:var(--t-mid);white-space:nowrap}
 .jauge b{position:absolute;top:-4px;width:2px;height:18px;background:var(--t-text);border-radius:1px}
 .anneau{width:64px;height:64px;flex:none}
 .anneau circle{fill:none;stroke-width:7}.anneau .f{stroke:var(--t-raised)}.anneau .v{stroke:var(--c);stroke-linecap:round;transform:rotate(-90deg);transform-origin:50% 50%;transition:stroke-dashoffset .3s ease-out}
@@ -143,11 +143,13 @@ const v2=id=>`<img class="ico" alt="" src="${IC}v2/${id}/${id}-24.svg">`;
 const fr=(n,d=0)=>n.toLocaleString('fr-FR',{minimumFractionDigits:d,maximumFractionDigits:d});
 /* Données fictives : litres de carburant, base des 4 mois d'historique */
 const BASE=[352000,336000,361000,371000]; /* 4 mois */
-const SAIS=[.94,.93,.99,1,1.02,1.06,1.1,1.1,1.03,1,.97,.99]; /* répartition proposée par NEXUS, moyenne 1 */
+const JOURS=[31,28,31,30,31,30,31,31,30,31,30,31]; /* 2027 : 365 jours */
+const SAIS=[.94,.93,.99,1,1.02,1.06,1.1,1.1,1.03,1,.97,.99]; /* exemple fictif de profil saisonnier : n'existe pas avec 4 mois d'historique */
+let mode='jours';
 let hyp=3, sel=null, ajust=Array(12).fill(0), valide=false;
 const moyBase=()=>BASE.reduce((a,b)=>a+b,0)/BASE.length;
 const annuel=()=>Math.round(moyBase()*12*(1+hyp/100)/1000)*1000;
-const prop=()=>SAIS.map(s=>Math.round(annuel()/12*s/1000)*1000);
+const prop=()=>{const a=annuel();if(mode==='jours')return JOURS.map(j=>Math.round(a*j/365/1000)*1000);const t=SAIS.reduce((x,y)=>x+y,0);return SAIS.map(q=>Math.round(a*q/t/1000)*1000)};
 const mois=()=>prop().map((v,i)=>v+ajust[i]*1000);
 const M=['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
 function annee(){const m=mois(),tot=m.reduce((a,b)=>a+b,0),mx=Math.max(...m);
@@ -155,41 +157,44 @@ function annee(){const m=mois(),tot=m.reduce((a,b)=>a+b,0),mx=Math.max(...m);
  return `<div class="carte an"><div>
   <h3>${v2('mod-carburants')}Objectif de l’année 2027 · litres de carburant</h3>
   <div class="champ"><label for="hy">Hausse visée sur la dernière année connue (%)</label><input id="hy" inputmode="decimal" value="${hyp}" aria-describedby="bs"></div>
-  <div class="base" id="bs">Base NEXUS : <b>${fr(moyBase()*12)} L</b> par an, calculée sur le rythme moyen des 4 mois d’historique.<br><span class="limite">Limite : 4 mois seulement. Les écarts entre saisons sont des estimations.</span></div>
+  <div class="base" id="bs">Base NEXUS : <b>${fr(moyBase()*12)} L</b> par an, calculée sur le rythme moyen des 4 mois d’historique.<br><span class="limite">Avec 4 mois d’historique, aucune saison n’est supposée.</span></div>
   <div style="margin-top:14px;font-size:12px;color:var(--t-mid)">Objectif proposé pour l’année</div><div class="mono" style="font:600 32px var(--t-mono)">${fr(tot)} <span class="unite">L</span></div>
   </div><div>
   <div style="font-size:12px;color:var(--t-mid)">Répartition proposée sur 12 mois — touchez un mois pour l’ajuster</div>
+  <div class="aide" style="margin:4px 0 6px"><b>${mode==='jours'?'Répartition proportionnelle au nombre de jours de chaque mois.':'Profil saisonnier proposé.'}</b> ${mode==='jours'?'Janvier compte 31 jours, février 28 : chacun reçoit sa part.':'Source : exemple fictif, il faudrait au moins 12 mois d’historique réel pour l’établir.'} <button type="button" class="lien" id="mode">${mode==='jours'?'Voir le profil saisonnier':'Revenir au prorata des jours'}</button></div>
   <div class="mois" role="group" aria-label="Litres visés par mois">${m.map((v,i)=>`<button type="button" data-i="${i}" aria-pressed="${sel===i}" aria-label="${M[i]} : ${fr(v)} litres"><span>${fr(v/1000)}</span><i style="height:${Math.round(v/mx*120)}px"></i>${M[i]}</button>`).join('')}</div>
   <div class="trim">${tr.map((v,q)=>`<div>T${q+1}<b>${fr(v)} L</b>somme de ses trois mois</div>`).join('')}</div>
   <div class="ajust">${sel!==null?`<span>${M[sel]} :</span><button class="btn s" data-d="-5" aria-label="Retirer 5 000 litres">−</button><button class="btn s" data-d="5" aria-label="Ajouter 5 000 litres">+</button><span class="mono">${fr(m[sel])} L</span>`:'<span class="aide">Aucun mois sélectionné.</span>'}
    <button class="btn p" id="val" style="margin-left:auto">${valide?'Objectifs validés ✓':'Valider les 12 mois et l’année'}</button></div>
   <div class="aide" style="margin-top:8px" role="status">${valide?'Validé par le gérant. Les mois, trimestres et l’année sont enregistrés ensemble.':'Rien n’est enregistré tant que vous n’avez pas validé.'}</div>
  </div></div>`}
-const ligne=(l,sub,val,cib,pa,att,ec,te,c)=>`<div class="obj"><div class="l"><b>${l}</b><small>${sub}</small></div><div class="v">${val}<small>valeur à ce jour</small></div><div class="v">${cib}<small>objectif</small><div class="jauge" style="--c:var(--${c||'t-cyan'})"><i style="--p:${pa}"></i></div></div><div class="v">${att}<small>attendu à cette date</small></div><div class="v ${ec[1]}">${ec[0]}<small>écart</small></div><div class="v">${te}<small>tendance</small></div></div>`;
+const jmarque=(mn,mx,pos,obj,zone,c,lab)=>{const P=v=>((v-mn)/(mx-mn)*100).toFixed(1),z=zone==='haut'?`left:${P(obj)}%;width:${(100-P(obj)).toFixed(1)}%`:`left:0;width:${P(obj)}%`;return `<div class="jm" role="img" aria-label="${lab}" style="--c:var(--${c})"><i class="zone" style="${z}"></i><b class="cible" style="left:${P(obj)}%"></b><u class="pos" style="left:${P(pos)}%"></u></div>`};
+const ligne=(l,sub,val,cib,pa,att,ec,te,c)=>`<div class="obj"><div class="l"><b>${l}</b><small>${sub}</small></div><div class="v">${val}<small>valeur à ce jour</small></div><div class="v">${cib}<small>objectif</small>${typeof pa==='string'?pa:`<div class="jauge" style="--c:var(--${c||'t-cyan'})"><i style="--p:${pa}"></i></div>`}</div><div class="v">${att}<small>attendu à cette date</small></div><div class="v ${ec[1]}">${ec[0]}<small>écart</small></div><div class="v">${te}<small>tendance</small></div></div>`;
 const ent=`<div class="entete"><span>Objectif</span><span>Valeur</span><span>Objectif · avancement</span><span>Attendu</span><span>Écart</span><span>Tendance</span></div>`;
 function secteurs(){return `
 <section class="sec"><h2 class="ts">Par secteur · novembre</h2><div class="carte">${ent}
 <h3 style="margin:12px 0 0">${v2('mod-carburants')}Carburant</h3>
-${ligne('Litres vendus','par mois, litres du Tempo','358 000 L','400 000 L',89,'373 000 L',['15 000 L sous le repère','rouge'],'stable')}
+${ligne('Litres vendus','par mois, litres du Tempo','322 000 L','400 000 L',81,'346 700 L',['24 700 L sous le repère','rouge'],'stable')}
 <h3 style="margin:12px 0 0">${v2('mod-produits')}Commerce</h3>
-${ligne('Ventes boutique','par mois','22 050 €','24 000 €',92,'21 800 €',['250 € au-dessus du repère','vert'],'en hausse')}
+${ligne('Ventes boutique','par mois','81 900 €','90 000 €',91,'78 000 €',['3 900 € au-dessus du repère','vert'],'en hausse')}
 <h3 style="margin:12px 0 0">${v2('mod-fdj')}FDJ</h3>
-${ligne('Chiffre d’affaires FDJ','par mois, sans marge','5 280 €','5 500 €',96,'5 100 €',['180 € au-dessus du repère','vert'],'stable')}
+${ligne('Chiffre d’affaires FDJ','par mois, sans marge','4 380 €','5 000 €',88,'4 330 €',['50 € au-dessus du repère','vert'],'stable')}
 <h3 style="margin:12px 0 0">${v2('mod-prise-de-poste')}Opérations</h3>
-${ligne('Écart de caisse moyen par quart','en valeur absolue, à réduire','22 €','15 €',100,'15 €',['7 € au-dessus de l’objectif','rouge'],'en baisse','t-amber')}
+${ligne('Écart de caisse moyen par quart','en valeur absolue, à réduire','22 €','15 €',jmarque(0,30,22,15,'haut','t-red','Écart moyen de 22 euros sur une échelle de 0 à 30, objectif 15, zone d’alerte au-delà'),'15 €',['+7 €','rouge'],'en baisse')}
 <h3 style="margin:12px 0 0">${v2('mod-capital')}Marge</h3>
-${ligne('Taux de marge boutique','fixé par le tarif de la station','24,1 %','25,5 %',94,'25,5 %',['1,4 point sous l’objectif','amb'],'stable','t-amber')}
+${ligne('Taux de marge boutique','fixé par le tarif de la station','24,1 %','25,5 %',jmarque(22,28,24.1,25.5,'bas','t-amber','Taux de 24,1 % sur une échelle de 22 à 28, objectif 25,5, zone d’alerte en dessous'),'25,5 %',['−1,4 pt','amb'],'stable')}
 <div class="ext">Le taux de marge n’est pas réglable ici : il vient de la grille tarifaire de la station.</div>
 <details class="aide" style="margin-top:12px"><summary>Comment lire ce tableau</summary><p>Le repère est une progression en ligne droite entre le début de la période et l’objectif. Il aide à situer la station, il ne remplace pas la saison.</p></details>
 </div></section>`}
 function niveau2(){const m=mois();return `<section><h2 class="ts">Détail du mois, du trimestre, de l’année</h2><div class="carte"><details><summary class="lien" style="display:block">Ouvrir le tableau mois par mois</summary>
 <table class="val"><thead><tr><th>Mois</th><th>Litres visés</th><th>Trimestre</th></tr></thead><tbody>${m.map((v,i)=>`<tr><td>${M[i]}</td><td>${fr(v)} L</td><td>T${Math.floor(i/3)+1}</td></tr>`).join('')}</tbody></table></details></div></section>`}
-function monter(){document.getElementById('p').innerHTML=`<header class="bandeau2"><img src="../../../assets/nexus-logo-cyan.png" alt="NEXUS"><div><h1>Objectifs</h1><p>Station fictive · année 2027</p></div></header>
+function monter(){document.getElementById('p').innerHTML=`<header class="bandeau"><picture><source type="image/webp" srcset="../../../assets/brief/brief-entete-1280.webp 1280w, ../../../assets/brief/brief-entete-2172.webp 2172w" sizes="1240px"><img src="../../../assets/brief/brief-entete-2172.jpg" alt="" width="2172" height="724"></picture><div class="titre"><img src="../../../assets/nexus-logo-cyan.png" alt="NEXUS" width="72" height="72"><div><h1>Objectifs</h1><p>Station fictive · année 2027</p></div></div></header>
 <details class="aide"><summary>Comment ça marche</summary><p>Vous fixez l’objectif de l’année. NEXUS propose la répartition. Vous ajustez, puis vous validez.</p></details>
 <section><h2 class="ts">L’année d’abord</h2>${annee()}</section>${secteurs()}${niveau2()}`;
  const hy=document.getElementById('hy');hy.addEventListener('change',()=>{const v=parseFloat(hy.value.replace(',','.'));if(!isNaN(v)){hyp=v;ajust=Array(12).fill(0);valide=false;monter()}});
  document.querySelectorAll('.mois button').forEach(b=>b.onclick=()=>{sel=+b.dataset.i;monter()});
  document.querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>{ajust[sel]+=+b.dataset.d;valide=false;monter()});
+ document.getElementById('mode').onclick=()=>{mode=mode==='jours'?'saison':'jours';ajust=Array(12).fill(0);valide=false;monter()};
  document.getElementById('val').onclick=()=>{valide=true;monter()}}
 monter();
 document.querySelectorAll('[data-th]').forEach(b=>b.onclick=()=>{document.documentElement.dataset.theme=b.dataset.th;document.querySelectorAll('[data-th]').forEach(x=>x.setAttribute('aria-pressed',x===b))});
