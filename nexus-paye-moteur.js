@@ -916,6 +916,8 @@
           joursAvecPreuve,
           finIndeterminee: !!indispo.fin_indeterminee,
           dateReprise: indispo.date_reprise || null,
+          // Dite par le manager, jamais déduite : null tant qu'il n'a pas répondu.
+          justifiee: typeof indispo.justifiee === 'boolean' ? indispo.justifiee : null,
           libelle: `${libelleMotif} du ${jjmmaaaa(indispo.date_debut)} `
             + (indispo.date_reprise ? `au ${jjmmaaaa(indispo.date_reprise)} (reprise)`
               : (indispo.fin_indeterminee ? '— retour non daté' : `au ${jjmmaaaa(indispo.date_fin)}`)),
@@ -1131,16 +1133,17 @@
   }
 
   function cumulEcartsCaisseMois(lignes) {
-    let boutique = 0, piste = 0, fdj = 0;
+    let boutique = 0, piste = 0, fdj = 0, sansMontant = 0;
     (lignes || []).forEach(l => {
       const brut = l.ecartFinal != null ? l.ecartFinal : l.ecartInitial;
-      if (brut == null || !Number.isFinite(Number(brut))) return;
+      // Une ligne sans montant ne vaut pas zéro : on la compte et on la dit.
+      if (brut == null || !Number.isFinite(Number(brut))) { sansMontant += 1; return; }
       const c = Math.round(Number(brut) * 100);
       if (l.activite === 'fdj') fdj += c;
       else if (c < 0) { if (l.activite === 'piste') piste += c; else boutique += c; }
     });
     if (fdj > 0) fdj = 0;
-    return { boutiqueCentimes: boutique, pisteCentimes: piste, fdjCentimes: fdj, totalCentimes: boutique + piste + fdj };
+    return { boutiqueCentimes: boutique, pisteCentimes: piste, fdjCentimes: fdj, totalCentimes: boutique + piste + fdj, sansMontant };
   }
 
   function variablesComptables(fiche) {
@@ -1161,6 +1164,7 @@
           debut: i.date, fin: i.dateFin, jours: Number(i.joursMois || 0),
           evenementDebut: i.evenementDebut || null, evenementFin: i.evenementFin || null,
           finIndeterminee: !!i.finIndeterminee, dateReprise: i.dateReprise || null,
+          justifiee: typeof i.justifiee === 'boolean' ? i.justifiee : null,
         })),
       };
     };

@@ -128,7 +128,7 @@ vm.runInContext("FICHE_ONGLET='synthese'; render();", ctx);
 verifier('aucune carte n’est produite par journée d’absence', nbBlocsRH >= 1 && nbBlocsRH <= 2);
 
 // P0 — la sortie principale est le dossier comptable, le CSV passe second.
-verifier('le bouton principal génère le dossier comptable', contient('Générer le dossier comptable'));
+verifier('le bouton principal télécharge le dossier comptable (PDF direct)', contient('Télécharger le PDF'));
 verifier('le CSV est explicitement présenté comme technique', contient('Export CSV (technique)'));
 
 // P1 — variables comptables agrégées sur la carte salarié.
@@ -153,7 +153,7 @@ verifier('les saisies passent par une modale NEXUS', html.includes('id="nexusDia
 // P2 — vocabulaire.
 verifier('« Marquer prêt » est devenu « Valider le mois »',
   contient('Valider le mois') && !contient('Marquer prêt'));
-verifier('« Exporter le dossier » est devenu « Générer le dossier comptable »',
+verifier('« Exporter le dossier » a disparu au profit du téléchargement direct',
   !contient('Exporter le dossier'));
 verifier('« vérifié » s’affiche « prêt pour comptabilité »',
   html.includes("verifie:'prêt pour comptabilité'"));

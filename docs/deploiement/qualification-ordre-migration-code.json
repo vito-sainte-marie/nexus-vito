@@ -1802,6 +1802,29 @@
         "blob_provenance": "git hash-object du fichier a e1894f34 (md5 0135dda659b8d5dd4588289c3f60243d, celui que Guardian a verifie avant execution, compte rendu 7145988356). Heure de la mesure (mesure.le) : estampille d'application ; la mesure suit l'application."
       },
       "trace": "#160, compte rendu de Guardian 7145988356 ; GO du gerant : application sur Test puis en Production constatee par Guardian ; fusion : GO distinct."
+    },
+    "20261125200000": {
+      "etat": "atomique_ou_procedure_speciale",
+      "justification": "Ajout d'une colonne booleenne nullable (employee_indisponibilites.justifiee), sans defaut ni NOT NULL, aucune donnee ni politique touchee. Le code de la PR #386 la lit et tolere son absence (42703), mais la saisie manager exige la colonne : la migration passe avant le code, sur GO distinct du gerant. Non appliquee, ni sur Test ni en Production. Aucune mesure du catalogue n'a ete prise : Claude n'a pas de lecture Production sans GO, la mesure est a faire par Guardian avec la requete de la procedure.",
+      "objets_crees": ["justifiee"],
+      "objets_constates": [],
+      "procedure": "docs/deploiement/procedure-paye-absence-justifiee-production.md",
+      "valide_par": null,
+      "valide_le": null,
+      "mesure": {
+        "source": "catalogue",
+        "le": "2026-11-26T02:31:09Z",
+        "cible": "uzhjpqpctpvxytxpxoqz",
+        "par": "guardian",
+        "outil": "information_schema.columns sur employee_indisponibilites.justifiee, avant et apres apply_migration (compte rendu de Guardian 7180877873)",
+        "identite_constatee": "non communiquee dans le compte rendu de Guardian",
+        "lecture_seule": "non communiquee",
+        "moteur": "non communique",
+        "verdict": "MIGRATION_APPLIQUEE — avant : 0 ligne. Apres : 1 ligne, justifiee, boolean, nullable YES, sans defaut, commentaire conforme. Aucune donnee lue ni modifiee.",
+        "blob_migration": "b663a57b39c25349a265dc8c962b844fb0c4d99c",
+        "blob_provenance": "git hash-object du fichier a 0ae66d82 (md5 4cff13c661198d41e143bf61a4d7018b, celui que Guardian a verifie avant execution, compte rendu 7180877873). Heure de la mesure (mesure.le) : heure de publication du compte rendu de Guardian ; l'application a eu lieu avant, son heure exacte n'a pas ete communiquee."
+      },
+      "trace": "#383, compte rendu de Guardian 7180877873 ; GO du gerant 25/11/2026 22:29 « Base en Production » ; fusion de #386 : GO distinct « Mise en ligne refonte »."
     }
   },
   "prochaine_action": "Axe SS4 migration -> code : LEVE pour 20260919103000 (13/13 objets constates sur le catalogue le 01/10/2026) et pour 20261001160000 (ACL constatee fermee le 03/10/2026). Ces qualifications restent acquises tant que leur fichier de migration ne change pas : la garde compare mesure.blob_migration a l'empreinte du candidat, et une migration retouchee fait tomber sa qualification. Il n'y a plus d'echeance horaire (l'ancienne fraicheur de 72 h aurait fait retomber l'axe le 04/10/2026 sans que rien ne bouge). CE QUE LA GARDE NE VOIT PAS : une base modifiee sans que le depot bouge - c'est exactement ce que la relecture du 03/10 a trouve pour 20261001160000. Toute procedure d'application relit donc la base avant d'ecrire. CE QUE CELA N'AUTORISE PAS : aucune fusion ni aucun deploiement ; chacun reste un GO distinct de Frederic. RESTE A FAIRE, separement : (1) les 11 migrations du rail toujours non qualifiees ; (2) le cablage de garde-ordre-migration-code.js dans deploiement-production.yml. Lecture du verdict et table de decision : SS18.4 ; recit de la mesure : SS20. MISE A JOUR DU 04/10/2026 : les 13 migrations du candidat rebuild/fdj-62-20260922 sont qualifiees (12 atomiques en serie avant le code, 20261004120000 code d abord) ; ordre et gestes dans docs/deploiement/procedure-fdj-62-production.md."
