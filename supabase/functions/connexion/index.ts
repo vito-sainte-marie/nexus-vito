@@ -138,6 +138,8 @@ async function connexion(body: any, c: Ctx): Promise<Response> {
   if (av.etat === "migre" || av.etat === "code_temporaire_requis") {
     const bon = typeof av.code_hash === "string" ? await comparer(alias, code, av.code_hash) : (await bcrypt.compare("x", FACTICE), false);
     if (!bon) { await sql`select nexus_connexion.apres_echec(${uid}, ${c.fp})`; return rep(401, REFUS, c.origin); }
+    // Code temporaire échu (24 h) : refus neutre, sans compter d'échec ; un manager ou le gérant doit en poser un nouveau.
+    if (av.etat === "code_temporaire_requis" && (await sql`select nexus_connexion.code_temporaire_expire(${uid}) as r`)[0].r === true) return rep(401, REFUS, c.origin);
     // Code temporaire correct : aucune session. Le client doit d'abord appeler changer_code (mêmes verrous, même plancher).
     if (av.etat === "code_temporaire_requis") return rep(200, { ok: true, changer_code: true }, c.origin);
     const s = await session(email, await motDePasseDerive(uid, version));
@@ -199,6 +201,19 @@ async function listerEquipe(req: Request, c: Ctx): Promise<Response> {
   }
 }
 
+// Alerte « connexion indisponible » : gérant et managers, limitée à leur site ; refus neutre pour tout autre appelant.
+async function alerteIndisponible(req: Request, c: Ctx): Promise<Response> {
+  const par = await appelant(req);
+  if (!par) return rep(403, REFUS, c.origin);
+  try {
+    const r = (await sql`select nexus_connexion.alerte_indisponible_pour(${par}) as r`)[0]?.r;
+    if (r?.ok !== true) return rep(403, REFUS, c.origin);
+    return rep(200, r, c.origin);
+  } catch (_e) {
+    return rep(403, REFUS, c.origin);
+  }
+}
+
 // Code trop faible : six chiffres identiques, ou suite croissante / décroissante (123456, 654321, 012345…).
 function codeFaible(n: string): boolean {
   if (/^(\d)\1{5}$/.test(n)) return true;
@@ -218,6 +233,7 @@ async function changerCodeTemporaire(body: any, c: Ctx): Promise<Response> {
   if (av.decision !== "ok" || !uid || av.etat !== "code_temporaire_requis") { await bcrypt.compare("x", FACTICE); return rep(401, REFUS, c.origin); }
   const bon = typeof av.code_hash === "string" ? await comparer(av.alias, actuel, av.code_hash) : (await bcrypt.compare("x", FACTICE), false);
   if (!bon) { await sql`select nexus_connexion.apres_echec(${uid}, ${c.fp})`; return rep(401, REFUS, c.origin); }
+  if ((await sql`select nexus_connexion.code_temporaire_expire(${uid}) as r`)[0].r === true) return rep(401, REFUS, c.origin);
   const version = Number(av.version ?? 1) + 1;
   const h = await hasher(av.alias, nouveau);
   const ecrit = await ecrireAtomique(uid, "changer_code", await motDePasseDerive(uid, version), await motDePasseDerive(uid, Number(av.version ?? 1)),
@@ -296,6 +312,7 @@ Deno.serve(async (req) => {
       case "lever_verrou": return await leverVerrou(req, body, c);
       case "reinitialiser_code": return await reinitialiserCode(req, body, c);
       case "lister_equipe": return await listerEquipe(req, c);
+      case "alerte_indisponible": return await alerteIndisponible(req, c);
       case "changer_code": return await changerCode(req, body, c);
       default: await bcrypt.compare("x", FACTICE); return rep(401, REFUS, origin);
     }

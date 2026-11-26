@@ -1,6 +1,6 @@
 # Connexion sécurité, lot 1 — procédure Production
 
-Migrations : les douze fichiers `supabase/migrations/2026112609*` à `20261126220000_*` (étapes 1, 2, 2b à 2i, 4, 4b). Fonction : `supabase/functions/connexion/index.ts`. Page : `NEXUS-Login-v1.html`.
+Migrations : les treize fichiers `supabase/migrations/2026112609*` à `20261126230000_*` (étapes 1, 2, 2b à 2i, 4, 4b, 5). Fonction : `supabase/functions/connexion/index.ts`. Page : `NEXUS-Login-v1.html`.
 
 **Rien de ceci ne s'exécute sans un GO distinct du gérant pour chaque étape.** Toutes les mesures citées dans les fiches de qualification sont des mesures Test (projet `udljdqxerrbbbajxubfn`). La mesure Production sera faite au GO. Aucune lecture Production n'a été faite pour ce lot.
 
@@ -34,7 +34,7 @@ L'injection de pannes (`nexus_connexion.panne_injectee`, `nexus_connexion.panne_
 (a) Comptes `Recette…` et comptes inactifs qui peuvent encore se connecter (défaut P1). Requête en lecture seule, sur GO, filtrée par site (`where site_id = '<site_du_GO>'`) : nombre et liste (nom, rôle, actif) ; le gérant décide de la désactivation AVANT la bascule. Aucun compte incertain `a_migrer` n'est touché.
 (b) Relire les limites Auth de Production (taux de connexion par IP) et les comparer au budget de 20 appels Auth par minute.
 
-Le secret `AUTH_MASTER_SECRET` ne se change plus après l'étape 4 sans réinitialiser tous les comptes migrés (le mot de passe Auth en dérive). La date de rotation est une décision du gérant, à prendre avant le GO.
+Le secret `AUTH_MASTER_SECRET` ne se change plus après l'étape 4 sans réinitialiser tous les comptes migrés (le mot de passe Auth en dérive). Décision du gérant : rotation uniquement en cas d'incident (§4).
 
 Étape 1 : la migration 2 de l'étape 1 sauvegarde les mots de passe Auth dans `sauvegarde_auth` ; elle ne les modifie pas. Aucun compte n'est migré par les migrations : le passage `a_migrer` → `migre` se fait à la première connexion réussie, station par station (budget 20 appels Auth par minute).
 
@@ -93,10 +93,15 @@ Les colonnes exactes de `employees` se vérifient au GO, sur le catalogue, avant
 
 **Limite connue.** Si la fonction est entièrement indisponible, la relance échoue aussi et rien n'est journalisé : la carte ne s'allume pas lors d'une panne totale. Une sonde externe (Vigie) est une piste pour l'étape 7, hors de ce lot.
 
-## 4. Décisions du gérant à prendre avant le GO
+## 4. Décisions du gérant (Guardian 7182241504)
 
-Durée de conservation du journal, destinataires de l'alerte, date de rotation des secrets, code à 6 chiffres, validité du code temporaire (24 h).
+- **Journal** `nexus_connexion.journal` : conservé 6 mois (180 jours), purge automatique quotidienne à 03 h 15 (pg_cron, tâche `nexus-connexion-purge`, migration 20261126230000).
+- **Alerte « connexion indisponible »** : gérant et managers du site concerné, jamais un autre rôle. Le gérant reçoit l'action technique (vérifier le service) ; le manager reçoit la consigne d'attente (prévenir le gérant, ne pas multiplier les essais) et aucune action technique.
+- **`AUTH_MASTER_SECRET`** : changé uniquement en cas d'incident.
+- **Code** : 6 chiffres.
+- **Code temporaire** : valable 24 h, puis refus neutre ; un manager ou le gérant en pose un nouveau.
+- **Sauvegarde avant l'étape 1** : faite par Guardian, conservée sur l'ordinateur du gérant, hors dépôt, sans mot de passe ni empreinte.
 
 ## 5. Source de la fonction (mise à jour étape 4)
 
-Le source `index.ts` ajoute l'action `lister_equipe` (md5 `3abbf3c88d33d1c59b3944f053776dd5`, déployé sur Test le 25/11/2026, version 14, sans code de pannes ; l’étape 4b journalise le refus de `lister_equipe` et applique la règle gérant/manager validée). Le source Production est ce fichier, md5 `3abbf3c8…` ; à re-vérifier dans la demande de GO. Mesure Test : `lister_equipe` sans JWT → 403 neutre ; les autres actions répondent comme avant.
+Le source `index.ts` ajoute l'action `lister_equipe` (md5 `ef89d641fcf2da1fd73d14650d97247f`, déployé sur Test le 25/11/2026, version 14, sans code de pannes ; l’étape 4b journalise le refus de `lister_equipe` et applique la règle gérant/manager validée). Le source Production est ce fichier, md5 `3abbf3c8…` ; à re-vérifier dans la demande de GO. Mesure Test : `lister_equipe` sans JWT → 403 neutre ; les autres actions répondent comme avant.
