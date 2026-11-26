@@ -146,7 +146,7 @@ function idx(){const W=820,H=250,L=44,R=12,T=14,B=30,mn=88,mx=112,Y=v=>T+(mx-v)/
   if(ks.includes('marge')&&SER.marge.v[i]==null){const j=ks.indexOf('marge'),xm=cx+(j-(ks.length-1)/2)*(bw+3);o+=`<text transform="translate(${xm} ${Y(100)-6}) rotate(-90)" text-anchor="start">pas d’import</text>`}
   if(i==0)o+=`<text x="${cx}" y="${Y(100)-8}" text-anchor="middle">base 100</text>`});
  return o+'</svg>'}
-function tableIdx(){return `<table class="val"><thead><tr><th>Période</th>${Object.values(SER).map(s=>`<th>${s.n} (${s.u})</th>`).join('')}</tr></thead><tbody>`+P.map((p,i)=>`<tr><td>${p} · ${PJ[i]} j</td>${Object.values(SER).map(s=>`<td>${s.v[i]==null?'—':fr(s.v[i])}</td>`).join('')}</tr>`).join('')+'</tbody></table>'}
+function tableIdx(){return `<table class="val"><thead><tr><th>Période</th>${Object.values(SER).map(s=>`<th>${s.n} (${s.u})</th>`).join('')}</tr></thead><tbody>`+P.map((p,i)=>`<tr><td>${p} · ${PJ[i]} j</td>${Object.values(SER).map(s=>`<td>${s.v[i]==null?'à définir':fr(s.v[i])}</td>`).join('')}</tr>`).join('')+'</tbody></table>'}
 
 /* Courbes à période */
 let per='40';

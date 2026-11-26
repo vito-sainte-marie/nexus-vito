@@ -160,7 +160,7 @@ function annee(){const m=mois(),tot=m.reduce((a,b)=>a+b,0),mx=Math.max(...m);
   <div class="base" id="bs">Base NEXUS : <b>${fr(moyBase()*12)} L</b> par an, calculée sur le rythme moyen des 4 mois d’historique.<br><span class="limite">Avec 4 mois d’historique, aucune saison n’est supposée.</span></div>
   <div style="margin-top:14px;font-size:12px;color:var(--t-mid)">Objectif proposé pour l’année</div><div class="mono" style="font:600 32px var(--t-mono)">${fr(tot)} <span class="unite">L</span></div>
   </div><div>
-  <div style="font-size:12px;color:var(--t-mid)">Répartition proposée sur 12 mois — touchez un mois pour l’ajuster</div>
+  <div style="font-size:12px;color:var(--t-mid)">Répartition proposée sur 12 mois : touchez un mois pour l’ajuster</div>
   <div class="aide" style="margin:4px 0 6px"><b>${mode==='jours'?'Répartition proportionnelle au nombre de jours de chaque mois.':'Profil saisonnier proposé.'}</b> ${mode==='jours'?'Janvier compte 31 jours, février 28 : chacun reçoit sa part.':'Source : exemple fictif, il faudrait au moins 12 mois d’historique réel pour l’établir.'} <button type="button" class="lien" id="mode">${mode==='jours'?'Voir le profil saisonnier':'Revenir au prorata des jours'}</button></div>
   <div class="mois" role="group" aria-label="Litres visés par mois">${m.map((v,i)=>`<button type="button" data-i="${i}" aria-pressed="${sel===i}" aria-label="${M[i]} : ${fr(v)} litres"><span>${fr(v/1000)}</span><i style="height:${Math.round(v/mx*120)}px"></i>${M[i]}</button>`).join('')}</div>
   <div class="trim">${tr.map((v,q)=>`<div>T${q+1}<b>${fr(v)} L</b>somme de ses trois mois</div>`).join('')}</div>
