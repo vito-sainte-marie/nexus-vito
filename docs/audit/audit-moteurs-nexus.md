@@ -345,9 +345,9 @@ Risque : le Brief v4 affichera « marge contre objectif » (§11.4) alors que la
 
 | # | Question | Requête | Attendu |
 |---|---|---|---|
-| V7 | Combien de jours complets par série sur 40 jours ? | `select count(distinct date) from audits_caisse where site = :site and date >= current_date - 40` ; idem sur `view_fdj_daily_summary` avec `nb_quarts_controles >= 2` | Trois comptes ; un écart entre eux confirme le constat 1. Ne communiquer que les nombres. |
-| V8 | La cible de marge est-elle vide pour cette station ? | `select count(*) from tarif_seuils where site = :site` | 0 : confirme que « contre objectif » n'a pas de base. |
-| V9 | Des campagnes ont-elles des objectifs produits ? | `select campagne_id, count(*) from campagne_objectifs_produits where site = :site group by 1` | Comptes seuls. |
+| V7 | Combien de jours complets par série sur 40 jours ? | `select count(distinct date) from audits_caisse where site = :site and date >= current_date - 40` ; idem sur `view_fdj_daily_summary` avec `nb_quarts_controles >= 2` | Trois comptes ; un écart entre eux confirme le constat 1. Ne communiquer que les nombres. **Résultat (Guardian, 26/11, 40 derniers jours de la station, jour en cours exclu)** : audits de caisse présents 40/40 ; deux quarts 40 ; litres complets (gazole, SP95, GNR) 39 ; FDJ complets (`nb_quarts_controles >= 2`) 40. Constat 1 confirmé, effet faible aujourd'hui : un jour de moins sur la série litres. |
+| V8 | La cible de marge est-elle vide pour cette station ? | `select count(*) from tarif_seuils where site = :site` | 0 : confirme que « contre objectif » n'a pas de base. **Résultat (Guardian, 26/11, 40 derniers jours de la station, jour en cours exclu)** : 0 ligne. **État prévu, pas un défaut** : « marge contre objectif » attend la cible saisie par le gérant (« objectif à définir dans Produits », Brief v4). |
+| V9 | Des campagnes ont-elles des objectifs produits ? | `select campagne_id, count(*) from campagne_objectifs_produits where site = :site group by 1` | Comptes seuls. **Résultat (Guardian, 26/11, 40 derniers jours de la station, jour en cours exclu)** : 1 campagne, 12 lignes d'objectifs produits. Seule source d'objectifs existante ; propre aux campagnes, ne sert pas d'objectif de station (§16.a). |
 
 
 ## 12. Périmètre 2 — les mêmes grandeurs sur les autres écrans
@@ -380,7 +380,7 @@ Lecture du code seulement ; les écrans non listés n'ont pas été relus à cet
 
 ### 12.3 Marge et cible de marge (Cockpit, Scanner tarifaire, Marge+)
 
-- Cible : `tarif_seuils` / `v_tarif_seuils_actifs`, vide en Production (V3). Les trois valeurs « 25 % » et « 0,15 » en dur (§10) restent la seule référence effective.
+- Cible : `tarif_seuils` / `v_tarif_seuils_actifs`, vide en Production (V3, V8) : état prévu tant que le gérant n'a pas saisi de cible. Les trois valeurs « 25 % » et « 0,15 » en dur (§10) restent la seule référence effective.
 - Ni `nexus-scanner-tarifaire.js` ni `nexus-cockpit-stock-v3.js` ne lisent la médiane de pairs de `nexus-marge.js`. Deux notions de « marge anormale » coexistent : l'écart aux pairs (R5, 10 points) et le seuil absolu.
 - Aucune lecture plus fine faite à cette étape sur Marge+ ni sur le Capital.
 
@@ -455,7 +455,7 @@ Lecture seule, filtrées par station, comptages uniquement ; à faire exécuter 
 
 | # | Question | Requête | Attendu |
 |---|---|---|---|
-| V7–V9 | Voir §11.2 | | |
+| V7–V9 | Voir §11.2 (résultats reçus le 26/11) | | |
 | V10 | Un compte qui voit plusieurs stations additionne-t-il les pointages dans le Brief et l'App ? | `select site, count(*) from pointages where type='arrivee' and date >= current_date - 6 group by site`, exécuté avec un compte propriétaire ou administrateur | Une ligne par station visible ; si plusieurs, le Brief et l'App mélangent |
 | V11 | Même jour, Tempo et Verify disent-ils la même chose de la caisse ? | Pour la station et les 7 derniers jours : somme nette et somme des valeurs absolues de `ecart_piste` + `ecart_boutique` dans `audits_caisse`, par jour ; nombre de jours où net = 0 et absolu > 0 | Compte de jours en désaccord (nombre seulement) |
 | V12 | `fdj_stock_reference_lignes` est-elle commune ou par station ? | `select count(*), count(distinct site) from fdj_stock_reference_lignes` (colonne `site` si elle existe) | Si une seule valeur ou pas de colonne : table commune, lecture sans filtre correcte |
