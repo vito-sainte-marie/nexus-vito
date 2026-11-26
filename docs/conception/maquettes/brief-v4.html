@@ -28,9 +28,13 @@ h1{font-size:18px;margin:0 0 4px}h2{font-size:15px;margin:24px 0 8px}p.n{color:v
 svg.c{width:100%;height:70px;display:block}svg.c path{fill:none;stroke:var(--accent);stroke-width:2}
 .tend{width:80px;height:24px}
 .legende{font-size:12px;color:var(--mid)}
+.obj{grid-column:1/-1;font-size:12px;color:var(--accent)}
+.objg{display:grid;gap:12px;grid-template-columns:1fr;margin-top:12px}.m1280 .objg{grid-template-columns:repeat(3,1fr)}
+.barre{height:8px;border-radius:4px;background:var(--line);overflow:hidden;margin:6px 0}.barre i{display:block;height:100%;background:var(--accent)}
+.prop{font-size:12px;color:var(--warn)}
 </style></head><body>
 <h1>Brief v4 (maquette, données fictives)</h1>
-<p class="n">Aucune donnée réelle. Le bouton Jour / Nuit change les jetons. Le secteur Équipe n'existe plus ; Marge est non mesurée faute d'objectif saisi ; 4 secteurs sur 5 sont mesurés.</p>
+<p class="n">Aucune donnée réelle. Le bouton Jour / Nuit change les jetons. Le secteur Équipe n'existe plus ; Marge est un indicateur daté (taux réel contre cible), absent du graphique, non mesuré faute d'objectif saisi ; 4 secteurs sur 5 sont mesurés.</p>
 <div class="bar"><button onclick="document.documentElement.dataset.theme='jour'">Jour</button><button onclick="document.documentElement.dataset.theme='nuit'">Nuit</button></div>
 
 <!--GABARIT-->
@@ -46,7 +50,7 @@ svg.c{width:100%;height:70px;display:block}svg.c path{fill:none;stroke:var(--acc
   <div class="trois">
    <div class="carte"><h3>Volumes carburant</h3><div class="gros mono">12 400 L</div><div class="date">jour 26/11</div></div>
    <div class="carte"><h3>Chiffre boutique</h3><div class="gros mono">3 150 €</div><div class="date">dernier quart audité, 25/11</div></div>
-   <div class="carte gris"><h3>Marge réelle</h3><div class="gros mono" style="color:var(--grey)">non mesurée</div><div class="date">Objectif de marge à définir dans Produits</div><button class="btn">Définir l'objectif</button></div>
+   <div class="carte gris"><h3>Marge réelle</h3><div class="gros mono" style="color:var(--grey)">non mesurée</div><div class="date">taux réel de la période : non mesuré · cible à définir dans Produits</div><button class="btn">Définir l'objectif</button></div>
   </div>
  </div>
  <div class="grille">
@@ -57,15 +61,26 @@ svg.c{width:100%;height:70px;display:block}svg.c path{fill:none;stroke:var(--acc
   <div class="carte sect gris"><h3>Marge</h3><div class="note mono">non mesurée</div><div class="date">aucun objectif saisi dans Produits. Neutre, non pénalisée.</div><button class="btn">Définir l'objectif</button></div>
  </div>
  <div class="carte"><h3>Mes priorités du jour</h3>
-  <div class="prio"><b>Vérifier le stock de la cuve 2</b><span class="pastille av">Aujourd'hui</span><span class="p">2 jours de stock restant</span></div>
-  <div class="prio"><b>Relancer l'import des ventes</b><span class="pastille av">Cette semaine</span><span class="p">dernier import il y a 12 jours</span></div>
-  <div class="prio"><b>Contrôler l'écart de caisse du quart de nuit</b><span class="pastille mal">À corriger</span><span class="p mono">écart 18 €</span></div>
+  <div class="prio"><b>Vérifier le stock de la cuve 2</b><span class="pastille av">Aujourd'hui</span><span class="p">2 jours de stock restant</span><span class="obj">sert l'objectif : volumes du mois</span></div>
+  <div class="prio"><b>Relancer l'import des ventes</b><span class="pastille av">Cette semaine</span><span class="p">dernier import il y a 12 jours</span><span class="obj">sert l'objectif : marge du trimestre</span></div>
+  <div class="prio"><b>Contrôler l'écart de caisse du quart de nuit</b><span class="pastille mal">À corriger</span><span class="p mono">écart 18 €</span><span class="obj">sans objectif lié</span></div>
+ </div>
+ <div class="carte" style="margin-top:12px"><h3>Objectifs et potentiel · où je vais, ce qui me sépare de l'objectif</h3>
+  <div class="objg">
+   <div><b>Court terme · mois</b><div>Volumes carburant</div><div class="mono">358 000 L / 400 000 L</div><div class="barre"><i style="width:89%"></i></div><div class="date">écart 42 000 L (10,5 %) · en baisse · pas atteint à ce rythme · au 26/11</div></div>
+   <div><b>Moyen terme · trimestre</b><div>Ventes boutique</div><div class="mono">8 900 € / 12 000 €</div><div class="barre"><i style="width:74%"></i></div><div class="date">écart 3 100 € · stable · trop tôt pour dire · au 25/11</div></div>
+   <div><b>Long terme · année</b><div>Chiffre FDJ</div><div class="mono gris" style="color:var(--grey)">objectif non défini</div><div class="prop">Proposition de NEXUS : 36 000 € (moyenne des mois passés), à valider</div><button class="btn">Définir l'objectif</button></div>
+  </div>
+  <h3 style="margin-top:12px">Potentiel déjà mesuré, par nature</h3>
+  <div class="prio"><b>Marge à récupérer</b><span class="mono">640 €</span><span class="p">Marge+ et Scanner tarifaire · mesuré le 14/11</span></div>
+  <div class="prio"><b>Pertes évitables</b><span class="mono">210 €</span><span class="p">écarts de caisse · mesuré le 25/11</span></div>
+  <div class="prio"><b>Carburant à commander</b><span class="mono">15 000 L</span><span class="p">moteur de commande · mesuré le 26/11</span></div>
+  <div class="legende">Trois natures, trois chiffres : jamais additionnés.</div>
  </div>
  <div class="carte" style="margin-top:12px"><h3>Évolution sur 40 jours</h3>
   <div class="legende">Volumes carburant (L)</div><svg class="c" viewBox="0 0 400 70"><path d="M0 50 L60 40 L120 45 L180 30 L240 35 L300 22 L400 26"/></svg>
   <div class="legende">Ventes boutique (€)</div><svg class="c" viewBox="0 0 400 70"><path d="M0 30 L60 34 L120 28 L180 40 L240 38 L300 44 L400 36"/></svg>
   <div class="legende">Chiffre FDJ (€)</div><svg class="c" viewBox="0 0 400 70"><path d="M0 40 L60 38 L120 42 L180 36 L240 40 L300 38 L400 41"/></svg>
-  <div class="legende">Marge : un point par période importée, aucune ligne quotidienne. Aucune période importée à ce jour.</div>
   <button class="btn">Afficher les valeurs</button>
  </div>
  <div style="margin-top:12px"><button class="btn">Ouvrir le rapport A4</button></div>
