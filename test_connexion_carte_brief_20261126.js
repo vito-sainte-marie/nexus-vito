@@ -1,0 +1,21 @@
+// Carte « Connexion indisponible » du Brief : libellés exacts, aucun bouton, rôle gérant/manager.
+const fs = require('fs'), assert = require('assert');
+const src = fs.readFileSync(__dirname + '/NEXUS-Brief-v1.html', 'utf8');
+const debut = src.indexOf('function heureAlerteConnexion');
+const fin = src.indexOf('// Alerte « sonde à vérifier »');
+assert(debut > 0 && fin > debut, 'bloc introuvable');
+const bloc = src.slice(debut, fin);
+const fabrique = new Function('state', 'let ALERTE_CONNEXION = state.a, ROLE_REEL_COURANT = state.r, FUSEAU_STATION = "UTC";' + bloc + 'return renderAlerteConnexion();');
+let ok = 0; const v = (c, m) => { assert(c, m); ok++; };
+const iso = '2026-11-26T07:05:00Z';
+const g = fabrique({ a: { lecture: true, nombre: 4, premier: iso }, r: 'gerant' });
+const m = fabrique({ a: { lecture: true, nombre: 4, premier: iso }, r: 'manager' });
+v(g.includes('La connexion a échoué 4 fois depuis 07 h 05. Les personnes déjà connectées peuvent continuer. Prévenez NEXUS Conseil si cela dure plus de 15 minutes.'), 'libellé gérant');
+v(m.includes('La connexion a échoué 4 fois depuis 07 h 05. Les personnes déjà connectées peuvent continuer. Prévenez le gérant et évitez de multiplier les essais.'), 'libellé manager');
+v(!/<button|<a |onclick/i.test(g + m), 'aucun bouton ni lien');
+v(!/red|#f00|#e|emoji|[\u{1F300}-\u{1FAFF}]/u.test(g), 'pas de rouge ni emoji');
+v(g.includes('var(--amber-dim)'), 'jeton ambre');
+v(fabrique({ a: null, r: 'gerant' }) === '', 'absente si tout va bien');
+v(fabrique({ a: { lecture: false }, r: 'gerant' }).includes('lecture impossible'), 'ligne neutre');
+v(/action: 'alerte_indisponible'/.test(src), 'action appelée');
+console.log('test_connexion_carte_brief_20261126 : ' + ok + ' vérifications OK');
