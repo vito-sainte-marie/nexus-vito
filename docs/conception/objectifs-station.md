@@ -31,7 +31,7 @@ Colonnes : **Id** stable · **Nature** P = performance, M = maîtrise · **Unit�
 | CARB-PROGRES | Progression des volumes | P | % ↑ | ratio, recalculé sur la période (pas sommé) | sans objet |
 | CARB-RUPTURE | Jours de rupture | M *(Reclassé à l'étape 5 sur la matrice §2 seule, sans relecture du code.)* | j ↓ (cible 0) | additif | sans objet |
 | CARB-ECART-NE | Écarts non expliqués | M *(Reclassé à l'étape 5 sur la matrice §2 seule, sans relecture du code.)* | L ou nb ↓ | additif | sans objet |
-| CARB-PROD-H | volumes ci-dessus ÷ heures d'ouverture | Tempo pour les volumes ; heures : voir ci-dessous *(Reclassé à l'étape 5 sur la matrice §2 seule, sans relecture du code.)* | Heures : `station_config.horaires` existe (Paramètres Station, source canonique, migration 20260919160000, lue aussi par `calculer_horaires_quart`). Elle déclare les régimes `normal` et `etendu` par quart, pas forcément l'ouverture réelle de la station ni les fermetures exceptionnelles. Indicateur **à fiabiliser** : arbitrage G-3 pour le gérant. |
+| CARB-PROD-H | volumes ci-dessus ÷ heures d'ouverture | Tempo pour les volumes ; heures : voir ci-dessous *(Reclassé à l'étape 5 sur la matrice §2 seule, sans relecture du code.)* | Heures : `station_config.horaires` existe (Paramètres Station, source canonique, migration 20260919160000, lue aussi par `calculer_horaires_quart`). Elle déclare les régimes `normal` et `etendu` par quart, pas forcément l'ouverture réelle de la station ni les fermetures exceptionnelles. Indicateur **non retenu** (G-3, tranché le 26/11 par le gérant) : il ne figure ni dans les maquettes ni dans la recette. |
 
 ### Commerce
 | Id | Indicateur | Nat. | Unité / sens | Agrégation | HT/TTC |
@@ -41,7 +41,7 @@ Colonnes : **Id** stable · **Nature** P = performance, M = maîtrise · **Unit�
 | COM-PROGRES | Progression du CA | P | % ↑ | ratio recalculé | HT |
 | COM-PANIER | Panier moyen | P | € ↑ | Σ CA ÷ Σ tickets (jamais moyenne de moyennes) | HT |
 | COM-TICKETS | Nombre de transactions | P | nb ↑ | additif | sans objet |
-| COM-CA-H | CA par heure d'ouverture | P | €/h ↑ | Σ CA ÷ Σ heures | HT |
+| COM-CA-H | CA par heure d'ouverture | *non retenu (G-3, tranché le 26/11)* | €/h ↑ | Σ CA ÷ Σ heures | HT |
 | COM-DISPO-REF | Disponibilité des références prioritaires | M | % ↑ | ratio jours-référence disponibles | sans objet |
 
 ### Marge
@@ -50,7 +50,7 @@ Colonnes : **Id** stable · **Nature** P = performance, M = maîtrise · **Unit�
 | MAR-BRUTE | Marge brute commerciale | P *(Reclassé à l'étape 5 sur la matrice §2 seule, sans relecture du code.)* | € ↑ | additif | HT |
 | MAR-TAUX | Taux de marge | P | % ↑ | Σ marge ÷ Σ CA HT, sur la période (jamais annuel ÷ 12, jamais moyenne de taux) | HT |
 | MAR-PROGRES | Progression de la marge brute | P | % ↑ | ratio recalculé | HT |
-| MAR-H | Marge par heure d'ouverture | P | €/h ↑ | Σ marge ÷ Σ heures | HT |
+| MAR-H | Marge par heure d'ouverture | *non retenu (G-3, tranché le 26/11)* | €/h ↑ | Σ marge ÷ Σ heures | HT |
 | MAR-ANO-TARIF | Anomalies tarifaires confirmées | M *(Reclassé à l'étape 5 sur la matrice §2 seule, sans relecture du code.)* | nb ↓ (cible 0) | additif | sans objet |
 | MAR-DEMARQUE | Démarque connue | P | € ou % du CA ↓ | additif (€) ; ratio (%) | HT |
 | MAR-PERTE-DC | Pertes dates courtes | P *(Reclassé à l'étape 5 sur la matrice §2 seule, sans relecture du code.)* | € ↓ | additif | HT, au coût d'achat |
@@ -90,21 +90,21 @@ Une ligne = un indicateur = **un seul calcul**. « Autorité » est le moteur qu
 
 | Id | Source de données (lecture) | Moteur autorité | Doublon / risque (audit) |
 |---|---|---|---|
-| CARB-VOL-*, CARB-LIT-JOUR, CARB-PROGRES | `audits_caisse.litrage_gazole / litrage_sp95 / litrage_gnr` par quart (saisie caissier) via `chargerVentesPeriode` | **Tempo** (`nexus-tempo.js` : `joursLitresCompletsPiste`, `resumerParJour`), seule autorité sur les litres par jour complet (Brief v4 §21.bis, audit §13.5). Les fonctions de `nexus-carburant-moteur.js` (`sommerVentesPeriode`, `calculerMixCarburant`, `calculerEvolutionVolume`) ne font pas foi pour ces indicateurs. | Pas de troisième propriétaire : Tempo et le Brief v4 sont alignés. Écart à trancher (arbitrage G-1) : la progression du Brief est en fenêtres glissantes de 7 jours, le référentiel exige des périodes calendaires. Ancre « aujourd'hui » en UTC (audit §13.3). |
+| CARB-VOL-*, CARB-LIT-JOUR, CARB-PROGRES | `audits_caisse.litrage_gazole / litrage_sp95 / litrage_gnr` par quart (saisie caissier) via `chargerVentesPeriode` | **Tempo** (`nexus-tempo.js` : `joursLitresCompletsPiste`, `resumerParJour`), seule autorité sur les litres par jour complet (Brief v4 §21.bis, audit §13.5). Les fonctions de `nexus-carburant-moteur.js` (`sommerVentesPeriode`, `calculerMixCarburant`, `calculerEvolutionVolume`) ne font pas foi pour ces indicateurs. | Pas de troisième propriétaire : Tempo et le Brief v4 sont alignés. Écart tranché le 26/11 (G-1) : la progression du Brief était en fenêtres glissantes de 7 jours ; le référentiel retient la progression du mois civil contre le mois précédent, en moyenne par jour complet, et la fenêtre de 7 jours disparaît des objectifs. Ancre « aujourd'hui » en UTC (audit §13.3). |
 | CARB-MARGE | `carburant_commandes`, `carburant_tarifs_achat`, prix de vente courant (CMP progressif) | `nexus-carburant-moteur.js` (CMP, effet prix) *(Reclassé à l'étape 5 sur la matrice §2 seule, sans relecture du code.)* | Aucun historique de marge carburant mensuel stocké : à construire ou à écarter (étape 2). |
 | CARB-RUPTURE | `carburant_releves` (stock réel par jour) + seuils cuve | `nexus-carburant-moteur.js` (contrôle du jour) *(Reclassé à l'étape 5 sur la matrice §2 seule, sans relecture du code.)* | Définition de « rupture » à fixer (seuil de cuve). |
 | CARB-ECART-NE | `carburant_controles`, `nexus_ecarts_qualifications` | `nexus-carburant-moteur.js` + `nexus-ecarts-moteur.js` *(Reclassé à l'étape 5 sur la matrice §2 seule, sans relecture du code.)* | Qualification d'écart : autorité = gravité dans `nexus-ecarts-moteur.js` (audit §13.5). |
-| CARB-PROD-H | volumes ci-dessus ÷ heures d'ouverture | aucun *(Reclassé à l'étape 5 sur la matrice §2 seule, sans relecture du code.)* | **Aucune table d'heures d'ouverture** : indicateur non disponible tant que la source n'existe pas. |
+| CARB-PROD-H | volumes ci-dessus ÷ heures d'ouverture | aucun *(Reclassé à l'étape 5 sur la matrice §2 seule, sans relecture du code.)* | **Non retenu** (G-3, tranché le 26/11) : l'indicateur est écarté, il n'est ni mesuré ni objectivé. |
 | COM-CA, COM-CA-JOUR, COM-PROGRES | `audits_caisse.vente_boutique` (par quart) | **Saisie de caisse** (`audits_caisse.vente_boutique`), via Tempo (`joursCaBoutique`) | Décidé par le gérant (second contre-audit §3) : le suivi d'activité au jour le jour est la saisie de caisse ; les périodes importées servent à l'analyse produit et à la rentabilité. Deux périmètres coexistent (caisse et import Decenium) : la différence de périmètre est écrite ici et dans la maquette, jamais effacée. |
 | COM-PANIER, COM-TICKETS | `panier_moyen_quotidien` (`nb_tickets`, `panier_moyen_ht/ttc`, hors carburant, import Decenium) | à désigner (aucun moteur dédié trouvé) | Ces deux indicateurs restent **sur l'import**, car la saisie de caisse ne porte pas les tickets. Périmètre différent de COM-CA (import, hors carburant) : afficher le périmètre sous la valeur. Panier = Σ CA ÷ Σ tickets, recomposé par `panier_moyen × nb_tickets`. |
-| COM-CA-H, MAR-H | CA ou marge ÷ heures d'ouverture | Tempo (CA), R5 (marge) ; heures : G-3 | Mêmes réserves que CARB-PROD-H : **à fiabiliser** tant que le gérant n'a pas confirmé la source des heures. |
+| COM-CA-H, MAR-H | CA ou marge ÷ heures d'ouverture | Tempo (CA), R5 (marge) ; heures : G-3 | **Non retenus** (G-3, tranché le 26/11), comme CARB-PROD-H. |
 | COM-DISPO-REF | `mission_completions`, références prioritaires | aucun | « Référence prioritaire » non défini. |
 | MAR-BRUTE, MAR-TAUX, MAR-PROGRES | `normalized_sales` (ventes importées) + coûts d'achat | `nexus-rayon-moteur.js` / règle R5 (écart de marge) *(Reclassé à l'étape 5 sur la matrice §2 seule, sans relecture du code.)* | La marge n'existe que par période d'import, et une période peut chevaucher deux mois. **Règle de passage au mois civil : au prorata des jours**, comme l'histogramme base 100 par jour (`resumerMargeParPeriode`). Si une période n'est pas couverte, le mois est **à fiabiliser** et affiché ainsi. Cible de taux : `tarif_seuils` (vide en Production), la référence 25 % codée en dur à trois endroits n'est pas une cible. |
 | MAR-ANO-TARIF | `journal_decisions` (R5-MARGE-ECART), `marge_exceptions` | moteur R5 *(Reclassé à l'étape 5 sur la matrice §2 seule, sans relecture du code.)* | « Confirmée » = décision au journal. |
 | MAR-DEMARQUE | `inventaire_*`, `inventaire_alertes` | `nexus-inventaire-moteur.js` | Définition de « démarque connue » à valider avec le gérant. |
 | MAR-PERTE-DC, MAR-EVITE | lot Dates courtes (PR #352 / #354, non en Production) | à venir *(Reclassé à l'étape 5 sur la matrice §2 seule, sans relecture du code.)* | Source absente en Production tant que le lot n'est pas déployé. |
 | FDJ-COMMISSION | `fdj_reports` | `nexus-fdj-moteur.js` *(Reclassé à l'étape 5 sur la matrice §2 seule, sans relecture du code.)* | À confirmer : la table porte-t-elle la commission ? Sinon indicateur « à fiabiliser ». |
-| FDJ-VOLUME, FDJ-EVOL | `view_fdj_daily_summary`, `view_fdj_game_daily` (CA par jeu) | **Tempo** (`joursCaFdjComplets`), seule autorité sur le CA FDJ par jour complet (Brief v4 §21.bis, audit §13.5). `nexus-fdj-moteur.js` garde les contrôles et la compensation. | Pas de troisième propriétaire. Évolution FDJ du Brief : fenêtre 7 jours ×250 plafonnée ±25 (audit §3), à aligner sur des périodes calendaires (G-1). |
+| FDJ-VOLUME, FDJ-EVOL | `view_fdj_daily_summary`, `view_fdj_game_daily` (CA par jeu) | **Tempo** (`joursCaFdjComplets`), seule autorité sur le CA FDJ par jour complet (Brief v4 §21.bis, audit §13.5). `nexus-fdj-moteur.js` garde les contrôles et la compensation. | Pas de troisième propriétaire. Évolution FDJ du Brief : fenêtre 7 jours ×250 plafonnée ±25 (audit §3), remplacée par la progression calendaire, mois contre mois précédent en moyenne par jour complet (G-1, tranché le 26/11). |
 | FDJ-ECART-COMP, FDJ-ANO-NR, FDJ-CONTROLES | `fdj_cash_controls`, `fdj_discrepancies`, `fdj_shifts` | `nexus-fdj-moteur.js` *(Reclassé à l'étape 5 sur la matrice §2 seule, sans relecture du code.)* | Compensation autorisée : lire telle quelle, sans la réécrire. |
 | OPS-CTRL | `carburant_controles`, `mission_completions`, `fdj_cash_controls` | à désigner | Plusieurs moteurs comptent « contrôle » ; définir la liste des contrôles obligatoires. |
 | OPS-CLOT | `audits_caisse` (clôture), `fdj_shifts` | `nexus-verify-moteur.js` (`agregerAudits`) | « Conforme » à définir ; V4 et V11 non conformes. |
@@ -117,7 +117,7 @@ Une ligne = un indicateur = **un seul calcul**. « Autorité » est le moteur qu
 ### Ce que l'inventaire fait déjà apparaître
 
 1. **Volumes carburant et CA FDJ** : l'autorité est Tempo (litres et CA FDJ par jour complet), comme dans le Brief v4 §21.bis et l'audit §13.5. Les litres viennent de la saisie du caissier par quart, pas d'un compteur ; les index de pompe (`carburant_index_valeurs`) pourraient recouper mais n'ont pas d'historique long.
-2. **Heures d'ouverture** : la source existe (`station_config.horaires`, canonique). Reste à savoir si elle représente l'ouverture réelle ; sinon le gérant les saisit une fois ou on écarte les quatre indicateurs « par heure » (G-3).
+2. **Heures d'ouverture** : les indicateurs « par heure » (CARB-PROD-H, COM-CA-H, MAR-H) sont **non retenus** (G-3, tranché le 26/11 par le gérant). `station_config.horaires` n'est donc pas lue par ce référentiel.
 3. **Jours fériés et vacances scolaires de Martinique** : déjà dans Tempo (`analyseFeries`) et dans `inventaire_calendrier_site` (migration 20261110130000). Le découpage saisonnier s'appuie dessus, sans nouvelle table.
 4. **CA boutique** : décidé, la saisie de caisse fait foi pour l'activité quotidienne ; panier et tickets restent sur l'import, périmètre écrit.
 5. **Marge au mois** : passage de la période d'import au mois civil au prorata des jours, mois non couvert marqué « à fiabiliser ».
@@ -125,25 +125,26 @@ Une ligne = un indicateur = **un seul calcul**. « Autorité » est le moteur qu
 7. **Écart de caisse** : aucune autorité effective aujourd'hui (quatre lectures).
 8. **Sources absentes** : équipements critiques, références prioritaires.
 
-### Arbitrages ouverts pour le gérant (étape 1)
+### Arbitrages tranchés le 26/11 par le gérant (étape 1)
 
-- **G-1** : progression en périodes calendaires (mois contre mois précédent, en moyenne par jour complet) plutôt qu'en fenêtres glissantes de 7 jours.
-- **G-3** : les horaires de `station_config.horaires` valent-ils horaires d'ouverture de la station ? Sinon : les saisir une fois, ou renoncer aux quatre indicateurs « par heure ».
+- **G-1** : progression en mois civil contre mois précédent, en moyenne par jour complet ; la fenêtre glissante de 7 jours disparaît des objectifs.
+- **G-3** : CARB-PROD-H, COM-CA-H et MAR-H sont **non retenus**.
 
 ## 3. Catalogue et classement (livrable 3)
 
-Trois classes, appliquées sans exception (article 5 : pas de valeur fabriquée).
+Quatre classes, appliquées sans exception (article 5 : pas de valeur fabriquée).
 
 - **Disponible** : une requête de lecture donne l'historique mensuel de la station avec la couverture de chaque mois.
 - **À fiabiliser** : la source existe mais sa lecture mensuelle exige un arbitrage ou une règle de passage ; aucune requête n'est livrée tant qu'elle n'est pas tranchée.
 - **Non disponible** : aucune source stockée à ce jour ; l'indicateur ne peut être ni suivi ni projeté.
+- **Non retenu** : le gérant a écarté l'indicateur (G-3, 26/11). Il reste dans le catalogue pour mémoire, sans requête, sans cible, sans maquette ni critère de recette.
 
 | Id | Classe | Source ou raison | Agrégation sur le mois | Premier mois disponible |
 |---|---|---|---|---|
 | CARB-VOL-TOT | Disponible | `audits_caisse` (litrages), jours complets Tempo | somme (additif) | mi-juillet 2026 |
 | CARB-VOL-PROD | Disponible | idem, par produit (gazole, SP95, GNR) | somme (additif) | mi-juillet 2026 |
 | CARB-LIT-JOUR | Disponible | idem, litres ÷ jours complets | moyenne par jour complet | mi-juillet 2026 |
-| CARB-PROGRES | Dérivé | série mensuelle de CARB-VOL-TOT (règle G-1) | sans requête propre | mi-juillet 2026 |
+| CARB-PROGRES | Dérivé | série mensuelle de CARB-VOL-TOT ; progression du mois civil contre le mois précédent, en moyenne par jour complet (G-1) | sans requête propre | mi-juillet 2026 |
 | COM-CA | Disponible | `audits_caisse.vente_boutique`, mêmes jours complets | somme (additif) | mi-juillet 2026 |
 | COM-CA-JOUR | Disponible | idem, CA ÷ jours complets | moyenne par jour complet | mi-juillet 2026 |
 | COM-PANIER | Disponible, périmètre écrit | `panier_moyen_quotidien` (boutique hors carburant) | ratio Σ CA ÷ Σ tickets | janvier 2026 |
@@ -152,7 +153,7 @@ Trois classes, appliquées sans exception (article 5 : pas de valeur fabriquée)
 | FDJ-VOLUME | Disponible | `view_fdj_daily_summary`, jours à deux quarts contrôlés | somme (additif) | janvier 2026 |
 | FDJ-EVOL | Dérivé | série mensuelle de FDJ-VOLUME | sans requête propre | janvier 2026 |
 | OPS-ECART-CAISSE | Disponible | `audits_caisse.ecart_total`, valeur absolue par quart | moyenne par quart, sans compensation | mi-juillet 2026 |
-| CARB-PROD-H, COM-CA-H, MAR-H | À fiabiliser | dépend des horaires réels (G-3) *(Reclassé à l'étape 5 sur la matrice §2 seule, sans relecture du code.)* | ratio | sans objet à ce stade |
+| CARB-PROD-H, COM-CA-H, MAR-H | Non retenu | écartés par le gérant le 26/11 (G-3) | sans objet | sans objet |
 | MAR-BRUTE, MAR-TAUX, MAR-PROGRES | À fiabiliser | marge connue par période d'import ; passage au mois civil au prorata des jours *(Reclassé à l'étape 5 sur la matrice §2 seule, sans relecture du code.)* | ratio | sans objet à ce stade |
 | CARB-ECART-NE | À fiabiliser | qualification manuelle, pas de champ dédié lu *(Reclassé à l'étape 5 sur la matrice §2 seule, sans relecture du code.)* | à définir | sans objet à ce stade |
 | FDJ-ECART-COMP, FDJ-CONTROLES | À fiabiliser | lecture à confirmer sur la vue FDJ, règle de comptage à écrire *(Reclassé à l'étape 5 sur la matrice §2 seule, sans relecture du code.)* | à définir | sans objet à ce stade |
@@ -174,11 +175,29 @@ La colonne « Premier mois disponible » est celle de l'historique réellement s
 - une cible annuelle sur un indicateur de caisse est un ordre de grandeur, pas une trajectoire éprouvée ;
 - tant que 12 mois n'existent pas, le découpage mensuel d'une cible annuelle est uniforme par jour (et non saisonnier) ; l'écran l'affiche comme tel, avec le nombre de mois d'historique.
 
+### Définitions « conforme » des indicateurs de maîtrise (G-8)
+
+Écrites par CC le 26/11 à partir de ce qui existe déjà (moteurs, paramètres, migrations). Toute définition sans source est marquée **à valider** par le gérant ; tant qu'elle l'est, l'indicateur reste « à fiabiliser » et ne reçoit aucune cible. Aucun moteur n'est modifié.
+
+| Indicateur | Définition « conforme » | Délai de référence | Source | État |
+|---|---|---|---|---|
+| OPS-INV | Un article est dans les délais si `joursDepuis < delaiMax` ; en retard si `joursDepuis` est inconnu ou `>= delaiMax` | critique 0 j, standard 7 j, faible rotation 21 j, remplaçable par `delai_max_jours_sans_controle` | `nexus-inventaire-moteur.js` (`DEFAUT_DELAI_MAX_JOURS_PAR_FAMILLE`) | conforme (source existante) |
+| OPS-CLOT | Un audit de clôture est conforme si sa valeur absolue d'écart est ≤ 2 € ; taux = conformes ÷ total ; ordre conforme < surveiller < anomalie < critique | sans objet | `nexus-verify-moteur.js` (`agregerAudits`) | conforme (source existante) |
+| MAR-DEMARQUE | Une préparation est conforme si |écart| ≤ tolérance ; un reste est notable au-delà de 20 % (`SEUIL_RESTE_NOTABLE_RATIO`) | sans objet | `nexus-inventaire-moteur.js` | **à valider** : ce qu'est une démarque « connue » n'est écrit nulle part |
+| MAR-ANO-TARIF | Une anomalie tarifaire est confirmée quand une décision est consignée au journal (R5-MARGE-ECART, `marge_exceptions`) | à fixer | `journal_decisions`, `marge_exceptions` | conforme pour « confirmée » ; délai **à valider** |
+| FDJ-CONTROLES | Un contrôle de caisse FDJ est fait quand `fdj_cash_controls` atteint l'étape `validee` (saisie_a_commencer, brouillon, en_attente_controle_manager, validee) | à fixer | `nexus-fdj-moteur.js` (`ETAPES_CAISSE_FDJ`) | étape conforme ; effectif « dû » et délai **à valider** |
+| FDJ-ANO-NR | Stock à date des écarts `fdj_discrepancies` non régularisés | à fixer | `fdj_discrepancies` | **à valider** : définition de « régularisé » |
+| OPS-ANO-DELAI | Ancienneté d'un signal installé, urgence tirée du niveau et de `ancienneteJours` | 14 j (`SEUIL_ANCIENNETE_INSTALLEE_JOURS`) | `nexus-risques-moteur.js` | seuil existant ; usage comme objectif **à valider** |
+| OPS-DELAI-RES | Délai entre apparition et résolution d'une anomalie | aucun moteur ne le définit (14 j reste le seul repère, pour un signal installé) | aucune | **à valider** |
+| OPS-CTRL | Contrôles obligatoires réalisés ÷ contrôles obligatoires dus | à fixer | `carburant_controles`, `mission_completions`, `fdj_cash_controls` | **à valider** : liste des contrôles obligatoires et autorité qui la désigne |
+| COM-DISPO-REF | Disponibilité des références prioritaires | à fixer | `mission_completions` | **à valider** : « référence prioritaire » n'est pas définie |
+
 ### Agrégation selon l'horizon (mois, trimestre, année)
 
 - **Additifs** (litres, CA, tickets, volume FDJ) : le trimestre et l'année sont la somme des mois, ce qui garantit la cohérence entre horizons. Une cible annuelle se décompose en cibles mensuelles dont la somme redonne l'annuel.
 - **Moyennes par jour complet** : le trimestre est Σ valeurs ÷ Σ jours complets, jamais la moyenne des moyennes mensuelles.
 - **Ratios** (panier moyen) : Σ CA ÷ Σ tickets sur la période, jamais la moyenne des ratios mensuels.
+- **Progression** (CARB-PROGRES, COM-PROGRES, FDJ-EVOL) : mois civil contre mois précédent, en moyenne par jour complet (Σ valeurs ÷ Σ jours complets de chaque mois) ; jamais de fenêtre glissante de 7 jours (G-1, tranché le 26/11).
 - **Écart de caisse** : moyenne absolue par quart sur tous les quarts de la période.
 
 ## 4. Requêtes de lecture mensuelles (livrable 3, suite)
@@ -310,7 +329,7 @@ group by 1
 order by 1;
 ```
 
-Valeur absolue par quart, jamais de compensation entre quarts ni entre piste et boutique. Colonne de référence : `abs(ecart_piste) + abs(ecart_boutique)`, car un `ecart_total` qui additionne +20 € en piste et −20 € en boutique vaut 0 et cacherait deux écarts. `ecart_total_abs_moyen_par_quart` est rendue à titre secondaire, pour la parité avec `calculer_caisse_sante` (qui lit `ecart_total`). **Différence écrite** : sur un quart où piste et boutique se compensent, la colonne principale est supérieure à la colonne secondaire ; elles sont égales si les deux écarts ont le même signe. La couverture est le nombre de quarts mesurés rapporté à deux par jour. Seuil de gravité : celui de `nexus-ecarts-moteur.js` (autorité), pas recalculé ici. Le choix de la somme des valeurs absolues reste une décision du gérant (G-7) : voir §9.
+Valeur absolue par quart, jamais de compensation entre quarts ni entre piste et boutique. Colonne de référence : `abs(ecart_piste) + abs(ecart_boutique)`, car un `ecart_total` qui additionne +20 € en piste et −20 € en boutique vaut 0 et cacherait deux écarts. `ecart_total_abs_moyen_par_quart` est rendue à titre secondaire, pour la parité avec `calculer_caisse_sante` (qui lit `ecart_total`). **Différence écrite** : sur un quart où piste et boutique se compensent, la colonne principale est supérieure à la colonne secondaire ; elles sont égales si les deux écarts ont le même signe. La couverture est le nombre de quarts mesurés rapporté à deux par jour. Seuil de gravité : celui de `nexus-ecarts-moteur.js` (autorité), pas recalculé ici. Le choix de la somme des valeurs absolues est **tranché le 26/11 par le gérant (G-7)**.
 
 ### Fraîcheur
 
@@ -448,7 +467,7 @@ create table objectif_habilitation (
 -- a ce droit non révoqué sur cette station. Le rôle ne compte pas.
 ```
 
-L'octroi et la révocation passent par une fonction `security definer` de même nature que les trois autres, réservée à un compte déjà habilité à valider ; la première habilitation est posée par une migration explicite, avec GO. `valider` suppose `proposer` et `lire` ; `proposer` suppose `lire`.
+L'octroi et la révocation passent par une fonction `security definer` de même nature que les trois autres, réservée à un compte déjà habilité à valider ; la première habilitation est posée par une migration explicite, avec GO, et couvre trois catégories de comptes (tranché le 26/11, G-4) : le pilote (`manager`), le compte de rôle `gerant`, et les managers de la station. Tout ajout ou retrait passe ensuite par la RPC d'octroi. **Un compte habilité ne valide jamais sa propre proposition** : `valide_par` est toujours différent de `propose_par`. `valider` suppose `proposer` et `lire` ; `proposer` suppose `lire`.
 
 ### Écriture : fonctions `security definer`, une par opération
 
@@ -457,7 +476,7 @@ Aucune politique d'insertion directe : une politique `insert` laisserait un `man
 | Fonction | Rôle autorisé | Gardes |
 |---|---|---|
 | `proposer_objectif(p_site, p_indicateur, p_horizon, p_debut, p_cible, p_origine)` | compte habilité `proposer` sur la station (G-4) | station = celle de l'appelant ; indicateur `objectivable`, classe ≠ `non_disponible`, `cible_externe` nul ; période alignée sur l'horizon ; cible zéro seulement si `cible_zero_ok` ; une seule proposition ouverte par clé |
-| `valider_objectif(p_id)` | compte habilité `valider` sur la station (G-4) | station de la ligne = celle de l'appelant ; statut `propose` ; unicité de l'officiel ; arbitrage consigné si classe `a_fiabiliser` ; pose `valide_par`, `valide_le`, remplace la version précédente dans la même transaction |
+| `valider_objectif(p_id)` | compte habilité `valider` sur la station (G-4) | station de la ligne = celle de l'appelant ; statut `propose` ; unicité de l'officiel ; arbitrage consigné si classe `a_fiabiliser` ; `valide_par` ≠ `propose_par` (un compte habilité ne valide jamais sa propre proposition) ; pose `valide_par`, `valide_le`, remplace la version précédente dans la même transaction. **Révision en période en cours (G-5)** : une nouvelle proposition portant un motif et `remplace_id` ; une fois validée, elle remplace l'ancienne version sans l'effacer (R7, D8) |
 | `retirer_objectif(p_id, p_motif)` | compte habilité `valider` | station de la ligne = celle de l'appelant ; motif obligatoire ; statut `retire`, jamais un `delete` |
 
 `anon` n'a aucun droit. Les `revoke` sont posés explicitement sur `anon` et sur `public` pour chaque fonction (un `revoke from public` seul ne ferme pas `anon`), `grant execute` à `authenticated` seulement, et `TRUNCATE` est retiré à `authenticated` sur les tables.
@@ -470,10 +489,10 @@ Le Brief et A4 lisent la même vue en lecture seule, créée avec `security_invo
 
 Une table `objectif_recommandation(site, objectif_id, recommandation_id, ecart, cause_nature, action, potentiel_estime, resultat_obtenu)` relie une recommandation à une cible. `cause_nature` vaut `demontree` ou `supposee`. Les potentiels sont dédoublonnés par clé (`site`, `indicateur_id`, `periode_debut`, `cause`) pour qu'un même gain ne soit pas compté sous deux objectifs. Les moteurs ne sont pas modifiés par cette étape : le lien est une table de rapprochement alimentée plus tard.
 
-### Arbitrages ouverts pour le gérant (étape 3)
+### Arbitrages de l'étape 3 (G-4 et G-5 tranchés le 26/11, G-6 ouvert)
 
-- **G-4** : quels comptes, nommément, peuvent proposer et lesquels peuvent valider ? (Le droit est une habilitation par compte et par station, pas un rôle : le pilote est `manager`, l'unique `gerant` est une autre personne.)
-- **G-5** : une cible officielle de période en cours peut-elle être révisée, avec motif, ou seulement à la période suivante ?
+- **G-4** (tranché le 26/11) : la validation est ouverte au pilote, au compte de rôle `gerant` et aux managers de la station ; un compte habilité ne valide jamais sa propre proposition. Première habilitation par migration avec GO, ajouts et retraits par la RPC d'octroi.
+- **G-5** (tranché le 26/11) : une cible officielle de période en cours est révisable, avec motif, par une nouvelle version qui remplace l'ancienne sans l'effacer.
 - **G-6** (reformulé) : l'année est saisie, les mois sont proposés par NEXUS, le trimestre est la somme de ses mois pour un indicateur additif, et le contrôle est l'égalité à l'arrondi près entre la somme des mois et l'année. Reste ouverte seulement la cible propre du trimestre pour les moyennes et les ratios.
 
 ## 6. Suite
@@ -495,7 +514,7 @@ Une table `objectif_recommandation(site, objectif_id, recommandation_id, ecart, 
 - **Vocabulaire** : « repère linéaire » est écrit en toutes lettres : progression en ligne droite entre le début de la période et l'objectif.
 - **Répartition mensuelle** : par défaut au prorata du nombre de jours de chaque mois, étiquetée comme telle. Le profil saisonnier n'est qu'un second état, présenté avec sa source (exemple fictif, 12 mois réels requis).
 - **Jauge à repère** : pour l'écart de caisse et le taux de marge, position, ligne d'objectif et zone d'alerte ; aucun pourcentage d'avancement (écarts écrits « +7 € » et « −1,4 pt »).
-- **Données cohérentes** : tout est lu au 26 novembre (26 jours sur 30, repère linéaire à 87 %) ; Commerce 81 900 € sur 26 jours soit 22 050 € sur 7 jours, objectif 90 000 €.
+- **Données cohérentes** : tout est lu au 26 novembre (26 jours sur 30, repère linéaire à 87 %) ; Commerce 81 900 € sur 26 jours, soit 3 150 € par jour complet, comparés au mois précédent en moyenne par jour complet ; objectif 90 000 €.
 - **Données** : toutes fictives. Valeurs de la maquette : Station Exemple.
 
 ### Livrables
@@ -521,6 +540,7 @@ Rien de ce qui suit n'est exécuté : aucune migration, aucun code, aucun accès
 | S6 | `valider_objectif` et `retirer_objectif` sont `security definer`, réservés aux comptes habilités `valider` de la station, et refusent tout autre compte, quel que soit son rôle, et l'habilité d'une autre station | appel par chaque compte : erreur `insufficient_privilege` sauf habilité de la station |
 | S13 | Un employé de la station elle-même ne lit aucune ligne (lecture limitée aux comptes habilités, Brief et vue A4 compris) ; la vue de lecture est `security_invoker = true` | jeton d'employé de la bonne station : zéro ligne, y compris par la vue ; jeton habilité : lignes visibles ; `pg_class.reloptions` de la vue contient `security_invoker=true` |
 | S15 | L'habilitation prime sur le rôle : un compte de rôle `gerant` sans habilitation est refusé, un compte `manager` habilité est accepté | `valider_objectif` appelé par un `gerant` non habilité : refus ; par un `manager` habilité `valider` : accepté ; après révocation : refus |
+| S16 | L'auteur d'une proposition ne peut pas la valider, même habilité `valider` ; un autre compte habilité la valide | `valider_objectif` appelé par le compte `propose_par` : refus nommé ; appelé par un autre compte habilité : accepté |
 | S14 | Chaque RPC `security definer` a un `search_path` vide et refuse la mauvaise station | lecture de `pg_proc.proconfig` ; appel avec un `p_site` d'une autre station : refus |
 | S7 | Aucune politique UPDATE ni DELETE n'existe | liste de `pg_policies` : aucune commande UPDATE/DELETE |
 | S8 | Une ligne `officiel` ou `remplace` est immuable (trigger) | tentative d'UPDATE par le propriétaire de la table : refus du trigger |
@@ -569,18 +589,16 @@ Rien de ce qui suit n'est exécuté : aucune migration, aucun code, aucun accès
 
 Ordre : sécurité (8.1) avant tout jeu de données ; règles de base (8.2) ; lecture (8.3) ; Conseiller (8.4). La recette navigateur sur Test se fait sur un artefact déployé, pas sur le local. Un résultat sans code d'échec nommé n'est pas arbitrable : chaque échec porte l'identifiant du critère. Les mesures de recette sur l'historique réel de Sainte-Marie restent hors canal : Guardian les mène.
 
-## 9. Arbitrages consolidés pour le gérant (livrable 9)
+## 9. Arbitrages du gérant (livrable 9)
 
-Rien n'est tranché ici. Chaque ligne dit ce qui change selon la réponse et ce que je recommande.
+Six arbitrages sont **tranchés le 26/11 par le gérant**. G-6 reste ouvert.
 
-| Id | Question | Recommandation | Ce qui dépend de la réponse |
-|---|---|---|---|
-| G-1 | La progression se mesure-t-elle en périodes calendaires (mois contre mois précédent, en moyenne par jour complet) ou en fenêtres glissantes de 7 jours comme aujourd'hui dans le Brief ? | périodes calendaires, seules cohérentes avec des objectifs mensuels | CARB-PROGRES, COM-PROGRES, FDJ-EVOL |
-| G-3 | Les horaires de `station_config.horaires` valent-ils horaires d'ouverture ? Sinon : les saisir une fois, ou renoncer aux quatre indicateurs « par heure » | les confirmer si le gérant les reconnaît ; sinon renoncer | CARB-PROD-H, COM-CA-H, MAR-H (et leur voisin par heure) passent de « à fiabiliser » à « disponible » |
-| G-4 | Quels comptes, nommément, peuvent proposer, et lesquels valider ? (droit par compte et par station, pas par rôle : le pilote est `manager`) | proposer : les comptes de direction de la station ; valider : le pilote nommé, plus tout autre compte que le gérant désigne | S5, S6, S15, flux de validation de la maquette |
-| G-5 | Une cible officielle de période en cours peut-elle être révisée, avec motif, ou seulement à la période suivante ? | révisable avec motif, par une nouvelle version qui remplace l'ancienne, jamais par modification | R7, D8 |
-| G-6 | Pour un additif, l'année est saisie, les mois proposés, le trimestre est la somme de ses mois (contrôle : somme des mois = année à l'arrondi). Pour une moyenne ou un ratio, le trimestre porte-t-il sa propre cible ? | année saisie et mois proposés pour les additifs ; cible propre du trimestre pour les ratios | R5, R6 |
-| G-7 | « Écart de caisse » : `ecart_total` tel que stocké, ou somme des valeurs absolues piste + boutique par quart ? | somme des valeurs absolues par quart, sans compensation | OPS-ECART-CAISSE, D4 |
-| G-8 | Pour les indicateurs de maîtrise reclassés « à fiabiliser » (contrôles, clôtures, inventaires, délais, anomalies, référence prioritaire), quelle définition de « conforme » et quel délai de référence ? | une définition écrite par indicateur avant toute cible | OPS-CTRL, OPS-CLOT, OPS-INV, OPS-ANO-DELAI, OPS-DELAI-RES, MAR-ANO-TARIF, MAR-DEMARQUE, FDJ-ANO-NR, COM-DISPO-REF |
-
-Ordre conseillé des réponses : G-4 et G-5 (ils fixent le flux), puis G-7 et G-1 (ils fixent les mesures déjà disponibles), puis G-3 et G-8 (ils ouvrent de nouveaux indicateurs).
+| Id | Décision | Ce qui en découle |
+|---|---|---|
+| G-1 | Tranché le 26/11 par le gérant : la progression se mesure en mois civil contre mois précédent, en moyenne par jour complet. La fenêtre glissante de 7 jours disparaît des objectifs. | CARB-PROGRES, COM-PROGRES, FDJ-EVOL ; maquettes |
+| G-3 | Tranché le 26/11 par le gérant : CARB-PROD-H, COM-CA-H et MAR-H sont **non retenus**. | nouvelle classe « Non retenu » ; retirés des maquettes et de la recette |
+| G-4 | Tranché le 26/11 par le gérant : la validation est ouverte au pilote, au compte de rôle `gerant` et aux managers de la station. Un compte habilité ne valide jamais sa propre proposition. La première habilitation est posée par migration avec GO, pour ces trois catégories ; ajouts et retraits par la RPC d'octroi. | §5 ; S5, S6, S15, **S16** |
+| G-5 | Tranché le 26/11 par le gérant : une cible de période en cours est révisable, avec motif, par une nouvelle version qui remplace l'ancienne sans l'effacer. | §5 ; R7, D8 |
+| G-6 | **Ouvert.** Pour un additif : année saisie, mois proposés, trimestre = somme des mois (contrôle à l'arrondi). Pour une moyenne ou un ratio, le trimestre porte-t-il sa propre cible ? Recommandation : oui, pour les ratios. | R5, R6 |
+| G-7 | Tranché le 26/11 par le gérant : l'écart de caisse est la somme des valeurs absolues piste + boutique par quart, sans compensation. | OPS-ECART-CAISSE, Q-ECART, D4 |
+| G-8 | Tranché le 26/11 par le gérant : CC écrit une définition « conforme » et un délai de référence par indicateur de maîtrise reclassé, d'après l'existant ; toute définition sans source est « à valider ». | sous-section « Définitions conforme (G-8) » du §3 |
