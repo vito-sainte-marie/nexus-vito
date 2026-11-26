@@ -27,11 +27,11 @@ Colonnes : **Id** stable · **Nature** P = performance, M = maîtrise · **Unit�
 | CARB-VOL-TOT | Volume total vendu | P | L ↑ | additif (somme) | sans objet |
 | CARB-VOL-PROD | Volume par carburant (GO, SP95, GNR) | P | L ↑ | additif | sans objet |
 | CARB-LIT-JOUR | Litrage journalier moyen | P | L/j ↑ | moyenne pondérée par jours d'ouverture (jamais cible annuelle ÷ 12) | sans objet |
-| CARB-MARGE | Marge brute carburant | P | € ↑ | additif | HT |
+| CARB-MARGE | Marge brute carburant | P *(Reclassé à l'étape 5 sur la matrice §2 seule, sans relecture du code.)* | € ↑ | additif | HT |
 | CARB-PROGRES | Progression des volumes | P | % ↑ | ratio, recalculé sur la période (pas sommé) | sans objet |
-| CARB-RUPTURE | Jours de rupture | M | j ↓ (cible 0) | additif | sans objet |
-| CARB-ECART-NE | Écarts non expliqués | M | L ou nb ↓ | additif | sans objet |
-| CARB-PROD-H | volumes ci-dessus ÷ heures d'ouverture | Tempo pour les volumes ; heures : voir ci-dessous | Heures : `station_config.horaires` existe (Paramètres Station, source canonique, migration 20260919160000, lue aussi par `calculer_horaires_quart`). Elle déclare les régimes `normal` et `etendu` par quart, pas forcément l'ouverture réelle de la station ni les fermetures exceptionnelles. Indicateur **à fiabiliser** : arbitrage G-3 pour le gérant. |
+| CARB-RUPTURE | Jours de rupture | M *(Reclassé à l'étape 5 sur la matrice §2 seule, sans relecture du code.)* | j ↓ (cible 0) | additif | sans objet |
+| CARB-ECART-NE | Écarts non expliqués | M *(Reclassé à l'étape 5 sur la matrice §2 seule, sans relecture du code.)* | L ou nb ↓ | additif | sans objet |
+| CARB-PROD-H | volumes ci-dessus ÷ heures d'ouverture | Tempo pour les volumes ; heures : voir ci-dessous *(Reclassé à l'étape 5 sur la matrice §2 seule, sans relecture du code.)* | Heures : `station_config.horaires` existe (Paramètres Station, source canonique, migration 20260919160000, lue aussi par `calculer_horaires_quart`). Elle déclare les régimes `normal` et `etendu` par quart, pas forcément l'ouverture réelle de la station ni les fermetures exceptionnelles. Indicateur **à fiabiliser** : arbitrage G-3 pour le gérant. |
 
 ### Commerce
 | Id | Indicateur | Nat. | Unité / sens | Agrégation | HT/TTC |
@@ -47,13 +47,13 @@ Colonnes : **Id** stable · **Nature** P = performance, M = maîtrise · **Unit�
 ### Marge
 | Id | Indicateur | Nat. | Unité / sens | Agrégation | HT/TTC |
 |---|---|---|---|---|---|
-| MAR-BRUTE | Marge brute commerciale | P | € ↑ | additif | HT |
+| MAR-BRUTE | Marge brute commerciale | P *(Reclassé à l'étape 5 sur la matrice §2 seule, sans relecture du code.)* | € ↑ | additif | HT |
 | MAR-TAUX | Taux de marge | P | % ↑ | Σ marge ÷ Σ CA HT, sur la période (jamais annuel ÷ 12, jamais moyenne de taux) | HT |
 | MAR-PROGRES | Progression de la marge brute | P | % ↑ | ratio recalculé | HT |
 | MAR-H | Marge par heure d'ouverture | P | €/h ↑ | Σ marge ÷ Σ heures | HT |
-| MAR-ANO-TARIF | Anomalies tarifaires confirmées | M | nb ↓ (cible 0) | additif | sans objet |
+| MAR-ANO-TARIF | Anomalies tarifaires confirmées | M *(Reclassé à l'étape 5 sur la matrice §2 seule, sans relecture du code.)* | nb ↓ (cible 0) | additif | sans objet |
 | MAR-DEMARQUE | Démarque connue | P | € ou % du CA ↓ | additif (€) ; ratio (%) | HT |
-| MAR-PERTE-DC | Pertes dates courtes | P | € ↓ | additif | HT, au coût d'achat |
+| MAR-PERTE-DC | Pertes dates courtes | P *(Reclassé à l'étape 5 sur la matrice §2 seule, sans relecture du code.)* | € ↓ | additif | HT, au coût d'achat |
 | MAR-EVITE | Pertes effectivement évitées | P | € ↑ | additif, uniquement résultat constaté | HT, au coût d'achat |
 
 Définition du taux de marge retenue : **(CA HT − coût d'achat HT) ÷ CA HT**, la cible venant de `tarif_seuils` ; la référence 25 % codée en dur à trois endroits (audit §13) n'est pas une cible d'objectif.
@@ -61,10 +61,10 @@ Définition du taux de marge retenue : **(CA HT − coût d'achat HT) ÷ CA HT**
 ### FDJ
 | Id | Indicateur | Nat. | Unité / sens | Agrégation | HT/TTC |
 |---|---|---|---|---|---|
-| FDJ-COMMISSION | Commissions perçues | P | € ↑ | additif | commission FDJ (non soumise au HT/TTC boutique : à confirmer avec la comptabilité) |
+| FDJ-COMMISSION | Commissions perçues | P *(Reclassé à l'étape 5 sur la matrice §2 seule, sans relecture du code.)* | € ↑ | additif | commission FDJ (non soumise au HT/TTC boutique : à confirmer avec la comptabilité) |
 | FDJ-VOLUME | Volume d'activité (ventes de jeux) | P | € ↑ | additif | TTC joueur |
 | FDJ-EVOL | Évolution | P | % ↑ | ratio recalculé | sans objet |
-| FDJ-ECART-COMP | Écarts après compensation autorisée | M | € ↓ | additif en absolu | sans objet |
+| FDJ-ECART-COMP | Écarts après compensation autorisée | M *(Reclassé à l'étape 5 sur la matrice §2 seule, sans relecture du code.)* | € ↓ | additif en absolu | sans objet |
 | FDJ-CONTROLES | Contrôles réalisés | M | % ↑ | ratio réalisés ÷ dus | sans objet |
 | FDJ-ANO-NR | Anomalies non régularisées | M | nb ↓ (cible 0) | stock à date, pas somme | sans objet |
 
@@ -80,7 +80,7 @@ Volume et commissions sont deux indicateurs distincts : on ne déduit pas l'un d
 | OPS-ANO-DELAI | Anomalies résolues dans les délais | M | % ↑ | ratio | sans objet |
 | OPS-DELAI-RES | Délai moyen de résolution | M | jours ↓ | moyenne sur anomalies résolues | sans objet |
 | OPS-TOURNEES | Tournées dates courtes réalisées | M | % ↑ | ratio | sans objet |
-| OPS-EQUIP | Disponibilité des équipements critiques | M | % ↑ | ratio temps disponible | sans objet |
+| OPS-EQUIP | Disponibilité des équipements critiques | M *(Reclassé à l'étape 5 sur la matrice §2 seule, sans relecture du code.)* | % ↑ | ratio temps disponible | sans objet |
 
 `OPS-ECART-CAISSE` (maîtrise, absolu par quart) n'a rien à voir avec les écarts individuels consolidés du dossier comptable Paye : deux indicateurs, deux libellés, jamais fusionnés.
 
@@ -91,28 +91,28 @@ Une ligne = un indicateur = **un seul calcul**. « Autorité » est le moteur qu
 | Id | Source de données (lecture) | Moteur autorité | Doublon / risque (audit) |
 |---|---|---|---|
 | CARB-VOL-*, CARB-LIT-JOUR, CARB-PROGRES | `audits_caisse.litrage_gazole / litrage_sp95 / litrage_gnr` par quart (saisie caissier) via `chargerVentesPeriode` | **Tempo** (`nexus-tempo.js` : `joursLitresCompletsPiste`, `resumerParJour`), seule autorité sur les litres par jour complet (Brief v4 §21.bis, audit §13.5). Les fonctions de `nexus-carburant-moteur.js` (`sommerVentesPeriode`, `calculerMixCarburant`, `calculerEvolutionVolume`) ne font pas foi pour ces indicateurs. | Pas de troisième propriétaire : Tempo et le Brief v4 sont alignés. Écart à trancher (arbitrage G-1) : la progression du Brief est en fenêtres glissantes de 7 jours, le référentiel exige des périodes calendaires. Ancre « aujourd'hui » en UTC (audit §13.3). |
-| CARB-MARGE | `carburant_commandes`, `carburant_tarifs_achat`, prix de vente courant (CMP progressif) | `nexus-carburant-moteur.js` (CMP, effet prix) | Aucun historique de marge carburant mensuel stocké : à construire ou à écarter (étape 2). |
-| CARB-RUPTURE | `carburant_releves` (stock réel par jour) + seuils cuve | `nexus-carburant-moteur.js` (contrôle du jour) | Définition de « rupture » à fixer (seuil de cuve). |
-| CARB-ECART-NE | `carburant_controles`, `nexus_ecarts_qualifications` | `nexus-carburant-moteur.js` + `nexus-ecarts-moteur.js` | Qualification d'écart : autorité = gravité dans `nexus-ecarts-moteur.js` (audit §13.5). |
-| CARB-PROD-H | volumes ci-dessus ÷ heures d'ouverture | aucun | **Aucune table d'heures d'ouverture** : indicateur non disponible tant que la source n'existe pas. |
+| CARB-MARGE | `carburant_commandes`, `carburant_tarifs_achat`, prix de vente courant (CMP progressif) | `nexus-carburant-moteur.js` (CMP, effet prix) *(Reclassé à l'étape 5 sur la matrice §2 seule, sans relecture du code.)* | Aucun historique de marge carburant mensuel stocké : à construire ou à écarter (étape 2). |
+| CARB-RUPTURE | `carburant_releves` (stock réel par jour) + seuils cuve | `nexus-carburant-moteur.js` (contrôle du jour) *(Reclassé à l'étape 5 sur la matrice §2 seule, sans relecture du code.)* | Définition de « rupture » à fixer (seuil de cuve). |
+| CARB-ECART-NE | `carburant_controles`, `nexus_ecarts_qualifications` | `nexus-carburant-moteur.js` + `nexus-ecarts-moteur.js` *(Reclassé à l'étape 5 sur la matrice §2 seule, sans relecture du code.)* | Qualification d'écart : autorité = gravité dans `nexus-ecarts-moteur.js` (audit §13.5). |
+| CARB-PROD-H | volumes ci-dessus ÷ heures d'ouverture | aucun *(Reclassé à l'étape 5 sur la matrice §2 seule, sans relecture du code.)* | **Aucune table d'heures d'ouverture** : indicateur non disponible tant que la source n'existe pas. |
 | COM-CA, COM-CA-JOUR, COM-PROGRES | `audits_caisse.vente_boutique` (par quart) | **Saisie de caisse** (`audits_caisse.vente_boutique`), via Tempo (`joursCaBoutique`) | Décidé par le gérant (second contre-audit §3) : le suivi d'activité au jour le jour est la saisie de caisse ; les périodes importées servent à l'analyse produit et à la rentabilité. Deux périmètres coexistent (caisse et import Decenium) : la différence de périmètre est écrite ici et dans la maquette, jamais effacée. |
 | COM-PANIER, COM-TICKETS | `panier_moyen_quotidien` (`nb_tickets`, `panier_moyen_ht/ttc`, hors carburant, import Decenium) | à désigner (aucun moteur dédié trouvé) | Ces deux indicateurs restent **sur l'import**, car la saisie de caisse ne porte pas les tickets. Périmètre différent de COM-CA (import, hors carburant) : afficher le périmètre sous la valeur. Panier = Σ CA ÷ Σ tickets, recomposé par `panier_moyen × nb_tickets`. |
 | COM-CA-H, MAR-H | CA ou marge ÷ heures d'ouverture | Tempo (CA), R5 (marge) ; heures : G-3 | Mêmes réserves que CARB-PROD-H : **à fiabiliser** tant que le gérant n'a pas confirmé la source des heures. |
 | COM-DISPO-REF | `mission_completions`, références prioritaires | aucun | « Référence prioritaire » non défini. |
-| MAR-BRUTE, MAR-TAUX, MAR-PROGRES | `normalized_sales` (ventes importées) + coûts d'achat | `nexus-rayon-moteur.js` / règle R5 (écart de marge) | La marge n'existe que par période d'import, et une période peut chevaucher deux mois. **Règle de passage au mois civil : au prorata des jours**, comme l'histogramme base 100 par jour (`resumerMargeParPeriode`). Si une période n'est pas couverte, le mois est **à fiabiliser** et affiché ainsi. Cible de taux : `tarif_seuils` (vide en Production), la référence 25 % codée en dur à trois endroits n'est pas une cible. |
-| MAR-ANO-TARIF | `journal_decisions` (R5-MARGE-ECART), `marge_exceptions` | moteur R5 | « Confirmée » = décision au journal. |
+| MAR-BRUTE, MAR-TAUX, MAR-PROGRES | `normalized_sales` (ventes importées) + coûts d'achat | `nexus-rayon-moteur.js` / règle R5 (écart de marge) *(Reclassé à l'étape 5 sur la matrice §2 seule, sans relecture du code.)* | La marge n'existe que par période d'import, et une période peut chevaucher deux mois. **Règle de passage au mois civil : au prorata des jours**, comme l'histogramme base 100 par jour (`resumerMargeParPeriode`). Si une période n'est pas couverte, le mois est **à fiabiliser** et affiché ainsi. Cible de taux : `tarif_seuils` (vide en Production), la référence 25 % codée en dur à trois endroits n'est pas une cible. |
+| MAR-ANO-TARIF | `journal_decisions` (R5-MARGE-ECART), `marge_exceptions` | moteur R5 *(Reclassé à l'étape 5 sur la matrice §2 seule, sans relecture du code.)* | « Confirmée » = décision au journal. |
 | MAR-DEMARQUE | `inventaire_*`, `inventaire_alertes` | `nexus-inventaire-moteur.js` | Définition de « démarque connue » à valider avec le gérant. |
-| MAR-PERTE-DC, MAR-EVITE | lot Dates courtes (PR #352 / #354, non en Production) | à venir | Source absente en Production tant que le lot n'est pas déployé. |
-| FDJ-COMMISSION | `fdj_reports` | `nexus-fdj-moteur.js` | À confirmer : la table porte-t-elle la commission ? Sinon indicateur « à fiabiliser ». |
+| MAR-PERTE-DC, MAR-EVITE | lot Dates courtes (PR #352 / #354, non en Production) | à venir *(Reclassé à l'étape 5 sur la matrice §2 seule, sans relecture du code.)* | Source absente en Production tant que le lot n'est pas déployé. |
+| FDJ-COMMISSION | `fdj_reports` | `nexus-fdj-moteur.js` *(Reclassé à l'étape 5 sur la matrice §2 seule, sans relecture du code.)* | À confirmer : la table porte-t-elle la commission ? Sinon indicateur « à fiabiliser ». |
 | FDJ-VOLUME, FDJ-EVOL | `view_fdj_daily_summary`, `view_fdj_game_daily` (CA par jeu) | **Tempo** (`joursCaFdjComplets`), seule autorité sur le CA FDJ par jour complet (Brief v4 §21.bis, audit §13.5). `nexus-fdj-moteur.js` garde les contrôles et la compensation. | Pas de troisième propriétaire. Évolution FDJ du Brief : fenêtre 7 jours ×250 plafonnée ±25 (audit §3), à aligner sur des périodes calendaires (G-1). |
-| FDJ-ECART-COMP, FDJ-ANO-NR, FDJ-CONTROLES | `fdj_cash_controls`, `fdj_discrepancies`, `fdj_shifts` | `nexus-fdj-moteur.js` | Compensation autorisée : lire telle quelle, sans la réécrire. |
+| FDJ-ECART-COMP, FDJ-ANO-NR, FDJ-CONTROLES | `fdj_cash_controls`, `fdj_discrepancies`, `fdj_shifts` | `nexus-fdj-moteur.js` *(Reclassé à l'étape 5 sur la matrice §2 seule, sans relecture du code.)* | Compensation autorisée : lire telle quelle, sans la réécrire. |
 | OPS-CTRL | `carburant_controles`, `mission_completions`, `fdj_cash_controls` | à désigner | Plusieurs moteurs comptent « contrôle » ; définir la liste des contrôles obligatoires. |
 | OPS-CLOT | `audits_caisse` (clôture), `fdj_shifts` | `nexus-verify-moteur.js` (`agregerAudits`) | « Conforme » à définir ; V4 et V11 non conformes. |
 | OPS-ECART-CAISSE | `audits_caisse` (écart par quart) | **`nexus-ecarts-moteur.js` (autorité proposée, audit §13.5)** | Lu de quatre façons (Verify max absolu, Tempo somme nette, Écarts seuils, A4 via agregerAudits) : tant que l'autorité n'est pas fixée, l'objectif ne peut pas citer de chiffre. |
 | OPS-INV | `inventaire_missions`, `inventaire_quarts` | `nexus-inventaire-moteur.js` | Délai de référence à fixer. |
 | OPS-ANO-DELAI, OPS-DELAI-RES | `inventaire_alertes`, journaux d'anomalies | `nexus-risques-moteur.js` (niveau/urgence, autorité proposée) | Notion de « délai » non partagée entre moteurs. |
 | OPS-TOURNEES | lot Dates courtes | à venir | Idem MAR-PERTE-DC. |
-| OPS-EQUIP | aucune | aucun | Aucune table d'équipements critiques. |
+| OPS-EQUIP | aucune | aucun *(Reclassé à l'étape 5 sur la matrice §2 seule, sans relecture du code.)* | Aucune table d'équipements critiques. |
 
 ### Ce que l'inventaire fait déjà apparaître
 
@@ -152,17 +152,17 @@ Trois classes, appliquées sans exception (article 5 : pas de valeur fabriquée)
 | FDJ-VOLUME | Disponible | `view_fdj_daily_summary`, jours à deux quarts contrôlés | somme (additif) | janvier 2026 |
 | FDJ-EVOL | Dérivé | série mensuelle de FDJ-VOLUME | sans requête propre | janvier 2026 |
 | OPS-ECART-CAISSE | Disponible | `audits_caisse.ecart_total`, valeur absolue par quart | moyenne par quart, sans compensation | mi-juillet 2026 |
-| CARB-PROD-H, COM-CA-H, MAR-H | À fiabiliser | dépend des horaires réels (G-3) | ratio | sans objet à ce stade |
-| MAR-BRUTE, MAR-TAUX, MAR-PROGRES | À fiabiliser | marge connue par période d'import ; passage au mois civil au prorata des jours | ratio | sans objet à ce stade |
-| CARB-ECART-NE | À fiabiliser | qualification manuelle, pas de champ dédié lu | à définir | sans objet à ce stade |
-| FDJ-ECART-COMP, FDJ-CONTROLES | À fiabiliser | lecture à confirmer sur la vue FDJ, règle de comptage à écrire | à définir | sans objet à ce stade |
-| CARB-RUPTURE | Non disponible | seule une rupture projetée existe dans le moteur de commande ; aucune rupture observée n'est stockée | sans objet | sans objet à ce stade |
-| CARB-MARGE | Non disponible | aucun coût d'achat stocké | sans objet | sans objet à ce stade |
-| FDJ-COMMISSION | Non disponible | aucune source de commission lue | sans objet | sans objet à ce stade |
-| OPS-CTRL, OPS-CLOT, OPS-INV, OPS-ANO-DELAI, OPS-DELAI-RES | À fiabiliser | la source existe (matrice §2) mais la définition manque : liste des contrôles obligatoires, sens de « conforme », délai de référence, notion de « délai » non partagée entre moteurs | ratio ; moyenne sur anomalies résolues pour OPS-DELAI-RES | sans objet à ce stade |
-| MAR-ANO-TARIF, MAR-DEMARQUE, FDJ-ANO-NR, COM-DISPO-REF | À fiabiliser | la source existe (matrice §2) mais « confirmée », « démarque connue », « référence prioritaire » ne sont pas définis ; FDJ-ANO-NR se lit comme un stock à date, pas comme une somme | additif ; stock à date pour FDJ-ANO-NR ; ratio pour COM-DISPO-REF | sans objet à ce stade |
-| MAR-PERTE-DC, MAR-EVITE, OPS-TOURNEES | Non disponible | source du lot Dates courtes (#352 / #354), absente de Production tant que le lot n'est pas déployé | sans objet | sans objet à ce stade |
-| OPS-EQUIP | Non disponible | aucune table d'équipements critiques | sans objet | sans objet à ce stade |
+| CARB-PROD-H, COM-CA-H, MAR-H | À fiabiliser | dépend des horaires réels (G-3) *(Reclassé à l'étape 5 sur la matrice §2 seule, sans relecture du code.)* | ratio | sans objet à ce stade |
+| MAR-BRUTE, MAR-TAUX, MAR-PROGRES | À fiabiliser | marge connue par période d'import ; passage au mois civil au prorata des jours *(Reclassé à l'étape 5 sur la matrice §2 seule, sans relecture du code.)* | ratio | sans objet à ce stade |
+| CARB-ECART-NE | À fiabiliser | qualification manuelle, pas de champ dédié lu *(Reclassé à l'étape 5 sur la matrice §2 seule, sans relecture du code.)* | à définir | sans objet à ce stade |
+| FDJ-ECART-COMP, FDJ-CONTROLES | À fiabiliser | lecture à confirmer sur la vue FDJ, règle de comptage à écrire *(Reclassé à l'étape 5 sur la matrice §2 seule, sans relecture du code.)* | à définir | sans objet à ce stade |
+| CARB-RUPTURE | Non disponible | seule une rupture projetée existe dans le moteur de commande ; aucune rupture observée n'est stockée *(Reclassé à l'étape 5 sur la matrice §2 seule, sans relecture du code.)* | sans objet | sans objet à ce stade |
+| CARB-MARGE | Non disponible | aucun coût d'achat stocké *(Reclassé à l'étape 5 sur la matrice §2 seule, sans relecture du code.)* | sans objet | sans objet à ce stade |
+| FDJ-COMMISSION | Non disponible | aucune source de commission lue *(Reclassé à l'étape 5 sur la matrice §2 seule, sans relecture du code.)* | sans objet | sans objet à ce stade |
+| OPS-CTRL, OPS-CLOT, OPS-INV, OPS-ANO-DELAI, OPS-DELAI-RES | À fiabiliser | la source existe (matrice §2) mais la définition manque : liste des contrôles obligatoires, sens de « conforme », délai de référence, notion de « délai » non partagée entre moteurs *(Reclassé à l'étape 5 sur la matrice §2 seule, sans relecture du code.)* | ratio ; moyenne sur anomalies résolues pour OPS-DELAI-RES | sans objet à ce stade |
+| MAR-ANO-TARIF, MAR-DEMARQUE, FDJ-ANO-NR, COM-DISPO-REF | À fiabiliser | la source existe (matrice §2) mais « confirmée », « démarque connue », « référence prioritaire » ne sont pas définis ; FDJ-ANO-NR se lit comme un stock à date, pas comme une somme *(Reclassé à l'étape 5 sur la matrice §2 seule, sans relecture du code.)* | additif ; stock à date pour FDJ-ANO-NR ; ratio pour COM-DISPO-REF | sans objet à ce stade |
+| MAR-PERTE-DC, MAR-EVITE, OPS-TOURNEES | Non disponible | source du lot Dates courtes (#352 / #354), absente de Production tant que le lot n'est pas déployé *(Reclassé à l'étape 5 sur la matrice §2 seule, sans relecture du code.)* | sans objet | sans objet à ce stade |
+| OPS-EQUIP | Non disponible | aucune table d'équipements critiques *(Reclassé à l'étape 5 sur la matrice §2 seule, sans relecture du code.)* | sans objet | sans objet à ce stade |
 
 Les anciennes lignes « à instruire » sont reclassées à l'étape 5 sur la seule base de la matrice d'autorité (§2), sans nouvelle lecture du code. Règle suivie : source nommée mais définition absente = à fiabiliser ; source absente de Production = non disponible. Aucune n'est promue en « disponible » : aucune requête de lecture n'est livrée pour elles.
 
@@ -340,7 +340,10 @@ create table objectif_catalogue (
   agregation      text not null check (agregation in ('somme','moyenne_jour_complet','ratio','moyenne_par_quart')),
   sens            text not null check (sens in ('hausse','baisse')),   -- baisse = objectif de réduction
   cible_zero_ok   boolean not null default false,                      -- une cible 0 a un sens (écarts)
-  autorite        text not null                                         -- moteur ou fichier qui fait foi
+  autorite        text not null,                                        -- moteur ou fichier qui fait foi
+  premier_mois    date,                                                 -- premier mois d'historique stocké (A4)
+  cible_externe   text check (cible_externe in ('tarif_seuils')),       -- la cible vient d'ailleurs : refus de toute cible ici
+  objectivable    boolean not null                                      -- voir « Qui peut porter une cible »
 );
 
 -- Cibles : une ligne par version.
@@ -354,15 +357,28 @@ create table station_objectifs (
   version         int  not null,
   cible           numeric not null,
   statut          text not null check (statut in ('brouillon','propose','officiel','remplace','retire')),
-  propose_par     text,
+  origine         text not null check (origine in ('gerant','proposition_nexus','reprise_historique')),
+  propose_par     uuid references employees(id),
   propose_le      timestamptz,
-  valide_par      text,
+  valide_par      uuid references employees(id),
   valide_le       timestamptz,
   motif           text,                          -- obligatoire dès la version 2
-  remplace_id     uuid references station_objectifs(id),
+  remplace_id     uuid references station_objectifs(id),   -- versions seulement
+  parent_id       uuid references station_objectifs(id),   -- lien mois -> année (hiérarchie, pas version)
   created_at      timestamptz not null default now(),
   unique (site, indicateur_id, horizon, periode_debut, version),
   check (periode_fin > periode_debut),
+  -- alignement calendaire par horizon (heure locale : ce sont des dates de service)
+  check (horizon <> 'mois' or (
+           periode_debut = date_trunc('month', periode_debut)::date
+           and periode_fin = (periode_debut + interval '1 month')::date)),
+  check (horizon <> 'trimestre' or (
+           extract(month from periode_debut) in (1,4,7,10)
+           and periode_debut = date_trunc('month', periode_debut)::date
+           and periode_fin = (periode_debut + interval '3 months')::date)),
+  check (horizon <> 'annee' or (
+           extract(month from periode_debut) = 1 and extract(day from periode_debut) = 1
+           and periode_fin = (periode_debut + interval '1 year')::date)),
   check (statut <> 'officiel' or (valide_par is not null and valide_le is not null)),
   check (version = 1 or motif is not null)
 );
@@ -373,10 +389,24 @@ create unique index station_objectifs_un_officiel
   where statut = 'officiel';
 ```
 
+`propose_par` et `valide_par` pointent `employees(id)` : un texte libre ne prouve pas qui a posé la cible. `origine` dit d'où vient la ligne (saisie du gérant, proposition de NEXUS acceptée, reprise d'un historique) ; une proposition de NEXUS n'est jamais officielle sans validation du gérant. `remplace_id` ne sert qu'aux versions d'une même cible ; le lien d'un mois vers son année passe par `parent_id`.
+
+### Qui peut porter une cible
+
+Le catalogue dit `objectivable`. Sont acceptés :
+
+- les **cibles de performance** (litres, CA, volume FDJ, panier, tickets) ;
+- les **objectifs de réduction de maîtrise** : écarts de caisse −30 %, démarque −15 %. Ils vivent dans `station_objectifs`, la `nature = 'maitrise'` les sépare dans le Brief ; leur `sens` est `baisse` ;
+- jamais les **potentiels détectés** (`nature = 'potentiel'`) ;
+- jamais les **exigences permanentes** (100 % des contrôles, 0 rupture) : ce sont des règles, pas des objectifs ; elles restent des seuils de moteur.
+
+Un indicateur dont la cible vit ailleurs (`cible_externe`) est refusé : MAR-TAUX renvoie à `tarif_seuils`, qui reste la seule source de cible de taux de marge. La RPC de proposition refuse toute cible sur lui (R8).
+
 ### Règles portées par la base
 
 - **Immuabilité** : un déclencheur refuse toute modification de `cible`, `periode_*` et `version` sur une ligne `officiel` ou `remplace` ; seul `statut` peut passer de `officiel` à `remplace` (et uniquement à la création de la version suivante).
-- **Cohérence entre horizons** : pour un indicateur additif, un déclencheur de validation vérifie que la somme des cibles mensuelles officielles d'un trimestre ne dépasse pas la cible trimestrielle, et signale l'écart sans bloquer si les mois ne sont pas tous posés. Pour une moyenne ou un ratio, aucune somme : la cible de chaque horizon est indépendante et se compare à la valeur agrégée de cet horizon.
+- **Période alignée** : les trois `check` ci-dessus refusent une période qui ne commence pas au 1er (mois), à janvier, avril, juillet ou octobre (trimestre), ou au 1er janvier (année) (R9).
+- **Cohérence entre horizons** : pour un indicateur additif, la cible annuelle est la somme des cibles mensuelles à l'arrondi près ; le trimestre est la somme de ses trois mois. Un déclencheur de validation vérifie l'égalité à l'arrondi près entre la somme des mois et l'année, et signale l'écart sans bloquer si les mois ne sont pas tous posés. Pour une moyenne ou un ratio, aucune somme : la cible de chaque horizon est indépendante et se compare à la valeur agrégée de cet horizon.
 - **Classe** : on ne peut pas proposer de cible sur un indicateur `non_disponible`, ni passer `officiel` sur un indicateur `a_fiabiliser` sans arbitrage consigné.
 - **Cible zéro** : acceptée seulement si `cible_zero_ok`. Le Brief affiche alors « 0 attendu » et un niveau atteint ou non, jamais un pourcentage de progression (division par zéro interdite).
 - **Réduction** : `sens = 'baisse'` inverse l'écart et la lecture de la tendance ; la progression se calcule en part de la réduction visée.
@@ -386,23 +416,28 @@ create unique index station_objectifs_un_officiel
 ```sql
 alter table station_objectifs enable row level security;
 
--- Lecture : tout employé de la station.
+-- Lecture : habilitée seulement (gérant, manager ; liste finale selon G-4).
+-- Un employé de la station, même de la bonne station, ne lit rien.
 create policy so_lecture on station_objectifs for select to authenticated
-  using (site = current_employee_site_id());
+  using (site = current_employee_site_id()
+         and current_employee_role() in ('manager','gerant'));
 
--- Proposition : gérant ou responsable habilité, sa station, statut propose/brouillon seulement.
-create policy so_proposer on station_objectifs for insert to authenticated
-  with check (site = current_employee_site_id()
-              and current_employee_role() in ('manager','gerant')
-              and statut in ('brouillon','propose'));
-
--- Validation : gérant seul, et via une fonction, jamais par UPDATE direct.
--- Pas de politique update ni delete pour authenticated.
+-- Aucune politique insert, update ni delete pour authenticated : tout passe par les fonctions ci-dessous.
 ```
 
-La validation passe par une fonction `valider_objectif(id)` en `security invoker`, qui contrôle `current_employee_role() = 'gerant'` (ou le rôle habilité désigné au point G-4), la station, l'unicité de l'officiel, puis pose `valide_par`, `valide_le` et remplace l'ancienne version dans la même transaction. `anon` n'a aucun droit. Les `revoke` sont posés explicitement sur `anon` et sur `public` (un `revoke from public` seul ne ferme pas `anon`), et `TRUNCATE` est retiré à `authenticated`.
+Le Brief et la vue d'A4 lisent la même table (ou la vue §ci-dessous) : la restriction de rôle s'applique à eux aussi. La lecture de `objectif_catalogue` reste ouverte aux `authenticated` (aucune donnée de station).
 
-`objectif_catalogue` : lecture pour `authenticated`, aucune écriture hors migration.
+### Écriture : fonctions `security definer`, une par opération
+
+Aucune politique d'insertion directe : une politique `insert` laisserait un `manager` écrire n'importe quel statut en contournant les règles. Sur le modèle de `_ecarts_regul_manager` (migration 20261008130000), chaque opération est une fonction `security definer`, `set search_path = ''`, qui porte ses propres gardes (session, rôle, station, unicité, période alignée) et refuse la mauvaise station :
+
+| Fonction | Rôle autorisé | Gardes |
+|---|---|---|
+| `proposer_objectif(p_site, p_indicateur, p_horizon, p_debut, p_cible, p_origine)` | manager, gérant (G-4) | station = celle de l'appelant ; indicateur `objectivable`, classe ≠ `non_disponible`, `cible_externe` nul ; période alignée sur l'horizon ; cible zéro seulement si `cible_zero_ok` ; une seule proposition ouverte par clé |
+| `valider_objectif(p_id)` | gérant seul (G-4) | station de la ligne = celle de l'appelant ; statut `propose` ; unicité de l'officiel ; arbitrage consigné si classe `a_fiabiliser` ; pose `valide_par`, `valide_le`, remplace la version précédente dans la même transaction |
+| `retirer_objectif(p_id, p_motif)` | gérant seul | station de la ligne = celle de l'appelant ; motif obligatoire ; statut `retire`, jamais un `delete` |
+
+`anon` n'a aucun droit. Les `revoke` sont posés explicitement sur `anon` et sur `public` pour chaque fonction (un `revoke from public` seul ne ferme pas `anon`), `grant execute` à `authenticated` seulement, et `TRUNCATE` est retiré à `authenticated` sur les tables.
 
 ### Lecture par le Brief et par A4
 
@@ -416,7 +451,7 @@ Une table `objectif_recommandation(site, objectif_id, recommandation_id, ecart, 
 
 - **G-4** : quels rôles sont « responsables habilités » à proposer, et le gérant seul valide-t-il ? (Aujourd'hui `manager` et `gerant` partagent la plupart des politiques.)
 - **G-5** : une cible officielle de période en cours peut-elle être révisée, avec motif, ou seulement à la période suivante ?
-- **G-6** : cible trimestrielle et annuelle saisies directement, ou seulement déduites de la somme des mois ?
+- **G-6** (reformulé) : l'année est saisie, les mois sont proposés par NEXUS, le trimestre est la somme de ses mois pour un indicateur additif, et le contrôle est l'égalité à l'arrondi près entre la somme des mois et l'année. Reste ouverte seulement la cible propre du trimestre pour les moyennes et les ratios.
 
 ## 6. Suite
 
@@ -443,8 +478,10 @@ Rien de ce qui suit n'est exécuté : aucune migration, aucun code, aucun accès
 | S2 | `TRUNCATE` est révoqué de `authenticated` et `anon` sur les trois tables | `has_table_privilege(..., 'TRUNCATE')` faux ; `revoke from public` seul ne suffit pas |
 | S3 | Un employé de la station A ne lit aucune ligne de la station B | requête avec le jeton d'un employé de A filtrée sur B : zéro ligne |
 | S4 | Un employé de A ne peut pas insérer pour B, ni déplacer une ligne vers B | insertion refusée par la politique ; test sur `with check` |
-| S5 | Seuls `manager` et `gerant` écrivent ; un rôle employé est refusé en insertion | essai avec chaque rôle |
-| S6 | `valider_objectif(id)` est `security invoker` et refuse un rôle non autorisé | appel par un employé : erreur ; par le gérant de la station : succès |
+| S5 | Aucune écriture directe : un `insert`, `update` ou `delete` de `authenticated` sur `station_objectifs` est refusé ; seules les RPC écrivent, et seuls `manager` et `gerant` appellent `proposer_objectif` | essai direct avec chaque rôle : refus ; appel de la RPC par un employé : refus |
+| S6 | `valider_objectif` et `retirer_objectif` sont `security definer`, réservés au gérant de la station, et refusent le manager, l'employé et le gérant d'une autre station | appel par chaque rôle : erreur `insufficient_privilege` sauf gérant de la station |
+| S13 | Un employé de la station elle-même ne lit aucune ligne (lecture limitée aux rôles habilités, Brief et vue A4 compris) | jeton d'employé de la bonne station : zéro ligne ; jeton manager : lignes visibles |
+| S14 | Chaque RPC `security definer` a un `search_path` vide et refuse la mauvaise station | lecture de `pg_proc.proconfig` ; appel avec un `p_site` d'une autre station : refus |
 | S7 | Aucune politique UPDATE ni DELETE n'existe | liste de `pg_policies` : aucune commande UPDATE/DELETE |
 | S8 | Une ligne `officiel` ou `remplace` est immuable (trigger) | tentative d'UPDATE par le propriétaire de la table : refus du trigger |
 | S9 | Un seul objectif officiel par (station, indicateur, horizon, début de période) | seconde insertion `officiel` : violation de l'index unique partiel |
@@ -460,7 +497,9 @@ Rien de ce qui suit n'est exécuté : aucune migration, aucun code, aucun accès
 | R2 | Aucun objectif officiel sur un indicateur « à fiabiliser » sans arbitrage consigné | insertion `officiel` refusée ; avec arbitrage référencé : acceptée |
 | R3 | Cible zéro acceptée seulement si `cible_zero_ok` ; aucun pourcentage d'atteinte n'est calculé sur une cible nulle | affichage « 0 attendu », pas de division |
 | R4 | `sens = 'baisse'` : un recul est un progrès ; l'atteinte est plafonnée à 100 % sans dépasser | série fictive décroissante |
-| R5 | Cohérence entre horizons des indicateurs additifs : la somme des cibles mensuelles tend vers la cible trimestrielle puis annuelle ; l'écart déclenche un avertissement, jamais un blocage | trois horizons incohérents : avertissement visible |
+| R5 | Cohérence entre horizons d'un indicateur additif : la somme des cibles mensuelles égale la cible annuelle à l'arrondi près, le trimestre est la somme de ses trois mois ; un écart est signalé sans bloquer tant que les mois ne sont pas tous posés. Aucune somme pour une moyenne ou un ratio | année posée, mois incohérents : avertissement visible ; ratio : aucun contrôle de somme |
+| R8 | Une cible sur un indicateur `cible_externe` (MAR-TAUX) est refusée par `proposer_objectif` | appel sur MAR-TAUX : erreur |
+| R9 | Une période non alignée est refusée (mois ne commençant pas au 1er, trimestre hors janvier/avril/juillet/octobre, année ne commençant pas au 1er janvier) | trois essais non alignés : `check` violé |
 | R6 | Taux, moyennes et ratios portent leur propre cible par horizon, sans somme ni moyenne des mois | cible annuelle d'un ratio indépendante des cibles mensuelles |
 | R7 | Un objectif remplacé garde sa version ; la nouvelle version référence l'ancienne | historique complet lisible |
 
@@ -472,7 +511,7 @@ Rien de ce qui suit n'est exécuté : aucune migration, aucun code, aucun accès
 | D2 | Mois civils en heure de Martinique (`at time zone 'America/Martinique'`) ; les colonnes `date` sont déjà locales | jeu avec des saisies proches de minuit : rattachement au bon mois |
 | D3 | Seuls les jours complets Tempo comptent ; la colonne de jours couverts accompagne chaque valeur mensuelle | mois partiel : valeur et couverture affichées ensemble |
 | D4 | Écarts de caisse en valeur absolue par quart, sans compensation | quart +10 et quart −10 : 20, pas 0 ; un quart à +20 en piste et −20 en boutique vaut 40 en colonne principale, 0 en colonne secondaire (différence écrite en Q-ECART) |
-| D5 | **Chaque requête du document s'exécute sans erreur sur Test** (Q-CARB, Q-COM, Q-PANIER, Q-FDJ, Q-ECART) | exécution sur la base Test avec une station de recette, un mois et un mois vide : aucune erreur (notamment 42803), `jours_du_mois` présent partout, résultats consignés dans le compte rendu |
+| D9 | **Chaque requête du document s'exécute sans erreur sur Test** (Q-CARB, Q-COM, Q-PANIER, Q-FDJ, Q-ECART) | exécution sur la base Test avec une station de recette, un mois et un mois vide : aucune erreur (notamment 42803), `jours_du_mois` présent partout, résultats consignés dans le compte rendu |
 | D5 | Pas de projection quand les données sont insuffisantes ; le Brief l'écrit au lieu de calculer | panier moyen avec peu de jours : mention « données insuffisantes » |
 | D6 | Chaque objectif affiche courant, cible, avancement, niveau attendu à date, écart, tendance, période, fraîcheur | contrôle champ par champ |
 | D7 | Fraîcheur : un indicateur dont la dernière donnée est ancienne est signalé comme périmé | jeu sans saisie récente |
@@ -500,7 +539,7 @@ Rien n'est tranché ici. Chaque ligne dit ce qui change selon la réponse et ce 
 | G-3 | Les horaires de `station_config.horaires` valent-ils horaires d'ouverture ? Sinon : les saisir une fois, ou renoncer aux quatre indicateurs « par heure » | les confirmer si le gérant les reconnaît ; sinon renoncer | CARB-PROD-H, COM-CA-H, MAR-H (et leur voisin par heure) passent de « à fiabiliser » à « disponible » |
 | G-4 | Quels rôles proposent, et le gérant seul valide-t-il ? (`manager` et `gerant` partagent aujourd'hui la plupart des politiques) | proposition par manager ou gérant, validation par le gérant | S5, S6, flux de validation de la maquette |
 | G-5 | Une cible officielle de période en cours peut-elle être révisée, avec motif, ou seulement à la période suivante ? | révisable avec motif, par une nouvelle version qui remplace l'ancienne, jamais par modification | R7, D8 |
-| G-6 | Cible trimestrielle et annuelle saisies directement, ou seulement déduites de la somme des mois ? | dérivées pour les additifs, saisies pour les ratios | R5, R6 |
+| G-6 | Pour un additif, l'année est saisie, les mois proposés, le trimestre est la somme de ses mois (contrôle : somme des mois = année à l'arrondi). Pour une moyenne ou un ratio, le trimestre porte-t-il sa propre cible ? | année saisie et mois proposés pour les additifs ; cible propre du trimestre pour les ratios | R5, R6 |
 | G-7 | « Écart de caisse » : `ecart_total` tel que stocké, ou somme des valeurs absolues piste + boutique par quart ? | somme des valeurs absolues par quart, sans compensation | OPS-ECART-CAISSE, D4 |
 | G-8 | Pour les indicateurs de maîtrise reclassés « à fiabiliser » (contrôles, clôtures, inventaires, délais, anomalies, référence prioritaire), quelle définition de « conforme » et quel délai de référence ? | une définition écrite par indicateur avant toute cible | OPS-CTRL, OPS-CLOT, OPS-INV, OPS-ANO-DELAI, OPS-DELAI-RES, MAR-ANO-TARIF, MAR-DEMARQUE, FDJ-ANO-NR, COM-DISPO-REF |
 
