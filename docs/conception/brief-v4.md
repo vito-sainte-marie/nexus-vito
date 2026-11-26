@@ -472,3 +472,59 @@ Un sujet par bloc. Rien n'est écrit comme validé. Le gérant choisit.
 | Fermeture des risques | règle du §20 ; règle plus simple ; règle plus stricte | selon le nombre de mesures de confirmation et le délai « sans mesure récente » |
 
 Aucun code, aucune migration, rien en Production avant le GO du gérant.
+
+## 22. Icônes utilisées (registre `nexus-icones.js`, `assets/icones`)
+
+Aucune icône dessinée pour la maquette. Fichiers vérifiés présents. Aucune icône manquante : rien à demander.
+
+| Bloc | Id | Fichier |
+|---|---|---|
+| Page, en-tête | `mod-brief` | `assets/icones/v2/mod-brief/mod-brief-24.svg` |
+| Lecture Performance économique | `mod-resultats` | `assets/icones/v2/mod-resultats/mod-resultats-24.svg` |
+| Lecture Maîtrise opérationnelle | `mod-verify` | `assets/icones/v2/mod-verify/mod-verify-24.svg` |
+| Lecture Fiabilité des données | `tempo-fiabilite-donnees` | `assets/icones/tempo/simple/tempo-fiabilite-donnees.svg` |
+| Secteur Carburant | `mod-carburants` | `assets/icones/v2/mod-carburants/mod-carburants-24.svg` |
+| Secteur Commerce | `mod-produits` | `assets/icones/v2/mod-produits/mod-produits-24.svg` |
+| Secteur FDJ | `mod-fdj` | `assets/icones/v2/mod-fdj/mod-fdj-24.svg` |
+| Secteur Opérations | `mod-prise-de-poste` | `assets/icones/v2/mod-prise-de-poste/mod-prise-de-poste-24.svg` |
+| Secteur Marge | `mod-capital` | `assets/icones/v2/mod-capital/mod-capital-24.svg` |
+| Histogramme des trois moteurs | `tempo-comparaison-historique` | `assets/icones/tempo/simple/tempo-comparaison-historique.svg` |
+| Potentiel financier | `mod-evolution` | `assets/icones/v2/mod-evolution/mod-evolution-24.svg` |
+| Décisions prioritaires | `mod-assignations` | `assets/icones/v2/mod-assignations/mod-assignations-24.svg` |
+| Évolution 40 jours / 6 mois | `mod-tempo` | `assets/icones/v2/mod-tempo/mod-tempo-24.svg` |
+| Rapport A4 | `mod-rapport` | `assets/icones/v2/mod-rapport/mod-rapport-24.svg` |
+
+Le bloc Objectifs n'a pas d'icône propre : ses titres sont textuels. À confirmer par le gérant si une icône est souhaitée (`mod-progression` existe au registre).
+
+## 23. Éléments dynamiques (complément du gérant, 26/11)
+
+Autorisés quand ils aident la lecture, montrés dans la maquette 1280, Jour et Nuit :
+- jauges et barres qui se remplissent au chargement, une seule fois, 300 ms au plus ;
+- survol, focus, clic et clavier révèlent la valeur réelle avec son unité (info-bulle ; Échap la ferme) ;
+- histogramme : puces pour afficher ou masquer chaque série (au moins une reste active) ;
+- détail repliable sur chaque carte secteur (`<details>`) ;
+- courbes : bascule 40 jours / 6 mois ; 12 mois grisé tant que l'historique manque (9 mois aujourd'hui) ;
+- tableau de valeurs de l'histogramme, accessible à la demande, présent dans le DOM.
+
+Règles : animation au service de la lecture, jamais décorative ; rien ne se rejoue au survol ; `prefers-reduced-motion` coupe toute animation et la page reste complète ; ce qui s'ouvre au survol s'ouvre aussi au clic et au clavier, avec focus visible ; aucune information n'existe seulement dans une animation ou une info-bulle.
+
+**Aucune bibliothèque externe.** HTML, CSS et JavaScript natifs, SVG en ligne. Rien à proposer en poids ni en justification.
+
+## 24. Vue mobile (orientation du gérant, 26/11 ; rien à produire avant validation du bureau)
+
+En mobile, le Brief va à l'essentiel : ce n'est pas la page bureau empilée. Premier écran limité à ce qui décide de la journée.
+
+| Bloc | Mobile |
+|---|---|
+| Fiabilité des données | reste, en une ligne |
+| Trois lectures | restent, en tendance et en mots, sans graphique lourd |
+| Risques confirmés | restent, nommés |
+| Trois priorités du jour | restent, chacune avec son action |
+| Cartes secteur détaillées | se replient derrière un accès clair |
+| Histogramme comparatif | n'y figure pas (bureau seulement) |
+| Courbes 40 jours / 6 mois | n'y figurent pas (bureau seulement) |
+| Objectifs | se replient derrière un accès clair |
+| Potentiel financier | se replie derrière un accès clair |
+| Rapport A4 | se replie derrière un accès clair |
+
+Le découpage replié ou réservé au bureau est une proposition à valider avec la maquette bureau. La maquette mobile ne sera produite qu'après cette validation.
