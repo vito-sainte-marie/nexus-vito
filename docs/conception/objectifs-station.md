@@ -489,11 +489,11 @@ Le Brief et A4 lisent la même vue en lecture seule, créée avec `security_invo
 
 Une table `objectif_recommandation(site, objectif_id, recommandation_id, ecart, cause_nature, action, potentiel_estime, resultat_obtenu)` relie une recommandation à une cible. `cause_nature` vaut `demontree` ou `supposee`. Les potentiels sont dédoublonnés par clé (`site`, `indicateur_id`, `periode_debut`, `cause`) pour qu'un même gain ne soit pas compté sous deux objectifs. Les moteurs ne sont pas modifiés par cette étape : le lien est une table de rapprochement alimentée plus tard.
 
-### Arbitrages de l'étape 3 (G-4 et G-5 tranchés le 26/11, G-6 ouvert)
+### Arbitrages de l'étape 3 (G-4, G-5 et G-6 tranchés le 26/11)
 
 - **G-4** (tranché le 26/11) : la validation est ouverte au pilote, au compte de rôle `gerant` et aux managers de la station ; un compte habilité ne valide jamais sa propre proposition. Première habilitation par migration avec GO, ajouts et retraits par la RPC d'octroi.
 - **G-5** (tranché le 26/11) : une cible officielle de période en cours est révisable, avec motif, par une nouvelle version qui remplace l'ancienne sans l'effacer.
-- **G-6** (reformulé) : l'année est saisie, les mois sont proposés par NEXUS, le trimestre est la somme de ses mois pour un indicateur additif, et le contrôle est l'égalité à l'arrondi près entre la somme des mois et l'année. Reste ouverte seulement la cible propre du trimestre pour les moyennes et les ratios.
+- **G-6** (tranché le 26/11) : l'année est saisie, les mois sont proposés par NEXUS, le trimestre est la somme de ses mois pour un indicateur additif, et le contrôle est l'égalité à l'arrondi près entre la somme des mois et l'année. Le trimestre d'un ratio ou d'une moyenne porte **sa propre cible**, préremplie par NEXUS avec la cible annuelle et modifiable avant validation.
 
 ## 6. Suite
 
@@ -591,7 +591,7 @@ Ordre : sécurité (8.1) avant tout jeu de données ; règles de base (8.2) ; le
 
 ## 9. Arbitrages du gérant (livrable 9)
 
-Six arbitrages sont **tranchés le 26/11 par le gérant**. G-6 reste ouvert.
+Sept arbitrages sont **tranchés le 26/11 par le gérant** (G-1, G-3, G-4, G-5, G-6, G-7, G-8).
 
 | Id | Décision | Ce qui en découle |
 |---|---|---|
@@ -599,6 +599,6 @@ Six arbitrages sont **tranchés le 26/11 par le gérant**. G-6 reste ouvert.
 | G-3 | Tranché le 26/11 par le gérant : CARB-PROD-H, COM-CA-H et MAR-H sont **non retenus**. | nouvelle classe « Non retenu » ; retirés des maquettes et de la recette |
 | G-4 | Tranché le 26/11 par le gérant : la validation est ouverte au pilote, au compte de rôle `gerant` et aux managers de la station. Un compte habilité ne valide jamais sa propre proposition. La première habilitation est posée par migration avec GO, pour ces trois catégories ; ajouts et retraits par la RPC d'octroi. | §5 ; S5, S6, S15, **S16** |
 | G-5 | Tranché le 26/11 par le gérant : une cible de période en cours est révisable, avec motif, par une nouvelle version qui remplace l'ancienne sans l'effacer. | §5 ; R7, D8 |
-| G-6 | **Ouvert.** Pour un additif : année saisie, mois proposés, trimestre = somme des mois (contrôle à l'arrondi). Pour une moyenne ou un ratio, le trimestre porte-t-il sa propre cible ? Recommandation : oui, pour les ratios. | R5, R6 |
+| G-6 | Tranché le 26/11 par le gérant : pour un additif, année saisie, mois proposés, trimestre = somme des mois (contrôle à l'arrondi). Le trimestre d'un ratio ou d'une moyenne porte sa propre cible, préremplie avec la cible annuelle et modifiable avant validation. | R5, R6 |
 | G-7 | Tranché le 26/11 par le gérant : l'écart de caisse est la somme des valeurs absolues piste + boutique par quart, sans compensation. | OPS-ECART-CAISSE, Q-ECART, D4 |
 | G-8 | Tranché le 26/11 par le gérant : CC écrit une définition « conforme » et un délai de référence par indicateur de maîtrise reclassé, d'après l'existant ; toute définition sans source est « à valider ». | sous-section « Définitions conforme (G-8) » du §3 |

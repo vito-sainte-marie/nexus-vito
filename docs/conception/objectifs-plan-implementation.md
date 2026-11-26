@@ -44,7 +44,7 @@ Colonnes : fichiers touchés · migration (retour arrière) · tests · recette 
 | R4 | Écran bureau : saisie, validation, révision motivée (G-5), historique des versions | R2, R3 | GO code | M |
 | R5 | Indicateurs de maîtrise reclassés : définitions « conforme » (G-8) branchées là où la source existe ; les « à valider » restent sans cible | R3, réponses du gérant | GO code, puis réponses | S à M |
 
-**G-6** : R1 ne dépend pas de G-6, car `station_objectifs` porte déjà un horizon par ligne. Seule la règle « le trimestre d'un ratio ou d'une moyenne a-t-il sa propre cible » en dépend : elle bloque R3 (règle d'agrégation) et R4 (champ de saisie du trimestre), pas R1 ni R2.
+**G-6** (tranché le 26/11) : le trimestre d'un ratio ou d'une moyenne porte sa propre cible, préremplie par NEXUS avec la cible annuelle et modifiable avant validation. R3 en tient compte pour l'agrégation, R4 pour le champ de saisie du trimestre. R1 et R2 n'en dépendaient pas.
 
 | Lot | Fichiers touchés | Migration (retour arrière) | Tests | Recette | Risque |
 |---|---|---|---|---|---|
@@ -108,7 +108,6 @@ Tout sauf la promotion : les lots A, R1, R2, R3 à R5, B, C se conçoivent, s'é
 
 ## 4. Points encore ouverts
 
-- **G-6** : bloque la règle de trimestre des ratios (R3, R4), rien d'autre.
 - Chaque définition « à valider » du §3 de `objectifs-station.md` : l'indicateur reste sans cible tant qu'elle n'est pas validée.
 - Les noms de fichiers marqués « à confirmer » sont à relever à l'ouverture de chaque lot.
 - Brief v4 reste en brouillon (#392) ; aucune fusion sans GO écrit du gérant.
