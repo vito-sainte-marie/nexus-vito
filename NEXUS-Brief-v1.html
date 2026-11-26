@@ -16,6 +16,7 @@
 <title>Brief NEXUS — Vue dirigeant</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="nexus-theme.js"></script>
 <style>
   :root{
     --bg:#0B0F14;
@@ -33,6 +34,9 @@
     --red-dim:#3A1D1F;
     --cyan:#4FC3D9;
     --gold:#D4AF37; --gold-dim:#332B12;
+    --on-cyan:#04141a; --on-cyan-alt:#0B0F14; --on-amber:#241d0c;
+    --cyan-rgb:79,195,217; --gold-rgb:212,175,55; --green-rgb:52,211,153; --amber-rgb:245,166,35; --red-rgb:240,87,90; --shadow-rgb:0,0,0;
+    --ghost:rgba(255,255,255,0.06); --ghost-faint:rgba(255,255,255,0.02);
     --mono:'IBM Plex Mono',monospace;
     --sans:'IBM Plex Sans',sans-serif;
   }
@@ -41,7 +45,7 @@
   body{
     display:flex; justify-content:center;
     min-height:100vh;
-    background-image: radial-gradient(circle at 50% 0%, rgba(212,175,55,0.07), transparent 45%);
+    background-image: radial-gradient(circle at 50% 0%, rgba(var(--gold-rgb),0.07), transparent 45%);
   }
   .phone{
     width:100%; max-width:430px; min-height:100vh;
@@ -53,10 +57,10 @@
   .menu-btn{
     margin-left:auto; flex-shrink:0; display:flex; align-items:center; gap:6px;
     font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase;
-    color:var(--cyan); background:rgba(79,195,217,0.1); border:1px solid rgba(79,195,217,0.3);
+    color:var(--cyan); background:rgba(var(--cyan-rgb),0.1); border:1px solid rgba(var(--cyan-rgb),0.3);
     border-radius:20px; padding:7px 12px; text-decoration:none; white-space:nowrap;
   }
-  .menu-btn:active{background:rgba(79,195,217,0.2);}
+  .menu-btn:active{background:rgba(var(--cyan-rgb),0.2);}
   .header .logo-frame{
     width:64px; height:64px; border-radius:20px; flex-shrink:0;
     background:transparent;
@@ -77,9 +81,9 @@
   /* HERO — état global du jour, ton dirigeant */
   .brief-hero{
     margin:14px 20px 6px; padding:30px 22px 26px; border-radius:22px; text-align:center;
-    background:radial-gradient(120% 140% at 50% -10%, rgba(212,175,55,0.16), rgba(79,195,217,0.05) 55%, transparent 80%), var(--panel);
-    border:1px solid rgba(212,175,55,0.22);
-    box-shadow:0 12px 36px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.02) inset;
+    background:radial-gradient(120% 140% at 50% -10%, rgba(var(--gold-rgb),0.16), rgba(var(--cyan-rgb),0.05) 55%, transparent 80%), var(--panel);
+    border:1px solid rgba(var(--gold-rgb),0.22);
+    box-shadow:0 12px 36px rgba(var(--shadow-rgb),0.35), 0 0 0 1px var(--ghost-faint) inset;
   }
   .brief-date{font-family:var(--mono); font-size:10.5px; letter-spacing:0.16em; text-transform:uppercase; color:var(--text-dim); margin-bottom:16px;}
   .brief-indice-value{font-family:var(--mono); font-size:74px; font-weight:700; line-height:1; text-shadow:0 0 30px currentColor;}
@@ -98,7 +102,7 @@
   .legend-line{padding:0 20px 14px; font-size:10.5px; color:var(--text-dim); line-height:1.6; text-align:center;}
 
   .plans-loading{padding:36px 20px; text-align:center;}
-  .plans-loading-logo{width:38px; height:38px; margin-bottom:12px; animation:nexusSpin 1.3s linear infinite; filter:drop-shadow(0 0 10px rgba(79,195,217,0.4));}
+  .plans-loading-logo{width:38px; height:38px; margin-bottom:12px; animation:nexusSpin 1.3s linear infinite; filter:drop-shadow(0 0 10px rgba(var(--cyan-rgb),0.4));}
   @keyframes nexusSpin{ to{ transform:rotate(360deg); } }
   .plans-loading-text{font-size:12.5px; color:var(--text-dim); transition:opacity 0.25s ease;}
   .plans-loading-text.fade{opacity:0;}
@@ -137,8 +141,8 @@
   }
   .section-title .badge{font-family:var(--mono); font-size:9.5px; padding:2px 7px; border-radius:10px; letter-spacing:0.02em;}
   .badge-real{color:var(--green); background:var(--green-dim);}
-  .badge-derived{color:var(--cyan); background:rgba(79,195,217,0.12);}
-  .badge-estime{color:var(--gold); background:rgba(212,175,55,0.14);}
+  .badge-derived{color:var(--cyan); background:rgba(var(--cyan-rgb),0.12);}
+  .badge-estime{color:var(--gold); background:rgba(var(--gold-rgb),0.14);}
   .badge-absent{color:var(--text-dim); background:var(--panel-raised);}
   .section-note{font-size:11px; color:var(--text-dim); line-height:1.5; margin-top:10px;}
 
@@ -147,7 +151,7 @@
     background:var(--panel); border:1px solid var(--hairline); border-radius:16px; padding:18px;
     position:relative; overflow:hidden;
   }
-  .boussole-card::before{content:''; position:absolute; top:-40%; left:-20%; width:140%; height:140%; background:radial-gradient(circle, rgba(212,175,55,0.08), transparent 60%); pointer-events:none;}
+  .boussole-card::before{content:''; position:absolute; top:-40%; left:-20%; width:140%; height:140%; background:radial-gradient(circle, rgba(var(--gold-rgb),0.08), transparent 60%); pointer-events:none;}
   .boussole-svg-wrap{display:flex; justify-content:center; margin-bottom:6px;}
   .boussole-svg-wrap svg{width:100%; max-width:280px; height:auto;}
   .axe-block{border-bottom:1px solid var(--hairline);}
@@ -171,7 +175,7 @@
 
   /* FORCES */
   .force-card{
-    background:linear-gradient(145deg, var(--gold-dim), rgba(212,175,55,0.04)); border:1px solid rgba(212,175,55,0.35);
+    background:linear-gradient(145deg, var(--gold-dim), rgba(var(--gold-rgb),0.04)); border:1px solid rgba(var(--gold-rgb),0.35);
     border-radius:14px; padding:16px 18px; display:flex; flex-direction:column; gap:4px; margin-bottom:10px;
   }
   .force-card:last-child{margin-bottom:0;}
@@ -186,12 +190,12 @@
   .decision-card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; margin-bottom:10px; overflow:hidden; border-left:3px solid var(--hairline);}
   .decision-card:last-child{margin-bottom:0;}
   .decision-card.priorite{
-    border-left-width:4px; border-left-color:var(--gold); box-shadow:0 0 0 1px rgba(212,175,55,0.15) inset, 0 8px 24px rgba(212,175,55,0.08);
-    background:linear-gradient(145deg, rgba(212,175,55,0.07), var(--panel));
+    border-left-width:4px; border-left-color:var(--gold); box-shadow:0 0 0 1px rgba(var(--gold-rgb),0.15) inset, 0 8px 24px rgba(var(--gold-rgb),0.08);
+    background:linear-gradient(145deg, rgba(var(--gold-rgb),0.07), var(--panel));
   }
   .decision-card.priorite .decision-head{padding:18px 18px 16px;}
   .decision-card.priorite .decision-teaser{font-size:15.5px; line-height:1.45;}
-  .decision-card.priorite .decision-valider{background:var(--gold); color:#241d0c; font-size:13px; padding:13px;}
+  .decision-card.priorite .decision-valider{background:var(--gold); color:var(--on-amber); font-size:13px; padding:13px;}
   .decision-card.secondaire{border-left-width:2px; opacity:0.94;}
   .decision-card.secondaire .decision-head{padding:11px 14px;}
   .decision-card.secondaire .decision-teaser{font-size:12.5px; font-weight:500;}
@@ -209,9 +213,9 @@
   .decision-field-text b{color:var(--text); font-weight:600;}
   .decision-chips{display:flex; gap:8px; margin-top:12px; flex-wrap:wrap;}
   .decision-chip{font-family:var(--mono); font-size:10px; padding:4px 10px; border-radius:14px; background:var(--panel-raised); color:var(--text-mid); border:1px solid var(--hairline);}
-  .decision-chip.confiance-eleve{color:var(--green); border-color:rgba(52,211,153,0.3);}
-  .decision-chip.confiance-moyen{color:var(--amber); border-color:rgba(245,166,35,0.3);}
-  .decision-valider, .decision-fait{width:100%; margin-top:14px; padding:11px; border:none; border-radius:8px; font-size:12.5px; font-weight:600; background:var(--green); color:#04141a; cursor:pointer;}
+  .decision-chip.confiance-eleve{color:var(--green); border-color:rgba(var(--green-rgb),0.3);}
+  .decision-chip.confiance-moyen{color:var(--amber); border-color:rgba(var(--amber-rgb),0.3);}
+  .decision-valider, .decision-fait{width:100%; margin-top:14px; padding:11px; border:none; border-radius:8px; font-size:12.5px; font-weight:600; background:var(--green); color:var(--on-cyan); cursor:pointer;}
   .decision-valider:disabled, .decision-fait:disabled{opacity:0.85; cursor:default;}
   .decision-lien{display:block; text-align:center; margin-top:14px; padding:11px; border:1px solid var(--hairline); border-radius:8px; color:var(--cyan); font-family:var(--mono); font-size:11.5px; text-decoration:none;}
   /* Confirmation optimiste (10/08/2026, correction du bug signalé par
@@ -228,7 +232,7 @@
   /* WATCHLIST */
   .watch-item{display:flex; align-items:flex-start; gap:10px; padding:11px 0; border-bottom:1px solid var(--hairline); text-decoration:none; color:inherit;}
   .watch-item:last-child{border-bottom:none;}
-  .watch-dot{width:8px; height:8px; border-radius:50%; background:var(--amber); flex-shrink:0; margin-top:5px; box-shadow:0 0 8px rgba(245,166,35,0.6);}
+  .watch-dot{width:8px; height:8px; border-radius:50%; background:var(--amber); flex-shrink:0; margin-top:5px; box-shadow:0 0 8px rgba(var(--amber-rgb),0.6);}
   .watch-text{flex:1; font-size:12.5px; line-height:1.55; color:var(--text-mid);}
   .watch-text b{color:var(--text); font-weight:600;}
   .watch-chev{color:var(--text-dim); font-size:13px; margin-top:3px;}
@@ -241,26 +245,26 @@
   .risque-item{display:flex; align-items:flex-start; gap:10px; padding:11px 0; border-bottom:1px solid var(--hairline);}
   .risque-item:last-child{border-bottom:none;}
   .risque-dot{width:8px; height:8px; border-radius:50%; flex-shrink:0; margin-top:5px;}
-  .risque-dot.niveau-signal_faible{background:var(--amber); box-shadow:0 0 8px rgba(245,166,35,0.6);}
-  .risque-dot.niveau-exposition{background:var(--amber); box-shadow:0 0 8px rgba(245,166,35,0.6);}
-  .risque-dot.niveau-risque_avere{background:var(--red); box-shadow:0 0 8px rgba(240,87,90,0.6);}
+  .risque-dot.niveau-signal_faible{background:var(--amber); box-shadow:0 0 8px rgba(var(--amber-rgb),0.6);}
+  .risque-dot.niveau-exposition{background:var(--amber); box-shadow:0 0 8px rgba(var(--amber-rgb),0.6);}
+  .risque-dot.niveau-risque_avere{background:var(--red); box-shadow:0 0 8px rgba(var(--red-rgb),0.6);}
   .risque-text{flex:1; font-size:12.5px; line-height:1.55; color:var(--text-mid);}
   .risque-niveau{color:var(--text); font-weight:600; display:block; margin-bottom:2px;}
   /* Urgence (12/08/2026, cadrage §9) : 2e dimension affichée à côté de la
      gravité, jamais en remplacement — badge discret, pas un second point
      coloré qui dupliquerait visuellement risque-dot. */
   .risque-urgence{display:inline-block; font-size:9.5px; font-family:var(--mono); font-weight:600; letter-spacing:0.02em; padding:1px 7px; border-radius:9px; margin-bottom:4px;}
-  .risque-urgence.urgence-immediate{color:var(--red); background:rgba(240,87,90,0.12);}
-  .risque-urgence.urgence-moyenne{color:var(--amber); background:rgba(245,166,35,0.12);}
-  .risque-urgence.urgence-faible{color:var(--text-dim); background:rgba(255,255,255,0.06);}
+  .risque-urgence.urgence-immediate{color:var(--red); background:rgba(var(--red-rgb),0.12);}
+  .risque-urgence.urgence-moyenne{color:var(--amber); background:rgba(var(--amber-rgb),0.12);}
+  .risque-urgence.urgence-faible{color:var(--text-dim); background:var(--ghost);}
   .risque-action{color:var(--cyan); font-size:11.5px; margin-top:4px; display:block;}
   .risque-meta{color:var(--text-dim); font-family:var(--mono); font-size:10px; margin-top:4px; display:block;}
 
   /* IMPACT */
   .impact-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
   .impact-card{border-radius:12px; padding:16px; display:flex; flex-direction:column; gap:4px;}
-  .impact-card.gain{background:var(--green-dim); border:1px solid rgba(52,211,153,0.25);}
-  .impact-card.risque{background:var(--red-dim); border:1px solid rgba(240,87,90,0.3);}
+  .impact-card.gain{background:var(--green-dim); border:1px solid rgba(var(--green-rgb),0.25);}
+  .impact-card.risque{background:var(--red-dim); border:1px solid rgba(var(--red-rgb),0.3);}
   .impact-value{font-family:var(--mono); font-size:22px; font-weight:700;}
   .impact-card.gain .impact-value{color:var(--green);}
   .impact-card.risque .impact-value{color:var(--red);}
@@ -277,7 +281,7 @@
      NEXUS, Article 11). */
   .rapport-titre{font-size:16px; font-weight:700;}
   .rapport-sous{font-size:11.5px; color:var(--text-mid); margin-top:4px;}
-  .btn-rapport-pdf{display:block; width:100%; margin:14px 0 8px; padding:13px; border-radius:10px; border:none; background:var(--cyan); color:#0B0F14; font-family:var(--sans); font-size:13.5px; font-weight:700; cursor:pointer;}
+  .btn-rapport-pdf{display:block; width:100%; margin:14px 0 8px; padding:13px; border-radius:10px; border:none; background:var(--cyan); color:var(--on-cyan-alt); font-family:var(--sans); font-size:13.5px; font-weight:700; cursor:pointer;}
   .btn-rapport-pdf:disabled{opacity:0.55; cursor:default;}
   .btn-rapport-pdf.secondaire{background:var(--panel-raised); color:var(--text); border:1px solid var(--hairline);}
   .rapport-actions{display:flex; gap:8px;}
@@ -1807,9 +1811,9 @@
     if (!SONDE_ALERTES.length) return '';
     return SONDE_ALERTES.map(a => {
       const nom = String(a.carburant || '').toUpperCase();
-      return `<div class="sonde-alerte" data-alerte-id="${a.id}" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:10px 14px; margin-bottom:10px; border:1px solid rgba(245,166,35,0.3); border-radius:10px; background:var(--amber-dim);">
+      return `<div class="sonde-alerte" data-alerte-id="${a.id}" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:10px 14px; margin-bottom:10px; border:1px solid rgba(var(--amber-rgb),0.3); border-radius:10px; background:var(--amber-dim);">
         <span style="flex:1; min-width:220px; font-size:13px;">${nom} : écart répété à la réception (${a.nb_receptions} sur ${a.fenetre}) — sonde à faire vérifier. <a href="NEXUS-Carburant-Reception-v1.html" style="color:var(--amber);">Voir les réceptions</a></span>
-        <button type="button" class="sonde-alerte-vu" data-alerte-id="${a.id}" style="padding:6px 14px; border-radius:8px; border:1px solid rgba(245,166,35,0.4); background:transparent; color:var(--amber); cursor:pointer;">Vu</button>
+        <button type="button" class="sonde-alerte-vu" data-alerte-id="${a.id}" style="padding:6px 14px; border-radius:8px; border:1px solid rgba(var(--amber-rgb),0.4); background:transparent; color:var(--amber); cursor:pointer;">Vu</button>
       </div>`;
     }).join('');
   }
@@ -1948,6 +1952,7 @@
     // ne va le chercher elle-même.
     const fuseauBrief = await NexusStation.fuseauDeLaStation(SITE_ACTUEL);
     FUSEAU_STATION = fuseauBrief.timezone || null;
+    try { if (window.NexusTheme && FUSEAU_STATION) NexusTheme.definirFuseau(FUSEAU_STATION); } catch (e) {}
     STATION_CONFIG.manager_prenom = employee.nom;
     // Ce badge décrit l'ACTIVITÉ EN COURS, pas le statut administratif : il
     // affiche donc le poste du jour, celui que la prise de poste a fixé.

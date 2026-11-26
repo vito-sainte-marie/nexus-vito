@@ -7,7 +7,7 @@
 const fs = require('fs'); const path = require('path'); const assert = require('assert');
 const { execSync } = require('child_process');
 const T = require('./nexus-theme.js');
-const PAGES = ['NEXUS-Login-v1.html', 'NEXUS-Prise-De-Poste-v1.html', 'NEXUS-App-v1.html', 'NEXUS-Inventaire-v1.html', 'NEXUS-Releves-Piste-v1.html', 'NEXUS-Carburant-Reception-v1.html'];
+const PAGES = ['NEXUS-Login-v1.html', 'NEXUS-Prise-De-Poste-v1.html', 'NEXUS-App-v1.html', 'NEXUS-Inventaire-v1.html', 'NEXUS-Releves-Piste-v1.html', 'NEXUS-Carburant-Reception-v1.html', 'NEXUS-Brief-v1.html'];
 const JS = ['nexus-prise-de-poste.js', 'nexus-header-nav.js'];
 const INVARIANTS = new Set(['--safe-top', '--safe-bottom', '--mono', '--sans', '--serif', '--font', '--r', '--radius']);
 const estCouleur = (v) => /#[0-9a-f]{3,8}\b|rgba?\(|^\d+,\s*\d+,\s*\d+$/i.test(v);
