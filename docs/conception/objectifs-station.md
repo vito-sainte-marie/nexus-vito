@@ -1,4 +1,4 @@
-# Référentiel des objectifs de station : étapes 1 à 3 (inventaire, autorité, catalogue, requêtes, modèle)
+# Référentiel des objectifs de station : étapes 1 à 4 (inventaire, autorité, catalogue, requêtes, modèle, maquettes)
 
 Branche `claude/objectifs-station` · mandat Guardian (#383, commentaire 7201798072) · **conception seule : aucun code, aucune migration, aucune lecture Production.**
 Base : audit des moteurs (PR #393, `docs/audit/audit-moteurs-nexus.md`, V1–V12).
