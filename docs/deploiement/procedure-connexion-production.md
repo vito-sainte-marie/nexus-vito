@@ -104,4 +104,4 @@ Les colonnes exactes de `employees` se vérifient au GO, sur le catalogue, avant
 
 ## 5. Source de la fonction (mise à jour étape 4)
 
-Le source `index.ts` ajoute l'action `lister_equipe` (md5 `ef89d641fcf2da1fd73d14650d97247f`, déployé sur Test le 25/11/2026, version 14, sans code de pannes ; l’étape 4b journalise le refus de `lister_equipe` et applique la règle gérant/manager validée). Le source Production est ce fichier, md5 `3abbf3c8…` ; à re-vérifier dans la demande de GO. Mesure Test : `lister_equipe` sans JWT → 403 neutre ; les autres actions répondent comme avant.
+Le source `index.ts` ajoute l'action `lister_equipe` (version 14 déployée sur Test le 25/11/2026, md5 `3abbf3c88d33d1c59b3944f053776dd5`, sans code de pannes ; l’étape 4b journalise le refus de `lister_equipe` et applique la règle gérant/manager validée). L'étape 5 ajoute `alerte_indisponible` et le contrôle d'expiration du code temporaire : le fichier de la branche (md5 `ef89d641fcf2da1fd73d14650d97247f`) n'est pas encore déployé sur Test ; à re-vérifier dans la demande de GO. Mesure Test : `lister_equipe` sans JWT → 403 neutre ; les autres actions répondent comme avant.
