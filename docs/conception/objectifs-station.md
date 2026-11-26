@@ -1,4 +1,4 @@
-# Référentiel des objectifs de station : étapes 1 et 2 (inventaire, autorité, catalogue et requêtes)
+# Référentiel des objectifs de station : étapes 1 à 3 (inventaire, autorité, catalogue, requêtes, modèle)
 
 Branche `claude/objectifs-station` · mandat Guardian (#383, commentaire 7201798072) · **conception seule : aucun code, aucune migration, aucune lecture Production.**
 Base : audit des moteurs (PR #393, `docs/audit/audit-moteurs-nexus.md`, V1–V12).
@@ -295,6 +295,108 @@ Valeur absolue par quart, jamais de compensation entre quarts ni entre piste et 
 
 Pour chaque série, la fraîcheur est la dernière date de service présente, et, si l'on veut l'heure de saisie, `max(created_at at time zone 'America/Martinique')`.
 
-## 5. Suite
+## 5. Modèle relationnel (livrable 5) : présenté, non migré
 
-Étape 3 : modèle relationnel (`objectif_catalogue`, `station_objectifs`, versions, un seul objectif officiel par indicateur, station et période, RLS par station, validation réservée au gérant et aux responsables habilités), présenté et non migré. Les lignes « À instruire » du catalogue y seront reclassées après lecture du code.
+**Aucune migration n'est écrite ni appliquée.** Le SQL ci-dessous est un schéma de conception, à ne pas exécuter avant GO explicite.
+
+### Principes
+
+- Trois natures jamais confondues : seules les **cibles de performance** sont stockées et validées. Les exigences de maîtrise et les potentiels détectés restent calculés par les moteurs, avec une `nature` portée par le catalogue pour que rien ne passe de l'une à l'autre en silence.
+- **Un seul objectif officiel** par indicateur, station et période : garanti par la base (index unique partiel), pas par l'écran (article 11).
+- **Versionnement par ajout** : une cible validée n'est jamais modifiée ; la corriger crée une version suivante et marque l'ancienne « remplacée ». L'historique et la version utilisée par A4 restent lisibles.
+- **Station sur chaque ligne**, politique RLS sur `site`, avec les assistants existants `current_employee_site_id()` et `current_employee_role()`.
+
+### Tables
+
+```sql
+-- Catalogue : commun à toutes les stations, écrit par migration seulement.
+create table objectif_catalogue (
+  indicateur_id   text primary key,              -- CARB-VOL-TOT, COM-CA, ...
+  libelle         text not null,
+  nature          text not null check (nature in ('performance','maitrise','potentiel')),
+  classe          text not null check (classe in ('disponible','a_fiabiliser','non_disponible')),
+  unite           text not null,
+  agregation      text not null check (agregation in ('somme','moyenne_jour_complet','ratio','moyenne_par_quart')),
+  sens            text not null check (sens in ('hausse','baisse')),   -- baisse = objectif de réduction
+  cible_zero_ok   boolean not null default false,                      -- une cible 0 a un sens (écarts)
+  autorite        text not null                                         -- moteur ou fichier qui fait foi
+);
+
+-- Cibles : une ligne par version.
+create table station_objectifs (
+  id              uuid primary key default gen_random_uuid(),
+  site            text not null references sites(site_id),
+  indicateur_id   text not null references objectif_catalogue,
+  horizon         text not null check (horizon in ('mois','trimestre','annee')),
+  periode_debut   date not null,                 -- date de service locale, début inclus
+  periode_fin     date not null,                 -- fin exclue
+  version         int  not null,
+  cible           numeric not null,
+  statut          text not null check (statut in ('brouillon','propose','officiel','remplace','retire')),
+  propose_par     text,
+  propose_le      timestamptz,
+  valide_par      text,
+  valide_le       timestamptz,
+  motif           text,                          -- obligatoire dès la version 2
+  remplace_id     uuid references station_objectifs(id),
+  created_at      timestamptz not null default now(),
+  unique (site, indicateur_id, horizon, periode_debut, version),
+  check (periode_fin > periode_debut),
+  check (statut <> 'officiel' or (valide_par is not null and valide_le is not null)),
+  check (version = 1 or motif is not null)
+);
+
+-- Un seul officiel par indicateur, station, horizon et période.
+create unique index station_objectifs_un_officiel
+  on station_objectifs (site, indicateur_id, horizon, periode_debut)
+  where statut = 'officiel';
+```
+
+### Règles portées par la base
+
+- **Immuabilité** : un déclencheur refuse toute modification de `cible`, `periode_*` et `version` sur une ligne `officiel` ou `remplace` ; seul `statut` peut passer de `officiel` à `remplace` (et uniquement à la création de la version suivante).
+- **Cohérence entre horizons** : pour un indicateur additif, un déclencheur de validation vérifie que la somme des cibles mensuelles officielles d'un trimestre ne dépasse pas la cible trimestrielle, et signale l'écart sans bloquer si les mois ne sont pas tous posés. Pour une moyenne ou un ratio, aucune somme : la cible de chaque horizon est indépendante et se compare à la valeur agrégée de cet horizon.
+- **Classe** : on ne peut pas proposer de cible sur un indicateur `non_disponible`, ni passer `officiel` sur un indicateur `a_fiabiliser` sans arbitrage consigné.
+- **Cible zéro** : acceptée seulement si `cible_zero_ok`. Le Brief affiche alors « 0 attendu » et un niveau atteint ou non, jamais un pourcentage de progression (division par zéro interdite).
+- **Réduction** : `sens = 'baisse'` inverse l'écart et la lecture de la tendance ; la progression se calcule en part de la réduction visée.
+
+### RLS par station
+
+```sql
+alter table station_objectifs enable row level security;
+
+-- Lecture : tout employé de la station.
+create policy so_lecture on station_objectifs for select to authenticated
+  using (site = current_employee_site_id());
+
+-- Proposition : gérant ou responsable habilité, sa station, statut propose/brouillon seulement.
+create policy so_proposer on station_objectifs for insert to authenticated
+  with check (site = current_employee_site_id()
+              and current_employee_role() in ('manager','gerant')
+              and statut in ('brouillon','propose'));
+
+-- Validation : gérant seul, et via une fonction, jamais par UPDATE direct.
+-- Pas de politique update ni delete pour authenticated.
+```
+
+La validation passe par une fonction `valider_objectif(id)` en `security invoker`, qui contrôle `current_employee_role() = 'gerant'` (ou le rôle habilité désigné au point G-4), la station, l'unicité de l'officiel, puis pose `valide_par`, `valide_le` et remplace l'ancienne version dans la même transaction. `anon` n'a aucun droit. Les `revoke` sont posés explicitement sur `anon` et sur `public` (un `revoke from public` seul ne ferme pas `anon`), et `TRUNCATE` est retiré à `authenticated`.
+
+`objectif_catalogue` : lecture pour `authenticated`, aucune écriture hors migration.
+
+### Lecture par le Brief et par A4
+
+Le Brief et A4 lisent la même vue en lecture seule, qui expose pour la période demandée l'objectif **officiel** de la station (jamais un brouillon), sa `version` et `valide_le`. A4 conserve cet identifiant de version à côté des chiffres, pour qu'un relevé reste interprétable après un changement de cible.
+
+### Liens avec le Conseiller
+
+Une table `objectif_recommandation(site, objectif_id, recommandation_id, ecart, cause_nature, action, potentiel_estime, resultat_obtenu)` relie une recommandation à une cible. `cause_nature` vaut `demontree` ou `supposee`. Les potentiels sont dédoublonnés par clé (`site`, `indicateur_id`, `periode_debut`, `cause`) pour qu'un même gain ne soit pas compté sous deux objectifs. Les moteurs ne sont pas modifiés par cette étape : le lien est une table de rapprochement alimentée plus tard.
+
+### Arbitrages ouverts pour le gérant (étape 3)
+
+- **G-4** : quels rôles sont « responsables habilités » à proposer, et le gérant seul valide-t-il ? (Aujourd'hui `manager` et `gerant` partagent la plupart des politiques.)
+- **G-5** : une cible officielle de période en cours peut-elle être révisée, avec motif, ou seulement à la période suivante ?
+- **G-6** : cible trimestrielle et annuelle saisies directement, ou seulement déduites de la somme des mois ?
+
+## 6. Suite
+
+Étape 4 : maquette du bureau de gestion et maquette de restitution dans le Brief (données fictives, charte Brief v4). Étape 5 : critères de recette, tests de sécurité, arbitrages consolidés. Les lignes « À instruire » du catalogue seront reclassées avant l'étape 5.
