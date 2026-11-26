@@ -1,6 +1,6 @@
 # Connexion sécurité, lot 1 — procédure Production
 
-Migrations : les treize fichiers `supabase/migrations/2026112609*` à `20261126230000_*` (étapes 1, 2, 2b à 2i, 4, 4b, 5). Fonction : `supabase/functions/connexion/index.ts`. Page : `NEXUS-Login-v1.html`.
+Migrations : les quatorze fichiers listés au §6 (étapes 1, 2, 2b à 2i, 4, 4b, 5, 5b). Fonction : `supabase/functions/connexion/index.ts`. Page : `NEXUS-Login-v1.html`.
 
 **Rien de ceci ne s'exécute sans un GO distinct du gérant pour chaque étape.** Toutes les mesures citées dans les fiches de qualification sont des mesures Test (projet `udljdqxerrbbbajxubfn`). La mesure Production sera faite au GO. Aucune lecture Production n'a été faite pour ce lot.
 
@@ -36,7 +36,7 @@ L'injection de pannes (`nexus_connexion.panne_injectee`, `nexus_connexion.panne_
 
 Le secret `AUTH_MASTER_SECRET` ne se change plus après l'étape 4 sans réinitialiser tous les comptes migrés (le mot de passe Auth en dérive). Décision du gérant : rotation uniquement en cas d'incident (§4).
 
-Étape 1 : la migration 2 de l'étape 1 sauvegarde les mots de passe Auth dans `sauvegarde_auth` ; elle ne les modifie pas. Aucun compte n'est migré par les migrations : le passage `a_migrer` → `migre` se fait à la première connexion réussie, station par station (budget 20 appels Auth par minute).
+Étape 1 : la migration 2 de l'étape 1 copie dans `sauvegarde_auth` l'identité de chaque compte (`user_id`, e-mail et e-mail d'identité d'avant, alias, date). **Elle ne copie aucun mot de passe ni empreinte** ; les scripts `99*` ne restaurent que les e-mails et l'ancienne fonction. Aucun compte n'est migré par les migrations : le passage `a_migrer` → `migre` se fait à la première connexion réussie, station par station (budget 20 appels Auth par minute).
 
 ## 2. Retour arrière de chaque étape
 
@@ -105,3 +105,70 @@ Les colonnes exactes de `employees` se vérifient au GO, sur le catalogue, avant
 ## 5. Source de la fonction (mise à jour étape 4)
 
 Le source `index.ts` ajoute l'action `lister_equipe` (version 14 déployée sur Test le 25/11/2026, md5 `3abbf3c88d33d1c59b3944f053776dd5`, sans code de pannes ; l’étape 4b journalise le refus de `lister_equipe` et applique la règle gérant/manager validée). L'étape 5 ajoute `alerte_indisponible` et le contrôle d'expiration du code temporaire : version 15 déployée sur Test le 26/11/2026 (md5 du fichier `ef89d641fcf2da1fd73d14650d97247f`, ezbr_sha256 `1d8f3815…07e263bf`, relue par `get_edge_function`). Le fichier de la branche (md5 `c106b325a0e92a8b8aad5b3d2fae0274`) ne diffère de la v15 que par un commentaire corrigé (« nombre global, sans donnée de compte ») : aucun effet à l'exécution ; il sera déployé avec le prochain changement fonctionnel, et Guardian contrôle le md5 avant tout déploiement en Production. Limite connue : en panne totale de la fonction, aucune ligne `indisponible` ne peut être écrite ; la carte du Brief n'affiche alors rien, et la carte « lecture impossible » reste neutre. L'étape 5b (`20261127090000`) ajoute `premier` (première réponse « indisponible » de l'heure) à `alerte_indisponible_pour` ; `site_id` reste celui du lecteur. La carte n'a aucun bouton ; les personnes déjà connectées gardent leur session (`getSession`, sans appel à `connexion`). Mesure Test : `lister_equipe` sans JWT → 403 neutre ; les autres actions répondent comme avant.
+
+## 6. Plan de bascule Production (à exécuter seulement sur GO distinct par étape)
+
+Rien ici n'est exécuté. Le gérant et Guardian arbitrent.
+
+### 6.1 Les 14 migrations, dans l'ordre, avec leur md5 sur la tête de la branche
+
+Guardian compare avant d'appliquer (`md5 <fichier>`).
+
+| # | Fichier | md5 |
+|---|---|---|
+| 1 | `20261126090000_connexion_lot1_etape1_alias_opaque.sql` | `9fca041aa81dfefe62ba6175891f4899` |
+| 2 | `20261126120000_connexion_lot1_etape2_etat_prive.sql` | `55ec7720ce7ec11506b4d7fcfa2d0a1a` |
+| 3 | `20261126130000_connexion_lot1_etape2b_controle_auteur.sql` | `7579d6188ab82b7977afe9eb4ed7aed1` |
+| 4 | `20261126140000_connexion_lot1_etape2c_refus_journalise.sql` | `f2996a0aa89eaa95c976570dacb14437` |
+| 5 | `20261126150000_connexion_lot1_etape2d_compteur_sorties.sql` | `256891cbc0af54c5d04aa8f57911e1d0` |
+| 6 | `20261126160000_connexion_lot1_etape2e_surveillance_sans_blocage.sql` | `0837095c4d9075e81fb454350d153302` |
+| 7 | `20261126170000_connexion_lot1_etape2f_incoherence_auth.sql` | `71e92696754e9f2e9732377e878ec8ed` |
+| 8 | `20261126180000_connexion_lot1_etape2g_budget_auth.sql` | `67998f56376e172799ec844df7f09a8e` |
+| 9 | `20261126190000_connexion_lot1_etape2h_limite_ip_echecs_reels.sql` | `38c0c5194e1f0dcd9948419bdded72f6` |
+| 10 | `20261126200000_connexion_lot1_etape2i_retrait_pannes_injectees.sql` | `73f990fe821406ccb3d57aad1096c49c` |
+| 11 | `20261126210000_connexion_lot1_etape4_equipe_pour.sql` | `673e6f116ed0afbaebf9b76d56be3110` |
+| 12 | `20261126220000_connexion_lot1_etape4b_equipe_refus_et_gerant.sql` | `c27aecf33908a6c0f3a1bbf5345e4631` |
+| 13 | `20261126230000_connexion_lot1_etape5_decisions_gerant.sql` | `bf689f877f6967ccec79499294db1743` |
+| 14 | `20261127090000_connexion_lot1_etape5b_alerte_premier.sql` | `199ee17f07f2af2fb30e9fe78b7146ec` |
+
+Fonction `supabase/functions/connexion/index.ts` : md5 `c106b325a0e92a8b8aad5b3d2fae0274`.
+
+### 6.2 Étapes de bascule (dans cet ordre)
+
+1. **Sauvegarde** (Guardian, sur son Mac, hors dépôt) : identités et états seulement, jamais un mot de passe ni une empreinte.
+2. **Migrations** (Guardian) : les 14 fichiers du §6.1, mesure du catalogue ensuite (§3).
+3. **Secrets** (le gérant) : voir §1.
+4. **Fonction** (Guardian) : déploiement du source au md5 du §6.1.
+5. **Page, puis compte témoin, puis gérant.** La première connexion réelle est le point de non-retour (§2). Le compte témoin passe donc avant celle du gérant :
+   - la page est déployée (approbation de l'environnement `github-pages` par le gérant) ;
+   - **avec GO distinct pour le compte fictif en Production** : connexion et changement de code du compte fictif, puis contrôle de la page servie (version attendue, parcours Connexion, Brief et déconnexion) ; ensuite seulement, connexion du gérant ;
+   - **sans ce GO** : pas de compte fictif. Le contrôle de la page servie se limite à la lecture de la page (version, formulaire, appel de la fonction avec un faux compte : refus neutre 401), et la connexion du gérant devient la première migration réelle. Le gérant le sait avant d'accepter ;
+   - **durée de session** : à la première connexion, lire `expires_in` (journalisé par la fonction) et la comparer à la durée voulue ; l'écart se règle dans Auth, pas dans la page.
+6. **Stations** une à une, jusqu'à zéro compte `a_migrer` (budget de 20 appels Auth par minute).
+
+### 6.3 Panne de la fonction après la migration d'un compte
+
+Constat : après migration, la page ne parle plus qu'à la fonction ; aucune autre voie de connexion n'existe dans la page. Si la fonction tombe, personne ne se connecte, ce qui est le comportement prévu (« indisponible »). La relance échoue aussi (voir la limite du §3).
+
+Option de repli qui ne passe pas par la fonction : le gérant, seul, depuis le tableau de bord Supabase (accès propriétaire du projet) peut lire les journaux de la fonction, vérifier les secrets, et redéployer une version précédente de la fonction si l'interface le propose. Il peut aussi poser à la main un mot de passe sur un compte Auth. **Effet sur la dérivation** : le mot de passe d'un compte migré est calculé par la fonction (`AUTH_MASTER_SECRET`, identifiant, version). Un mot de passe posé à la main ne le suit pas ; au retour de la fonction, la connexion de ce compte échoue (refus neutre) tant qu'un manager ou le gérant n'a pas réinitialisé le code, ce qui réécrit le mot de passe dérivé et monte la version. Une session déjà ouverte reste valable jusqu'à son expiration. Aucune procédure de restauration de mot de passe n'est décrite ici : seulement ce constat et cette option, à arbitrer par le gérant.
+
+### 6.4 Créneau proposé
+
+Horaires du site tels que `station_config` les décrit sur Test (site de test) : quart 1 de 06:00 à 13:00, quart 2 de 13:00 à 20:00, fuseau `America/Martinique` (UTC−4). Les horaires réels de la station de Production n'ont pas été lus (aucune lecture Production sans GO) : **à confirmer par le gérant**.
+
+Créneau proposé : un soir après 20:00 et avant 05:00, par exemple de 21:00 à 22:30 heure de Martinique, hors quarts et hors prise de poste, jamais la veille d'une paie ni un jour de clôture.
+
+| Étape | Durée estimée |
+|---|---|
+| 1 Sauvegarde | 10 min |
+| 2 Migrations et mesure | 15 min |
+| 3 Secrets | 5 min |
+| 4 Fonction | 10 min |
+| 5 Page (déploiement et approbation) | 10 min |
+| 5 Compte témoin, contrôle de la page, session | 10 min |
+| 5 Connexion du gérant | 5 min |
+| 6 Première station | 15 min |
+| Marge | 10 min |
+| Total | environ 1 h 30 |
+
+Les durées sont des estimations, sans mesure Production.
