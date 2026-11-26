@@ -12,3 +12,8 @@ Page : `NEXUS-Brief-v1.html` de la branche `claude/brief-mode-jour-code`, servie
 | brief_jour_bureau_nuit.png | bureau 1280 | Sombre |
 
 Contenu : Indice Boussole 40, « lecture impossible pour le moment » pour la connexion.
+
+## Remarques de Guardian (hors lot)
+
+1. Le cadre du logo, en haut du Brief, est vide en Jour comme en Sombre. C'était déjà le cas avant ce lot.
+2. La ligne « État de la connexion : lecture impossible » vient de l'origine de l'aperçu de Test, absente de `ORIGINES_AUTORISEES` sur Test. En Production, l'origine est autorisée.
