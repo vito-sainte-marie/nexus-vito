@@ -212,7 +212,7 @@
     const ret = v.retards.detail || [];
     if (v.retards.occurrences) {
       ret.forEach(r => t3('Retard', jjmm(r.date), `${r.minutes} min`));
-      t3('Total retards', '', `${v.retards.minutes} min`, { gras: true });
+      if (ret.length >= 2) t3('Total retards', '', `${v.retards.minutes} min`, { gras: true });
     }
     tab.forEach(r => L.push(r));
 
@@ -375,7 +375,7 @@
       if (fct) droite(fct, x + iw, y0 - 10, 8, false, 'texteDim');
       rapport.page.drawLine({ start: { x, y: y0 - 15 }, end: { x: x + iw, y: y0 - 15 }, thickness: 0.4, color: C.ligne });
       let y = y0 - ENTETE_FICHE;
-      const xP = x + iw * 0.5;
+      const xP = x + iw * 0.38;
       const xD = x + iw;
       f.corps.forEach(l => {
         const h = HAUT[l.k] || INTERLIGNE;
@@ -391,8 +391,12 @@
           texte(tronquer(l.label, iw - vW - 6, TAILLE, false), x, base, TAILLE, false, l.couleur);
           droite(l.valeur, xD, base, TAILLE, false, l.couleur);
         } else if (l.k === 't3') {
-          texte(tronquer(l.nature, l.large ? iw : iw * 0.5 - 6, TAILLE, l.gras), x, base, TAILLE, !!l.gras, l.couleur);
-          if (l.periode) texte(tronquer(l.periode, iw * 0.5 - 50, TAILLE, false), xP, base, TAILLE, false, l.couleur);
+          const dW = largeur(l.duree || '', TAILLE, !!l.gras);
+          const pW = l.periode ? largeur(l.periode, TAILLE, false) : 0;
+          // La période et la durée ne sont jamais coupées : seul le libellé cède de la place.
+          const xPer = l.periode ? Math.min(Math.max(xP, x + largeur(l.nature, TAILLE, !!l.gras) + 8), xD - dW - 8 - pW) : xP;
+          texte(tronquer(l.nature, l.large ? iw : (l.periode ? xPer - x - 6 : iw * 0.5 - 6), TAILLE, l.gras), x, base, TAILLE, !!l.gras, l.couleur);
+          if (l.periode) texte(l.periode, xPer, base, TAILLE, false, l.couleur);
           droite(l.duree, xD, base, TAILLE, !!l.gras, l.couleur);
         } else if (l.k === 'sous') texte(tronquer(l.t, iw - 10, 7.5, false), x + 6, base, 7.5, false, 'texteDim');
         else if (l.k === 'ferieEntete') {

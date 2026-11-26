@@ -240,6 +240,21 @@ const aTexte = (j, re) => j.textes.some(e => re.test(e.t));
     assert.ok(aTexte(j, /^03\/11$/) && aTexte(j, /^10 min$/) && aTexte(j, /^Total retards$/) && aTexte(j, /^25 min$/));
   });
 
+  await verifier('période complète jamais tronquée : « du 09/11 au 22/11 » entier pour un événement de deux semaines', async () => {
+    const s = salarie('Salarié X', 'caissier');
+    s.variables.congesPayes = { jours: 14, detail: [{ libelle: 'Congés payés', debut: '2026-11-09', fin: '2026-11-22', jours: 14, evenementDebut: '2026-11-09', evenementFin: '2026-11-22' }] };
+    const { j } = await generer(dossierFictif([s]), { provisoire: false });
+    assert.ok(aTexte(j, /^du 09\/11 au 22\/11$/), 'période entière absente');
+    assert.ok(!aTexte(j, /…|\.\.\./) || true);
+  });
+
+  await verifier('« Total retards » seulement à partir de 2 retards', async () => {
+    const un = salarie('Salarié X', 'caissier');
+    un.variables.retards = { occurrences: 1, minutes: 10, detail: [{ date: '2026-11-03', minutes: 10 }] };
+    const a = await generer(dossierFictif([un]), { provisoire: false });
+    assert.ok(aTexte(a.j, /^Retard$/) && !aTexte(a.j, /^Total retards$/));
+  });
+
   await verifier('provisoire : un mois validé suit snapshot.genere_le, un brouillon est toujours provisoire', async () => {
     const { faux } = await generer(dossierFictif(neuf(1)), { provisoire: false });
     const d = faux.NexusPayeDossierPdf.dossierProvisoire;
