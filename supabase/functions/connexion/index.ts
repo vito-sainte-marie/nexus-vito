@@ -201,7 +201,7 @@ async function listerEquipe(req: Request, c: Ctx): Promise<Response> {
   }
 }
 
-// Alerte « connexion indisponible » : gérant et managers, limitée à leur site ; refus neutre pour tout autre appelant.
+// Alerte « connexion indisponible » : gérant et managers actifs ; nombre global, sans donnée de compte ; refus neutre pour tout autre appelant.
 async function alerteIndisponible(req: Request, c: Ctx): Promise<Response> {
   const par = await appelant(req);
   if (!par) return rep(403, REFUS, c.origin);
