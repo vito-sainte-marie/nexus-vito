@@ -63,21 +63,19 @@
 
   // Domaine Équipe pour "Votre entreprise aujourd'hui" — mêmes formules que
   // NEXUS-Radar-Manager-v1.html (Équipe via retards de pointage,
-  // Développement via points de missions). N'ACCEPTE PAS siteId : reprise
-  // à l'identique du comportement existant (aucun filtre site sur
-  // mission_completions/pointages ici, comme sur chargerDomaineEquipe côté
-  // Brief — même anomalie préexistante, signalée là aussi, non corrigée
-  // dans ce lot, Article 5).
-  async function chargerDomainesRadarHome(client) {
+  // Développement via points de missions). Lot A2 : siteId OBLIGATOIRE (lève sans lui),
+  // filtre mission_completions.site_id et pointages.site.
+  async function chargerDomainesRadarHome(client, siteId) {
+    global.NexusSiteRequis.exiger(siteId, 'chargerDomainesRadarHome');
     const [{ data: completions, error: e1 }, { data: pointagesRetard, error: e2 }, { count: totalPointages, error: e3 }] = await Promise.all([
-      client.from('mission_completions').select('points'),
-      client.from('pointages').select('employee_id, retard_min').eq('type', 'arrivee').gt('retard_min', 0),
+      client.from('mission_completions').select('points').eq('site_id', siteId),
+      client.from('pointages').select('employee_id, retard_min').eq('site', siteId).eq('type', 'arrivee').gt('retard_min', 0),
       // `.not('retard_min', 'is', null)` : le dénominateur ne compte que
       // les arrivées dont le retard a pu être calculé. Depuis le
       // 19/09/2026 NULL = non calculable ; le numérateur les excluait déjà
       // (`.gt` ignore les NULL), les garder ici aurait dilué le taux
       // d'anomalies avec des journées qui ne prouvent rien.
-      client.from('pointages').select('id', { count: 'exact', head: true }).eq('type', 'arrivee').not('retard_min', 'is', null),
+      client.from('pointages').select('id', { count: 'exact', head: true }).eq('site', siteId).eq('type', 'arrivee').not('retard_min', 'is', null),
     ]);
     if (e1) console.error('Chargement mission_completions (accueil):', e1);
     if (e2) console.error('Chargement pointages (accueil):', e2);

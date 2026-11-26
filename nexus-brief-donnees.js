@@ -23,10 +23,8 @@
 // (SITE_ACTUEL) en paramètres explicites plutôt que de fermer sur les
 // variables module-level de Brief — un chargeur ne doit dépendre que de ce
 // qu'on lui donne, ni d'un état de page qu'il ne contrôle pas. Seule
-// exception assumée et documentée : chargerDomaineEquipe() ne filtre
-// aujourd'hui par aucun site (reprise à l'identique du comportement
-// existant dans NEXUS-Brief-v1.html avant ce refactoring — voir le
-// commentaire sur la fonction elle-même).
+// règle (lot A2) : tout chargeur de table multi-stations exige siteId et
+// lève sans lui (nexus-site-requis.js).
 //
 // chargerJournalDecisions() ne modifie plus deux variables de Brief
 // (JOURNAL_DECISIONS/VALIDEES_SITE) par effet de bord : elle retourne
@@ -125,11 +123,12 @@
   }
 
   async function chargerDerniereReferenceFdj(client, siteId) {
+    global.NexusSiteRequis.exiger(siteId, 'chargerDerniereReferenceFdj');
     const { data, error } = await client.from('fdj_stock_references').select('*').eq('site', siteId).eq('statut', 'valide')
       .order('date', { ascending: false }).order('created_at', { ascending: false }).limit(1).maybeSingle();
     if (error) { console.error('Chargement référence stock FDJ (Brief):', error); return null; }
     if (!data) return null;
-    const { data: lignes, error: e2 } = await client.from('fdj_stock_reference_lignes').select('game_id, bureau_reel, caisse_reel').eq('reference_id', data.id);
+    const { data: lignes, error: e2 } = await client.from('fdj_stock_reference_lignes').select('game_id, bureau_reel, caisse_reel').eq('site', siteId).eq('reference_id', data.id);
     if (e2) { console.error('Chargement lignes référence stock FDJ (Brief):', e2); return null; }
     const map = {};
     (lignes || []).forEach(l => { map[l.game_id] = { bureau: l.bureau_reel, caisse: l.caisse_reel }; });
@@ -611,7 +610,8 @@
   //
   // Reste inchangé, documenté depuis toujours : cette fonction ne filtre
   // par aucun site (voir commentaire en tête de fichier).
-  async function chargerDomaineEquipe(client, dateReference) {
+  async function chargerDomaineEquipe(client, siteId, dateReference) {
+    global.NexusSiteRequis.exiger(siteId, 'chargerDomaineEquipe');
     const aujourdhui = dateReference ? new Date(`${dateReference}T23:59:59.999`) : new Date();
     const iso = d => d.toISOString().slice(0, 10);
     const finActuelle = iso(aujourdhui);
@@ -626,20 +626,20 @@
       { count: totalAnomaliesPrec, error: e5 },
       { data: pointagesRetardTous, error: e6 },
     ] = await Promise.all([
-      client.from('pointages').select('employee_id, retard_min').eq('type', 'arrivee').gt('retard_min', 0).gte('date', debutActuelle.toISOString().slice(0, 10)).lte('date', finActuelle),
+      client.from('pointages').select('employee_id, retard_min').eq('site', siteId).eq('type', 'arrivee').gt('retard_min', 0).gte('date', debutActuelle.toISOString().slice(0, 10)).lte('date', finActuelle),
       // Les deux dénominateurs ne comptent que les arrivées MESURÉES
       // (`retard_min` non NULL). Depuis le 19/09/2026 NULL = retard non
       // calculable : les numérateurs les excluent déjà (`.gt` ignore les
       // NULL), et les laisser au dénominateur ferait baisser le taux
       // d'anomalies à chaque journée sans planning publié — Article 11,
       // même correction que dans nexus-app-donnees.js.
-      client.from('pointages').select('id', { count: 'exact', head: true }).eq('type', 'arrivee').not('retard_min', 'is', null).gte('date', debutActuelle.toISOString().slice(0, 10)).lte('date', finActuelle),
-      client.from('pointages').select('id', { count: 'exact', head: true }).eq('type', 'arrivee').not('retard_min', 'is', null).gte('date', iso(debutPrecedente)).lte('date', iso(finPrecedente)),
-      client.from('pointages').select('id', { count: 'exact', head: true }).eq('type', 'arrivee').gt('retard_min', 0).gte('date', iso(debutPrecedente)).lte('date', iso(finPrecedente)),
+      client.from('pointages').select('id', { count: 'exact', head: true }).eq('site', siteId).eq('type', 'arrivee').not('retard_min', 'is', null).gte('date', debutActuelle.toISOString().slice(0, 10)).lte('date', finActuelle),
+      client.from('pointages').select('id', { count: 'exact', head: true }).eq('site', siteId).eq('type', 'arrivee').not('retard_min', 'is', null).gte('date', iso(debutPrecedente)).lte('date', iso(finPrecedente)),
+      client.from('pointages').select('id', { count: 'exact', head: true }).eq('site', siteId).eq('type', 'arrivee').gt('retard_min', 0).gte('date', iso(debutPrecedente)).lte('date', iso(finPrecedente)),
       // Portée (collectif/individuel) et `employesASurveiller` restent
       // mesurés sur l'historique complet, sans fenêtre — voir commentaire
       // ci-dessus.
-      client.from('pointages').select('employee_id').eq('type', 'arrivee').gt('retard_min', 0),
+      client.from('pointages').select('employee_id').eq('site', siteId).eq('type', 'arrivee').gt('retard_min', 0),
     ]);
     if (e2) console.error('Chargement pointages (Brief):', e2);
     if (e3) console.error('Chargement total pointages (Brief):', e3);

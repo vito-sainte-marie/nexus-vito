@@ -93,10 +93,11 @@
   }
 
   async function chargerDerniereReference(client, site) {
+    global.NexusSiteRequis.exiger(site, 'chargerDerniereReference');
     const { data: ref, error: e1 } = await client.from('fdj_stock_references').select('*').eq('site', site).eq('statut', 'valide').order('date', { ascending: false }).order('created_at', { ascending: false }).limit(1).maybeSingle();
     if (e1) { console.error('Chargement référence stock FDJ:', e1); return null; }
     if (!ref) return null;
-    const { data: lignes, error: e2 } = await client.from('fdj_stock_reference_lignes').select('game_id, bureau_reel, caisse_reel').eq('reference_id', ref.id);
+    const { data: lignes, error: e2 } = await client.from('fdj_stock_reference_lignes').select('game_id, bureau_reel, caisse_reel').eq('site', site).eq('reference_id', ref.id);
     if (e2) { console.error('Chargement lignes référence stock FDJ:', e2); return null; }
     const map = {};
     (lignes || []).forEach(l => { map[l.game_id] = { bureau: l.bureau_reel, caisse: l.caisse_reel }; });
