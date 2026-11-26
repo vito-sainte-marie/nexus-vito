@@ -1,4 +1,4 @@
-# Référentiel des objectifs de station : étape 1 (inventaire et matrice d'autorité)
+# Référentiel des objectifs de station : étapes 1 et 2 (inventaire, autorité, catalogue et requêtes)
 
 Branche `claude/objectifs-station` · mandat Guardian (#383, commentaire 7201798072) · **conception seule : aucun code, aucune migration, aucune lecture Production.**
 Base : audit des moteurs (PR #393, `docs/audit/audit-moteurs-nexus.md`, V1–V12).
@@ -130,6 +130,171 @@ Une ligne = un indicateur = **un seul calcul**. « Autorité » est le moteur qu
 - **G-1** : progression en périodes calendaires (mois contre mois précédent, en moyenne par jour complet) plutôt qu'en fenêtres glissantes de 7 jours.
 - **G-3** : les horaires de `station_config.horaires` valent-ils horaires d'ouverture de la station ? Sinon : les saisir une fois, ou renoncer aux quatre indicateurs « par heure ».
 
-## 3. Suite
+## 3. Catalogue et classement (livrable 3)
 
-Étape 2 (catalogue + classement disponible / à fiabiliser / non disponible, avec requête de lecture mensuelle filtrée par station pour chaque « disponible ») : prochaine livraison. Les points ci-dessus marqués « à confirmer » y seront tranchés par lecture du code et des migrations, sans accès aux données.
+Trois classes, appliquées sans exception (article 5 : pas de valeur fabriquée).
+
+- **Disponible** : une requête de lecture donne l'historique mensuel de la station avec la couverture de chaque mois.
+- **À fiabiliser** : la source existe mais sa lecture mensuelle exige un arbitrage ou une règle de passage ; aucune requête n'est livrée tant qu'elle n'est pas tranchée.
+- **Non disponible** : aucune source stockée à ce jour ; l'indicateur ne peut être ni suivi ni projeté.
+
+| Id | Classe | Source ou raison | Agrégation sur le mois |
+|---|---|---|---|
+| CARB-VOL-TOT | Disponible | `audits_caisse` (litrages), jours complets Tempo | somme (additif) |
+| CARB-VOL-PROD | Disponible | idem, par produit (gazole, SP95, GNR) | somme (additif) |
+| CARB-LIT-JOUR | Disponible | idem, litres ÷ jours complets | moyenne par jour complet |
+| CARB-PROGRES | Dérivé | série mensuelle de CARB-VOL-TOT (règle G-1) | sans requête propre |
+| COM-CA | Disponible | `audits_caisse.vente_boutique`, mêmes jours complets | somme (additif) |
+| COM-CA-JOUR | Disponible | idem, CA ÷ jours complets | moyenne par jour complet |
+| COM-PANIER | Disponible, périmètre écrit | `panier_moyen_quotidien` (boutique hors carburant) | ratio Σ CA ÷ Σ tickets |
+| COM-TICKETS | Disponible, périmètre écrit | idem | somme (additif) |
+| COM-PROGRES | Dérivé | série mensuelle de COM-CA | sans requête propre |
+| FDJ-VOLUME | Disponible | `view_fdj_daily_summary`, jours à deux quarts contrôlés | somme (additif) |
+| FDJ-EVOL | Dérivé | série mensuelle de FDJ-VOLUME | sans requête propre |
+| OPS-ECART-CAISSE | Disponible | `audits_caisse.ecart_total`, valeur absolue par quart | moyenne par quart, sans compensation |
+| CARB-PROD-H, COM-CA-H, MAR-H | À fiabiliser | dépend des horaires réels (G-3) | ratio |
+| MAR-BRUTE, MAR-TAUX, MAR-PROGRES | À fiabiliser | marge connue par période d'import ; passage au mois civil au prorata des jours | ratio |
+| CARB-ECART-NE | À fiabiliser | qualification manuelle, pas de champ dédié lu | à définir |
+| FDJ-ECART-COMP, FDJ-CONTROLES | À fiabiliser | lecture à confirmer sur la vue FDJ, règle de comptage à écrire | à définir |
+| CARB-RUPTURE | Non disponible | seule une rupture projetée existe dans le moteur de commande ; aucune rupture observée n'est stockée | sans objet |
+| CARB-MARGE | Non disponible | aucun coût d'achat stocké | sans objet |
+| FDJ-COMMISSION | Non disponible | aucune source de commission lue | sans objet |
+| OPS-CTRL, OPS-CLOT, OPS-INV, OPS-ANO-DELAI, OPS-DELAI-RES, OPS-TOURNEES, OPS-EQUIP, MAR-ANO-TARIF, MAR-DEMARQUE, MAR-PERTE-DC, MAR-EVITE, FDJ-ANO-NR, COM-DISPO-REF | À instruire | source non relue à cette étape ; classés « non disponible » tant qu'une lecture du code et du schéma n'a pas établi le contraire | sans objet |
+
+Cette dernière ligne est volontairement prudente : je ne range pas en « à fiabiliser » ce que je n'ai pas lu. L'étape suivante ou une relecture de Guardian les fera passer d'un côté ou de l'autre.
+
+### Agrégation selon l'horizon (mois, trimestre, année)
+
+- **Additifs** (litres, CA, tickets, volume FDJ) : le trimestre et l'année sont la somme des mois, ce qui garantit la cohérence entre horizons. Une cible annuelle se décompose en cibles mensuelles dont la somme redonne l'annuel.
+- **Moyennes par jour complet** : le trimestre est Σ valeurs ÷ Σ jours complets, jamais la moyenne des moyennes mensuelles.
+- **Ratios** (panier moyen) : Σ CA ÷ Σ tickets sur la période, jamais la moyenne des ratios mensuels.
+- **Écart de caisse** : moyenne absolue par quart sur tous les quarts de la période.
+
+## 4. Requêtes de lecture mensuelles (livrable 3, suite)
+
+### Conventions communes
+
+- **Lecture seule** : `select` uniquement, aucune écriture, aucune fonction à effet de bord.
+- **Station en paramètre obligatoire** dans le `where` (`site = :station`), sans compter sur la RLS.
+- **Fenêtre demi-ouverte** : `date >= :debut and date < :fin_exclusive`.
+- **Fuseau** : la Martinique est en UTC−4 toute l'année, sans heure d'été. Les colonnes `date` de `audits_caisse`, `panier_moyen_quotidien` et `view_fdj_daily_summary` sont des dates de service saisies ou dérivées par la station : elles sont déjà locales, aucune conversion. Attention : la valeur par défaut de `audits_caisse.date` est `current_date` côté serveur, donc en UTC ; on ne s'y fie pas, seule la date saisie compte. Tout `timestamptz` (par exemple `created_at`, utilisé pour la fraîcheur) passe par `at time zone 'America/Martinique'` avant `date_trunc('month', …)`.
+- **Jours complets** : même règle que Tempo (`joursLitresCompletsPiste`) : le jour a un quart '1' et un quart '2', chacun avec les trois litrages non nuls, et un total supérieur à zéro. Le CA boutique réutilise exactement les mêmes jours (`joursCaBoutique`).
+- **Couverture visible** : chaque requête rend `jours_couverts` (jours complets du mois) et `jours_du_mois`, pour qu'un mois incomplet se voie au lieu de passer pour un mois faible.
+- **Parité** : un test de parité entre ces requêtes et Tempo sur un jeu fictif figure dans les critères de recette (livrable 8).
+
+### Requête Q-CARB : litres par mois (CARB-VOL-TOT, CARB-VOL-PROD, CARB-LIT-JOUR)
+
+```sql
+with jours as (
+  select a.date,
+         sum(a.litrage_gazole) as gazole,
+         sum(a.litrage_sp95)   as sp95,
+         sum(a.litrage_gnr)    as gnr
+  from audits_caisse a
+  where a.site = :station
+    and a.date >= :debut and a.date < :fin_exclusive
+  group by a.date
+  having count(*) filter (where a.quart = '1'
+                            and a.litrage_gazole is not null
+                            and a.litrage_sp95   is not null
+                            and a.litrage_gnr    is not null) >= 1
+     and count(*) filter (where a.quart = '2'
+                            and a.litrage_gazole is not null
+                            and a.litrage_sp95   is not null
+                            and a.litrage_gnr    is not null) >= 1
+     and count(*) filter (where a.litrage_gazole is null
+                             or a.litrage_sp95   is null
+                             or a.litrage_gnr    is null) = 0
+     and sum(a.litrage_gazole + a.litrage_sp95 + a.litrage_gnr) > 0
+)
+select date_trunc('month', date)::date                       as mois,
+       sum(gazole)                                           as litres_gazole,
+       sum(sp95)                                             as litres_sp95,
+       sum(gnr)                                              as litres_gnr,
+       sum(gazole + sp95 + gnr)                              as litres_total,
+       count(*)                                              as jours_couverts,
+       extract(day from (date_trunc('month', date) + interval '1 month - 1 day'))::int as jours_du_mois,
+       round(sum(gazole + sp95 + gnr) / count(*), 0)         as litres_par_jour_complet
+from jours
+group by 1
+order by 1;
+```
+
+Le `having` reproduit `agregerParJour` : un seul quart sans détail fait tomber le jour (`litrageDisponible = false`). La date est déjà locale : `date_trunc` s'applique sans conversion.
+
+### Requête Q-COM : CA boutique par mois (COM-CA, COM-CA-JOUR)
+
+Même CTE `jours` que Q-CARB (mêmes jours complets, Tempo `joursCaBoutique`), en ajoutant `sum(a.vente_boutique) as ca_boutique` dans la CTE.
+
+```sql
+select date_trunc('month', date)::date as mois,
+       sum(ca_boutique)                as ca_boutique,
+       count(*)                        as jours_couverts,
+       extract(day from (date_trunc('month', date) + interval '1 month - 1 day'))::int as jours_du_mois,
+       round(sum(ca_boutique) / count(*), 2) as ca_par_jour_complet
+from jours
+group by 1
+order by 1;
+```
+
+La CA boutique est celle de la saisie de caisse (décision du gérant). Ce n'est pas le CA des imports.
+
+### Requête Q-PANIER : panier moyen et tickets (COM-PANIER, COM-TICKETS)
+
+```sql
+select date_trunc('month', p.date)::date                    as mois,
+       sum(p.nb_tickets)                                     as tickets,
+       round(sum(p.panier_moyen_ht  * p.nb_tickets) / nullif(sum(p.nb_tickets), 0), 2) as panier_moyen_ht,
+       round(sum(p.panier_moyen_ttc * p.nb_tickets) / nullif(sum(p.nb_tickets), 0), 2) as panier_moyen_ttc,
+       count(*)                                              as jours_couverts
+from panier_moyen_quotidien p
+where p.site = :station
+  and p.date >= :debut and p.date < :fin_exclusive
+group by 1
+order by 1;
+```
+
+Périmètre : boutique hors carburant, importé. Le panier mensuel est pondéré par les tickets, pas une moyenne de paniers journaliers. Ici « jour couvert » veut dire « jour importé » : la règle de jour complet de Tempo ne s'applique pas.
+
+### Requête Q-FDJ : volume FDJ par mois (FDJ-VOLUME)
+
+```sql
+select date_trunc('month', v.date)::date          as mois,
+       sum(v.ca_grattage + v.caisse_tirages)       as ca_fdj,
+       count(*)                                    as jours_couverts,
+       extract(day from (date_trunc('month', v.date) + interval '1 month - 1 day'))::int as jours_du_mois
+from view_fdj_daily_summary v
+where v.site = :station
+  and v.date >= :debut and v.date < :fin_exclusive
+  and v.nb_quarts_controles >= 2
+group by 1
+order by 1;
+```
+
+Même règle que Tempo `joursCaFdjComplets` : deux quarts contrôlés, grattage plus tirages.
+
+### Requête Q-ECART : écart de caisse par quart (OPS-ECART-CAISSE)
+
+```sql
+select date_trunc('month', a.date)::date              as mois,
+       count(*)                                        as quarts_mesures,
+       round(avg(abs(a.ecart_total)), 2)               as ecart_absolu_moyen_par_quart,
+       round(sum(abs(a.ecart_total)), 2)               as ecart_absolu_cumule,
+       count(*) filter (where a.statut in ('anomalie','critique')) as quarts_anomalie_critique
+from audits_caisse a
+where a.site = :station
+  and a.date >= :debut and a.date < :fin_exclusive
+  and a.ecart_total is not null
+group by 1
+order by 1;
+```
+
+Valeur absolue par quart, jamais de compensation entre quarts ni entre piste et boutique. La couverture est le nombre de quarts mesurés rapporté à deux par jour. Seuil de gravité : celui de `nexus-ecarts-moteur.js` (autorité), pas recalculé ici. À arbitrer : la définition OPS-ECART-CAISSE retient-elle `ecart_total` ou la somme des valeurs absolues de `ecart_piste` et `ecart_boutique` ? La requête prend `ecart_total`, conforme à `calculer_caisse_sante`.
+
+### Fraîcheur
+
+Pour chaque série, la fraîcheur est la dernière date de service présente, et, si l'on veut l'heure de saisie, `max(created_at at time zone 'America/Martinique')`.
+
+## 5. Suite
+
+Étape 3 : modèle relationnel (`objectif_catalogue`, `station_objectifs`, versions, un seul objectif officiel par indicateur, station et période, RLS par station, validation réservée au gérant et aux responsables habilités), présenté et non migré. Les lignes « À instruire » du catalogue y seront reclassées après lecture du code.
