@@ -10,7 +10,7 @@ Maquette : `docs/conception/maquettes/brief-v4.html` (données fictives, bouton 
 
 1. Le secteur Équipe sort du Brief : pas de carte, pas de place dans le radar ni dans l'Indice, pas de signaux Équipe. Raison : `pointages` n'est plus alimentée depuis août.
 2. La fiabilité des données va dans l'en-tête : nombre de secteurs mesurés sur 5, et date réelle des données de chaque secteur.
-3. L'objectif de marge est la cible de la politique tarifaire (`tarif_seuils`, champ `cible`, vue `v_tarif_seuils_actifs`). Plus de référence fixe à 25 %. Aucune cible n'est saisie en Production : Performance Marge est « non mesurée » (neutre, jamais pénalisée). La carte dit « Objectif de marge à définir dans Produits », avec un lien.
+3. L'objectif de marge est la cible de la politique tarifaire (`tarif_seuils`, champ `cible`, vue `v_tarif_seuils_actifs`). Plus de référence fixe à 25 %. Aucune cible n'est saisie en Production : la Performance Marge est neutre (jamais pénalisée) ; le taux réel et la Maîtrise restent mesurés. La carte dit « Objectif de marge à définir dans Produits », avec un lien.
 4. Courbe d'évolution sur 40 jours. Données quotidiennes disponibles : volumes carburant, ventes boutique (`audits_caisse.vente_boutique`), chiffre FDJ. Une grandeur par axe.
 
 Complément du gérant (Guardian, 7199090542) :
@@ -29,7 +29,7 @@ Le gérant, à son bureau le matin (1280) et debout sur le téléphone (375). Il
 ## 3. Trois informations à comprendre en premier
 
 1. L'état global : l'Indice sur 100 et son statut, ou « Indice non calculé : N secteurs mesurés sur 5 ».
-2. Les trois indicateurs clés, chacun daté : volumes carburant, chiffre boutique, marge réelle contre son objectif.
+2. Les trois indicateurs clés, chacun daté et comparé : volumes carburant sur 7 jours, ventes boutique sur 7 jours (chacun contre les 7 jours précédents), marge réelle contre son objectif.
 3. Les trois priorités du jour, chacune avec son action.
 
 ## 4. Actions possibles
@@ -90,32 +90,38 @@ Règle générale : une carte = une question, 4 données au plus, un chiffre n'a
 - Période : jour de données le plus ancien des secteurs retenus, affiché.
 - Seuil : calculé seulement si au moins 4 secteurs sur 5 sont mesurés. Sinon « Indice non calculé : N secteurs mesurés sur 5 », secteurs manquants listés.
 - Bandeau recentré sur le neutre : un secteur stable vaut 50. Le rouge est réservé à un secteur au statut « À corriger ». Seuils exacts proposés : à valider (§13).
+- Règle générale : un secteur est mesuré dès qu'une de ses deux dimensions (Performance, Maîtrise) l'est. La dimension non mesurée est neutre (0), jamais pénalisante.
+- Libellés possibles de l'Indice : Sous contrôle, À confirmer, À corriger, plus « Indice non calculé ». Les libellés propres aux secteurs (« À relancer », etc.) ne servent pas à l'Indice.
+- Couleur et libellé, cas par cas (proposition, §13.2) : Indice à 60 ou plus et aucun secteur « À corriger » : vert, « Sous contrôle ». De 45 à 59, ou 60 et plus avec un secteur « À confirmer » : ambre, « À confirmer ». Sous 45 sans aucun secteur « À corriger » : ambre, « À confirmer », avec la mention « Indice bas, aucun secteur à corriger » ; il n'y a pas de rouge sans secteur à corriger. Au moins un secteur « À corriger » : rouge, « À corriger », avec le nom du secteur.
+- Poids : moyenne simple des secteurs mesurés (proposition) ou moyenne pondérée ; voir §13.
 - Vide : voir §9.
 
 ### 11.2 Volumes carburant
 - Source : relevés carburant (même chargeur qu'aujourd'hui).
-- Période : jour, avec le repli sur le dernier jour disponible affiché en clair.
+- Période : volume sur les 7 derniers jours, comparé aux 7 jours précédents, en litres et en pourcentage ; dates des deux fenêtres affichées. Repli sur le dernier jour disponible affiché en clair.
 - Fuseau : celui de la station partout (aujourd'hui `chargerCarburantsBriefAvecFallback` ignore le fuseau passé et prend l'UTC).
 - Vide : « non mesuré », raison.
 
 ### 11.3 Chiffre boutique
 - Source : `audits_caisse.vente_boutique`.
-- Période : dernier quart audité, date réelle.
+- Période : ventes des 7 derniers jours comparées à celles des 7 jours précédents (`audits_caisse`, journées de la station), en euros et en pourcentage ; dates des deux fenêtres affichées. Le « dernier quart audité » est abandonné : il n'a pas de sens pour un dirigeant.
 - Vide : « non mesuré ».
 
 ### 11.4 Marge réelle contre objectif
 - Source : marge de la période importée ; objectif = `tarif_seuils.cible` via `v_tarif_seuils_actifs`.
+- Cible servant à comparer le taux global : la cible `defaut` si elle existe et est valide ; sinon la moyenne des cibles valides des familles, pondérée par le chiffre d'affaires de chaque famille ; si aucune cible n'est valide, aucune comparaison.
 - Indicateur à part, jamais tracé dans la courbe d'évolution (décision 5). Il montre le taux réel de la période, la cible de la politique tarifaire et l'écart en points, avec la date de la période.
 - Période : la période importée, dates de début et de fin. Rappel d'import si les données ont plus de 15 jours.
-- Sans objectif saisi (cas actuel) : « Marge mesurée, objectif à définir dans Produits » avec lien. Performance Marge « non mesurée », neutre. Le texte « pour une référence de 25 % » disparaît.
+- Sans objectif saisi (cas actuel) : l'indicateur affiche le taux réel de la période et sa date, avec « objectif à définir dans Produits » en dessous et un lien (le seul de l'écran). Le taux est mesuré ; la Performance Marge est neutre ; le secteur Marge est mesuré par sa Maîtrise (écarts en euros). Le texte « pour une référence de 25 % » disparaît.
 - Sans import : « non mesurée ».
+- Pas de doublon : le taux n'apparaît qu'ici au premier niveau ; la carte secteur Marge ne montre que sa note et son statut.
 
 ### 11.5 Cartes secteur (Carburant, Commerce, Marge, FDJ, Opérations)
 Chaque carte : nom et icône, note /100, statut métier (`statutMetier`), petite tendance, bouton « Détails ». Un secteur non mesuré est gris, avec sa raison. La couleur de la note vient du statut métier, jamais de seuils numériques.
 
 - Carburant : performance = volumes contre la référence actuelle ; maîtrise = écarts de stock. Période : jour de données.
-- Commerce : performance boutique. Date réelle affichée. Rappel d'import après 15 jours.
-- Marge : voir 11.4 pour la performance. Maîtrise Marge mesurée en euros (voir §12).
+- Commerce : performance boutique. Date réelle affichée. Rappel d'import après 15 jours. Source à arbitrer (§13.11).
+- Marge : note et statut seulement ; le taux est dans l'indicateur 11.4. Performance neutre sans cible ; Maîtrise Marge mesurée en euros (voir §12).
 - FDJ : fenêtre de 7 jours en heure de la station (aujourd'hui construite en UTC avec un décalage).
 - Opérations : maîtrise seule. « Écart de caisse » = somme des écarts en valeur absolue par quart, pas la somme signée par jour (deux quarts opposés s'annulent aujourd'hui). Jour du dernier contrôle en heure de la station.
 
@@ -131,6 +137,7 @@ Chaque carte : nom et icône, note /100, statut métier (`statutMetier`), petite
 - Proposition : un graphique par grandeur (volumes carburant, ventes boutique, chiffre FDJ), même abscisse, une grandeur par axe. Variante : indice base 100 au premier jour sur un seul graphique. Je recommande les petits graphiques séparés (lisibles sur 375, chaque unité reste vraie).
 - Jours sans donnée : trous visibles, pas d'interpolation.
 - Marge : absente du graphique (décision 5). Elle vit dans son indicateur daté (§11.4).
+- Chaque graphique a un axe des dates (début, milieu, fin) et sa propre échelle (minimum et maximum de la grandeur, avec l'unité), et occupe toute la largeur disponible.
 - Alternative texte : tableau des valeurs sous la courbe, ouvert à la demande.
 
 ### 11.8 Signaux de risque
@@ -175,6 +182,8 @@ Les bornes sont une proposition, à ajuster par le gérant avec les vrais ordres
 8. Objectifs : valeurs de départ proposées à partir de l'historique réel de la station (moyenne des mêmes périodes passées), toujours affichées comme proposition, jamais enregistrées sans validation. D'accord ?
 9. Objectifs : table nouvelle `station_objectifs` (§16.c) acceptée dans son principe, avant toute migration ?
 10. Objectifs : quelles grandeurs au démarrage ? Proposition : volumes carburant, ventes boutique, chiffre FDJ, taux de marge. Les trois premières n'ont aujourd'hui aucun objectif nulle part.
+11. Commerce : source de la Performance. Option 1 : les périodes importées (actuel), souvent vieilles de plusieurs semaines, mais cohérentes avec la marge. Option 2 : `audits_caisse` sur 7 jours, frais et quotidien, avec les périodes importées gardées pour la marge seulement. Limite à lever avant de choisir : `vente_boutique` inclut-elle les produits d'appel et le tabac ? Sinon la comparaison entre les deux sources serait fausse.
+12. Poids des secteurs dans l'Indice : moyenne simple (proposition) ou pondération par secteur ? Je ne tranche pas.
 
 ## 14. Épreuves prévues
 
@@ -183,11 +192,13 @@ Les bornes sont une proposition, à ajuster par le gérant avec les vrais ordres
 - Fuseau : jeu de données à cheval sur minuit UTC, station en heure d'été et en heure d'hiver ; les fenêtres FDJ, Opérations et Carburant coupent à minuit de la station.
 - Indice : 3 secteurs mesurés → « non calculé » ; 4 → calculé ; liste des manquants exacte.
 - Équipe : aucune lecture de `pointages` ni de `coach_daily_recommendations` ; aucune carte Équipe.
-- Marge : sans objectif, « non mesurée » et aucune pénalité ; avec objectif, comparaison correcte.
+- Marge : sans objectif, taux mesuré, Performance neutre, secteur mesuré par sa Maîtrise, aucune pénalité ; avec objectif, comparaison correcte ; cible globale : `defaut`, sinon moyenne pondérée par le chiffre d'affaires, sinon aucune.
+- Règle « mesuré dès qu'une dimension l'est » ; bandeau de l'Indice : chaque cas a une couleur et un libellé, y compris sous 45 sans secteur « À corriger ».
+- Carburant et boutique : fenêtres de 7 jours contre les 7 jours précédents, fenêtres vides et divisions par zéro.
 - Classement stable : deux jours consécutifs sans changement de données donnent le même ordre.
 - Charte : `test_charte_interface.js` inchangé en rouge, jetons uniquement, pas d'emoji, Jour et Nuit.
 - Épreuves déjà liées au Brief : test_badge_etat_brief_20261109.js, test_brief_chargement_dynamique.js, test_brief_vague3_20261109.js, test_carburant_brief_fallback_verifie_v2248.js, test_carburant_brief_rapport_economie.js, test_connexion_carte_brief_20261126.js.
-- Lot E : un objectif sans valeur validée n'est jamais affiché comme atteint ni comme manqué ; « à ce rythme » n'apparaît que si la période est assez avancée et la grandeur assez mesurée (jeu fictif en dessous du minimum : aucune projection) ; potentiel : deux gains de natures différentes ne s'additionnent jamais (épreuve sur des gains en euros de marge et des litres commandés) ; une proposition de départ est marquée « proposition » tant qu'elle n'est pas validée ; politique RLS de `station_objectifs` : un gérant d'une autre station ne lit ni n'écrit, un employé ne peut pas insérer, aucune modification ni suppression ; chaque priorité du Conseiller nomme l'objectif qu'elle sert, ou « sans objectif lié » en clair.
+- Lot E : un objectif sans valeur validée n'est jamais affiché comme atteint ni comme manqué ; « à ce rythme » n'apparaît que si la période est assez avancée et la grandeur assez mesurée (jeu fictif en dessous du minimum : aucune projection) ; potentiel : deux gains de natures différentes ne s'additionnent jamais (épreuve sur un gain de marge et une perte évitable ; le carburant à commander n'apparaît jamais dans le potentiel) ; une proposition de départ est marquée « proposition » tant qu'elle n'est pas validée ; politique RLS de `station_objectifs` : un gérant d'une autre station ne lit ni n'écrit, un employé ne peut pas insérer, aucune modification ni suppression ; chaque priorité du Conseiller nomme l'objectif qu'elle sert, ou « sans objectif lié » en clair.
 - Marge : l'indicateur affiche le taux de la période, la cible et la date ; aucune série de marge dans le graphique.
 - La recette de l'interface reste celle de Guardian : une CI verte ne la valide pas.
 
@@ -199,7 +210,7 @@ Les bornes sont une proposition, à ajuster par le gérant avec les vrais ordres
 - Lot D, signaux de risque : règle de fermeture et affichage.
 - Lot E, objectifs et potentiel (présenté séparément, §16) : écran de saisie des objectifs, bloc « Objectifs et potentiel » du Brief, objectif servi sur chaque priorité. Il commence après la revue de la fiche et le GO du gérant sur le modèle ; la table n'est créée qu'après un GO explicite sur la migration.
 
-Ordre : A, puis B, puis C et D indépendants ; E après B et après le GO sur le modèle. Rien en Production sans GO. Aucune fusion sans GO écrit du gérant. Le déploiement de #391 reste à l'approbation du gérant ; la disposition bureau est ce lot B, ouvert sur instruction du gérant seulement.
+Ordre : A, puis B, puis C et D indépendants ; E après B et après le GO sur le modèle. Rien en Production sans GO. Aucune fusion sans GO écrit du gérant. Le déploiement de #391 est fait ; la disposition bureau est ce lot B, ouvert sur instruction du gérant seulement.
 
 ## 16. Objectifs et potentiel (lot E)
 
@@ -248,7 +259,7 @@ Affichage, pour chaque objectif (une carte = une question : « où j'en suis de 
 - « atteint à ce rythme » ou « pas atteint à ce rythme » seulement quand le calcul le permet : au moins la moitié de la période écoulée et les jours mesurés suffisants ; sinon « trop tôt pour dire ». Aucune prévision inventée (Constitution art. 12). Le calcul est une règle de proportionnalité sur les jours mesurés, annoncée comme telle.
 
 Potentiel :
-- somme des gains déjà mesurés par les moteurs, par nature : euros de marge (Marge+, Scanner tarifaire), euros de pertes évitables (écarts de caisse, stock non compté), litres à commander (carburant). Chaque nature est affichée avec son propre chiffre et son unité ; jamais d'addition d'euros de natures différentes.
+- somme des gains déjà mesurés par les moteurs, par nature : euros de marge (Marge+, Scanner tarifaire), euros de pertes évitables (écarts de caisse, stock non compté). Le carburant à commander n'est pas un potentiel : c'est un besoin, il reste dans les priorités. Le potentiel ne contient que des gains et des pertes évitables, en euros, chacun dans sa nature ; jamais d'addition de natures différentes.
 - chaque ligne de potentiel nomme le moteur qui l'a mesuré et la date de sa mesure ; un potentiel sans mesure datée n'est pas affiché.
 
 Guidage :
