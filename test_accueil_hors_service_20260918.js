@@ -301,6 +301,9 @@ function executerDeuxChemins(employee, serviceCourant, estNiveauManager) {
 // JEUX D'ESSAI
 // ---------------------------------------------------------------------------
 const AUJOURDHUI = new Date();
+// Début et fin du service « terminé » sur un même instant : un décalage (maintenant − 1 h)
+// retombait la veille du jour métier juste après minuit local (04:00 UTC, Martinique).
+const INSTANT_SERVICE = AUJOURDHUI.toISOString();
 const service = (role, quart = 'matin', joursEnArriere = 0) => ({
   id: `svc-${role}`, role, quart,
   heure_debut: new Date(AUJOURDHUI.getTime() - joursEnArriere * 86400000).toISOString(),
@@ -550,7 +553,7 @@ async function cas(nom, entree, controles) {
   await cas('C2b · journée terminée sans pointage (service termine du jour)', {
     employee: employe(), roleDuJour: 'pompiste', pointageActifSite: false, quartDuJour: 'matin',
     serviceCourant: null,
-    serviceTermine: { id: 'svc-clos', heure_debut: new Date(Date.now() - 3600e3).toISOString(), heure_fin: new Date().toISOString() },
+    serviceTermine: { id: 'svc-clos', heure_debut: INSTANT_SERVICE, heure_fin: INSTANT_SERVICE },
     reponses: { mission_catalog: { data: catalogue('pompiste'), error: null } },
   }, ({ rendus, journal, verifier, verifierQue }) => {
     verifierQue('statut « journée terminée »',
@@ -590,7 +593,7 @@ async function cas(nom, entree, controles) {
     });
 
   await cas('C2e · recherche absente à « Votre service est terminé »', Object.assign({}, sansService, {
-    serviceTermine: { id: 'svc-clos', heure_debut: new Date(Date.now() - 3600e3).toISOString(), heure_fin: new Date().toISOString() },
+    serviceTermine: { id: 'svc-clos', heure_debut: INSTANT_SERVICE, heure_fin: INSTANT_SERVICE },
   }), ({ journal, verifierQue }) => {
     verifierQue('absente à l’écran de fin de service', zoneMasquee(journal), '');
     verifierQue('toujours absente : la zone de « Ma progression » est sur sa page', zoneMasquee(journal), '');
