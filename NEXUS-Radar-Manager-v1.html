@@ -79,6 +79,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
 <script src="nexus-auth.js?v=20261127-1000"></script>
+<script src="nexus-site-requis.js?v=20261127-0100"></script>
 <script src="nexus-icones.js?v=20261124-0001"></script>
 <script src="nexus-desktop.js?v=20261124-1500"></script>
 <script src="nexus-forfait.js?v=20260904-0104"></script>
@@ -216,9 +217,10 @@
     return Math.round(Math.max(0, points) / maxTheorique * 100);
   }
 
+  NexusSiteRequis.exiger(SITE_ACTUEL, 'Radar du Manager');
   const [{ data: completionsHisto, error: erreurCompletions }, { data: pointagesHisto, error: erreurPointages }, facteursIndice] = await Promise.all([
-    nexusClient.from('mission_completions').select('points, mission_id'),
-    nexusClient.from('pointages').select('retard_min').eq('type', 'arrivee').gt('retard_min', 0),
+    nexusClient.from('mission_completions').select('points, mission_id').eq('site_id', SITE_ACTUEL),
+    nexusClient.from('pointages').select('retard_min').eq('site', SITE_ACTUEL).eq('type', 'arrivee').gt('retard_min', 0),
     calculerFacteursIndice(),
   ]);
   if (erreurCompletions) console.error('Chargement mission_completions:', erreurCompletions);

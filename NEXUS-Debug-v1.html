@@ -11,6 +11,7 @@
 <script src="nexus-mesure.js?v=20260904-0104"></script>
 <script src="nexus-ecart-affichage.js?v=20260904-0104"></script>
 <script src="nexus-auth.js?v=20261127-1000"></script>
+<script src="nexus-site-requis.js?v=20261127-0100"></script>
 <style>
   :root{
     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
@@ -150,7 +151,8 @@
 
     btn.disabled = true; btn.textContent = 'Export en cours…';
 
-    const { data: employesData, error: erreurEmployes } = await nexusClient.from('employees').select('id, nom');
+    NexusSiteRequis.exiger(SITE_ACTUEL, 'Debug — export pointages');
+    const { data: employesData, error: erreurEmployes } = await nexusClient.from('employees').select('id, nom').eq('site_id', SITE_ACTUEL);
     if (erreurEmployes) {
       console.error('Chargement employees:', erreurEmployes);
       msg.textContent = 'Erreur de chargement des employés — réessayez.';
@@ -195,7 +197,7 @@
     // Detection des doublons — indispensable si la migration est relancee
     const idsConcernes = [...new Set(aInserer.map(e => e.employee_id))];
     const { data: dejaPresent, error: erreurExistant } = await nexusClient
-      .from('pointages').select('employee_id, date, type, heure').in('employee_id', idsConcernes);
+      .from('pointages').select('employee_id, date, type, heure').eq('site', SITE_ACTUEL).in('employee_id', idsConcernes);
     if (erreurExistant) console.error('Vérification doublons:', erreurExistant);
     const cleExistante = new Set((dejaPresent || []).map(p => `${p.employee_id}|${p.date}|${p.type}|${p.heure}`));
     const nouveauxSeuls = aInserer.filter(e => !cleExistante.has(`${e.employee_id}|${e.date}|${e.type}|${e.heure}`));

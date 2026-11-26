@@ -19,6 +19,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
 <script src="nexus-auth.js?v=20261127-1000"></script>
+<script src="nexus-site-requis.js?v=20261127-0100"></script>
 <script src="nexus-header-nav.js?v=20261124-1200"></script>
 <script src="nexus-icones.js?v=20261124-0001"></script>
 <script src="nexus-desktop.js?v=20261124-1500"></script>
@@ -131,7 +132,8 @@
   const AUJOURD_ISO = new Date().toISOString().slice(0,10);
 
   async function chargerEquipe() {
-    const { data, error } = await nexusClient.from('employees').select('id, nom').eq('actif', true);
+    NexusSiteRequis.exiger(SITE_ACTUEL, 'Journal — équipe');
+    const { data, error } = await nexusClient.from('employees').select('id, nom').eq('site_id', SITE_ACTUEL).eq('actif', true);
     if (error) { console.error(error); return {}; }
     const map = {};
     (data || []).forEach(e => { map[e.id] = e.nom; });
@@ -142,9 +144,11 @@
   // l'ecran Missions ecrit reellement — pas le localStorage historique
   // (nexus_missions_completees) que Resultats Equipe lisait avant correction.
   async function chargerMissionsDuJour() {
+    NexusSiteRequis.exiger(SITE_ACTUEL, 'Journal — missions du jour');
     const { data, error } = await nexusClient
       .from('mission_completions')
       .select('*')
+      .eq('site_id', SITE_ACTUEL)
       .eq('date', AUJOURD_ISO);
     if (error) { console.error('Chargement missions du jour:', error); return []; }
     return data || [];
@@ -160,7 +164,8 @@
   // montrait que les pointages saisis sur cet appareil (corrige le 15/07/2026,
   // migration Pointage vers Supabase).
   async function chargerPointagesDuJour() {
-    const { data, error } = await nexusClient.from('pointages').select('employee_id, type, heure, retard_min, anomalie_signalee').eq('date', AUJOURD_ISO);
+    NexusSiteRequis.exiger(SITE_ACTUEL, 'Journal — pointages du jour');
+    const { data, error } = await nexusClient.from('pointages').select('employee_id, type, heure, retard_min, anomalie_signalee').eq('site', SITE_ACTUEL).eq('date', AUJOURD_ISO);
     if (error) { console.error('Chargement pointages:', error); return []; }
     return data || [];
   }

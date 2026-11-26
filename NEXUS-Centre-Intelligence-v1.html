@@ -9,6 +9,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
 <script src="nexus-auth.js?v=20261127-1000"></script>
+<script src="nexus-site-requis.js?v=20261127-0100"></script>
 <script src="nexus-periodes.js?v=20260904-0104"></script>
 <script src="nexus-conseiller.js?v=20261127-1000"></script>
 <script src="nexus-etats-conseiller.js"></script>
@@ -353,7 +354,8 @@
   // pour en tirer des motifs qu'aucun ecran instantane ne peut voir.
 
   async function chargerEquipeMap() {
-    const { data, error } = await nexusClient.from('employees').select('id, nom').eq('actif', true);
+    NexusSiteRequis.exiger(SITE_ACTUEL, 'Centre Intelligence — équipe');
+    const { data, error } = await nexusClient.from('employees').select('id, nom').eq('site_id', SITE_ACTUEL).eq('actif', true);
     if (error) { console.error(error); return {}; }
     const map = {};
     (data || []).forEach(e => { map[e.id] = e.nom; });
@@ -361,7 +363,8 @@
   }
 
   async function chargerMissionsHistorique() {
-    const { data, error } = await nexusClient.from('mission_completions').select('*');
+    NexusSiteRequis.exiger(SITE_ACTUEL, 'Centre Intelligence — missions');
+    const { data, error } = await nexusClient.from('mission_completions').select('*').eq('site_id', SITE_ACTUEL);
     if (error) { console.error('Chargement historique missions:', error); return []; }
     return data || [];
   }
@@ -378,7 +381,8 @@
   // ete oublie lors de cette migration, meme classe de bug que Radar du
   // Manager et Resultats Equipe avant eux).
   async function chargerRetardsTous() {
-    const { data, error } = await nexusClient.from('pointages').select('employee_id, retard_min').eq('type', 'arrivee').gt('retard_min', 0);
+    NexusSiteRequis.exiger(SITE_ACTUEL, 'Centre Intelligence — retards');
+    const { data, error } = await nexusClient.from('pointages').select('employee_id, retard_min').eq('site', SITE_ACTUEL).eq('type', 'arrivee').gt('retard_min', 0);
     if (error) { console.error('Chargement pointages:', error); return []; }
     return data || [];
   }

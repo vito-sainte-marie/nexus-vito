@@ -103,6 +103,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
 <script src="nexus-auth.js?v=20261127-1000"></script>
+<script src="nexus-site-requis.js?v=20261127-0100"></script>
 <script src="nexus-icones.js?v=20261124-0001"></script>
 <script src="nexus-desktop.js?v=20261124-1500"></script>
 <script src="nexus-forfait.js?v=20260904-0104"></script>
@@ -128,17 +129,19 @@
   // personne n'ecrit dans cette cle, l'ecran affichait donc des donnees perimees ou
   // vides (corrige le 14/07/2026). Les pointages/retards restent sur localStorage,
   // Pointage n'ayant pas encore de table Supabase dediee.
-  async function chargerCompletions() {
-    const { data, error } = await nexusClient.from('mission_completions').select('*').order('date', { ascending: false });
+  async function chargerCompletions(siteId) {
+    NexusSiteRequis.exiger(siteId, 'Résultats Équipe — missions');
+    const { data, error } = await nexusClient.from('mission_completions').select('*').eq('site_id', siteId).order('date', { ascending: false });
     if (error) { console.error('Chargement mission_completions:', error); return []; }
     return data || [];
   }
-  async function chargerEquipeActive() {
+  async function chargerEquipeActive(siteId) {
+    NexusSiteRequis.exiger(siteId, 'Résultats Équipe — équipe');
     // Résultats Équipe (28/07/2026, demande de Frédéric) : uniquement les
     // employés, jamais les managers/gérants — cet écran juge des missions
     // et retards d'exécution, pas le pilotage du site.
     const { data, error } = await nexusClient.from('employees').select('id, nom')
-      .eq('actif', true).neq('role', 'manager').neq('role', 'gerant').order('nom');
+      .eq('site_id', siteId).eq('actif', true).neq('role', 'manager').neq('role', 'gerant').order('nom');
     if (error) { console.error('Chargement employees:', error); return []; }
     return data || [];
   }
@@ -260,8 +263,8 @@
     if (!(await NexusForfait.nexusRequireProfessional('NEXUS-Resultats-Equipe-v1.html', employee.site_id))) return;
 
     const [equipeActive, completions, { data: pointagesRetard, error: erreurPointages }] = await Promise.all([
-      chargerEquipeActive(), chargerCompletions(),
-      nexusClient.from('pointages').select('employee_id, date, retard_min').eq('type', 'arrivee').gt('retard_min', 0).order('date', { ascending: false }),
+      chargerEquipeActive(employee.site_id), chargerCompletions(employee.site_id),
+      nexusClient.from('pointages').select('employee_id, date, retard_min').eq('site', employee.site_id).eq('type', 'arrivee').gt('retard_min', 0).order('date', { ascending: false }),
     ]);
     if (erreurPointages) console.error('Chargement pointages:', erreurPointages);
     const nomParId = {};
