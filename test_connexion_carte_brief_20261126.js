@@ -21,6 +21,7 @@ v(!/rgba?\(|#[0-9a-f]{3,8}\b/i.test(feuille), 'point 1 : aucune couleur en dur')
 v(/border-radius:12px/.test(feuille) && !/border-radius:10px/.test(src.slice(debut, fin)), 'point 2 : rayon 12 px');
 v(!/style=/.test(g + m + neutre), 'point 3 : aucun style en ligne');
 v(/\.alerte-connexion\.neutre\{[^}]*color:var\(--text-dim\)/.test(src) && !/amber/.test(src.match(/\.alerte-connexion\.neutre\{[^}]*\}/)[0]), 'point 4 : ligne neutre sans ambre');
+v(/\.section\{padding:20px 20px;\}/.test(src) && /margin:0 20px 10px/.test(feuille), 'marges latérales de la carte alignées sur celles de la carte Boussole (20 px)');
 v(neutre.includes('neutre'), 'ligne neutre classée neutre');
 v(!/déjà connectées/.test(g + m + neutre), 'phrase non démontrée retirée');
 v(fabrique({ a: null, r: 'gerant' }) === '', 'absente si tout va bien');
