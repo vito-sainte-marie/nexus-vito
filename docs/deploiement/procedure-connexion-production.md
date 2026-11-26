@@ -104,7 +104,7 @@ Les colonnes exactes de `employees` se vérifient au GO, sur le catalogue, avant
 
 ## 5. Source de la fonction (mise à jour étape 4)
 
-Le source `index.ts` ajoute l'action `lister_equipe` (version 14 déployée sur Test le 25/11/2026, md5 `3abbf3c88d33d1c59b3944f053776dd5`, sans code de pannes ; l’étape 4b journalise le refus de `lister_equipe` et applique la règle gérant/manager validée). L'étape 5 ajoute `alerte_indisponible` et le contrôle d'expiration du code temporaire : version 15 déployée sur Test le 26/11/2026 (md5 du fichier `ef89d641fcf2da1fd73d14650d97247f`, ezbr_sha256 `1d8f3815…07e263bf`, relue par `get_edge_function`). Le fichier de la branche (md5 `c106b325a0e92a8b8aad5b3d2fae0274`) ne diffère de la v15 que par un commentaire corrigé (« nombre global, sans donnée de compte ») : aucun effet à l'exécution ; il sera déployé avec le prochain changement fonctionnel, et Guardian contrôle le md5 avant tout déploiement en Production. Limite connue : en panne totale de la fonction, aucune ligne `indisponible` ne peut être écrite ; la carte du Brief n'affiche alors rien, et la carte « lecture impossible » reste neutre. L'étape 5b (`20261127090000`) ajoute `premier` (première réponse « indisponible » de l'heure) à `alerte_indisponible_pour` ; `site_id` reste celui du lecteur. La carte n'a aucun bouton ; les personnes déjà connectées gardent leur session (`getSession`, sans appel à `connexion`). Mesure Test : `lister_equipe` sans JWT → 403 neutre ; les autres actions répondent comme avant.
+Le source `index.ts` ajoute l'action `lister_equipe` (l’étape 4b journalise le refus et applique la règle gérant/manager validée) puis, à l'étape 5, `alerte_indisponible` et le contrôle d'expiration du code temporaire. Test porte la **version 16**, déployée le 26/11/2026 depuis le fichier de la branche (md5 `c106b325a0e92a8b8aad5b3d2fae0274`) ; c'est ce md5 que Guardian contrôle avant tout déploiement en Production. Limite connue : en panne totale de la fonction, aucune ligne `indisponible` ne peut être écrite ; la carte du Brief n'affiche alors rien, et la carte « lecture impossible » reste neutre. L'étape 5b (`20261127090000`) ajoute `premier` (première réponse « indisponible » de l'heure) à `alerte_indisponible_pour` ; `site_id` reste celui du lecteur. La carte n'a aucun bouton ; les personnes déjà connectées gardent leur session (`getSession`, sans appel à `connexion`). Mesure Test : `lister_equipe` sans JWT → 403 neutre ; les autres actions répondent comme avant.
 
 ## 6. Plan de bascule Production (à exécuter seulement sur GO distinct par étape)
 
@@ -136,10 +136,10 @@ Fonction `supabase/functions/connexion/index.ts` : md5 `c106b325a0e92a8b8aad5b3d
 ### 6.2 Étapes de bascule (dans cet ordre)
 
 1. **Sauvegarde** (Guardian, sur son Mac, hors dépôt) : identités et états seulement, jamais un mot de passe ni une empreinte.
-2. **Migrations** (Guardian) : les 14 fichiers du §6.1, mesure du catalogue ensuite (§3).
+2. **Migrations** (Guardian) : les 14 fichiers du §6.1, mesure du catalogue ensuite (§3). Je reporte ensuite cette mesure Production dans `docs/deploiement/qualification-ordre-migration-code.json` par un commit de suite ; la garde « Déploiement Production » doit être verte avant la fusion (condition de l'étape 5).
 3. **Secrets** (le gérant) : voir §1.
 4. **Fonction** (Guardian) : déploiement du source au md5 du §6.1.
-5. **Page, puis compte témoin, puis gérant.** La première connexion réelle est le point de non-retour (§2). Le compte témoin passe donc avant celle du gérant :
+5. **Page, puis compte témoin, puis gérant.** Conditions préalables : (i) la mesure Production est inscrite dans `qualification-ordre-migration-code.json` et la garde « Déploiement Production » est verte avant la fusion ; (ii) les deux contrôles du §1, en lecture seule et sur GO, sont faits : (a) comptes `Recette…` et comptes inactifs, filtrés par site, le manager décidant avant la bascule de ce qu'on en fait ; (b) limites Auth de Production comparées au budget de 20 appels par minute. La première connexion réelle est le point de non-retour (§2). Le compte témoin passe donc avant celle du gérant :
    - la page est déployée (approbation de l'environnement `github-pages` par le gérant) ;
    - **avec GO distinct pour le compte fictif en Production** : connexion et changement de code du compte fictif, puis contrôle de la page servie (version attendue, parcours Connexion, Brief et déconnexion) ; ensuite seulement, connexion du gérant ;
    - **sans ce GO** : pas de compte fictif. Le contrôle de la page servie se limite à la lecture de la page (version, formulaire, appel de la fonction avec un faux compte : refus neutre 401), et la connexion du gérant devient la première migration réelle. Le gérant le sait avant d'accepter ;
@@ -154,9 +154,9 @@ Option de repli qui ne passe pas par la fonction : le gérant, seul, depuis le t
 
 ### 6.4 Créneau proposé
 
-Horaires du site tels que `station_config` les décrit sur Test (site de test) : quart 1 de 06:00 à 13:00, quart 2 de 13:00 à 20:00, fuseau `America/Martinique` (UTC−4). Les horaires réels de la station de Production n'ont pas été lus (aucune lecture Production sans GO) : **à confirmer par le gérant**.
+Horaires du site tels que `station_config` les décrit sur Test (site de test) : quart 1 de 06:00 à 13:00, quart 2 de 13:00 à 20:00, fuseau `America/Martinique` (UTC−4). Les horaires réels de la station de Production n'ont pas été lus (aucune lecture Production sans GO) : **le gérant confirmera lui-même les horaires de Production et la date**.
 
-Créneau proposé : un soir après 20:00 et avant 05:00, par exemple de 21:00 à 22:30 heure de Martinique, hors quarts et hors prise de poste, jamais la veille d'une paie ni un jour de clôture.
+Créneau proposé (simple proposition, à valider ou changer par le gérant) : un soir après 20:00 et avant 05:00, par exemple de 21:00 à 22:30 heure de Martinique, hors quarts et hors prise de poste, jamais la veille d'une paie ni un jour de clôture.
 
 | Étape | Durée estimée |
 |---|---|
