@@ -342,10 +342,10 @@
 <script src="nexus-conseiller.js?v=20261127-1000"></script>
 <script src="nexus-etats-conseiller.js"></script>
 <script src="nexus-badge-etat.js"></script>
-<script src="nexus-conseiller-donnees.js?v=20261127-1000"></script>
+<script src="nexus-conseiller-donnees.js?v=20261127-1100"></script>
 <script src="nexus-risques-donnees.js?v=20261127-1000"></script>
 <script src="nexus-site-requis.js?v=20261127-0100"></script>
-<script src="nexus-brief-donnees.js?v=20261127-1000"></script>
+<script src="nexus-brief-donnees.js?v=20261127-1100"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 <script src="nexus-pdf-moteur.js?v=20261125-2300"></script>
 <script>
@@ -1753,11 +1753,26 @@
     });
   }
 
+  // CAUSE DE LENTEUR (B0-perf) : le chargement attendait d'abord l'appel à la
+  // fonction `connexion` (une fonction serveur, démarrage à froid possible),
+  // puis la sonde, PUIS seulement commençait construireBrief. Trois attentes
+  // en série devant le contenu, alors que ni l'alerte de connexion ni la
+  // sonde ne servent à construire le Brief : ce sont deux cartes d'en-tête
+  // lues par renderBrief. Cet appel ne sert PAS au renouvellement de session
+  // (il lit seulement l'alerte « Connexion indisponible ») : il n'a donc
+  // aucune raison de bloquer l'affichage. Maintenant : sonde et Brief se
+  // chargent ensemble ; l'alerte de connexion part en même temps mais le
+  // Brief s'affiche sans l'attendre, et la carte apparaît dès qu'elle arrive.
+  let _rafraichirRang = 0;
   async function rafraichir() {
-    await chargerAlerteConnexion();
-    await chargerSondeAlertes();
-    BRIEF = await construireBrief();
+    const rang = ++_rafraichirRang;
+    const alerte = chargerAlerteConnexion();   // non attendue avant l'affichage
+    const [, brief] = await Promise.all([chargerSondeAlertes(), construireBrief()]);
+    BRIEF = brief;
     renderBrief();
+    // La carte connexion se met à jour après coup, sauf si un rafraîchissement
+    // plus récent a pris la main entre-temps (il fera son propre rendu).
+    alerte.then(() => { if (rang === _rafraichirRang && BRIEF) renderBrief(); });
   }
 
   // Carte « Connexion indisponible » (26/11/2026) : aucune action possible depuis

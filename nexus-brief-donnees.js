@@ -360,17 +360,49 @@
     // réellement valide. Une seule vérité sur "jour complet" (Article 11) :
     // le même prédicat `jourCarburantEstComplet` que pour aujourd'hui,
     // appliqué au résultat RÉEL du rejeu — jamais à sa version approximative.
+    //
+    // CAUSE DE LENTEUR (B0-perf, mesurée par Guardian en Production : 164
+    // requêtes, dernière réponse à 19,9 s) : cette recherche rejouait
+    // `chargerCarburantsBrief` UN JOUR APRÈS L'AUTRE, chaque rejeu attendant
+    // la fin du précédent, alors que chaque rejeu coûte plusieurs requêtes.
+    // Quand plusieurs jours récents sont incomplets, la latence s'additionnait.
+    // Or la SUITE des dates candidates ne dépend d'aucun résultat réseau :
+    // chaque date écartée est simplement ajoutée à `datesExclues`, et
+    // `trouverJourFiableAnterieur` (pure) en tire la suivante. On construit
+    // donc la liste ordonnée des candidats sans réseau, puis on rejoue par
+    // lots en parallèle ; on retient le PREMIER candidat complet DANS L'ORDRE
+    // de la liste, jamais le premier à répondre. Le résultat est identique à
+    // l'ancienne boucle : même date retenue, même `fraicheur` finale.
+    const candidatsRepli = [];
     const datesExclues = [];
     let fallback = M.trouverJourFiableAnterieur(historique, aujourdhui);
     let fraicheur = M.fraicheurCarburant({ completAujourdhui: false, fallback });
-    let carburantsFallback = null;
+    const fraicheurParCandidat = [];
     while (fraicheur.mode === 'fallback') {
-      carburantsFallback = await chargerCarburantsBrief(client, siteId, fraicheur.dateReference);
-      if (M.jourCarburantEstComplet(carburantsFallback.controle.parCarburant, carburantsFallback.controle.aucunReleve)) break;
+      candidatsRepli.push(fraicheur.dateReference);
+      fraicheurParCandidat.push(fraicheur);
       datesExclues.push(fraicheur.dateReference);
-      carburantsFallback = null;
       fallback = M.trouverJourFiableAnterieur(historique, aujourdhui, datesExclues);
       fraicheur = M.fraicheurCarburant({ completAujourdhui: false, fallback });
+    }
+    // `fraicheur` est ici l'état final si aucun candidat n'est complet
+    // ('perime' ou 'jour_incomplet_sans_repli'), comme dans l'ancienne boucle.
+    let carburantsFallback = null;
+    const estComplet = c => M.jourCarburantEstComplet(c.controle.parCarburant, c.controle.aucunReleve);
+    let rejoues = 0;
+    // Premier candidat seul : cas courant, aucune requête gaspillée. Les
+    // suivants ne sont lancés (en parallèle, par lots) que s'il échoue.
+    let tailleLot = 1;
+    while (carburantsFallback === null && rejoues < candidatsRepli.length) {
+      const lot = candidatsRepli.slice(rejoues, rejoues + tailleLot);
+      const resultats = await Promise.all(lot.map(d => chargerCarburantsBrief(client, siteId, d)));
+      const idx = resultats.findIndex(estComplet);
+      if (idx >= 0) {
+        carburantsFallback = resultats[idx];
+        fraicheur = fraicheurParCandidat[rejoues + idx];
+      }
+      rejoues += lot.length;
+      tailleLot = 4;
     }
 
     if (fraicheur.mode === 'fallback') {
