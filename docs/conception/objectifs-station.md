@@ -138,33 +138,41 @@ Trois classes, appliquées sans exception (article 5 : pas de valeur fabriquée)
 - **À fiabiliser** : la source existe mais sa lecture mensuelle exige un arbitrage ou une règle de passage ; aucune requête n'est livrée tant qu'elle n'est pas tranchée.
 - **Non disponible** : aucune source stockée à ce jour ; l'indicateur ne peut être ni suivi ni projeté.
 
-| Id | Classe | Source ou raison | Agrégation sur le mois |
-|---|---|---|---|
-| CARB-VOL-TOT | Disponible | `audits_caisse` (litrages), jours complets Tempo | somme (additif) |
-| CARB-VOL-PROD | Disponible | idem, par produit (gazole, SP95, GNR) | somme (additif) |
-| CARB-LIT-JOUR | Disponible | idem, litres ÷ jours complets | moyenne par jour complet |
-| CARB-PROGRES | Dérivé | série mensuelle de CARB-VOL-TOT (règle G-1) | sans requête propre |
-| COM-CA | Disponible | `audits_caisse.vente_boutique`, mêmes jours complets | somme (additif) |
-| COM-CA-JOUR | Disponible | idem, CA ÷ jours complets | moyenne par jour complet |
-| COM-PANIER | Disponible, périmètre écrit | `panier_moyen_quotidien` (boutique hors carburant) | ratio Σ CA ÷ Σ tickets |
-| COM-TICKETS | Disponible, périmètre écrit | idem | somme (additif) |
-| COM-PROGRES | Dérivé | série mensuelle de COM-CA | sans requête propre |
-| FDJ-VOLUME | Disponible | `view_fdj_daily_summary`, jours à deux quarts contrôlés | somme (additif) |
-| FDJ-EVOL | Dérivé | série mensuelle de FDJ-VOLUME | sans requête propre |
-| OPS-ECART-CAISSE | Disponible | `audits_caisse.ecart_total`, valeur absolue par quart | moyenne par quart, sans compensation |
-| CARB-PROD-H, COM-CA-H, MAR-H | À fiabiliser | dépend des horaires réels (G-3) | ratio |
-| MAR-BRUTE, MAR-TAUX, MAR-PROGRES | À fiabiliser | marge connue par période d'import ; passage au mois civil au prorata des jours | ratio |
-| CARB-ECART-NE | À fiabiliser | qualification manuelle, pas de champ dédié lu | à définir |
-| FDJ-ECART-COMP, FDJ-CONTROLES | À fiabiliser | lecture à confirmer sur la vue FDJ, règle de comptage à écrire | à définir |
-| CARB-RUPTURE | Non disponible | seule une rupture projetée existe dans le moteur de commande ; aucune rupture observée n'est stockée | sans objet |
-| CARB-MARGE | Non disponible | aucun coût d'achat stocké | sans objet |
-| FDJ-COMMISSION | Non disponible | aucune source de commission lue | sans objet |
-| OPS-CTRL, OPS-CLOT, OPS-INV, OPS-ANO-DELAI, OPS-DELAI-RES | À fiabiliser | la source existe (matrice §2) mais la définition manque : liste des contrôles obligatoires, sens de « conforme », délai de référence, notion de « délai » non partagée entre moteurs | ratio ; moyenne sur anomalies résolues pour OPS-DELAI-RES |
-| MAR-ANO-TARIF, MAR-DEMARQUE, FDJ-ANO-NR, COM-DISPO-REF | À fiabiliser | la source existe (matrice §2) mais « confirmée », « démarque connue », « référence prioritaire » ne sont pas définis ; FDJ-ANO-NR se lit comme un stock à date, pas comme une somme | additif ; stock à date pour FDJ-ANO-NR ; ratio pour COM-DISPO-REF |
-| MAR-PERTE-DC, MAR-EVITE, OPS-TOURNEES | Non disponible | source du lot Dates courtes (#352 / #354), absente de Production tant que le lot n'est pas déployé | sans objet |
-| OPS-EQUIP | Non disponible | aucune table d'équipements critiques | sans objet |
+| Id | Classe | Source ou raison | Agrégation sur le mois | Premier mois disponible |
+|---|---|---|---|---|
+| CARB-VOL-TOT | Disponible | `audits_caisse` (litrages), jours complets Tempo | somme (additif) | mi-juillet 2026 |
+| CARB-VOL-PROD | Disponible | idem, par produit (gazole, SP95, GNR) | somme (additif) | mi-juillet 2026 |
+| CARB-LIT-JOUR | Disponible | idem, litres ÷ jours complets | moyenne par jour complet | mi-juillet 2026 |
+| CARB-PROGRES | Dérivé | série mensuelle de CARB-VOL-TOT (règle G-1) | sans requête propre | mi-juillet 2026 |
+| COM-CA | Disponible | `audits_caisse.vente_boutique`, mêmes jours complets | somme (additif) | mi-juillet 2026 |
+| COM-CA-JOUR | Disponible | idem, CA ÷ jours complets | moyenne par jour complet | mi-juillet 2026 |
+| COM-PANIER | Disponible, périmètre écrit | `panier_moyen_quotidien` (boutique hors carburant) | ratio Σ CA ÷ Σ tickets | janvier 2026 |
+| COM-TICKETS | Disponible, périmètre écrit | idem | somme (additif) | janvier 2026 |
+| COM-PROGRES | Dérivé | série mensuelle de COM-CA | sans requête propre | mi-juillet 2026 |
+| FDJ-VOLUME | Disponible | `view_fdj_daily_summary`, jours à deux quarts contrôlés | somme (additif) | janvier 2026 |
+| FDJ-EVOL | Dérivé | série mensuelle de FDJ-VOLUME | sans requête propre | janvier 2026 |
+| OPS-ECART-CAISSE | Disponible | `audits_caisse.ecart_total`, valeur absolue par quart | moyenne par quart, sans compensation | mi-juillet 2026 |
+| CARB-PROD-H, COM-CA-H, MAR-H | À fiabiliser | dépend des horaires réels (G-3) | ratio | sans objet à ce stade |
+| MAR-BRUTE, MAR-TAUX, MAR-PROGRES | À fiabiliser | marge connue par période d'import ; passage au mois civil au prorata des jours | ratio | sans objet à ce stade |
+| CARB-ECART-NE | À fiabiliser | qualification manuelle, pas de champ dédié lu | à définir | sans objet à ce stade |
+| FDJ-ECART-COMP, FDJ-CONTROLES | À fiabiliser | lecture à confirmer sur la vue FDJ, règle de comptage à écrire | à définir | sans objet à ce stade |
+| CARB-RUPTURE | Non disponible | seule une rupture projetée existe dans le moteur de commande ; aucune rupture observée n'est stockée | sans objet | sans objet à ce stade |
+| CARB-MARGE | Non disponible | aucun coût d'achat stocké | sans objet | sans objet à ce stade |
+| FDJ-COMMISSION | Non disponible | aucune source de commission lue | sans objet | sans objet à ce stade |
+| OPS-CTRL, OPS-CLOT, OPS-INV, OPS-ANO-DELAI, OPS-DELAI-RES | À fiabiliser | la source existe (matrice §2) mais la définition manque : liste des contrôles obligatoires, sens de « conforme », délai de référence, notion de « délai » non partagée entre moteurs | ratio ; moyenne sur anomalies résolues pour OPS-DELAI-RES | sans objet à ce stade |
+| MAR-ANO-TARIF, MAR-DEMARQUE, FDJ-ANO-NR, COM-DISPO-REF | À fiabiliser | la source existe (matrice §2) mais « confirmée », « démarque connue », « référence prioritaire » ne sont pas définis ; FDJ-ANO-NR se lit comme un stock à date, pas comme une somme | additif ; stock à date pour FDJ-ANO-NR ; ratio pour COM-DISPO-REF | sans objet à ce stade |
+| MAR-PERTE-DC, MAR-EVITE, OPS-TOURNEES | Non disponible | source du lot Dates courtes (#352 / #354), absente de Production tant que le lot n'est pas déployé | sans objet | sans objet à ce stade |
+| OPS-EQUIP | Non disponible | aucune table d'équipements critiques | sans objet | sans objet à ce stade |
 
 Les anciennes lignes « à instruire » sont reclassées à l'étape 5 sur la seule base de la matrice d'autorité (§2), sans nouvelle lecture du code. Règle suivie : source nommée mais définition absente = à fiabiliser ; source absente de Production = non disponible. Aucune n'est promue en « disponible » : aucune requête de lecture n'est livrée pour elles.
+
+### Historique disponible et conséquences (A4)
+
+La colonne « Premier mois disponible » est celle de l'historique réellement stocké : saisie de caisse (litres, CA boutique, écarts) à partir de mi-juillet 2026 ; FDJ et imports (panier, tickets, marge par période) à partir de janvier 2026. Conséquences écrites :
+
+- aucune comparaison d'une année sur l'autre et aucun profil saisonnier propre à la station avant l'été 2027 ;
+- une cible annuelle sur un indicateur de caisse est un ordre de grandeur, pas une trajectoire éprouvée ;
+- tant que 12 mois n'existent pas, le découpage mensuel d'une cible annuelle est uniforme par jour (et non saisonnier) ; l'écran l'affiche comme tel, avec le nombre de mois d'historique.
 
 ### Agrégation selon l'horizon (mois, trimestre, année)
 
@@ -216,14 +224,14 @@ select date_trunc('month', date)::date                       as mois,
        sum(gnr)                                              as litres_gnr,
        sum(gazole + sp95 + gnr)                              as litres_total,
        count(*)                                              as jours_couverts,
-       extract(day from (date_trunc('month', date) + interval '1 month - 1 day'))::int as jours_du_mois,
+       extract(day from (date_trunc('month', min(date)) + interval '1 month - 1 day'))::int as jours_du_mois,
        round(sum(gazole + sp95 + gnr) / count(*), 0)         as litres_par_jour_complet
 from jours
 group by 1
 order by 1;
 ```
 
-Le `having` reproduit `agregerParJour` : un seul quart sans détail fait tomber le jour (`litrageDisponible = false`). La date est déjà locale : `date_trunc` s'applique sans conversion.
+Le `having` reproduit `agregerParJour` : un seul quart sans détail fait tomber le jour (`litrageDisponible = false`). La date est déjà locale : `date_trunc` s'applique sans conversion. `jours_du_mois` est calculé sur `min(date)`, donc sur une expression agrégée : l'ancienne forme (`date_trunc('month', date)` hors agrégat) levait l'erreur 42803 (colonne non groupée). Même correction dans Q-COM, Q-PANIER et Q-FDJ.
 
 ### Requête Q-COM : CA boutique par mois (COM-CA, COM-CA-JOUR)
 
@@ -233,7 +241,7 @@ Même CTE `jours` que Q-CARB (mêmes jours complets, Tempo `joursCaBoutique`), e
 select date_trunc('month', date)::date as mois,
        sum(ca_boutique)                as ca_boutique,
        count(*)                        as jours_couverts,
-       extract(day from (date_trunc('month', date) + interval '1 month - 1 day'))::int as jours_du_mois,
+       extract(day from (date_trunc('month', min(date)) + interval '1 month - 1 day'))::int as jours_du_mois,
        round(sum(ca_boutique) / count(*), 2) as ca_par_jour_complet
 from jours
 group by 1
@@ -249,7 +257,8 @@ select date_trunc('month', p.date)::date                    as mois,
        sum(p.nb_tickets)                                     as tickets,
        round(sum(p.panier_moyen_ht  * p.nb_tickets) / nullif(sum(p.nb_tickets), 0), 2) as panier_moyen_ht,
        round(sum(p.panier_moyen_ttc * p.nb_tickets) / nullif(sum(p.nb_tickets), 0), 2) as panier_moyen_ttc,
-       count(*)                                              as jours_couverts
+       count(*)                                              as jours_couverts,
+       extract(day from (date_trunc('month', min(p.date)) + interval '1 month - 1 day'))::int as jours_du_mois
 from panier_moyen_quotidien p
 where p.site = :station
   and p.date >= :debut and p.date < :fin_exclusive
@@ -265,7 +274,7 @@ Périmètre : boutique hors carburant, importé. Le panier mensuel est pondéré
 select date_trunc('month', v.date)::date          as mois,
        sum(v.ca_grattage + v.caisse_tirages)       as ca_fdj,
        count(*)                                    as jours_couverts,
-       extract(day from (date_trunc('month', v.date) + interval '1 month - 1 day'))::int as jours_du_mois
+       extract(day from (date_trunc('month', min(v.date)) + interval '1 month - 1 day'))::int as jours_du_mois
 from view_fdj_daily_summary v
 where v.site = :station
   and v.date >= :debut and v.date < :fin_exclusive
@@ -279,20 +288,29 @@ Même règle que Tempo `joursCaFdjComplets` : deux quarts contrôlés, grattage 
 ### Requête Q-ECART : écart de caisse par quart (OPS-ECART-CAISSE)
 
 ```sql
-select date_trunc('month', a.date)::date              as mois,
-       count(*)                                        as quarts_mesures,
-       round(avg(abs(a.ecart_total)), 2)               as ecart_absolu_moyen_par_quart,
-       round(sum(abs(a.ecart_total)), 2)               as ecart_absolu_cumule,
-       count(*) filter (where a.statut in ('anomalie','critique')) as quarts_anomalie_critique
-from audits_caisse a
-where a.site = :station
-  and a.date >= :debut and a.date < :fin_exclusive
-  and a.ecart_total is not null
+with quarts as (
+  select a.date,
+         abs(a.ecart_piste) + abs(a.ecart_boutique) as ecart_abs_quart,
+         abs(a.ecart_total)                         as ecart_total_abs,
+         a.statut
+  from audits_caisse a
+  where a.site = :station
+    and a.date >= :debut and a.date < :fin_exclusive
+    and a.ecart_piste is not null
+    and a.ecart_boutique is not null
+)
+select date_trunc('month', date)::date                  as mois,
+       count(*)                                          as quarts_mesures,
+       round(avg(ecart_abs_quart), 2)                    as ecart_absolu_moyen_par_quart,
+       round(sum(ecart_abs_quart), 2)                    as ecart_absolu_cumule,
+       round(avg(ecart_total_abs), 2)                    as ecart_total_abs_moyen_par_quart,
+       count(*) filter (where statut in ('anomalie','critique')) as quarts_anomalie_critique
+from quarts
 group by 1
 order by 1;
 ```
 
-Valeur absolue par quart, jamais de compensation entre quarts ni entre piste et boutique. La couverture est le nombre de quarts mesurés rapporté à deux par jour. Seuil de gravité : celui de `nexus-ecarts-moteur.js` (autorité), pas recalculé ici. À arbitrer : la définition OPS-ECART-CAISSE retient-elle `ecart_total` ou la somme des valeurs absolues de `ecart_piste` et `ecart_boutique` ? La requête prend `ecart_total`, conforme à `calculer_caisse_sante`.
+Valeur absolue par quart, jamais de compensation entre quarts ni entre piste et boutique. Colonne de référence : `abs(ecart_piste) + abs(ecart_boutique)`, car un `ecart_total` qui additionne +20 € en piste et −20 € en boutique vaut 0 et cacherait deux écarts. `ecart_total_abs_moyen_par_quart` est rendue à titre secondaire, pour la parité avec `calculer_caisse_sante` (qui lit `ecart_total`). **Différence écrite** : sur un quart où piste et boutique se compensent, la colonne principale est supérieure à la colonne secondaire ; elles sont égales si les deux écarts ont le même signe. La couverture est le nombre de quarts mesurés rapporté à deux par jour. Seuil de gravité : celui de `nexus-ecarts-moteur.js` (autorité), pas recalculé ici. Le choix de la somme des valeurs absolues reste une décision du gérant (G-7) : voir §9.
 
 ### Fraîcheur
 
@@ -453,7 +471,8 @@ Rien de ce qui suit n'est exécuté : aucune migration, aucun code, aucun accès
 | D1 | Parité Tempo : valeur Brief = valeur A4 = valeur Tempo pour litres, CA boutique, FDJ, sur au moins trois mois de la station de recette | tableau de comparaison, écart nul |
 | D2 | Mois civils en heure de Martinique (`at time zone 'America/Martinique'`) ; les colonnes `date` sont déjà locales | jeu avec des saisies proches de minuit : rattachement au bon mois |
 | D3 | Seuls les jours complets Tempo comptent ; la colonne de jours couverts accompagne chaque valeur mensuelle | mois partiel : valeur et couverture affichées ensemble |
-| D4 | Écarts de caisse en valeur absolue par quart, sans compensation | quart +10 et quart −10 : 20, pas 0 |
+| D4 | Écarts de caisse en valeur absolue par quart, sans compensation | quart +10 et quart −10 : 20, pas 0 ; un quart à +20 en piste et −20 en boutique vaut 40 en colonne principale, 0 en colonne secondaire (différence écrite en Q-ECART) |
+| D5 | **Chaque requête du document s'exécute sans erreur sur Test** (Q-CARB, Q-COM, Q-PANIER, Q-FDJ, Q-ECART) | exécution sur la base Test avec une station de recette, un mois et un mois vide : aucune erreur (notamment 42803), `jours_du_mois` présent partout, résultats consignés dans le compte rendu |
 | D5 | Pas de projection quand les données sont insuffisantes ; le Brief l'écrit au lieu de calculer | panier moyen avec peu de jours : mention « données insuffisantes » |
 | D6 | Chaque objectif affiche courant, cible, avancement, niveau attendu à date, écart, tendance, période, fraîcheur | contrôle champ par champ |
 | D7 | Fraîcheur : un indicateur dont la dernière donnée est ancienne est signalé comme périmé | jeu sans saisie récente |
