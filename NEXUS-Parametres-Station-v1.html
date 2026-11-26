@@ -169,6 +169,25 @@
   .ordre-cuve-row .oc-btns{display:flex; gap:6px; flex-shrink:0;}
   .ordre-cuve-row .btn-mini:disabled{opacity:0.3; cursor:not-allowed;}
 
+
+  /* Comptes de l'équipe (étape 4 connexion, fiche 2 validée) */
+  .cpt-verrous{display:flex; align-items:baseline; gap:8px; padding:10px; background:var(--panel-raised); border-radius:8px; margin-bottom:6px;}
+  .cpt-verrous .cv-n{font-family:var(--mono); font-size:22px; font-weight:600;}
+  .cpt-verrous .cv-u{font-size:12px; color:var(--text-mid);}
+  .cpt-etat{font-size:11px; margin-top:2px; color:var(--text-mid);}
+  .cpt-etat.verrouille{color:var(--amber);}
+  .cpt-btns{display:flex; flex-direction:column; gap:6px; align-items:flex-end;}
+  /* Confirmation : le nom complet reste lisible (passe sur deux lignes si besoin), le message prend toute la largeur. */
+  .exception-item.cpt-confirme{flex-wrap:wrap; align-items:flex-start;}
+  .exception-item.cpt-confirme .en{white-space:normal; overflow:visible; text-overflow:clip; overflow-wrap:anywhere;}
+  .exception-item.cpt-confirme .cpt-btns{flex:1 1 100%; align-items:stretch;}
+  .exception-item.cpt-confirme .cpt-btns .cpt-etat{font-size:12px; color:var(--text);}
+  .cpt-code{margin-top:10px; padding:12px; background:var(--amber-dim); border-radius:8px; display:none;}
+  .cpt-code.visible{display:block;}
+  .cpt-code .cc-val{font-family:var(--mono); font-size:22px; font-weight:600; letter-spacing:2px; margin:6px 0;}
+  .cpt-code .cc-note{font-size:12px; color:var(--amber);}
+  .cpt-msg{font-size:12px; color:var(--text-mid); margin-top:8px;}
+
   footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
 
   /* ------------------------------------------------------------
@@ -297,6 +316,7 @@
     <button type="button" class="pnav-chip pnav-more-toggle" id="pnavMoreToggle" aria-expanded="false" aria-controls="pnavMorePanel">⋯ Plus</button>
   </div>
   <div class="pnav-more-panel" id="pnavMorePanel">
+    <button type="button" class="pnav-chip" data-target="secComptes" id="chipComptes" style="display:none;">🔑 Comptes de l'équipe</button>
     <button type="button" class="pnav-chip" data-target="secAccueil">⭐ Accueil &amp; raccourcis</button>
     <button type="button" class="pnav-chip" data-target="secProgression">🏅 Progression &amp; récompenses</button>
     <button type="button" class="pnav-chip" data-target="secIntegrations">🔗 Intégrations</button>
@@ -538,6 +558,28 @@
       </div>
       <div class="toggle-etat" id="managerPointageEtat">Chargement…</div>
     </div>
+      </div>
+    </section>
+
+    <section class="psec" id="secComptes" style="display:none;">
+      <button type="button" class="psec-head">
+        <span class="psec-icon">🔑</span>
+        <span class="psec-headtext">
+          <span class="psec-title">Comptes de l'équipe</span>
+          <span class="psec-obj">Débloque un compte verrouillé ou donne un code temporaire à un employé de ton site.</span>
+        </span>
+        <span class="psec-chevron">▾</span>
+      </button>
+      <div class="psec-body">
+        <div class="cpt-verrous"><span class="cv-n" id="cptNbVerrous">–</span><span class="cv-u">comptes verrouillés à débloquer</span></div>
+        <div id="cptListe"><div class="liste-vide">Chargement…</div></div>
+        <div class="cpt-code" id="cptCode" role="status">
+          <div class="cc-note" id="cptCodeNom"></div>
+          <div class="cc-val" id="cptCodeVal"></div>
+          <div class="cc-note">À donner en main propre, jamais par message. Il ne sera plus affiché.</div>
+          <button type="button" class="btn btn-secondary" id="cptCodeNote">J'ai noté le code</button>
+        </div>
+        <div class="cpt-msg" id="cptMsg"></div>
       </div>
     </section>
 
@@ -3154,6 +3196,119 @@
       resEl.textContent = '✗ Erreur réseau — réessayez.';
     }
   });
+
+  // ------------------------------------------------------------
+  // Comptes de l'équipe (étape 4 connexion, fiche 2). Le rôle réel de
+  // l'employé ouvre la section, jamais le rôle du jour ; le serveur refuse
+  // de toute façon (403 neutre) hors périmètre. Le code temporaire ne
+  // reste qu'en mémoire le temps de l'affichage, jamais stocké ni journalisé.
+  // ------------------------------------------------------------
+  (function initComptesEquipe() {
+    if (!nexusEstManager(employee)) return;
+    document.getElementById('secComptes').style.display = '';
+    document.getElementById('chipComptes').style.display = '';
+    const liste = document.getElementById('cptListe');
+    const msg = document.getElementById('cptMsg');
+    const zoneCode = document.getElementById('cptCode');
+    const esc = (t) => String(t).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const MOTS = { normal: 'Compte normal', verrouille: 'Verrouillé, à débloquer', code_temporaire: 'Code temporaire à communiquer' };
+
+    async function appeler(action, extra) {
+      const { data: sd } = await nexusClient.auth.getSession();
+      const token = sd && sd.session && sd.session.access_token;
+      if (!token) return { ok: false, session: true };
+      try {
+        const resp = await fetch(`${NEXUS_SUPABASE_URL}/functions/v1/connexion`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, apikey: NEXUS_SUPABASE_ANON_KEY },
+          body: JSON.stringify(Object.assign({ action }, extra || {})),
+        });
+        const data = await resp.json().catch(() => null);
+        return { ok: resp.ok && data && data.ok === true, data };
+      } catch (e) { return { ok: false }; }
+    }
+
+    function masquerCode() {
+      zoneCode.classList.remove('visible');
+      document.getElementById('cptCodeVal').textContent = '';
+    }
+
+    async function charger() {
+      const r = await appeler('lister_equipe');
+      if (!r.ok) {
+        document.getElementById('cptNbVerrous').textContent = '–';
+        liste.innerHTML = '<div class="liste-vide">' + (r.session ? 'Session expirée — reconnecte-toi.' : 'Liste indisponible. Réessaie dans un instant.') + '</div>';
+        return;
+      }
+      const eq = r.data.equipe || [];
+      document.getElementById('cptNbVerrous').textContent = String(eq.filter(l => l.a_deverrouiller).length);
+      if (!eq.length) { liste.innerHTML = '<div class="liste-vide">Aucun employé à traiter sur ce site.</div>'; return; }
+      liste.innerHTML = eq.map(l => `
+        <div class="exception-item" data-id="${esc(l.user_id)}" data-nom="${esc(l.nom)}">
+          <div style="min-width:0;">
+            <div class="en">${esc(l.nom)}</div>
+            <div class="cpt-etat ${l.a_deverrouiller ? 'verrouille' : ''}">${esc(MOTS[l.etat] || MOTS.normal)}</div>
+          </div>
+          <div class="cpt-btns">
+            ${l.a_deverrouiller ? '<button type="button" class="btn-mini exclure" data-act="debloquer">Débloquer</button>' : ''}
+            <button type="button" class="btn-mini" data-act="code">Donner un code temporaire</button>
+          </div>
+        </div>`).join('');
+    }
+
+    function rendreBoutons(ligne, etat) {
+      const verrou = etat === 'verrouille';
+      ligne.classList.remove('cpt-confirme');
+      ligne.querySelector('.cpt-etat').textContent = MOTS[etat] || MOTS.normal;
+      ligne.querySelector('.cpt-etat').classList.toggle('verrouille', verrou);
+      ligne.querySelector('.cpt-btns').innerHTML =
+        (verrou ? '<button type="button" class="btn-mini exclure" data-act="debloquer">Débloquer</button>' : '') +
+        '<button type="button" class="btn-mini" data-act="code">Donner un code temporaire</button>';
+    }
+
+    liste.addEventListener('click', async (e) => {
+      const b = e.target.closest('button[data-act]');
+      if (!b) return;
+      const ligne = b.closest('.exception-item');
+      const id = ligne.dataset.id, nom = ligne.dataset.nom;
+      const act = b.dataset.act;
+      if (act === 'annuler') { charger(); return; }
+      masquerCode(); msg.textContent = '';
+      // Confirmation intégrée à la ligne (pas de confirm() natif : il ne suit ni la charte ni le thème).
+      if (act === 'code') {
+        ligne.classList.add('cpt-confirme');
+        ligne.querySelector('.cpt-btns').innerHTML =
+          '<div class="cpt-etat" role="alert">Donner un code temporaire à ' + esc(nom) + ' ? Son code actuel ne marchera plus.</div>' +
+          '<button type="button" class="btn-mini exclure" data-act="confirmer">Donner le code</button>' +
+          '<button type="button" class="btn-mini" data-act="annuler">Annuler</button>';
+        return;
+      }
+      const action = act === 'debloquer' ? 'lever_verrou' : 'reinitialiser_code';
+      ligne.querySelectorAll('button').forEach(x => { x.disabled = true; });
+      const r = await appeler(action, { cible: id });
+      if (!r.ok) {
+        msg.textContent = r.session ? 'Session expirée — reconnecte-toi.' : 'Action refusée ou indisponible. Rien n\'a été modifié.';
+        charger();
+        return;
+      }
+      if (act === 'confirmer') {
+        rendreBoutons(ligne, 'code_temporaire');
+        document.getElementById('cptCodeNom').textContent = 'Code temporaire pour ' + nom;
+        document.getElementById('cptCodeVal').textContent = r.data.code_temporaire;
+        zoneCode.classList.add('visible');
+        zoneCode.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        msg.textContent = 'Code temporaire donné à ' + nom + '.';
+      } else {
+        rendreBoutons(ligne, 'normal');
+        const n = document.getElementById('cptNbVerrous');
+        if (/^\d+$/.test(n.textContent)) n.textContent = String(Math.max(0, Number(n.textContent) - 1));
+        msg.textContent = 'Compte de ' + nom + ' débloqué.';
+      }
+      charger();
+    });
+    document.getElementById('cptCodeNote').addEventListener('click', masquerCode);
+    charger();
+  })();
 
 });
 </script>

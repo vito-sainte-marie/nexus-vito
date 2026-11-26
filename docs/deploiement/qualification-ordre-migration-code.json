@@ -1825,6 +1825,352 @@
         "blob_provenance": "git hash-object du fichier a 0ae66d82 (md5 4cff13c661198d41e143bf61a4d7018b, celui que Guardian a verifie avant execution, compte rendu 7180877873). Heure de la mesure (mesure.le) : heure de publication du compte rendu de Guardian ; l'application a eu lieu avant, son heure exacte n'a pas ete communiquee."
       },
       "trace": "#383, compte rendu de Guardian 7180877873 ; GO du gerant 25/11/2026 22:29 « Base en Production » ; fusion de #386 : GO distinct « Mise en ligne refonte »."
+    },
+    "20261126090000": {
+      "etat": "atomique_ou_procedure_speciale",
+      "justification": "Lot Connexion securite, lot 1 : migration d'un schema prive nexus_connexion (aucun acces anon ni authenticated, RLS sur toutes les tables). Appliquee sur Test seulement ; aucune application en Production sans GO distinct du gerant. Ordre reel Production et retours arriere dans la procedure. Objets : schema nexus_connexion, pgcrypto, sauvegarde_auth, secret, alias_de, nexus_connexion_email_de, nexus_identifiant_de_connexion.",
+      "objets_crees": [],
+      "objets_constates": [
+        "schema nexus_connexion, pgcrypto, sauvegarde_auth, secret, alias_de, nexus_connexion_email_de, nexus_identifiant_de_connexion"
+      ],
+      "procedure": "docs/deploiement/procedure-connexion-production.md",
+      "valide_par": null,
+      "valide_le": null,
+      "mesure": {
+        "source": "catalogue",
+        "le": "2026-11-26T13:08:13Z",
+        "cible": "uzhjpqpctpvxytxpxoqz",
+        "par": "Guardian (compte rendu 7192924857 sur #383, après l’étape 2 de la bascule)",
+        "outil": "requêtes de lecture du catalogue Production par Guardian ; rapportées sans modification",
+        "identite_constatee": "Production, après application des 14 migrations du §6.1",
+        "lecture_seule": true,
+        "moteur": "PostgreSQL (catalogue Production)",
+        "verdict": "Les 14 migrations sont appliquées ; md5 identiques à ceux du §6.1. 7 tables toutes avec RLS ; 19 fonctions ; panne_table et panne_fonction null ; 0 EXECUTE et 0 SELECT pour anon et authenticated ; 17 comptes tous a_migrer (2 inactifs, 1 compte de test hors site) ; 17 e-mails opaques ; tâche nexus-connexion-purge présente, rétention 180 jours. Versions enregistrées = horodatages d’application (20261126124831 et suivants). 2d enregistrée avant 2c (deux appels parallèles) ; état final identique.",
+        "blob_migration": "ce9e58ea7f7840fd3f45ec24e07d0236ebe7fdb1",
+        "blob_provenance": "git rev-parse HEAD:supabase/migrations/20261126090000_connexion_lot1_etape1_alias_opaque.sql (candidat claude/connexion-securite)"
+      },
+      "trace": "#160, demande de Guardian 7161550179 : une fiche par migration du lot, qualification comme RLS-3, procedure docs/deploiement/procedure-connexion-production.md."
+    },
+    "20261126120000": {
+      "etat": "atomique_ou_procedure_speciale",
+      "justification": "Lot Connexion securite, lot 1 : migration d'un schema prive nexus_connexion (aucun acces anon ni authenticated, RLS sur toutes les tables). Appliquee sur Test seulement ; aucune application en Production sans GO distinct du gerant. Ordre reel Production et retours arriere dans la procedure. Objets : tables alerte, compte, essais_ip, journal, parametres ; fonctions apres_echec, apres_succes, attente_pour, avant_essai, lever_verrou, poser_code, purger, resoudre.",
+      "objets_crees": [],
+      "objets_constates": [
+        "tables alerte, compte, essais_ip, journal, parametres ; fonctions apres_echec, apres_succes, attente_pour, avant_essai, lever_verrou, poser_code, purger, resoudre"
+      ],
+      "procedure": "docs/deploiement/procedure-connexion-production.md",
+      "valide_par": null,
+      "valide_le": null,
+      "mesure": {
+        "source": "catalogue",
+        "le": "2026-11-26T13:08:13Z",
+        "cible": "uzhjpqpctpvxytxpxoqz",
+        "par": "Guardian (compte rendu 7192924857 sur #383, après l’étape 2 de la bascule)",
+        "outil": "requêtes de lecture du catalogue Production par Guardian ; rapportées sans modification",
+        "identite_constatee": "Production, après application des 14 migrations du §6.1",
+        "lecture_seule": true,
+        "moteur": "PostgreSQL (catalogue Production)",
+        "verdict": "Les 14 migrations sont appliquées ; md5 identiques à ceux du §6.1. 7 tables toutes avec RLS ; 19 fonctions ; panne_table et panne_fonction null ; 0 EXECUTE et 0 SELECT pour anon et authenticated ; 17 comptes tous a_migrer (2 inactifs, 1 compte de test hors site) ; 17 e-mails opaques ; tâche nexus-connexion-purge présente, rétention 180 jours. Versions enregistrées = horodatages d’application (20261126124831 et suivants). 2d enregistrée avant 2c (deux appels parallèles) ; état final identique.",
+        "blob_migration": "68f769adb9934e948de022979c169f9a29c2d490",
+        "blob_provenance": "git rev-parse HEAD:supabase/migrations/20261126120000_connexion_lot1_etape2_etat_prive.sql (candidat claude/connexion-securite)"
+      },
+      "trace": "#160, demande de Guardian 7161550179 : une fiche par migration du lot, qualification comme RLS-3, procedure docs/deploiement/procedure-connexion-production.md."
+    },
+    "20261126130000": {
+      "etat": "atomique_ou_procedure_speciale",
+      "justification": "Lot Connexion securite, lot 1 : migration d'un schema prive nexus_connexion (aucun acces anon ni authenticated, RLS sur toutes les tables). Appliquee sur Test seulement ; aucune application en Production sans GO distinct du gerant. Ordre reel Production et retours arriere dans la procedure. Objets : fonctions auteur_autorise, lever_verrou, reinitialiser_code.",
+      "objets_crees": [],
+      "objets_constates": [
+        "fonctions auteur_autorise, lever_verrou, reinitialiser_code"
+      ],
+      "procedure": "docs/deploiement/procedure-connexion-production.md",
+      "valide_par": null,
+      "valide_le": null,
+      "mesure": {
+        "source": "catalogue",
+        "le": "2026-11-26T13:08:13Z",
+        "cible": "uzhjpqpctpvxytxpxoqz",
+        "par": "Guardian (compte rendu 7192924857 sur #383, après l’étape 2 de la bascule)",
+        "outil": "requêtes de lecture du catalogue Production par Guardian ; rapportées sans modification",
+        "identite_constatee": "Production, après application des 14 migrations du §6.1",
+        "lecture_seule": true,
+        "moteur": "PostgreSQL (catalogue Production)",
+        "verdict": "Les 14 migrations sont appliquées ; md5 identiques à ceux du §6.1. 7 tables toutes avec RLS ; 19 fonctions ; panne_table et panne_fonction null ; 0 EXECUTE et 0 SELECT pour anon et authenticated ; 17 comptes tous a_migrer (2 inactifs, 1 compte de test hors site) ; 17 e-mails opaques ; tâche nexus-connexion-purge présente, rétention 180 jours. Versions enregistrées = horodatages d’application (20261126124831 et suivants). 2d enregistrée avant 2c (deux appels parallèles) ; état final identique.",
+        "blob_migration": "8710116ed8455e1096052be4f051041a042ea3e6",
+        "blob_provenance": "git rev-parse HEAD:supabase/migrations/20261126130000_connexion_lot1_etape2b_controle_auteur.sql (candidat claude/connexion-securite)"
+      },
+      "trace": "#160, demande de Guardian 7161550179 : une fiche par migration du lot, qualification comme RLS-3, procedure docs/deploiement/procedure-connexion-production.md."
+    },
+    "20261126140000": {
+      "etat": "atomique_ou_procedure_speciale",
+      "justification": "Lot Connexion securite, lot 1 : migration d'un schema prive nexus_connexion (aucun acces anon ni authenticated, RLS sur toutes les tables). Appliquee sur Test seulement ; aucune application en Production sans GO distinct du gerant. Ordre reel Production et retours arriere dans la procedure. Objets : fonctions lever_verrou, reinitialiser_code (recreees).",
+      "objets_crees": [],
+      "objets_constates": [
+        "fonctions lever_verrou, reinitialiser_code (recreees)"
+      ],
+      "procedure": "docs/deploiement/procedure-connexion-production.md",
+      "valide_par": null,
+      "valide_le": null,
+      "mesure": {
+        "source": "catalogue",
+        "le": "2026-11-26T13:08:13Z",
+        "cible": "uzhjpqpctpvxytxpxoqz",
+        "par": "Guardian (compte rendu 7192924857 sur #383, après l’étape 2 de la bascule)",
+        "outil": "requêtes de lecture du catalogue Production par Guardian ; rapportées sans modification",
+        "identite_constatee": "Production, après application des 14 migrations du §6.1",
+        "lecture_seule": true,
+        "moteur": "PostgreSQL (catalogue Production)",
+        "verdict": "Les 14 migrations sont appliquées ; md5 identiques à ceux du §6.1. 7 tables toutes avec RLS ; 19 fonctions ; panne_table et panne_fonction null ; 0 EXECUTE et 0 SELECT pour anon et authenticated ; 17 comptes tous a_migrer (2 inactifs, 1 compte de test hors site) ; 17 e-mails opaques ; tâche nexus-connexion-purge présente, rétention 180 jours. Versions enregistrées = horodatages d’application (20261126124831 et suivants). 2d enregistrée avant 2c (deux appels parallèles) ; état final identique.",
+        "blob_migration": "1ebf1749f1b35bb729c924a80db2d41d87233f52",
+        "blob_provenance": "git rev-parse HEAD:supabase/migrations/20261126140000_connexion_lot1_etape2c_refus_journalise.sql (candidat claude/connexion-securite)"
+      },
+      "trace": "#160, demande de Guardian 7161550179 : une fiche par migration du lot, qualification comme RLS-3, procedure docs/deploiement/procedure-connexion-production.md."
+    },
+    "20261126150000": {
+      "etat": "atomique_ou_procedure_speciale",
+      "justification": "Lot Connexion securite, lot 1 : migration d'un schema prive nexus_connexion (aucun acces anon ni authenticated, RLS sur toutes les tables). Appliquee sur Test seulement ; aucune application en Production sans GO distinct du gerant. Ordre reel Production et retours arriere dans la procedure. Objets : fonctions compter_succes, lire_compte.",
+      "objets_crees": [],
+      "objets_constates": [
+        "fonctions compter_succes, lire_compte"
+      ],
+      "procedure": "docs/deploiement/procedure-connexion-production.md",
+      "valide_par": null,
+      "valide_le": null,
+      "mesure": {
+        "source": "catalogue",
+        "le": "2026-11-26T13:08:13Z",
+        "cible": "uzhjpqpctpvxytxpxoqz",
+        "par": "Guardian (compte rendu 7192924857 sur #383, après l’étape 2 de la bascule)",
+        "outil": "requêtes de lecture du catalogue Production par Guardian ; rapportées sans modification",
+        "identite_constatee": "Production, après application des 14 migrations du §6.1",
+        "lecture_seule": true,
+        "moteur": "PostgreSQL (catalogue Production)",
+        "verdict": "Les 14 migrations sont appliquées ; md5 identiques à ceux du §6.1. 7 tables toutes avec RLS ; 19 fonctions ; panne_table et panne_fonction null ; 0 EXECUTE et 0 SELECT pour anon et authenticated ; 17 comptes tous a_migrer (2 inactifs, 1 compte de test hors site) ; 17 e-mails opaques ; tâche nexus-connexion-purge présente, rétention 180 jours. Versions enregistrées = horodatages d’application (20261126124831 et suivants). 2d enregistrée avant 2c (deux appels parallèles) ; état final identique.",
+        "blob_migration": "7a27f38ff867debdc71596e5116c6bc165a6a6eb",
+        "blob_provenance": "git rev-parse HEAD:supabase/migrations/20261126150000_connexion_lot1_etape2d_compteur_sorties.sql (candidat claude/connexion-securite)"
+      },
+      "trace": "#160, demande de Guardian 7161550179 : une fiche par migration du lot, qualification comme RLS-3, procedure docs/deploiement/procedure-connexion-production.md."
+    },
+    "20261126160000": {
+      "etat": "atomique_ou_procedure_speciale",
+      "justification": "Lot Connexion securite, lot 1 : migration d'un schema prive nexus_connexion (aucun acces anon ni authenticated, RLS sur toutes les tables). Appliquee sur Test seulement ; aucune application en Production sans GO distinct du gerant. Ordre reel Production et retours arriere dans la procedure. Objets : fonction compter_succes (recreee).",
+      "objets_crees": [],
+      "objets_constates": [
+        "fonction compter_succes (recreee)"
+      ],
+      "procedure": "docs/deploiement/procedure-connexion-production.md",
+      "valide_par": null,
+      "valide_le": null,
+      "mesure": {
+        "source": "catalogue",
+        "le": "2026-11-26T13:08:13Z",
+        "cible": "uzhjpqpctpvxytxpxoqz",
+        "par": "Guardian (compte rendu 7192924857 sur #383, après l’étape 2 de la bascule)",
+        "outil": "requêtes de lecture du catalogue Production par Guardian ; rapportées sans modification",
+        "identite_constatee": "Production, après application des 14 migrations du §6.1",
+        "lecture_seule": true,
+        "moteur": "PostgreSQL (catalogue Production)",
+        "verdict": "Les 14 migrations sont appliquées ; md5 identiques à ceux du §6.1. 7 tables toutes avec RLS ; 19 fonctions ; panne_table et panne_fonction null ; 0 EXECUTE et 0 SELECT pour anon et authenticated ; 17 comptes tous a_migrer (2 inactifs, 1 compte de test hors site) ; 17 e-mails opaques ; tâche nexus-connexion-purge présente, rétention 180 jours. Versions enregistrées = horodatages d’application (20261126124831 et suivants). 2d enregistrée avant 2c (deux appels parallèles) ; état final identique.",
+        "blob_migration": "def9cb233a67ba00ead7362a677c540e055bb891",
+        "blob_provenance": "git rev-parse HEAD:supabase/migrations/20261126160000_connexion_lot1_etape2e_surveillance_sans_blocage.sql (candidat claude/connexion-securite)"
+      },
+      "trace": "#160, demande de Guardian 7161550179 : une fiche par migration du lot, qualification comme RLS-3, procedure docs/deploiement/procedure-connexion-production.md."
+    },
+    "20261126170000": {
+      "etat": "atomique_ou_procedure_speciale",
+      "justification": "Lot Connexion securite, lot 1 : migration d'un schema prive nexus_connexion (aucun acces anon ni authenticated, RLS sur toutes les tables). Appliquee sur Test seulement ; aucune application en Production sans GO distinct du gerant. Ordre reel Production et retours arriere dans la procedure. Objets : fonctions journaliser_incoherence, comptes_incoherents, panne_pour ; table panne_injectee (retiree par 2i).",
+      "objets_crees": [],
+      "objets_constates": [
+        "fonctions journaliser_incoherence, comptes_incoherents, panne_pour ; table panne_injectee (retiree par 2i)"
+      ],
+      "procedure": "docs/deploiement/procedure-connexion-production.md",
+      "valide_par": null,
+      "valide_le": null,
+      "mesure": {
+        "source": "catalogue",
+        "le": "2026-11-26T13:08:13Z",
+        "cible": "uzhjpqpctpvxytxpxoqz",
+        "par": "Guardian (compte rendu 7192924857 sur #383, après l’étape 2 de la bascule)",
+        "outil": "requêtes de lecture du catalogue Production par Guardian ; rapportées sans modification",
+        "identite_constatee": "Production, après application des 14 migrations du §6.1",
+        "lecture_seule": true,
+        "moteur": "PostgreSQL (catalogue Production)",
+        "verdict": "Les 14 migrations sont appliquées ; md5 identiques à ceux du §6.1. 7 tables toutes avec RLS ; 19 fonctions ; panne_table et panne_fonction null ; 0 EXECUTE et 0 SELECT pour anon et authenticated ; 17 comptes tous a_migrer (2 inactifs, 1 compte de test hors site) ; 17 e-mails opaques ; tâche nexus-connexion-purge présente, rétention 180 jours. Versions enregistrées = horodatages d’application (20261126124831 et suivants). 2d enregistrée avant 2c (deux appels parallèles) ; état final identique.",
+        "blob_migration": "d27b9245a7fc7e4f83e3b204d78894668fc02dc6",
+        "blob_provenance": "git rev-parse HEAD:supabase/migrations/20261126170000_connexion_lot1_etape2f_incoherence_auth.sql (candidat claude/connexion-securite)"
+      },
+      "trace": "#160, demande de Guardian 7161550179 : une fiche par migration du lot, qualification comme RLS-3, procedure docs/deploiement/procedure-connexion-production.md."
+    },
+    "20261126180000": {
+      "etat": "atomique_ou_procedure_speciale",
+      "justification": "Lot Connexion securite, lot 1 : migration d'un schema prive nexus_connexion (aucun acces anon ni authenticated, RLS sur toutes les tables). Appliquee sur Test seulement ; aucune application en Production sans GO distinct du gerant. Ordre reel Production et retours arriere dans la procedure. Objets : colonne parametres.budget_auth_min, fonction budget_auth.",
+      "objets_crees": [],
+      "objets_constates": [
+        "colonne parametres.budget_auth_min, fonction budget_auth"
+      ],
+      "procedure": "docs/deploiement/procedure-connexion-production.md",
+      "valide_par": null,
+      "valide_le": null,
+      "mesure": {
+        "source": "catalogue",
+        "le": "2026-11-26T13:08:13Z",
+        "cible": "uzhjpqpctpvxytxpxoqz",
+        "par": "Guardian (compte rendu 7192924857 sur #383, après l’étape 2 de la bascule)",
+        "outil": "requêtes de lecture du catalogue Production par Guardian ; rapportées sans modification",
+        "identite_constatee": "Production, après application des 14 migrations du §6.1",
+        "lecture_seule": true,
+        "moteur": "PostgreSQL (catalogue Production)",
+        "verdict": "Les 14 migrations sont appliquées ; md5 identiques à ceux du §6.1. 7 tables toutes avec RLS ; 19 fonctions ; panne_table et panne_fonction null ; 0 EXECUTE et 0 SELECT pour anon et authenticated ; 17 comptes tous a_migrer (2 inactifs, 1 compte de test hors site) ; 17 e-mails opaques ; tâche nexus-connexion-purge présente, rétention 180 jours. Versions enregistrées = horodatages d’application (20261126124831 et suivants). 2d enregistrée avant 2c (deux appels parallèles) ; état final identique.",
+        "blob_migration": "8db9e17963fad9ba68ecb7e85a902411a53a44b1",
+        "blob_provenance": "git rev-parse HEAD:supabase/migrations/20261126180000_connexion_lot1_etape2g_budget_auth.sql (candidat claude/connexion-securite)"
+      },
+      "trace": "#160, demande de Guardian 7161550179 : une fiche par migration du lot, qualification comme RLS-3, procedure docs/deploiement/procedure-connexion-production.md."
+    },
+    "20261126190000": {
+      "etat": "atomique_ou_procedure_speciale",
+      "justification": "Lot Connexion securite, lot 1 : migration d'un schema prive nexus_connexion (aucun acces anon ni authenticated, RLS sur toutes les tables). Appliquee sur Test seulement ; aucune application en Production sans GO distinct du gerant. Ordre reel Production et retours arriere dans la procedure. Objets : colonne essais_ip.type, index essais_ip_type_idx, fonctions apres_echec, apres_succes, avant_essai.",
+      "objets_crees": [],
+      "objets_constates": [
+        "colonne essais_ip.type, index essais_ip_type_idx, fonctions apres_echec, apres_succes, avant_essai"
+      ],
+      "procedure": "docs/deploiement/procedure-connexion-production.md",
+      "valide_par": null,
+      "valide_le": null,
+      "mesure": {
+        "source": "catalogue",
+        "le": "2026-11-26T13:08:13Z",
+        "cible": "uzhjpqpctpvxytxpxoqz",
+        "par": "Guardian (compte rendu 7192924857 sur #383, après l’étape 2 de la bascule)",
+        "outil": "requêtes de lecture du catalogue Production par Guardian ; rapportées sans modification",
+        "identite_constatee": "Production, après application des 14 migrations du §6.1",
+        "lecture_seule": true,
+        "moteur": "PostgreSQL (catalogue Production)",
+        "verdict": "Les 14 migrations sont appliquées ; md5 identiques à ceux du §6.1. 7 tables toutes avec RLS ; 19 fonctions ; panne_table et panne_fonction null ; 0 EXECUTE et 0 SELECT pour anon et authenticated ; 17 comptes tous a_migrer (2 inactifs, 1 compte de test hors site) ; 17 e-mails opaques ; tâche nexus-connexion-purge présente, rétention 180 jours. Versions enregistrées = horodatages d’application (20261126124831 et suivants). 2d enregistrée avant 2c (deux appels parallèles) ; état final identique.",
+        "blob_migration": "ab9a530da61d9ae4aa44c7221a2598be5555e9ad",
+        "blob_provenance": "git rev-parse HEAD:supabase/migrations/20261126190000_connexion_lot1_etape2h_limite_ip_echecs_reels.sql (candidat claude/connexion-securite)"
+      },
+      "trace": "#160, demande de Guardian 7161550179 : une fiche par migration du lot, qualification comme RLS-3, procedure docs/deploiement/procedure-connexion-production.md."
+    },
+    "20261126200000": {
+      "etat": "atomique_ou_procedure_speciale",
+      "justification": "Lot Connexion securite, lot 1 : migration d'un schema prive nexus_connexion (aucun acces anon ni authenticated, RLS sur toutes les tables). Appliquee sur Test seulement ; aucune application en Production sans GO distinct du gerant. Ordre reel Production et retours arriere dans la procedure. Objets : retire panne_pour et panne_injectee.",
+      "objets_crees": [],
+      "objets_constates": [
+        "retire panne_pour et panne_injectee"
+      ],
+      "procedure": "docs/deploiement/procedure-connexion-production.md",
+      "valide_par": null,
+      "valide_le": null,
+      "mesure": {
+        "source": "catalogue",
+        "le": "2026-11-26T13:08:13Z",
+        "cible": "uzhjpqpctpvxytxpxoqz",
+        "par": "Guardian (compte rendu 7192924857 sur #383, après l’étape 2 de la bascule)",
+        "outil": "requêtes de lecture du catalogue Production par Guardian ; rapportées sans modification",
+        "identite_constatee": "Production, après application des 14 migrations du §6.1",
+        "lecture_seule": true,
+        "moteur": "PostgreSQL (catalogue Production)",
+        "verdict": "Les 14 migrations sont appliquées ; md5 identiques à ceux du §6.1. 7 tables toutes avec RLS ; 19 fonctions ; panne_table et panne_fonction null ; 0 EXECUTE et 0 SELECT pour anon et authenticated ; 17 comptes tous a_migrer (2 inactifs, 1 compte de test hors site) ; 17 e-mails opaques ; tâche nexus-connexion-purge présente, rétention 180 jours. Versions enregistrées = horodatages d’application (20261126124831 et suivants). 2d enregistrée avant 2c (deux appels parallèles) ; état final identique.",
+        "blob_migration": "9729396854af5e9fc8310898ca5eb2cf6517ae04",
+        "blob_provenance": "git rev-parse HEAD:supabase/migrations/20261126200000_connexion_lot1_etape2i_retrait_pannes_injectees.sql (candidat claude/connexion-securite)"
+      },
+      "trace": "#160, demande de Guardian 7161550179 : une fiche par migration du lot, qualification comme RLS-3, procedure docs/deploiement/procedure-connexion-production.md."
+    },
+    "20261126210000": {
+      "etat": "atomique_ou_procedure_speciale",
+      "justification": "Lot Connexion securite, lot 1 : migration d'un schema prive nexus_connexion (aucun acces anon ni authenticated, RLS sur toutes les tables). Appliquee sur Test seulement ; aucune application en Production sans GO distinct du gerant. Ordre reel Production et retours arriere dans la procedure. Objets : cree equipe_pour(uuid) ; redefinit auteur_autorise (cibles hors gerant, manager, createur).",
+      "objets_crees": [],
+      "objets_constates": [
+        "cree equipe_pour(uuid) ; redefinit auteur_autorise (cibles hors gerant, manager, createur)"
+      ],
+      "procedure": "docs/deploiement/procedure-connexion-production.md",
+      "valide_par": null,
+      "valide_le": null,
+      "mesure": {
+        "source": "catalogue",
+        "le": "2026-11-26T13:08:13Z",
+        "cible": "uzhjpqpctpvxytxpxoqz",
+        "par": "Guardian (compte rendu 7192924857 sur #383, après l’étape 2 de la bascule)",
+        "outil": "requêtes de lecture du catalogue Production par Guardian ; rapportées sans modification",
+        "identite_constatee": "Production, après application des 14 migrations du §6.1",
+        "lecture_seule": true,
+        "moteur": "PostgreSQL (catalogue Production)",
+        "verdict": "Les 14 migrations sont appliquées ; md5 identiques à ceux du §6.1. 7 tables toutes avec RLS ; 19 fonctions ; panne_table et panne_fonction null ; 0 EXECUTE et 0 SELECT pour anon et authenticated ; 17 comptes tous a_migrer (2 inactifs, 1 compte de test hors site) ; 17 e-mails opaques ; tâche nexus-connexion-purge présente, rétention 180 jours. Versions enregistrées = horodatages d’application (20261126124831 et suivants). 2d enregistrée avant 2c (deux appels parallèles) ; état final identique.",
+        "blob_migration": "780bbef6d61acd58dba39229a0299d48073b8a78",
+        "blob_provenance": "git rev-parse HEAD:supabase/migrations/20261126210000_connexion_lot1_etape4_equipe_pour.sql (candidat claude/connexion-securite)"
+      },
+      "trace": "#383, fiche 2 Comptes de l'equipe validee par Guardian ; retour arriere outils/recette/connexion_lot1/99f_retour_arriere_etape4.sql ; procedure docs/deploiement/procedure-connexion-production.md."
+    },
+    "20261126220000": {
+      "etat": "atomique_ou_procedure_speciale",
+      "justification": "Lot Connexion securite, lot 1 : migration d'un schema prive nexus_connexion (aucun acces anon ni authenticated, RLS sur toutes les tables). Appliquee sur Test seulement ; aucune application en Production sans GO distinct du gerant. Ordre reel Production et retours arriere dans la procedure. Objets : redefinit auteur_autorise (gerant, manager, createur) ; equipe_pour renvoie du jsonb et journalise auteur_refuse.",
+      "objets_crees": [],
+      "objets_constates": [
+        "redefinit auteur_autorise (gerant, manager, createur) ; equipe_pour renvoie du jsonb et journalise auteur_refuse"
+      ],
+      "procedure": "docs/deploiement/procedure-connexion-production.md",
+      "valide_par": null,
+      "valide_le": null,
+      "mesure": {
+        "source": "catalogue",
+        "le": "2026-11-26T13:08:13Z",
+        "cible": "uzhjpqpctpvxytxpxoqz",
+        "par": "Guardian (compte rendu 7192924857 sur #383, après l’étape 2 de la bascule)",
+        "outil": "requêtes de lecture du catalogue Production par Guardian ; rapportées sans modification",
+        "identite_constatee": "Production, après application des 14 migrations du §6.1",
+        "lecture_seule": true,
+        "moteur": "PostgreSQL (catalogue Production)",
+        "verdict": "Les 14 migrations sont appliquées ; md5 identiques à ceux du §6.1. 7 tables toutes avec RLS ; 19 fonctions ; panne_table et panne_fonction null ; 0 EXECUTE et 0 SELECT pour anon et authenticated ; 17 comptes tous a_migrer (2 inactifs, 1 compte de test hors site) ; 17 e-mails opaques ; tâche nexus-connexion-purge présente, rétention 180 jours. Versions enregistrées = horodatages d’application (20261126124831 et suivants). 2d enregistrée avant 2c (deux appels parallèles) ; état final identique.",
+        "blob_migration": "321a13a8179841e191dacc0627554914754721a8",
+        "blob_provenance": "git rev-parse HEAD:supabase/migrations/20261126220000_connexion_lot1_etape4b_equipe_refus_et_gerant.sql (candidat claude/connexion-securite)"
+      },
+      "trace": "#383, revue Guardian 7166616731 ; preuves publiees en 7166817797 ; retour arriere 99f_retour_arriere_etape4.sql."
+    },
+    "20261126230000": {
+      "etat": "atomique_ou_procedure_speciale",
+      "justification": "Lot Connexion securite, lot 1, etape 5 : decisions du gerant (journal 180 jours et purge planifiee, code temporaire 24 h, alerte indisponible par site pour gerant et manager). Schema prive nexus_connexion, aucun acces anon ni authenticated. Test seulement ; aucune application en Production sans GO distinct du gerant.",
+      "objets_crees": [],
+      "objets_constates": ["redefinit poser_code ; cree code_temporaire_expire et alerte_indisponible_pour ; planifie nexus-connexion-purge"],
+      "procedure": "docs/deploiement/procedure-connexion-production.md",
+      "valide_par": null,
+      "valide_le": null,
+      "mesure": {
+        "source": "catalogue",
+        "le": "2026-11-26T13:08:13Z",
+        "cible": "uzhjpqpctpvxytxpxoqz",
+        "par": "Guardian (compte rendu 7192924857 sur #383, après l’étape 2 de la bascule)",
+        "outil": "requêtes de lecture du catalogue Production par Guardian ; rapportées sans modification",
+        "identite_constatee": "Production, après application des 14 migrations du §6.1",
+        "lecture_seule": true,
+        "moteur": "PostgreSQL (catalogue Production)",
+        "verdict": "Les 14 migrations sont appliquées ; md5 identiques à ceux du §6.1. 7 tables toutes avec RLS ; 19 fonctions ; panne_table et panne_fonction null ; 0 EXECUTE et 0 SELECT pour anon et authenticated ; 17 comptes tous a_migrer (2 inactifs, 1 compte de test hors site) ; 17 e-mails opaques ; tâche nexus-connexion-purge présente, rétention 180 jours. Versions enregistrées = horodatages d’application (20261126124831 et suivants). 2d enregistrée avant 2c (deux appels parallèles) ; état final identique.",
+        "blob_migration": "846656fbb68619ce501f11837a0f958ddf5699f0",
+        "blob_provenance": "git rev-parse HEAD:supabase/migrations/20261126230000_connexion_lot1_etape5_decisions_gerant.sql (candidat claude/connexion-securite)"
+      },
+      "trace": "#383, Guardian 7182241504 ; retour arriere outils/recette/connexion_lot1/99g_retour_arriere_etape5.sql. Pas de mesure : a faire apres application sur Test."
+    },
+    "20261127090000": {
+      "etat": "atomique_ou_procedure_speciale",
+      "justification": "Lot Connexion securite, lot 1, etape 5b : correction de l'alerte indisponible (commentaire exact : nombre global, site_id du lecteur conserve ; ajout de la premiere reponse indisponible de l'heure). Schema prive nexus_connexion, aucun acces anon ni authenticated. Test seulement ; aucune application en Production sans GO distinct du gerant.",
+      "objets_crees": [],
+      "objets_constates": ["redefinit alerte_indisponible_pour (avec premier)"],
+      "procedure": "docs/deploiement/procedure-connexion-production.md",
+      "valide_par": null,
+      "valide_le": null,
+      "mesure": {
+        "source": "catalogue",
+        "le": "2026-11-26T13:08:13Z",
+        "cible": "uzhjpqpctpvxytxpxoqz",
+        "par": "Guardian (compte rendu 7192924857 sur #383, après l’étape 2 de la bascule)",
+        "outil": "requêtes de lecture du catalogue Production par Guardian ; rapportées sans modification",
+        "identite_constatee": "Production, après application des 14 migrations du §6.1",
+        "lecture_seule": true,
+        "moteur": "PostgreSQL (catalogue Production)",
+        "verdict": "Les 14 migrations sont appliquées ; md5 identiques à ceux du §6.1. 7 tables toutes avec RLS ; 19 fonctions ; panne_table et panne_fonction null ; 0 EXECUTE et 0 SELECT pour anon et authenticated ; 17 comptes tous a_migrer (2 inactifs, 1 compte de test hors site) ; 17 e-mails opaques ; tâche nexus-connexion-purge présente, rétention 180 jours. Versions enregistrées = horodatages d’application (20261126124831 et suivants). 2d enregistrée avant 2c (deux appels parallèles) ; état final identique.",
+        "blob_migration": "57d4bc26a0804621e33f7d67e24abc7e2fb3495c",
+        "blob_provenance": "git rev-parse HEAD:supabase/migrations/20261127090000_connexion_lot1_etape5b_alerte_premier.sql (candidat claude/connexion-securite)"
+      },
+      "trace": "#383, Guardian 7182436721 ; retour arriere outils/recette/connexion_lot1/99h_retour_arriere_etape5b.sql. Pas de mesure : a faire apres application sur Test."
     }
   },
   "prochaine_action": "Axe SS4 migration -> code : LEVE pour 20260919103000 (13/13 objets constates sur le catalogue le 01/10/2026) et pour 20261001160000 (ACL constatee fermee le 03/10/2026). Ces qualifications restent acquises tant que leur fichier de migration ne change pas : la garde compare mesure.blob_migration a l'empreinte du candidat, et une migration retouchee fait tomber sa qualification. Il n'y a plus d'echeance horaire (l'ancienne fraicheur de 72 h aurait fait retomber l'axe le 04/10/2026 sans que rien ne bouge). CE QUE LA GARDE NE VOIT PAS : une base modifiee sans que le depot bouge - c'est exactement ce que la relecture du 03/10 a trouve pour 20261001160000. Toute procedure d'application relit donc la base avant d'ecrire. CE QUE CELA N'AUTORISE PAS : aucune fusion ni aucun deploiement ; chacun reste un GO distinct de Frederic. RESTE A FAIRE, separement : (1) les 11 migrations du rail toujours non qualifiees ; (2) le cablage de garde-ordre-migration-code.js dans deploiement-production.yml. Lecture du verdict et table de decision : SS18.4 ; recit de la mesure : SS20. MISE A JOUR DU 04/10/2026 : les 13 migrations du candidat rebuild/fdj-62-20260922 sont qualifiees (12 atomiques en serie avant le code, 20261004120000 code d abord) ; ordre et gestes dans docs/deploiement/procedure-fdj-62-production.md."

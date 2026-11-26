@@ -178,6 +178,8 @@
   .force-icon{font-size:20px;}
   .force-titre{font-size:13.5px; font-weight:700; color:var(--gold); margin-top:2px;}
   .force-detail{font-size:12.5px; color:var(--text-mid); line-height:1.5;}
+  .alerte-connexion{margin:0 20px 10px; padding:10px 14px; border:1px solid color-mix(in srgb, var(--amber) 30%, transparent); border-radius:12px; background:var(--amber-dim); font-size:13px; line-height:1.5;}
+  .alerte-connexion.neutre{border:0; background:none; padding:6px 2px; color:var(--text-dim); font-size:12.5px;}
   .empty-serein{margin:0; padding:18px; text-align:center; font-size:12.5px; color:var(--text-dim); background:var(--panel-raised); border-radius:12px; line-height:1.5;}
 
   /* DECISIONS */
@@ -451,6 +453,8 @@
   let VALIDEES_SITE = new Set();
   let JOURNAL_DECISIONS = [];
   let SONDE_ALERTES = [];
+  let ALERTE_CONNEXION = null; // null = rien à montrer ; {lecture:false} = ligne neutre ; sinon la réponse de la fonction
+  let ROLE_REEL_COURANT = null;
   // Secteurs configurables (11/08/2026, audit stratégique Brief/Rapport de
   // Direction) : type_commerce/secteurs viennent de la table sites
   // (migration ajouter_secteurs_configurables_sites) — repli sur le preset
@@ -1651,6 +1655,7 @@
     // directeur d'exploitation → G Décisions de direction → vigilance →
     // impact → détail Carburants → export PDF.
     root.innerHTML = `<div class="desktop-grid">
+      ${renderAlerteConnexion()}
       ${renderSondeAlertes()}
       ${renderHeroEtSynthese(BRIEF)}
       ${renderBoussole(BRIEF)}
@@ -1742,9 +1747,50 @@
   }
 
   async function rafraichir() {
+    await chargerAlerteConnexion();
     await chargerSondeAlertes();
     BRIEF = await construireBrief();
     renderBrief();
+  }
+
+  // Carte « Connexion indisponible » (26/11/2026) : aucune action possible depuis
+  // le Brief, donc aucun bouton. Absente si tout va bien ; une ligne neutre si la
+  // lecture est impossible. Une lecture en échec n'empêche jamais le Brief.
+  async function chargerAlerteConnexion() {
+    ALERTE_CONNEXION = null;
+    try {
+      const { data: sd } = await nexusClient.auth.getSession();
+      const token = sd && sd.session && sd.session.access_token;
+      if (!token) { ALERTE_CONNEXION = { lecture: false }; return; }
+      const resp = await fetch(`${NEXUS_SUPABASE_URL}/functions/v1/connexion`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, apikey: NEXUS_SUPABASE_ANON_KEY },
+        body: JSON.stringify({ action: 'alerte_indisponible' }),
+      });
+      const data = await resp.json().catch(() => null);
+      if (!resp.ok || !data || data.ok !== true) { ALERTE_CONNEXION = { lecture: false }; return; }
+      ALERTE_CONNEXION = data.active === true ? { lecture: true, nombre: data.nombre_1h, premier: data.premier } : null;
+    } catch (e) { ALERTE_CONNEXION = { lecture: false }; }
+  }
+  function heureAlerteConnexion(iso) {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return null;
+    const p = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: FUSEAU_STATION || undefined }).formatToParts(d);
+    const h = p.find(x => x.type === 'hour').value, m = p.find(x => x.type === 'minute').value;
+    return h + ' h ' + m;
+  }
+  function renderAlerteConnexion() {
+    if (!ALERTE_CONNEXION) return '';
+    if (ALERTE_CONNEXION.lecture === false) {
+      return '<div class="alerte-connexion neutre">État de la connexion : lecture impossible pour le moment.</div>';
+    }
+    const heure = heureAlerteConnexion(ALERTE_CONNEXION.premier);
+    const n = ALERTE_CONNEXION.nombre;
+    const debut = heure ? ` depuis ${heure}` : '';
+    const suite = ROLE_REEL_COURANT === 'gerant'
+      ? 'Prévenez NEXUS Conseil si cela dure plus de 15 minutes.'
+      : 'Prévenez le gérant et évitez de multiplier les essais.';
+    return `<div class="alerte-connexion"><strong>Connexion indisponible</strong><br>La connexion a échoué ${n} fois${debut}. ${suite}</div>`;
   }
 
   // Alerte « sonde à vérifier » (05/11/2026) : une ligne, un bouton « Vu »,
@@ -1894,6 +1940,7 @@
       return;
     }
     employeeCourantId = employee.id;
+    ROLE_REEL_COURANT = employee.role_reel || employee.role || null;
     SITE_ACTUEL = employee.site_id;
     if (!(await NexusForfait.nexusRequireBriefNexus(SITE_ACTUEL))) return;
     // A3 / C1c-4a — Brief devient résolveur explicite : il lit le fuseau du

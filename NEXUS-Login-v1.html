@@ -41,6 +41,10 @@
     display:none; background:var(--red-dim); color:var(--red); border-radius:8px; padding:10px 14px;
     font-size:12.5px; margin-top:14px; text-align:center;
   }
+  [hidden]{display:none !important;}
+  .intro{font-size:13px; color:var(--text-mid); text-align:center; line-height:1.5; margin:-14px 0 20px;}
+  .voir{background:none; border:none; color:var(--cyan); font-size:12.5px; cursor:pointer; padding:4px 0; margin-top:-8px; margin-bottom:8px;}
+  #nouveau,#confirmation{font-family:var(--mono); letter-spacing:8px; font-size:20px; text-align:center;}
   .note{font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; margin-top:24px; line-height:1.6;}
 
   .logo-footer{
@@ -53,16 +57,70 @@
     display:block; margin:0 auto 12px; max-width:200px; width:60%; height:auto;
     filter: drop-shadow(0 0 18px rgba(var(--cyan-rgb),0.45)) drop-shadow(0 0 40px rgba(var(--cyan-rgb),0.22));
   }
+  /* Écran de changement de code : identité compacte (sous-page), pour que le bouton reste au-dessus du pli à 375 x 812. */
+  body.changement .hero-avatar{width:56px; max-width:56px; margin-bottom:6px;}
+  body.changement .title{font-size:20px; margin-bottom:16px;}
+  body.changement .intro{margin:-6px 0 14px;}
+  body.changement .logo-footer{display:none;}
+  body.changement .note{margin-top:14px;}
+
+  /* Éléments réservés à la vue large : absents du flux sur téléphone. */
+  .vue-large{display:none;}
+  .souvenir{align-items:center; gap:10px; font-size:13.5px; color:var(--text-mid); margin:2px 0 6px; cursor:pointer;}
+  .souvenir input{width:18px; height:18px; accent-color:var(--cyan); flex:none;}
+  .oubli{background:none; border:none; color:var(--cyan); font-size:13px; cursor:pointer; padding:10px 0 2px; margin:0 auto; text-decoration:underline;}
+  .aide-pin{background:var(--panel); border:1px solid var(--hairline); border-radius:8px; padding:10px 14px; font-size:13px; color:var(--text); text-align:center; margin-top:10px; line-height:1.5;}
+  .consigne{font-size:13.5px; color:var(--text-mid); text-align:center; margin:-14px 0 20px; line-height:1.5;}
+  .btn:focus-visible,.oubli:focus-visible,.souvenir input:focus-visible{outline:2px solid var(--cyan); outline-offset:2px;}
+
+  @media (min-width:1024px){
+    body{display:grid; grid-template-columns:minmax(0,1.25fr) minmax(420px,1fr); align-items:stretch; justify-items:stretch;}
+    .vue-large{display:block;}
+    .visuel{position:relative; overflow:hidden; min-height:100vh; background:var(--bg); display:flex; flex-direction:column;}
+    .visuel img.fond{flex:1 1 0; min-height:0; width:100%; height:auto; object-fit:cover; object-position:center top;}
+    /* Bord droit fondu en CSS vers le fond du panneau formulaire (jetons du thème). */
+    .visuel::after{content:""; position:absolute; top:0; right:0; bottom:0; width:18%; background:linear-gradient(to right, transparent, var(--bg)); pointer-events:none;}
+    /* Bande bleu pétrole unie sous l'image : rien ne chevauche l'avatar ni la vague. */
+    .visuel .bas{position:relative; z-index:2; flex:none; padding:22px 48px 28px; text-align:center; background:var(--bande-visuel,#0B2A36);}
+    .visuel .bas .marque{display:flex; align-items:center; justify-content:center; gap:12px; margin-bottom:4px;}
+    .visuel .bas .logo{width:48px; height:48px; display:block;}
+    .visuel .bas .mot{font-family:var(--sans); font-size:26px; font-weight:700; letter-spacing:.14em; color:var(--bande-texte-fort,#fff);}
+    .visuel .bas .sous-titre{font-family:var(--mono); font-size:13px; letter-spacing:.08em; color:var(--bande-texte,#EAF2F7); margin-bottom:18px;}
+    .visuel .blocs{display:grid; grid-template-columns:repeat(3,1fr); gap:18px; text-align:left;}
+    .visuel .bloc{display:flex; gap:10px; align-items:flex-start; font-size:13.5px; line-height:1.45; color:var(--bande-texte,#EAF2F7);}
+    .visuel .bloc img{width:32px; height:32px; flex:none;}
+    .visuel .bloc b{display:block; font-weight:600; color:var(--bande-texte-fort,#fff);}
+    .carte-formulaire{display:flex; flex-direction:column; justify-content:center; align-items:center; min-height:100vh; background:var(--bg);}
+    body .hero-avatar, body .logo-footer{display:none;}
+    .souvenir.vue-large{display:flex;}
+    .oubli.vue-large{display:block;}
+    #ecranConnexion[hidden] .vue-large, body.changement .consigne{display:none;}
+  }
 </style>
 </head>
 <body>
+<aside class="visuel vue-large" aria-label="Présentation de NEXUS">
+  <img class="fond" id="fondVisuel" alt="" width="1182" height="1330">
+  <div class="bas">
+    <div class="marque"><img class="logo" src="assets/nexus-logo-cyan.png" alt=""><span class="mot">NEXUS</span></div>
+    <div class="sous-titre">Pilotage de station-service</div>
+    <div class="blocs">
+      <div class="bloc"><img src="assets/icons/01_principales/48px/progression.png" alt=""><span><b>Piloter</b>vos ventes, vos stocks, votre équipe, au même endroit.</span></div>
+      <div class="bloc"><img src="assets/icons/01_principales/48px/inventaire.png" alt=""><span><b>Contrôler</b>ce qui est fait, ce qui reste à faire.</span></div>
+      <div class="bloc"><img src="assets/icons/01_principales/48px/missions.png" alt=""><span><b>Décider</b>des conseils clairs pour agir chaque jour.</span></div>
+    </div>
+  </div>
+</aside>
+<div class="carte-formulaire">
 <div class="card">
 
   <img class="hero-avatar" src="assets/nexus-avatar.png" alt="NEXUS">
 
   <span class="mark">NEXUS</span>
-  <div class="title">Connexion</div>
+  <div class="title" id="titreEcran">Connexion</div>
 
+  <div id="ecranConnexion">
+  <p class="consigne vue-large">Connectez-vous avec votre prénom et votre code.</p>
   <div class="field">
     <label for="prenom">Prénom</label>
     <input type="text" id="prenom" placeholder="Thomas" autocomplete="off">
@@ -70,10 +128,28 @@
 
   <div class="field">
     <label for="pin">Code PIN</label>
-    <input type="password" id="pin" maxlength="6" inputmode="numeric" placeholder="••••">
+    <input type="password" id="pin" maxlength="6" inputmode="numeric" placeholder="••••••">
   </div>
 
+  <label class="souvenir vue-large" for="souvenir"><input type="checkbox" id="souvenir"> Se souvenir de mon prénom sur cet appareil</label>
   <button class="btn" id="connexion">Se connecter</button>
+  <button type="button" class="oubli vue-large" id="oubliPin" aria-expanded="false" aria-controls="aidePin">Code PIN oublié ?</button>
+  <div class="aide-pin vue-large" id="aidePin" role="status" hidden>Demandez un code temporaire à votre manager.</div>
+  </div>
+
+  <div id="ecranChangement" hidden>
+    <p class="intro">Votre code est temporaire. Choisissez un nouveau code de 6 chiffres que vous seul connaissez.</p>
+    <div class="field">
+      <label for="nouveau">Nouveau code</label>
+      <input type="password" id="nouveau" maxlength="6" inputmode="numeric" autocomplete="new-password" placeholder="••••••">
+    </div>
+    <div class="field">
+      <label for="confirmation">Confirmer le code</label>
+      <input type="password" id="confirmation" maxlength="6" inputmode="numeric" autocomplete="new-password" placeholder="••••••">
+    </div>
+    <button type="button" class="voir" id="voirCodes" aria-pressed="false">Afficher</button>
+    <button class="btn" id="changer">Enregistrer le nouveau code</button>
+  </div>
 
   <div class="error" id="errorConnexion"></div>
 
@@ -82,7 +158,8 @@
     <div class="logo-caption" id="logoCaption">Votre commerce vous parle en permanence. NEXUS vous aide à le comprendre, à décider et à progresser chaque jour.</div>
   </div>
 
-  <div class="note">Connexion sécurisée · Supabase Auth</div>
+  <div class="note">Connexion sécurisée</div>
+</div>
 </div>
 
 <script>
@@ -110,90 +187,196 @@
     if (session) window.location.href = "NEXUS-App-v1.html";
   });
 
-  // Message unique pour tous les refus d'identification — prénom inconnu,
-  // PIN incorrect, compte désactivé. Distinguer les deux premiers revenait à
-  // confirmer, sans PIN, qu'un prénom donné correspond à un compte : l'écran
-  // devenait un oracle d'énumération, un prénom à la fois. Exigence posée par
-  // .github/recettes/CADRAGE-nexus-test.md.
+  // Connexion par la fonction `connexion` (étape 3, lot Connexion sécurité).
+  // Le navigateur n'appelle plus ni la recherche d'identifiant ni Auth : la
+  // fonction répond 401 neutre à tout refus, 503 ou 5xx si elle est
+  // indisponible, et rend une session seulement quand le compte est prêt.
+  const ENDPOINT = SUPABASE_URL.replace(/\/$/, "") + "/functions/v1/connexion";
   const REFUS = "Prénom ou code PIN incorrect.";
+  const INDISPONIBLE = "Connexion indisponible pour le moment. Réessayez dans un instant.";
+  const RESEAU = "Connexion au serveur impossible. Vérifiez votre connexion et réessayez.";
 
   const prenomInput = document.getElementById("prenom");
   const pinInput = document.getElementById("pin");
   const btn = document.getElementById("connexion");
   const errBox = document.getElementById("errorConnexion");
+  const ecranConnexion = document.getElementById("ecranConnexion");
+  const ecranChangement = document.getElementById("ecranChangement");
+  const nouveauInput = document.getElementById("nouveau");
+  const confirmInput = document.getElementById("confirmation");
+  const btnChanger = document.getElementById("changer");
+  const btnVoir = document.getElementById("voirCodes");
+
+  // Le code temporaire et le prénom restent en mémoire de page seulement.
+  let codeTemporaire = null;
+  let prenomEnCours = null;
+
+  function afficherErreur(msg) { errBox.textContent = msg; errBox.style.display = "block"; }
+  function masquerErreur() { errBox.style.display = "none"; }
+  function repos() {
+    btn.disabled = false; btn.textContent = "Se connecter";
+    btnChanger.disabled = false; btnChanger.textContent = "Enregistrer le nouveau code";
+  }
+
+  // Un code est faible s'il compte six chiffres identiques ou forme une suite
+  // croissante ou décroissante. Même règle que la fonction côté serveur.
+  function codeFaible(n) {
+    if (!/^\d{6}$/.test(n)) return true;
+    if (/^(\d)\1{5}$/.test(n)) return true;
+    let crois = true, decrois = true;
+    for (let i = 1; i < 6; i++) {
+      const d = Number(n[i]) - Number(n[i - 1]);
+      if (d !== 1) crois = false;
+      if (d !== -1) decrois = false;
+    }
+    return crois || decrois;
+  }
+
+  // POST vers la fonction. Un 5xx (dont 546) déclenche UNE seule reprise
+  // après 1 à 3 s tirées au hasard ; aucune autre boucle.
+  async function appeler(corps) {
+    async function une(relance) {
+      const r = await fetch(ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(relance ? Object.assign({}, corps, { relance: "5xx" }) : corps)
+      });
+      let json = null;
+      try { json = await r.json(); } catch (e) { /* corps absent */ }
+      return { status: r.status, json };
+    }
+    let rep = await une(false);
+    if (rep.status >= 500) {
+      await new Promise(ok => setTimeout(ok, 1000 + Math.random() * 2000));
+      rep = await une(true); // la reprise porte relance: "5xx" : la fonction journalise « indisponible »
+    }
+    return rep;
+  }
+
+  async function poserSession(session) {
+    const { error } = await client.auth.setSession({
+      access_token: session.access_token,
+      refresh_token: session.refresh_token
+    });
+    if (error) throw error;
+    window.location.href = "NEXUS-App-v1.html";
+  }
 
   async function tryLogin() {
     const prenom = prenomInput.value.trim();
     const pin = pinInput.value.trim();
-    errBox.style.display = "none";
+    masquerErreur();
+    if (!prenom || !pin) { afficherErreur("Entrez votre prénom et votre code PIN."); return; }
 
-    if (!prenom || !pin) {
-      errBox.textContent = "Entrez votre prénom et votre code PIN.";
-      errBox.style.display = "block";
-      return;
+    btn.disabled = true; btn.textContent = "Connexion...";
+    let rep;
+    try { rep = await appeler({ prenom, code: pin }); }
+    catch (e) { afficherErreur(RESEAU); repos(); return; }
+
+    if (rep.status === 200 && rep.json && rep.json.ok) {
+      if (rep.json.changer_code) {
+        prenomEnCours = prenom; codeTemporaire = pin;
+        pinInput.value = "";
+        ecranConnexion.hidden = true; ecranChangement.hidden = false;
+        document.body.classList.add("changement");
+        document.getElementById("titreEcran").textContent = "Choisissez votre code";
+        nouveauInput.focus();
+        repos();
+        return;
+      }
+      if (rep.json.session) {
+        try { await poserSession(rep.json.session); return; }
+        catch (e) { afficherErreur(RESEAU); repos(); return; }
+      }
     }
-
-    btn.disabled = true;
-    btn.textContent = "Connexion...";
-
-    // On retrouve le username (identifiant technique) à partir du prénom
-    // affiché. Passer par une fonction et non par une vue lisible en
-    // anonyme : une vue accepte aussi une requête SANS filtre, et rendait
-    // donc l'annuaire complet — tous sites confondus — à un visiteur muni de
-    // la seule clé publiable. La fonction ne répond qu'à ce prénom-là, et
-    // renvoie NULL s'il est inconnu ou porté par plusieurs comptes.
-    let identifiant, lookupError;
-    try {
-      ({ data: identifiant, error: lookupError } = await client
-        .rpc("nexus_identifiant_de_connexion", { p_prenom: prenom }));
-    } catch (networkError) {
-      lookupError = networkError;
-    }
-
-    if (lookupError) {
-      errBox.textContent = "Connexion au serveur impossible. Vérifiez votre connexion et réessayez.";
-      errBox.style.display = "block";
-      btn.disabled = false;
-      btn.textContent = "Se connecter";
-      return;
-    }
-
-    if (!identifiant) {
-      errBox.textContent = REFUS;
-      errBox.style.display = "block";
-      btn.disabled = false;
-      btn.textContent = "Se connecter";
-      return;
-    }
-
-    let authError;
-    try {
-      ({ error: authError } = await client.auth.signInWithPassword({
-        email: `${identifiant}@vito-nexus.local`,
-        password: pin
-      }));
-    } catch (networkError) {
-      errBox.textContent = "Connexion au serveur impossible. Vérifiez votre connexion et réessayez.";
-      errBox.style.display = "block";
-      btn.disabled = false;
-      btn.textContent = "Se connecter";
-      return;
-    }
-
-    if (authError) {
-      errBox.textContent = REFUS;
-      errBox.style.display = "block";
-      pinInput.value = "";
-      btn.disabled = false;
-      btn.textContent = "Se connecter";
-      return;
-    }
-
-    window.location.href = "NEXUS-App-v1.html";
+    if (rep.status >= 500) afficherErreur(INDISPONIBLE);
+    else { afficherErreur(REFUS); pinInput.value = ""; }
+    repos();
   }
 
-  btn.addEventListener("click", tryLogin);
-  pinInput.addEventListener("keypress", (e) => { if (e.key === "Enter") tryLogin(); });
+  async function changerCode() {
+    masquerErreur();
+    const nouveau = nouveauInput.value.trim();
+    if (!/^\d{6}$/.test(nouveau)) { afficherErreur("Le code doit compter exactement 6 chiffres."); return; }
+    if (nouveau !== confirmInput.value.trim()) { afficherErreur("Les deux codes ne sont pas identiques."); return; }
+    if (nouveau === codeTemporaire) { afficherErreur("Choisissez un code différent du code temporaire."); return; }
+    if (codeFaible(nouveau)) { afficherErreur("Ce code est trop simple. Évitez les chiffres identiques et les suites."); return; }
+
+    btnChanger.disabled = true; btnChanger.textContent = "Enregistrement...";
+    let rep;
+    try {
+      rep = await appeler({ action: "changer_code", prenom: prenomEnCours, code_actuel: codeTemporaire, nouveau_code: nouveau });
+    } catch (e) { afficherErreur(RESEAU); repos(); return; }
+
+    if (rep.status === 200 && rep.json && rep.json.ok && rep.json.session) {
+      codeTemporaire = null;
+      try { await poserSession(rep.json.session); return; }
+      catch (e) { afficherErreur(RESEAU); repos(); return; }
+    }
+    if (rep.status >= 500) afficherErreur(INDISPONIBLE);
+    else afficherErreur("Le code n'a pas pu être changé. Reprenez depuis l'écran de connexion ou demandez un nouveau code temporaire à votre manager.");
+    repos();
+  }
+
+  btnVoir.addEventListener("click", () => {
+    const visible = nouveauInput.type === "password";
+    nouveauInput.type = confirmInput.type = visible ? "text" : "password";
+    btnVoir.textContent = visible ? "Masquer" : "Afficher";
+    btnVoir.setAttribute("aria-pressed", visible ? "true" : "false");
+  });
+  // ---- Vue large (>= 1024 px) ----
+  // Image de fond choisie par script : une seule image est téléchargée, jamais sur téléphone.
+  const large = window.matchMedia("(min-width:1024px)");
+  const fond = document.getElementById("fondVisuel");
+  function themeCourant() {
+    const t = document.documentElement.getAttribute("data-theme");
+    if (t === "jour" || t === "sombre") return t;
+    try { return window.NexusTheme && window.NexusTheme.calculerTheme ? window.NexusTheme.calculerTheme() : "sombre"; }
+    catch (e) { return "sombre"; }
+  }
+  function majFond() {
+    if (!large.matches) return;
+    const nom = themeCourant() === "jour" ? "jour" : "nuit";
+    const taille = (document.querySelector(".visuel").clientWidth * (window.devicePixelRatio || 1)) > 800 ? 1182 : 800;
+    const FONDS = {
+      "jour-1182": "assets/connexion-fond-jour-1182.webp", "jour-800": "assets/connexion-fond-jour-800.webp",
+      "nuit-1182": "assets/connexion-fond-nuit-1182.webp", "nuit-800": "assets/connexion-fond-nuit-800.webp"
+    };
+    const src = FONDS[nom + "-" + taille];
+    if (fond.getAttribute("src") !== src) fond.setAttribute("src", src);
+  }
+  majFond();
+  large.addEventListener("change", majFond);
+  new MutationObserver(majFond).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+
+  // Se souvenir du prénom (vue large seulement, prénom seul, décoché par défaut).
+  const CLE_PRENOM = "nexus_login_prenom";
+  const souvenir = document.getElementById("souvenir");
+  try {
+    const p = localStorage.getItem(CLE_PRENOM);
+    if (p && large.matches) { prenomInput.value = p; souvenir.checked = true; }
+  } catch (e) { /* stockage indisponible */ }
+  function memoriserPrenom() {
+    try {
+      if (large.matches && souvenir.checked && prenomInput.value.trim()) localStorage.setItem(CLE_PRENOM, prenomInput.value.trim());
+      else localStorage.removeItem(CLE_PRENOM);
+    } catch (e) { /* ignoré */ }
+  }
+  souvenir.addEventListener("change", memoriserPrenom);
+  prenomInput.addEventListener("change", memoriserPrenom);
+
+  // Aide « Code PIN oublié ? » : simple message sur la page, aucun appel serveur.
+  const oubli = document.getElementById("oubliPin");
+  const aide = document.getElementById("aidePin");
+  oubli.addEventListener("click", () => {
+    aide.hidden = !aide.hidden;
+    oubli.setAttribute("aria-expanded", aide.hidden ? "false" : "true");
+  });
+
+  btn.addEventListener("click", () => { memoriserPrenom(); tryLogin(); });
+  btnChanger.addEventListener("click", changerCode);
+  pinInput.addEventListener("keypress", (e) => { if (e.key === "Enter") { memoriserPrenom(); tryLogin(); } });
+  confirmInput.addEventListener("keypress", (e) => { if (e.key === "Enter") changerCode(); });
 </script>
 </body>
 </html>
