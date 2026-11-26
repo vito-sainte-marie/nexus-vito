@@ -25,6 +25,7 @@ global.window = global;
 require(path.join(PROJET, 'nexus-boussole-moteur.js'));
 require(path.join(PROJET, 'nexus-carburant-moteur.js'));
 require(path.join(PROJET, 'nexus-periodes.js'));
+require('./outils/fuseau-metier-pour-tests.js').installerAvecFuseau('America/Martinique');
 require(path.join(PROJET, 'nexus-brief-donnees.js'));
 const M = global.NexusCarburantMoteur;
 const BD = global.NexusBriefDonnees;

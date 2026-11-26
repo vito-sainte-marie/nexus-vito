@@ -1022,11 +1022,10 @@
   // [{ date, referenceCertifieeCeJour, ancreEstPointZero, parCarburant: {go:{theorique,ecart,statut,...}, ...} }, ...]
   async function chargerHistoriqueReleves(client, siteId, joursFenetre = 30, dateFin) {
     const M = global.NexusCarburantMoteur;
-    const fin = dateFin || new Date().toISOString().slice(0, 10);
-    const finDate = new Date(`${fin}T00:00:00`);
-    const debutDate = new Date(finDate);
-    debutDate.setDate(debutDate.getDate() - joursFenetre);
-    const debutISO = `${debutDate.getFullYear()}-${String(debutDate.getMonth() + 1).padStart(2, '0')}-${String(debutDate.getDate()).padStart(2, '0')}`;
+    // Jour de la station (fuseau sites.timezone) ; indéterminé = pas d'historique.
+    const fin = dateFin || await global.nexusAujourdhuiStation(siteId);
+    if (!fin) { console.error('Historique relevés carburant : jour de la station indéterminé (sites.timezone)'); return []; }
+    const debutISO = global.nexusDecalerJour(fin, -joursFenetre);
 
     // Relevés de la fenêtre + une marge de sécurité de relevés plus anciens
     // (pour disposer de l'ancre du tout premier relevé affiché, même si la

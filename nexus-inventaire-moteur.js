@@ -1532,6 +1532,10 @@
   // "Règles par catégorie").
   function selectionnerPerimetreIntelligent(missionRule, candidats, dernierControleParProduit, seed, contexte) {
     const ctx = contexte || {};
+    // Jour de la station fourni par l'appelant (nexusAujourdhuiStation) :
+    // jamais d'horloge UTC en repli — une date fausse déciderait quelles
+    // références sont « en retard » (Article 5).
+    if (!ctx.dateISO) throw new Error('selectionnerPerimetreIntelligent : contexte.dateISO (jour de la station) est requis');
     const socleCible = (missionRule.nombre_references && missionRule.nombre_references > 0)
       ? missionRule.nombre_references : candidats.length;
     const surprisesCible = missionRule.inclure_surprise
@@ -1545,7 +1549,7 @@
       anomaliesDetailParProduit: ctx.anomaliesDetailParProduit,
       plafondAnomaliesNonCritiques: ctx.plafondAnomaliesNonCritiques,
       quart: ctx.quart != null ? ctx.quart : null,
-      dateISO: ctx.dateISO || new Date().toISOString().slice(0, 10),
+      dateISO: ctx.dateISO,
       socleCible, surprisesCible, seed,
       surprisesRecentesParProduit: ctx.surprisesRecentesParProduit,
     });

@@ -3,6 +3,7 @@ const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 global.window = {};
+require('./outils/fuseau-metier-pour-tests.js').installer();
 require('./nexus-tempo.js');
 const T = window.NexusTempo;
 const racine = __dirname;
@@ -124,7 +125,7 @@ t('la page lit uniquement les sources annoncées, filtrées par site', () => {
 });
 
 t('jamais d\'horloge UTC : ni aujourdHuiISO ni filtrerJoursClos', () => {
-  assert.ok(!/aujourdHuiISO|filtrerJoursClos|toISOString/.test(scripts));
+  assert.ok(!/aujourdHuiISO\(\s*\)|filtrerJoursClos|toISOString/.test(scripts)); // aujourdHuiISO(fuseau) est la date station ; sans fuseau, jamais
 });
 
 t('mentions imposées et lignes G1, G3, G5 présentes', () => {

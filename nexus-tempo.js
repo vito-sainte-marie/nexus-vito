@@ -226,12 +226,20 @@
   // décision, saisonnier, découvertes) doit être calculée à partir
   // des jours exploitables, jamais des jours enregistrés bruts.
   // ------------------------------------------------------------
-  function aujourdHuiISO() {
-    return new Date().toISOString().slice(0, 10);
+  // LOT A3 (27/11/2026) — « aujourd'hui de la station » : la fonction UNIQUE
+  // est nexusJourDansFuseau (nexus-auth.js, Article 11). Celle-ci n'est plus
+  // qu'une enveloppe stricte : SANS fuseau elle rend null (jamais un jour UTC,
+  // qui bascule à demain dès 20 h en Martinique). Un jour indéterminé ne date
+  // rien : filtrerJoursClos rend alors [] plutôt qu'un classement faux.
+  function aujourdHuiISO(fuseau, instant) {
+    const f = globalThis.nexusJourDansFuseau;
+    if (typeof f !== 'function' || !fuseau) return null;
+    return f(instant instanceof Date ? instant : new Date(), fuseau);
   }
 
-  function filtrerJoursClos(joursAgreges) {
-    const aujourdhui = aujourdHuiISO();
+  function filtrerJoursClos(joursAgreges, fuseau, instant) {
+    const aujourdhui = aujourdHuiISO(fuseau, instant);
+    if (!aujourdhui) return [];
     return (joursAgreges || []).filter(j => j.date < aujourdhui);
   }
 
@@ -872,8 +880,9 @@
     };
   }
 
-  function prochainsPonts(depuisDateStr, nbMax) {
-    const depuis = depuisDateStr || aujourdHuiISO();
+  function prochainsPonts(depuisDateStr, nbMax, fuseau) {
+    const depuis = depuisDateStr || aujourdHuiISO(fuseau);
+    if (!depuis) return [];
     const annees = [Number(depuis.slice(0, 4)), Number(depuis.slice(0, 4)) + 1];
     const tous = annees.flatMap(a => identifierPonts(a)).filter(p => p.date >= depuis);
     return tous.slice(0, nbMax || 6);
@@ -1294,9 +1303,9 @@
   //     propre requête Supabase (glue, pas de logique) et son propre
   //     estProduitAppel (déjà une source unique via NexusMarge.familleMarge).
   // ------------------------------------------------------------
-  function calculerConstatTempo(auditsCaisseRows, productsRows, estProduitAppelFn) {
+  function calculerConstatTempo(auditsCaisseRows, productsRows, estProduitAppelFn, fuseau, instant) {
     const joursAgreges = agregerParJour(auditsCaisseRows || []);
-    const joursExploitables = filtrerJoursClos(joursAgreges);
+    const joursExploitables = filtrerJoursClos(joursAgreges, fuseau, instant);
     const periodesProduitsAppel = calculerPeriodesProduitsAppel(productsRows || [], estProduitAppelFn);
     const joursValorises = attribuerValorisationBoutique(joursExploitables, periodesProduitsAppel);
     const regroupement = regrouperParJourSemaine(joursValorises);
@@ -1354,12 +1363,12 @@
     // inclus dans cette moyenne, et si aujourd'hui porte déjà un contrôle
     // (même partiel) qui n'y est pas encore intégré.
     const dernierJourExploitableLe = joursExploitables.length ? joursExploitables[joursExploitables.length - 1].date : null;
-    const aujourdhuiAUnControle = joursAgreges.some(j => j.date === aujourdHuiISO());
+    const aujourdhuiAUnControle = joursAgreges.some(j => j.date === aujourdHuiISO(fuseau, instant));
 
     // Lot G8 (11/11/2026) : constat en litres sur fenêtre glissante, base
     // de la carte Tempo (accueil et Brief). `jourPlusRentable` reste exposé
     // pour la page Tempo (hors périmètre G8) mais n'alimente plus la carte.
-    const constatLitres = calculerConstatLitres(joursExploitables);
+    const constatLitres = calculerConstatLitres(joursExploitables, fuseau, instant);
 
     return {
       jourARenforcer: jourARenforcerRetenu, jourMoteur, jourPlusRentable, jourProgression, totalJours, detailOperations,
@@ -1388,18 +1397,18 @@
   }
 
   // Date du jour DANS LE FUSEAU DE LA STATION (G8, revue Guardian 6786038072) :
-  // aujourdHuiISO() est une date UTC — en Martinique (UTC−4) elle bascule à
-  // demain dès 20 h locales, alors que le quart 2 dure jusqu'à 22 h 05. Le
-  // constat borne donc sa fenêtre sur la date station. aujourdHuiISO() et
-  // filtrerJoursClos() restent inchangées (usages ailleurs).
+  // en Martinique (UTC−4) la date UTC bascule à demain dès 20 h locales, alors
+  // que le quart 2 dure jusqu'à 22 h 05. aujourdHuiISO(fuseau, instant) est
+  // elle-même la date station (stricte : sans fuseau, null).
   function dateStationISO(fuseau, instant) {
-    const tz = fuseau || 'America/Martinique';
-    return new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' })
-      .format(instant instanceof Date ? instant : new Date());
+    return aujourdHuiISO(fuseau, instant);   // plus de défaut 'America/Martinique' : sans fuseau, null
   }
 
-  function calculerConstatLitres(joursExploitables, fuseau) {
-    const fin = dateStationISO(fuseau);                            // exclu : journée en cours (date station)
+  function calculerConstatLitres(joursExploitables, fuseau, instant) {
+    const fin = dateStationISO(fuseau, instant);                   // exclu : journée en cours (date station)
+    if (!fin) {                                                    // fuseau indéterminé : rien à dater, jamais un défaut
+      return { suffisant: false, indetermine: true, fenetreSemaines: FENETRE_SEMAINES, occurrencesMin: OCCURRENCES_MIN_JOUR, parJour: [], plusFort: null, plusFaible: null };
+    }
     const debut = decalerJourISO(fin, -7 * FENETRE_SEMAINES);      // 56 jours
     const dansFenetre = (joursExploitables || []).filter(j =>
       j.date < fin && j.date >= debut && j.litrageDisponible &&
@@ -1439,6 +1448,7 @@
   function bornesPeriodeIndicateurs(fuseau, instant) {
     const exclu = dateStationISO(fuseau, instant);
     const jours = 7 * FENETRE_SEMAINES;
+    if (!exclu) return { debut: null, fin: null, exclu: null, semaines: FENETRE_SEMAINES, jours, indetermine: true };
     return { debut: decalerJourISO(exclu, -jours), fin: decalerJourISO(exclu, -1), exclu, semaines: FENETRE_SEMAINES, jours };
   }
 

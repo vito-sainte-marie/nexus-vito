@@ -230,7 +230,7 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
 </div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
-<script src="nexus-auth.js?v=20261124-1500"></script>
+<script src="nexus-auth.js?v=20261127-1000"></script>
 <script src="nexus-forfait.js?v=20260904-0104"></script>
 <script src="nexus-icones.js?v=20261124-0001"></script>
 <script src="nexus-desktop.js?v=20261124-1500"></script>
@@ -238,7 +238,7 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
 <script src="nexus-jours-feries.js?v=20261106-0100"></script>
 <script src="nexus-vocabulaire.js?v=20261112-1500"></script>
 <script src="nexus-ecarts-moteur.js?v=20261126-0100"></script>
-<script src="nexus-tempo.js?v=20261126-0100"></script>
+<script src="nexus-tempo.js?v=20261127-1000"></script>
 <script src="nexus-periodes.js?v=20260904-0104"></script>
 </head>
 <body>
@@ -710,7 +710,9 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
 
     const siteId = employee.site_id;
     const T = window.NexusTempo;
-    const bornes = T.bornesPeriodeIndicateurs();
+    const fuseauStation = await nexusFuseauSite(siteId);
+    const bornes = T.bornesPeriodeIndicateurs(fuseauStation);
+    if (bornes.indetermine) { document.getElementById('contenu').innerHTML = '<div class="reserve">Le fuseau horaire de la station est indéterminé : la période étudiée ne peut pas être datée.</div>'; return; }
 
     // Lectures (réutilisées de Tempo v1, Capital/Marge+ et FDJ Analyse).
     const [rAud, rProd, rApp, rFdj, rFacts, rSite] = await Promise.all([
@@ -943,7 +945,7 @@ footer .sources{font-family:var(--t-sans); font-size:11px; color:var(--t-mid); m
     const sectionFeries = (joursComplets, debutMesure, unite) => {
       const a = T.analyseFeries(joursComplets, rCal.error ? [] : rCal.data, { debut: debutMesure, fin: bornes.fin });
       const lignes = a.jours.length ? a.jours.map(j => LF.ligneJour(j, unite)) : [LF.aucun];
-      lignes.push(LF.effet(a.effets.ferie), LF.effet(a.effets.pont), LF.prochains(T.prochainsPonts(undefined, 6)));
+      lignes.push(LF.effet(a.effets.ferie), LF.effet(a.effets.pont), LF.prochains(T.prochainsPonts(undefined, 6, fuseauStation)));
       return { titre: LF.titre, lignes };
     };
     if (LF && !rAudMois.error) detailExtra.indPiste.push(sectionFeries(T.joursLitresCompletsPiste(rAudMois.data), T.DEBUT_MOIS_PISTE, 'L'));
