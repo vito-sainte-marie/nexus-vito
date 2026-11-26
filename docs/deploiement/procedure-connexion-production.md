@@ -152,19 +152,6 @@ Constat : après migration, la page ne parle plus qu'à la fonction ; aucune aut
 
 Option de repli qui ne passe pas par la fonction : le gérant, seul, depuis le tableau de bord Supabase (accès propriétaire du projet) peut lire les journaux de la fonction, vérifier les secrets, et redéployer une version précédente de la fonction si l'interface le propose. Il peut aussi poser à la main un mot de passe sur un compte Auth. **Effet sur la dérivation** : le mot de passe d'un compte migré est calculé par la fonction (`AUTH_MASTER_SECRET`, identifiant, version). Un mot de passe posé à la main ne le suit pas ; au retour de la fonction, la connexion de ce compte échoue (refus neutre) tant qu'un manager ou le gérant n'a pas réinitialisé le code, ce qui réécrit le mot de passe dérivé et monte la version. Une session déjà ouverte reste valable jusqu'à son expiration. Aucune procédure de restauration de mot de passe n'est décrite ici : seulement ce constat et cette option, à arbitrer par le gérant.
 
-### 6.5 Déroulé réel de la bascule du 26/11/2026 (compte rendu de Guardian, #383)
-
-Cette section consigne ce qui s'est passé ; elle ne remplace pas le §6.2.
-
-1. Sauvegarde : 17 comptes, identités et états seulement, remise au gérant hors dépôt.
-2. Migrations : les 14 du §6.1 appliquées, md5 conformes. **Écart d'ordre 2c/2d** : la migration 2d (`20261126150000`) a été enregistrée avant la 2c (`20261126140000`), parce que les deux appels ont été lancés en parallèle. Le contenu appliqué est conforme aux md5 ; seul l'ordre d'enregistrement diffère de l'ordre des fichiers. À l'avenir, appliquer les migrations l'une après l'autre, jamais en parallèle.
-3. Secrets : posés par le gérant.
-4. Fonction `connexion` déployée en Production, version 1, `verify_jwt=false`, empreinte identique à celle de la version 16 de Test. **Contrôle par pg_net** : appel de la fonction avec un prénom inconnu. Réponse attendue et obtenue : 401 neutre, plus une ligne `essais_ip` de type `echec`. Ce contrôle prouve que les secrets sont lus et que la base est jointe, sans toucher à aucun compte.
-5. Page : #381 fusionnée, déploiement `github-pages` approuvé par le gérant.
-6. Compte témoin : créé, connexion par la page réussie (journal `code_pose`, `succes` ; état `migre`), puis supprimé (0 témoin, 0 orphelin, 0 ligne Auth).
-7. Gérant : connexion avec son code habituel, compte `migre`.
-8. Aucun `incoherence_auth`, `indisponible` ni `budget_auth`. Il restait 13 comptes actifs `a_migrer`, qui basculent à leur première connexion.
-
 ### 6.4 Créneau proposé
 
 Horaires du site tels que `station_config` les décrit sur Test (site de test) : quart 1 de 06:00 à 13:00, quart 2 de 13:00 à 20:00, fuseau `America/Martinique` (UTC−4). Les horaires réels de la station de Production n'ont pas été lus (aucune lecture Production sans GO) : **le gérant confirmera lui-même les horaires de Production et la date**.
@@ -185,3 +172,16 @@ Créneau proposé (simple proposition, à valider ou changer par le gérant) : u
 | Total | environ 1 h 30 |
 
 Les durées sont des estimations, sans mesure Production.
+
+### 6.5 Déroulé réel de la bascule du 26/11/2026 (compte rendu de Guardian, #383)
+
+Cette section consigne ce qui s'est passé ; elle ne remplace pas le §6.2.
+
+1. Sauvegarde : 17 comptes, identités et états seulement, remise au gérant hors dépôt.
+2. Migrations : les 14 du §6.1 appliquées, md5 conformes. **Écart d'ordre 2c/2d** : la migration 2d (`20261126150000`) a été enregistrée avant la 2c (`20261126140000`), parce que les deux appels ont été lancés en parallèle. Le contenu appliqué est conforme aux md5 ; seul l'ordre d'enregistrement diffère de l'ordre des fichiers. À l'avenir, appliquer les migrations l'une après l'autre, jamais en parallèle.
+3. Secrets : posés par le gérant.
+4. Fonction `connexion` déployée en Production, version 1, `verify_jwt=false`, empreinte identique à celle de la version 16 de Test. **Contrôle par pg_net** : appel de la fonction avec un prénom inconnu. Réponse attendue et obtenue : 401 neutre, plus une ligne `essais_ip` de type `echec`. Ce contrôle prouve que les secrets sont lus et que la base est jointe, sans toucher à aucun compte.
+5. Page : #381 fusionnée, déploiement `github-pages` approuvé par le gérant.
+6. Compte témoin : créé, connexion par la page réussie (journal `code_pose`, `succes` ; état `migre`), puis supprimé (0 témoin, 0 orphelin, 0 ligne Auth).
+7. Gérant : connexion avec son code habituel, compte `migre`.
+8. Aucun `incoherence_auth`, `indisponible` ni `budget_auth`. Il restait 13 comptes actifs `a_migrer`, qui basculent à leur première connexion.
