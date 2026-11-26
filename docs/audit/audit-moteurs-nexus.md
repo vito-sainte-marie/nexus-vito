@@ -11,7 +11,7 @@
 |---|---|---|
 | 1 | Marge (R5) · Boussole · Secteurs (6) | fait |
 | 2 | Rapport A4 (données et moteur) | fait (lecture partielle, voir §3) |
-| 3 | Risques · Conseiller · Décisions prioritaires | à faire |
+| 3 | Risques · Conseiller · Décisions prioritaires · fin du rapport A4 | fait (voir §5 à §7) |
 | 4 | Courbes 40 jours · histogramme · objectifs · potentiel | à faire |
 | 5 | Périmètre 2 (écrans qui montrent la même grandeur) · synthèse · vérifications | à faire |
 
@@ -123,6 +123,7 @@ Contrat commun `construireContratCommun` (l.674) : fraîcheur, repli, qualité ;
 - **Score** : `equipeScore = round(max(0, 100 − taux × 200))`, taux = retards / arrivées mesurées sur 7 jours, comparé aux 7 précédents. Récurrence : ≥ 3 retards (`employesASurveiller`). Portée (`classifierPorteeEquipe`, l.532) : collectif si ≥ 2 récurrents ; `recurrence_individuelle` ; `incident_individuel` ; `incidents_isoles`.
 - **⚠ Constat de périmètre — confirmé par lecture** : `chargerDomaineEquipe` (`nexus-brief-donnees.js:618`) interroge `pointages` **sans aucun filtre `site`** (5 requêtes, l.633–647). Le code l'écrit lui-même : « cette fonction ne filtre par aucun site ». La séparation entre stations repose **uniquement sur la RLS**. De plus la portée et `employesASurveiller` sont mesurés sur **tout l'historique**, sans fenêtre.
 - **Fuseau** : « aujourd'hui » = `new Date()` en UTC ; fenêtre construite par `setDate` puis `toISOString().slice(0,10)` — près de minuit, la fenêtre peut décaler d'un jour.
+- **Verdict V1 (Guardian, lecture seule Production)** : la règle RLS `select_pointages` donne à un employé ses seules lignes, à un manager ou gérant les lignes de son site, à un **créateur** toutes les stations où `acces_createur_autorise` est vrai. Sans filtre explicite, un compte créateur verrait des pointages de plusieurs stations mélangés, et un employé un « taux d'équipe » calculé sur ses seules arrivées. **Règle à retenir : le filtre `.eq('site', site)` doit être explicite, on ne s'en remet jamais à la RLS.** Sans effet visible aujourd'hui (aucun pointage depuis le 16/08, Équipe sort du Brief v4), mais vrai pour tout autre consommateur de `chargerDomaineEquipe`.
 - **Doublon avéré** : le rapport A4 calcule la ponctualité **filtrée par site et par période** (§4.3). Même grandeur, deux périmètres, deux résultats possibles.
 
 ### 3.7 Constats transversaux de cette étape
@@ -153,22 +154,137 @@ Principe déclaré : « jamais une deuxième formule », le moteur recompose ce 
 - **Opérations** (`chargerOperationsPeriode`, l.81) : Verify via `NexusVerifyMoteur.agregerAudits` (filtré site + période) ; Inventaire via le RPC `generate_inventory_review`, type `weekly` si période = semaine, **sinon `monthly`** pour trimestre/année/libre : limite connue, la synthèse d'inventaire d'un trimestre est demandée « mensuelle ».
 - **Équipe** (`chargerEquipePeriode`, l.114) : ponctualité = 1 − retards/arrivées mesurées, **filtré par site et par période** ; missions = terminées / assignées (statuts `completed`, `termine`, `terminee`). Les arrivées à `retard_min` NULL comptent comme présence mais sortent des deux côtés du taux.
 - **Écart avec §3.6** : Brief = tout l'historique, sans site ; rapport = période, avec site. Même mot « ponctualité », deux résultats.
-- Tableau de bord : le champ `ecarts` de FDJ est écrit `(cond) ? null : null` (`construireTableauDeBord`) — **toujours nul**, quel que soit le cas ; l'écart FDJ n'est donc jamais montré dans ce tableau. À confirmer côté rendu.
+- Tableau de bord : le champ `ecarts` de FDJ est écrit `(cond) ? null : null` (`construireTableauDeBord`) — **toujours nul**, quel que soit le cas ; l'écart FDJ n'est donc jamais montré dans ce tableau. **Confirmé** : le rendu (`NEXUS-Rapport-v1.html:615–617`) ne lit que `ca` et `evolution` de `tb.fdj` ; `ecarts` est un champ mort, jamais affiché. Défaut réel : le tableau de bord du rapport ne dit rien des écarts de caisse FDJ, alors que la Boussole les compte dans la maîtrise (§2.2).
 
-### 4.4 Non encore lu (étape 3)
+### 4.4 Fin du rapport A4 (lu à l'étape 3)
 
-`construireChapitreRisques` (l.456), `construireForces`, `construireAmeliorer`, `construireProjection`, `construireSuggestions`, `construirePriorites` (l.758), et `nexus-rapport-donnees.js` / `nexus-rapport-moteur.js`.
+Le chapitre risques, « à améliorer », « priorités », la projection et les suggestions sont décrits en §7. Restent non lus : `nexus-rapport-donnees.js` et `nexus-rapport-moteur.js` (rapport hebdomadaire, hors rapport direction), repris à l'étape 5 avec le périmètre 2.
+
+## 5. Signaux de risque (`nexus-risques-moteur.js`, `nexus-risques-donnees.js`)
+
+Moteur pur (article 11). Un signal qualifié est un objet unique, stocké dans `nexus_risk_signals` (clé `site_id, cle_signal`). C'est la seule voix qui dit « risque avéré / exposition / signal faible / anomalie » ; le Brief, le Conseiller et le rapport A4 la lisent.
+
+### 5.1 Niveau de gravité (`classifierNiveau`, l.171)
+
+Quatre niveaux ordonnés : `anomalie < signal_faible < exposition < risque_avere`.
+
+| Règle | Condition | Niveau |
+|---|---|---|
+| A | impact mesuré > 0 et (récurrence ≥ 5 ou impact ≥ 500 €) | risque avéré |
+| B | impact potentiel ≥ 200 € | exposition |
+| A2 | sévérité qualitative « majeure » | risque avéré |
+| A2 | « significative » avec récurrence ≥ 5 | risque avéré |
+| B2 | « significative » | exposition |
+| C | récurrence ≥ 2 | signal faible |
+| D | sinon | anomalie |
+
+Constantes : `SEUIL_IMPACT_MESURE_MATERIEL_EUR = 500`, `SEUIL_IMPACT_POTENTIEL_SIGNIFICATIF_EUR = 200`, `SEUIL_RECURRENCE_SIGNAL_FAIBLE = 2`, `SEUIL_RECURRENCE_RISQUE_AVERE = 5`. Le code les dit calibrées sur des exemples donnés par Frédéric, « à ajuster une fois le pilote en usage réel » : **jamais recalibrées**. Confiance de l'échantillon (`niveauConfiance`, l.105) : ≥ 10 A, ≥ 5 B, ≥ 2 C, sinon D.
+
+### 5.2 Urgence (`classifierUrgence`, l.469)
+
+Seconde dimension, indépendante du niveau : exposition → immédiate ; risque avéré → moyenne si le signal est installé depuis ≥ 14 jours (`SEUIL_ANCIENNETE_INSTALLEE_JOURS`), sinon immédiate ; signal faible → moyenne ; anomalie → faible.
+
+**Constat** : un risque avéré ancien devient « moyenne » alors qu'une simple exposition reste « immédiate ». Au tri « urgence puis niveau » du Brief (§6.3), une exposition passe donc **devant** un risque avéré installé depuis deux semaines. C'est voulu par la règle, mais le gérant lira « exposition » avant « risque avéré » sans comprendre pourquoi.
+
+### 5.3 Qualificateurs
+
+- **Caisse** (`qualifierEcartCaisse`, l.295) : impact = **somme nette** des écarts (`ecartCumule`) ; récurrence = nombre d'audits en anomalie ou critique ; échantillon = total d'audits. *Limite* : la somme est nette, un manque de 40 € et un excédent de 40 € se compensent à zéro. À vérifier en donnée (V4).
+- **Marge d'une catégorie** (`qualifierMargeCategorie`, l.343) : compare la catégorie à **sa propre histoire** (moyenne des périodes précédentes), pas à la moyenne du magasin ni aux pairs (cohérent avec §1.2). CA « stable » si l'écart ≤ `seuilCaStablePct = 0,15` : impact **mesuré** = écart de points / 100 × CA actuel si le CA est stable, impact **potentiel** sinon. Récurrence = périodes historiques sous la moyenne, +1 si la période courante l'est.
+- **Historique de marge** : assemblé de **deux façons** : `assemblerHistoriqueMargeCategorie` (l.411, en mémoire, 3 périodes, hors période courante et hors CA = 0) et `NexusRisquesDonnees.chargerHistoriqueMargeCategorie` (requête Supabase ciblée). Deux chemins pour une même histoire.
+- **Ponctualité d'un collaborateur** (`qualifierPonctualiteCollaborateur`, `SEUIL_RETARDS_RECURRENTS = 3`, l.637) : ≥ 3 retards fixent la sévérité « majeure », donc **risque avéré immédiat sans aucun montant en euros**. Troisième version de la ponctualité (voir §3.6 et §4.3), même seuil de 3, périmètre encore différent (14 jours).
+
+### 5.4 Source, périmètre, période (`nexus-risques-donnees.js`)
+
+- Filtre de station **explicite** partout : `audits_caisse` (l.308, 325), `products` (l.554, 572), `pointages` (l.702, 708). Bon point, opposé au Brief (§3.6).
+- Dates en **UTC** (l.305, 322, 625–626, 660, 700), alors que le chargeur du coach (`nexus-conseiller-donnees.js:204`) utilise le fuseau de la station (`NexusStation.dateLocaleStation`). Une même journée ne désigne pas le même jour selon l'écran, près de minuit.
+- Commentaire l.690 : un possible décalage entre `site_id` et la colonne `site` de `pointages`. Non tranché dans le code (à vérifier, V5).
+
+### 5.5 Consommateurs et doublons
+
+Consommateurs : Brief (3 signaux max), Conseiller (candidats), rapport A4 (chapitre risques, « à améliorer »). **Doublon de rang** : le rapport A4 redéfinit `RANG_NIVEAU_LOCAL` (`construireAmeliorer`, l.559) au lieu d'utiliser `NexusRisques.RANG_NIVEAU`, et **ignore l'urgence** (§7.2).
 
 ---
 
-## Vérifications de données (à exécuter par le gérant, lecture seule, filtrées par station)
+## 6. Décisions prioritaires (`nexus-conseiller.js`, `nexus-conseiller-donnees.js`)
 
-À compléter à l'étape 5. Premières demandes, déjà justifiées par cette étape :
+### 6.1 Principe
 
-| # | Question | Requête (lecture seule) | Résultat attendu |
+Chaque moteur métier propose des candidats (normaliseurs l.790–1112) ; `fusionnerEtSelectionner(listes, {n = 3, site})` (l.1171) en garde trois. Procédé : regroupement par moteur ; dans chaque moteur, tri par rang, puis **mélange au hasard à rang égal**, avec une graine du jour ; tour de table, un candidat par moteur, les moteurs classés par leur meilleur rang.
+
+### 6.2 Graine du jour : UTC, pas la station
+
+`genererGraineJour(site)` (l.1131) = site + `new Date().toISOString().slice(0,10)`. La graine change à 00:00 UTC, soit **01:00 ou 02:00 heure locale**. Entre minuit et 01:00/02:00, la sélection d'hier reste affichée ; et à rang égal, le choix change d'un jour à l'autre sans fait nouveau. `normaliserRappel` (l.1011) utilise aussi « aujourd'hui » UTC.
+
+**Effet visible pour le gérant** : deux décisions de rang égal peuvent s'échanger d'un jour à l'autre sans que rien n'ait changé. Pas une faute de calcul, mais l'impression d'un outil qui se contredit.
+
+### 6.3 Trois ordres différents pour « le plus important »
+
+| Écran | Tri | Coupe |
+|---|---|---|
+| Brief, signaux de risque (`NEXUS-Brief-v1.html:670–680`) | urgence, puis niveau | 3 |
+| Brief, décisions (l.963) | `fusionnerEtSelectionner`, rang par moteur | 3 |
+| Rapport A4, « priorités » (`construirePriorites`, l.758) | **ordre d'insertion** (axes, marge, caisse, commerce), 5 premiers de « à améliorer » | 5 |
+
+Un même problème peut être premier d'un côté et absent de l'autre : « priorité » n'a pas la même définition dans le Brief et dans le rapport (voir §7.2).
+
+### 6.4 Constantes du Conseiller (l.197–231)
+
+`SEUIL_CONTRIBUTION_FORTE = 0,15` (doublon de `nexus-secteurs-moteur.js`, 3e emplacement du 0,15 avec le CA stable de §5.3), `SEUIL_HAUSSE = 0,20`, `SEUIL_BAISSE = −0,30`, `SEUIL_VOLUME_CA_EUR = 50`, `DUREE_DORMANT_PERIODES = 2`, `DUREE_RELEVE_STOCK_JOURS = 30`, `SEUILS_RENTABILITE = {0,40 ; 0,25 ; 0,10}` (**3e emplacement du 25 %** : Boussole, `defaut` du Brief v4, ici), `SEUILS_ROTATION_JOURS`, `SEUILS_STOCK_JOURS`, `SEUILS_PRODUITS_MESURE`, `SEUILS_SCANNER_TARIFAIRE`. Aucune n'est indiquée comme recalibrée.
+
+### 6.5 Chargeurs (`nexus-conseiller-donnees.js`)
+
+Tous filtrés par station. Deux helpers sont **recopiés** de `nexus-brief-donnees.js` : `estProduitAppel` (l.129 ← l.56) et `calculerStatutOperations` (l.133 ← l.108). Deux copies d'une règle : l'une peut évoluer sans l'autre.
+
+---
+
+## 7. Fin du rapport A4 (`nexus-rapport-direction-moteur.js`, l.440–820)
+
+### 7.1 Chapitre risques (`construireChapitreRisques`, l.456)
+
+Sépare deux familles : `constatsSectoriels` (descriptifs, sans niveau de gravité NEXUS) et `signauxQualifies` (venus de `NexusRisques`). Les signaux sont triés par urgence puis niveau avec `NexusRisques.RANG_URGENCE` / `RANG_NIVEAU` (repli sur `{}` : sans le moteur, l'ordre devient stable mais non trié). **Pas de coupe à 3** : le Brief coupe à 3, le rapport montre tout. Compteurs : risque avéré, exposition, signal faible.
+
+Les `constatsSectoriels` (écart cumulé Verify, valeur d'inventaire, marges « destructrices », écarts ouverts, comptages manquants, catégories en baisse, volume carburant < −5 %) **n'ont pas de niveau**, alors que le même sujet peut être qualifié « exposition » par `NexusRisques`. Le lecteur voit donc la même réalité en deux voix : « constat » d'un côté, « signal qualifié » de l'autre. La marge « destructrice » compare au **magasin** (période courante), le signal qualifié à l'**historique de la catégorie** : deux définitions de « marge qui se dégrade » dans un même chapitre.
+
+### 7.2 « À améliorer » et « Priorités »
+
+- `construireAmeliorer` (l.559) : au plus 5 éléments, dans l'ordre axes « en baisse », signaux de marge, caisse « récurrente » (anomalie + critique sur le total), pire catégorie du commerce si < −5 %. Tri de marge via `RANG_NIVEAU_LOCAL` (risque avéré 2, exposition 1, signal faible 0) : **ignore l'urgence**.
+- `construirePriorites` (l.758) : prend les **5 premiers** de « à améliorer » et les renumérote. **Une priorité n'est donc ni un classement par gravité, ni par urgence** : c'est un préfixe d'une liste construite par rubrique. Un risque avéré de caisse, rangé après trois axes en baisse, peut sortir de la liste (la coupe à 5 s'applique avant renumérotation).
+
+### 7.3 Projection (`construireProjection`, l.600)
+
+Rythme = CA / jours écoulés × jours de la période. Scénario « moyenne » = moyenne des 3 derniers mois / 30 (approximation documentée). Scénario N-1 : toujours nul. **Horloge** : `dateReference || new Date()`, soit l'horloge de la machine, pas le fuseau de la station (le chapitre commerce, lui, utilise `nexusFuseauSite`). Près de minuit, jours écoulés et projection peuvent différer d'un jour entre la machine et la station.
+
+### 7.4 Suggestions (`construireSuggestions`, l.634)
+
+Au plus 5, règles fixes sur marge, carburant, FDJ (un seul jeu dominant) et Équipe. Constantes propres au rapport, non recalibrées. Les suggestions du rapport, les décisions du Conseiller et les priorités du rapport sont **trois listes d'actions** produites par trois chemins sans arbitre commun.
+
+### 7.5 Constats de l'étape 3 (pour la synthèse)
+
+1. Ponctualité en **trois** versions (Brief, A4, risques), seuil 3 partout (§3.6, §4.3, §5.3).
+2. 25 % de marge à **trois** endroits (Boussole, Brief v4, `SEUILS_RENTABILITE`) ; 0,15 à **trois** endroits.
+3. « Priorité » : trois ordres (§6.3) et `RANG_NIVEAU_LOCAL` dupliqué.
+4. UTC contre fuseau de la station : chargeurs de risques, graine du Conseiller, rappel, projection A4 (machine).
+5. Helpers recopiés Brief ↔ Conseiller ; historique de marge assemblé deux fois.
+6. Constantes de risque 500 / 200 / 2 / 5 / 14 : provisoires, jamais recalibrées.
+7. `ecarts` FDJ du tableau de bord : champ mort, confirmé (§4.3).
+8. Qualité des libellés importés (V2) : deux libellés « tabac à rouler » avec encodage abîmé et double espace donnent deux catégories d'affichage ; à rattacher au moteur d'import (étape 5).
+
+---
+
+## Vérifications de données (lecture seule, filtrées par station)
+
+Résultats communiqués par le Guardian le 26/11 (aucune donnée réelle sur le canal : conforme / non conforme).
+
+| # | Question | Requête (lecture seule) | Attendu | Résultat |
+|---|---|---|---|---|
+| V1 | `pointages` : le compte vu par le Brief est-il limité à la station ? | `select site, count(*) from pointages where type='arrivee' and date >= current_date - 6 group by site`, avec chaque type de compte | Une seule ligne `site` | **Conforme** pour gérant et manager ; **non conforme** pour un compte créateur (RLS multi-stations) et pour un employé (ses seules lignes). Voir §3.6 |
+| V2 | Les familles de marge sont-elles reconnues ? | `select distinct categorie from products where site = :site` passé dans `NexusMarge.familleMarge` | Familles réglementées toutes exclues | **Conforme**. Constat annexe : deux libellés « tabac à rouler » à l'encodage abîmé et au double espace, donc deux catégories d'affichage |
+| V3 | Existe-t-il une cible de marge ? | `select * from tarif_seuils where site = :site` (vue `v_tarif_seuils_actifs`) | Règle `defaut` ou aucune | **Conforme : aucune ligne, pour aucune station.** La carte Marge du Brief v4 affichera « objectif à définir dans Produits » |
+
+Demandes nouvelles, issues de l'étape 3 :
+
+| # | Question | Requête (lecture seule) | Attendu |
 |---|---|---|---|
-| V1 | `pointages` : le compte vu par le Brief est-il limité à la station ? | `select site, count(*) from pointages where type='arrivee' and date >= current_date - 6 group by site` exécuté **avec le rôle d'un gérant d'une seule station** | Une seule ligne `site` |
-| V2 | Les familles de marge sont-elles toujours reconnues ? | pour la station : `select distinct categorie from products where site = :site` | Chaque libellé réel des quatre familles correspond à une expression de `EXCEPTIONS` |
-| V3 | Le taux de marge « cible » existe-t-il ? | `select * from <table des règles de marge> where site = :site` (nom de table à confirmer à l'étape 5) | Une règle `defaut` ou aucune |
-
-Aucune donnée réelle n'est à renvoyer sur le canal : seulement « conforme / non conforme » et les comptes.
+| V4 | Les écarts de caisse se compensent-ils dans la somme nette ? | `select count(*) filter (where ecart > 0), count(*) filter (where ecart < 0), sum(ecart), sum(abs(ecart)) from audits_caisse where site = :site and date >= current_date - 30` | Si `sum(ecart)` est proche de 0 alors que `sum(abs(ecart))` est élevé, le signal de caisse sous-estime l'impact |
+| V5 | `site_id` et `site` de `pointages` désignent-ils la même station ? | `select count(*) from pointages where site = :site and (site_id is null or site_id::text <> :site_id)` | 0 |
+| V6 | Combien de signaux qualifiés par niveau et urgence ? | `select niveau, urgence, count(*) from nexus_risk_signals where site_id = :site group by 1,2` | Voir si des « risque avéré / moyenne » sont placés après des « exposition / immédiate » |
