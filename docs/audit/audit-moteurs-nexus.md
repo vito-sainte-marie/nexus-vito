@@ -13,7 +13,7 @@
 | 2 | Rapport A4 (données et moteur) | fait (lecture partielle, voir §3) |
 | 3 | Risques · Conseiller · Décisions prioritaires · fin du rapport A4 | fait (voir §5 à §7) |
 | 4 | Courbes 40 jours · histogramme · objectifs · potentiel | fait (voir §8 à §11) |
-| 5 | Périmètre 2 (écrans qui montrent la même grandeur) · synthèse · vérifications | à faire |
+| 5 | Périmètre 2 (écrans qui montrent la même grandeur) · synthèse · vérifications | fait (voir §12 à §14) |
 
 ## Légende des fiches
 
@@ -349,6 +349,118 @@ Risque : le Brief v4 affichera « marge contre objectif » (§11.4) alors que la
 | V8 | La cible de marge est-elle vide pour cette station ? | `select count(*) from tarif_seuils where site = :site` | 0 : confirme que « contre objectif » n'a pas de base. |
 | V9 | Des campagnes ont-elles des objectifs produits ? | `select campagne_id, count(*) from campagne_objectifs_produits where site = :site group by 1` | Comptes seuls. |
 
+
+## 12. Périmètre 2 — les mêmes grandeurs sur les autres écrans
+
+Lecture du code seulement ; les écrans non listés n'ont pas été relus à cette étape.
+
+### 12.1 Écart de caisse (piste, boutique) — `ecart_piste`, `ecart_boutique`
+
+- **Source unique de la donnée** : `audits_caisse`. Pour les écrans employé, `nexus-caisse-source.js` est déjà une source unique.
+- **Quatre lectures de la gravité, aucune commune** :
+  - `NexusVerifyMoteur.agregerAudits`, `nexus-verify-moteur.js:34` : `ecartMax = max(|piste|, |boutique|)` par audit, puis comptage « piste dominante » / « boutique dominante » (l.45–46). Pas de compensation.
+  - Tempo, `nexus-tempo.js:181–182` : `ecartPiste += …`, somme **nette** par jour. Un +50 € et un −50 € donnent 0.
+  - Seuils de gravité en euros d'écart absolu, `nexus-ecarts-moteur.js:14` (déclarés « identiques à ceux du cahier »).
+  - Rapport A4, `nexus-rapport-direction-donnees.js:82` : relit `audits_caisse` puis passe par `agregerAudits` ; le risque de caisse est calculé à part dans `nexus-risques-moteur.js`.
+- **Risque de décalage visible** : un gérant peut voir « caisse équilibrée » dans Tempo et « écarts » dans Verify pour la même journée (V4, §Vérifications).
+- **Fuseau** : `date` de l'audit (jour de la station) ; la fenêtre « 30 jours » se calcule en UTC dans plusieurs chargeurs (§13.3).
+
+### 12.2 Ponctualité, retard — quatre versions
+
+| Version | Où | Définition |
+|---|---|---|
+| A | `nexus-risques-donnees.js:702–708` | `retard_min > 0` sur `pointages`, filtré `.eq('site', siteId)`, dénominateur « arrivées mesurées » |
+| B | `nexus-brief-donnees.js:633–646` | même formule, **sans filtre `site`** (RLS seule), cinq requêtes dont une sans fenêtre de dates (l.646) |
+| C | `nexus-app-donnees.js:74–80` | même formule, **sans filtre `site`**, sans fenêtre de dates ; `mission_completions` (l.73) également sans filtre |
+| D | `nexus-paye-moteur.js:1172–1203` | retards **saisis par le manager**, minutes et occurrences ; la ligne 733 précise qu'aucun retard n'est plus déduit d'un pointage |
+
+- **Autorité du calcul de retard d'un pointage** : `nexus-pointage-regles.js` (`retard_min`, `null` = non calculable, jamais « à l'heure »). Les versions A à C la consomment ; D ne la consomme pas, par décision (retard saisi).
+- **Écart visible** : un employé peut avoir 3 retards pointés (A–C) et 0 retard retenu en paye (D). Ce n'est pas forcément un défaut, mais rien ne l'explique à l'écran.
+- **Commentaires d'origine** : B et C reconnaissent leur absence de filtre station (« anomalie préexistante, non corrigée dans ce lot, Article 5 », `nexus-app-donnees.js:66–71`).
+
+### 12.3 Marge et cible de marge (Cockpit, Scanner tarifaire, Marge+)
+
+- Cible : `tarif_seuils` / `v_tarif_seuils_actifs`, vide en Production (V3). Les trois valeurs « 25 % » et « 0,15 » en dur (§10) restent la seule référence effective.
+- Ni `nexus-scanner-tarifaire.js` ni `nexus-cockpit-stock-v3.js` ne lisent la médiane de pairs de `nexus-marge.js`. Deux notions de « marge anormale » coexistent : l'écart aux pairs (R5, 10 points) et le seuil absolu.
+- Aucune lecture plus fine faite à cette étape sur Marge+ ni sur le Capital.
+
+### 12.4 FDJ, carburant, inventaire
+
+- FDJ : `nexus-fdj-moteur.js` délègue désormais le cycle de vie de l'écart à `nexus-ecarts-moteur.js` (une implémentation, bon exemple). Le coach (`nexus-coach-fdj-*.js`) a son propre chargeur ; `fdj_stock_reference_lignes` est lu sans filtre `site` dans `nexus-brief-donnees.js:136` et `nexus-coach-fdj-donnees.js:81` (à vérifier : table de référence commune ou par station).
+- Carburant : `nexus-carburant-moteur.js:1377–1398` porte sa propre notion de « potentiel » (§11).
+- Dates en UTC (`toISOString().slice(0,10)`) dans les chargeurs FDJ, carburant et inventaire : voir §13.3.
+
+### 12.5 Import
+
+- Qualité des libellés et familles : constat V2 (deux libellés « tabac à rouler » distincts). Le moteur d'import (`nexus-import-moteur.js`) n'a pas été relu en entier.
+
+---
+
+## 13. Synthèse
+
+### 13.1 Doublons classés par risque d'écart visible pour le gérant
+
+| Rang | Doublon | Pourquoi | Preuve |
+|---|---|---|---|
+| 1 | Compensation nette des écarts de caisse (Tempo) contre valeurs absolues (Verify) | Même journée, deux messages opposés | §12.1, V4 **non conforme** |
+| 2 | Niveau « risque avéré » masquant l'urgence | Près des deux tiers des signaux au même niveau : le tri n'informe plus | §5.1, V6 |
+| 3 | Ponctualité en quatre versions, dont deux sans filtre station | Un compte multi-stations additionne ; le seuil 3 n'est pas partagé | §12.2, V1 conforme pour le gérant seul |
+| 4 | « Priorité » : trois ordres différents | Le Brief, le Conseiller et le rapport ne classent pas pareil | §6.3 |
+| 5 | Cible de marge : 25 % en trois endroits, `tarif_seuils` vide | Un changement de cible en demande trois | §10, V3 |
+| 6 | « Potentiel » : trois sens, aucun total légitime | Chiffres additionnés qui ne mesurent pas la même chose | §11 |
+| 7 | « Jour complet » défini trois fois (Tempo) | Une courbe 40 jours aurait trois écarts possibles | §8 |
+| 8 | Helpers copiés Brief / Conseiller, historique de marge assemblé deux fois | Dérive silencieuse à la prochaine correction | §5.5, §6 |
+| 9 | Champ FDJ `ecarts` mort dans le tableau de bord A4 | Colonne vide ou à zéro | §7.5 |
+
+### 13.2 Requêtes sans filtre de station (RLS seule)
+
+- `nexus-brief-donnees.js` l.633, 640–642, 646 (`pointages`), l.136 (`fdj_stock_reference_lignes`).
+- `nexus-app-donnees.js` l.73–74, 80 (`mission_completions`, `pointages`).
+- `nexus-coach-fdj-donnees.js` l.81 (`fdj_stock_reference_lignes`).
+- Conséquence : correct tant que la RLS limite le compte à une station (V1 conforme pour gérant et employé) ; faux pour tout compte qui voit plusieurs stations (propriétaire, administrateur). À confirmer par V10.
+
+### 13.3 Calculs en UTC au lieu du fuseau de la station
+
+Martinique = UTC−4 sans heure d'été : entre 20 h et minuit local, la date UTC est déjà celle du lendemain, et le quart 2 va jusqu'à 22 h 05.
+
+- Chargeurs de risques et graine du Conseiller (§5.4, §6.2).
+- Tempo : `aujourdHuiISO` l.229, `filtrerJoursClos` l.233, `clesMoisEcoules` (§8).
+- Projection du rapport A4 (§7.3) ; rappels ; coach FDJ ; carburant ; inventaire (§12.4).
+- Effet : de 20 h à minuit, « aujourd'hui » désigne demain ; le dernier quart peut être compté dans le mauvais jour ou le jour courant déclaré complet trop tôt.
+
+### 13.4 Constantes provisoires jamais recalibrées
+
+Risques 500 / 200 / 2 / 5 / 14 ; `K_DEPASSEMENT` ; `SEUIL_PART_POINTS` ; `OCCURRENCES_MIN_JOUR` (4) ; `SEUIL_ECART_TYPES` (2) ; `SEUIL_RYTHME_RECURRENT` (0,5) ; `SEUIL_ECART_POINTS` ; `TAILLE_MIN_GROUPE` ; `DEBUT_MOIS_PISTE` et `DEBUT_MOIS_FDJ` (dates en dur). Aucune n'a de date de recalibrage ni de responsable.
+
+### 13.5 Autorité unique proposée et ordre de traitement
+
+| Ordre | Grandeur | Autorité unique proposée | Consommateurs à rebrancher |
+|---|---|---|---|
+| 1 | Gravité d'un écart de caisse | `nexus-ecarts-moteur.js` (déjà canonique pour le cycle de vie) : une fonction « gravité du jour » en valeurs absolues, avec le net en information | Tempo, Verify, rapport A4, risques |
+| 2 | Niveau et urgence d'un signal | `classifierNiveau` / `classifierUrgence` dans `nexus-risques-moteur.js`, avec un tri qui sépare « avéré » de « exposition » | Conseiller, Brief, A4 |
+| 3 | Filtre de station | Un paramètre `siteId` obligatoire sur les chargeurs de §13.2, refus explicite sans lui | Brief, App, coach FDJ |
+| 4 | Fuseau | Une fonction « aujourd'hui de la station » unique, lue dans la configuration station | Tout §13.3 |
+| 5 | Ponctualité | `nexus-pointage-regles.js` pour le calcul ; une seule définition d'affichage (numérateur, dénominateur, fenêtre) ; la paye reste à part, avec une mention | Risques, Brief, App |
+| 6 | Priorité | Un seul ordre (`RANG_NIVEAU_LOCAL` partagé) | Brief, Conseiller, A4 |
+| 7 | Cible de marge | `tarif_seuils` renseignée, ou `station_objectifs` si le Brief §16.c est retenu | Marge, Brief, Cockpit |
+| 8 | Jour complet, potentiel | Une définition par grandeur, nommée | Tempo, campagne, carburant |
+
+Ces propositions sont des pistes pour arbitrage : rien n'est décidé ni codé.
+
+---
+
+## 14. Vérifications de données supplémentaires (V7 à V10)
+
+Lecture seule, filtrées par station, comptages uniquement ; à faire exécuter par le gérant via le Guardian.
+
+| # | Question | Requête | Attendu |
+|---|---|---|---|
+| V7–V9 | Voir §11.2 | | |
+| V10 | Un compte qui voit plusieurs stations additionne-t-il les pointages dans le Brief et l'App ? | `select site, count(*) from pointages where type='arrivee' and date >= current_date - 6 group by site`, exécuté avec un compte propriétaire ou administrateur | Une ligne par station visible ; si plusieurs, le Brief et l'App mélangent |
+| V11 | Même jour, Tempo et Verify disent-ils la même chose de la caisse ? | Pour la station et les 7 derniers jours : somme nette et somme des valeurs absolues de `ecart_piste` + `ecart_boutique` dans `audits_caisse`, par jour ; nombre de jours où net = 0 et absolu > 0 | Compte de jours en désaccord (nombre seulement) |
+| V12 | `fdj_stock_reference_lignes` est-elle commune ou par station ? | `select count(*), count(distinct site) from fdj_stock_reference_lignes` (colonne `site` si elle existe) | Si une seule valeur ou pas de colonne : table commune, lecture sans filtre correcte |
+
+---
 
 ## Vérifications de données (lecture seule, filtrées par station)
 
