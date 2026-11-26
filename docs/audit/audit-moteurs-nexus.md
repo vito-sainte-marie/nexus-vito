@@ -12,7 +12,7 @@
 | 1 | Marge (R5) · Boussole · Secteurs (6) | fait |
 | 2 | Rapport A4 (données et moteur) | fait (lecture partielle, voir §3) |
 | 3 | Risques · Conseiller · Décisions prioritaires · fin du rapport A4 | fait (voir §5 à §7) |
-| 4 | Courbes 40 jours · histogramme · objectifs · potentiel | à faire |
+| 4 | Courbes 40 jours · histogramme · objectifs · potentiel | fait (voir §8 à §11) |
 | 5 | Périmètre 2 (écrans qui montrent la même grandeur) · synthèse · vérifications | à faire |
 
 ## Légende des fiches
@@ -270,6 +270,85 @@ Au plus 5, règles fixes sur marge, carburant, FDJ (un seul jeu dominant) et Éq
 8. Qualité des libellés importés (V2) : deux libellés « tabac à rouler » avec encodage abîmé et double espace donnent deux catégories d'affichage ; à rattacher au moteur d'import (étape 5).
 
 ---
+
+## 8. Courbe d'évolution sur 40 jours (Brief v4 §11.7, §18.3)
+
+**Constat principal : aucun moteur ne produit aujourd'hui une série de 40 jours.** `nexus-brief-donnees.js` ne contient aucune série journalière (les mentions « 40 jours » ne sont que des commentaires, l. 40, 69, 90, 686). La seule fenêtre glissante existante est celle de Tempo : **56 jours (8 semaines)**, `FENETRE_SEMAINES = 8` (`nexus-tempo.js` l. 1368).
+
+| Rubrique | Contenu |
+|---|---|
+| Autorité actuelle | Aucune pour 40 jours. Tempo fait autorité pour la série journalière : `agregerParJour` (l. 164), `resumerParJour` (l. 1451), `joursCaPiste` / `joursCaBoutique` (l. 1894–1898), `joursCaFdjComplets` (l. 1445). |
+| Formule | Somme par date des colonnes de caisse (`vente_boutique`, `ca_grattage` + `caisse_tirages`, litres). Aucune formule propre au Brief. |
+| Source | `audits_caisse`, `view_fdj_daily_summary`, relevés de piste. |
+| Périmètre station | Explicite : `.eq('site', siteId)` dans les pages Tempo (ex. `NEXUS-Tempo-v2-Mois.html` l. 409–412). La RLS n'est pas la seule barrière sur ces lectures. |
+| Période / fuseau | **Mixte.** Les indicateurs récents datent en fuseau station (`dateStationISO`, l. 1383). `aujourdHuiISO` (l. 229) et `filtrerJoursClos` (l. 233) restent en **UTC** : entre 20:00 et minuit locales, « aujourd'hui » est déjà demain. |
+| Seuils / constantes | « Jour complet » défini **trois fois, différemment** : litres (`joursLitresCompletsPiste`, l. 1433), FDJ (`nb_quarts_controles` ≥ 2, l. 1445), boutique (l. 1894). `JOURS_HORS_SERVICE = 31`. Constantes provisoires, non recalibrées. |
+| Limites connues | Une courbe à trois séries (Brief §18.3) mélange trois définitions de « jour complet » : les trois séries n'auront pas les mêmes points. |
+| Consommateurs | Tempo v1, v2 Jours, v2 Mois, v2 Piste/Boutique. Brief v4 : à créer. |
+| Doublons | Fenêtre de 56 jours (Tempo) contre 40 jours (Brief). Si le Brief recalcule sa série, il dupliquera `joursCa*`. |
+
+**Autorité unique proposée :** Tempo (`joursCaPiste`, `joursCaBoutique`, `joursCaFdjComplets`), le Brief appelant ces fonctions avec une borne de 40 jours, sans ré-agréger. À trancher d'abord : une seule définition du « jour complet » par série, affichée sous la courbe.
+
+## 9. Histogramme et vue mensuelle (Tempo D5a, `nexus-tempo.js` l. 2463–2620)
+
+| Rubrique | Contenu |
+|---|---|
+| Autorité actuelle | `moisParMois` (l. 2507), `barresMois` (l. 2559), `ruptureTendance` (l. 2610), `joursFortsFaibles` (l. 2734). Fonctions pures. |
+| Formule | Mois : moyenne par jour complet (jamais un total). Un mois compte s'il lui manque au plus `JOURS_MANQUANTS_MAX_MOIS = 1` occurrence de jour de semaine sous 4. Rupture : 4 dernières semaines toutes du même côté de la moyenne des 8 précédentes ET écart > 2 erreurs types (Welch), 12 semaines minimum, 6 jours complets par semaine. |
+| Source | `audits_caisse` depuis `DEBUT_MOIS_PISTE = 2026-08-01` (« audits depuis le 18/07 : juillet incomplet »), `view_fdj_daily_summary` depuis `DEBUT_MOIS_FDJ = 2026-01-01`, calendrier des fériés. |
+| Périmètre station | Explicite (`eq('site', siteId)`). |
+| Période / fuseau | `bornesMois` en `Date.UTC` : correct pour des dates de calendrier, sans effet fuseau. Le mois « écoulé » vient de `clesMoisEcoules`, qui lit l'horloge : même risque UTC que §8 en fin de mois après 20:00. |
+| Seuils / constantes | `OCCURRENCES_MIN_JOUR = 4`, `JOURS_MANQUANTS_MAX_MOIS = 1` (arbitrage du 12/11), `SEMAINES_RECENTES = 4`, `SEMAINES_PRECEDENTES = 8`, `JOURS_SEMAINE_MIN = 6` (arbitrage du 12/11), `SEUIL_ECART_TYPES = 2`, `SEUIL_RYTHME_RECURRENT = 0.5` (l. 1613–1616). **Provisoires, non recalibrées**, à l'exception des deux arbitrées. |
+| Limites connues | Les dates de départ sont codées en dur dans le moteur (`DEBUT_MOIS_*`) : à chaque nouvelle station, elles sont fausses. Histogramme du Brief v4 (§18.3, puces et tableau de valeurs) : les barres existent (`barresMois`), mais pas la bascule par série. |
+| Consommateurs | `NEXUS-Tempo-v2-Mois.html`, Quarts, Jours. |
+| Doublons | Seuil « 4 occurrences » répété sous trois noms (`OCCURRENCES_MIN_JOUR`, `JOURS_SEMAINE_MIN` = 6, `FENETRE_SEMAINES` = 8) sans lien documenté entre eux. |
+
+**Autorité unique proposée :** `barresMois` pour toute barre mensuelle. Le Brief ne recalcule pas, il affiche. Les dates de départ passent en paramètre de station (donnée, non constante).
+
+## 10. Objectifs (Brief v4 §11.4, §16)
+
+**Constat principal : il n'existe pas d'objectif de station.** `station_objectifs` n'est qu'une proposition du Brief (§16.c). Trois notions d'« objectif » coexistent, avec des sens différents :
+
+| Notion | Autorité | Station | Sens |
+|---|---|---|---|
+| Objectif produit de campagne | `campagne_objectifs_produits` (`nexus-campagne-bilan.js` l. 263 ; `nexus-campagne-achats.js` l. 135) | `.eq('site', site)` explicite | Quantité par jour par article, règle des 80 %. |
+| Cible de marge | `tarif_seuils` / `v_tarif_seuils_actifs` (`nexus-politique-tarifaire-ecran.js` l. 1262) | RLS + filtre site de l'écran | Marge minimale par famille. **Vide en Production** (V3 : règle `defaut` ou aucune). |
+| Repère de marge du Brief | 25 % en dur (Boussole, Brief v4, `SEUILS_RENTABILITE`, voir §7.5 n° 2) | aucune | Référence implicite, sans table. |
+
+Risque : le Brief v4 affichera « marge contre objectif » (§11.4) alors que la cible vient soit d'une constante à 25 %, soit d'une table vide. Le gérant verrait un écart sans savoir contre quoi.
+
+**Autorité unique proposée :** `tarif_seuils` pour la marge, `station_objectifs` (à créer, après arbitrage) pour le reste ; les 25 % en dur disparaissent des trois moteurs. Ordre : d'abord la lecture de `tarif_seuils` par un seul module, ensuite seulement le Brief.
+
+## 11. Potentiel (Brief v4 §16)
+
+| Rubrique | Contenu |
+|---|---|
+| Autorité actuelle | Trois calculs distincts du mot « potentiel » : marge supplémentaire potentielle de campagne (`nexus-campagne-bilan.js` l. 130–133, `unites × (pvHab − pa)` sur le restant FIFO) ; gain potentiel de l'écart de marge R5 (`nexus-brief-donnees.js` l. 90, aligné sur la médiane du groupe) ; pression potentielle de marge carburant (`nexus-carburant-moteur.js` l. 1377–1398, jamais une perte constatée). |
+| Formule | Trois formules sans rapport entre elles. |
+| Périmètre station | Campagne : `.eq('site', site)` ; marge R5 et carburant : filtre station dans le chargeur. |
+| Seuils / constantes | R5 : `SEUIL_ECART_POINTS = 10`, `TAILLE_MIN_GROUPE = 4` (`nexus-marge.js` l. 146–147), provisoires. |
+| Limites connues | Un total « potentiel » additionnant les trois serait faux : le gain d'achat est déjà inclus dans la campagne (« jamais ajouté », l. 130), et les bases diffèrent. |
+| Doublons | Même mot, trois sens. Aucun moteur ne les agrège. |
+
+**Autorité unique proposée :** ne pas créer de total. Afficher chaque potentiel sous son propre nom (« marge de campagne restante », « écart de marge au groupe », « pression carburant »), chacun renvoyant à son moteur.
+
+### 11.1 Constats de l'étape 4 (pour la synthèse)
+
+1. Aucune série de 40 jours n'existe ; Tempo en fournit 56. « Jour complet » défini trois fois, différemment.
+2. `aujourdHuiISO`, `filtrerJoursClos`, `clesMoisEcoules` : horloge en UTC (Tempo v1 et Campagne y sont exposés) ; les indicateurs de 56 jours sont en fuseau station.
+3. Dates de départ codées en dur (`DEBUT_MOIS_PISTE`, `DEBUT_MOIS_FDJ`) : à rendre paramétrables par station.
+4. Pas d'objectif de station ; cible de marge vide en Production ; 25 % en dur à trois endroits.
+5. « Potentiel » : trois sens, aucun total légitime.
+6. Constantes provisoires de cette étape : `K_DEPASSEMENT`, `SEUIL_PART_POINTS`, `OCCURRENCES_MIN_JOUR`, `SEUIL_ECART_TYPES`, `SEUIL_RYTHME_RECURRENT`, `SEUIL_ECART_POINTS`, `TAILLE_MIN_GROUPE`.
+
+### 11.2 Vérifications de données proposées (lecture seule, filtrées par station, à lancer par le gérant via le Guardian)
+
+| # | Question | Requête | Attendu |
+|---|---|---|---|
+| V7 | Combien de jours complets par série sur 40 jours ? | `select count(distinct date) from audits_caisse where site = :site and date >= current_date - 40` ; idem sur `view_fdj_daily_summary` avec `nb_quarts_controles >= 2` | Trois comptes ; un écart entre eux confirme le constat 1. Ne communiquer que les nombres. |
+| V8 | La cible de marge est-elle vide pour cette station ? | `select count(*) from tarif_seuils where site = :site` | 0 : confirme que « contre objectif » n'a pas de base. |
+| V9 | Des campagnes ont-elles des objectifs produits ? | `select campagne_id, count(*) from campagne_objectifs_produits where site = :site group by 1` | Comptes seuls. |
+
 
 ## Vérifications de données (lecture seule, filtrées par station)
 
