@@ -58,6 +58,7 @@
     '--panel-hover': 'rgba(15,23,42,0.05)', '--ghost': 'rgba(15,23,42,0.035)',
     '--ghost-line': 'rgba(15,23,42,0.10)', '--ghost-faint': 'rgba(15,23,42,0.02)', '--veil': 'rgba(15,23,42,0.45)',
     '--shadow-rgb': '15,23,42', '--panel-rgb': '255,255,255',
+    '--nbe-attente': '#52677B', '--nbe-verifier': '#865000', '--nbe-conforme': '#146445', '--nbe-critique': '#A82A3F',
     '--sheet-end': 'rgba(255,255,255,0.98)', '--cyan-hover': '#095C6C',
     '--text-soft': '#334155', '--text-faint': '#56657A', '--text-link': '#475569',
     '--chip-vert': '#047857', '--sp95': '#047857', '--go': '#B45309', '--gnr': '#B91C1C', '--muted-ecran': '#56657A',
