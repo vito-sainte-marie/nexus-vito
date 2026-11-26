@@ -84,13 +84,15 @@ Aucune demandée. Les couleurs viennent des jetons, les états de `nexus-badge-e
 Règle générale : une carte = une question, 4 données au plus, un chiffre n'apparaît qu'une fois au niveau 1, chaque chiffre porte sa date ou sa période.
 
 ### 11.1 État global
+> Révisé après la contre-expertise du 26/11 (commentaire 7199572601) : l'Indice est scindé en performance globale et risques confirmés, sans nombre unique qui mélange les deux. Voir §17. Les règles ci-dessous restent des propositions, rien n'est validé.
+
 - Question : la station est-elle sous contrôle ?
 - Source : notes des secteurs mesurés.
 - Formule : moyenne arrondie des notes des secteurs mesurés. Une note de secteur = 50 + Performance + Maîtrise, bornée à [0, 100] (inchangé).
 - Période : jour de données le plus ancien des secteurs retenus, affiché.
 - Seuil : calculé seulement si au moins 4 secteurs sur 5 sont mesurés. Sinon « Indice non calculé : N secteurs mesurés sur 5 », secteurs manquants listés.
 - Bandeau recentré sur le neutre : un secteur stable vaut 50. Le rouge est réservé à un secteur au statut « À corriger ». Seuils exacts proposés : à valider (§13).
-- Règle générale : un secteur est mesuré dès qu'une de ses deux dimensions (Performance, Maîtrise) l'est. La dimension non mesurée est neutre (0), jamais pénalisante.
+- Règle actuelle du moteur : un secteur est mesuré dès qu'une de ses deux dimensions l'est, la dimension non mesurée compte pour 0. Cette règle est mise en question au §17.1 : une dimension inconnue n'est pas la preuve d'une situation neutre.
 - Libellés possibles de l'Indice : Sous contrôle, À confirmer, À corriger, plus « Indice non calculé ». Les libellés propres aux secteurs (« À relancer », etc.) ne servent pas à l'Indice.
 - Couleur et libellé, cas par cas (proposition, §13.2) : Indice à 60 ou plus et aucun secteur « À corriger » : vert, « Sous contrôle ». De 45 à 59, ou 60 et plus avec un secteur « À confirmer » : ambre, « À confirmer ». Sous 45 sans aucun secteur « À corriger » : ambre, « À confirmer », avec la mention « Indice bas, aucun secteur à corriger » ; il n'y a pas de rouge sans secteur à corriger. Au moins un secteur « À corriger » : rouge, « À corriger », avec le nom du secteur.
 - Poids : moyenne simple des secteurs mesurés (proposition) ou moyenne pondérée ; voir §13.
@@ -142,7 +144,7 @@ Chaque carte : nom et icône, note /100, statut métier (`statutMetier`), petite
 
 ### 11.8 Signaux de risque
 - Aujourd'hui, les trois premiers après tri par urgence puis niveau. Ils s'accumulent sans jamais se fermer.
-- Règle de fermeture proposée (décision du gérant) : un signal se ferme quand sa mesure revient sous son seuil deux jours consécutifs, ou après 30 jours sans nouvelle mesure, avec la mention « clos, plus de mesure ». Un signal clos reste lisible au niveau 3.
+- Règle de fermeture : l'ancienne proposition (fermeture après 30 jours sans mesure) est retirée. 30 jours sans mesure ne sont pas une résolution. Quatre états distincts, preuves et traces au §20.
 
 ### 11.9 Accès au rapport A4
 Un bouton. Le rapport garde sa feuille de style claire et ne dépend pas du thème.
@@ -158,7 +160,7 @@ Corrections décidées :
 6. Classement stable ; urgence tirée du fait ; pas de somme d'euros hétérogènes.
 7. Date réelle pour Commerce et Marge, rappel d'import après 15 jours.
 
-Proposition à arbitrer : échelle de Maîtrise Marge. Aujourd'hui elle compte les articles en écart (`contributionMaitriseEcarts` : 0 → +10, jusqu'à 2 → −5, jusqu'à 5 → −15, au-delà → −25), si bien que beaucoup de petits écarts plafonnent la pénalité. Mesure proposée : gain potentiel des écarts (en euros) rapporté au chiffre d'affaires de la période.
+Proposition à arbitrer, révisée au §19 (échelle relative à l'historique de la station) : échelle de Maîtrise Marge. Aujourd'hui elle compte les articles en écart (`contributionMaitriseEcarts` : 0 → +10, jusqu'à 2 → −5, jusqu'à 5 → −15, au-delà → −25), si bien que beaucoup de petits écarts plafonnent la pénalité. Mesure proposée : gain potentiel des écarts (en euros) rapporté au chiffre d'affaires de la période.
 
 | Gain potentiel / chiffre d'affaires | Contribution |
 |---|---|
@@ -175,14 +177,14 @@ Les bornes sont une proposition, à ajuster par le gérant avec les vrais ordres
 1. Échelle de Maîtrise Marge du §12 : bornes à valider.
 2. Seuils du bandeau recentré (proposition : vert à partir de 60, ambre de 45 à 59, rouge seulement pour « À corriger »).
 3. Courbe : petits graphiques séparés (recommandé) ou indice base 100 ?
-4. Règle de fermeture des signaux du §11.8.
+4. Règle de fermeture des signaux : voir §20 et le dossier d'arbitrage §21.
 5. Seuil de rappel d'import : 15 jours pour Commerce et Marge ?
 6. Objectifs (§16) : durées des horizons proposées (court = mois civil, moyen = trimestre civil, long = année civile) : à valider.
 7. Objectifs : qui saisit ? Proposition : le gérant, ou le gérant de station, depuis un écran « Objectifs de la station » ; le Brief reste en lecture.
 8. Objectifs : valeurs de départ proposées à partir de l'historique réel de la station (moyenne des mêmes périodes passées), toujours affichées comme proposition, jamais enregistrées sans validation. D'accord ?
 9. Objectifs : table nouvelle `station_objectifs` (§16.c) acceptée dans son principe, avant toute migration ?
 10. Objectifs : quelles grandeurs au démarrage ? Proposition : volumes carburant, ventes boutique, chiffre FDJ, taux de marge. Les trois premières n'ont aujourd'hui aucun objectif nulle part.
-11. Commerce : source de la Performance. Option 1 : les périodes importées (actuel), souvent vieilles de plusieurs semaines, mais cohérentes avec la marge. Option 2 : `audits_caisse` sur 7 jours, frais et quotidien, avec les périodes importées gardées pour la marge seulement. Limite à lever avant de choisir : `vente_boutique` inclut-elle les produits d'appel et le tabac ? Sinon la comparaison entre les deux sources serait fausse.
+11. Commerce : source de la Performance. Option 1 : les périodes importées (actuel), souvent vieilles de plusieurs semaines, mais cohérentes avec la marge. Option 2 : `audits_caisse` sur 7 jours, frais et quotidien, avec les périodes importées gardées pour la marge seulement. Limite levée par Guardian : voir §18, les deux options y sont décrites avec leur périmètre exact.
 12. Poids des secteurs dans l'Indice : moyenne simple (proposition) ou pondération par secteur ? Je ne tranche pas.
 
 ## 14. Épreuves prévues
@@ -290,3 +292,134 @@ Proposition : une table `station_objectifs`, append-only et versionnée, sur le 
 RLS par station : lecture pour les employés de la même station (`site_id = current_employee_site_id()`) ; insertion pour le gérant et le gérant de station de la même station (`current_employee_role()`) ; aucune modification ni suppression ; `anon` fermé, y compris `TRUNCATE`, sans `revoke from public` seul. Écriture par l'écran « Objectifs de la station » uniquement, jamais par le Brief.
 
 Aucune migration, aucune table créée, aucune lecture Production avant le GO du gérant.
+
+## 17. Indice Boussole : trois couvertures, performance et risques séparés
+
+Tout ce qui suit est une proposition. Aucun seuil n'est gelé, aucun nombre n'est validé (arbitrage §21). Les jeux de données sont fictifs.
+
+### 17.1 Trois couvertures, et la règle « non mesuré = 0 »
+
+Chaque dimension d'un secteur (Performance, Maîtrise) a l'une de trois couvertures :
+- complète : la grandeur est mesurée sur toute sa période attendue ;
+- partielle : mesurée sur une partie seulement (période trop courte, jours manquants, une partie des familles) ;
+- absente : aucune mesure.
+
+Aujourd'hui, le moteur traite « absente » comme 0 (`assemblerScoreSecteur` remplace `null` par 0). Cela fait ressembler un secteur sans information à un secteur stable. C'est la règle que Guardian met en cause. Deux options, au gérant de choisir :
+- Option A, garder la règle mais la rendre visible : chaque note affiche sa couverture (« Performance mesurée, Maîtrise absente »), et la règle est justifiée par écrit : ne pas pénaliser ce qu'on ne sait pas mesurer. Limite : la note reste un 50 flatteur quand tout est inconnu.
+- Option B, remplacer : une dimension absente ne compte pas en neutre ; la note est calculée sur les seules dimensions mesurées et porte la mention « couverture partielle ». Un secteur sans aucune dimension mesurée n'a pas de note. Limite : les notes de couvertures différentes ne se comparent plus strictement.
+
+Recommandation : B pour la note, avec la couverture toujours affichée à côté. Non validée.
+
+### 17.2 Performance globale et risques confirmés : deux lectures, pas un nombre
+
+Proposition : le bloc État global ne montre plus un seul nombre. Il montre deux lectures distinctes :
+1. Performance globale : moyenne des Performances des secteurs où elle est mesurée, avec le nombre de secteurs couverts (« 3 sur 5 »). Elle répond à « l'activité va-t-elle bien ? ».
+2. Risques confirmés : la liste des secteurs au statut « À corriger » (maîtrise confirmée mauvaise) et le nombre de signaux de risque actifs, sans note. Elle répond à « qu'est-ce qui est confirmé comme anormal ? ». Vide, elle dit « aucun risque confirmé » et non « tout va bien » si la couverture de Maîtrise est partielle : elle affiche alors « aucun risque confirmé, contrôles faits sur N secteurs ».
+
+Une bonne performance ne compense jamais un risque confirmé, et un risque ne se dilue pas dans une moyenne. La note par secteur (50 + Performance + Maîtrise) reste affichée sur sa carte, avec sa couverture.
+
+### 17.3 Simulations sur jeux fictifs
+
+Quatre situations, rejouées avec la règle actuelle et avec la proposition. Les chiffres sont inventés pour la démonstration. À refaire par le lot de calcul avant tout gel, sur les épreuves du §14.
+
+| Situation fictive | Règle actuelle (moyenne unique) | Proposition (performance globale, risques confirmés) |
+|---|---|---|
+| Station stable : 5 secteurs mesurés, performances proches de 0, maîtrise bonne | Indice voisin de 55 à 60, « Sous contrôle » ou « À confirmer » selon le seuil | Performance globale stable, 5 sur 5 ; aucun risque confirmé |
+| Baisse d'activité : performances négatives sur Carburant et Commerce, maîtrise bonne | Indice qui baisse, éventuellement ambre ; le secteur dit « À relancer » | Performance globale en baisse, nommée ; aucun risque confirmé (une baisse d'activité n'est pas un défaut de contrôle) |
+| Problème de contrôle confirmé : écart de caisse récurrent en Opérations, performances correctes ailleurs | Moyenne amortie par les autres secteurs, Indice presque inchangé ; un seul secteur rouge noyé | Performance globale correcte ; risque confirmé : Opérations « À corriger », en première ligne |
+| Couverture partielle : 2 secteurs sans aucune dimension mesurée | Indice « non calculé » (moins de 4 secteurs) ou calculé avec des 50 neutres | Performance globale sur 3 secteurs, mention « 3 sur 5 » ; risques confirmés sur les secteurs contrôlés seulement |
+
+À produire avant gel : ces quatre situations en tableau chiffré, par secteur et dimension, avec les deux calculs côte à côte. Le gérant tranche ensuite sur pièces.
+
+## 18. Table d'autorité des calculs
+
+Principe : le Brief consomme des résultats officiels, il ne crée jamais un second calcul concurrent. Une ligne par indicateur et par secteur. Les fonctions de référence sont celles lues dans le dépôt le 26/11 ; une cellule « à confirmer » veut dire que la lecture du code reste à faire avant le lot de calcul.
+
+| Indicateur ou secteur | Moteur propriétaire | Donnée et unité | Périmètre station | Période | Fraîcheur | Fonction de référence | Autres pages qui consomment le résultat |
+|---|---|---|---|---|---|---|---|
+| Volumes carburant | moteur carburant | litres par relevé | site de l'utilisateur | 7 jours contre 7 précédents (proposé) | jour de données | chargeur du Brief (`chargerCarburantsBriefAvecFallback`) puis `construireSecteurCarburants` | pages Carburant, Conseiller (à confirmer) |
+| Chiffre boutique | selon §18.1 | euros | site | selon §18.1 | selon §18.1 | `construireSecteurCommerce` (périodes importées) ; option 2 : `audits_caisse.vente_boutique` | Commerce, Marge (à confirmer) |
+| Marge (taux et écarts) | `nexus-marge.js` | taux en %, écarts en euros | site | période importée | date de l'import | `detecterEcartsMarge`, `construireSecteurMarge`, `construireSyntheseFreinMarge` | Marge+, Scanner tarifaire, Politique tarifaire |
+| Cible de marge | `tarif_seuils` | taux en % | site | versions | date de saisie | `v_tarif_seuils_actifs`, `nexus-politique-tarifaire.js` | Produits, Politique tarifaire |
+| FDJ | moteur FDJ | euros | site | fenêtre de 7 jours | jour de données | `construireSecteurFdj` | écran FDJ (à confirmer) |
+| Opérations | moteur Opérations du Brief | euros d'écarts, nombre d'alertes | site | jour du dernier contrôle | jour du contrôle | `calculerStatutOperations`, `construireSecteurOperations` | caisse, inventaire (à confirmer) |
+| Notes et statuts secteur | moteur Boussole | points sur 100, statut | site | celle du secteur | la plus ancienne des données | `assemblerScoreSecteur`, `statutMetier`, `scoreDimension` | Boussole (SVG : `genererBoussoleSVG`) |
+| Indice / performance globale | moteur Boussole | points sur 100 | site | la plus ancienne des périodes | idem | `construireVerdictDirection` (à confirmer pour la moyenne) | Boussole |
+| Signaux de risque | `nexus-risques-moteur.js` | selon le signal | site | continue | date de dernière mesure | `scoreRisques`, `statutRisques` | Conseiller, Brief |
+| Potentiel et priorités | Conseiller | euros, par nature | site | selon le candidat | date de mesure | `nexus-conseiller.js` | Conseiller |
+| Objectifs | `station_objectifs` (proposée), `tarif_seuils` | litres ou euros | site | mois, trimestre, année | date de validation | à créer au lot E | Brief seulement |
+
+### 18.1 Commerce : deux périmètres, deux options
+
+Constat de Guardian, vérifié en lecture seule et filtré par station : `audits_caisse.vente_boutique` (total boutique Decenium par quart) couvre le même périmètre que le chiffre d'affaires total des périodes importées, tabac et produits d'appel compris. Sur 4 périodes complètes, les deux totaux diffèrent de moins de 3 %. Aucun chiffre réel n'est repris ici.
+
+Le Brief actuel retire les produits d'appel des périodes importées (`estProduitAppel`) : son chiffre n'a donc pas le même périmètre que `vente_boutique`.
+
+- Option 1, périodes importées, produits d'appel exclus (actuel) : cohérent avec le calcul de la marge hors produits d'appel, mais décalé de plusieurs semaines et d'un périmètre inférieur à `vente_boutique`. Les deux chiffres ne se comparent pas.
+- Option 2, `audits_caisse.vente_boutique` pour la Performance Commerce : même périmètre que le total des périodes importées (à moins de 3 % près), frais et quotidien ; la marge reste calculée sur les périodes importées, avec son propre périmètre déclaré. Limite : deux périmètres coexistent dans le Brief, chacun étiqueté.
+
+Je ne tranche pas. L'autorité Commerce est une décision du gérant (§21).
+
+### 18.2 Endroits où le Brief recalcule aujourd'hui ce qui existe ailleurs
+
+À signaler et à supprimer ou à brancher sur le résultat officiel avant le lot A :
+1. Commerce : le Brief retire lui-même les produits d'appel des périodes importées (`estProduitAppel` via `nexus-brief-donnees.js`) alors que `vente_boutique` existe.
+2. Marge : `construireSecteurMarge` et `construireSyntheseFreinMarge` consomment `detecterEcartsMarge` ; le Scanner tarifaire calcule des écarts proches (§19.2). Risque de deux moteurs sur le même article.
+3. Opérations : `calculerStatutOperations` (moyenne d'écarts absolus) vit dans `nexus-brief-donnees.js` ; l'écart de caisse existe aussi côté caisse (à confirmer).
+4. Fuseau : le chargeur carburant du Brief prend l'UTC alors que les autres écrans prennent le fuseau de la station.
+5. Indice : l'Indice et son libellé sont recalculés par le Brief à partir des secteurs (`construireVerdictDirection`, seuils 60 / 45 proposés au §11.1) ; la Boussole en a sa propre lecture.
+6. Potentiel : le §16 additionne des gains lus dans Marge+ et dans le Conseiller ; une même perte peut y figurer deux fois (voir §19.2).
+
+## 19. Maîtrise Marge : échelle relative à l'historique de la station
+
+### 19.1 Pourquoi l'échelle du §12 est abandonnée en l'état
+
+Guardian a rejoué le rapport « marge récupérable / chiffre d'affaires de la période » sur les 7 périodes importées depuis janvier, en approchant les familles de Marge+. Avec l'échelle du §12, toutes les périodes tombent dans les deux paliers les plus sévères : la station serait rouge en permanence. Un indicateur toujours rouge ne dit plus rien. L'échelle du §12 est donc retirée du dossier comme proposition, conservée seulement pour mémoire.
+
+### 19.2 Pistes, sans seuil chiffré
+
+- Piste 1, relative : comparer le rapport de la période à la médiane historique de la station. Paliers selon l'évolution du rapport (en baisse, stable, en hausse nette), pas selon une valeur absolue. Avantage : s'adapte à la station. Limite : exige assez de périodes (minimum à fixer) et peut normaliser une mauvaise situation durable.
+- Piste 2, recalibrée : paliers absolus mais recalés sur la distribution réelle des périodes de la station. Avantage : lisible. Limite : à refaire quand l'historique change.
+- Dans les deux cas, pas assez de périodes : « Maîtrise Marge non mesurée, historique insuffisant ».
+
+Guardian remettra la distribution réelle au gérant hors du canal. Cette fiche n'en cite aucune valeur. Aucune borne n'est écrite avant l'arbitrage du gérant.
+
+### 19.3 Anomalies communes à Marge+ et au Scanner tarifaire
+
+Les deux moteurs détectent une marge récupérable. Un même article, sur une même période, peut donc être compté deux fois, une fois par moteur. Règle de déduplication proposée : clé (site, article, période) ; l'anomalie est comptée une seule fois, dans le moteur désigné comme autorité pour cette nature d'écart (écart contre médiane du groupe : Marge+ ; écart contre seuil de politique : Scanner tarifaire) ; si les deux la voient, on garde le gain le plus prudent (le plus faible) et on mentionne les deux sources. À confirmer par la lecture des deux moteurs au lot de calcul ; je n'ai pas encore vérifié le recouvrement réel.
+
+Aucun seuil ne change sans l'arbitrage du gérant.
+
+## 20. Signaux de risque : quatre états
+
+30 jours sans mesure ne sont pas une résolution. États :
+- actif : la mesure dépasse le seuil ;
+- à vérifier : la mesure est revenue sous le seuil mais n'est pas encore confirmée, ou une action corrective est déclarée sans preuve ;
+- résolu : la mesure est revenue sous le seuil de façon confirmée ;
+- sans mesure récente : plus de mesure depuis un délai à fixer. Le signal n'est ni actif ni résolu ; il reste visible, grisé.
+
+| Transition | Preuve exigée | Qui la déclenche | Trace conservée |
+|---|---|---|---|
+| actif vers à vérifier | une mesure sous le seuil, ou l'action corrective déclarée | le moteur (mesure) ou l'utilisateur de la station (déclaration) | date, valeur, auteur ou moteur |
+| à vérifier vers résolu | deux mesures consécutives sous le seuil, de dates distinctes (proposition) | le moteur seul ; un humain peut seulement confirmer par commentaire | les deux mesures datées, valeurs, seuil en vigueur |
+| actif ou à vérifier vers sans mesure récente | aucune mesure depuis le délai | le moteur | date de la dernière mesure |
+| sans mesure récente vers actif ou à vérifier | une nouvelle mesure | le moteur | la mesure |
+| résolu vers actif | une mesure au-dessus du seuil | le moteur | la mesure, rattachée au même signal |
+
+Rien ne passe à « résolu » sur la seule absence de mesure ni sur la déclaration d'un humain. Les traces sont ajoutées, jamais modifiées. Le délai de « sans mesure récente » et le nombre de mesures de confirmation sont des propositions à arbitrer. Un signal résolu ou sans mesure récente reste lisible au niveau 3.
+
+## 21. Dossier d'arbitrage
+
+Un sujet par bloc. Rien n'est écrit comme validé. Le gérant choisit.
+
+| Sujet | Options | Conséquences |
+|---|---|---|
+| Échelle de Maîtrise Marge | (a) relative à l'historique (piste 1) ; (b) recalibrée sur la distribution réelle (piste 2) ; (c) ne pas mesurer la Maîtrise Marge tant que l'historique est insuffisant | (a) s'adapte mais peut normaliser une dérive ; (b) lisible, à refaire régulièrement ; (c) Marge non mesurée, donc Indice sur 4 secteurs au plus |
+| Indice et seuils | (a) deux lectures séparées (§17.2), sans seuil global ; (b) un Indice unique gardé, seuils recalibrés après simulations ; (c) statu quo | (a) pas de nombre global, plus de lecture à faire ; (b) un chiffre simple mais qui mélange ; (c) conserve l'amortissement des risques |
+| Règle « non mesuré = 0 » | A (visible et justifiée) ; B (note sur les dimensions mesurées) | A garde les notes comparables mais flatteuses ; B plus fidèle mais notes moins comparables |
+| Autorité Commerce | option 1 ; option 2 (§18.1) | 1 : cohérent avec la marge, vieux, périmètre réduit ; 2 : frais, périmètre complet, deux périmètres à étiqueter |
+| Pondération des secteurs | moyenne simple ; poids par secteur | simple : lisible ; pondérée : reflète l'enjeu mais exige des poids justifiés. Sans objet si l'Indice unique disparaît |
+| Schéma des objectifs | `station_objectifs` (§16.c) ; extension de `tarif_seuils` ; autre | table nouvelle : un modèle propre, une migration ; extension : moins de tables, mélange de natures |
+| Fermeture des risques | règle du §20 ; règle plus simple ; règle plus stricte | selon le nombre de mesures de confirmation et le délai « sans mesure récente » |
+
+Aucun code, aucune migration, rien en Production avant le GO du gérant.

@@ -1,9 +1,9 @@
 <!doctype html>
 <html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Maquette Brief v4</title>
+<title>Maquette Brief v4 (révision contre-audit)</title>
 <style>
-:root{--bg:#f4f1ea;--panel:#fff;--line:#d9d3c5;--text:#1f1d19;--mid:#5f5a4d;--accent:#0b6e4f;--warn:#8f5200;--bad:#a3261f;--ok:#0b6e4f;--grey:#8a8578}
-:root[data-theme=nuit]{--bg:#0b0f14;--panel:#151b23;--line:#2b3440;--text:#ecebe6;--mid:#a3a79f;--accent:#4fc79a;--warn:#e0a24a;--bad:#f07a72;--ok:#4fc79a;--grey:#7d838c}
+:root{--bg:#f4f1ea;--panel:#fff;--line:#d9d3c5;--text:#1f1d19;--mid:#5f5a4d;--accent:#0b6e4f;--warn:#8f5200;--bad:#a3261f;--ok:#0b6e4f;--grey:#8a8578;--prev:#b9b3a3}
+:root[data-theme=nuit]{--bg:#0b0f14;--panel:#151b23;--line:#2b3440;--text:#ecebe6;--mid:#a3a79f;--accent:#4fc79a;--warn:#e0a24a;--bad:#f07a72;--ok:#4fc79a;--grey:#7d838c;--prev:#4a5360}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--text);font:14px/1.4 "IBM Plex Sans",system-ui,sans-serif;padding:16px}
 h1{font-size:18px;margin:0 0 4px}h2{font-size:15px;margin:24px 0 8px}p.n{color:var(--mid);margin:0 0 8px}
@@ -12,77 +12,112 @@ h1{font-size:18px;margin:0 0 4px}h2{font-size:15px;margin:24px 0 8px}p.n{color:v
 .m375{width:375px;height:812px}.m1280{width:1280px;max-width:100%}
 .mono{font-family:"IBM Plex Mono",ui-monospace,monospace}
 .entete{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:baseline;margin-bottom:12px}
-.entete b{font-size:18px}.fiab{color:var(--mid);font-size:13px}
+.entete b{font-size:18px}.fiab{color:var(--mid);font-size:12px}
 .carte{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px}
-.carte h3{margin:0 0 6px;font-size:13px;color:var(--mid);font-weight:500}
+.carte h3{margin:0 0 6px;font-size:13px;color:var(--mid);font-weight:500;display:flex;align-items:center;gap:6px}
+.ic{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .gros{font-size:28px;font-weight:600}.date{font-size:12px;color:var(--mid)}
-.haut{display:grid;gap:12px;grid-template-columns:1fr}.m1280 .haut{grid-template-columns:320px 1fr}
-.trois{display:grid;gap:12px;grid-template-columns:1fr}.m1280 .trois{grid-template-columns:repeat(3,1fr)}
-.grille{display:grid;gap:12px;grid-template-columns:1fr;margin:12px 0}.m1280 .grille{grid-template-columns:repeat(4,1fr)}
-.sect .note{font-size:24px;font-weight:600}.pastille{display:inline-block;font-size:12px;border:1px solid currentColor;border-radius:8px;padding:1px 8px}
+.lectures{display:grid;gap:12px;grid-template-columns:1fr;margin-bottom:12px}.m1280 .lectures{grid-template-columns:1fr 1fr 2fr}
+.jauge{display:flex;align-items:center;gap:12px}
+.jauge svg{width:84px;height:84px;flex:none}
+.jauge circle{fill:none;stroke-width:9}.jauge .fond{stroke:var(--line)}.jauge .val{stroke:var(--warn);stroke-linecap:round;transform:rotate(-90deg);transform-origin:50% 50%}
+.jauge text{fill:var(--text);font:600 20px "IBM Plex Mono",monospace;text-anchor:middle;dominant-baseline:central}
+.pastille{display:inline-block;font-size:12px;border:1px solid currentColor;border-radius:8px;padding:1px 8px}
 .ok{color:var(--ok)}.av{color:var(--warn)}.mal{color:var(--bad)}
-.gris{border-style:dashed}.gris .note{color:var(--grey)}
-.btn{min-height:44px;padding:0 14px;border-radius:8px;border:1px solid var(--line);background:none;color:var(--accent);font:inherit;margin-top:8px}
-.prio{display:grid;grid-template-columns:1fr auto;gap:2px 8px;padding:10px 0;border-bottom:1px solid var(--line)}
-.prio:last-child{border:0}.prio .p{color:var(--mid);font-size:13px}
-svg.c{width:100%;height:70px;display:block}svg.c path{fill:none;stroke:var(--accent);stroke-width:2}
-.tend{width:80px;height:24px}
-.legende{font-size:12px;color:var(--mid)}
-.obj{grid-column:1/-1;font-size:12px;color:var(--accent)}
-.objg{display:grid;gap:12px;grid-template-columns:1fr;margin-top:12px}.m1280 .objg{grid-template-columns:repeat(3,1fr)}
+.couv{display:flex;gap:3px;margin:6px 0 2px}.couv i{width:14px;height:6px;border-radius:2px;background:var(--ok)}.couv i.p{background:var(--warn)}.couv i.a{background:none;border:1px dashed var(--grey)}
+.fen{display:grid;gap:12px;grid-template-columns:1fr}.m1280 .fen{grid-template-columns:1fr 1fr}
+.fen .ligne{display:grid;grid-template-columns:72px 1fr auto;gap:8px;align-items:center;margin-top:6px}
+.fen .ligne i{display:block;height:12px;border-radius:3px;background:var(--accent)}.fen .ligne i.pr{background:var(--prev)}
+.fen .ligne span.d{font-size:11px;color:var(--mid)}
+.delta{font-size:13px}
+.grille{display:grid;gap:12px;grid-template-columns:1fr;margin:12px 0}.m1280 .grille{grid-template-columns:repeat(5,1fr)}
+.sect{display:flex;flex-direction:column;gap:6px}
+.sect .tete{display:flex;justify-content:space-between;align-items:center}
+.sect .note{font-size:24px;font-weight:600}
+.sect svg.tend{width:100%;height:28px}.sect svg.tend path{fill:none;stroke:currentColor;stroke-width:2}
 .barre{height:8px;border-radius:4px;background:var(--line);overflow:hidden;margin:6px 0}.barre i{display:block;height:100%;background:var(--accent)}
+.barre.ref{position:relative;overflow:visible}.barre .cible{position:absolute;top:-3px;width:2px;height:14px;background:var(--text)}
+.btn{min-height:44px;padding:0 14px;border-radius:8px;border:1px solid var(--line);background:none;color:var(--accent);font:inherit;margin-top:auto}
+.obj3{display:grid;gap:12px;grid-template-columns:1fr}.m1280 .obj3{grid-template-columns:repeat(3,1fr) 1.3fr}
+.obj3 .o{border:1px solid var(--line);border-radius:10px;padding:10px}
+.o .t{font-size:12px;color:var(--mid)}.o.vide{border-style:dashed}.o.vide .gros{color:var(--grey);font-size:16px}
 .prop{font-size:12px;color:var(--warn)}
-.axe{display:flex;justify-content:space-between;font-size:11px;color:var(--mid);margin-bottom:8px}
-.m1280 .grafs{display:block}
+.pot .l{display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:6px 0;border-bottom:1px solid var(--line)}
+.pot .l:last-of-type{border:0}.pot .m{font:600 20px "IBM Plex Mono",monospace}
+.prio{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}.prio:last-child{border:0}
+.prio .ic{width:22px;height:22px}
+svg.c{width:100%;height:60px;display:block}svg.c path{fill:none;stroke:var(--accent);stroke-width:2}
+.axe{display:flex;justify-content:space-between;font-size:11px;color:var(--mid);margin-bottom:6px}
+.legende{font-size:12px;color:var(--mid)}
+.deux{display:grid;gap:12px;grid-template-columns:1fr;margin-top:12px}.m1280 .deux{grid-template-columns:1fr 1fr}
+.trois{display:grid;gap:12px;grid-template-columns:1fr}.m1280 .trois{grid-template-columns:repeat(3,1fr)}
 </style></head><body>
-<h1>Brief v4 (maquette, données fictives)</h1>
-<p class="n">Aucune donnée réelle. Le bouton Jour / Nuit change les jetons. Le secteur Équipe n'existe plus ; Marge est un indicateur daté (taux réel contre cible), absent du graphique. Sans objectif saisi, le taux est mesuré, la Performance est neutre et le secteur Marge est mesuré par sa Maîtrise : 5 secteurs sur 5.</p>
+<h1>Brief v4, révision contre-audit (maquette, données fictives)</h1>
+<p class="n">Aucune donnée réelle. Jour / Nuit change les jetons. Les 5 secteurs tiennent sur une seule ligne au bureau. Premier niveau : jauges, barres, icônes ; le texte détaillé passe derrière « Détails ». L'État global est remplacé par deux lectures : performance globale (avec sa couverture) et risques confirmés. Les seuils et échelles ne sont pas arbitrés : les valeurs affichées sont fictives.</p>
 <div class="bar"><button onclick="document.documentElement.dataset.theme='jour'">Jour</button><button onclick="document.documentElement.dataset.theme='nuit'">Nuit</button></div>
 
-<!--GABARIT-->
 <h2>1280</h2>
 <div class="cadre m1280" id="d"></div>
 <h2>375</h2>
 <div class="cadre m375" id="m"></div>
 
 <template id="t">
- <div class="entete"><b>Brief du jour · 26/11</b><span class="fiab mono">5 secteurs mesurés sur 5 · Carburant 26/11 · Commerce 14/11 · FDJ 25/11 · Opérations 25/11 · Marge 14/11</span></div>
- <div class="haut">
-  <div class="carte"><h3>État global</h3><div class="gros mono">56 / 100</div><span class="pastille av">À confirmer</span><div class="date">5 secteurs sur 5 · le plus ancien : 14/11</div></div>
-  <div class="trois">
-   <div class="carte"><h3>Volumes carburant · 7 jours</h3><div class="gros mono">86 800 L</div><div class="date">−3,2 % contre les 7 jours précédents · 19/11 au 26/11 contre 12/11 au 18/11</div></div>
-   <div class="carte"><h3>Chiffre boutique · 7 jours</h3><div class="gros mono">22 050 €</div><div class="date">+1,8 % contre les 7 jours précédents · 19/11 au 25/11 contre 12/11 au 18/11</div></div>
-   <div class="carte"><h3>Marge réelle</h3><div class="gros mono">24,1 %</div><div class="date">période importée du 01/11 au 14/11</div><div class="prop">objectif à définir dans Produits</div><button class="btn">Définir l'objectif</button></div>
-  </div>
+ <div class="entete"><b>Brief du jour · 26/11</b><span class="fiab mono">Données les plus anciennes : 14/11</span></div>
+
+ <div class="lectures">
+  <div class="carte"><h3><svg class="ic" viewBox="0 0 24 24"><path d="M4 18a8 8 0 1 1 16 0"/><path d="M12 18l4-6"/></svg>Performance globale</h3>
+   <div class="jauge"><svg viewBox="0 0 84 84"><circle class="fond" cx="42" cy="42" r="34"/><circle class="val" cx="42" cy="42" r="34" stroke-dasharray="214" stroke-dashoffset="94"/><text x="42" y="42">56</text></svg>
+   <div><span class="pastille av">À confirmer</span><div class="couv" title="couverture"><i></i><i></i><i class="p"></i><i></i><i class="p"></i></div><div class="date">3 complets, 2 partiels, 0 absent</div></div></div></div>
+  <div class="carte"><h3><svg class="ic" viewBox="0 0 24 24"><path d="M12 3l9 16H3z"/><path d="M12 10v4M12 17h.01"/></svg>Risques confirmés</h3>
+   <div class="gros mono">1</div><span class="pastille mal">À corriger</span><div class="date">1 à vérifier · 0 sans mesure récente</div></div>
+  <div class="carte"><h3><svg class="ic" viewBox="0 0 24 24"><path d="M3 20V8M9 20V4M15 20v-8M21 20V10"/></svg>Les 7 derniers jours, contre les 7 précédents</h3>
+   <div class="fen">
+    <div><b>Carburant</b> <span class="mono gros" style="font-size:20px">86 800 L</span> <span class="delta mal mono">−3,2 %</span>
+     <div class="ligne"><span class="d">19/11–26/11</span><i style="width:94%"></i><span class="d mono">86 800</span></div>
+     <div class="ligne"><span class="d">12/11–18/11</span><i class="pr" style="width:97%"></i><span class="d mono">89 700</span></div></div>
+    <div><b>Boutique</b> <span class="mono gros" style="font-size:20px">22 050 €</span> <span class="delta ok mono">+1,8 %</span>
+     <div class="ligne"><span class="d">19/11–25/11</span><i style="width:90%"></i><span class="d mono">22 050</span></div>
+     <div class="ligne"><span class="d">12/11–18/11</span><i class="pr" style="width:88%"></i><span class="d mono">21 660</span></div></div>
+   </div></div>
  </div>
+
  <div class="grille">
-  <div class="carte sect"><h3>Carburant</h3><div class="note mono">62</div><span class="pastille ok">Sous contrôle</span><svg class="tend" viewBox="0 0 80 24"><path d="M0 18 L20 14 L40 16 L60 9 L80 8" fill="none" stroke="currentColor" stroke-width="2"/></svg><div class="date">jour 26/11</div><button class="btn">Détails</button></div>
-  <div class="carte sect"><h3>Commerce</h3><div class="note mono">48</div><span class="pastille av">À relancer</span><svg class="tend" viewBox="0 0 80 24"><path d="M0 8 L20 10 L40 12 L60 16 L80 18" fill="none" stroke="currentColor" stroke-width="2"/></svg><div class="date">données du 14/11 · import à refaire</div><button class="btn">Détails</button></div>
-  <div class="carte sect"><h3>FDJ</h3><div class="note mono">55</div><span class="pastille av">À confirmer</span><svg class="tend" viewBox="0 0 80 24"><path d="M0 14 L20 12 L40 14 L60 13 L80 12" fill="none" stroke="currentColor" stroke-width="2"/></svg><div class="date">7 jours jusqu'au 25/11</div><button class="btn">Détails</button></div>
-  <div class="carte sect"><h3>Opérations</h3><div class="note mono">60</div><span class="pastille ok">Sous contrôle</span><div class="date">écarts de caisse : somme des valeurs absolues par quart, 25/11</div><button class="btn">Détails</button></div>
-  <div class="carte sect"><h3>Marge</h3><div class="note mono">52</div><span class="pastille av">À confirmer</span><div class="date">Maîtrise mesurée (écarts en euros) · Performance neutre, aucune cible</div><button class="btn">Détails</button></div>
+  <div class="carte sect"><div class="tete"><h3><svg class="ic" viewBox="0 0 24 24"><path d="M6 3h8v18H6z"/><path d="M14 8h3l2 3v8"/></svg>Carburant</h3><span class="pastille ok">Complet</span></div>
+   <div class="note mono ok">62</div><svg class="tend ok" viewBox="0 0 80 24" preserveAspectRatio="none"><path d="M0 18 L20 14 L40 16 L60 9 L80 8"/></svg><div class="date">jour 26/11</div><button class="btn">Détails</button></div>
+  <div class="carte sect"><div class="tete"><h3><svg class="ic" viewBox="0 0 24 24"><path d="M4 8h16l-1 12H5z"/><path d="M9 8a3 3 0 0 1 6 0"/></svg>Commerce</h3><span class="pastille av">Partiel</span></div>
+   <div class="note mono av">48</div><svg class="tend av" viewBox="0 0 80 24" preserveAspectRatio="none"><path d="M0 8 L20 10 L40 12 L60 16 L80 18"/></svg><div class="date">données du 14/11 · import à refaire</div><button class="btn">Détails</button></div>
+  <div class="carte sect"><div class="tete"><h3><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg>FDJ</h3><span class="pastille ok">Complet</span></div>
+   <div class="note mono av">55</div><svg class="tend av" viewBox="0 0 80 24" preserveAspectRatio="none"><path d="M0 14 L20 12 L40 14 L60 13 L80 12"/></svg><div class="date">7 jours jusqu'au 25/11</div><button class="btn">Détails</button></div>
+  <div class="carte sect"><div class="tete"><h3><svg class="ic" viewBox="0 0 24 24"><path d="M3 10h18M5 10V6h14v4M6 10v9h12v-9"/></svg>Opérations</h3><span class="pastille ok">Complet</span></div>
+   <div class="note mono ok">60</div><div class="legende mono">écarts de caisse 25/11</div><div class="date">&nbsp;</div><button class="btn">Détails</button></div>
+  <div class="carte sect"><div class="tete"><h3><svg class="ic" viewBox="0 0 24 24"><path d="M4 18L10 11l4 4 6-8"/><path d="M15 7h5v5"/></svg>Marge</h3><span class="pastille av">Partiel</span></div>
+   <div class="note mono av">52</div><div class="legende">Maîtrise mesurée · Performance neutre, aucune cible</div><div class="date">24,1 % réel · import 14/11</div><button class="btn">Détails</button></div>
  </div>
- <div class="carte"><h3>Mes priorités du jour</h3>
-  <div class="prio"><b>Vérifier le stock de la cuve 2</b><span class="pastille av">Aujourd'hui</span><span class="p">2 jours de stock restant</span><span class="obj">sert l'objectif : volumes du mois</span></div>
-  <div class="prio"><b>Relancer l'import des ventes</b><span class="pastille av">Cette semaine</span><span class="p">dernier import il y a 12 jours</span><span class="obj">sert l'objectif : marge du trimestre</span></div>
-  <div class="prio"><b>Contrôler l'écart de caisse du quart de nuit</b><span class="pastille mal">À corriger</span><span class="p mono">écart 18 €</span><span class="obj">sans objectif lié</span></div>
- </div>
- <div class="carte" style="margin-top:12px"><h3>Objectifs et potentiel · où je vais, ce qui me sépare de l'objectif</h3>
-  <div class="objg">
-   <div><b>Court terme · mois</b><div>Volumes carburant</div><div class="mono">358 000 L / 400 000 L</div><div class="barre"><i style="width:89%"></i></div><div class="date">écart 42 000 L (10,5 %) · en baisse · pas atteint à ce rythme · au 26/11</div></div>
-   <div><b>Moyen terme · trimestre</b><div>Ventes boutique</div><div class="mono">8 900 € / 12 000 €</div><div class="barre"><i style="width:74%"></i></div><div class="date">écart 3 100 € · stable · trop tôt pour dire · au 25/11</div></div>
-   <div><b>Long terme · année</b><div>Chiffre FDJ</div><div class="mono gris" style="color:var(--grey)">objectif non défini</div><div class="prop">Proposition de NEXUS : 36 000 € (moyenne des mois passés), à valider</div><button class="btn">Définir l'objectif</button></div>
+
+ <div class="carte"><h3><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>Objectifs et potentiel</h3>
+  <div class="obj3">
+   <div class="o"><div class="t">Mois · Volumes carburant</div><div class="mono gros" style="font-size:20px">89 %</div><div class="barre ref"><i style="width:89%"></i><span class="cible" style="left:93%"></span></div><div class="date mono">358 000 / 400 000 L · écart 42 000 L</div><div class="date">en baisse · pas atteint à ce rythme · 26/11</div></div>
+   <div class="o"><div class="t">Trimestre · Ventes boutique</div><div class="mono gros" style="font-size:20px">74 %</div><div class="barre ref"><i style="width:74%"></i><span class="cible" style="left:78%"></span></div><div class="date mono">8 900 / 12 000 € · écart 3 100 €</div><div class="date">stable · trop tôt pour dire · 25/11</div></div>
+   <div class="o vide"><div class="t">Année · Chiffre FDJ</div><div class="gros">objectif non défini</div><div class="prop">Proposition à valider : 36 000 € (moyenne des mois passés)</div><button class="btn">Définir l'objectif</button></div>
+   <div class="o pot"><div class="t">Potentiel mesuré, deux natures, jamais additionnées</div>
+    <div class="l"><span>Marge à récupérer<div class="date">14/11</div></span><span class="m ok">640 €</span></div>
+    <div class="l"><span>Pertes évitables<div class="date">25/11</div></span><span class="m av">210 €</span></div></div>
   </div>
-  <h3 style="margin-top:12px">Potentiel déjà mesuré : gains et pertes évitables, par nature</h3>
-  <div class="prio"><b>Marge à récupérer</b><span class="mono">640 €</span><span class="p">Marge+ et Scanner tarifaire · mesuré le 14/11</span></div>
-  <div class="prio"><b>Pertes évitables</b><span class="mono">210 €</span><span class="p">écarts de caisse · mesuré le 25/11</span></div>
-  <div class="legende">Deux natures, deux chiffres : jamais additionnés. Le carburant à commander est un besoin, il reste dans les priorités.</div>
+  <div class="date" style="margin-top:8px">Marge : objectif à définir dans Produits. Le trait noir marque l'allure attendue à cette date.</div>
  </div>
- <div class="carte" style="margin-top:12px"><h3>Évolution sur 40 jours</h3>
-  <div class="legende">Volumes carburant (L) · échelle 9 000 à 14 000 L</div><svg class="c" viewBox="0 0 400 70"><path d="M0 50 L60 40 L120 45 L180 30 L240 35 L300 22 L400 26"/></svg><div class="axe"><span>17/10</span><span>06/11</span><span>26/11</span></div>
-  <div class="legende">Ventes boutique (€) · échelle 2 400 à 3 800 €</div><svg class="c" viewBox="0 0 400 70"><path d="M0 30 L60 34 L120 28 L180 40 L240 38 L300 44 L400 36"/></svg><div class="axe"><span>17/10</span><span>06/11</span><span>26/11</span></div>
-  <div class="legende">Chiffre FDJ (€) · échelle 900 à 1 400 €</div><svg class="c" viewBox="0 0 400 70"><path d="M0 40 L60 38 L120 42 L180 36 L240 40 L300 38 L400 41"/></svg><div class="axe"><span>17/10</span><span>06/11</span><span>26/11</span></div>
-  <button class="btn">Afficher les valeurs</button>
+
+ <div class="deux">
+  <div class="carte"><h3><svg class="ic" viewBox="0 0 24 24"><path d="M9 11l3 3 8-8"/><path d="M20 12v7H4V5h10"/></svg>Mes priorités du jour</h3>
+   <div class="prio"><svg class="ic av" viewBox="0 0 24 24"><path d="M6 3h8v18H6z"/></svg><div><b>Stock de la cuve 2</b><div class="date">2 jours restants · sert : volumes du mois</div></div><span class="pastille av">Aujourd'hui</span></div>
+   <div class="prio"><svg class="ic av" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg><div><b>Relancer l'import des ventes</b><div class="date">il y a 12 jours · sert : marge du trimestre</div></div><span class="pastille av">Cette semaine</span></div>
+   <div class="prio"><svg class="ic mal" viewBox="0 0 24 24"><path d="M12 3l9 16H3z"/></svg><div><b>Écart de caisse, quart de nuit</b><div class="date mono">18 € · sans objectif lié</div></div><span class="pastille mal">À corriger</span></div>
+  </div>
+  <div class="carte"><h3><svg class="ic" viewBox="0 0 24 24"><path d="M3 17l5-6 4 4 8-9"/></svg>40 jours</h3>
+   <div class="legende">Volumes carburant · 9 000 à 14 000 L</div><svg class="c" viewBox="0 0 400 70" preserveAspectRatio="none"><path d="M0 50 L60 40 L120 45 L180 30 L240 35 L300 22 L400 26"/></svg>
+   <div class="legende">Ventes boutique · 2 400 à 3 800 €</div><svg class="c" viewBox="0 0 400 70" preserveAspectRatio="none"><path d="M0 30 L60 34 L120 28 L180 40 L240 38 L300 44 L400 36"/></svg>
+   <div class="legende">Chiffre FDJ · 900 à 1 400 €</div><svg class="c" viewBox="0 0 400 70" preserveAspectRatio="none"><path d="M0 40 L60 38 L120 42 L180 36 L240 40 L300 38 L400 41"/></svg>
+   <div class="axe"><span>17/10</span><span>06/11</span><span>26/11</span></div>
+   <button class="btn">Afficher les valeurs</button></div>
  </div>
  <div style="margin-top:12px"><button class="btn">Ouvrir le rapport A4</button></div>
 </template>
