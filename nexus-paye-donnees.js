@@ -182,7 +182,10 @@
   // `finIndeterminee` couvre le retour dont la date n'est pas connue :
   // date_fin reste alors un horizon provisoire, et NEXUS maintient
   // l'indisponibilité sans réafficher le salarié chaque mois.
+  const MSG_JUSTIFIEE = 'Précisez si l’absence est justifiée ou injustifiée : NEXUS ne le décide pas à votre place.';
+
   async function qualifierIndisponibilite(client, { id, motif, dateFin, finIndeterminee, commentaire, actorId, justifiee }) {
+    if (motif === 'autre' && typeof justifiee !== 'boolean') throw new Error(MSG_JUSTIFIEE);
     const patch = {
       motif: motif || null,
       confirme_le: motif ? new Date().toISOString() : null,
@@ -202,12 +205,28 @@
   // regroupement et de la mémoire. Désormais, une absence constatée après
   // coup suit exactement le même chemin — déclarée une fois, plus jamais
   // redemandée.
+  // Item 2 (recette 25/11) : deux absences qui se recouvrent comptent le même
+  // jour deux fois. On refuse la seconde et on dit laquelle gêne : le manager
+  // corrige la première (fin, reprise) plutôt que de cumuler.
+  async function trouverChevauchement(client, { siteId, employeeId, dateDebut, dateFin }) {
+    const q = client.from('employee_indisponibilites');
+    if (!q || typeof q.select !== 'function') return null;
+    const { data, error } = await q.select('id,date_debut,date_fin,motif,date_reprise')
+      .eq('site_id', siteId).eq('employee_id', employeeId)
+      .lte('date_debut', dateFin || dateDebut).gte('date_fin', dateDebut);
+    if (error || !Array.isArray(data)) return null;
+    return data.find(r => !r.date_reprise) || null;
+  }
+
   async function declarerIndisponibilite(client, { siteId, employeeId, dateDebut, dateFin, motif, finIndeterminee, commentaire, actorId, justifiee }) {
     if (!employeeId || !dateDebut) throw new Error('Employé et date de début requis.');
     if (!motif) throw new Error('Un motif est requis : NEXUS ne qualifie jamais une absence à votre place.');
     const motifsConnus = (global.NexusPayeMoteur && global.NexusPayeMoteur.MOTIFS_INDISPO) || null;
     if (motifsConnus && !motifsConnus[motif]) throw new Error(`Motif inconnu : « ${motif} ».`);
     if (dateFin && dateFin < dateDebut) throw new Error('La date de fin précède la date de début.');
+    if (motif === 'autre' && typeof justifiee !== 'boolean') throw new Error(MSG_JUSTIFIEE);
+    const gene = await trouverChevauchement(client, { siteId, employeeId, dateDebut, dateFin: dateFin || dateDebut });
+    if (gene) throw new Error(`Cette période recoupe une absence déjà déclarée (du ${gene.date_debut} au ${gene.date_fin}). Modifiez ou clôturez celle-ci plutôt que d’en ajouter une seconde : un même jour ne doit compter qu’une fois.`);
     const ligne = {
       site_id: siteId, employee_id: employeeId,
       date_debut: dateDebut, date_fin: dateFin || dateDebut,
@@ -239,7 +258,7 @@
   // dans confirme_le / confirme_par (aucune colonne dédiée n'existe).
   async function preciserJustification(client, { id, justifiee, actorId }) {
     if (!id) throw new Error('Absence à préciser introuvable.');
-    if (typeof justifiee !== 'boolean') throw new Error('Précisez si l’absence est justifiée ou injustifiée : NEXUS ne le décide pas à votre place.');
+    if (typeof justifiee !== 'boolean') throw new Error(MSG_JUSTIFIEE);
     const { error } = await client.from('employee_indisponibilites')
       .update({ justifiee, confirme_le: new Date().toISOString(), confirme_par: actorId || null })
       .eq('id', id);
@@ -254,7 +273,7 @@
   // `autre` (contrainte employee_indisponibilites_motif_check : aucune
   // migration), libellé « Absence » partout.
   async function declarerAbsenceDepuisVariable(client, { siteId, employeeId, dateDebut, dateFin, motifTexte, actorId, justifiee }) {
-    if (typeof justifiee !== 'boolean') throw new Error('Précisez si l’absence est justifiée ou injustifiée : NEXUS ne le décide pas à votre place.');
+    if (typeof justifiee !== 'boolean') throw new Error(MSG_JUSTIFIEE);
     const texte = String(motifTexte || '').trim();
     if (!texte) throw new Error('Un motif est obligatoire pour une absence : NEXUS ne qualifie jamais une absence à votre place.');
     return declarerIndisponibilite(client, { siteId, employeeId, dateDebut, dateFin: dateFin || dateDebut, motif: 'autre', finIndeterminee: false, commentaire: texte, actorId, justifiee });

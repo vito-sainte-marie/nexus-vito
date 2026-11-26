@@ -104,6 +104,18 @@
     return lignes;
   }
 
+  // Jour civil (AAAA-MM-JJ) d'un instant, au fuseau du site. Jamais en UTC : à 21 h
+  // en Martinique, il est déjà le lendemain en UTC (recette du 25/11, « Généré le 26 »).
+  function jourLocal(instantISO, fuseau) {
+    const t = new Date(instantISO);
+    if (isNaN(t.getTime())) return String(instantISO || '').slice(0, 10);
+    try {
+      return new Intl.DateTimeFormat('en-CA', { timeZone: fuseau || 'America/Martinique', year: 'numeric', month: '2-digit', day: '2-digit' }).format(t);
+    } catch (e) {
+      return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Martinique', year: 'numeric', month: '2-digit', day: '2-digit' }).format(t);
+    }
+  }
+
   // Provisoire = généré avant le dernier jour du mois, au fuseau du site.
   function estProvisoire(genereLeISO, periodeISO, fuseau) {
     const t = new Date(genereLeISO);
@@ -162,7 +174,7 @@
     const L = [];
     const add = (k, o) => L.push(Object.assign({ k }, o));
     if (s.statut === 'donnee_manquante') add('alerte', { t: 'Donnée manquante : fiche incomplète', couleur: 'rouge' });
-    else if (s.statut === 'a_verifier') add('alerte', { t: `${v.elementsEnAttente} élément(s) à vérifier`, couleur: 'ambre' });
+    else if (s.statut === 'a_verifier') add('alerte', { t: `${v.elementsEnAttente} ${v.elementsEnAttente > 1 ? 'éléments' : 'élément'} à vérifier`, couleur: 'ambre' });
     add('banniere', { label: 'Heures supplémentaires', valeur: heures(v.heuresSupplementaires.heures) });
     const j = Number(v.presence.jours || 0);
     add('gris', { t: `${j} jour${j > 1 ? 's' : ''} travaillé${j > 1 ? 's' : ''} · ${heures(v.presence.heuresNormales)} normales` });
@@ -181,7 +193,9 @@
     if (v.absence.jours) t3('Présence à vérifier', '', `${v.absence.jours} j`, { couleur: 'ambre' });
     (v.congesPayes.detail || []).forEach(ev => { t3('Congés payés', plage(ev.debut, ev.fin), joursCal(ev.jours)); sousReel(ev); });
     (v.maladieMaternite.detail || []).forEach(ev => { t3(ev.libelle || 'Maladie / maternité', plage(ev.debut, ev.fin), joursCal(ev.jours)); sousReel(ev); });
-    const autres = v.autresAbsences.detail || [];
+    // Une absence entièrement contenue dans une autre ne compte pas deux fois ses jours.
+    const toutes = v.autresAbsences.detail || [];
+    const autres = toutes.filter((ev, k) => !toutes.some((o, m) => m !== k && o.debut <= ev.debut && o.fin >= ev.fin && (o.debut < ev.debut || o.fin > ev.fin || m < k)));
     if (!autres.length && v.autresAbsences.jours) t3('Autres absences', '', joursCal(v.autresAbsences.jours));
     autres.forEach(ev => {
       let lib = ev.libelle || 'Autre absence';
@@ -282,7 +296,7 @@
       droite(mode, W - MARGE, H - MARGE - 12, 11, true, provisoire ? 'ambre' : 'vert');
       let y = H - MARGE - 26;
       if (premiere) {
-        texte(`${entreprise} · ${dossier.synthese.salaries} salarié(s) · Généré le ${jjmmaaaa(String(genereLe).slice(0, 10))}`, MARGE, y, 8.5, false, 'texteDim');
+        texte(`${entreprise} · ${dossier.synthese.salaries} ${dossier.synthese.salaries > 1 ? 'salariés' : 'salarié'} · Généré le ${jjmmaaaa(jourLocal(genereLe, opts.fuseau))}`, MARGE, y, 8.5, false, 'texteDim');
         texte('NEXUS prépare des variables : aucune retenue automatique, la comptabilité établit le bulletin.', MARGE, y - 10, 8.5, false, 'texteDim');
         y -= 20;
       }
@@ -374,5 +388,5 @@
     };
   }
 
-  global.NexusPayeDossierPdf = { construireDossierPdf, estProvisoire, dossierProvisoire, ecartGeneral, lignesFiche, moisLabel, periodeEvenement, lignesVariables, euros, heures, minutes, nombre, jjmmaaaa };
+  global.NexusPayeDossierPdf = { construireDossierPdf, estProvisoire, dossierProvisoire, ecartGeneral, lignesFiche, moisLabel, periodeEvenement, lignesVariables, euros, heures, minutes, nombre, jjmmaaaa, jourLocal };
 })(typeof window !== 'undefined' ? window : globalThis);

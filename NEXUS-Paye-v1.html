@@ -735,7 +735,7 @@ function renderDecisions(){
  ${RAPPORT.bloqueurs.length?`<div class="alert">${s.aVerifier} à arbitrer · ${s.configurationRequise} paramétrage${s.configurationRequise>1?'s':''} à compléter avant de valider le mois.${s.salariesDonneeManquante?`<br>${s.salariesDonneeManquante} salarié(s) en « donnée manquante » : leur fiche est incomplète et ne doit pas partir en paie.`:''}<br><button class="btn primary jump-first" style="margin-top:8px">Traiter les ${s.aVerifier+s.configurationRequise} élément${s.aVerifier+s.configurationRequise>1?'s':''}</button></div>`:'<div class="ok">✓ Aucun arbitrage en attente.</div>'}
  ${decisions.map(i=>`<div class="review-card"><div class="review-name">${ECHAPPE(i.employeeNom||'Employé à identifier')}</div>${blocExplication(i)}${renderItem(null,i)}</div>`).join('')}
  ${signales.length?`<div class="bloc-titre" id="signalSection">Signalés pour vérification · ${signales.length}</div><div class="help" style="margin-top:0">Verify fait foi : ces jours sont déjà comptés et ne bloquent pas le dossier. Régularisez le planning, ou marquez l’écart vérifié en donnant le motif.</div>${signales.map(i=>`<div class="review-card"><div class="review-name">${ECHAPPE(i.employeeNom||'Employé à identifier')}</div>${renderItem(null,i)}</div>`).join('')}`:''}
- ${conf.length?`<div class="bloc-titre">Paramétrages à compléter · ${conf.length}</div>${conf.map(b=>`<div class="review-card review-system"><div class="review-name">Paramétrage</div><div class="item-title">${ECHAPPE(b.libelle)}</div><div class="item-meta">Réglage permanent — à compléter une fois, pas un arbitrage du mois.</div>${b.employeeId?`<button class="btn configure" data-id="${ECHAPPE(b.employeeId)}" style="margin-top:8px">Configurer</button>`:`<button class="btn jump-employees" style="margin-top:8px">Configurer</button>`}</div>`).join('')}`:''}
+ ${conf.length?`<div class="bloc-titre">Paramétrages à compléter · ${conf.length}</div>${conf.map(b=>`<div class="review-card review-system"><div class="review-name">Paramétrage</div><div class="item-title">${ECHAPPE(b.libelle)}</div><div class="item-meta">Réglage permanent : à compléter une fois, pas un arbitrage du mois.</div>${b.employeeId?`<button class="btn configure" data-id="${ECHAPPE(b.employeeId)}" style="margin-top:8px">Configurer</button>`:`<button class="btn jump-employees" style="margin-top:8px">Configurer</button>`}</div>`).join('')}`:''}
  <div class="bloc-titre" id="ecartsSection">Écarts Verify / Planning à examiner (facultatif)${ecarts.length?` · ${ecarts.length}`:''} ${infoBtn('ecart','écarts informatifs')}</div>
  <div class="help" style="margin-top:0">Ce que Verify a constaté, mis en regard de ce que le planning prévoyait. Ces écarts ne modifient aucune heure et ne bloquent pas la préparation de la paie : les heures affichées restent celles que Verify justifie.</div>
  ${RAPPORT.renfortsLisibles===false?`<div class="alert">Les renforts déclarés dans Verify ne sont pas lisibles pour l’instant : la colonne attend sa migration. Les écarts ci-dessous ne tiennent donc pas compte des renforts.</div>`:''}
@@ -754,7 +754,7 @@ function renderDecisions(){
  ${informations.length?`<div class="bloc-titre">Informations sans impact paie · ${informations.length} ${infoBtn('ecart','écarts informatifs')}</div><div class="help" style="margin-top:0">Ces éléments restent visibles pour la traçabilité mais ne bloquent pas le dossier.</div>${informations.map(i=>renderItem(null,i)).join('')}`:''}`;
 }
 function etiquetteEtatDossier(statut,provisoire){
- if(statut==='brouillon')return 'Brouillon';
+ if(statut==='brouillon')return 'en préparation';
  if(statut==='transmis')return 'Transmis';
  return provisoire?'Provisoire':'Validé';
 }
@@ -782,7 +782,7 @@ function renderDossier(){
  if(p&&p.transmis_le)hist.push(`Dossier transmis le ${jjmmaaaaFR(p.transmis_le)}`);
  if(p&&p.updated_at&&!hist.length)hist.push(`Dernière mise à jour le ${jjmmaaaaFR(p.updated_at)}`);
  return `<div class="bloc-titre">Dossier comptable ${infoBtn('export','export comptable')}</div>
- <div class="ligne"><span class="status ${statut}" id="dossierEtat">${ECHAPPE(etiquetteEtatDossier(statut,provisoire0))}</span><b>${s.salariesPrets} salarié${s.salariesPrets>1?'s':''} sur ${s.salariesInclus} prêt${s.salariesPrets>1?'s':''}.</b></div>
+ <div class="ligne"><span class="status ${statut}" id="dossierEtat">${ECHAPPE(etiquetteEtatDossier(statut,provisoire0))}</span><b>${s.salariesPrets} salarié${s.salariesPrets>1?'s':''} sur ${s.salariesInclus} ${s.salariesInclus>1?'prêts':'prêt'}.</b></div>
  ${bloquant?`<div class="alert"><b>${RAPPORT.bloqueurs.length} point${RAPPORT.bloqueurs.length>1?'s':''} empêche${RAPPORT.bloqueurs.length>1?'nt':''} encore la préparation finale.</b><br><a href="#" id="versDecisions">Ouvrir l’onglet « Décisions »</a></div>`:(statut==='brouillon'?'<div class="ok">✓ Toutes les variables sont arbitrées.</div>':'')}
  <div class="lignes">${etapes.map((x,i)=>`<div class="ligne${x.fait||x.sans?'':' muet'}" id="${x.id}">${x.fait?'✓ ':''}${i+1} · ${ECHAPPE(x.texte)}</div>`).join('')}</div>
  <div class="actions principal"><button class="btn primary" id="dossierPdf" disabled>Télécharger le PDF</button><a class="btn" id="apercuPdf" target="_blank" rel="noopener" aria-disabled="true">Aperçu</a><button class="btn" id="partagerPdf" ${partageable?'':'hidden'} disabled>Partager</button></div>
@@ -806,7 +806,7 @@ function renderDossier(){
 function renderSaisie(){
  const options=RAPPORT.employes.filter(f=>f.reglage.inclus).map(f=>`<option value="${f.employee.id}">${ECHAPPE(f.employee.nom)}</option>`).join('');
  return `<div class="drawer-grid">
- <section class="card"><div class="section-label" style="display:flex;align-items:center;gap:7px">Déclarer un événement RH ${infoBtn('evenementRH','événement RH')}</div><div class="help" style="margin:0 0 10px">Absence longue, congé, maternité, paternité, formation, arrêt maladie : <b>un seul événement</b>, avec sa date de début et sa date de fin. NEXUS en déduit les jours de chaque mois — vous ne le ressaisirez jamais.</div><div class="form-grid"><div class="field"><label>Salarié</label><select id="rhEmployee">${options}</select></div><div class="field"><label>Motif</label><select id="rhMotif">${MOTIFS_RH.map(([v,l])=>`<option value="${v}">${ECHAPPE(l)}</option>`).join('')}</select></div><div class="date-range field full"><div class="field"><label>Du</label><input id="rhDebut" type="date"></div><div class="field"><label>Au</label><input id="rhFin" type="date"></div></div><div class="field full"><label style="display:flex;align-items:center;gap:7px;text-transform:none;font:11px var(--mono);color:var(--mid)"><input type="checkbox" id="rhIndetermine" style="width:auto"> Date de retour non connue</label></div><div class="field full"><label>Commentaire (facultatif)</label><textarea id="rhCommentaire" rows="2" placeholder="Ce que la comptabilité doit comprendre"></textarea></div></div><button class="btn primary" id="addRH" style="margin-top:10px">Déclarer l’événement RH</button><div class="help" id="rhResume">L’événement peut déborder du mois affiché : NEXUS ne compte que les jours qui tombent dans chaque période de paie.</div></section>
+ <section class="card"><div class="section-label" style="display:flex;align-items:center;gap:7px">Déclarer un événement RH ${infoBtn('evenementRH','événement RH')}</div><div class="help" style="margin:0 0 10px">Absence longue, congé, maternité, paternité, formation, arrêt maladie : <b>un seul événement</b>, avec sa date de début et sa date de fin. NEXUS en déduit les jours de chaque mois — vous ne le ressaisirez jamais.</div><div class="form-grid"><div class="field"><label>Salarié</label><select id="rhEmployee">${options}</select></div><div class="field"><label>Motif</label><select id="rhMotif">${MOTIFS_RH.map(([v,l])=>`<option value="${v}">${ECHAPPE(l)}</option>`).join('')}</select></div><div class="field" id="rhJustifieeField" hidden><label>Justification</label><select id="rhJustifiee"><option value="">À choisir</option><option value="oui">Absence justifiée</option><option value="non">Absence injustifiée</option></select></div><div class="date-range field full"><div class="field"><label>Du</label><input id="rhDebut" type="date"></div><div class="field"><label>Au</label><input id="rhFin" type="date"></div></div><div class="field full"><label style="display:flex;align-items:center;gap:7px;text-transform:none;font:11px var(--mono);color:var(--mid)"><input type="checkbox" id="rhIndetermine" style="width:auto"> Date de retour non connue</label></div><div class="field full"><label>Commentaire (facultatif)</label><textarea id="rhCommentaire" rows="2" placeholder="Ce que la comptabilité doit comprendre"></textarea></div></div><button class="btn primary" id="addRH" style="margin-top:10px">Déclarer l’événement RH</button><div class="help" id="rhResume">L’événement peut déborder du mois affiché : NEXUS ne compte que les jours qui tombent dans chaque période de paie.</div></section>
  <section class="card"><div class="section-label" style="display:flex;align-items:center;gap:7px">Ajouter une variable du mois ${infoBtn('periode','saisie manuelle')}</div><div class="form-grid"><div class="field"><label>Employé</label><select id="manualEmployee">${options}</select></div><div class="field"><label>Type</label><select id="manualType">${TYPES_VARIABLE_MANUELLE.map(t=>`<option value="${t}">${LIBELLES[t]}</option>`).join('')}</select></div><div class="date-range field full"><div class="field"><label>Du</label><input id="manualDateDebut" type="date" min="${MOIS}" max="${dernierJourMois()}"></div><div class="field"><label>Au</label><input id="manualDateFin" type="date" min="${MOIS}" max="${dernierJourMois()}"></div></div><div class="field full"><div class="help" id="manualPeriodSummary" style="margin-top:0;">Choisissez la date de début et la date de fin.</div></div><div class="field" id="manualMinutesField"><label>Minutes par jour</label><input id="manualMinutes" type="number" min="0" step="1" placeholder="facultatif"></div><div class="field" id="manualAmountField"><label>Montant €</label><input id="manualAmount" type="number" step="0.01" placeholder="facultatif"></div><div class="field full"><label id="manualLabelTitle">Libellé / justificatif</label><textarea id="manualLabel" rows="2" placeholder="Ce que la comptabilité doit comprendre"></textarea></div></div><button class="btn primary" id="addManual" style="margin-top:10px">Ajouter et valider</button><div class="help">Un montant en euros reste limité à une seule date pour éviter toute duplication. Un retard n’est jamais déduit d’un pointage ni d’un écart avec le planning : il ne compte que si vous le saisissez ici, en minutes et avec son motif.</div><div class="help" id="manualAbsenceInterdit">Un congé se déclare dans « Déclarer un événement RH ». Pour une absence, choisissez le type Absence.</div><div class="field" id="manualJustifieeField" hidden><label>Justification</label><select id="manualJustifiee"><option value="">À choisir</option><option value="oui">Absence justifiée</option><option value="non">Absence injustifiée</option></select></div><div class="help" id="manualAbsenceAide" hidden>Une absence est enregistrée comme un événement RH unique.</div></section>
  ${SAISIES_MANAGER?`<section class="card"><div class="section-label" style="display:flex;align-items:center;gap:7px">Horaire exceptionnel d’une journée</div><div class="help" style="margin:0 0 10px">Réservé aux exceptions : une journée dont les horaires réels diffèrent de la durée de référence. NEXUS recalcule la durée nette à partir du début, de la fin et de la pause. Les paramètres standards de la station ne changent pas.</div><div class="form-grid"><div class="field"><label>Salarié</label><select id="hxEmployee">${RAPPORT.employes.filter(f=>f.reglage.inclus).map(f=>`<option value="${f.employee.id}">${ECHAPPE(f.employee.nom)}</option>`).join('')}</select></div><div class="field"><label>Date</label><input id="hxDate" type="date" min="${MOIS}" max="${dernierJourMois()}"></div><div class="field"><label>Début</label><input id="hxDebut" type="time" value="${(RAPPORT.regles&&RAPPORT.regles.renfortDebut)||'09:00'}"></div><div class="field"><label>Fin</label><input id="hxFin" type="time" value="${(RAPPORT.regles&&RAPPORT.regles.renfortFin)||'17:00'}"></div><div class="field"><label>Pause (minutes)</label><input id="hxPause" type="number" min="0" step="5" value="${(RAPPORT.regles&&RAPPORT.regles.renfortPauseMinutes)!=null?RAPPORT.regles.renfortPauseMinutes:60}"></div><div class="field full"><label>Motif</label><textarea id="hxMotif" rows="2" placeholder="Pourquoi cette journée fait exception"></textarea></div><div class="field full"><label>Justification</label><textarea id="hxJustification" rows="2" placeholder="Pièce, accord ou constat qui l’établit"></textarea></div></div><button class="btn primary" id="addHoraire" style="margin-top:10px">Enregistrer l’horaire exceptionnel</button><div class="help" id="hxResume">La durée nette se calcule à l’enregistrement, et la valeur initiale reste conservée.</div></section>`:''}
  </div>`;
@@ -1055,7 +1055,7 @@ function renderFiche(f){
  const tete=`<button type="button" class="btn retour-liste">‹ Paye</button><div class="fiche-tete">${avatar(f.employee)}<div><h2>${ECHAPPE(f.employee.nom)}</h2><div class="meta"><span class="capsule">${ECHAPPE(f.employee.role||'Poste non renseigné')}</span></div></div>${pillListe(f)}</div>`
  +`${inclus?'':`<div class="empty">Cet employé ne figure pas dans le dossier de paie de la station.${f.reglage.commentaire?` ${ECHAPPE(f.reglage.commentaire)}`:''}</div>`}`;
  const attentes=itemsEnAttente(f);
- const reglage=(conf.length||!f.reglage.confirme)?`<div class="ligne-action"><div><b>1 réglage à compléter : rattachement à la paie</b><div class="help" style="margin:2px 0 0">Réglage permanent, fait une seule fois — ce n’est pas un arbitrage du mois.</div></div><button type="button" class="btn primary configure" data-id="${ECHAPPE(id)}">Configurer</button></div>`:'';
+ const reglage=(conf.length||!f.reglage.confirme)?`<div class="ligne-action"><div><b>1 réglage à compléter : rattachement à la paie</b><div class="help" style="margin:2px 0 0">Réglage permanent, fait une seule fois, ce n’est pas un arbitrage du mois.</div></div><button type="button" class="btn primary configure" data-id="${ECHAPPE(id)}">Configurer</button></div>`:'';
  const decisions=attentes.length?`<div class="ligne-action"><div><b>${ECHAPPE(phraseDecision(attentes))}</b></div><button type="button" class="btn primary jump-first">Traiter ›</button></div>`:'';
  const zoneDecision=(reglage||decisions)?`<div class="decision-zone">${reglage}${decisions}</div>`:'';
  if(!inclus)return tete+(zoneDecision||`<div class="actions" style="margin-top:10px"><button class="btn configure" data-id="${id}">Configurer le rattachement</button></div>`);
@@ -1103,6 +1103,9 @@ function blocDeclaration(i,emp){
   <label style="font-size:11px;opacity:.75">Motif de l'absence
    <select class="rh-motif-new" data-emp="${emp}" data-key="${ECHAPPE(i.sourceCle)}" style="width:100%;margin-top:4px;padding:8px;border-radius:8px">
     <option value="">— à qualifier —</option>${sel}</select></label>
+  <label style="font-size:11px;opacity:.75" hidden class="rh-just-lbl-new" data-key="${ECHAPPE(i.sourceCle)}">Absence justifiée ? (vous seul décidez)
+   <select class="rh-justifiee-new" data-key="${ECHAPPE(i.sourceCle)}" style="width:100%;margin-top:4px;padding:8px;border-radius:8px">
+    <option value="">À choisir</option><option value="oui">Justifiée</option><option value="non">Injustifiée</option></select></label>
   <label style="font-size:11px;opacity:.75;display:flex;align-items:center;gap:6px">
    <input type="checkbox" class="rh-indetermine-new" data-key="${ECHAPPE(i.sourceCle)}"> Date de retour non connue</label>
   <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -1120,7 +1123,7 @@ function blocQualification(i){
     <option value="">— à qualifier —</option>${sel}</select></label>
   <label style="font-size:11px;opacity:.75">Absence justifiée ? (vous seul décidez)
    <select class="rh-justifiee" data-ev="${ECHAPPE(i.evenementId)}" style="width:100%;margin-top:4px;padding:8px;border-radius:8px">
-    <option value=""${i.justifiee==null?' selected':''}>Non précisé</option>
+    <option value=""${i.justifiee==null?' selected':''}>À choisir</option>
     <option value="oui"${i.justifiee===true?' selected':''}>Justifiée</option>
     <option value="non"${i.justifiee===false?' selected':''}>Injustifiée</option></select></label>
   <label style="font-size:11px;opacity:.75;display:flex;align-items:center;gap:6px">
@@ -1218,11 +1221,11 @@ function renderInfosAuto(infos){
 }
 // Pour chaque vraie décision : ce qui s'est passé, pourquoi, les options.
 const EXPLICATIONS={
- presence_exceptionnelle:['Une personne a travaillé un jour où elle n’était pas prévue au planning.','NEXUS ne sait pas si ces heures doivent être payées en plus : seul le manager peut le dire.','« Valider » : les heures proposées partent à la comptabilité. « Ne pas retenir » : rien n’est ajouté à la paie.'],
- absence_a_verifier:['Le planning prévoyait cette personne, mais ni Verify ni le pointage ne prouvent sa présence.','Sans preuve, NEXUS ne peut pas décider seul s’il s’agit d’une absence ou d’un oubli de saisie.','« Valider » : la présence est retenue. « Ne pas retenir » : le jour est traité comme une absence.'],
+ presence_exceptionnelle:['Une personne a travaillé un jour où elle n’était pas prévue au planning.','NEXUS ne sait pas si ces heures doivent être payées en plus : seul le manager peut le dire.','« Confirmer » : les heures proposées partent à la comptabilité. « Ne pas retenir » : rien n’est ajouté à la paie.'],
+ absence_a_verifier:['Le planning prévoyait cette personne, mais ni Verify ni le pointage ne prouvent sa présence.','Sans preuve, NEXUS ne peut pas décider seul s’il s’agit d’une absence ou d’un oubli de saisie.','« Ignorer cette détection » : la présence est retenue. « Déclarer l’absence » : le jour est traité comme une absence, justifiée ou non, selon votre choix.'],
  absence_a_qualifier:['Une absence a été constatée sans motif connu.','Le motif (congé, maladie, autre) change ce qui part à la comptabilité.','Choisissez le motif ou l’événement RH correspondant.'],
- retard_incoherent:['Le retard déclaré ne colle pas avec les heures constatées.','Une erreur de saisie est possible ; NEXUS ne corrige rien sans vous.','« Valider » : le retard est conservé. « Ne pas retenir » : il est ignoré.'],
- heure_supplementaire:['Des heures au-delà du barème ont été relevées.','Elles ne partent à la comptabilité qu’avec votre accord.','« Valider » : elles sont transmises. « Ne pas retenir » : elles ne le sont pas.']
+ retard_incoherent:['Le retard déclaré ne colle pas avec les heures constatées.','Une erreur de saisie est possible ; NEXUS ne corrige rien sans vous.','« Confirmer » : le retard est conservé. « Ne pas retenir » : il est ignoré.'],
+ heure_supplementaire:['Des heures au-delà du barème ont été relevées.','Elles ne partent à la comptabilité qu’avec votre accord.','« Confirmer » : elles sont transmises. « Ne pas retenir » : elles ne le sont pas.']
 };
 function blocExplication(i){
  const e=EXPLICATIONS[i.typeItem];if(!e)return '';
@@ -1347,9 +1350,12 @@ function bind(){
   const motif=(document.querySelector(`.rh-motif-new[data-key="${key}"]`)||{}).value||'';
   if(!motif){nexusErreur('Motif requis','Choisissez d’abord un motif : NEXUS ne qualifie jamais une absence à votre place.');return;}
   const indet=(document.querySelector(`.rh-indetermine-new[data-key="${key}"]`)||{}).checked;
+  const jv=(document.querySelector(`.rh-justifiee-new[data-key="${key}"]`)||{}).value;
+  if(motif==='autre'&&jv!=='oui'&&jv!=='non'){nexusErreur('Justification à préciser','Dites si l’absence est justifiée ou injustifiée : NEXUS ne le décide pas à votre place.');return;}
   b.disabled=true;
   try{await NexusPayeDonnees.declarerIndisponibilite(nexusClient,{siteId:SITE,employeeId:b.dataset.emp,
-    dateDebut:b.dataset.debut,dateFin:b.dataset.fin,motif,finIndeterminee:indet,actorId:EMPLOYEE.id});await reload();}
+    dateDebut:b.dataset.debut,dateFin:b.dataset.fin,motif,finIndeterminee:indet,actorId:EMPLOYEE.id,
+    justifiee:motif==='autre'?jv==='oui':undefined});await reload();}
   catch(e){console.error('NEXUS PAYE — déclaration d’absence :',e);b.disabled=false;
    nexusErreur('Déclaration impossible',`NEXUS n'a pas pu déclarer cette absence : ${messageErreur(e)}\n\nRien n'a été modifié.`);}});
  document.querySelectorAll('.rh-confirmer').forEach(b=>b.onclick=async()=>{
@@ -1357,9 +1363,11 @@ function bind(){
   const motif=(document.querySelector(`.rh-motif[data-ev="${ev}"]`)||{}).value||'';
   if(!motif){nexusErreur('Motif requis','Choisissez d’abord un motif : NEXUS ne qualifie jamais une absence à votre place.');return;}
   const indet=(document.querySelector(`.rh-indetermine[data-ev="${ev}"]`)||{}).checked;
+  const jv=(document.querySelector(`.rh-justifiee[data-ev="${ev}"]`)||{}).value;
+  if(motif==='autre'&&jv!=='oui'&&jv!=='non'){nexusErreur('Justification à préciser','Dites si l’absence est justifiée ou injustifiée : NEXUS ne le décide pas à votre place.');return;}
   b.disabled=true;
   try{await NexusPayeDonnees.qualifierIndisponibilite(nexusClient,{id:ev,motif,finIndeterminee:indet,actorId:EMPLOYEE.id,
-   justifiee:({oui:true,non:false})[(document.querySelector(`.rh-justifiee[data-ev="${ev}"]`)||{}).value]});reload();}
+   justifiee:({oui:true,non:false})[jv]});reload();}
   catch(e){b.disabled=false;nexusErreur('Qualification impossible',messageErreur(e));}});
  document.querySelectorAll('.rh-reprise').forEach(b=>b.onclick=async()=>{
   const ev=b.dataset.ev;
@@ -1378,7 +1386,7 @@ function bind(){
  document.getElementById('closeInfo').onclick=()=>document.getElementById('infoModal').hidden=true;
  document.getElementById('infoModal').onclick=e=>{if(e.target.id==='infoModal')e.currentTarget.hidden=true};
  document.querySelectorAll('.employee-head').forEach(x=>x.onclick=()=>x.parentElement.classList.toggle('open'));
- document.querySelectorAll('.configure').forEach(b=>b.onclick=async e=>{e.stopPropagation();const f=RAPPORT.employes.find(x=>x.employee.id===b.dataset.id);const choix=await ouvrirDialogue({titre:`Rattachement de ${f.employee.nom}`,texte:'Réglage permanent, pas un arbitrage du mois : il vaut pour tous les mois suivants tant que vous ne le changez pas.',champs:[{cle:'mode',label:'Ce salarié figure-t-il dans le dossier de paie ?',type:'select',valeur:f.reglage.inclus?(f.reglage.modePresence==='manuel'?'manuel':'automatique'):'exclu',options:[['automatique','Inclus — heures calculées par NEXUS'],['manuel','Inclus — heures saisies manuellement'],['exclu','Hors paie de la station']],aide:'« Heures saisies manuellement » convient à un salarié dont ni le planning ni Verify ne couvrent le temps de travail.'}],libelleValider:'Enregistrer le rattachement'});if(!choix)return;await NexusPayeDonnees.enregistrerReglageEmploye(nexusClient,{siteId:SITE,employeeId:f.employee.id,inclusPaye:choix.mode!=='exclu',modePresence:choix.mode,commentaire:null,actorId:EMPLOYEE.id});reload()});
+ document.querySelectorAll('.configure').forEach(b=>b.onclick=async e=>{e.stopPropagation();const f=RAPPORT.employes.find(x=>x.employee.id===b.dataset.id);const choix=await ouvrirDialogue({titre:`Rattachement de ${f.employee.nom}`,texte:'Réglage permanent, pas un arbitrage du mois : il vaut pour tous les mois suivants tant que vous ne le changez pas.',champs:[{cle:'mode',label:'Ce salarié figure-t-il dans le dossier de paie ?',type:'select',valeur:f.reglage.inclus?(f.reglage.modePresence==='manuel'?'manuel':'automatique'):'exclu',options:[['automatique','Inclus : heures calculées par NEXUS'],['manuel','Inclus : heures saisies manuellement'],['exclu','Hors paie de la station']],aide:'« Heures saisies manuellement » convient à un salarié dont ni le planning ni Verify ne couvrent le temps de travail.'}],libelleValider:'Enregistrer le rattachement'});if(!choix)return;await NexusPayeDonnees.enregistrerReglageEmploye(nexusClient,{siteId:SITE,employeeId:f.employee.id,inclusPaye:choix.mode!=='exclu',modePresence:choix.mode,commentaire:null,actorId:EMPLOYEE.id});reload()});
  document.querySelectorAll('.validate').forEach(b=>b.onclick=async()=>decision(b,true));document.querySelectorAll('.exclude').forEach(b=>b.onclick=async()=>decision(b,false));document.querySelectorAll('.verify-signal').forEach(b=>b.onclick=async()=>verifierSignalement(b));document.querySelectorAll('.ferie-retirer').forEach(b=>b.onclick=async()=>retirerFerie(b));
  document.getElementById('manualDateDebut').onchange=e=>{const fin=document.getElementById('manualDateFin');fin.min=e.target.value||MOIS;if(!fin.value||fin.value<e.target.value)fin.value=e.target.value;majPeriodeManuelle()};
  document.getElementById('manualDateFin').onchange=majPeriodeManuelle;
@@ -1440,6 +1448,7 @@ function bindLignes(){
 }
 function ouvrirOnglet(onglet,ancre){
  ONGLET=onglet;majPanneau();
+ if(!ancre){const pn=document.getElementById('panelInner');if(pn&&pn.scrollIntoView)pn.scrollIntoView({behavior:'smooth',block:'start'})}
  if(ancre){const el=document.getElementById(ancre);if(el&&el.scrollIntoView)el.scrollIntoView({behavior:'smooth',block:'start'})}
 }
 function bindCockpit(){
@@ -1616,12 +1625,19 @@ async function addManual(){
 // ce qui recréait à la main exactement le dépliage que le moteur venait
 // d'abolir. La période peut déborder du mois affiché : c'est même le cas
 // normal (un congé maternité couvre six mois).
+document.addEventListener('change',e=>{
+ const t=e.target; if(!t||!t.matches) return;
+ if(t.matches('.rh-motif-new')){const l=document.querySelector(`.rh-just-lbl-new[data-key="${t.dataset.key}"]`);if(l)l.hidden=t.value!=='autre';}
+ if(t.id==='rhMotif'){const f=document.getElementById('rhJustifieeField');if(f)f.hidden=t.value!=='autre';}
+});
 async function addRH(){
  const employeeId=document.getElementById('rhEmployee').value,motif=document.getElementById('rhMotif').value,
   debut=document.getElementById('rhDebut').value,indetermine=document.getElementById('rhIndetermine').checked,
   commentaire=document.getElementById('rhCommentaire').value.trim();
  let fin=document.getElementById('rhFin').value;
  if(!employeeId||!motif||!debut)return nexusErreur('Saisie incomplète','Salarié, motif et date de début sont obligatoires.');
+ const jvRH=(document.getElementById('rhJustifiee')||{}).value;
+ if(motif==='autre'&&jvRH!=='oui'&&jvRH!=='non')return nexusErreur('Justification à préciser','Dites si l’absence est justifiée ou injustifiée : NEXUS ne le décide pas à votre place.');
  if(!fin&&!indetermine)return nexusErreur('Fin de période manquante','Indiquez une date de fin, ou cochez « Date de retour non connue ».');
  if(fin&&fin<debut)return nexusErreur('Période invalide','La date de fin précède la date de début.');
  // Retour non daté : date_fin ne sert que d'horizon provisoire, le moteur
@@ -1631,7 +1647,7 @@ async function addRH(){
  const libelleMotif=(MOTIFS_RH.find(([v])=>v===motif)||[,motif])[1];
  if(!await nexusConfirmer('Déclarer cet événement RH ?',`${nom}\n${libelleMotif}\n${jjmmaaaaFR(debut)} → ${indetermine?'retour non daté':jjmmaaaaFR(fin)}\n\nDéclaré une fois, cet événement sera reporté sur chaque mois qu’il traverse et ne vous sera plus redemandé.`,'Déclarer l’événement'))return;
  const btn=document.getElementById('addRH');btn.disabled=true;
- try{await NexusPayeDonnees.declarerIndisponibilite(nexusClient,{siteId:SITE,employeeId,dateDebut:debut,dateFin:fin,motif,finIndeterminee:indetermine,commentaire:commentaire||null,actorId:EMPLOYEE.id});
+ try{await NexusPayeDonnees.declarerIndisponibilite(nexusClient,{siteId:SITE,employeeId,dateDebut:debut,dateFin:fin,motif,finIndeterminee:indetermine,commentaire:commentaire||null,actorId:EMPLOYEE.id,justifiee:motif==='autre'?jvRH==='oui':undefined});
   await reload()}
  catch(e){console.error('NEXUS PAYE — déclaration d’un événement RH :',e);btn.disabled=false;nexusErreur('Déclaration impossible',messageErreur(e))}
 }
