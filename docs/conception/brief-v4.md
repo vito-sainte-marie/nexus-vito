@@ -528,3 +528,14 @@ En mobile, le Brief va à l'essentiel : ce n'est pas la page bureau empilée. Pr
 | Rapport A4 | se replie derrière un accès clair |
 
 Le découpage replié ou réservé au bureau est une proposition à valider avec la maquette bureau. La maquette mobile ne sera produite qu'après cette validation.
+
+## 25. Corrections de la recette visuelle (26/11)
+
+- **Fiabilité.** Commerce suit les ventes quotidiennes, il ne dépend plus de l'import : le bloc affiche « 4 / 5 secteurs à jour », seule la Marge reste sur l'import du 14/11. Les badges des cartes disent la même chose.
+- **Légendes.** Les légendes de Carburant et de Commerce nomment les sept derniers jours, comme les barres.
+- **Objectifs.** Un objectif validé montre sa jauge et son pourcentage ; un objectif en proposition montre la valeur proposée et un bouton « Valider », jamais un pourcentage ni une jauge (règle du §14).
+- **Taux de marge.** Il apparaît une seule fois au premier niveau, dans la carte Marge.
+- **Potentiels.** « Marge à récupérer » est un fait (anomalies confirmées, chiffrées) ; « Potentiel de marge estimé » est une estimation sans anomalie confirmée. Les deux ne s'additionnent jamais.
+- **Histogramme.** « Pas d'import » est écrit à la verticale dans l'emplacement vide de la série marge ; la période 1 porte la marque « base 100 ».
+- **Opérations.** Le cadre vide est remplacé par les écarts des sept derniers jours en barres.
+- **Nuit.** Les icônes des lectures reposent sur une pastille claire pour garder leur contraste.
