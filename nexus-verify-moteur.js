@@ -27,11 +27,23 @@
    * de NEXUS-Verify-v1.html, extrait pour être réutilisable sans accès
    * réseau : reçoit des lignes déjà chargées
    * (date, quart, ecart_piste, ecart_boutique, statut, commentaire).
-   * L'ampleur d'un audit est le MAX des deux composantes (piste, boutique),
-   * jamais leur somme signée.
+   * L'ampleur d'un audit (`ecartMax`, nom conservé pour les lecteurs) est
+   * désormais la MESURE G-7 : |piste| + |boutique|, sans compensation
+   * (NexusEcartsMoteur.ecartMesureQuart, autorité unique). Avant le lot A1
+   * c'était le max des deux composantes. Le classement piste/boutique
+   * dominante ci-dessous compare toujours |piste| et |boutique| : c'est un tri.
    */
+  function mesureQuart(piste, boutique) {
+    if (!global.NexusEcartsMoteur && typeof require === 'function') {
+      try { require('./nexus-ecarts-moteur.js'); } catch (e) { /* signalé ci-dessous */ }
+    }
+    const f = global.NexusEcartsMoteur;
+    if (!f || !f.ecartMesureQuart) throw new Error('nexus-ecarts-moteur.js non chargé : écart de quart indisponible');
+    return f.ecartMesureQuart(piste, boutique);
+  }
+
   function agregerAudits(rows) {
-    const audits = (rows || []).map(a => ({ ...a, ecartMax: Math.max(Math.abs(Number(a.ecart_piste || 0)), Math.abs(Number(a.ecart_boutique || 0))) }));
+    const audits = (rows || []).map(a => ({ ...a, ecartMax: mesureQuart(a.ecart_piste, a.ecart_boutique) || 0 }));
     const total = audits.length;
     const parStatut = { conforme: 0, surveiller: 0, anomalie: 0, critique: 0 };
     audits.forEach(a => { if (parStatut[a.statut] != null) parStatut[a.statut]++; });

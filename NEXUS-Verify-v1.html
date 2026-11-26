@@ -480,8 +480,8 @@
 <script src="nexus-pdf-moteur.js?v=20261125-2300"></script>
 <!-- v2.268 : logique transversale de cycle de vie d'un écart (cadrage
      "Analyse des écarts") — chargée avant nexus-verify-moteur.js. -->
-<script src="nexus-ecarts-moteur.js?v=20260904-0104"></script>
-<script src="nexus-verify-moteur.js?v=20261008-b8"></script>
+<script src="nexus-ecarts-moteur.js?v=20261126-0100"></script>
+<script src="nexus-verify-moteur.js?v=20261126-0100"></script>
 <!-- Le moteur de paye, pour ses règles d'heures et rien d'autre. Verify doit
      afficher la durée standard d'un renfort ; cette durée vit dans les
      Paramètres Station, et c'est reglesHeures() qui sait la lire. La retaper
@@ -3179,7 +3179,7 @@
       try {
         const { data: historique, error } = await nexusClient
           .from('audits_caisse')
-          .select('date, ecart_total')
+          .select('date, ecart_piste, ecart_boutique')
           .eq('site', SITE_ACTUEL)
           .eq('quart', auditActuel.quart)
           .neq('date', auditActuel.date)
@@ -3188,8 +3188,8 @@
         if (error) throw error;
 
         if (historique && historique.length >= SEUIL_HISTORIQUE_MIN) {
-          const moyenneEcart = historique.reduce((s, a) => s + Math.abs(a.ecart_total || 0), 0) / historique.length;
-          const ecartAujourdhui = Math.abs(auditActuel.ecart_total);
+          const moyenneEcart = historique.reduce((s, a) => s + (NexusEcartsMoteur.ecartMesureQuart(a.ecart_piste, a.ecart_boutique) || 0), 0) / historique.length;
+          const ecartAujourdhui = NexusEcartsMoteur.ecartMesureQuart(auditActuel.ecart_piste, auditActuel.ecart_boutique) || 0;
           // Ne commente que si l'écart d'aujourd'hui est notablement
           // différent de l'habitude (au moins 2x, et au moins 5 € d'écart
           // absolu pour ignorer le bruit sur de très petits montants).

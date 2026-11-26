@@ -305,8 +305,30 @@
     };
   }
 
+  // ------------------------------------------------------------
+  // MESURE DE L'ÉCART D'UN QUART (G-7, décision du gérant, lot A1).
+  //
+  // Écart d'un quart = |piste| + |boutique|, SANS compensation entre les
+  // deux caisses : +10 € piste et −10 € boutique font 20 €, pas 0. C'est
+  // CETTE somme qu'on additionne, qu'on compare à une cible et qu'on affiche
+  // en euros. Le classement « piste dominante / boutique dominante » de
+  // Verify reste une comparaison de |piste| et |boutique| : c'est un tri,
+  // pas une mesure, il ne passe pas par ici.
+  //
+  // Valeur absente (Article 5) : un côté null/undefined/non numérique n'est
+  // PAS traité comme 0. Si les deux côtés sont absents, le quart n'a pas
+  // d'écart mesuré : on rend null. Si un seul côté est absent, on rend la
+  // somme des côtés réellement mesurés (jamais un côté inventé).
+  // ------------------------------------------------------------
+  function ecartMesureQuart(piste, boutique) {
+    const lire = v => (v === null || v === undefined || v === '' || !Number.isFinite(Number(v))) ? null : Math.abs(Number(v));
+    const p = lire(piste), b = lire(boutique);
+    if (p === null && b === null) return null;
+    return arrondiCentimes((p || 0) + (b || 0));
+  }
+
   global.NexusEcartsMoteur = {
-    arrondiCentimes,
+    arrondiCentimes, ecartMesureQuart,
     situationVerificationEcart, motifEcartObligatoire, ajouterRemboursementSiManque, libelleEcartRestant,
     STATUTS_ECART, labelStatutEcart, deriverStatutEcart,
     calculerMontantRetenuLigne, calculerKpisEcarts, agregerEcartsParEmploye,

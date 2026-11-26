@@ -122,8 +122,9 @@ t('NEXUS-Tempo-v1.html inchangé (empreinte ; avatar recadré le 12/11/2026, seu
   const src = fs.readFileSync(path.join(racine, 'NEXUS-Tempo-v1.html'), 'utf8')
     .replace(/<script src="nexus-(?:config|page|bandeau-environnement)\.js[^"]*"><\/script>\n?/g, '')
     .replace(/\?v=[^"']*/g, '?v=');
+  // A1 (26/11/2026) : seul ajout, la balise <script nexus-ecarts-moteur.js> exigée par nexus-tempo.js (écart de quart = autorité unique).
   const h = crypto.createHash('sha256').update(src).digest('hex');
-  assert.strictEqual(h, 'fb50172b74c2bc1082470b7081b5885160f9b0dafe979ccfbc2f6fed74bdf70f');
+  assert.strictEqual(h, '04896a9a64bfbc7e6bd851615ca18028f1914ffa75a8a602e5211c4ae4e4d1e0');
 });
 
 t('carte vide : aucun niveau, sauf « Hypothèse » de la colonne CA FDJ (G4)', () => {

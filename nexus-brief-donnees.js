@@ -98,15 +98,11 @@
     return { nbEcarts: ecarts.length, gainPotentiel: ecarts.reduce((s, e) => s + e.gainPotentiel, 0), candidatTop, categoriesEnEcart: [...new Set(ecarts.map(e => e.categorie))] };
   }
 
-  // chargerMessagesAdvisor / calculerStatutOperations / chargerConstatTempo
+  // chargerMessagesAdvisor / chargerConstatTempo
   // extraits vers nexus-conseiller-donnees.js (3e page du refactoring,
   // App-v1, 11/08/2026 — identiques entre App et Brief). Alias conservés.
   async function chargerMessagesAdvisor(client, siteId) {
     return global.NexusConseillerDonnees.chargerMessagesAdvisor(client, siteId);
-  }
-
-  function calculerStatutOperations(moyenneEcartAbsolu, nbJours) {
-    return global.NexusConseillerDonnees.calculerStatutOperations(moyenneEcartAbsolu, nbJours);
   }
 
   async function chargerConstatTempo(client, siteId) {
@@ -735,7 +731,7 @@
 
   global.NexusBriefDonnees = {
     estProduitAppel, chargerProducts,
-    chargerMargePlus, chargerMessagesAdvisor, calculerStatutOperations, chargerConstatTempo,
+    chargerMargePlus, chargerMessagesAdvisor, chargerConstatTempo,
     chargerCandidatsCaisse, chargerCandidatsStock, chargerCandidatsRappels,
     chargerDerniereReferenceFdj, chargerCarburantsBrief, chargerCarburantsBriefAvecFallback, chargerCandidatsFdj,
     chargerJournalFraicheurExistant, enregistrerFraicheurSecteur,

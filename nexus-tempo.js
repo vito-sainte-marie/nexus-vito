@@ -1327,9 +1327,21 @@
     // chuter uniquement parce que la journée n'est pas terminée"). Corrigé
     // en réutilisant `joursExploitables` (déjà calculé ci-dessus, Article 11
     // — aucune 2e définition de "jour exploitable").
+    // A1 (G-7) : l'écart d'un quart = |piste| + |boutique|, sans compensation,
+    // mesuré par l'autorité unique nexus-ecarts-moteur.js (Article 11).
+    // Avant : somme nette du jour (une piste -10 et une boutique +10 de
+    // quarts différents se compensaient).
+    const mesureEcartQuart = (piste, boutique) => {
+      if (!globalThis.NexusEcartsMoteur && typeof require === 'function') {
+        try { require('./nexus-ecarts-moteur.js'); } catch (e) { /* signalé ci-dessous */ }
+      }
+      const f = globalThis.NexusEcartsMoteur;
+      if (!f || !f.ecartMesureQuart) throw new Error('nexus-ecarts-moteur.js non chargé : écart de quart indisponible');
+      return f.ecartMesureQuart(piste, boutique);
+    };
     const totalJours = joursExploitables.length;
     const detailOperations = totalJours > 0
-      ? joursExploitables.reduce((s, j) => s + Math.abs(j.ecartPiste) + Math.abs(j.ecartBoutique), 0) / totalJours
+      ? joursExploitables.reduce((s, j) => s + j.quarts.reduce((sq, q) => sq + (mesureEcartQuart(q.ecartPiste, q.ecartBoutique) || 0), 0), 0) / totalJours
       : null;
 
     // Fraîcheur Opérations (23/08/2026, même audit, §5/§12 — exemple UX
