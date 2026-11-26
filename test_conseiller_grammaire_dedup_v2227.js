@@ -82,7 +82,7 @@ function ok(label) { n++; console.log('OK —', label); }
   assert.strictEqual(stock.nature, 'Compter', 'libellé exact de l\'exemple donné par l\'audit ("AUJOURD\'HUI - Compter")');
   ok('normaliserStockRayon — urgence "Aujourd\'hui", nature "Compter" (exemple exact de l\'audit)');
 
-  const rappelEnRetard = C.normaliserRappel({ id: 'R1', texte: 'Appeler le fournisseur', date_echeance: '2020-01-01' });
+  const rappelEnRetard = C.normaliserRappel({ id: 'R1', texte: 'Appeler le fournisseur', date_echeance: '2020-01-01' }, '2026-08-20');
   assert.strictEqual(rappelEnRetard.urgence, 'Maintenant');
   assert.strictEqual(rappelEnRetard.nature, 'Traiter');
   const rappelNormal = C.normaliserRappel({ id: 'R2', texte: 'Commander des gobelets', date_echeance: null });

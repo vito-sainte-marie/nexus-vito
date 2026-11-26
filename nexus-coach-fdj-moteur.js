@@ -441,7 +441,10 @@
 
   function selectionnerRecommandationCoach(candidats, reglesParId, options) {
     const opts = options || {};
-    const aujourdHui = opts.aujourdHui || new Date().toISOString().slice(0, 10);
+    // Le jour est fourni par l'appelant (jour de la station) : un moteur pur
+    // ne lit ni l'horloge de l'appareil ni la date UTC.
+    const aujourdHui = opts.aujourdHui;
+    if (!aujourdHui) throw new Error('selectionnerRecommandationCoach : opts.aujourdHui (jour de la station) est requis');
     const rotationRecente = opts.rotationRecente || [];
     const retenus = (candidats || []).filter(c => {
       const regle = reglesParId[c.rule_id];

@@ -1008,9 +1008,11 @@
   // un rappel sans date ne remonterait jamais). Se clôture directement
   // dans sa carte (marquerRappelFait), jamais via journal_decisions : un
   // rappel n'a pas d'impact de marge à mesurer dans le temps.
-  function normaliserRappel(r) {
-    const aujourdhui = new Date().toISOString().slice(0, 10);
-    const enRetard = r.date_echeance && r.date_echeance < aujourdhui;
+  // `aujourdhui` : jour de la station (nexusAujourdhuiStation), fourni par
+  // l'appelant. Indéterminé (null) : aucun rappel n'est déclaré en retard —
+  // jamais un retard calculé sur l'horloge UTC (Article 5).
+  function normaliserRappel(r, aujourdhui) {
+    const enRetard = !!(aujourdhui && r.date_echeance && r.date_echeance < aujourdhui);
     // 'T00:00:00' évite le décalage d'un jour en heure locale Martinique.
     const dateTexte = r.date_echeance
       ? new Date(r.date_echeance + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })
@@ -1128,8 +1130,10 @@
   // mais change chaque jour — c'est ce qui donne l'effet "vivant" demandé
   // par Frédéric sans jamais reclasser une urgence réelle derrière une
   // priorité plus faible (la rotation ne mélange qu'à rang égal).
-  function genererGraineJour(site) {
-    const cle = `${site || ''}|${new Date().toISOString().slice(0, 10)}`;
+  // `jour` : jour de la station fourni par l'appelant ; sans jour, la graine
+  // ne tourne pas (stable) plutôt que de tourner sur l'horloge UTC.
+  function genererGraineJour(site, jour) {
+    const cle = `${site || ''}|${jour || ''}`;
     let h = 0;
     for (let i = 0; i < cle.length; i++) { h = (Math.imul(31, h) + cle.charCodeAt(i)) | 0; }
     return h >>> 0;
@@ -1171,7 +1175,7 @@
   function fusionnerEtSelectionner(listes, options) {
     const opts = options || {};
     const n = opts.n || 3;
-    const graine = genererGraineJour(opts.site);
+    const graine = genererGraineJour(opts.site, opts.jour);
 
     const parMoteur = {};
     [].concat(...listes.filter(Boolean)).forEach(c => {

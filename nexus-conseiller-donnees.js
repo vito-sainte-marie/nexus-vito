@@ -117,7 +117,9 @@
     const { data, error } = await fetchAllRows(() => client.from('rappels').select('*').eq('site', siteId).eq('fait', false)
       .order('date_echeance', { ascending: true, nullsFirst: false }).order('created_at', { ascending: true }));
     if (error) { console.error('Chargement rappels:', error); return []; }
-    return (data || []).map(global.NexusConseiller.normaliserRappel);
+    const jour = await global.nexusAujourdhuiStation(siteId);
+    if (!jour) console.error('Rappels : jour de la station indéterminé (sites.timezone) — aucun retard calculé');
+    return (data || []).map(r => global.NexusConseiller.normaliserRappel(r, jour));
   }
 
   // MISE À JOUR 11/08/2026 (3e page du refactoring, NEXUS-App-v1.html) : 5
@@ -150,7 +152,8 @@
       console.error('Chargement audits_caisse (constat Tempo):', error);
       return { jourARenforcer: null, jourMoteur: null, jourPlusRentable: null, jourProgression: null, totalJours: 0, statutOperations: 'Données insuffisantes', detailOperations: null };
     }
-    const constat = global.NexusTempo.calculerConstatTempo(data, (produitsRes && produitsRes.error ? [] : (produitsRes.data || [])), estProduitAppel);
+    const fuseauStation = await nexusFuseauSite(siteId);   // indéterminé => constat sans jour clos, jamais la date UTC
+    const constat = global.NexusTempo.calculerConstatTempo(data, (produitsRes && produitsRes.error ? [] : (produitsRes.data || [])), estProduitAppel, fuseauStation);
     const statutOperationsVal = calculerStatutOperations(constat.detailOperations, constat.totalJours);
     return { ...constat, statutOperations: statutOperationsVal };
   }
@@ -201,7 +204,10 @@
   //    Brief, la fonction étant partagée) : la doctrine Verify elle-même
   //    n'est pas modifiée, seule cette lecture cesse de diverger d'elle.
   async function chargerControlesVerifyRestants(client, siteId, timezone) {
-    const aujourdhui = timezone ? global.NexusStation.dateLocaleStation(timezone) : new Date().toISOString().slice(0, 10);
+    // Jour de la station (sites.timezone) : le paramètre `timezone` reste accepté pour les appelants
+    // existants mais n'est plus la source ; fuseau indéterminé => null, jamais la date UTC.
+    const aujourdhui = await nexusAujourdhuiStation(siteId);
+    if (!aujourdhui) { console.error('Contrôles restants : fuseau de la station indéterminé, jour impossible à dater.'); return null; }
     const { data, error } = await client.from('audits_caisse')
       .select('quart, ecart_piste, ecart_boutique, valide_le_piste, valide_le_boutique')
       .eq('site', siteId).eq('date', aujourdhui);

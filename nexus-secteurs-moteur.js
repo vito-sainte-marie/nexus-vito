@@ -447,7 +447,7 @@
   // Performance reste neutre (null) — pas une absence de donnée, un choix
   // de modélisation assumé (`couverture` reste 'complete' pour ce secteur,
   // un axe non modélisé n'est pas un axe manquant).
-  function construireSecteurOperations(entree, { constatTempo, controlesVerifyRestants, nbCritiquesCaisse, alertesInvOuvertes, alertesInvCritiquesOuvertes, risqueStockTotal, phrasesRisqueCaisse }) {
+  function construireSecteurOperations(entree, { jourStation, constatTempo, controlesVerifyRestants, nbCritiquesCaisse, alertesInvOuvertes, alertesInvCritiquesOuvertes, risqueStockTotal, phrasesRisqueCaisse }) {
     const B = boussole();
     if (!constatTempo.totalJours) return secteurVide(entree, "Pas encore assez d'audits de caisse enregistrés.");
     const scoreEcart = B.scoreOperations(constatTempo.detailOperations, constatTempo.totalJours);
@@ -473,16 +473,18 @@
     // `secteurVide` ci-dessus, un signal déjà honnête en soi.
     let dernierControleTxt = null;
     if (constatTempo.dernierJourExploitableLe) {
-      // Diff calculée en jours calendaires UTC, exactement comme
-      // aujourdHuiISO() dans nexus-tempo.js (`new Date().toISOString()`) —
-      // jamais une comparaison en heure locale, qui déciderait "aujourd'hui"
-      // différemment de tout le reste de la chaîne temporelle selon le
-      // fuseau horaire de la machine (Article 11 — une seule définition de
-      // "aujourd'hui" dans tout NEXUS).
-      const [ay, am, ad] = constatTempo.dernierJourExploitableLe.split('-').map(Number);
-      const [hy, hm, hd] = new Date().toISOString().slice(0, 10).split('-').map(Number);
-      const joursEcoules = Math.round((Date.UTC(hy, hm - 1, hd) - Date.UTC(ay, am - 1, ad)) / 86400000);
-      dernierControleTxt = joursEcoules <= 1 ? 'dernier contrôle intégré : hier' : `dernier contrôle intégré il y a ${joursEcoules} jours`;
+      // Diff en jours calendaires entre deux dates ISO : le jour de la
+      // station vient de l'appelant (nexusAujourdhuiStation, fuseau
+      // sites.timezone), jamais de l'horloge UTC ni de la machine
+      // (Article 11 — une seule définition de "aujourd'hui" dans NEXUS).
+      // Jour indéterminé : on n'affiche pas d'ancienneté plutôt qu'une
+      // ancienneté fausse (Article 5).
+      if (jourStation) {
+        const [ay, am, ad] = constatTempo.dernierJourExploitableLe.split('-').map(Number);
+        const [hy, hm, hd] = jourStation.split('-').map(Number);
+        const joursEcoules = Math.round((Date.UTC(hy, hm - 1, hd) - Date.UTC(ay, am - 1, ad)) / 86400000);
+        dernierControleTxt = joursEcoules <= 1 ? 'dernier contrôle intégré : hier' : `dernier contrôle intégré il y a ${joursEcoules} jours`;
+      }
     }
     const detail = `Écart de caisse moyen : ${Math.round(constatTempo.detailOperations)} €/jour${dernierControleTxt ? ` (${dernierControleTxt})` : ''}${controlesVerifyRestants ? ` · ${controlesVerifyRestants} contrôle${controlesVerifyRestants > 1 ? 's' : ''} caisse en attente aujourd'hui` : ''}.`;
     // Risques (Annexe A) : distincts du statut lui-même — Opérations est le
@@ -624,7 +626,7 @@
     marge: (entree, d) => construireSecteurMarge(entree, { facteurs: d.facteurs, margePlusResultat: d.margePlusResultat, phrasesRisqueMarge: d.phrasesRisqueMarge, signauxRisqueMargeQualifies: d.signauxRisqueMargeQualifies }),
     fdj: (entree, d) => construireSecteurFdj(entree, d.fdjResume),
     operations: (entree, d) => construireSecteurOperations(entree, {
-      constatTempo: d.constatTempo, controlesVerifyRestants: d.controlesVerifyRestants,
+      jourStation: d.jourStation, constatTempo: d.constatTempo, controlesVerifyRestants: d.controlesVerifyRestants,
       nbCritiquesCaisse: d.nbCritiquesCaisse, alertesInvOuvertes: d.alertesInvOuvertes, alertesInvCritiquesOuvertes: d.alertesInvCritiquesOuvertes, risqueStockTotal: d.risqueStockTotal,
       phrasesRisqueCaisse: d.phrasesRisqueCaisse,
     }),

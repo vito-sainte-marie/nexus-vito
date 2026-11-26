@@ -7,11 +7,6 @@
   const PAGE = 'NEXUS-Inventaire-v1.html';
   const ROLES_AUTORISES = new Set(['manager', 'gerant']);
 
-  function aujourdHuiISO() {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  }
-
   function echapper(s) {
     return String(s == null ? '' : s)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -25,7 +20,9 @@
       .select('id, nom, role, site_id').eq('id', session.user.id).maybeSingle();
     if (!employee || !employee.site_id || !ROLES_AUTORISES.has(employee.role)) return null;
 
-    const date = aujourdHuiISO();
+    // Jour de la station (fuseau sites.timezone), pas l'horloge de la machine.
+    const date = await global.nexusAujourdhuiStation(employee.site_id);
+    if (!date) { console.error('Transferts internes : jour de la station indéterminé (sites.timezone)'); return null; }
     let { data: quarts } = await nexusClient.from('inventaire_quarts')
       .select('id, quart, statut, ouvert_le, created_at')
       .eq('site', employee.site_id).eq('date', date)

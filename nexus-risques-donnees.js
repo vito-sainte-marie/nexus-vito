@@ -296,13 +296,24 @@
   // SOURCE — DOMAINE PILOTE CAISSE
   // ------------------------------------------------------------
 
-  // Les `depuisNJours` derniers audits du site pour un quart donné (même
+  // Jour de la station (lot A3) : la date UTC de l'appareil n'est pas le jour de
+// la station (UTC−4 : demain des 20 h). Fuseau indéterminé => null, jamais UTC.
+  async function jourStation(siteId) {
+    return (typeof global.nexusAujourdhuiStation === 'function') ? global.nexusAujourdhuiStation(siteId) : null;
+  }
+  async function depuisStation(siteId, nJours) {
+    const j = await jourStation(siteId);
+    return j ? global.nexusDecalerJour(j, -nJours) : null;
+  }
+
+    // Les `depuisNJours` derniers audits du site pour un quart donné (même
   // référence propre que le Conseiller NEXUS Verify : comparer un quart à
   // ses propres pairs, jamais à un autre quart). Retourne directement la
   // sortie de NexusVerifyMoteur.agregerAudits(), prête pour
   // NexusRisques.qualifierEcartCaisse().
   async function chargerAgregationCaisseQuart(client, siteId, quart, depuisNJours) {
-    const depuis = new Date(Date.now() - (depuisNJours || 30) * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const depuis = await depuisStation(siteId, depuisNJours || 30);;
+    if (!depuis) { console.error('Jour de la station indéterminé — fenêtre non calculée.'); return null; }
     const { data, error } = await client.from('audits_caisse')
       .select('date, quart, ecart_piste, ecart_boutique, statut, commentaire')
       .eq('site', siteId).eq('quart', quart).gte('date', depuis).order('date', { ascending: false });
@@ -319,7 +330,8 @@
   // quart -> sortie de NexusVerifyMoteur.agregerAudits(), prête pour
   // NexusRisques.qualifierEcartCaisse() par quart.
   async function chargerAgregationCaisseTousQuarts(client, siteId, depuisNJours) {
-    const depuis = new Date(Date.now() - (depuisNJours || 30) * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const depuis = await depuisStation(siteId, depuisNJours || 30);;
+    if (!depuis) { console.error('Jour de la station indéterminé — fenêtre non calculée.'); return {}; }
     const { data, error } = await client.from('audits_caisse')
       .select('date, quart, ecart_piste, ecart_boutique, statut, commentaire')
       .eq('site', siteId).gte('date', depuis).order('date', { ascending: false });
@@ -622,8 +634,9 @@
   async function chargerAlertesInventaireAQualifier(client, siteId) {
     const D = global.NexusInventaireManagerDonnees;
     if (!D) { console.error('NexusInventaireManagerDonnees non chargé — inclure nexus-inventaire-manager-donnees.js avant nexus-risques-donnees.js pour qualifier Inventaire.'); return {}; }
-    const fenetreLarge = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-    const aujourdhui = new Date().toISOString().slice(0, 10);
+    const aujourdhui = await jourStation(siteId);
+    if (!aujourdhui) { console.error('Jour de la station indéterminé — alertes inventaire non qualifiées.'); return {}; }
+    const fenetreLarge = global.nexusDecalerJour(aujourdhui, -30);
     const [alertesOuvertes, historiqueEcarts] = await Promise.all([
       D.chargerAlertesOuvertesPeriode(client, siteId, fenetreLarge, aujourdhui),
       D.chargerHistoriqueEcartsRecents(client, siteId), // fenêtre fixe 14 jours, propre à ce chargeur existant.
@@ -657,7 +670,8 @@
   // `chargerAgregationCaisseTousQuarts` (agrégation par quart), sur une
   // table différente.
   async function chargerAgregationCaisseFdjTousQuarts(client, siteId, depuisNJours) {
-    const depuis = new Date(Date.now() - (depuisNJours || 30) * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const depuis = await depuisStation(siteId, depuisNJours || 30);;
+    if (!depuis) { console.error('Jour de la station indéterminé — fenêtre non calculée.'); return {}; }
     const { data: shifts, error: e1 } = await client.from('fdj_shifts')
       .select('id, quart').eq('site', siteId).gte('date', depuis);
     if (e1) { console.error('Chargement quarts FDJ (risque):', e1); return {}; }
@@ -697,7 +711,8 @@
   // Retourne une map { [employeeId]: { nom, nbRetards, totalPointages } }
   // — un collaborateur sans retard n'apparaît pas dans la map.
   async function chargerPonctualiteCollaborateursAQualifier(client, siteId, depuisNJours) {
-    const depuis = new Date(Date.now() - (depuisNJours || 14) * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const depuis = await depuisStation(siteId, depuisNJours || 14);;
+    if (!depuis) { console.error('Jour de la station indéterminé — fenêtre non calculée.'); return {}; }
     const [{ data: retards, error: e1 }, { data: totaux, error: e2 }] = await Promise.all([
       client.from('pointages').select('employee_id, retard_min, employees(nom)').eq('site', siteId).eq('type', 'arrivee').gt('retard_min', 0).gte('date', depuis),
       // Dénominateur par collaborateur : seules les arrivées dont le retard

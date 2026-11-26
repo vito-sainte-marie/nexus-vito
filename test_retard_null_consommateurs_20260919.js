@@ -71,6 +71,7 @@ const RD = gRd.NexusRapportDirectionDonnees;
 // divergence_v2224.js) est de leur donner `global` pour fenêtre.
 global.window = global;
 require(path.join(RACINE, 'nexus-site-requis.js'));
+require('./outils/fuseau-metier-pour-tests.js').installerAvecFuseau('America/Martinique');
 require(path.join(RACINE, 'nexus-app-donnees.js'));
 require(path.join(RACINE, 'nexus-brief-donnees.js'));
 require(path.join(RACINE, 'nexus-risques-donnees.js'));

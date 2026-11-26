@@ -18,15 +18,15 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
-<script src="nexus-auth.js?v=20261124-1500"></script>
+<script src="nexus-auth.js?v=20261127-1000"></script>
 <script src="nexus-forfait.js?v=20260904-0104"></script>
 <script src="nexus-icones.js?v=20261124-0001"></script>
 <script src="nexus-desktop.js?v=20261124-1500"></script>
 <script src="nexus-fdj-moteur.js?v=20260904-0104"></script>
 <script src="nexus-mesure.js?v=20260904-0104"></script>
-<script src="nexus-coach-fdj-moteur.js?v=20260904-0104"></script>
+<script src="nexus-coach-fdj-moteur.js?v=20261127-1000"></script>
 <script src="nexus-site-requis.js?v=20261127-0100"></script>
-<script src="nexus-coach-fdj-donnees.js?v=20261127-0100"></script>
+<script src="nexus-coach-fdj-donnees.js?v=20261127-1000"></script>
 <style>
   :root{
     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
@@ -116,7 +116,6 @@
   let siteId = null; // jamais 'vito-sainte-marie' par defaut (de-Vito-isation, 11/08/2026) - toujours ecrase par employee.site_id apres nexusRequireAuth()
   let recommandationActuelle = null;
 
-  function dateISO(d) { d = d || new Date(); return d.toISOString().slice(0, 10); }
 
   // ------------------------------------------------------------
   // Enregistrement d'un événement d'interaction (audit §16 : table
@@ -189,7 +188,7 @@
     siteId = employee.site_id;
     if (!(await NexusForfait.nexusRequireProfessional('NEXUS-Coach-FDJ-v1.html', siteId))) return;
 
-    const reco = await NexusCoachFdjDonnees.obtenirRecommandationDuJour(nexusClient, siteId, employeeCourant.id, dateISO());
+    const reco = await NexusCoachFdjDonnees.obtenirRecommandationDuJour(nexusClient, siteId, employeeCourant.id);
     if (!reco) {
       document.getElementById('content').innerHTML = `
         <div class="rien-card">NEXUS n'a pas pu préparer votre conseil du jour. Réessayez un peu plus tard, ou signalez-le à votre manager si cela persiste.</div>

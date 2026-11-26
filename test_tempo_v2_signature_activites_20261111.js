@@ -141,7 +141,8 @@ t('flèche des analyses : toujours cyan NEXUS', () => {
 
 t('le JS de la page est celui du lot Conseiller NEXUS et pictogrammes (empreinte du bloc script)', () => {
   const h = crypto.createHash('sha256').update(scripts).digest('hex');
-  assert.strictEqual(h, 'd4ea1773eb92b12c2a6afe537e23151e0f09426f5396f03aad0d997f95f7449c');
+  // Ré-épinglé le 26/11/2026 (lot A3, fuseau de la station) : ?v= et fuseau passé à filtrerJoursClos / prochainsPonts, rien d'autre.
+  assert.strictEqual(h, 'c804ce45ea0859498b0e7e22320a8c6df039cd969436934c9942650681ead9d1');
 });
 
 t('nexus-tempo.js intact (aucune référence aux classes de signature)', () => {

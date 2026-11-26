@@ -880,10 +880,16 @@ function nexusRetenirFuseau(siteId, valeur){
 function nexusJourDansFuseau(instant, fuseau){
   if(!fuseau) return null;
   const d = instant instanceof Date ? instant : new Date(instant);
-  const p = new Intl.DateTimeFormat('en-CA', {
-    timeZone: fuseau,
-    year: 'numeric', month: '2-digit', day: '2-digit'
-  }).formatToParts(d).reduce((a, x) => { a[x.type] = x.value; return a; }, {});
+  if(isNaN(d.getTime())) return null;
+  let p;
+  try {
+    p = new Intl.DateTimeFormat('en-CA', {
+      timeZone: fuseau,
+      year: 'numeric', month: '2-digit', day: '2-digit'
+    }).formatToParts(d).reduce((a, x) => { a[x.type] = x.value; return a; }, {});
+  } catch (e) {
+    return null; // fuseau inconnu : indéterminé, jamais une date devinée (Article 5)
+  }
   return p.year + '-' + p.month + '-' + p.day;
 }
 
@@ -920,6 +926,25 @@ async function nexusLireFuseauSite(siteId){
     console.error('Fuseau du site : lecture impossible — le jour de la station reste indetermine.', e);
     return null;
   }
+}
+
+/**
+ * « Aujourd'hui de la station » : LA fonction que tous les ecrans appellent
+ * (lot A3, 26/11/2026). Elle compose les deux primitives ci-dessus et n'en
+ * ajoute aucune : fuseau lu dans `sites.timezone`, jour calcule par
+ * `nexusJourDansFuseau`. Rend `null` quand le fuseau est indetermine — jamais
+ * la date UTC de l'appareil, qui bascule a demain des 20 h en Martinique.
+ */
+async function nexusAujourdhuiStation(siteId, instant){
+  const fuseau = await nexusFuseauSite(siteId);
+  return nexusJourDansFuseau(instant instanceof Date ? instant : new Date(), fuseau);
+}
+
+/** Decale un jour 'AAAA-MM-JJ' de n jours calendaires (arithmetique UTC pure, sans heure d'ete). */
+function nexusDecalerJour(jourISO, n){
+  if(!jourISO) return null;
+  const [a, m, j] = String(jourISO).split('-').map(Number);
+  return new Date(Date.UTC(a, m - 1, j + n)).toISOString().slice(0, 10);
 }
 
 /* NEXUS-FUSEAU-METIER:FIN */

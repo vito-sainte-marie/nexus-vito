@@ -148,22 +148,24 @@
   // date PASSÉE, avec les mêmes fonctions que pour "aujourd'hui" — jamais
   // une deuxième formule pour "le score d'un jour" (Article 11).
   async function chargerCarburantsBrief(client, siteId, dateReference) {
-    const aujourdhui = dateReference || new Date().toISOString().slice(0, 10);
+    // Jour de la station (sites.timezone) : fuseau indéterminé => null, jamais la date UTC.
+    const aujourdhui = dateReference || await nexusAujourdhuiStation(siteId);
+    if (!aujourdhui) { console.error('Carburants (Brief) : fuseau de la station indéterminé, jour impossible à dater.'); return null; }
     // 7 derniers jours glissants vs les 7 jours précédents — PAS la semaine
     // calendaire, même convention que chargerCandidatsFdj() ci-dessous :
     // toujours comparer des fenêtres de durée égale. Ancré sur `aujourdhui`
     // (et non plus directement sur `new Date()`) pour que ce calcul reste
     // correct quand `dateReference` désigne un jour antérieur.
-    const finActuelle = new Date(`${aujourdhui}T23:59:59.999`);
-    const debutActuelle = new Date(finActuelle); debutActuelle.setDate(debutActuelle.getDate() - 6);
-    const finPrecedente = new Date(debutActuelle); finPrecedente.setDate(finPrecedente.getDate() - 1);
-    const debutPrecedente = new Date(finPrecedente); debutPrecedente.setDate(debutPrecedente.getDate() - 6);
-    const iso = d => d.toISOString().slice(0, 10);
+    // Arithmétique sur des jours calendaires ISO (nexusDecalerJour) : aucune date locale du navigateur.
+    const finActuelle = aujourdhui;
+    const debutActuelle = nexusDecalerJour(aujourdhui, -6);
+    const finPrecedente = nexusDecalerJour(aujourdhui, -7);
+    const debutPrecedente = nexusDecalerJour(aujourdhui, -13);
 
     const [controle, actuel, reference] = await Promise.all([
       global.NexusCarburantDonnees.chargerControleJour(client, siteId, aujourdhui),
-      global.NexusCarburantDonnees.chargerVentesPeriode(client, siteId, iso(debutActuelle), iso(finActuelle)),
-      global.NexusCarburantDonnees.chargerVentesPeriode(client, siteId, iso(debutPrecedente), iso(finPrecedente)),
+      global.NexusCarburantDonnees.chargerVentesPeriode(client, siteId, debutActuelle, finActuelle),
+      global.NexusCarburantDonnees.chargerVentesPeriode(client, siteId, debutPrecedente, finPrecedente),
     ]);
     const M = global.NexusCarburantMoteur;
     const D = global.NexusCarburantDonnees;
@@ -304,7 +306,8 @@
   async function chargerCarburantsBriefAvecFallback(client, siteId, dateAujourdhui) {
     const M = global.NexusCarburantMoteur;
     const D = global.NexusCarburantDonnees;
-    const aujourdhui = dateAujourdhui || new Date().toISOString().slice(0, 10);
+    const aujourdhui = dateAujourdhui || await nexusAujourdhuiStation(siteId);
+    if (!aujourdhui) { console.error('Carburants (Brief) : fuseau de la station indéterminé, jour impossible à dater.'); return null; }
     const carburantsJour = await chargerCarburantsBrief(client, siteId, aujourdhui);
     // Écriture best-effort du journal de traçabilité (v2.222) — jamais
     // attendue (pas de `await`), jamais bloquante : un incident d'écriture
@@ -400,11 +403,13 @@
   }
 
   async function chargerCandidatsFdj(client, siteId) {
-    const finActuelle = new Date(); finActuelle.setHours(23, 59, 59, 999);
-    const debutActuelle = new Date(finActuelle); debutActuelle.setDate(debutActuelle.getDate() - 6); debutActuelle.setHours(0, 0, 0, 0);
-    const finComp = new Date(debutActuelle); finComp.setDate(finComp.getDate() - 1); finComp.setHours(23, 59, 59, 999);
-    const debutComp = new Date(finComp); debutComp.setDate(debutComp.getDate() - 6); debutComp.setHours(0, 0, 0, 0);
-    const iso = d => d.toISOString().slice(0, 10);
+    const jourStation = await nexusAujourdhuiStation(siteId);
+    if (!jourStation) { console.error('Candidats (Brief) : fuseau de la station indéterminé, fenêtres impossibles à dater.'); return null; }
+    const iso = d => d;   // les bornes sont déjà des jours ISO de la station
+    const finActuelle = jourStation;
+    const debutActuelle = nexusDecalerJour(jourStation, -6);
+    const finComp = nexusDecalerJour(jourStation, -7);
+    const debutComp = nexusDecalerJour(jourStation, -13);
 
     const [{ data: jeuxData, error: e1 }, { data: dailyRows, error: e2 }, { data: gameDailyRows, error: e3 },
       { data: emplacements, error: e4 }, { data: mouvements, error: e5 }, reference] = await Promise.all([
@@ -535,11 +540,13 @@
   // (aucune règle recalculée ici, voir NexusCoachFdj.calculerCandidatsCoachEquipe
   // — Article 11). Même fenêtre fixe que chargerCandidatsFdj ci-dessus.
   async function chargerCandidatsCoachEquipe(client, siteId) {
-    const finActuelle = new Date(); finActuelle.setHours(23, 59, 59, 999);
-    const debutActuelle = new Date(finActuelle); debutActuelle.setDate(debutActuelle.getDate() - 6); debutActuelle.setHours(0, 0, 0, 0);
-    const finComp = new Date(debutActuelle); finComp.setDate(finComp.getDate() - 1); finComp.setHours(23, 59, 59, 999);
-    const debutComp = new Date(finComp); debutComp.setDate(debutComp.getDate() - 6); debutComp.setHours(0, 0, 0, 0);
-    const iso = d => d.toISOString().slice(0, 10);
+    const jourStation = await nexusAujourdhuiStation(siteId);
+    if (!jourStation) { console.error('Candidats (Brief) : fuseau de la station indéterminé, fenêtres impossibles à dater.'); return null; }
+    const iso = d => d;   // les bornes sont déjà des jours ISO de la station
+    const finActuelle = jourStation;
+    const debutActuelle = nexusDecalerJour(jourStation, -6);
+    const finComp = nexusDecalerJour(jourStation, -7);
+    const debutComp = nexusDecalerJour(jourStation, -13);
 
     const [{ data: actuel, error: e1 }, { data: comp, error: e2 }] = await Promise.all([
       client.from('coach_daily_recommendations').select('employee_id, rule_id').eq('site', siteId).gte('date', iso(debutActuelle)).lte('date', iso(finActuelle)),
@@ -610,14 +617,17 @@
   //
   // Reste inchangé, documenté depuis toujours : cette fonction ne filtre
   // par aucun site (voir commentaire en tête de fichier).
+  // `siteId` (A2) est requis ; il sert aussi (A3) à dater « aujourd'hui » dans le
+  // fuseau de la station quand `dateReference` n'est pas fournie.
   async function chargerDomaineEquipe(client, siteId, dateReference) {
     global.NexusSiteRequis.exiger(siteId, 'chargerDomaineEquipe');
-    const aujourdhui = dateReference ? new Date(`${dateReference}T23:59:59.999`) : new Date();
-    const iso = d => d.toISOString().slice(0, 10);
-    const finActuelle = iso(aujourdhui);
-    const debutActuelle = new Date(aujourdhui); debutActuelle.setDate(debutActuelle.getDate() - 6);
-    const finPrecedente = new Date(debutActuelle); finPrecedente.setDate(finPrecedente.getDate() - 1);
-    const debutPrecedente = new Date(finPrecedente); debutPrecedente.setDate(debutPrecedente.getDate() - 6);
+    const jourRef = dateReference || await nexusAujourdhuiStation(siteId);
+    if (!jourRef) { console.error('Équipe (Brief) : jour de la station indéterminé (fuseau manquant).'); return null; }
+    const iso = d => d;   // bornes déjà au format jour ISO
+    const finActuelle = jourRef;
+    const debutActuelle = nexusDecalerJour(jourRef, -6);
+    const finPrecedente = nexusDecalerJour(jourRef, -7);
+    const debutPrecedente = nexusDecalerJour(jourRef, -13);
 
     const [
       { data: pointagesRetard, error: e2 },
@@ -626,14 +636,14 @@
       { count: totalAnomaliesPrec, error: e5 },
       { data: pointagesRetardTous, error: e6 },
     ] = await Promise.all([
-      client.from('pointages').select('employee_id, retard_min').eq('site', siteId).eq('type', 'arrivee').gt('retard_min', 0).gte('date', debutActuelle.toISOString().slice(0, 10)).lte('date', finActuelle),
+      client.from('pointages').select('employee_id, retard_min').eq('site', siteId).eq('type', 'arrivee').gt('retard_min', 0).gte('date', debutActuelle).lte('date', finActuelle),
       // Les deux dénominateurs ne comptent que les arrivées MESURÉES
       // (`retard_min` non NULL). Depuis le 19/09/2026 NULL = retard non
       // calculable : les numérateurs les excluent déjà (`.gt` ignore les
       // NULL), et les laisser au dénominateur ferait baisser le taux
       // d'anomalies à chaque journée sans planning publié — Article 11,
       // même correction que dans nexus-app-donnees.js.
-      client.from('pointages').select('id', { count: 'exact', head: true }).eq('site', siteId).eq('type', 'arrivee').not('retard_min', 'is', null).gte('date', debutActuelle.toISOString().slice(0, 10)).lte('date', finActuelle),
+      client.from('pointages').select('id', { count: 'exact', head: true }).eq('site', siteId).eq('type', 'arrivee').not('retard_min', 'is', null).gte('date', debutActuelle).lte('date', finActuelle),
       client.from('pointages').select('id', { count: 'exact', head: true }).eq('site', siteId).eq('type', 'arrivee').not('retard_min', 'is', null).gte('date', iso(debutPrecedente)).lte('date', iso(finPrecedente)),
       client.from('pointages').select('id', { count: 'exact', head: true }).eq('site', siteId).eq('type', 'arrivee').gt('retard_min', 0).gte('date', iso(debutPrecedente)).lte('date', iso(finPrecedente)),
       // Portée (collectif/individuel) et `employesASurveiller` restent
@@ -710,7 +720,8 @@
   }
 
   async function chargerMissionsRestantes(client, siteId) {
-    const aujourdhui = new Date().toISOString().slice(0, 10);
+    const aujourdhui = await nexusAujourdhuiStation(siteId);
+    if (!aujourdhui) { console.error('Missions restantes (Brief) : fuseau de la station indéterminé.'); return null; }
     const [catalogueRes, completionsRes] = await Promise.all([
       client.from('mission_catalog').select('mission_id', { count: 'exact', head: true }).eq('actif', true).eq('ponctuelle', false).eq('site_id', siteId),
       client.from('mission_completions').select('mission_id').eq('site_id', siteId).eq('date', aujourdhui),

@@ -124,7 +124,8 @@ t('NEXUS-Tempo-v1.html inchangé (empreinte ; avatar recadré le 12/11/2026, seu
     .replace(/\?v=[^"']*/g, '?v=');
   // A1 (26/11/2026) : seul ajout, la balise <script nexus-ecarts-moteur.js> exigée par nexus-tempo.js (écart de quart = autorité unique).
   const h = crypto.createHash('sha256').update(src).digest('hex');
-  assert.strictEqual(h, '04896a9a64bfbc7e6bd851615ca18028f1914ffa75a8a602e5211c4ae4e4d1e0');
+  // Ré-épinglé le 26/11/2026 (lot A3, fuseau de la station) : seuls changent les ?v= et la lecture du fuseau de la station pour filtrerJoursClos / prochainsPonts.
+  assert.strictEqual(h, '1d7e904bd8c434ae29caba9f2dcaa876106564c22276ff3fabf9bd1d9c68bb5d');
 });
 
 t('carte vide : aucun niveau, sauf « Hypothèse » de la colonne CA FDJ (G4)', () => {

@@ -26,6 +26,7 @@ const PROJET = __dirname;
 
 global.window = global;
 require(path.join(PROJET, 'nexus-carburant-moteur.js'));
+require('./outils/fuseau-metier-pour-tests.js').installerAvecFuseau('America/Martinique');
 require(path.join(PROJET, 'nexus-app-donnees.js'));
 const M = global.NexusCarburantMoteur;
 const AD = global.NexusAppDonnees;

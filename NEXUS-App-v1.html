@@ -1618,7 +1618,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
 <script src="nexus-station.js?v=20260904-0104"></script>
-<script src="nexus-auth.js?v=20261124-1500"></script>
+<script src="nexus-auth.js?v=20261127-1000"></script>
 <script src="nexus-pointage-regles.js?v=20260904-0104"></script>
 <script src="nexus-icones.js?v=20261124-0001"></script>
 <script src="nexus-desktop.js?v=20261124-1500"></script>
@@ -1636,18 +1636,18 @@
 <script src="nexus-marge.js?v=20260904-0104"></script>
 <script src="nexus-jours-feries.js?v=20261106-0100"></script>
 <script src="nexus-ecarts-moteur.js?v=20261126-0100"></script>
-<script src="nexus-tempo.js?v=20261126-0100"></script>
+<script src="nexus-tempo.js?v=20261127-1000"></script>
 <script src="nexus-boussole-moteur.js?v=20260904-0104"></script>
 <script src="nexus-boussole-moteur.js?v=20260904-0104"></script>
 <!-- Ajoutés le 09/09/2026 pour l'invitation à l'inventaire : le moteur rend les
      règles qui n'ont trouvé personne, la couche de règles lit le catalogue et
      les rôles présents. Aucun autre usage sur cet écran. -->
-<script src="nexus-inventaire-moteur.js?v=20260904-0104"></script>
+<script src="nexus-inventaire-moteur.js?v=20261127-1000"></script>
 <script src="nexus-inventaire-mission-rules-donnees.js?v=20261124-1200"></script>
 <script src="nexus-carburant-moteur.js?v=20260904-0104"></script>
-<script src="nexus-carburant-donnees.js?v=20260904-0104"></script>
+<script src="nexus-carburant-donnees.js?v=20261127-1000"></script>
 <script src="nexus-releves-piste.js?v=20261013-2212"></script>
-<script src="nexus-conseiller.js?v=20260904-0104"></script>
+<script src="nexus-conseiller.js?v=20261127-1000"></script>
 <script src="nexus-etats-conseiller.js"></script>
 <!-- nexus-verify-moteur.js (20/09/2026, P0-3, lot NEXUS-CONTINUITE-TERRAIN-1) :
      chargerControlesVerifyRestants (nexus-conseiller-donnees.js) délègue
@@ -1655,7 +1655,7 @@
      classification que NEXUS Verify (Article 11) — jamais un second calcul
      de validation. Aucune autre fonction de ce fichier n'est appelée ici. -->
 <script src="nexus-verify-moteur.js?v=20261126-0100"></script>
-<script src="nexus-conseiller-donnees.js?v=20260904-0104"></script>
+<script src="nexus-conseiller-donnees.js?v=20261127-1000"></script>
 <!-- nexus-brief-donnees.js (23/08/2026, v2.224, correctif "règle anti-
      divergence") : nécessaire pour que chargerStatutCarburantsHome
      (nexus-app-donnees.js) délègue à chargerCarburantsBriefAvecFallback,
@@ -1663,8 +1663,8 @@
      Carburants qui ignorerait le fallback temporel. Aucune autre fonction
      de ce fichier n'est appelée depuis cet écran. -->
 <script src="nexus-site-requis.js?v=20261127-0100"></script>
-<script src="nexus-brief-donnees.js?v=20261127-0100"></script>
-<script src="nexus-app-donnees.js?v=20261127-0100"></script>
+<script src="nexus-brief-donnees.js?v=20261127-1000"></script>
+<script src="nexus-app-donnees.js?v=20261127-1000"></script>
 <script src="nexus-forfait.js?v=20260904-0104"></script>
 <script src="nexus-raccourcis-catalogue.js?v=20261122-1900"></script>
 <script>
@@ -2155,7 +2155,7 @@
     const candidatsAdvisor = messagesAdvisor.map(NexusConseiller.normaliserAdvisor);
     const candidatsConseiller = NexusConseiller.fusionnerEtSelectionner(
       [candidatsDisponibles, candidatMarge ? [candidatMarge] : [], candidatsAdvisor],
-      { site: SITE_HOME, n: 3 }
+      { site: SITE_HOME, n: 3, jour: await nexusAujourdhuiStation(SITE_HOME) }
     );
     renderEntrepriseAujourdhui({
       facteurs, margePlusResultat,

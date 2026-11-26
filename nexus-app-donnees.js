@@ -147,7 +147,11 @@
   // second calcul de date) ; fuseau non résolu -> repli UTC identique à
   // avant, pour ne jamais bloquer l'Accueil sur une configuration absente.
   async function chargerStatutCarburantsHome(client, siteId, timezone) {
-    const aujourdhui = timezone ? global.NexusStation.dateLocaleStation(timezone) : new Date().toISOString().slice(0, 10);
+    const aujourdhui = await nexusAujourdhuiStation(siteId);   // jour de la station ; indéterminé => rien à dater, jamais l'UTC
+    if (!aujourdhui) {
+      console.error('Statut carburants : fuseau de la station indéterminé.');
+      return { statut: null, detail: null, parCarburant: {}, aucunReleve: null, fraicheur: null, indetermine: true };
+    }
     const carburants = await global.NexusBriefDonnees.chargerCarburantsBriefAvecFallback(client, siteId, aujourdhui, timezone);
     const { parCarburant, aucunReleve } = carburants.controle;
     const statut = global.NexusCarburantMoteur.statutGlobalControle(aucunReleve ? null : parCarburant);

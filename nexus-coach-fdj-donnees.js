@@ -36,10 +36,12 @@
   const DEPUIS_JOURS_STATS = 90;
   const DEPUIS_JOURS_ROTATION = 30;
 
-  function isoDepuis(jours) {
-    const d = new Date();
-    d.setDate(d.getDate() - jours);
-    return d.toISOString().slice(0, 10);
+  // Fenêtre glissante calculée depuis « aujourd'hui de la station »
+  // (nexusAujourdhuiStation, nexus-auth.js), jamais depuis l'horloge de
+  // l'appareil ni la date UTC (A3 : de 20 h à minuit en Martinique la date
+  // UTC est déjà celle du lendemain).
+  function isoDepuis(jours, aujourdHui) {
+    return global.nexusDecalerJour(aujourdHui, -jours);
   }
 
   async function fetchAllRows(builderFactory, pageSize = 1000) {
@@ -102,10 +104,10 @@
   // le manager (même sémantique que le panneau Alertes de
   // NEXUS-FDJ-Manager-v1.html : `vue=false`), plafonnées à 14 jours pour
   // ne pas faire remonter indéfiniment une alerte oubliée.
-  async function chargerAlertesActivationRecentes(client, site, employeeId) {
+  async function chargerAlertesActivationRecentes(client, site, employeeId, aujourdHui) {
     const { data, error } = await client.from('fdj_alertes').select('id, created_at, game_id')
       .eq('site', site).eq('type', 'activation_sans_carnet_confie').eq('employee_id', employeeId)
-      .eq('vue', false).gte('created_at', isoDepuis(DEPUIS_JOURS_ALERTES) + 'T00:00:00');
+      .eq('vue', false).gte('created_at', isoDepuis(DEPUIS_JOURS_ALERTES, aujourdHui) + 'T00:00:00');
     if (error) { console.error('Coach FDJ — chargement alertes activation:', error); return []; }
     return data || [];
   }
@@ -121,9 +123,9 @@
 
   // Tier 2 — quarts clôturés récents avec proxy de retard (voir note en
   // tête de fichier : indicateur binaire, pas des minutes réelles).
-  async function chargerShiftsRecentsAvecCloture(client, site, employeeId) {
+  async function chargerShiftsRecentsAvecCloture(client, site, employeeId, aujourdHui) {
     const { data, error } = await client.from('fdj_shifts').select('id, date, quart, statut, valide_le')
-      .eq('site', site).eq('employee_id', employeeId).eq('statut', 'valide').gte('date', isoDepuis(DEPUIS_JOURS_QUARTS));
+      .eq('site', site).eq('employee_id', employeeId).eq('statut', 'valide').gte('date', isoDepuis(DEPUIS_JOURS_QUARTS, aujourdHui));
     if (error) { console.error('Coach FDJ — chargement quarts récents:', error); return []; }
     return (data || []).map(s => ({
       ...s,
@@ -133,11 +135,11 @@
 
   // Tier 2 — corrections de comptage récentes de l'employé, et taille de
   // l'échantillon de quarts clôturés sur la même fenêtre.
-  async function chargerCorrectionsEtHistorique(client, site, employeeId) {
+  async function chargerCorrectionsEtHistorique(client, site, employeeId, aujourdHui) {
     const [{ data: corrections, error: e1 }, { data: shifts, error: e2 }] = await Promise.all([
       client.from('fdj_stock_movements').select('shift_id, created_at').eq('site', site).eq('employee_id', employeeId)
-        .eq('type_mouvement', 'correction').gte('created_at', isoDepuis(DEPUIS_JOURS_QUARTS) + 'T00:00:00'),
-      client.from('fdj_shifts').select('id').eq('site', site).eq('employee_id', employeeId).eq('statut', 'valide').gte('date', isoDepuis(DEPUIS_JOURS_QUARTS)),
+        .eq('type_mouvement', 'correction').gte('created_at', isoDepuis(DEPUIS_JOURS_QUARTS, aujourdHui) + 'T00:00:00'),
+      client.from('fdj_shifts').select('id').eq('site', site).eq('employee_id', employeeId).eq('statut', 'valide').gte('date', isoDepuis(DEPUIS_JOURS_QUARTS, aujourdHui)),
     ]);
     if (e1) console.error('Coach FDJ — chargement corrections:', e1);
     if (e2) console.error('Coach FDJ — chargement historique quarts:', e2);
@@ -146,9 +148,9 @@
 
   // Tier 4 — conformité de l'employé sur la fenêtre récente, via la vue
   // Phase B déjà validée (view_fdj_employee_daily) — jamais recalculée.
-  async function chargerConformiteEmploye(client, site, employeeId) {
+  async function chargerConformiteEmploye(client, site, employeeId, aujourdHui) {
     const { data, error } = await client.from('view_fdj_employee_daily').select('nb_quarts_controles, nb_quarts_conformes')
-      .eq('site', site).eq('employee_id', employeeId).gte('date', isoDepuis(DEPUIS_JOURS_STATS));
+      .eq('site', site).eq('employee_id', employeeId).gte('date', isoDepuis(DEPUIS_JOURS_STATS, aujourdHui));
     if (error) { console.error('Coach FDJ — chargement conformité employé:', error); return { tauxConformiteEmploye: null, nbQuartsControles: 0 }; }
     const nbQuartsControles = (data || []).reduce((s, l) => s + (Number(l.nb_quarts_controles) || 0), 0);
     const nbQuartsConformes = (data || []).reduce((s, l) => s + (Number(l.nb_quarts_conformes) || 0), 0);
@@ -158,8 +160,8 @@
   // Tier 5 — répartition par palier de l'employé vs celle du site, via la
   // nouvelle vue view_fdj_employee_price_tier_daily (Coach x FDJ Pilotage,
   // étape "brancher les données") et la vue Phase B existante côté site.
-  async function chargerPalierEmployeSite(client, site, employeeId) {
-    const depuis = isoDepuis(DEPUIS_JOURS_STATS);
+  async function chargerPalierEmployeSite(client, site, employeeId, aujourdHui) {
+    const depuis = isoDepuis(DEPUIS_JOURS_STATS, aujourdHui);
     const [{ data: empRows, error: e1 }, { data: siteRows, error: e2 }] = await Promise.all([
       client.from('view_fdj_employee_price_tier_daily').select('palier, tickets_vendus, ca').eq('site', site).eq('employee_id', employeeId).gte('date', depuis),
       client.from('view_fdj_price_tier_daily').select('palier, tickets_vendus, ca').eq('site', site).gte('date', depuis),
@@ -183,9 +185,9 @@
   // Tier 5 — performance de l'employé par jour de semaine, via la vue
   // Phase B existante (view_fdj_employee_daily), regroupée côté client par
   // jour de semaine (agrégation simple, aucune formule métier nouvelle).
-  async function chargerPerformanceJourEmploye(client, site, employeeId) {
+  async function chargerPerformanceJourEmploye(client, site, employeeId, aujourdHui) {
     const { data, error } = await client.from('view_fdj_employee_daily').select('date, ca_grattage, nb_quarts_controles')
-      .eq('site', site).eq('employee_id', employeeId).gte('date', isoDepuis(DEPUIS_JOURS_STATS));
+      .eq('site', site).eq('employee_id', employeeId).gte('date', isoDepuis(DEPUIS_JOURS_STATS, aujourdHui));
     if (error) { console.error('Coach FDJ — chargement performance par jour:', error); return { performanceJourEmploye: {}, moyenneGeneraleEmploye: null }; }
     const lignesExploitables = (data || []).filter(l => l.ca_grattage !== null && Number(l.nb_quarts_controles) > 0);
     const parJour = {};
@@ -205,9 +207,9 @@
   // Tier 5 — "jour fort" mesuré au niveau du SITE (échantillon plus large
   // et plus fiable que celui d'un seul employé), réutilise
   // NexusCoachFdj.evaluerJour() : une seule définition de "jour fort".
-  async function chargerJourFortSite(client, site, jourSemaineActuel) {
+  async function chargerJourFortSite(client, site, jourSemaineActuel, aujourdHui) {
     const { data, error } = await client.from('view_fdj_daily_summary').select('date, ca_grattage, nb_quarts_controles')
-      .eq('site', site).gte('date', isoDepuis(DEPUIS_JOURS_STATS));
+      .eq('site', site).gte('date', isoDepuis(DEPUIS_JOURS_STATS, aujourdHui));
     if (error) { console.error('Coach FDJ — chargement jour fort site:', error); return false; }
     const lignesExploitables = (data || []).filter(l => l.ca_grattage !== null && Number(l.nb_quarts_controles) > 0);
     if (!lignesExploitables.length) return false;
@@ -241,22 +243,22 @@
   // NexusCoachFdj.evaluerReglesCoach().
   // ------------------------------------------------------------
   async function assemblerFaits(client, site, employeeId, aujourdHui) {
-    const jourSemaineActuel = new Date(aujourdHui + 'T00:00:00').getDay();
+    const jourSemaineActuel = new Date(aujourdHui + 'T12:00:00Z').getUTCDay();
     const [
       jeux, soldes, alertesActivationRecentes, shiftsIncomplets, shiftsRecents,
       correctionsEtHistorique, conformite, palier, performanceJour,
     ] = await Promise.all([
       chargerJeuxCoach(client, site),
       chargerSoldesCoach(client, site),
-      chargerAlertesActivationRecentes(client, site, employeeId),
+      chargerAlertesActivationRecentes(client, site, employeeId, aujourdHui),
       chargerShiftsIncomplets(client, site, employeeId, aujourdHui),
-      chargerShiftsRecentsAvecCloture(client, site, employeeId),
-      chargerCorrectionsEtHistorique(client, site, employeeId),
-      chargerConformiteEmploye(client, site, employeeId),
-      chargerPalierEmployeSite(client, site, employeeId),
-      chargerPerformanceJourEmploye(client, site, employeeId),
+      chargerShiftsRecentsAvecCloture(client, site, employeeId, aujourdHui),
+      chargerCorrectionsEtHistorique(client, site, employeeId, aujourdHui),
+      chargerConformiteEmploye(client, site, employeeId, aujourdHui),
+      chargerPalierEmployeSite(client, site, employeeId, aujourdHui),
+      chargerPerformanceJourEmploye(client, site, employeeId, aujourdHui),
     ]);
-    const jourFortSite = await chargerJourFortSite(client, site, jourSemaineActuel);
+    const jourFortSite = await chargerJourFortSite(client, site, jourSemaineActuel, aujourdHui);
     const palierBasSain = determinerPalierBasSain(jeux, soldes);
     return {
       jeux, soldes,
@@ -277,9 +279,9 @@
     return parId;
   }
 
-  async function chargerRotationRecente(client, site, employeeId) {
+  async function chargerRotationRecente(client, site, employeeId, aujourdHui) {
     const { data, error } = await client.from('coach_daily_recommendations').select('rule_id, date')
-      .eq('site', site).eq('employee_id', employeeId).gte('date', isoDepuis(DEPUIS_JOURS_ROTATION));
+      .eq('site', site).eq('employee_id', employeeId).gte('date', isoDepuis(DEPUIS_JOURS_ROTATION, aujourdHui));
     if (error) { console.error('Coach FDJ — chargement rotation récente:', error); return []; }
     return data || [];
   }
@@ -291,7 +293,11 @@
   // recalculée. Sinon, génère puis persiste.
   // ------------------------------------------------------------
   async function obtenirRecommandationDuJour(client, site, employeeId, aujourdHuiOverride) {
-    const aujourdHui = aujourdHuiOverride || new Date().toISOString().slice(0, 10);
+    const aujourdHui = aujourdHuiOverride || await global.nexusAujourdhuiStation(site);
+    if (!aujourdHui) {
+      console.error('Coach FDJ — fuseau de la station indéterminé : pas de recommandation du jour (jamais de date UTC de repli).');
+      return null;
+    }
 
     const { data: existante, error: eExistante } = await client.from('coach_daily_recommendations').select('*')
       .eq('site', site).eq('employee_id', employeeId).eq('date', aujourdHui).maybeSingle();
@@ -300,7 +306,7 @@
 
     const [regles, rotationRecente, faits] = await Promise.all([
       chargerReglesActives(client, site),
-      chargerRotationRecente(client, site, employeeId),
+      chargerRotationRecente(client, site, employeeId, aujourdHui),
       assemblerFaits(client, site, employeeId, aujourdHui),
     ]);
 

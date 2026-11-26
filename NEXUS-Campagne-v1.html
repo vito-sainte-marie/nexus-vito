@@ -109,13 +109,13 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
-<script src="nexus-auth.js?v=20261124-1500"></script>
+<script src="nexus-auth.js?v=20261127-1000"></script>
 <script src="nexus-icones.js?v=20261124-0001"></script>
 <script src="nexus-desktop.js?v=20261124-1500"></script>
 <script src="nexus-forfait.js?v=20260904-0104"></script>
 <script src="nexus-jours-feries.js?v=20261106-0100"></script>
 <script src="nexus-ecarts-moteur.js?v=20261126-0100"></script>
-<script src="nexus-tempo.js?v=20261126-0100"></script>
+<script src="nexus-tempo.js?v=20261127-1000"></script>
 <script src="nexus-campagnes.js?v=20260904-0104"></script>
 </head>
 <body>
@@ -220,7 +220,8 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
     const joursAgreges = NexusTempo.agregerParJour(auditsRows || []);
     // Même précaution que NEXUS Tempo : le jour en cours n'est jamais
     // comparable, sa journée n'est pas terminée.
-    const joursExploitables = NexusTempo.filtrerJoursClos(joursAgreges);
+    const fuseauStation = await nexusFuseauSite(SITE_ID);   // fuseau de la station ; indéterminé => aucun jour clos, jamais la date UTC
+    const joursExploitables = NexusTempo.filtrerJoursClos(joursAgreges, fuseauStation);
     const impacts = NexusCampagnes.analyserCampagnes(campagnesRows || [], joursExploitables);
 
     // Phase 2 — impact par produit, un calcul par promotion à partir de
