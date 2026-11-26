@@ -464,7 +464,7 @@ Aucune politique d'insertion directe : une politique `insert` laisserait un `man
 
 ### Lecture par le Brief et par A4
 
-Le Brief et A4 lisent la même vue en lecture seule, créée avec `security_invoker = true` (`create view ... with (security_invoker = true)`) : sans cela elle s'exécuterait avec les droits de son propriétaire et contournerait la RLS de lecture ci-dessus. Elle qui expose pour la période demandée l'objectif **officiel** de la station (jamais un brouillon), sa `version` et `valide_le`. A4 conserve cet identifiant de version à côté des chiffres, pour qu'un relevé reste interprétable après un changement de cible.
+Le Brief et A4 lisent la même vue en lecture seule, créée avec `security_invoker = true` (`create view ... with (security_invoker = true)`) : sans cela elle s'exécuterait avec les droits de son propriétaire et contournerait la RLS de lecture ci-dessus. Elle expose pour la période demandée l'objectif **officiel** de la station (jamais un brouillon), sa `version` et `valide_le`. A4 conserve cet identifiant de version à côté des chiffres, pour qu'un relevé reste interprétable après un changement de cible.
 
 ### Liens avec le Conseiller
 
