@@ -87,7 +87,7 @@ Formules, bornes, listes complètes de signaux, historique des périodes de marg
 
 ## 10. Exceptions à la charte
 
-Aucune demandée. Les couleurs viennent des jetons, les états de `nexus-badge-etat.js`, aucun emoji en guise d'état.
+Une seule, voulue par le gérant (26/11) : l'illustration de l'en-tête du Brief (`assets/brief/brief-entete-*.webp`, repli `.jpg`). Elle n'est autorisée que dans l'en-tête, nulle part ailleurs. Elle remplace le titre texte à l'œil ; le `<h1>` « Brief du jour » existe en texte, masqué visuellement, et l'image porte `alt="NEXUS Brief, tableau de direction"`. La date et la fiabilité des données restent en texte réel sous le bandeau, jamais dans l'image. Hauteur proposée : 200 px à 1280 px, cadrage à gauche (titre et tablette), pour que « À retenir » reste au-dessus de la ligne de flottaison à 1280 × 800. En Jour comme en Nuit, le bandeau reste sombre, coins à 12 px, sans dégradé ajouté. Pour le reste, les couleurs viennent des jetons, les états de `nexus-badge-etat.js`, aucun emoji en guise d'état.
 
 ## 11. Contenu de chaque carte
 
@@ -516,6 +516,7 @@ En mobile, le Brief va à l'essentiel : ce n'est pas la page bureau empilée. Pr
 
 | Bloc | Mobile |
 |---|---|
+| Bandeau d'en-tête | version recadrée ou réduite au logo et au titre (à produire après validation du bureau) |
 | Fiabilité des données | reste, en une ligne |
 | Trois lectures | restent, en tendance et en mots, sans graphique lourd |
 | Risques confirmés | restent, nommés |
