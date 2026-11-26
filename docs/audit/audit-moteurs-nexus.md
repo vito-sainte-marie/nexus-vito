@@ -449,7 +449,7 @@ Ces propositions sont des pistes pour arbitrage : rien n'est décidé ni codé.
 
 ---
 
-## 14. Vérifications de données supplémentaires (V7 à V10)
+## 14. Vérifications de données supplémentaires (V7 à V12)
 
 Lecture seule, filtrées par station, comptages uniquement ; à faire exécuter par le gérant via le Guardian.
 
@@ -457,8 +457,17 @@ Lecture seule, filtrées par station, comptages uniquement ; à faire exécuter 
 |---|---|---|---|
 | V7–V9 | Voir §11.2 (résultats reçus le 26/11) | | |
 | V10 | Un compte qui voit plusieurs stations additionne-t-il les pointages dans le Brief et l'App ? | `select site, count(*) from pointages where type='arrivee' and date >= current_date - 6 group by site`, exécuté avec un compte propriétaire ou administrateur | Une ligne par station visible ; si plusieurs, le Brief et l'App mélangent |
+
 | V11 | Même jour, Tempo et Verify disent-ils la même chose de la caisse ? | Pour la station et les 7 derniers jours : somme nette et somme des valeurs absolues de `ecart_piste` + `ecart_boutique` dans `audits_caisse`, par jour ; nombre de jours où net = 0 et absolu > 0 | Compte de jours en désaccord (nombre seulement) |
 | V12 | `fdj_stock_reference_lignes` est-elle commune ou par station ? | `select count(*), count(distinct site) from fdj_stock_reference_lignes` (colonne `site` si elle existe) | Si une seule valeur ou pas de colonne : table commune, lecture sans filtre correcte |
+
+### 14.1 Résultats reçus du Guardian le 26/11 (V10 à V12)
+
+| # | Résultat | Conséquence pour le document |
+|---|---|---|
+| V10 | **Non conforme pour le compte créateur.** Des pointages existent sur 2 stations et 2 stations ont `acces_createur_autorise` : un compte créateur additionnerait les deux dans le Brief et l'App. | Confirme le rang 3 (§13.1) et l'ordre 3 (§13.5) : `siteId` obligatoire dans tout chargeur. |
+| V11 | **Non conforme.** Sur les 8 derniers jours audités, 3 ont une somme nette inférieure à la moitié de la somme des valeurs absolues : Tempo et Verify racontent deux histoires le même jour. | Confirme le rang 1 (§13.1). |
+| V12 | **Conforme.** La table porte une colonne `site` et une seule station y figure ; le Brief lit par `reference_id`, issu d'un parent déjà filtré par station. | Périmètre correct. Ajouter quand même le filtre `site` par principe (ordre 3), sans urgence. |
 
 ---
 
