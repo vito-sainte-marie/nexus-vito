@@ -28,7 +28,7 @@ Reprendre le modèle de `NEXUS-App-v1.html`, sans inventer de mécanisme.
 2. Garder les valeurs Sombre dans `:root`, strictement inchangées.
 3. Remplacer chaque couleur en dur par un jeton. Les teintes translucides (or, cyan, vert, ambre, rouge, ombres) passent par les jetons complémentaires déjà fournis par `nexus-theme.js` (`--cyan-rgb`, `--green-rgb`, `--shadow-rgb`, `--on-cyan`, `--red-text`, `--panel-hover`, `--ghost`, `--veil`). Si un jeton manque (l'or translucide, l'ambre translucide), on l'ajoute dans `nexus-theme.js` avec ses deux valeurs, Sombre et Jour, et pas dans la page.
 4. Déclarer le fuseau de la station avec `NexusTheme.definirFuseau(FUSEAU_STATION)` dès qu'il est résolu, comme le fait l'App. Tant qu'il est inconnu, l'Auto se règle sur l'heure de l'appareil, comme ailleurs.
-5. Ajouter au menu le bloc « Affichage » (`NexusTheme.menuHtml()` puis `brancherMenu`). Le Brief n'a pas de panneau de menu aujourd'hui : il faut soit un petit panneau propre, soit un renvoi vers le réglage de l'App. C'est la question 2 ci-dessous.
+5. Pas de nouveau panneau dans le Brief (décision de Guardian, 7193749302). Le choix d'affichage est mémorisé par `nexus-theme.js` pour tout le site : le Brief suit ce choix, et le lien « Menu » mène à l'App, où se trouve le bloc « Affichage ». Une seule place pour régler.
 6. Sur grand écran, la vue bureau reste Sombre tant que personne n'a choisi autre chose. Un choix explicite l'emporte.
 7. `theme-color` suit le thème, comme sur les autres pages.
 
@@ -47,7 +47,7 @@ Les `style=` colorés et les couleurs injectées par le JS passent aussi par des
 
 - Ajouter `NEXUS-Brief-v1.html` à la liste `PAGES` de `test_theme_jour_pages_20261102.js`. Cela impose : script avant `<style>`, jetons utilisés tous définis, chaque jeton de couleur doté d'une valeur Jour, aucune couleur en dur hors `:root`, valeurs Sombre inchangées contre origin/production.
 - Contrastes texte sur fond d'au moins 4,5:1 en Jour, mesurés comme dans `test_theme_jour_contrastes_20261102.js`, sur les paires propres au Brief (pastilles de confiance, cartes d'impact, texte du bouton « valider »).
-- Une épreuve sur `theme-color` et sur la présence du bloc « Affichage ».
+- Une épreuve sur `theme-color`. Pas d'épreuve sur un bloc « Affichage » : il n'y en a pas dans le Brief.
 - Captures « mobile jour », « mobile nuit », « bureau jour », « bureau nuit », prises sur Test avec des données fictives. Aucune image contenant des données réelles ne sera publiée.
 
 ## 6. Découpage proposé
@@ -59,9 +59,11 @@ Un seul lot de code, une PR brouillon, après accord sur la fiche :
 
 Rien en Production sans GO. Aucune fusion sans GO écrit du gérant.
 
-## 7. Questions ouvertes pour Guardian
+## 7. Réponses de Guardian (7193749302)
 
-1. La lecture « thème clair commun » est-elle la bonne ?
-2. Où met-on le réglage d'affichage : un petit panneau dans le Brief, ou on renvoie vers le menu de l'App ?
-3. Faut-il aussi un thème Jour pour la vue imprimée du rapport, ou elle reste telle quelle ?
-4. En Auto, la station du Brief est-elle toujours celle de `FUSEAU_STATION` (une seule station par session) ?
+1. Oui : le mode Jour est le thème clair commun de `nexus-theme.js`. `fraicheur.mode` n'est pas concerné.
+2. Pas de nouveau panneau dans le Brief : il suit le choix mémorisé, le réglage reste dans l'App (point 5 du §3 retiré).
+3. La vue imprimée du rapport reste telle quelle.
+4. Une station par session, comme dans l'App.
+
+Le reste de la fiche est validé. Le lot de code peut suivre, en une PR brouillon, avec le rapport de `test_charte_interface.js` et les quatre captures sur Test en données fictives. Rien en Production.
