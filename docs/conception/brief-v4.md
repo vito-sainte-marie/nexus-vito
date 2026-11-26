@@ -4,7 +4,7 @@ Référentiel appliqué : NEXUS-REFERENTIEL-CONCEPTION v1.0
 
 Statut : brouillon pour relecture. Aucun code n'est modifié par cette fiche. Rien en Production.
 Origine : demande de Guardian (#383, commentaire 7198957693) : « Je te demande d'abord une fiche de conception, sans code. »
-Maquette : `docs/conception/maquettes/brief-v4.html` (données fictives, bouton Jour / Nuit, cadres 1280 et 375).
+Maquette : `docs/conception/maquettes/brief-v4.html` (données fictives, bouton Jour / Nuit, cadre bureau 1280 seulement : la version mobile attend).
 
 ## 0. Décisions du gérant reprises telles quelles
 
@@ -17,6 +17,16 @@ Complément du gérant (Guardian, 7199090542) :
 
 5. Aucune marge dans le graphique d'évolution. La marge devient un indicateur à part : taux réel de la période comparé à la cible de la politique tarifaire, avec la date de la période.
 6. Le Brief fait connaître au gérant sa performance, son potentiel et ses objectifs à court, moyen et long terme. NEXUS le guide : le Brief dit « où je vais et ce qui me sépare de l'objectif ». Voir §16 et le lot E.
+
+Arbitrages du gérant du 26/11 (Guardian, 7199835605 et 7199856933) :
+
+7. Le nom Boussole reste. La note globale sur 100 quitte le premier niveau de lecture. Trois lectures séparées : performance économique, maîtrise opérationnelle, fiabilité des données. Une bonne performance commerciale ne compense jamais une anomalie opérationnelle confirmée. Aucune tendance globale calculée arbitrairement : des évolutions contrastées sont montrées comme telles (§17).
+8. Cartes secteur : des chiffres métier réels (unité, graphique adapté, tendance, statut métier) à la place des notes sur 100, qui restent au détail si elles sont légitimes. Option B retenue : une dimension non mesurée sort du calcul et la couverture partielle est affichée. Une dimension non applicable (Opérations n'a pas de Performance) se distingue d'une dimension attendue mais indisponible (§17.1).
+9. Commerce : le suivi d'activité repose sur les ventes boutique quotidiennes (`audits_caisse.vente_boutique`) ; les périodes importées servent à l'analyse détaillée des produits et de la rentabilité. L'écart de périmètre et les écarts résiduels sont documentés (§18.1).
+10. Marge : pas d'échelle arbitraire. Quatre lectures (§19). Une anomalie durable ne devient pas normale parce qu'elle est dans l'historique.
+11. Risques : quatre états conservés ; preuves de résolution et délais de fraîcheur selon le type de risque (§20). L'absence de mesure n'est jamais une résolution.
+12. Objectifs : trois horizons conservés ; une saisie de référence annuelle à l'étude, avec propositions mensuelles et trimestrielles (§16.b). Aucune migration avant validation du modèle final.
+13. Un seul graphique, trois séries comparées dans le temps (§18.3) : litres piste, CA FDJ (calculs de Tempo, repris tels quels), marge des produits boutique (fonction nouvelle chez Tempo). Indice base 100, valeurs par jour, périodes importées, couleurs de Tempo Mois. Pas de CA boutique. Il s'ajoute aux trois courbes sur 40 jours. Audit individuel et transversal des moteurs : plus tard, non commencé.
 
 ## 1. Utilisateur cible
 
@@ -247,6 +257,8 @@ Horizons (durées proposées, à valider) :
 - court : le mois civil en cours ;
 - moyen : le trimestre civil en cours ;
 - long : l'année civile en cours.
+Saisie de référence annuelle (à l'étude, arbitrage du 26/11) : le gérant saisit une seule référence par an et par grandeur. NEXUS en déduit des propositions mensuelles et trimestrielles à partir de l'historique réel et de la saisonnalité de la station, avec la base du calcul affichée. Ces propositions sont modifiables ligne par ligne et ne comptent qu'après validation explicite du gérant. Pas assez d'historique pour une saisonnalité : répartition non proposée, « pas assez de recul ». Le taux de marge garde son autorité dans la politique tarifaire (`tarif_seuils`) : il n'entre pas dans cette saisie. Aucune migration (§16.c) avant la validation du modèle final.
+
 Variante possible pour le court terme : la semaine, mais les ventes de boutique et le chiffre FDJ y sont trop volatiles pour un objectif lisible. Je recommande le mois.
 
 Saisie :
@@ -293,43 +305,48 @@ RLS par station : lecture pour les employés de la même station (`site_id = cur
 
 Aucune migration, aucune table créée, aucune lecture Production avant le GO du gérant.
 
-## 17. Indice Boussole : trois couvertures, performance et risques séparés
+## 17. Boussole : trois lectures séparées, plus de note globale
 
-Tout ce qui suit est une proposition. Aucun seuil n'est gelé, aucun nombre n'est validé (arbitrage §21). Les jeux de données sont fictifs.
+Tout ce qui suit est une proposition de conception. Aucun seuil n'est gelé, aucun nombre n'est validé. Les jeux de données sont fictifs. Le nom Boussole est conservé.
 
-### 17.1 Trois couvertures, et la règle « non mesuré = 0 »
+### 17.1 Couvertures : option B retenue, applicable ou indisponible
 
-Chaque dimension d'un secteur (Performance, Maîtrise) a l'une de trois couvertures :
-- complète : la grandeur est mesurée sur toute sa période attendue ;
-- partielle : mesurée sur une partie seulement (période trop courte, jours manquants, une partie des familles) ;
-- absente : aucune mesure.
+Chaque dimension d'un secteur (Performance, Maîtrise) a l'une de trois couvertures : complète, partielle (période trop courte, jours ou familles manquants), absente.
 
-Aujourd'hui, le moteur traite « absente » comme 0 (`assemblerScoreSecteur` remplace `null` par 0). Cela fait ressembler un secteur sans information à un secteur stable. C'est la règle que Guardian met en cause. Deux options, au gérant de choisir :
-- Option A, garder la règle mais la rendre visible : chaque note affiche sa couverture (« Performance mesurée, Maîtrise absente »), et la règle est justifiée par écrit : ne pas pénaliser ce qu'on ne sait pas mesurer. Limite : la note reste un 50 flatteur quand tout est inconnu.
-- Option B, remplacer : une dimension absente ne compte pas en neutre ; la note est calculée sur les seules dimensions mesurées et porte la mention « couverture partielle ». Un secteur sans aucune dimension mesurée n'a pas de note. Limite : les notes de couvertures différentes ne se comparent plus strictement.
+Décision du gérant : option B. Une dimension non mesurée ne compte pas comme 0 ni comme un neutre : elle est exclue du calcul et la couverture partielle est affichée à côté du résultat (« 3 secteurs sur 5 », « Maîtrise non mesurée »). Un secteur sans aucune dimension mesurée n'a pas de lecture chiffrée. Cela remplace la règle actuelle de `assemblerScoreSecteur` (qui met `null` à 0) ; le changement de moteur est hors de ce lot.
 
-Recommandation : B pour la note, avec la couverture toujours affichée à côté. Non validée.
+Deux cas à ne jamais confondre, et à afficher différemment :
+- dimension non applicable : le secteur n'en a pas par nature (Opérations n'a pas de Performance). Elle n'est pas comptée comme manquante : « sans objet » ;
+- dimension attendue mais indisponible : le secteur devrait la mesurer et ne le peut pas (import absent, quart non saisi). Elle réduit la couverture et le dit : « non mesurée ».
 
-### 17.2 Performance globale et risques confirmés : deux lectures, pas un nombre
+### 17.2 Trois lectures, pas un nombre
 
-Proposition : le bloc État global ne montre plus un seul nombre. Il montre deux lectures distinctes :
-1. Performance globale : moyenne des Performances des secteurs où elle est mesurée, avec le nombre de secteurs couverts (« 3 sur 5 »). Elle répond à « l'activité va-t-elle bien ? ».
-2. Risques confirmés : la liste des secteurs au statut « À corriger » (maîtrise confirmée mauvaise) et le nombre de signaux de risque actifs, sans note. Elle répond à « qu'est-ce qui est confirmé comme anormal ? ». Vide, elle dit « aucun risque confirmé » et non « tout va bien » si la couverture de Maîtrise est partielle : elle affiche alors « aucun risque confirmé, contrôles faits sur N secteurs ».
+Le premier niveau de lecture ne montre plus de note globale sur 100. Trois lectures séparées :
+1. Performance économique : volumes carburant, ventes boutique, FDJ, taux de marge face à la cible, chacun dans son unité, avec la couverture (« 3 sur 5 »).
+2. Maîtrise opérationnelle : les anomalies confirmées (écarts de caisse, anomalies tarifaires dédoublonnées, signaux de risque actifs), par secteur, nommées. Vide, elle dit « aucune anomalie confirmée, contrôles faits sur N secteurs » et non « tout va bien » quand la couverture est partielle.
+3. Fiabilité des données : nombre de secteurs mesurés sur 5, date réelle des données de chaque secteur, couverture des dimensions (§0, décision 2).
 
-Une bonne performance ne compense jamais un risque confirmé, et un risque ne se dilue pas dans une moyenne. La note par secteur (50 + Performance + Maîtrise) reste affichée sur sa carte, avec sa couverture.
+Règles :
+- une bonne performance commerciale ne compense jamais une anomalie opérationnelle confirmée : l'anomalie reste en première ligne, jamais diluée dans une moyenne ;
+- aucune tendance globale calculée arbitrairement : si le carburant monte et la boutique baisse, les deux évolutions sont montrées côte à côte, contrastées, sans flèche de synthèse ;
+- la note par secteur reste au détail (niveau 3) si elle est légitime, avec sa couverture ; elle ne remplace pas les chiffres métier de la carte.
 
-### 17.3 Simulations sur jeux fictifs
+### 17.3 Cartes secteur : chiffres métier
 
-Quatre situations, rejouées avec la règle actuelle et avec la proposition. Les chiffres sont inventés pour la démonstration. À refaire par le lot de calcul avant tout gel, sur les épreuves du §14.
+Chaque carte secteur montre, à la place d'une note sur 100 : une icône, l'indicateur principal avec son unité, un graphique adapté à la grandeur, la tendance (flèche et mot) et un statut métier. Exemples de la maquette (valeurs fictives) : Carburant en litres, Commerce en euros, FDJ en euros de chiffre d'affaires, Opérations en nombre d'écarts et euros, Marge en taux contre la cible.
 
-| Situation fictive | Règle actuelle (moyenne unique) | Proposition (performance globale, risques confirmés) |
+### 17.4 Simulations sur jeux fictifs
+
+Quatre situations, rejouées avec la règle actuelle et avec les trois lectures. Les chiffres sont inventés. À refaire par le lot de calcul avant tout gel, sur les épreuves du §14.
+
+| Situation fictive | Règle actuelle (moyenne unique) | Proposition (trois lectures) |
 |---|---|---|
-| Station stable : 5 secteurs mesurés, performances proches de 0, maîtrise bonne | Indice voisin de 55 à 60, « Sous contrôle » ou « À confirmer » selon le seuil | Performance globale stable, 5 sur 5 ; aucun risque confirmé |
-| Baisse d'activité : performances négatives sur Carburant et Commerce, maîtrise bonne | Indice qui baisse, éventuellement ambre ; le secteur dit « À relancer » | Performance globale en baisse, nommée ; aucun risque confirmé (une baisse d'activité n'est pas un défaut de contrôle) |
-| Problème de contrôle confirmé : écart de caisse récurrent en Opérations, performances correctes ailleurs | Moyenne amortie par les autres secteurs, Indice presque inchangé ; un seul secteur rouge noyé | Performance globale correcte ; risque confirmé : Opérations « À corriger », en première ligne |
-| Couverture partielle : 2 secteurs sans aucune dimension mesurée | Indice « non calculé » (moins de 4 secteurs) ou calculé avec des 50 neutres | Performance globale sur 3 secteurs, mention « 3 sur 5 » ; risques confirmés sur les secteurs contrôlés seulement |
+| Station stable : 5 secteurs mesurés, performances proches de 0, maîtrise bonne | Indice voisin de 55 à 60, « Sous contrôle » ou « À confirmer » selon le seuil | Performance économique stable, 5 sur 5 ; aucune anomalie confirmée |
+| Baisse d'activité : performances négatives sur Carburant et Commerce, maîtrise bonne | Indice qui baisse, éventuellement ambre ; le secteur dit « À relancer » | Carburant et Commerce en baisse, nommés, sans flèche de synthèse ; aucune anomalie confirmée (une baisse d'activité n'est pas un défaut de contrôle) |
+| Problème de contrôle confirmé : écart de caisse récurrent en Opérations, performances correctes ailleurs | Moyenne amortie par les autres secteurs, Indice presque inchangé ; un seul secteur rouge noyé | Performance économique correcte ; maîtrise : anomalie confirmée en Opérations, en première ligne, non compensée |
+| Couverture partielle : 2 secteurs sans aucune dimension mesurée | Indice « non calculé » (moins de 4 secteurs) ou calculé avec des 50 neutres | Lectures sur 3 secteurs, mention « 3 sur 5 », dimensions « non mesurées » nommées ; fiabilité des données dégradée, affichée |
 
-À produire avant gel : ces quatre situations en tableau chiffré, par secteur et dimension, avec les deux calculs côte à côte. Le gérant tranche ensuite sur pièces.
+À produire avant gel : ces quatre situations en tableau chiffré, par secteur et dimension, avec le calcul actuel et les trois lectures côte à côte. Le gérant tranche ensuite sur pièces.
 
 ## 18. Table d'autorité des calculs
 
@@ -338,61 +355,93 @@ Principe : le Brief consomme des résultats officiels, il ne crée jamais un sec
 | Indicateur ou secteur | Moteur propriétaire | Donnée et unité | Périmètre station | Période | Fraîcheur | Fonction de référence | Autres pages qui consomment le résultat |
 |---|---|---|---|---|---|---|---|
 | Volumes carburant | moteur carburant | litres par relevé | site de l'utilisateur | 7 jours contre 7 précédents (proposé) | jour de données | chargeur du Brief (`chargerCarburantsBriefAvecFallback`) puis `construireSecteurCarburants` | pages Carburant, Conseiller (à confirmer) |
-| Chiffre boutique | selon §18.1 | euros | site | selon §18.1 | selon §18.1 | `construireSecteurCommerce` (périodes importées) ; option 2 : `audits_caisse.vente_boutique` | Commerce, Marge (à confirmer) |
+| Suivi d'activité boutique (décidé 26/11) | caisse | euros par quart | site | jour (ventes quotidiennes) | jour de données | `audits_caisse.vente_boutique` | Commerce, caisse (à confirmer) |
+| Analyse produits et rentabilité boutique | `products` (périodes importées) | euros de CA et de marge | site | période importée | date de l'import | `construireSecteurCommerce` (périodes importées) | Commerce, Marge (à confirmer) |
 | Marge (taux et écarts) | `nexus-marge.js` | taux en %, écarts en euros | site | période importée | date de l'import | `detecterEcartsMarge`, `construireSecteurMarge`, `construireSyntheseFreinMarge` | Marge+, Scanner tarifaire, Politique tarifaire |
 | Cible de marge | `tarif_seuils` | taux en % | site | versions | date de saisie | `v_tarif_seuils_actifs`, `nexus-politique-tarifaire.js` | Produits, Politique tarifaire |
 | FDJ | moteur FDJ | euros | site | fenêtre de 7 jours | jour de données | `construireSecteurFdj` | écran FDJ (à confirmer) |
 | Opérations | `nexus-conseiller-donnees.js` (le Brief n'en garde que des alias) | euros d'écarts, nombre d'alertes | site | moyenne sur tout l'historique exploitable (pas le jour du dernier contrôle) | date du dernier contrôle pris en compte | `calculerStatutOperations`, `chargerConstatTempo` | caisse, inventaire (à confirmer) |
 | Notes et statuts secteur | moteur Boussole | points sur 100, statut | site | celle du secteur | la plus ancienne des données | `assemblerScoreSecteur`, `statutMetier`, `scoreDimension` | Boussole (SVG : `genererBoussoleSVG`) |
-| Indice / performance globale | moteur Boussole | points sur 100 | site | la plus ancienne des périodes | idem | `construireVerdictDirection` (à confirmer pour la moyenne) | Boussole |
+| Trois lectures (performance économique, maîtrise opérationnelle, fiabilité des données) | à construire à partir des résultats officiels ci-dessus, sans nouveau calcul | selon la lecture | site | celle de chaque secteur | la plus ancienne des données | pas de note globale ; `construireVerdictDirection` n'est plus au premier niveau (à confirmer) | Boussole |
 | Signaux de risque | score et statut : `nexus-boussole-moteur.js` ; qualification et enregistrement dans `nexus_risk_signals` : `nexus-risques-donnees.js` (`qualifierEtEnregistrerRisques…`) ; `nexus-risques-moteur.js` à vérifier | selon le signal | site | continue | date de dernière mesure | `scoreRisques`, `statutRisques` | Conseiller, Brief |
 | Potentiel et priorités | Conseiller | euros, par nature | site | selon le candidat | date de mesure | `nexus-conseiller.js` | Conseiller |
 | Objectifs | `station_objectifs` (proposée), `tarif_seuils` | litres ou euros | site | mois, trimestre, année | date de validation | à créer au lot E | Brief seulement |
 
-### 18.1 Commerce : deux périmètres, deux options
+### 18.1 Commerce : autorité décidée, périmètres documentés
 
-Constat de Guardian, vérifié en lecture seule et filtré par station : `audits_caisse.vente_boutique` (total boutique Decenium par quart) couvre le même périmètre que le chiffre d'affaires total des périodes importées, tabac et produits d'appel compris. Sur 4 périodes complètes, les deux totaux diffèrent de moins de 3 %. Aucun chiffre réel n'est repris ici.
+Décision du gérant (26/11) : le suivi d'activité Commerce repose sur les ventes boutique quotidiennes, `audits_caisse.vente_boutique` (total boutique Decenium par quart). Les périodes importées (`products`) servent à l'analyse détaillée des produits et de la rentabilité, pas au suivi d'activité.
 
-Le Brief actuel retire les produits d'appel des périodes importées (`estProduitAppel`) : son chiffre n'a donc pas le même périmètre que `vente_boutique`.
+Écart de périmètre, vérifié en lecture seule par Guardian et filtré par station : `vente_boutique` couvre le même périmètre que le chiffre d'affaires total des périodes importées, tabac et produits d'appel compris. Sur 4 périodes complètes, les deux totaux diffèrent de moins de 3 %. Aucun chiffre réel n'est repris ici.
 
-- Option 1, périodes importées, produits d'appel exclus (actuel) : cohérent avec le calcul de la marge hors produits d'appel, mais décalé de plusieurs semaines et d'un périmètre inférieur à `vente_boutique`. Les deux chiffres ne se comparent pas.
-- Option 2, `audits_caisse.vente_boutique` pour la Performance Commerce : même périmètre que le total des périodes importées (à moins de 3 % près), frais et quotidien ; la marge reste calculée sur les périodes importées, avec son propre périmètre déclaré. Limite : deux périmètres coexistent dans le Brief, chacun étiqueté.
-
-Je ne tranche pas. L'autorité Commerce est une décision du gérant (§21).
+Ce qui ne se recoupe pas, à documenter à l'écran et non à masquer :
+- le Brief actuel retire les produits d'appel des périodes importées (`estProduitAppel`) pour calculer la marge : le chiffre d'analyse a donc un périmètre inférieur à `vente_boutique` ; chaque chiffre porte son périmètre étiqueté ;
+- les périodes importées sont décalées de plusieurs semaines ; `vente_boutique` est quotidien : on ne compare un jour qu'à un jour, jamais une semaine de caisse à une période importée non alignée ;
+- écarts résiduels (moins de 3 % sur 4 périodes) non expliqués : timing de saisie des quarts, retours, produits hors catégorie. Cause non établie ; une quatrième lecture des écarts par période reste à produire au lot de calcul. Aucune réconciliation n'est promise.
 
 ### 18.2 Endroits où le Brief recalcule aujourd'hui ce qui existe ailleurs
 
 À signaler et à supprimer ou à brancher sur le résultat officiel avant le lot A :
-1. Commerce : le Brief retire lui-même les produits d'appel des périodes importées (`estProduitAppel` via `nexus-brief-donnees.js`) alors que `vente_boutique` existe.
+1. Commerce : le Brief retire lui-même les produits d'appel des périodes importées (`estProduitAppel` via `nexus-brief-donnees.js`) pour son chiffre d'activité alors que `vente_boutique` existe et fait désormais autorité pour le suivi (§18.1).
 2. Marge : `construireSecteurMarge` et `construireSyntheseFreinMarge` consomment `detecterEcartsMarge` ; le Scanner tarifaire calcule des écarts proches (§19.2). Risque de deux moteurs sur le même article.
 3. Opérations : `calculerStatutOperations` (moyenne d'écarts absolus sur tout l'historique exploitable) et `chargerConstatTempo` vivent dans `nexus-conseiller-donnees.js`, le Brief n'en garde que des alias ; l'écart de caisse existe aussi côté caisse (à confirmer).
 4. Fuseau : le chargeur carburant du Brief prend l'UTC alors que les autres écrans prennent le fuseau de la station.
-5. Indice : l'Indice et son libellé sont recalculés par le Brief à partir des secteurs (`construireVerdictDirection`, seuils 60 / 45 proposés au §11.1) ; la Boussole en a sa propre lecture.
+5. Note globale : l'Indice et son libellé sont recalculés par le Brief à partir des secteurs (`construireVerdictDirection`, seuils 60 / 45 proposés au §11.1) ; la décision du 26/11 retire la note globale du premier niveau (§17.2), la Boussole en garde sa propre lecture.
 6. Potentiel : le §16 additionne des gains lus dans Marge+ et dans le Conseiller ; une même perte peut y figurer deux fois (voir §19.2).
 
-## 19. Maîtrise Marge : échelle relative à l'historique de la station
+### 18.3 Graphique des trois moteurs (décision du 26/11, compléments du gérant)
+
+Un seul graphique, trois séries, pour lire la direction de la station dans le temps : litres piste, CA FDJ, marge des produits boutique. Pas de CA boutique. Il s'ajoute aux trois courbes quotidiennes sur 40 jours (§11.7).
+
+**Autorité : un seul calcul, une seule voix.** Vérifié sur `origin/production` : `NEXUS-Tempo-v2-Mois.html` affiche déjà, mois par mois, la moyenne par jour complet des litres piste et du CA FDJ (`joursLitresCompletsPiste`, `joursCaFdjComplets`, `resumerParJour` de `nexus-tempo.js`, jours de la station, jour en cours exclu). Le Brief consomme ces fonctions et n'écrit aucun second calcul. Pour la boutique, Tempo Mois ne donne pas de marge mois par mois : `resumerMargeImport` ne résume que la période la plus récente. La marge par période est la seule série à construire.
+
+**Fonction nouvelle, une seule : `resumerMargeParPeriode`, dans `nexus-tempo.js`.** Elle rend, pour chaque période importée, la marge moyenne par jour, avec les filtres exacts de `resumerMargeImport` (articles hors produits d'appel, lignes cohérentes : ca > 0, 0 ≤ marge ≤ ca). Raison du rangement chez Tempo : ces filtres y vivent déjà ; la ranger dans le moteur Marge les dupliquerait ; Tempo Mois pourra l'appeler à son tour pour afficher la marge. `resumerMargeImport` pourra en devenir le dernier élément. Elle ne ferait qu'un code de calcul : la marge totale de la période divisée par le nombre de jours calendaires de la période, et le nombre de jours affiché.
+
+**Pas de temps commun : recommandation, les périodes importées.** Les deux options étudiées :
+- A. La marge posée sur les mois qu'elle couvre. Défaut : une période importée de 45 jours couvre deux mois, parfois en partie ; il faudrait attribuer une même valeur à deux barres ou couper la période, ce qui invente une marge mensuelle que personne n'a mesurée.
+- B (recommandée). Litres et FDJ ramenés aux périodes importées : on appelle `resumerParJour` avec comme bornes les dates de la période, sur `joursLitresCompletsPiste` et `joursCaFdjComplets`. Le calcul est celui de Tempo, seule la fenêtre change. Aucune valeur n'est répartie ni inventée, et les trois séries portent sur les mêmes jours. Écart assumé : la marge est une moyenne sur tous les jours de la période, litres et FDJ sur les jours complets seulement ; le tableau affiche le nombre de jours de chaque série.
+Le gérant retrouve les mois dans Tempo Mois, le Brief répond à une autre question (direction commune) sur des périodes qu'il nomme.
+
+**Lecture.**
+1. Unités : euros et litres ne partagent pas un axe. Indice base 100 (première période = 100) ; survol et tableau de détail donnent la valeur réelle et l'unité (€/jour, L/jour), plus le nombre de jours.
+2. Grammaire de Tempo Mois : barres, couleurs piste, boutique et FDJ de la charte, tableau de valeurs sous le graphique. Les barres partent de la ligne 100 : au-dessus, la série monte ; au-dessous, elle baisse. Libellé de la marge : « période importée ».
+3. Période sans import de marge : barre absente, « — » dans le tableau, aucune interpolation. Les autres séries continuent. Si la première période n'a pas de marge, la base de cette série est sa première période disponible, et la légende le dit.
+4. Profondeur proposée : 6 périodes importées (environ 6 mois). 12 seulement si litres, FDJ et marge existent sur toute la durée. Aucune période n'est comblée pour atteindre la profondeur.
+5. L'indice donne une direction, jamais un niveau : l'écart entre séries ne se lit pas.
+
+Écarts à documenter : la marge ne couvre que les produits importés ; FDJ et carburant n'ont pas de marge dans NEXUS ; l'import étant manuel, la marge peut retarder sur les deux autres séries.
+
+## 19. Marge : quatre lectures, pas d'échelle arbitraire
 
 ### 19.1 Pourquoi l'échelle du §12 est abandonnée en l'état
 
 Guardian a rejoué le rapport « marge récupérable / chiffre d'affaires de la période » sur les 7 périodes importées depuis janvier, en approchant les familles de Marge+. Avec l'échelle du §12, toutes les périodes tombent dans les deux paliers les plus sévères : la station serait rouge en permanence. Un indicateur toujours rouge ne dit plus rien. L'échelle du §12 est donc retirée du dossier comme proposition, conservée seulement pour mémoire.
 
-### 19.2 Pistes, sans seuil chiffré
+### 19.2 Quatre lectures (décision du 26/11)
 
-- Piste 1, relative : comparer le rapport de la période à la médiane historique de la station. Paliers selon l'évolution du rapport (en baisse, stable, en hausse nette), pas selon une valeur absolue. Avantage : s'adapte à la station. Limite : exige assez de périodes (minimum à fixer) et peut normaliser une mauvaise situation durable.
-- Piste 2, recalibrée : paliers absolus mais recalés sur la distribution réelle des périodes de la station. Avantage : lisible. Limite : à refaire quand l'historique change.
-- Dans les deux cas, pas assez de périodes : « Maîtrise Marge non mesurée, historique insuffisant ».
+Pas d'échelle arbitraire ni de palier chiffré. La Marge se lit en quatre points séparés, sans note :
+1. taux réel de la période contre la cible validée de la politique tarifaire (`tarif_seuils`) ; sans cible validée, le taux est montré seul, « objectif à définir » ;
+2. évolution sur des périodes comparables (même nature, même périmètre, produits d'appel traités de la même façon) ;
+3. anomalies tarifaires confirmées et dédoublonnées (§19.3) ;
+4. potentiel de marge estimé, en euros, étiqueté « estimé », avec le moteur et la date de mesure.
 
-Guardian remettra la distribution réelle au gérant hors du canal. Cette fiche n'en cite aucune valeur. Aucune borne n'est écrite avant l'arbitrage du gérant.
+Une anomalie durable ne devient pas normale parce qu'elle figure dans l'historique : le Brief n'établit pas de médiane qui l'absorberait, et une anomalie ouverte depuis longtemps est affichée avec son ancienneté. Historique insuffisant pour la lecture 2 : « évolution non mesurée, historique insuffisant ».
+
+Guardian remettra la distribution réelle au gérant hors du canal. Cette fiche n'en cite aucune valeur.
 
 ### 19.3 Anomalies communes à Marge+ et au Scanner tarifaire
 
-Les deux moteurs détectent une marge récupérable. Un même article, sur une même période, peut donc être compté deux fois, une fois par moteur. Règle de déduplication proposée : clé (site, article, période) ; l'anomalie est comptée une seule fois, dans le moteur désigné comme autorité pour cette nature d'écart (écart contre médiane du groupe : Marge+ ; écart contre seuil de politique : Scanner tarifaire) ; si les deux la voient, on garde le gain le plus prudent (le plus faible) et on mentionne les deux sources. À confirmer par la lecture des deux moteurs au lot de calcul ; je n'ai pas encore vérifié le recouvrement réel.
+Les deux moteurs détectent une marge récupérable ; un même article peut être compté deux fois. La clé (site, article, période) ne suffit pas. Deux anomalies sur cette clé n'en font qu'une si trois contrôles concordent :
+- la nature de l'écart : écart contre médiane du groupe (Marge+) et écart contre seuil de politique (Scanner tarifaire) sont deux natures distinctes, même sur le même article ;
+- le référentiel : médiane, seuil et prix de référence viennent de la même version (période, cible `tarif_seuils` en vigueur) ;
+- le recouvrement des gains : on mesure la part de marge récupérable que les deux moteurs revendiquent en commun ; seule cette part est comptée une fois (le plus prudent des deux), le reste s'additionne.
+
+Tant qu'un contrôle manque, les deux anomalies restent séparées et le recouvrement est signalé, pas supposé. Le recouvrement réel n'est pas mesuré ; à faire au lot de calcul.
 
 Aucun seuil ne change sans l'arbitrage du gérant.
 
 ## 20. Signaux de risque : quatre états
 
-30 jours sans mesure ne sont pas une résolution. États :
+L'absence de mesure n'est jamais une résolution. États :
 - actif : la mesure dépasse le seuil ;
 - à vérifier : la mesure est revenue sous le seuil mais n'est pas encore confirmée, ou une action corrective est déclarée sans preuve ;
 - résolu : la mesure est revenue sous le seuil de façon confirmée ;
@@ -406,7 +455,7 @@ Aucun seuil ne change sans l'arbitrage du gérant.
 | sans mesure récente vers actif ou à vérifier | une nouvelle mesure | le moteur | la mesure |
 | résolu vers actif | une mesure au-dessus du seuil | le moteur | la mesure, rattachée au même signal |
 
-Rien ne passe à « résolu » sur la seule absence de mesure ni sur la déclaration d'un humain. Les traces sont ajoutées, jamais modifiées. Le délai de « sans mesure récente » et le nombre de mesures de confirmation sont des propositions à arbitrer. Un signal résolu ou sans mesure récente reste lisible au niveau 3.
+Les preuves de résolution et les délais de fraîcheur dépendent du type de risque et de la fréquence normale d'alimentation du moteur concerné : un signal alimenté chaque jour ne tolère pas le même délai qu'un signal alimenté par import mensuel, et le nombre de mesures de confirmation suit la même logique. Le tableau des délais par type de risque est à produire au lot de calcul, à partir de la fréquence réelle de chaque moteur ; aucun délai unique n'est proposé ici. Rien ne passe à « résolu » sur la seule absence de mesure ni sur la déclaration d'un humain. Les traces sont ajoutées, jamais modifiées. Le délai de « sans mesure récente » et le nombre de mesures de confirmation sont des propositions à arbitrer. Un signal résolu ou sans mesure récente reste lisible au niveau 3.
 
 ## 21. Dossier d'arbitrage
 
@@ -414,12 +463,12 @@ Un sujet par bloc. Rien n'est écrit comme validé. Le gérant choisit.
 
 | Sujet | Options | Conséquences |
 |---|---|---|
-| Échelle de Maîtrise Marge | (a) relative à l'historique (piste 1) ; (b) recalibrée sur la distribution réelle (piste 2) ; (c) ne pas mesurer la Maîtrise Marge tant que l'historique est insuffisant | (a) s'adapte mais peut normaliser une dérive ; (b) lisible, à refaire régulièrement ; (c) Marge non mesurée, donc Indice sur 4 secteurs au plus |
-| Indice et seuils | (a) deux lectures séparées (§17.2), sans seuil global ; (b) un Indice unique gardé, seuils recalibrés après simulations ; (c) statu quo | (a) pas de nombre global, plus de lecture à faire ; (b) un chiffre simple mais qui mélange ; (c) conserve l'amortissement des risques |
-| Règle « non mesuré = 0 » | A (visible et justifiée) ; B (note sur les dimensions mesurées) | A garde les notes comparables mais flatteuses ; B plus fidèle mais notes moins comparables |
-| Autorité Commerce | option 1 ; option 2 (§18.1) | 1 : cohérent avec la marge, vieux, périmètre réduit ; 2 : frais, périmètre complet, deux périmètres à étiqueter |
-| Pondération des secteurs | moyenne simple ; poids par secteur | simple : lisible ; pondérée : reflète l'enjeu mais exige des poids justifiés. Sans objet si l'Indice unique disparaît |
-| Schéma des objectifs | `station_objectifs` (§16.c) ; extension de `tarif_seuils` ; autre | table nouvelle : un modèle propre, une migration ; extension : moins de tables, mélange de natures |
+| Échelle de Marge | décidé : pas d'échelle, quatre lectures (§19.2) | une anomalie durable n'est pas normalisée ; la lecture « évolution » exige un historique suffisant |
+| Note globale | décidé : trois lectures séparées, nom Boussole conservé, ni note ni tendance globale (§17.2) | plus de seuil ni de pondération à arbitrer ; libellés des lectures à valider |
+| Couvertures | décidé : option B, non applicable distinct d'indisponible (§17.1) | notes de couvertures différentes non strictement comparables, couverture toujours affichée |
+| Autorité Commerce | décidé : `audits_caisse.vente_boutique` pour le suivi, périodes importées pour l'analyse (§18.1) | deux périmètres étiquetés, écarts résiduels documentés |
+| Graphique des trois moteurs | autorité Tempo pour litres et FDJ ; `resumerMargeParPeriode` à créer dans `nexus-tempo.js` ; pas = périodes importées ; profondeur 6 (§18.3) | recommandation B, le gérant tranche pas et profondeur |
+| Schéma des objectifs | trois horizons, saisie annuelle de référence à l'étude (§16.b) ; `station_objectifs` ou autre | aucune migration avant validation du modèle final |
 | Fermeture des risques | règle du §20 ; règle plus simple ; règle plus stricte | selon le nombre de mesures de confirmation et le délai « sans mesure récente » |
 
 Aucun code, aucune migration, rien en Production avant le GO du gérant.
