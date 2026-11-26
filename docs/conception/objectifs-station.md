@@ -416,16 +416,39 @@ Un indicateur dont la cible vit ailleurs (`cible_externe`) est refusé : MAR-TAU
 ```sql
 alter table station_objectifs enable row level security;
 
--- Lecture : habilitée seulement (gérant, manager ; liste finale selon G-4).
+-- Lecture : habilitée seulement (compte nommément habilité, voir ci-dessous).
 -- Un employé de la station, même de la bonne station, ne lit rien.
 create policy so_lecture on station_objectifs for select to authenticated
   using (site = current_employee_site_id()
-         and current_employee_role() in ('manager','gerant'));
+         and objectif_habilite(site, 'lire'));
 
 -- Aucune politique insert, update ni delete pour authenticated : tout passe par les fonctions ci-dessous.
 ```
 
 Le Brief et la vue d'A4 lisent la même table (ou la vue §ci-dessous) : la restriction de rôle s'applique à eux aussi. La lecture de `objectif_catalogue` reste ouverte aux `authenticated` (aucune donnée de station).
+
+### Habilitation explicite (G-4)
+
+Le droit de proposer et de valider n'est **pas un rôle**. Les comptes actifs de la station montrent que le pilote du projet, qui valide les objectifs, a le rôle `manager`, et que le seul compte `gerant` appartient à une autre personne : `current_employee_role() = 'gerant'` ferait valider la mauvaise personne et exclurait le pilote.
+
+Le droit est donc une habilitation nominative, par compte et par station, sur le modèle de `acces_createur_autorise` :
+
+```sql
+create table objectif_habilitation (
+  site        text not null,
+  employe_id  uuid not null,          -- le compte nommé
+  droit       text not null check (droit in ('lire','proposer','valider')),
+  accorde_par uuid not null,
+  accorde_le  timestamptz not null default now(),
+  revoque_le  timestamptz,
+  primary key (site, employe_id, droit)
+);
+-- RLS : lecture par le titulaire et par les comptes habilités à valider ; aucune écriture directe.
+-- objectif_habilite(p_site, p_droit) : security definer, search_path vide, vrai si le compte courant
+-- a ce droit non révoqué sur cette station. Le rôle ne compte pas.
+```
+
+L'octroi et la révocation passent par une fonction `security definer` de même nature que les trois autres, réservée à un compte déjà habilité à valider ; la première habilitation est posée par une migration explicite, avec GO. `valider` suppose `proposer` et `lire` ; `proposer` suppose `lire`.
 
 ### Écriture : fonctions `security definer`, une par opération
 
@@ -433,15 +456,15 @@ Aucune politique d'insertion directe : une politique `insert` laisserait un `man
 
 | Fonction | Rôle autorisé | Gardes |
 |---|---|---|
-| `proposer_objectif(p_site, p_indicateur, p_horizon, p_debut, p_cible, p_origine)` | manager, gérant (G-4) | station = celle de l'appelant ; indicateur `objectivable`, classe ≠ `non_disponible`, `cible_externe` nul ; période alignée sur l'horizon ; cible zéro seulement si `cible_zero_ok` ; une seule proposition ouverte par clé |
-| `valider_objectif(p_id)` | gérant seul (G-4) | station de la ligne = celle de l'appelant ; statut `propose` ; unicité de l'officiel ; arbitrage consigné si classe `a_fiabiliser` ; pose `valide_par`, `valide_le`, remplace la version précédente dans la même transaction |
-| `retirer_objectif(p_id, p_motif)` | gérant seul | station de la ligne = celle de l'appelant ; motif obligatoire ; statut `retire`, jamais un `delete` |
+| `proposer_objectif(p_site, p_indicateur, p_horizon, p_debut, p_cible, p_origine)` | compte habilité `proposer` sur la station (G-4) | station = celle de l'appelant ; indicateur `objectivable`, classe ≠ `non_disponible`, `cible_externe` nul ; période alignée sur l'horizon ; cible zéro seulement si `cible_zero_ok` ; une seule proposition ouverte par clé |
+| `valider_objectif(p_id)` | compte habilité `valider` sur la station (G-4) | station de la ligne = celle de l'appelant ; statut `propose` ; unicité de l'officiel ; arbitrage consigné si classe `a_fiabiliser` ; pose `valide_par`, `valide_le`, remplace la version précédente dans la même transaction |
+| `retirer_objectif(p_id, p_motif)` | compte habilité `valider` | station de la ligne = celle de l'appelant ; motif obligatoire ; statut `retire`, jamais un `delete` |
 
 `anon` n'a aucun droit. Les `revoke` sont posés explicitement sur `anon` et sur `public` pour chaque fonction (un `revoke from public` seul ne ferme pas `anon`), `grant execute` à `authenticated` seulement, et `TRUNCATE` est retiré à `authenticated` sur les tables.
 
 ### Lecture par le Brief et par A4
 
-Le Brief et A4 lisent la même vue en lecture seule, qui expose pour la période demandée l'objectif **officiel** de la station (jamais un brouillon), sa `version` et `valide_le`. A4 conserve cet identifiant de version à côté des chiffres, pour qu'un relevé reste interprétable après un changement de cible.
+Le Brief et A4 lisent la même vue en lecture seule, créée avec `security_invoker = true` (`create view ... with (security_invoker = true)`) : sans cela elle s'exécuterait avec les droits de son propriétaire et contournerait la RLS de lecture ci-dessus. Elle qui expose pour la période demandée l'objectif **officiel** de la station (jamais un brouillon), sa `version` et `valide_le`. A4 conserve cet identifiant de version à côté des chiffres, pour qu'un relevé reste interprétable après un changement de cible.
 
 ### Liens avec le Conseiller
 
@@ -449,7 +472,7 @@ Une table `objectif_recommandation(site, objectif_id, recommandation_id, ecart, 
 
 ### Arbitrages ouverts pour le gérant (étape 3)
 
-- **G-4** : quels rôles sont « responsables habilités » à proposer, et le gérant seul valide-t-il ? (Aujourd'hui `manager` et `gerant` partagent la plupart des politiques.)
+- **G-4** : quels comptes, nommément, peuvent proposer et lesquels peuvent valider ? (Le droit est une habilitation par compte et par station, pas un rôle : le pilote est `manager`, l'unique `gerant` est une autre personne.)
 - **G-5** : une cible officielle de période en cours peut-elle être révisée, avec motif, ou seulement à la période suivante ?
 - **G-6** (reformulé) : l'année est saisie, les mois sont proposés par NEXUS, le trimestre est la somme de ses mois pour un indicateur additif, et le contrôle est l'égalité à l'arrondi près entre la somme des mois et l'année. Reste ouverte seulement la cible propre du trimestre pour les moyennes et les ratios.
 
@@ -491,9 +514,10 @@ Rien de ce qui suit n'est exécuté : aucune migration, aucun code, aucun accès
 | S2 | `TRUNCATE` est révoqué de `authenticated` et `anon` sur les trois tables | `has_table_privilege(..., 'TRUNCATE')` faux ; `revoke from public` seul ne suffit pas |
 | S3 | Un employé de la station A ne lit aucune ligne de la station B | requête avec le jeton d'un employé de A filtrée sur B : zéro ligne |
 | S4 | Un employé de A ne peut pas insérer pour B, ni déplacer une ligne vers B | insertion refusée par la politique ; test sur `with check` |
-| S5 | Aucune écriture directe : un `insert`, `update` ou `delete` de `authenticated` sur `station_objectifs` est refusé ; seules les RPC écrivent, et seuls `manager` et `gerant` appellent `proposer_objectif` | essai direct avec chaque rôle : refus ; appel de la RPC par un employé : refus |
-| S6 | `valider_objectif` et `retirer_objectif` sont `security definer`, réservés au gérant de la station, et refusent le manager, l'employé et le gérant d'une autre station | appel par chaque rôle : erreur `insufficient_privilege` sauf gérant de la station |
-| S13 | Un employé de la station elle-même ne lit aucune ligne (lecture limitée aux rôles habilités, Brief et vue A4 compris) | jeton d'employé de la bonne station : zéro ligne ; jeton manager : lignes visibles |
+| S5 | Aucune écriture directe : un `insert`, `update` ou `delete` de `authenticated` sur `station_objectifs` est refusé ; seules les RPC écrivent, et seuls les comptes habilités `proposer` appellent `proposer_objectif` | essai direct avec chaque rôle : refus ; appel de la RPC par un employé : refus |
+| S6 | `valider_objectif` et `retirer_objectif` sont `security definer`, réservés aux comptes habilités `valider` de la station, et refusent tout autre compte, quel que soit son rôle, et l'habilité d'une autre station | appel par chaque compte : erreur `insufficient_privilege` sauf habilité de la station |
+| S13 | Un employé de la station elle-même ne lit aucune ligne (lecture limitée aux comptes habilités, Brief et vue A4 compris) ; la vue de lecture est `security_invoker = true` | jeton d'employé de la bonne station : zéro ligne, y compris par la vue ; jeton habilité : lignes visibles ; `pg_class.reloptions` de la vue contient `security_invoker=true` |
+| S15 | L'habilitation prime sur le rôle : un compte de rôle `gerant` sans habilitation est refusé, un compte `manager` habilité est accepté | `valider_objectif` appelé par un `gerant` non habilité : refus ; par un `manager` habilité `valider` : accepté ; après révocation : refus |
 | S14 | Chaque RPC `security definer` a un `search_path` vide et refuse la mauvaise station | lecture de `pg_proc.proconfig` ; appel avec un `p_site` d'une autre station : refus |
 | S7 | Aucune politique UPDATE ni DELETE n'existe | liste de `pg_policies` : aucune commande UPDATE/DELETE |
 | S8 | Une ligne `officiel` ou `remplace` est immuable (trigger) | tentative d'UPDATE par le propriétaire de la table : refus du trigger |
@@ -550,7 +574,7 @@ Rien n'est tranché ici. Chaque ligne dit ce qui change selon la réponse et ce 
 |---|---|---|---|
 | G-1 | La progression se mesure-t-elle en périodes calendaires (mois contre mois précédent, en moyenne par jour complet) ou en fenêtres glissantes de 7 jours comme aujourd'hui dans le Brief ? | périodes calendaires, seules cohérentes avec des objectifs mensuels | CARB-PROGRES, COM-PROGRES, FDJ-EVOL |
 | G-3 | Les horaires de `station_config.horaires` valent-ils horaires d'ouverture ? Sinon : les saisir une fois, ou renoncer aux quatre indicateurs « par heure » | les confirmer si le gérant les reconnaît ; sinon renoncer | CARB-PROD-H, COM-CA-H, MAR-H (et leur voisin par heure) passent de « à fiabiliser » à « disponible » |
-| G-4 | Quels rôles proposent, et le gérant seul valide-t-il ? (`manager` et `gerant` partagent aujourd'hui la plupart des politiques) | proposition par manager ou gérant, validation par le gérant | S5, S6, flux de validation de la maquette |
+| G-4 | Quels comptes, nommément, peuvent proposer, et lesquels valider ? (droit par compte et par station, pas par rôle : le pilote est `manager`) | proposer : les comptes de direction de la station ; valider : le pilote nommé, plus tout autre compte que le gérant désigne | S5, S6, S15, flux de validation de la maquette |
 | G-5 | Une cible officielle de période en cours peut-elle être révisée, avec motif, ou seulement à la période suivante ? | révisable avec motif, par une nouvelle version qui remplace l'ancienne, jamais par modification | R7, D8 |
 | G-6 | Pour un additif, l'année est saisie, les mois proposés, le trimestre est la somme de ses mois (contrôle : somme des mois = année à l'arrondi). Pour une moyenne ou un ratio, le trimestre porte-t-il sa propre cible ? | année saisie et mois proposés pour les additifs ; cible propre du trimestre pour les ratios | R5, R6 |
 | G-7 | « Écart de caisse » : `ecart_total` tel que stocké, ou somme des valeurs absolues piste + boutique par quart ? | somme des valeurs absolues par quart, sans compensation | OPS-ECART-CAISSE, D4 |
