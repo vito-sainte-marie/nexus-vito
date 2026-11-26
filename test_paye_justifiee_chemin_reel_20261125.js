@@ -60,7 +60,7 @@ function client({ colonne }) {
 // PDF : faux PDFLib qui enregistre les textes.
 function pdfTextes(dossier) {
   const j = { textes: [] };
-  const fonte = { widthOfTextAtSize: t => String(t).length * 5 };
+  const fonte = { widthOfTextAtSize: t => String(t).length * 4.2 };
   const page = { drawText(t) { j.textes.push(String(t)); }, drawRectangle() {}, drawLine() {}, drawImage() {}, drawSvgPath() {}, getSize: () => ({ width: 841.89, height: 595.28 }) };
   const doc = new Proxy({ addPage() { return page; }, async embedFont() { return fonte; }, getPages() { return []; }, getPageCount() { return 1; },
     async save() { return new Uint8Array([37]); } }, { get: (c, p) => (p in c ? c[p] : (typeof p === 'symbol' || p === 'then' ? undefined : () => {})) });

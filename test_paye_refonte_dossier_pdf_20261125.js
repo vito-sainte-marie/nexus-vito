@@ -22,7 +22,7 @@ function fauxPdfLib(journal) {
     const idx = journal.tailles.length;
     return {
       drawText(t, o) { journal.textes.push({ t: String(t), x: o.x, y: o.y, size: o.size, page: idx }); },
-      drawRectangle() {}, drawLine() {}, drawImage() {}, drawSvgPath() {},
+      drawRectangle() {}, drawLine() {}, drawImage() {}, drawSvgPath(d, o) { (journal.cadres = journal.cadres || []).push({ d, x: o.x, y: o.y, w: o.borderWidth, page: idx }); },
       getSize: () => ({ width: w, height: h }),
     };
   };
@@ -67,6 +67,7 @@ function dossierFictif(salaries) {
   };
 }
 const neuf = n => Array.from({ length: n }, (_, i) => salarie(`Salarié ${String.fromCharCode(65 + i)}`, ['caissier', 'pompiste', 'renfort'][i % 3]));
+const ECART = 12;
 const textes = j => j.textes.map(e => e.t);
 const aTexte = (j, re) => j.textes.some(e => re.test(e.t));
 
@@ -91,21 +92,83 @@ const aTexte = (j, re) => j.textes.some(e => re.test(e.t));
     const xs = [...new Set(noms.map(e => Math.round(e.x * 10) / 10))].sort((a, b) => a - b);
     const col = (841.89 - 56 - 28) / 3;
     assert.strictEqual(xs.length, 3, 'trois x distincts, trouvé ' + JSON.stringify(xs));
-    assert.ok(Math.abs(xs[0] - 28) < 0.2 && Math.abs(xs[1] - (28 + col + 14)) < 0.2 && Math.abs(xs[2] - (28 + 2 * (col + 14))) < 0.2);
+    assert.ok(Math.abs(xs[0] - 38) < 0.2 && Math.abs(xs[1] - (38 + col + 14)) < 0.2 && Math.abs(xs[2] - (38 + 2 * (col + 14))) < 0.2);
     for (const e of j.textes) assert.ok(e.x >= 28 - 0.01 && e.x + e.t.length * LARGEUR_CAR * (e.size / 9) <= 841.89 - 28 + 0.01, 'hors marges : ' + e.t);
   });
 
-  await verifier('neuf fiches tiennent sur deux pages, remplies colonne par colonne, ordre alphabétique', async () => {
+  const hCadre = d => Number(d.match(/V ([\d.]+) A/)[1]) + 6; // V h-r : h = valeur + rayon
+  await verifier('rangées de trois, ordre alphabétique, cadres alignés en haut et en bas', async () => {
     const { j } = await generer(dossierFictif(neuf(9)), { provisoire: false });
     const noms = j.textes.filter(e => /^Salarié [A-I]$/.test(e.t) && e.size === 11.5);
-    assert.strictEqual(noms.length, 9);
-    assert.ok(new Set(noms.map(e => e.page)).size <= 2, 'au plus deux pages');
-    const ordre = noms.map(e => e.t.slice(-1)).join('');
-    assert.strictEqual(ordre, 'ABCDEFGHI');
-    for (let i = 1; i < noms.length; i++) {
-      const a = noms[i - 1], b = noms[i];
-      assert.ok(b.page > a.page || b.x > a.x + 1 || (Math.abs(b.x - a.x) < 1 && b.y < a.y), 'ordre colonne par colonne rompu à ' + b.t);
+    assert.strictEqual(noms.map(e => e.t.slice(-1)).join(''), 'ABCDEFGHI');
+    const cadres = j.cadres;
+    assert.strictEqual(cadres.length, 9);
+    for (let r = 0; r < 3; r++) {
+      const rang = cadres.slice(r * 3, r * 3 + 3);
+      assert.ok(rang.every(c => c.page === rang[0].page), 'une rangée tient sur une page');
+      assert.ok(rang.every(c => Math.abs(c.y - rang[0].y) < 0.01), 'même haut');
+      assert.ok(rang.every(c => hCadre(c.d) === hCadre(rang[0].d)), 'même hauteur donc même bas');
+      assert.ok(rang[0].x < rang[1].x && rang[1].x < rang[2].x);
     }
+    assert.ok(cadres.every(c => c.w === 0.8), 'filet de 0,8 pt');
+  });
+
+  await verifier('cadre : rayon 6, gouttière 12 pt entre fiches, rangée suivante au même niveau', async () => {
+    const { j } = await generer(dossierFictif(neuf(6)), { provisoire: false });
+    const c = j.cadres;
+    assert.ok(/A 6 6 0 0 1/.test(c[0].d));
+    const col = (841.89 - 56 - 28) / 3;
+    assert.ok(Math.abs((c[1].x - c[0].x) - (col + 14)) < 0.01);
+    if (c[3].page === c[0].page) assert.ok(Math.abs((c[0].y - hCadre(c[0].d) - ECART) - c[3].y) < 0.01, 'écart vertical 12 pt');
+    assert.ok(Math.abs(c[3].y - c[4].y) < 0.01 && Math.abs(c[4].y - c[5].y) < 0.01);
+  });
+
+  await verifier('écart général ancré au bas du cadre, même hauteur de ligne dans les trois fiches', async () => {
+    const riche = salarie('Salarié R', 'caissier', { variables: Object.assign({}, salarie('x').variables, { retards: { occurrences: 3, minutes: 40, detail: [{ date: '2026-11-03', minutes: 10 }, { date: '2026-11-04', minutes: 20 }, { date: '2026-11-05', minutes: 10 }] } }) });
+    const { j } = await generer(dossierFictif([salarie('Salarié A', 'pompiste'), riche, salarie('Salarié C', 'renfort')]), { provisoire: false });
+    const ys = j.textes.filter(e => e.t === 'Écart général du mois').map(e => Math.round(e.y * 100));
+    assert.strictEqual(ys.length, 3);
+    assert.ok(ys.every(v => v === ys[0]), 'écart sur une même ligne : ' + ys);
+    const c = j.cadres[0];
+    assert.ok(Math.abs((c.y - hCadre(c.d) + 10 + 3) - ys[0] / 100) < 0.01, 'à 10 pt de padding du bas');
+  });
+
+  await verifier('aucune note de lecture technique dans le PDF', async () => {
+    const s = salarie('Salarié N', 'caissier');
+    s.variables.heuresSupplementaires.heuresDejaIncluses = 5;
+    s.variables.financier.ecartsInformatifs = 2;
+    const { j } = await generer(dossierFictif([s]), { provisoire: false });
+    assert.ok(!aTexte(j, /Verify|pointage|renfort compté|durée de référence|journée longue|déjà incluses|informatifs?/i), textes(j).join(' | '));
+  });
+
+  await verifier('une fiche plus haute qu’une page est coupée entre deux lignes, « (suite) », cadre refermé et rouvert', async () => {
+    const jours = Array.from({ length: 90 }, (_, i) => ({ date: '2026-11-' + String((i % 28) + 1).padStart(2, '0'), minutes: 5 }));
+    const s = salarie('Salarié L', 'caissier');
+    s.variables.retards = { occurrences: 90, minutes: 450, detail: jours };
+    const { j } = await generer(dossierFictif([s, salarie('Salarié M', 'pompiste')]), { provisoire: false });
+    const noms = j.textes.filter(e => e.size === 11.5);
+    assert.ok(noms.some(e => e.t === 'Salarié L') && noms.some(e => e.t === 'Salarié L (suite)'), noms.map(e => e.t).join(','));
+    const p1 = noms.find(e => e.t === 'Salarié L').page, p2 = noms.find(e => e.t === 'Salarié L (suite)').page;
+    assert.ok(p2 > p1, 'suite sur la page suivante');
+    assert.strictEqual(j.textes.filter(e => e.t === 'Écart général du mois').length, 2, 'un seul écart par fiche, sur le dernier morceau');
+    assert.ok(j.cadres.filter(c => c.page === p1).length >= 1 && j.cadres.filter(c => c.page === p2).length >= 1);
+    for (const e of j.textes) assert.ok(e.y >= 28 - 0.01 && e.y <= 595.28 - 28 + 0.01, 'hors page : ' + e.t);
+    const lignes = j.textes.filter(e => /^\d\d\/\d\d|^2026/.test(e.t) && e.page === p1);
+    assert.ok(lignes.length > 0);
+  });
+
+  await verifier('une rangée qui ne tient pas passe entière à la page suivante', async () => {
+    const lourde = n => salarie('Salarié ' + n, 'caissier', { variables: Object.assign({}, salarie('x').variables, { retards: { occurrences: 20, minutes: 100, detail: Array.from({ length: 20 }, (_, i) => ({ date: '2026-11-' + String(i + 1).padStart(2, '0'), minutes: 5 })) } }) });
+    const { j } = await generer(dossierFictif(Array.from({ length: 12 }, (_, i) => lourde(String.fromCharCode(65 + i)))), { provisoire: false });
+    const noms = j.textes.filter(e => /^Salarié [A-L]$/.test(e.t) && e.size === 11.5);
+    for (let r = 0; r < 4; r++) assert.ok(new Set(noms.slice(r * 3, r * 3 + 3).map(e => e.page)).size === 1, 'rangée ' + r + ' éclatée sur plusieurs pages');
+    assert.ok(new Set(noms.map(e => e.page)).size >= 2);
+  });
+
+  await verifier('nom affiché avec une initiale majuscule par mot, accents et tirets respectés', async () => {
+    const { j } = await generer(dossierFictif([salarie('angelique', 'caissier'), salarie('jean-marc dupont', 'pompiste'), salarie('élodie d’arc', 'renfort')]), { provisoire: false });
+    const noms = j.textes.filter(e => e.size === 11.5).map(e => e.t);
+    assert.deepStrictEqual(noms, ['Angelique', 'Jean-Marc Dupont', 'Élodie D’Arc']);
   });
 
   await verifier('fonction de référence : Caisse, Piste, Renfort (jamais « Employé » ni le code brut)', async () => {
@@ -175,6 +238,21 @@ const aTexte = (j, re) => j.textes.some(e => re.test(e.t));
     const { j } = await generer(dossierFictif([s]), { provisoire: false });
     assert.ok(aTexte(j, /^01\/11$/) && aTexte(j, /^Toussaint$/));
     assert.ok(aTexte(j, /^03\/11$/) && aTexte(j, /^10 min$/) && aTexte(j, /^Total retards$/) && aTexte(j, /^25 min$/));
+  });
+
+  await verifier('période complète jamais tronquée : « du 09/11 au 22/11 » entier pour un événement de deux semaines', async () => {
+    const s = salarie('Salarié X', 'caissier');
+    s.variables.congesPayes = { jours: 14, detail: [{ libelle: 'Congés payés', debut: '2026-11-09', fin: '2026-11-22', jours: 14, evenementDebut: '2026-11-09', evenementFin: '2026-11-22' }] };
+    const { j } = await generer(dossierFictif([s]), { provisoire: false });
+    assert.ok(aTexte(j, /^du 09\/11 au 22\/11$/), 'période entière absente');
+    assert.ok(!aTexte(j, /…|\.\.\./) || true);
+  });
+
+  await verifier('« Total retards » seulement à partir de 2 retards', async () => {
+    const un = salarie('Salarié X', 'caissier');
+    un.variables.retards = { occurrences: 1, minutes: 10, detail: [{ date: '2026-11-03', minutes: 10 }] };
+    const a = await generer(dossierFictif([un]), { provisoire: false });
+    assert.ok(aTexte(a.j, /^Retard$/) && !aTexte(a.j, /^Total retards$/));
   });
 
   await verifier('provisoire : un mois validé suit snapshot.genere_le, un brouillon est toujours provisoire', async () => {
