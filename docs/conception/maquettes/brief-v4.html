@@ -17,7 +17,7 @@ body{margin:0;background:var(--t-bg);color:var(--t-text);font:14px/1.45 var(--t-
 .lect h3 .ico{background:color-mix(in srgb,var(--t-text) 14%,transparent);border-radius:8px;padding:3px;box-sizing:content-box}
 .ico{width:24px;height:24px;flex:none;display:block}.ico.g{width:32px;height:32px}
 /* En-tête */
-.bandeau{margin:0;border-radius:12px;overflow:hidden;background:#07131E;height:200px}.bandeau img{display:block;width:100%;height:100%;object-fit:cover;object-position:left 15%}
+.bandeau{position:relative;margin:0;border-radius:12px;overflow:hidden;background:#07131E;height:200px}.bandeau .titre{position:absolute;left:32px;top:50%;transform:translateY(-50%);display:flex;align-items:center;gap:20px;color:#fff}.bandeau .titre img{width:72px;height:72px;object-fit:contain;flex:none}.bandeau .titre h1{margin:0;font:600 44px/1 'IBM Plex Sans',system-ui,sans-serif;letter-spacing:-.01em;color:#fff}.bandeau .titre p{margin:6px 0 0;font:400 16px/1.2 'IBM Plex Sans',system-ui,sans-serif;color:#C9D6E2}.bandeau img{display:block;width:100%;height:100%;object-fit:cover;object-position:left 30%}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .tete{display:flex;align-items:center;gap:16px}
 .tete h1{margin:0;font-size:22px;font-weight:600;letter-spacing:-.01em}
@@ -159,7 +159,7 @@ function courbes(){return `<div class="grille g3">${courbe('piste','var(--piste)
 
 function monter(){
 document.getElementById('p').innerHTML=`
-<header class="bandeau"><picture><source type="image/webp" srcset="../../../assets/brief/brief-entete-1280.webp 1280w, ../../../assets/brief/brief-entete-2172.webp 2172w" sizes="1240px"><img src="../../../assets/brief/brief-entete-2172.jpg" alt="NEXUS Brief, tableau de direction" width="1280" height="427"></picture><h1 class="sr">Brief du jour</h1></header>
+<header class="bandeau"><picture><source type="image/webp" srcset="../../../assets/brief/brief-entete-1280.webp 1280w, ../../../assets/brief/brief-entete-2172.webp 2172w" sizes="1240px"><img src="../../../assets/brief/brief-entete-2172.jpg" alt="" width="2172" height="724"></picture><div class="titre"><img src="../../../assets/nexus-logo-cyan.png" alt="NEXUS" width="72" height="72"><div><h1>Brief</h1><p>Tableau de direction</p></div></div></header>
 <div class="tete"><div class="sous">Jeudi 26 novembre · station fictive</div><div class="fin">Données les plus anciennes<br><b style="color:var(--t-text)">14/11</b></div></div>
 
 <section><h2 class="ts">À retenir</h2>
