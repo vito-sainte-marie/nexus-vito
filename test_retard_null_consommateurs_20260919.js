@@ -70,6 +70,7 @@ const RD = gRd.NexusRapportDirectionDonnees;
 // globalThis)` : l'idiome du dépôt (test_app_donnees_carburants_anti_
 // divergence_v2224.js) est de leur donner `global` pour fenêtre.
 global.window = global;
+require(path.join(RACINE, 'nexus-site-requis.js'));
 require(path.join(RACINE, 'nexus-app-donnees.js'));
 require(path.join(RACINE, 'nexus-brief-donnees.js'));
 require(path.join(RACINE, 'nexus-risques-donnees.js'));
@@ -304,7 +305,7 @@ const DIX_ARRIVEES = [
 const p3 = [
   t('accueil (chargerDomainesRadarHome) : taux d\'anomalies sur les mesurées', async () => {
     const { client } = faireClient({ pointages: DIX_ARRIVEES, mission_completions: [] });
-    const r = await AD.chargerDomainesRadarHome(client);
+    const r = await AD.chargerDomainesRadarHome(client, 'site-a');
     assert.strictEqual(r.totalPointages, 4,
       `totalPointages = ${r.totalPointages} : les journées non calculables gonflent encore le dénominateur`);
     assert.strictEqual(r.nbRetards, 2);
@@ -315,20 +316,20 @@ const p3 = [
   t('brief (chargerDomaineEquipe) : les DEUX fenêtres comptent les mesurées', async () => {
     // Fenêtre courante 13→19/09, fenêtre précédente 06→12/09.
     const lignes = [
-      { id: 1, employee_id: 'e1', type: 'arrivee', date: '2026-09-15', retard_min: 30 },
-      { id: 2, employee_id: 'e2', type: 'arrivee', date: '2026-09-16', retard_min: 15 },
-      { id: 3, employee_id: 'e1', type: 'arrivee', date: '2026-09-17', retard_min: 0 },
-      { id: 4, employee_id: 'e2', type: 'arrivee', date: '2026-09-18', retard_min: 0 },
-      { id: 5, employee_id: 'e1', type: 'arrivee', date: '2026-09-14', retard_min: null },
-      { id: 6, employee_id: 'e2', type: 'arrivee', date: '2026-09-14', retard_min: null },
-      { id: 7, employee_id: 'e1', type: 'arrivee', date: '2026-09-13', retard_min: null },
-      { id: 8, employee_id: 'e1', type: 'arrivee', date: '2026-09-09', retard_min: 40 },
-      { id: 9, employee_id: 'e2', type: 'arrivee', date: '2026-09-10', retard_min: 0 },
-      { id: 10, employee_id: 'e1', type: 'arrivee', date: '2026-09-11', retard_min: null },
-      { id: 11, employee_id: 'e2', type: 'arrivee', date: '2026-09-12', retard_min: null },
+      { site: 'site-a', id: 1, employee_id: 'e1', type: 'arrivee', date: '2026-09-15', retard_min: 30 },
+      { site: 'site-a', id: 2, employee_id: 'e2', type: 'arrivee', date: '2026-09-16', retard_min: 15 },
+      { site: 'site-a', id: 3, employee_id: 'e1', type: 'arrivee', date: '2026-09-17', retard_min: 0 },
+      { site: 'site-a', id: 4, employee_id: 'e2', type: 'arrivee', date: '2026-09-18', retard_min: 0 },
+      { site: 'site-a', id: 5, employee_id: 'e1', type: 'arrivee', date: '2026-09-14', retard_min: null },
+      { site: 'site-a', id: 6, employee_id: 'e2', type: 'arrivee', date: '2026-09-14', retard_min: null },
+      { site: 'site-a', id: 7, employee_id: 'e1', type: 'arrivee', date: '2026-09-13', retard_min: null },
+      { site: 'site-a', id: 8, employee_id: 'e1', type: 'arrivee', date: '2026-09-09', retard_min: 40 },
+      { site: 'site-a', id: 9, employee_id: 'e2', type: 'arrivee', date: '2026-09-10', retard_min: 0 },
+      { site: 'site-a', id: 10, employee_id: 'e1', type: 'arrivee', date: '2026-09-11', retard_min: null },
+      { site: 'site-a', id: 11, employee_id: 'e2', type: 'arrivee', date: '2026-09-12', retard_min: null },
     ];
     const { client } = faireClient({ pointages: lignes });
-    const r = await BD.chargerDomaineEquipe(client, '2026-09-19');
+    const r = await BD.chargerDomaineEquipe(client, 'site-a', '2026-09-19');
     assert.strictEqual(r.totalPointages, 4,
       `fenêtre courante : ${r.totalPointages} au dénominateur au lieu de 4`);
     assert.strictEqual(r.totalAnomalies, 2);
