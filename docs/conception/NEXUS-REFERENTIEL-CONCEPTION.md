@@ -110,7 +110,7 @@ Le profil choisit la densité et le ton ; il ne change jamais les droits. Les pe
 - États métier : `nexus-badge-etat.js` (critique, à vérifier, information, conforme ; en attente, exclu ; agir, décider, vérifier, surveiller). Gravité, activité et action restent trois systèmes distincts ; pas de palette concurrente. La gravité et l'action sont deux badges distincts. Le sens est toujours écrit : la couleur ne porte jamais seule l'information.
 - Typographie : IBM Plex Sans pour le texte, IBM Plex Mono pour les chiffres et les rangs.
 - Cartes : bordure fine complète `1px solid var(--t-line)`, fond `--t-panel`, sans lueur. Rayons des nouvelles interfaces : 12 px pour une carte, 8 px pour un badge ou un bouton. Exceptions admises : pastilles, anneaux, illustrations, composants officiels existants, contraintes d'accessibilité. Les pages existantes ne sont pas reprises pour uniformiser leurs rayons.
-- Icônes : `nexus-icones.js` et `assets/icones/`. Une icône manquante est demandée sur #160, jamais dessinée à la volée. Aucun emoji comme état métier.
+- Icônes : `nexus-icones.js` et `assets/icones/`. Une icône manquante est demandée sur #383, jamais dessinée à la volée. Aucun emoji comme état métier.
 - Conseiller : avatar officiel, lexique `nexus-vocabulaire.js`, ton de l'article 12.
 
 ### Catalogue
@@ -151,7 +151,7 @@ Réutiliser avant de créer. Un composant local n'est pas recopié pour une peti
 
 ## 7. Fiche de conception
 
-Avant de coder un lot significatif (nouvelle page, nouvel espace, nouvelle carte, changement de la structure A à E), CC publie sur #160 une fiche courte et attend la revue de Guardian. Un lot mineur (libellé, couleur d'état, alignement, correction de recette) n'a pas de fiche ; sa PR cite la règle appliquée.
+Avant de coder un lot significatif (nouvelle page, nouvel espace, nouvelle carte, changement de la structure A à E), CC publie sur #383 une fiche courte et attend la revue de Guardian. Un lot mineur (libellé, couleur d'état, alignement, correction de recette) n'a pas de fiche ; sa PR cite la règle appliquée.
 
 ```markdown
 ### Fiche de conception : <page ou espace>
@@ -222,7 +222,7 @@ La présence du skill ne prouve pas qu'il a été chargé. Un lot d'interface n'
 
 ### Gouvernance
 
-La revue de conception se fait dans le Handoff existant : CC publie la fiche sur #160, Guardian la revoit et la recette. Une nouvelle carte, une correction graphique ou un ajustement de présentation avancent sans GO du gérant. Restent soumis aux règles d'autorité établies : une décision métier nouvelle, un changement de doctrine ou de ce référentiel, la sécurité, les migrations, les fusions et la Production.
+La revue de conception se fait dans le Handoff existant : CC publie la fiche sur #383, Guardian la revoit et la recette. Une nouvelle carte, une correction graphique ou un ajustement de présentation avancent sans GO du gérant. Restent soumis aux règles d'autorité établies : une décision métier nouvelle, un changement de doctrine ou de ce référentiel, la sécurité, les migrations, les fusions et la Production.
 
 ## 10. Chantier suivant
 

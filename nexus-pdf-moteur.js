@@ -175,6 +175,19 @@
     return lignes.length ? lignes : [''];
   }
 
+  /** Coupe, caractère par caractère, un mot plus large que la colonne (sinon il déborderait). */
+  function couperMotsLongs(texte, police, taille, largeurMax) {
+    return String(texte).split(/(\s+)/).map(mot => {
+      if (!mot.trim() || police.widthOfTextAtSize(mot, taille) <= largeurMax) return mot;
+      let sortie = '', morceau = '';
+      for (const c of mot) {
+        if (morceau && police.widthOfTextAtSize(morceau + c, taille) > largeurMax) { sortie += morceau + ' '; morceau = ''; }
+        morceau += c;
+      }
+      return sortie + morceau;
+    }).join('');
+  }
+
   /**
    * ConstructeurRapport — pagination maîtrisée : chaque ajout vérifie
    * l'espace vertical restant sur la page et insère automatiquement une
@@ -182,8 +195,12 @@
    * page, contrairement à un simple rendu navigateur figé).
    */
   class ConstructeurRapport {
-    constructor(doc, police, policeGrasse, entete) {
+    constructor(doc, police, policeGrasse, entete, options) {
       this.doc = doc;
+      const paysage = !!(options && options.orientation === 'paysage');
+      this.pageLargeur = paysage ? A4.hauteur : A4.largeur;
+      this.pageHauteur = paysage ? A4.largeur : A4.hauteur;
+      this.marge = (options && options.marge) || MARGE;
       this.police = police;
       this.policeGrasse = policeGrasse;
       this.entete = entete || null; // { app, sousTitre } répété en haut de chaque page
@@ -216,9 +233,9 @@
     }
 
     _nouvellePage(options) {
-      this.page = this.doc.addPage([A4.largeur, A4.hauteur]);
+      this.page = this.doc.addPage([this.pageLargeur, this.pageHauteur]);
       this.numeroPage += 1;
-      this.y = A4.hauteur - MARGE;
+      this.y = this.pageHauteur - this.marge;
       if (this.entete && !(options && options.sansBandeau)) this._dessinerBandeauEntete();
     }
 
@@ -235,7 +252,7 @@
     }
 
     /** Espace vertical restant avant la marge basse (réserve 20pt pour le pied de page). */
-    espaceDisponible() { return this.y - MARGE - 20; }
+    espaceDisponible() { return this.y - this.marge - 20; }
 
     /** Force une nouvelle page si l'espace restant est insuffisant pour `hauteurRequise`. */
     assurerEspace(hauteurRequise) {
@@ -333,23 +350,35 @@
       colonnes.forEach(col => {
         const largeurCol = col.largeur * LARGEUR_UTILE;
         const texte = this._assainir(col.label, true);
-        const decal = col.align === 'droite' ? largeurCol - this.policeGrasse.widthOfTextAtSize(texte, tailleEnTete) - 6 : 6;
+        const decal = col.align === 'droite' ? Math.max(6, largeurCol - this.policeGrasse.widthOfTextAtSize(texte, tailleEnTete) - 6) : 6;
         this.page.drawText(texte, { x: x + decal, y: this.y - interligne + 4.5, size: tailleEnTete, font: this.policeGrasse, color: COULEUR.texte });
         x += largeurCol;
       });
       this.y -= interligne;
+      // Une cellule trop longue passe à la ligne DANS sa colonne (jamais de
+      // décalage négatif, jamais de texte qui recouvre la colonne voisine ni
+      // qui sort de la page). Une ligne qui tient garde la hauteur d'origine.
+      const interligneCellule = 11.5;
+      const largeurTexteMax = col => col.largeur * LARGEUR_UTILE - 12;
       lignes.forEach((ligne, i) => {
-        this.assurerEspace(interligne);
-        if (i % 2 === 1) this.page.drawRectangle({ x: MARGE, y: this.y - interligne, width: LARGEUR_UTILE, height: interligne, color: COULEUR.fondAlterne });
-        let xx = MARGE;
-        colonnes.forEach(col => {
-          const largeurCol = col.largeur * LARGEUR_UTILE;
+        const cellules = colonnes.map(col => {
           const val = this._assainir(ligne[col.cle] == null ? '—' : ligne[col.cle], false);
-          const decal = col.align === 'droite' ? largeurCol - this.police.widthOfTextAtSize(val, taille) - 6 : 6;
-          this.page.drawText(val, { x: xx + decal, y: this.y - interligne + 4.5, size: taille, font: this.police, color: COULEUR.texte });
+          return decouperEnLignes(couperMotsLongs(val, this.police, taille, largeurTexteMax(col)), this.police, taille, largeurTexteMax(col));
+        });
+        const nbLignes = Math.max(...cellules.map(c => c.length));
+        const hauteur = interligne + (nbLignes - 1) * interligneCellule;
+        this.assurerEspace(hauteur);
+        if (i % 2 === 1) this.page.drawRectangle({ x: MARGE, y: this.y - hauteur, width: LARGEUR_UTILE, height: hauteur, color: COULEUR.fondAlterne });
+        let xx = MARGE;
+        colonnes.forEach((col, k) => {
+          const largeurCol = col.largeur * LARGEUR_UTILE;
+          cellules[k].forEach((texte, n) => {
+            const decal = col.align === 'droite' ? Math.max(6, largeurCol - this.police.widthOfTextAtSize(texte, taille) - 6) : 6;
+            this.page.drawText(texte, { x: xx + decal, y: this.y - interligne + 4.5 - n * interligneCellule, size: taille, font: this.police, color: COULEUR.texte });
+          });
           xx += largeurCol;
         });
-        this.y -= interligne;
+        this.y -= hauteur;
       });
       this.y -= 8;
     }
@@ -425,11 +454,11 @@
       const gauche = this._assainir(texteGauche || '', false);
       const pages = this.doc.getPages();
       pages.forEach((p, i) => {
-        p.drawLine({ start: { x: MARGE, y: MARGE - 8 }, end: { x: A4.largeur - MARGE, y: MARGE - 8 }, thickness: 0.5, color: COULEUR.ligne });
-        p.drawText(gauche, { x: MARGE, y: MARGE - 20, size: 7.5, font: this.police, color: COULEUR.texteDim });
+        p.drawLine({ start: { x: this.marge, y: this.marge - 8 }, end: { x: this.pageLargeur - this.marge, y: this.marge - 8 }, thickness: 0.5, color: COULEUR.ligne });
+        p.drawText(gauche, { x: this.marge, y: this.marge - 20, size: 7.5, font: this.police, color: COULEUR.texteDim });
         const texteDroite = `Page ${i + 1} / ${pages.length}`;
         const largeur = this.police.widthOfTextAtSize(texteDroite, 7.5);
-        p.drawText(texteDroite, { x: A4.largeur - MARGE - largeur, y: MARGE - 20, size: 7.5, font: this.police, color: COULEUR.texteDim });
+        p.drawText(texteDroite, { x: this.pageLargeur - this.marge - largeur, y: this.marge - 20, size: 7.5, font: this.police, color: COULEUR.texteDim });
       });
     }
   }
@@ -861,7 +890,7 @@
    * gras) et un ConstructeurRapport prêt à l'emploi. `entete` :
    * { app, sousTitre } affiché en haut de chaque page.
    */
-  async function creerRapport({ titre, auteur = 'NEXUS OS', sujet, entete } = {}) {
+  async function creerRapport({ titre, auteur = 'NEXUS OS', sujet, entete, orientation, marge } = {}) {
     const doc = await PDFDocument.create();
     if (titre) doc.setTitle(titre);
     doc.setAuthor(auteur);
@@ -870,7 +899,7 @@
     doc.setProducer('NEXUS PDF Moteur (pdf-lib)');
     const police = await doc.embedFont(StandardFonts.Helvetica);
     const policeGrasse = await doc.embedFont(StandardFonts.HelveticaBold);
-    return new ConstructeurRapport(doc, police, policeGrasse, entete);
+    return new ConstructeurRapport(doc, police, policeGrasse, entete, { orientation, marge });
   }
 
   /** Termine le document et renvoie les octets PDF (Uint8Array). */

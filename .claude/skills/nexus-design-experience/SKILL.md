@@ -8,7 +8,7 @@ description: Référentiel obligatoire de conception NEXUS (v1.0). À charger av
 Référence complète : docs/conception/NEXUS-REFERENTIEL-CONCEPTION.md. Références visuelles : NEXUS-Tempo-v2.html, puis NEXUS-Paye-v1.html.
 
 ## Avant de coder
-- Lot significatif (page, espace, carte, structure A-E) : publier sur #160 la fiche de conception du référentiel (section 7), en citant "NEXUS-REFERENTIEL-CONCEPTION v1.0", et attendre la revue de Guardian.
+- Lot significatif (page, espace, carte, structure A-E) : publier sur #383 la fiche de conception du référentiel (section 7), en citant "NEXUS-REFERENTIEL-CONCEPTION v1.0", et attendre la revue de Guardian.
 - Lot mineur (libellé, couleur d'état, alignement, correction de recette) : pas de fiche ; citer la règle appliquée dans la PR.
 
 ## Concevoir
@@ -20,7 +20,7 @@ Référence complète : docs/conception/NEXUS-REFERENTIEL-CONCEPTION.md. Référ
 - nexus-theme.js dans le head ; jetons --t-* pour l'environnement ; aucune couleur en dur ; Jour et Nuit.
 - États métier : nexus-badge-etat.js. Gravité, activité et action restent distinctes. Aucun emoji d'état ; le sens toujours écrit.
 - IBM Plex Sans et Plex Mono. Rayons : 12 px cartes, 8 px boutons et badges, sauf exceptions justifiées.
-- Icônes : nexus-icones.js et assets/icones ; icône manquante = la demander sur #160.
+- Icônes : nexus-icones.js et assets/icones ; icône manquante = la demander sur #383.
 - Conseiller : avatar officiel, nexus-vocabulaire.js, Constitution art. 12 ; aucune tendance, urgence ou causalité inventée.
 - Une carte = une question ; chiffre principal en Plex Mono avec unité ; jamais de total de grandeurs différentes.
 - Liste > 10 lignes : recherche, tri, filtres, 10 premières visibles.
