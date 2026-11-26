@@ -471,6 +471,20 @@ Un sujet par bloc. Rien n'est écrit comme validé. Le gérant choisit.
 | Schéma des objectifs | trois horizons, saisie annuelle de référence à l'étude (§16.b) ; `station_objectifs` ou autre | aucune migration avant validation du modèle final |
 | Fermeture des risques | règle du §20 ; règle plus simple ; règle plus stricte | selon le nombre de mesures de confirmation et le délai « sans mesure récente » |
 
+
+### 21.bis Décisions du gérant du 26/11 (après visa de la maquette bureau)
+
+Le visa porte sur la maquette seule. Il ne vaut ni GO de code, ni de migration, ni de changement de moteur.
+
+| Sujet | Décision |
+|---|---|
+| Statut de la carte Marge | **Taux contre cible.** « Sous la cible » ou « Cible atteinte », selon la cible tarifaire validée : règle `defaut`, sinon moyenne pondérée par le CA, sinon aucune cible et aucun statut de cible. Les anomalies confirmées sont affichées à part, en nombre et en euros, sans note et sans barème. |
+| Objectifs | **L'objectif annuel d'abord.** Le gérant fixe l'année. NEXUS propose les mois et les trimestres à partir de l'historique et de la saisonnalité, modifiables, à valider explicitement. |
+| Rangement | **Nouvelle table `station_objectifs`**, acceptée dans son principe : versionnée, droits par station, sans modification ni suppression. Aucune migration avant le GO du gérant sur le schéma définitif. |
+| Étape suivante | **Audit des moteurs** (`docs/audit/audit-moteurs-nexus.md`), avant la version mobile et avant tout code. |
+
+Ces lignes complètent le tableau ci-dessus sans le réécrire : les propositions antérieures (§16.b, §19.2) restent lisibles comme historique.
+
 Aucun code, aucune migration, rien en Production avant le GO du gérant.
 
 ## 22. Icônes utilisées (registre `nexus-icones.js`, `assets/icones`)
