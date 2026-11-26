@@ -134,6 +134,10 @@
 
   const FONCTION = { caissier: 'Caisse', caissiere: 'Caisse', pompiste: 'Piste', renfort: 'Renfort', manager: 'Manager', gerant: 'Gérant', 'gérant': 'Gérant' };
   const MARGE = 28;
+  const PAD = 10;
+  const ECART_FICHES = 12;
+  const RAYON = 6;
+  const ENTETE_FICHE = 20;
   const GOUTTIERE = 14;
   const TAILLE = 8.5;
   const INTERLIGNE = 10.5;
@@ -212,6 +216,9 @@
     }
     tab.forEach(r => L.push(r));
 
+    if (v.financier.acompteCentimes) add('lv', { label: 'Acompte', valeur: euros(v.financier.acompteCentimes) });
+    if (v.financier.detteCentimes) add('lv', { label: 'Avance', valeur: euros(v.financier.detteCentimes) });
+    if (v.financier.retenueEcartCentimes) add('lv', { label: 'Retenue décidée', valeur: euros(v.financier.retenueEcartCentimes) });
     const fer = (v.joursFeries.detail || []);
     if (fer.length || v.joursFeries.jours) {
       const parDate = {};
@@ -225,25 +232,49 @@
       });
       if (!fer.length) add('lv', { label: 'Jours fériés travaillés', valeur: `${v.joursFeries.jours} j` });
     }
-    if (v.financier.acompteCentimes) add('lv', { label: 'Acompte', valeur: euros(v.financier.acompteCentimes) });
-    if (v.financier.detteCentimes) add('lv', { label: 'Avance', valeur: euros(v.financier.detteCentimes) });
-    if (v.financier.retenueEcartCentimes) add('lv', { label: 'Retenue décidée', valeur: euros(v.financier.retenueEcartCentimes) });
-    // Notes de lecture : sans elles, le comptable ne sait pas d'où viennent les heures.
-    const notes = [];
-    if (v.presence.joursReconstitues) notes.push(`${v.presence.joursMesures} journée(s) sur ${v.presence.joursMesures + v.presence.joursReconstitues} constatée(s) confirmée(s) par deux sources (Verify et pointage).`);
-    if (v.presence.joursPlanifies) notes.push(`${v.presence.joursPlanifies} journée(s) de renfort comptée(s) sur le seul planning officiel, qui fait foi pour le renfort.`);
-    if (v.presence.heuresParDefaut) notes.push(`${heures(v.presence.heuresParDefaut)} calculées d’après la durée de référence du poste (journée longue = 7 h + 1 h supplémentaire, règle du 10/10), pour les journées constatées dans Verify.`);
-    if (v.heuresSupplementaires.heuresDejaIncluses) notes.push(`${heures(v.heuresSupplementaires.heuresDejaIncluses)} d’une décision antérieure décrivent la même heure que la 8e heure du barème : elles ne sont pas ajoutées. Aucun taux de majoration n’est appliqué ici : il relève du cadre légal et de la convention.`);
-    if (v.financier.ecartsInformatifs) notes.push(`${v.financier.ecartsInformatifs} écart(s) de caisse restent informatifs : aucune retenue.`);
-    notes.forEach(n => envelopper(`- ${n}`, 64).forEach(t => add('note', { t })));
     add('regle', {});
     const g = ecartGeneral(v);
     add('ecart', { valeur: g == null ? 'donnée manquante' : euros(g), couleur: g == null ? 'rouge' : (g < 0 ? 'rouge' : 'texte') });
     return L;
   }
 
-  const HAUT = { alerte: 12, banniere: 22, gris: 13, lv: INTERLIGNE, t3: 10.5, sous: 9, ferieEntete: 17, ferie: 10.5, note: 8.5, regle: 7, ecart: 20 };
-  function hauteurFiche(lignes) { return 20 + lignes.reduce((t, l) => t + (HAUT[l.k] || INTERLIGNE), 0) + 10; }
+  const HAUT = { alerte: 12, banniere: 22, gris: 13, lv: INTERLIGNE, t3: 10.5, sous: 9, ferieEntete: 17, ferie: 10.5, regle: 7, ecart: 20 };
+  const PIED = HAUT.regle + HAUT.ecart;
+  const estPied = l => l.k === 'regle' || l.k === 'ecart';
+  const hCorps = lignes => lignes.reduce((t, l) => t + (HAUT[l.k] || INTERLIGNE), 0);
+  // Hauteur d'un cadre : marges + en-tête + corps + (pied d'écart, seulement sur le dernier morceau).
+  function hauteurCadre(corps, avecPied) { return 2 * PAD + ENTETE_FICHE + hCorps(corps) + (avecPied ? PIED : 0); }
+  function hauteurFiche(lignes) { return hauteurCadre(lignes.filter(l => !estPied(l)), true); }
+
+  // Présentation seule : initiale majuscule à chaque mot (tiret et apostrophe compris), accents intacts.
+  function nomAffiche(nom) {
+    const n = String(nom == null ? '' : nom).trim();
+    if (!n) return 'Salarié sans nom';
+    return n.replace(/(^|[\s\-'’])(\p{L})/gu, (m, sep, c) => sep + c.toUpperCase());
+  }
+
+  /**
+   * Découpe une fiche en morceaux qui tiennent chacun dans `cap` pt : coupe entre deux lignes,
+   * jamais au milieu d'une ligne ni entre une ligne et sa sous-ligne. Seul le dernier morceau porte le pied.
+   */
+  function decouperFiche(s, lignes, cap) {
+    const corps = lignes.filter(l => !estPied(l));
+    const nom = nomAffiche(s.nom);
+    if (hauteurCadre(corps, true) <= cap) return [{ s, nomAff: nom, corps, pied: true, h: hauteurCadre(corps, true) }];
+    const morceaux = [];
+    let reste = corps.slice();
+    while (reste.length) {
+      if (hauteurCadre(reste, true) <= cap) { morceaux.push({ corps: reste, pied: true }); reste = []; break; }
+      let n = 0;
+      while (n < reste.length && hauteurCadre(reste.slice(0, n + 1), false) <= cap) n += 1;
+      while (n > 1 && reste[n] && reste[n].k === 'sous') n -= 1;
+      if (n < 1) n = 1;
+      morceaux.push({ corps: reste.slice(0, n), pied: false });
+      reste = reste.slice(n);
+      if (!reste.length) morceaux.push({ corps: [], pied: true });
+    }
+    return morceaux.map((m, i) => ({ s, nomAff: i === 0 ? nom : `${nom} (suite)`, corps: m.corps, pied: m.pied, h: hauteurCadre(m.corps, m.pied), morceau: i, morceaux: morceaux.length }));
+  }
 
   /**
    * Construit le dossier comptable PDF (A4 paysage, trois colonnes) et
@@ -291,14 +322,13 @@
     const entete = () => {
       if (logo) rapport.page.drawImage(logo, { x: MARGE, y: H - MARGE - 15, width: logoDims.width, height: logoDims.height });
       texte('NEXUS PAYE', MARGE + decalLogo, H - MARGE - 12, 14, true, 'cyan');
-      texte(titre, MARGE + decalLogo + 92, H - MARGE - 11, 10, false, 'texte');
+      texte(titre, MARGE + decalLogo + largeur('NEXUS PAYE', 14, true) + 12, H - MARGE - 11, 10, false, 'texte');
       const mode = provisoire ? 'Provisoire' : 'Validé';
       droite(mode, W - MARGE, H - MARGE - 12, 11, true, provisoire ? 'ambre' : 'vert');
       let y = H - MARGE - 26;
       if (premiere) {
-        texte(`${entreprise} · ${dossier.synthese.salaries} ${dossier.synthese.salaries > 1 ? 'salariés' : 'salarié'} · Généré le ${jjmmaaaa(jourLocal(genereLe, opts.fuseau))}`, MARGE, y, 8.5, false, 'texteDim');
-        texte('NEXUS prépare des variables : aucune retenue automatique, la comptabilité établit le bulletin.', MARGE, y - 10, 8.5, false, 'texteDim');
-        y -= 20;
+        texte(`${entreprise} · ${dossier.synthese.salaries} ${dossier.synthese.salaries > 1 ? 'salariés' : 'salarié'} · Généré le ${jjmmaaaa(jourLocal(genereLe, opts.fuseau))} · NEXUS prépare des variables : aucune retenue automatique, la comptabilité établit le bulletin.`, MARGE, y, 8, false, 'texteDim');
+        y -= 10;
       }
       rapport.page.drawLine({ start: { x: MARGE, y: y - 4 }, end: { x: W - MARGE, y: y - 4 }, thickness: 0.6, color: C.ligne });
       premiere = false;
@@ -306,77 +336,94 @@
     };
 
     let haut = entete();
-    const fiches = dossier.salaries.map(s => { const lignes = lignesFiche(s); return { s, lignes, h: hauteurFiche(lignes) }; });
-    const capacite = haut - bas;
-    const pages = [];
-    let cour = null;
-    fiches.forEach(f => {
-      if (!cour || cour.col > 2) { cour = { liste: [], col: 0, acc: 0 }; pages.push(cour); }
-      if (cour.acc + f.h > capacite && cour.acc > 0) {
-        cour.col += 1; cour.acc = 0;
-        if (cour.col > 2) { cour = { liste: [], col: 0, acc: 0 }; pages.push(cour); }
+    const bas0 = bas;
+    const cap = haut - bas0;
+    // Morceaux : une fiche qui dépasse la page est coupée ; chaque morceau trop haut est seul sur sa rangée.
+    const rangees = [];
+    let courante = [];
+    const fermer = () => { if (courante.length) { rangees.push({ items: courante, h: Math.max.apply(null, courante.map(i => i.h)) }); courante = []; } };
+    dossier.salaries.forEach(sal => {
+      const morceaux = decouperFiche(sal, lignesFiche(sal), cap);
+      if (morceaux.length > 1) {
+        fermer();
+        morceaux.forEach((m, i) => {
+          if (i < morceaux.length - 1) rangees.push({ items: [m], h: m.h });
+          else courante.push(m);
+        });
+        // Le dernier morceau repart en tête d'une nouvelle page : on l'isole dans sa propre rangée si besoin.
+        return;
       }
-      cour.liste.push(f); cour.acc += f.h;
+      courante.push(morceaux[0]);
+      if (courante.length === 3) fermer();
     });
+    fermer();
 
-    const dessinerFiche = (f, x, y0) => {
-      texte(f.s.nom || 'Salarié sans nom', x, y0 - 11, 11.5, true, 'texte');
+    const cadre = (x, yHaut, h) => {
+      const w = colL;
+      const r = RAYON;
+      const d = `M ${r} 0 H ${w - r} A ${r} ${r} 0 0 1 ${w} ${r} V ${h - r} A ${r} ${r} 0 0 1 ${w - r} ${h} H ${r} A ${r} ${r} 0 0 1 0 ${h - r} V ${r} A ${r} ${r} 0 0 1 ${r} 0 Z`;
+      rapport.page.drawSvgPath(d, { x, y: yHaut, borderColor: C.ligne, borderWidth: 0.8 });
+    };
+
+    const dessinerFiche = (f, x0, yHaut, hCadre) => {
+      cadre(x0, yHaut, hCadre);
+      const x = x0 + PAD;
+      const iw = colL - 2 * PAD;
+      const y0 = yHaut - PAD;
+      texte(f.nomAff, x, y0 - 11, 11.5, true, 'texte');
       const fct = FONCTION[String(f.s.role || '').toLowerCase()] || String(f.s.role || '');
-      if (fct) droite(fct, x + colL, y0 - 10, 8, false, 'texteDim');
-      rapport.page.drawLine({ start: { x, y: y0 - 15 }, end: { x: x + colL, y: y0 - 15 }, thickness: 0.4, color: C.ligne });
-      let y = y0 - 20;
-      const xP = x + colL * 0.5;
-      const xD = x + colL;
-      f.lignes.forEach(l => {
+      if (fct) droite(fct, x + iw, y0 - 10, 8, false, 'texteDim');
+      rapport.page.drawLine({ start: { x, y: y0 - 15 }, end: { x: x + iw, y: y0 - 15 }, thickness: 0.4, color: C.ligne });
+      let y = y0 - ENTETE_FICHE;
+      const xP = x + iw * 0.5;
+      const xD = x + iw;
+      f.corps.forEach(l => {
         const h = HAUT[l.k] || INTERLIGNE;
         const base = y - h + 3;
         if (l.k === 'alerte') texte(l.t, x, base, TAILLE, true, l.couleur);
         else if (l.k === 'banniere') {
-          rapport.page.drawRectangle({ x, y: y - h + 2, width: colL, height: h - 3, color: C.fondEntete });
+          rapport.page.drawRectangle({ x, y: y - h + 2, width: iw, height: h - 3, color: C.fondEntete });
           texte(l.label, x + 4, base + 2, TAILLE, false, 'cyan');
           droite(l.valeur, xD - 4, base + 1, 14, true, 'cyan');
         } else if (l.k === 'gris') texte(l.t, x, base, 8, false, 'texteDim');
         else if (l.k === 'lv') {
           const vW = largeur(l.valeur, TAILLE, false);
-          texte(tronquer(l.label, colL - vW - 6, TAILLE, false), x, base, TAILLE, false, l.couleur);
+          texte(tronquer(l.label, iw - vW - 6, TAILLE, false), x, base, TAILLE, false, l.couleur);
           droite(l.valeur, xD, base, TAILLE, false, l.couleur);
         } else if (l.k === 't3') {
-          texte(tronquer(l.nature, l.large ? colL : colL * 0.5 - 6, TAILLE, l.gras), x, base, TAILLE, !!l.gras, l.couleur);
-          if (l.periode) texte(tronquer(l.periode, colL * 0.5 - 50, TAILLE, false), xP, base, TAILLE, false, l.couleur);
+          texte(tronquer(l.nature, l.large ? iw : iw * 0.5 - 6, TAILLE, l.gras), x, base, TAILLE, !!l.gras, l.couleur);
+          if (l.periode) texte(tronquer(l.periode, iw * 0.5 - 50, TAILLE, false), xP, base, TAILLE, false, l.couleur);
           droite(l.duree, xD, base, TAILLE, !!l.gras, l.couleur);
-        } else if (l.k === 'note') texte(l.t, x, base, 6.8, false, 'texteDim');
-        else if (l.k === 'sous') texte(tronquer(l.t, colL - 10, 7.5, false), x + 6, base, 7.5, false, 'texteDim');
+        } else if (l.k === 'sous') texte(tronquer(l.t, iw - 10, 7.5, false), x + 6, base, 7.5, false, 'texteDim');
         else if (l.k === 'ferieEntete') {
           texte('Jours fériés', x, base, 7.5, true, 'texteDim');
-          droite('Normales', x + colL * 0.62, base, 7.5, false, 'texteDim');
-          droite('Sup.', x + colL * 0.8, base, 7.5, false, 'texteDim');
+          droite('Normales', x + iw * 0.62, base, 7.5, false, 'texteDim');
+          droite('Sup.', x + iw * 0.8, base, 7.5, false, 'texteDim');
           droite('Total', xD, base, 7.5, false, 'texteDim');
         } else if (l.k === 'ferie') {
           texte(l.date, x, base, TAILLE, false);
-          texte(tronquer(l.nom, colL * 0.62 - 44 - largeur(l.n, TAILLE), TAILLE, false), x + 34, base, TAILLE, false);
-          if (l.n) droite(l.n, x + colL * 0.62, base, TAILLE, false);
-          if (l.sp) droite(l.sp, x + colL * 0.8, base, TAILLE, false);
+          texte(tronquer(l.nom, iw * 0.62 - 44 - largeur(l.n, TAILLE), TAILLE, false), x + 34, base, TAILLE, false);
+          if (l.n) droite(l.n, x + iw * 0.62, base, TAILLE, false);
+          if (l.sp) droite(l.sp, x + iw * 0.8, base, TAILLE, false);
           if (l.tot) droite(l.tot, xD, base, TAILLE, false);
-        } else if (l.k === 'regle') rapport.page.drawLine({ start: { x, y: y - 3 }, end: { x: xD, y: y - 3 }, thickness: 0.5, color: C.ligne });
-        else if (l.k === 'ecart') {
-          texte('Écart général du mois', x, base, 9, true, 'texte');
-          droite(l.valeur, xD, base, 9, true, l.couleur);
         }
         y -= h;
       });
+      if (f.pied) {
+        // L'écart général est ancré au bas du cadre, sous un filet discret.
+        const bord = yHaut - hCadre + PAD;
+        const e = lignesFiche(f.s).find(l => l.k === 'ecart');
+        rapport.page.drawLine({ start: { x, y: bord + HAUT.ecart + 3 }, end: { x: xD, y: bord + HAUT.ecart + 3 }, thickness: 0.5, color: C.ligne });
+        texte('Écart général du mois', x, bord + 3, 9, true, 'texte');
+        droite(e.valeur, xD, bord + 3, 9, true, e.couleur);
+      }
     };
 
-    pages.forEach((pg, ip) => {
-      if (ip > 0) { rapport._nouvellePage({ sansBandeau: true }); haut = entete(); }
-      const cible = pg.liste.reduce((t, f) => t + f.h, 0) / 3;
-      let col = 0;
-      let y = haut;
-      let acc = 0;
-      pg.liste.forEach(f => {
-        if (col < 2 && acc > 0 && (acc + f.h / 2 > cible || y - f.h < bas)) { col += 1; y = haut; acc = 0; }
-        dessinerFiche(f, MARGE + col * (colL + GOUTTIERE), y);
-        y -= f.h; acc += f.h;
-      });
+    let y = haut;
+    rangees.forEach(r => {
+      if (y - r.h < bas0 && y < haut) { rapport._nouvellePage({ sansBandeau: true }); haut = entete(); y = haut; }
+      r.items.forEach((it, c) => dessinerFiche(it, MARGE + c * (colL + GOUTTIERE), y, r.h));
+      y -= r.h + ECART_FICHES;
     });
 
     rapport.piedDePageToutesPages('');

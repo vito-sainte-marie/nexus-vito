@@ -64,6 +64,7 @@ console.log(`${n} contrôles passent.`);
   assert(/Constatée : journée attestée/.test(html) && /Calculée : durée chiffrée/.test(html) && /Corrigée : heures exceptionnelles/.test(html), 'trois notions absentes de l’infobulle');
   assert(!/source unique/i.test(html), '« source unique » ne doit plus apparaître dans l’écran');
   assert(!/\(Verify \+ pointage\)/.test(html), 'compteur du haut non aligné');
-  assert(/confirmée\(s\) par deux sources/.test(pdf), 'note PDF non alignée');
+  // Finition du dossier (25/11/2026) : la note technique Verify/pointage n'est plus dans le PDF.
+  assert(!/confirmée\(s\) par deux sources/.test(pdf), 'note technique Verify/pointage encore dans le PDF');
   console.log('OK — vocabulaire Constatée / Calculée / Corrigée');
 }
