@@ -44,7 +44,7 @@ function moteurTemoin(journal) {
 
 // Le dossier n'a plus de page de garde : l'identité figure dans l'en-tête de la première page.
 function entrepriseImprimee(journal) {
-  const ligne = journal.textes.find(t => / · \d+ salarié\(s\) · Généré le /.test(t));
+  const ligne = journal.textes.find(t => / · \d+ salariés? · Généré le /.test(t));
   return ligne ? ligne.split(' · ')[0] : undefined;
 }
 
