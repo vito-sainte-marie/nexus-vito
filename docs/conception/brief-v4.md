@@ -342,10 +342,10 @@ Principe : le Brief consomme des résultats officiels, il ne crée jamais un sec
 | Marge (taux et écarts) | `nexus-marge.js` | taux en %, écarts en euros | site | période importée | date de l'import | `detecterEcartsMarge`, `construireSecteurMarge`, `construireSyntheseFreinMarge` | Marge+, Scanner tarifaire, Politique tarifaire |
 | Cible de marge | `tarif_seuils` | taux en % | site | versions | date de saisie | `v_tarif_seuils_actifs`, `nexus-politique-tarifaire.js` | Produits, Politique tarifaire |
 | FDJ | moteur FDJ | euros | site | fenêtre de 7 jours | jour de données | `construireSecteurFdj` | écran FDJ (à confirmer) |
-| Opérations | moteur Opérations du Brief | euros d'écarts, nombre d'alertes | site | jour du dernier contrôle | jour du contrôle | `calculerStatutOperations`, `construireSecteurOperations` | caisse, inventaire (à confirmer) |
+| Opérations | `nexus-conseiller-donnees.js` (le Brief n'en garde que des alias) | euros d'écarts, nombre d'alertes | site | moyenne sur tout l'historique exploitable (pas le jour du dernier contrôle) | date du dernier contrôle pris en compte | `calculerStatutOperations`, `chargerConstatTempo` | caisse, inventaire (à confirmer) |
 | Notes et statuts secteur | moteur Boussole | points sur 100, statut | site | celle du secteur | la plus ancienne des données | `assemblerScoreSecteur`, `statutMetier`, `scoreDimension` | Boussole (SVG : `genererBoussoleSVG`) |
 | Indice / performance globale | moteur Boussole | points sur 100 | site | la plus ancienne des périodes | idem | `construireVerdictDirection` (à confirmer pour la moyenne) | Boussole |
-| Signaux de risque | `nexus-risques-moteur.js` | selon le signal | site | continue | date de dernière mesure | `scoreRisques`, `statutRisques` | Conseiller, Brief |
+| Signaux de risque | score et statut : `nexus-boussole-moteur.js` ; qualification et enregistrement dans `nexus_risk_signals` : `nexus-risques-donnees.js` (`qualifierEtEnregistrerRisques…`) ; `nexus-risques-moteur.js` à vérifier | selon le signal | site | continue | date de dernière mesure | `scoreRisques`, `statutRisques` | Conseiller, Brief |
 | Potentiel et priorités | Conseiller | euros, par nature | site | selon le candidat | date de mesure | `nexus-conseiller.js` | Conseiller |
 | Objectifs | `station_objectifs` (proposée), `tarif_seuils` | litres ou euros | site | mois, trimestre, année | date de validation | à créer au lot E | Brief seulement |
 
@@ -365,7 +365,7 @@ Je ne tranche pas. L'autorité Commerce est une décision du gérant (§21).
 À signaler et à supprimer ou à brancher sur le résultat officiel avant le lot A :
 1. Commerce : le Brief retire lui-même les produits d'appel des périodes importées (`estProduitAppel` via `nexus-brief-donnees.js`) alors que `vente_boutique` existe.
 2. Marge : `construireSecteurMarge` et `construireSyntheseFreinMarge` consomment `detecterEcartsMarge` ; le Scanner tarifaire calcule des écarts proches (§19.2). Risque de deux moteurs sur le même article.
-3. Opérations : `calculerStatutOperations` (moyenne d'écarts absolus) vit dans `nexus-brief-donnees.js` ; l'écart de caisse existe aussi côté caisse (à confirmer).
+3. Opérations : `calculerStatutOperations` (moyenne d'écarts absolus sur tout l'historique exploitable) et `chargerConstatTempo` vivent dans `nexus-conseiller-donnees.js`, le Brief n'en garde que des alias ; l'écart de caisse existe aussi côté caisse (à confirmer).
 4. Fuseau : le chargeur carburant du Brief prend l'UTC alors que les autres écrans prennent le fuseau de la station.
 5. Indice : l'Indice et son libellé sont recalculés par le Brief à partir des secteurs (`construireVerdictDirection`, seuils 60 / 45 proposés au §11.1) ; la Boussole en a sa propre lecture.
 6. Potentiel : le §16 additionne des gains lus dans Marge+ et dans le Conseiller ; une même perte peut y figurer deux fois (voir §19.2).
