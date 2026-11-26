@@ -89,7 +89,7 @@ rollback;
 ```
 Les colonnes exactes de `employees` se vérifient au GO, sur le catalogue, avant de lancer la requête. Les comptes `a_migrer` incertains ne sont pas touchés.
 
-**Après l'étape 4** : par station, nombre de comptes `a_migrer` restants (`select count(*) from nexus_connexion.compte where etat = 'a_migrer'`, rapproché du site), jusqu'à zéro avant la station suivante ; nombre d'événements `budget_auth`, `egress_proche` et `incoherence_auth` au journal ; alerte gérant : au moins 3 réponses 5xx en 1 minute sur `connexion`. Source de l'alerte : la ligne `indisponible` du journal (Auth 429, ou relance unique de la page après un 5xx, `detail.source` = `limite_auth` ou `relance_5xx`). Preuve Test du 25/11/2026 : lignes 1510 à 1512, `relance_5xx` ; contrôles (`relance` inconnue, `relance` sur `lister_equipe`) : 401 neutre, aucune ligne.
+**Après l'étape 4** : par station, nombre de comptes `a_migrer` restants parmi les comptes actifs (`select count(*) from nexus_connexion.compte c join public.employees e on e.id = c.user_id where c.etat = 'a_migrer' and e.actif`, rapproché du site), jusqu'à zéro avant la station suivante ; un compte inactif encore `a_migrer` ne bloque pas le passage à la station suivante (il ne peut pas se connecter) ; nombre d'événements `budget_auth`, `egress_proche` et `incoherence_auth` au journal ; alerte gérant : au moins 3 réponses 5xx en 1 minute sur `connexion`. Source de l'alerte : la ligne `indisponible` du journal (Auth 429, ou relance unique de la page après un 5xx, `detail.source` = `limite_auth` ou `relance_5xx`). Preuve Test du 25/11/2026 : lignes 1510 à 1512, `relance_5xx` ; contrôles (`relance` inconnue, `relance` sur `lister_equipe`) : 401 neutre, aucune ligne.
 
 **Limite connue.** Si la fonction est entièrement indisponible, la relance échoue aussi et rien n'est journalisé : la carte ne s'allume pas lors d'une panne totale. Une sonde externe (Vigie) est une piste pour l'étape 7, hors de ce lot.
 
@@ -144,7 +144,7 @@ Fonction `supabase/functions/connexion/index.ts` : md5 `c106b325a0e92a8b8aad5b3d
    - **avec GO distinct pour le compte fictif en Production** : connexion et changement de code du compte fictif, puis contrôle de la page servie (version attendue, parcours Connexion, Brief et déconnexion) ; ensuite seulement, connexion du gérant ;
    - **sans ce GO** : pas de compte fictif. Le contrôle de la page servie se limite à la lecture de la page (version, formulaire, appel de la fonction avec un faux compte : refus neutre 401), et la connexion du gérant devient la première migration réelle. Le gérant le sait avant d'accepter ;
    - **durée de session** : à la première connexion, lire `expires_in` (journalisé par la fonction) et la comparer à la durée voulue ; l'écart se règle dans Auth, pas dans la page.
-6. **Stations** une à une, jusqu'à zéro compte `a_migrer` (budget de 20 appels Auth par minute).
+6. **Stations** une à une, jusqu'à zéro compte `a_migrer` parmi les comptes actifs (budget de 20 appels Auth par minute).
 
 ### 6.3 Panne de la fonction après la migration d'un compte
 
