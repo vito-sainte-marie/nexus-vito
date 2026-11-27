@@ -74,6 +74,7 @@ La galerie ouvre sur ce mode par défaut, « Retenue : Signature + A + B, C en m
 1. Direction validée le 26/11 (voir section 3).
 2. Extraction de `nexus-skeleton.css` sur la branche, sans toucher aux pages.
 3. Ordre des pilotes : Brief (après B0-perf-2), puis Accueil, Paye, Produits, Carburants Performance. Chaque module est un lot, une PR, un GO. Aucune intégration avant GO.
+   - Note pour le lot Brief (Guardian, #383, 26/11) : depuis B0-perf-3 (#402), la section Risques s'affiche d'abord depuis les signaux de l'ouverture précédente, puis se re-rend après la qualification en arrière-plan. C'est un cas d'usage de Pulse (direction B) : la section doit signaler qu'elle s'actualise, avec `data-state="refresh"` et les anciennes données conservées, au lieu de changer en silence. À la toute première ouverture, aucun risque n'est affiché avant le retour de l'écriture : état de chargement localisé, pas de chiffre fictif.
 4. Retrait des idiomes dupliqués page par page.
 
 ## 8. Critères d'acceptation
