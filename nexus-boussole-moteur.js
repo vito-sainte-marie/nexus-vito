@@ -275,7 +275,6 @@
     'À corriger': { hex: '#F0575A', nom: 'À corriger' },
     'À actualiser': { hex: '#57626F', nom: 'À actualiser' },
     'Données insuffisantes': { hex: '#57626F', nom: 'Donnée insuffisante' },
-    'Non noté': { hex: '#57626F', nom: 'Non noté' },
   };
   function couleurAxe(statut) {
     return COULEUR_STATUT_METIER[statut] || { hex: '#57626F', nom: statut || 'Donnée insuffisante' };

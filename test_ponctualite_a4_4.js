@@ -87,7 +87,22 @@ t('charger : pagine par 1000 et borne la période', async () => {});
   });
   assert.deepStrictEqual(fautes, [], 'retard_min lu hors module : ' + fautes.join(' | '));
   n++; console.log('OK garde statique retard_min');
-  console.log(n + ' épreuves OK');
+  t('le libellé du secteur Équipe annonce la fenêtre réelle de ponctualité', () => {
+  const src = fs.readFileSync(path.join(D, 'nexus-secteurs-moteur.js'), 'utf8');
+  const bloc = src.slice(src.indexOf('function construireSecteurEquipe'), src.indexOf('equipe: (entree, d)'));
+  assert.ok(!/\b7 jours\b/.test(bloc), 'plus de « 7 jours » dans le secteur Équipe');
+  assert.ok(/fenetrePointageJours\(\)/.test(bloc), 'le texte lit la fenêtre commune');
+  const m = src.match(/function fenetrePointageJours\(\)[^\n]*\|\| (\d+)/);
+  assert.strictEqual(Number(m[1]), P.FENETRE_JOURS, 'repli identique à FENETRE_JOURS');
+  assert.strictEqual(P.FENETRE_JOURS, 30);
+});
+t('aucun état ni couleur ajoutés pour « Non noté » (repli existant)', () => {
+  const b = fs.readFileSync(path.join(D, 'nexus-boussole-moteur.js'), 'utf8');
+  assert.ok(!/'Non noté': \{ hex/.test(b));
+  const a = fs.readFileSync(path.join(D, 'NEXUS-App-v1.html'), 'utf8');
+  assert.ok(!/'Non noté': '⚪'/.test(a));
+});
+console.log(n + ' épreuves OK');
 })().catch(e => { console.error(e); process.exit(1); });
 
 // E7 — aucun statut ni couleur de jugement sur un collaborateur tiré du pointage

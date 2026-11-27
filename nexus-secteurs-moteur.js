@@ -32,6 +32,9 @@
 // ------------------------------------------------------------
 
 (function (global) {
+  // Fenêtre de mesure du pointage : celle de NexusPonctualite (A4-4, 30 jours
+  // glissants contre les 30 précédents). Le texte du secteur Équipe l'annonce.
+  function fenetrePointageJours() { return (global.NexusPonctualite && global.NexusPonctualite.FENETRE_JOURS) || 30; }
   function boussole() { return global.NexusBoussoleMoteur; }
   function carburantMoteur() { return global.NexusCarburantMoteur; }
 
@@ -603,11 +606,11 @@
     let comparaison = '';
     if (tauxTxt && tauxPrecTxt != null) {
       const sens = domaineEquipe.tauxAnomalies > domaineEquipe.tauxAnomaliesPeriodePrecedente ? 'en hausse' : (domaineEquipe.tauxAnomalies < domaineEquipe.tauxAnomaliesPeriodePrecedente ? 'en baisse' : 'stable');
-      comparaison = ` Taux d'anomalies de pointage ${tauxTxt}, ${sens} vs ${tauxPrecTxt} sur les 7 jours précédents.`;
+      comparaison = ` Taux d'anomalies de pointage ${tauxTxt}, ${sens} vs ${tauxPrecTxt} sur les ${fenetrePointageJours()} jours précédents.`;
     } else if (tauxTxt) {
       comparaison = ` Taux d'anomalies de pointage ${tauxTxt}.`;
     }
-    const detail = `Ponctualité mesurée sur ${domaineEquipe.totalPointages} pointages sur 7 jours.${comparaison} Équipe non notée : données de pointage en cours de fiabilisation.`;
+    const detail = `Ponctualité mesurée sur ${domaineEquipe.totalPointages} pointages sur ${fenetrePointageJours()} jours.${comparaison} Équipe non notée : données de pointage en cours de fiabilisation.`;
     return {
       ...entree, type: 'reel', confiance: 'INSUFFISANT',
       statut: 'Non noté', valeur: null, detail, moteurs: [], changement: null, force: null, frein: null, risques: [], coherence: null,
