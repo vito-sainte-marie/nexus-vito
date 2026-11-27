@@ -142,7 +142,7 @@
 <script src="nexus-periodes.js?v=20260904-0104"></script>
 <script src="nexus-politique-tarifaire.js?v=20261127-1400"></script>
 <script src="nexus-politique-tarifaire-registres.js?v=20261127-1400"></script>
-<script src="nexus-cible-marge.js?v=20261128-0900"></script>
+<script src="nexus-cible-marge.js?v=20261128-0910"></script>
 <script src="nexus-rayon-moteur.js?v=20260904-0104"></script>
 </head>
 <body>
@@ -403,6 +403,8 @@ nexusRequireAuth().then(async employee => {
     const palierRenta = NexusCibleMarge.palier(resCible.notante ? resCible : null, margePct);
     const niveauRenta = palierRenta === 'a_l_objectif' ? 'rentable' : palierRenta; // null : aucun jugement
     const sousCible = cibleRayon != null && margePct < cibleRayon;
+    // Un seul vocabulaire (NexusCibleMarge.palier) : faible < minimum ; sous l'objectif entre minimum et cible ; à l'objectif au-dessus.
+    const motPalier = { faible: 'faible', correcte: "sous l'objectif", a_l_objectif: "à l'objectif" }[palierRenta] || '';
     const mentionCible = NexusCibleMarge.mentionSansCible(resCible, EMPLOYE_ROLE);
 
     // --- Constat : le fait chiffré, sans jugement.
@@ -410,7 +412,7 @@ nexusRequireAuth().then(async employee => {
     if (r.trafic) {
       constat = `${r.nom} représente ${fmtPct(pctCaMagasin)} du CA du magasin (${fmtEur(r.ca_total)}), mais seulement ${fmtPct(pctMargeMagasin)} de la ${libelleMarge} totale (taux de ${fmtPct(margePct)}).`;
     } else {
-      constat = `${r.nom} est votre ${rangCA}${rangCA===1?'er':'ᵉ'} rayon en chiffre d'affaires (${fmtEur(r.ca_total)}), ${libelleMarge} ${cibleRayon == null ? '' : (sousCible ? 'très faible' : 'correcte')} : ${fmtPct(margePct)}${cibleRayon == null ? '' : ' (objectif ' + pctCible(cibleRayon) + ')'}.`;
+      constat = `${r.nom} est votre ${rangCA}${rangCA===1?'er':'ᵉ'} rayon en chiffre d'affaires (${fmtEur(r.ca_total)}), ${libelleMarge}${motPalier ? ' ' + motPalier : ''} : ${fmtPct(margePct)}${cibleRayon == null ? '' : ' (objectif ' + pctCible(cibleRayon) + ')'}.`;
     }
 
     // --- Explication : pourquoi ce chiffre n'est pas anormal / ce qu'il révèle.

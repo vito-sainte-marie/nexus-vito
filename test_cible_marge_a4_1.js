@@ -71,5 +71,15 @@ ok('non-régression : Scanner tarifaire et écart aux pairs inchangés', () => {
   assert.ok(fs.readFileSync(__dirname + '/nexus-politique-tarifaire.js', 'utf8').includes('SEUILS_SCANNER_TARIFAIRE') ||
             Object.keys(T).length >= 0);
 });
+ok('vocabulaire du palier (Rayon) : faible < minimum, sous l\'objectif entre minimum et cible, à l\'objectif au-dessus', () => {
+  const res = { etat: M.ETATS.DEFINI, cible: 0.25, minimum: 0.10 };
+  assert.strictEqual(M.palier(res, 0.05), 'faible');
+  assert.strictEqual(M.palier(res, 0.10), 'correcte');
+  assert.strictEqual(M.palier(res, 0.20), 'correcte');
+  assert.strictEqual(M.palier(res, 0.25), 'a_l_objectif');
+  const rayon = fs.readFileSync(__dirname + '/NEXUS-Rayon-v1.html', 'utf8');
+  assert.ok(!/très faible/.test(rayon), 'plus de « très faible » hors palier');
+  assert.ok(/motPalier/.test(rayon) && /\$\{libelleMarge\}\$\{motPalier/.test(rayon), 'constat sans double espace');
+});
 // Les tests asynchrones sont enchaînés : le processus attend la fin.
 Promise.all(attente).then(() => console.log('test_cible_marge_a4_1 : ' + n + ' épreuves OK'), e => { console.error(e); process.exit(1); });

@@ -1,7 +1,7 @@
 // ============================================================
 // NEXUS A4-1 : cible de marge, lecture unique (module pur + un chargeur).
 // Aucune cible n'est écrite en dur : elle vient de tarif_seuils (vue v_tarif_seuils_actifs),
-// saisie par le gérant. Un seul résolveur (seuilDe, nexus-politique-tarifaire.js).
+// avec le statut « valide ». Un seul résolveur (seuilDe, nexus-politique-tarifaire.js).
 // Trois états distincts :
 //   NON_LISIBLE : la table n'a pas pu être lue (RLS, erreur, rôle sans droit). Rien n'est dit de l'objectif.
 //   NON_DEFINI  : lecture réussie, aucune cible exploitable. Message réservé à manager et gérant.
