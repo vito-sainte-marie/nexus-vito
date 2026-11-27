@@ -71,7 +71,9 @@
       ...row,
       urgence: R ? R.classifierUrgence({ niveau: row.niveau, ancienneteJours: joursDepuisISO(row.premiere_detection_le) }) : null,
     }));
-    const rang = { risque_avere: 3, exposition: 2, signal_faible: 1, anomalie: 0 };
+    // Rang de niveau : source unique NexusRisques.RANG_NIVEAU (A4-2). Le moteur est
+    // toujours chargé avant ce fichier ; sans lui, le tri retombe sur la date.
+    const rang = (R && R.RANG_NIVEAU) || {};
     return avecUrgence.sort((a, b) => {
       const diff = (rang[b.niveau] || 0) - (rang[a.niveau] || 0);
       if (diff !== 0) return diff;
