@@ -28,7 +28,7 @@
      NexusEcartsMoteur.deriverStatutEcart (statutCaisseJour/statutActivite)
      — doit être chargé AVANT nexus-progression.js. -->
 <script src="nexus-ecarts-moteur.js?v=20261126-0100"></script>
-<script src="nexus-progression.js?v=20261127-1700"></script>
+<script src="nexus-progression.js?v=20261127-2100"></script>
 <!-- Projection sécurisée par poste (14/09/2026) : cet écran ne choisit plus
      lui-même entre les lignes brutes et la projection employé. -->
 <script src="nexus-caisse-source.js?v=20260904-0104"></script>
@@ -537,7 +537,6 @@
     // Proposition_evolution_NEXUS_Employe.pdf) : niveau nommé + badges,
     // à partir de l'expérience réelle (services + missions + pointages).
     const nbMissionsCompletees = (completionsRows || []).length;
-    const seriePonctualite = N.calculerSeriePonctualite(pointagesRows || []);
     const serieCaisse = N.meilleureSerieConforme(services);
     const experience = N.calculerExperience({
       nbServices: services.length, nbMissionsCompletees, nbPointages: (pointagesRows || []).length,
@@ -546,7 +545,7 @@
       caisse: statutCaisseVal, ponctualite: statutPonctualiteVal,
       missions: statutMissionsVal, tenue: statutTenueVal, relation: statutRelationClientVal,
     });
-    const badges = N.calculerBadges({ seriesCaisse: serieCaisse, seriePonctualite, nbMissionsCompletees });
+    const badges = N.calculerBadges({ seriesCaisse: serieCaisse, nbMissionsCompletees });
 
     // "Nouveau constat" (27/07/2026, demande de Frédéric) : détection d'une
     // vraie nouveauté depuis la dernière visite, jamais une comparaison
