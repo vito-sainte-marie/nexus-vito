@@ -170,7 +170,7 @@ function entree(id, label) { return { id, label, icone: '•', cible: null }; }
   // plutôt qu'inventée (Article 5), jamais une exception.
   const sansHistorique = { ...domaineEquipe, totalPointagesPeriodePrecedente: null, totalAnomaliesPeriodePrecedente: null, tauxAnomaliesPeriodePrecedente: null };
   const resultat2 = S.construireSecteurs([entree('equipe', 'Équipe')], { domaineEquipe: sansHistorique, seuilMinPointages: 5 })[0];
-  assert.ok(resultat2.detail.includes('historique insuffisant'), 'Sans période précédente connue, NEXUS le dit plutôt que de comparer à du vide');
+  assert.ok(!resultat2.detail.includes(' vs '), 'Sans période précédente connue, aucune comparaison inventée');
   ok('Équipe : historique insuffisant -> comparaison explicitement absente, jamais fabriquée');
 }
 

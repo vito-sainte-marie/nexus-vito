@@ -430,10 +430,11 @@
     const total = mesures.length;
     if (total < SEUIL_MIN_PONTAGES) return { statut: 'Données insuffisantes', detail: null };
     const retards = mesures.filter(p => p.retard_min > 0);
-    const totalRetard = retards.reduce((s, p) => s + p.retard_min, 0);
-    const score = Math.round(Math.max(0, 100 - totalRetard));
-    const statut = score >= 90 ? 'Sous contrôle' : score >= 70 ? 'À surveiller' : 'À corriger';
-    return { statut, detail: `${retards.length} retard(s) sur ${total} pointage(s)`, score, nbRetards: retards.length, total };
+    // Décision du gérant (27/11/2026) : aucun jugement sur une personne tiré
+    // du pointage. Les faits mesurés restent lisibles (détail), mais le
+    // statut est neutre : « Non noté », jamais Sous contrôle / À surveiller
+    // / À corriger. Le champ `score` n'existe plus.
+    return { statut: 'Non noté', detail: `${retards.length} retard(s) sur ${total} pointage(s)`, nbRetards: retards.length, total };
   }
 
   // mission_assignments : uniquement les missions ponctuelles assignées

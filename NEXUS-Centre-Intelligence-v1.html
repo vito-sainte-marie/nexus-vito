@@ -8,6 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
+<script src="nexus-ponctualite.js?v=20261127-1600"></script>
 <script src="nexus-auth.js?v=20261127-1000"></script>
 <script src="nexus-site-requis.js?v=20261127-0100"></script>
 <script src="nexus-periodes.js?v=20260904-0104"></script>
@@ -382,9 +383,14 @@
   // Manager et Resultats Equipe avant eux).
   async function chargerRetardsTous() {
     NexusSiteRequis.exiger(SITE_ACTUEL, 'Centre Intelligence — retards');
-    const { data, error } = await nexusClient.from('pointages').select('employee_id, retard_min').eq('site', SITE_ACTUEL).eq('type', 'arrivee').gt('retard_min', 0);
+    // Lot A4-4 : règle unique nexus-ponctualite.js, 30 jours glissants depuis
+    // le jour de la station (et non plus tout l'historique).
+    const jour = await nexusAujourdhuiStation(SITE_ACTUEL);
+    const fen = jour ? NexusPonctualite.fenetre(jour) : null;
+    if (!fen) { console.error('Jour de la station indéterminé — retards non chargés.'); return []; }
+    const { data, error } = await NexusPonctualite.charger(nexusClient, SITE_ACTUEL, fen.debut, fen.fin);
     if (error) { console.error('Chargement pointages:', error); return []; }
-    return data || [];
+    return (data || []).filter(p => Number(p.retard_min) > 0);
   }
 
   // 1. Suivi des decisions passees — la memoire promise depuis le debut :
@@ -404,7 +410,7 @@
   }
 
   // 2. Assiduite — un retard isole est un incident, trois retards ou plus
-  // sur l'historique sont un motif (reprend le principe du rapport strategique :
+  // sur 30 jours glissants sont un motif (reprend le principe du rapport strategique :
   // "repetition sur plusieurs periodes -> ouvrir un accompagnement").
   function patternAssiduite(retardsHisto, equipeMap) {
     const compte = {};

@@ -78,6 +78,7 @@
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
+<script src="nexus-ponctualite.js?v=20261127-1600"></script>
 <script src="nexus-auth.js?v=20261127-1000"></script>
 <script src="nexus-site-requis.js?v=20261127-0100"></script>
 <script src="nexus-icones.js?v=20261124-0001"></script>
@@ -173,18 +174,11 @@
   // (corrige le 15/07/2026, avec la migration Pointage vers Supabase).
   // Developpement (Progression, via points de missions) : lit Supabase
   // (mission_completions), la source reellement alimentee par l'ecran Missions.
+  // Décision du gérant (27/11/2026) : aucun jugement sur une équipe tiré du
+  // pointage. L'axe Équipe n'est plus noté tant que les données de pointage
+  // ne sont pas fiabilisées ; la ponctualité mesurée reste lisible en détail.
   function calculerEquipe(pointagesHisto) {
-    if (!pointagesHisto || pointagesHisto.length === 0) return null; // aucun pointage encore enregistre
-    // `retard_min` est nullable depuis le 19/09/2026 : NULL = retard non
-    // calculable. La requête ci-dessous les écarte déjà (`.gt` ignore les
-    // NULL), mais on ne compte que les minutes RÉELLEMENT mesurées plutôt
-    // que de lire un NULL comme un zéro — un zéro de commodité finit
-    // toujours par sortir quelque part comme un « à l'heure » constaté.
-    const totalRetardMin = pointagesHisto
-      .filter(p => Number.isFinite(p.retard_min))
-      .reduce((s, p) => s + p.retard_min, 0);
-    const score = Math.max(0, 100 - totalRetardMin); // 1 point perdu par minute de retard cumulee
-    return Math.round(score);
+    return null;
   }
 
   // CORRECTIF 24/07/2026 (audit doublons de données) : ce calcul supposait un
@@ -220,7 +214,12 @@
   NexusSiteRequis.exiger(SITE_ACTUEL, 'Radar du Manager');
   const [{ data: completionsHisto, error: erreurCompletions }, { data: pointagesHisto, error: erreurPointages }, facteursIndice] = await Promise.all([
     nexusClient.from('mission_completions').select('points, mission_id').eq('site_id', SITE_ACTUEL),
-    nexusClient.from('pointages').select('retard_min').eq('site', SITE_ACTUEL).eq('type', 'arrivee').gt('retard_min', 0),
+    (async () => {
+      const jour = await nexusAujourdhuiStation(SITE_ACTUEL);
+      const fen = jour ? NexusPonctualite.fenetre(jour) : null;
+      if (!fen) return { data: [], error: { message: 'Jour de la station indéterminé' } };
+      return NexusPonctualite.charger(nexusClient, SITE_ACTUEL, fen.debut, fen.fin);
+    })(),
     calculerFacteursIndice(),
   ]);
   if (erreurCompletions) console.error('Chargement mission_completions:', erreurCompletions);
@@ -231,7 +230,7 @@
 
   const DOMAINES = [
     { nom: "Résultats", icone: "💰", sous: "CA, Marge — même Indice Marge que l'accueil NEXUS", valeur: resultatsScore, mesure: resultatsScore !== null },
-    { nom: "Équipe", icone: "👥", sous: "Présence uniquement (Motivation, Formation, Cohésion non mesurées)", valeur: equipeScore, mesure: equipeScore !== null },
+    { nom: "Équipe", icone: "👥", sous: "Équipe : non noté — données de pointage en cours de fiabilisation", valeur: equipeScore, mesure: equipeScore !== null },
     { nom: "Exploitation", icone: "🏪", sous: "Propreté, Sécurité, Disponibilité", valeur: null, mesure: false },
     { nom: "Conformité", icone: "⚖️", sous: "Procédures, Audits, Tenues, Sécurité", valeur: null, mesure: false },
     { nom: "Développement", icone: "📈", sous: "Progression équipe uniquement", valeur: devScore, mesure: devScore !== null },

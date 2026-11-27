@@ -333,7 +333,7 @@
 <script src="nexus-fdj-moteur.js?v=20260904-0104"></script>
 <script src="nexus-mesure.js?v=20260904-0104"></script>
 <script src="nexus-coach-fdj-moteur.js?v=20261127-1000"></script>
-<script src="nexus-boussole-moteur.js?v=20260904-0104"></script>
+<script src="nexus-boussole-moteur.js?v=20261127-1900"></script>
 <script src="nexus-carburant-moteur.js?v=20260904-0104"></script>
 <script src="nexus-carburant-donnees.js?v=20261127-1700"></script>
 <!-- Moteur Commande Carburant (24/08/2026, §24-25 du cahier) — notification
@@ -343,15 +343,16 @@
 <script src="nexus-carburant-commande-donnees.js?v=20261124-1200"></script>
 <script src="nexus-secteurs-catalogue.js?v=20260904-0104"></script>
 <script src="nexus-moteurs-registre.js?v=20260904-0104"></script>
-<script src="nexus-secteurs-moteur.js?v=20261127-1300"></script>
+<script src="nexus-secteurs-moteur.js?v=20261127-1900"></script>
 <script src="nexus-verify-moteur.js?v=20261126-0100"></script>
 <script src="nexus-risques-moteur.js?v=20260904-0104"></script>
 <script src="nexus-conseiller.js?v=20261127-1700"></script>
 <script src="nexus-badge-etat.js"></script>
 <script src="nexus-conseiller-donnees.js?v=20261127-1530"></script>
-<script src="nexus-risques-donnees.js?v=20261127-1000"></script>
+<script src="nexus-ponctualite.js?v=20261127-1600"></script>
+<script src="nexus-risques-donnees.js?v=20261127-1600"></script>
 <script src="nexus-site-requis.js?v=20261127-0100"></script>
-<script src="nexus-brief-donnees.js?v=20261127-1700"></script>
+<script src="nexus-brief-donnees.js?v=20261127-1600"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 <script src="nexus-pdf-moteur.js?v=20261125-2300"></script>
 <script>
@@ -878,6 +879,9 @@
     const nbPartiels = axesMesures.filter(a => a.couverture === 'partielle').length;
     const indiceExplication = {
       periodeLabel, nbMesures: axesMesures.length, totalAxes: AXES.length, nbComplets, nbPartiels,
+      // Décision du gérant (27/11/2026) : l'Équipe n'est pas notée (pointage
+      // en cours de fiabilisation) ; l'Indice dit qu'il est calculé sans elle.
+      sansEquipe: AXES.some(a => a.nom === 'Équipe' && a.confiance !== 'RÉEL'),
       // `deltas` (13/08/2026) : affiche désormais le score BRUT /100 de
       // chaque secteur, plus le delta ±50 par rapport au neutre — retour
       // d'usage direct de Frédéric : *"74/100 est beaucoup plus
@@ -1179,7 +1183,7 @@
         <div class="indice-explain-wrap" id="indiceExplainWrap">
           <div class="indice-explain-toggle" onclick="document.getElementById('indiceExplainWrap').classList.toggle('open')">Comprendre l'Indice Boussole ${brief.scoreGlobal != null ? brief.scoreGlobal : '—'} <span class="chev">›</span></div>
           <div class="indice-explain">
-            <div class="section-note" style="margin-top:0;">Moyenne des secteurs mesurés aujourd'hui (${ex.nbMesures}/${ex.totalAxes}), chaque secteur combinant une note de Performance et une note de Maîtrise. ${ex.periodeLabel}.</div>
+            <div class="section-note" style="margin-top:0;">Moyenne des secteurs mesurés aujourd'hui (${ex.nbMesures}/${ex.totalAxes}), chaque secteur combinant une note de Performance et une note de Maîtrise. ${ex.periodeLabel}.${ex.sansEquipe ? ' Indice calculé sans l\'Équipe, données de pointage en cours de fiabilisation.' : ''}</div>
             ${deltasHTML}
             <div class="section-note" style="font-style:italic;">Cet Indice Boussole diffère volontairement de l'Indice Marge affiché sur votre écran d'accueil (calculé, lui, uniquement à partir de la marge et de l'évolution du CA) — pas un bug, deux indices distincts avec leur propre nom : ici la vision d'ensemble du dirigeant, là un signal opérationnel plus étroit.</div>
           </div>
