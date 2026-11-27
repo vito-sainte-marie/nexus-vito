@@ -114,7 +114,10 @@ const servicePompiste = { service: { id: 's-1', role: 'pompiste', quart: 'matin'
     // primitive exige l'employé ET son site — et lit le service réellement
     // actif au lieu de borner à minuit local de l'appareil.
     verifier(`${f} : le badge lit le poste du jour`,
-      /manager_role = await lirePosteDuJour\(employee\) \|\| ''/.test(code));
+      /manager_role = await lirePosteDuJour\(employee\) \|\| ''/.test(code)
+      // B0-perf-4a : le Brief lance la lecture tôt puis l'attend après la garde.
+      || (/const lecturePoste = lirePosteDuJour\(employee\)/.test(code)
+        && /manager_role = await lecturePoste \|\| ''/.test(code)));
     verifier(`${f} : le badge ne lit plus la fiche`,
       !/manager_role = employee\.role/.test(code));
     verifier(`${f} : le badge passe par la primitive unique`,
