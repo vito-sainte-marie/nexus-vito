@@ -380,6 +380,14 @@
     // lots en parallèle ; on retient le PREMIER candidat complet DANS L'ORDRE
     // de la liste, jamais le premier à répondre. Le résultat est identique à
     // l'ancienne boucle : même date retenue, même `fraicheur` finale.
+    // B0-perf-4a : journal « repli carburant : plage | série (raison) », actif
+    // seulement avec ?diag=perf, sans aucun effet sur les valeurs.
+    const diagRepli = (chemin, candidats) => {
+      try {
+        if (typeof location === 'undefined' || !/[?&]diag=perf\b/.test(location.search)) return;
+        console.info('[diag perf] repli carburant : ' + chemin + ', ' + candidats + ' candidat(s)');
+      } catch (e) { /* diagnostic seul */ }
+    };
     const candidatsRepli = [];
     const datesExclues = [];
     let fallback = M.trouverJourFiableAnterieur(historique, aujourdhui);
@@ -409,9 +417,15 @@
           fraicheur = fraicheurParCandidat[r.index];
         }
         planB = true;
+        diagRepli('plage', candidatsRepli.length);
       } catch (e) {
         console.warn('Brief carburants : repli en plage abandonné, boucle série.', e && e.code ? e.code : e);
+        diagRepli('série (' + (e && e.code ? e.code : (e && e.message) || e) + ')', candidatsRepli.length);
       }
+    } else if (candidatsRepli.length > 0) {
+      diagRepli('série (fonction de plage absente)', candidatsRepli.length);
+    } else {
+      diagRepli('série (aucun candidat)', 0);
     }
     let rejoues = planB ? candidatsRepli.length : 0;
     // Premier candidat seul : cas courant, aucune requête gaspillée. Les
