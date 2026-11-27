@@ -20,7 +20,7 @@
 --
 -- CATALOGUE. Écrit par migration seulement ; lisible par authenticated. Les
 -- trois indicateurs « non retenus » (CARB-PROD-H, COM-CA-H, MAR-H) n'y figurent
--- pas. nature, autorite et premier_mois sont à confirmer par Frédéric.
+-- pas. nature, autorite et premier_mois sont à confirmer par le gérant.
 --
 -- ROLLBACK : supabase/retours/20261127160000_retour_objectifs_r1_schema_habilitation.sql
 
@@ -226,9 +226,9 @@ insert into public.objectif_catalogue
    premier_mois, cible_externe, objectivable)
 values
   -- disponibles
-  ('CARB-VOL-TOT',  'Volume carburants total',            'performance','disponible','L',       'somme',               'hausse',false,null,         null,          true),
-  ('CARB-VOL-PROD', 'Volume carburants par produit',      'performance','disponible','L',       'somme',               'hausse',false,null,         null,          true),
-  ('CARB-LIT-JOUR', 'Litres par jour complet',            'performance','disponible','L/jour',  'moyenne_jour_complet','hausse',false,null,         null,          true),
+  ('CARB-VOL-TOT',  'Volume carburants total',            'performance','disponible','L',       'somme',               'hausse',false,'2026-07-15', null,          true),
+  ('CARB-VOL-PROD', 'Volume carburants par produit',      'performance','disponible','L',       'somme',               'hausse',false,'2026-07-15', null,          true),
+  ('CARB-LIT-JOUR', 'Litres par jour complet',            'performance','disponible','L/jour',  'moyenne_jour_complet','hausse',false,'2026-07-15', null,          true),
   ('COM-CA',        'Chiffre d''affaires boutique',       'performance','disponible','EUR',     'somme',               'hausse',false,'2026-07-15', null,          true),
   ('COM-CA-JOUR',   'Chiffre d''affaires par jour complet','performance','disponible','EUR/jour','moyenne_jour_complet','hausse',false,'2026-07-15', null,          true),
   ('COM-PANIER',    'Panier moyen',                       'performance','disponible','EUR',     'ratio',               'hausse',false,'2026-01-01', null,          true),
@@ -236,7 +236,7 @@ values
   ('FDJ-VOLUME',    'Volume FDJ',                         'performance','disponible','EUR',     'somme',               'hausse',false,'2026-01-01', null,          true),
   ('OPS-ECART-CAISSE','Écart de caisse moyen par quart', 'maitrise',   'disponible','EUR',     'moyenne_par_quart',   'baisse',true, '2026-07-15', null,          true),
   -- dérivés : pas de cible propre
-  ('CARB-PROGRES',  'Progression carburants',             'potentiel',  'disponible','%',       null,                  'hausse',false,null,         null,          false),
+  ('CARB-PROGRES',  'Progression carburants',             'potentiel',  'disponible','%',       null,                  'hausse',false,'2026-07-15', null,          false),
   ('COM-PROGRES',   'Progression boutique',               'potentiel',  'disponible','%',       null,                  'hausse',false,'2026-07-15', null,          false),
   ('FDJ-EVOL',      'Évolution FDJ',                      'potentiel',  'disponible','%',       null,                  'hausse',false,'2026-01-01', null,          false),
   -- à fiabiliser : objectivables sous arbitrage consigné à la validation
