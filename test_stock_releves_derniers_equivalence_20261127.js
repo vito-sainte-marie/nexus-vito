@@ -163,12 +163,12 @@ const controles = [{ article: 'ART-A', ecart: 1, controle_le: '2026-10-10' }];
     assert.ok(/order by t\.releve_le, t\.importe_le, t\.id;/.test(code));
     assert.ok(!/\b(insert|update|delete|truncate|alter)\b/i.test(code));
   });
-  await t('migration : revoke public/anon, grant authenticated seul, drop de products_ventes_stock', () => {
+  await t('migration : revoke public/anon, grant authenticated seul, aucun drop de products_ventes_stock', () => {
     assert.ok(/revoke all on function public\.stock_releves_derniers\(text\) from public;/.test(code));
     assert.ok(/revoke all on function public\.stock_releves_derniers\(text\) from anon;/.test(code));
     const grants = code.match(/grant execute[^;]*;/gi) || [];
     assert.strictEqual(grants.length, 1); assert.ok(/to authenticated;/.test(grants[0]));
-    assert.ok(/drop function if exists public\.products_ventes_stock\(text\);/.test(code));
+    assert.ok(!/products_ventes_stock/.test(code));
     assert.ok(/drop function public\.stock_releves_derniers\(text\);/.test(sql));
   });
 

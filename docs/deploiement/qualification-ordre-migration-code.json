@@ -2174,13 +2174,26 @@
     },
     "20261127150000": {
       "etat": "atomique_ou_procedure_speciale",
-      "justification": "Ajout d'une fonction de lecture stock_releves_derniers(p_site) (security invoker, search_path vide, lecture seule) et suppression de products_ventes_stock si elle existe (Test seulement). Le front tolere l'absence de la fonction : repli automatique sur la lecture brute de stock_releves. Aucune donnee ni politique touchee. Non appliquee. Aucune mesure du catalogue n'a ete prise : la mesure est a faire par Guardian.",
+      "justification": "Ajout d'une fonction de lecture stock_releves_derniers(p_site) (security invoker, search_path vide, lecture seule). Le front tolere l'absence de la fonction : repli automatique sur la lecture brute de stock_releves. Aucune donnee ni politique touchee. Non appliquee. Aucune mesure du catalogue n'a ete prise : la mesure est a faire par Guardian.",
       "objets_crees": ["stock_releves_derniers"],
       "objets_constates": [],
       "procedure": "docs/nexus/brief-perf-8-stock-releves-derniers.md",
       "valide_par": null,
       "valide_le": null,
-      "trace": "#409, consigne de Guardian 7218869594 validee par 7218937740 ; retour arriere : drop function public.stock_releves_derniers(text). Pas de mesure : a faire apres application sur Test."
+      "mesure": {
+        "source": "catalogue",
+        "le": "2026-11-27T13:12:32Z",
+        "cible": "uzhjpqpctpvxytxpxoqz",
+        "par": "Guardian (compte rendu 7219197823 sur #409, apres application sur Production sur GO ecrit du gerant)",
+        "outil": "requetes de lecture du catalogue Production par Guardian ; rapportees sans modification",
+        "identite_constatee": "Production, apres application de stock_releves_derniers(p_site)",
+        "lecture_seule": true,
+        "moteur": "PostgreSQL (catalogue Production)",
+        "verdict": "Fonction appliquee le 27/11 a 13:12 UTC : prosecdef false, provolatile s, proconfig search_path vide, anon sans execute, authenticated avec execute, products_ventes_stock absente. md5(pg_get_functiondef) d8c6f5202dfe260356f710d5cbe9e5fc, identique sur Test. explain analyze filtre sur le site : 25 072 lignes lues par idx_stock_releves_lookup, 5 849 rendues, 726 ms.",
+        "blob_migration": "88991615f017f36224b98b6c9527bb5dbf9e77e2",
+        "blob_provenance": "git hash-object supabase/migrations/20261127150000_stock_releves_derniers.sql (candidat claude/brief-perf-8-stock-releves-derniers)"
+      },
+      "trace": "#409, consigne de Guardian 7218869594 validee par 7218937740 ; retour arriere : drop function public.stock_releves_derniers(text)."
     }
   },
   "prochaine_action": "Axe SS4 migration -> code : LEVE pour 20260919103000 (13/13 objets constates sur le catalogue le 01/10/2026) et pour 20261001160000 (ACL constatee fermee le 03/10/2026). Ces qualifications restent acquises tant que leur fichier de migration ne change pas : la garde compare mesure.blob_migration a l'empreinte du candidat, et une migration retouchee fait tomber sa qualification. Il n'y a plus d'echeance horaire (l'ancienne fraicheur de 72 h aurait fait retomber l'axe le 04/10/2026 sans que rien ne bouge). CE QUE LA GARDE NE VOIT PAS : une base modifiee sans que le depot bouge - c'est exactement ce que la relecture du 03/10 a trouve pour 20261001160000. Toute procedure d'application relit donc la base avant d'ecrire. CE QUE CELA N'AUTORISE PAS : aucune fusion ni aucun deploiement ; chacun reste un GO distinct de Frederic. RESTE A FAIRE, separement : (1) les 11 migrations du rail toujours non qualifiees ; (2) le cablage de garde-ordre-migration-code.js dans deploiement-production.yml. Lecture du verdict et table de decision : SS18.4 ; recit de la mesure : SS20. MISE A JOUR DU 04/10/2026 : les 13 migrations du candidat rebuild/fdj-62-20260922 sont qualifiees (12 atomiques en serie avant le code, 20261004120000 code d abord) ; ordre et gestes dans docs/deploiement/procedure-fdj-62-production.md."

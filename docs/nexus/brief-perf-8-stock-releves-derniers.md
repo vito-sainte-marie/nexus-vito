@@ -4,8 +4,8 @@
 Le Conseiller lisait toute la table `stock_releves` pour ne garder, par article,
 que les deux relevés les plus récents. La fonction rend ces lignes côté base,
 filtrées sur le site. L'option (c) (`products_ventes_stock`, PR #412) est
-abandonnée : la migration supprime la fonction (`drop function if exists`,
-présente sur Test seulement).
+abandonnée. Le nettoyage de `products_ventes_stock` sur Test (présente sur Test
+seulement) fera l'objet d'un fichier à part ; cette migration n'y touche pas.
 
 ## Contrat
 - `stock_releves_derniers(p_site text)` : `security invoker`, `search_path` vide,

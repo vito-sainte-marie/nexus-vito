@@ -68,7 +68,3 @@ $$;
 revoke all on function public.stock_releves_derniers(text) from public;
 revoke all on function public.stock_releves_derniers(text) from anon;
 grant execute on function public.stock_releves_derniers(text) to authenticated;
-
--- Abandon de l'option (c) : la fonction products_ventes_stock n'existe que sur
--- Test (absente de Production), d'où le if exists.
-drop function if exists public.products_ventes_stock(text);
