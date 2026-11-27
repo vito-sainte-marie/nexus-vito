@@ -38,7 +38,14 @@ Statut : étude, conception et prototypes isolés. Aucun changement de moteur, d
 - **B, pulsation de lumière** : balayage lumineux lent, rythme respirant.
 - **C, élégance minimale** : aplats et fondu, aucune lueur.
 
-Guardian écrit la recommandation après revue visuelle.
+### Décision du 26/11/2026 (validée par le responsable)
+
+- **Signature** : connexion et initialisation générale (logo animé, étapes réelles).
+- **A (verre et lumière)** : squelettes de page.
+- **B (impulsion cyan)** : chargements localisés, c'est-à-dire Pulse (filtre, période, rafraîchissement partiel).
+- **C (minimal, sans mouvement)** : rendu automatique sous `prefers-reduced-motion: reduce`, pour les trois familles.
+
+La galerie ouvre sur ce mode par défaut, « Retenue : Signature + A + B, C en mouvement réduit ». A, B et C restent sélectionnables séparément pour comparaison. Le squelette ne porte aucun statut (pas de « Contraste », « Partiel », « À vérifier »...) : formes neutres, icône réelle du secteur estompée.
 
 ## 4. Audit des mécanismes de chargement existants
 
@@ -50,7 +57,8 @@ Guardian écrit la recommandation après revue visuelle.
 
 ## 5. Architecture proposée
 
-- Une feuille CSS transversale légère `nexus-skeleton.css`, sur les jetons `--t-*` (définis par page, jour et sombre), avec variantes par module.
+- Une seule feuille CSS transversale `nexus-skeleton.css`, sur les jetons `--t-*` (définis par page, jour et sombre), avec trois familles (A, B, C) et des variantes par module.
+- Le basculement vers C est porté par la media query `@media (prefers-reduced-motion: reduce)`, jamais par du JavaScript.
 - Attributs de contrat : `data-state` sur la section (wait, loading, ready, refresh, error, empty, unavailable), `data-k` sur l'élément fantôme (txt, num, para, chart, line, ico, img, block).
 - Un petit module JS facultatif porte les temporisations et la sortie longue. Sans lui, le CSS seul reste valable.
 - Les pages gardent leur logique de données. Le squelette ne s'y mêle pas.
@@ -63,11 +71,10 @@ Guardian écrit la recommandation après revue visuelle.
 
 ## 7. Plan de déploiement progressif
 
-1. Revue Guardian de la galerie et choix de direction.
+1. Direction validée le 26/11 (voir section 3).
 2. Extraction de `nexus-skeleton.css` sur la branche, sans toucher aux pages.
-3. Pilotes un par un : Brief v4, Paye v1, Produits, Carburants Performance, Accueil. Un lot, une PR, un GO.
+3. Ordre des pilotes : Brief (après B0-perf-2), puis Accueil, Paye, Produits, Carburants Performance. Chaque module est un lot, une PR, un GO. Aucune intégration avant GO.
 4. Retrait des idiomes dupliqués page par page.
-5. Signature : connexion et initialisation, en dernier.
 
 ## 8. Critères d'acceptation
 
@@ -81,4 +88,5 @@ Guardian écrit la recommandation après revue visuelle.
 
 ## 9. Limites connues
 
+- Le volet navigateur n'affiche qu'un instantané statique des fichiers `file://` : le défilement, les animations et le cadre mobile à taille réelle n'ont pas été vus en rendu vivant.
 - La galerie n'a pas encore été vérifiée en rendu réel (le volet navigateur n'ouvre pas les fichiers locaux). Elle passe la vérification de syntaxe. Un regard visuel est à faire avant toute conclusion.

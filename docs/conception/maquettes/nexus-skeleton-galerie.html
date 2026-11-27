@@ -33,11 +33,11 @@ button{font:inherit;color:inherit;cursor:pointer}
 /* =====================================================================
    GALERIE (outils de revue, ne fait pas partie du composant)
    ===================================================================== */
-.bar{position:sticky;top:0;z-index:20;background:var(--t-bg);border-bottom:1px solid var(--t-line);padding:10px 16px;display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
+.bar{max-width:100vw;position:sticky;top:0;z-index:20;background:var(--t-bg);border-bottom:1px solid var(--t-line);padding:10px 16px;display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
 .bar h1{font-size:15px;font-weight:600;margin-right:6px}
 .grp{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .grp>span{font:11px var(--t-mono);color:var(--t-mid);text-transform:uppercase;letter-spacing:.06em}
-.seg{display:inline-flex;border:1px solid var(--t-line);border-radius:8px;overflow:hidden}
+.seg{display:inline-flex;flex-wrap:wrap;max-width:100%;border:1px solid var(--t-line);border-radius:8px;overflow:hidden}
 .seg button{background:var(--t-panel);border:0;border-right:1px solid var(--t-line);padding:8px 12px;font-size:13px;min-height:36px}
 .seg button:last-child{border-right:0}
 .seg button[aria-pressed=true]{background:var(--t-cyan);color:var(--on-cyan);font-weight:600}
@@ -69,9 +69,9 @@ button{font:inherit;color:inherit;cursor:pointer}
 .sec[data-state=wait] .sec-body{opacity:0}
 .sec[data-state=refresh] .sec-body{opacity:.55}
 .sec[data-state=error] .sec-body,.sec[data-state=empty] .sec-body,.sec[data-state=unavailable] .sec-body{opacity:.0;pointer-events:none}
-.sec-msg{display:none;position:absolute;inset:0;align-items:center;justify-content:center;text-align:center;padding:12px}
+.sec-msg{display:none;position:absolute;inset:0;min-height:0;align-items:center;justify-content:center;text-align:center;padding:12px}
 .sec[data-state=error] .sec-msg,.sec[data-state=empty] .sec-msg,.sec[data-state=unavailable] .sec-msg{display:flex}
-.msg{background:var(--t-panel);border:1px solid var(--t-line);border-radius:12px;padding:14px 16px;max-width:420px}
+.msg{background:var(--t-panel);border:1px solid var(--t-line);border-radius:12px;padding:10px 14px;max-width:420px;max-height:100%;overflow:auto}
 .msg b{display:block;font-size:14px;margin-bottom:3px}
 .msg p{font-size:13px;color:var(--t-mid);line-height:1.45}
 .msg .btn{margin-top:10px}
@@ -93,13 +93,20 @@ button{font:inherit;color:inherit;cursor:pointer}
 .sec[data-state=loading] .sk>*,.sec[data-state=wait] .sk>*{opacity:0}
 .sec[data-state=loading] .sk::before{opacity:1}
 .sec[data-state=loading] .sk img{visibility:hidden}
+/* icône de secteur : la vraie icône NEXUS, estompée, jamais un cercle */
+.sec[data-state=loading] .sk.sec-ico::before,.sec[data-state=wait] .sk.sec-ico::before{display:none}
+.sec[data-state=loading] .sk.sec-ico>img,.sec[data-state=wait] .sk.sec-ico>img{visibility:visible;opacity:.22!important;filter:grayscale(1)}
 
 /* ------- Direction A : verre et lumière ------- */
 [data-dir=A] .card{background:linear-gradient(140deg,rgba(var(--cyan-rgb),.07),rgba(var(--panel-rgb),.55) 55%);border:1px solid rgba(var(--cyan-rgb),.26);box-shadow:inset 0 1px 0 rgba(255,255,255,.07),0 8px 24px -16px rgba(var(--cyan-rgb),.4);backdrop-filter:blur(6px)}
+[data-dir=R] .card{background:linear-gradient(140deg,rgba(var(--cyan-rgb),.07),rgba(var(--panel-rgb),.55) 55%);border:1px solid rgba(var(--cyan-rgb),.26);box-shadow:inset 0 1px 0 rgba(255,255,255,.07),0 8px 24px -16px rgba(var(--cyan-rgb),.4);backdrop-filter:blur(6px)}
 [data-dir=A] .sec[data-state=loading] .sk::before{background:linear-gradient(100deg,var(--sk-base) 30%,var(--sk-hi) 50%,var(--sk-base) 70%);background-size:260% 100%;animation:skA 2.2s linear infinite}
+[data-dir=R] .sec[data-state=loading] .sk::before{background:linear-gradient(100deg,var(--sk-base) 30%,var(--sk-hi) 50%,var(--sk-base) 70%);background-size:260% 100%;animation:skA 2.2s linear infinite}
 @keyframes skA{from{background-position:130% 0}to{background-position:-130% 0}}
 [data-dir=A] .sec[data-state=ready] .sk::before{opacity:0;transition:opacity .6s ease var(--d,0ms)}
+[data-dir=R] .sec[data-state=ready] .sk::before{opacity:0;transition:opacity .6s ease var(--d,0ms)}
 [data-dir=A] .sec[data-state=ready] .sk>*,[data-dir=A] .sec[data-state=ready] .sk{animation:inA .65s cubic-bezier(.2,.7,.2,1) both;animation-delay:var(--d,0ms)}
+[data-dir=R] .sec[data-state=ready] .sk>*,[data-dir=R] .sec[data-state=ready] .sk{animation:inA .65s cubic-bezier(.2,.7,.2,1) both;animation-delay:var(--d,0ms)}
 @keyframes inA{from{opacity:.0;filter:blur(6px);transform:translateY(5px)}to{opacity:1;filter:none;transform:none}}
 [data-dir=A] .sec[data-state=refresh]>.sec-body::after{content:"";position:absolute;left:0;right:0;top:0;height:2px;background:linear-gradient(90deg,transparent,var(--t-cyan),transparent);background-size:40% 100%;background-repeat:no-repeat;animation:rfA 1.4s linear infinite;z-index:3}
 @keyframes rfA{from{background-position:-50% 0}to{background-position:150% 0}}
@@ -115,6 +122,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 [data-dir=B] .sec[data-state=ready] .sk>*{animation:fadeB .3s ease both;animation-delay:calc(var(--d,0ms) + 160ms)}
 @keyframes fadeB{from{opacity:0}to{opacity:1}}
 [data-dir=B] .sec[data-state=refresh]>.sec-body::after{content:"";position:absolute;left:0;top:0;height:2px;width:30%;background:var(--t-cyan);box-shadow:0 0 10px var(--t-cyan);animation:lnB 1s cubic-bezier(.5,0,.5,1) infinite;z-index:3}
+[data-dir=R] .sec[data-state=refresh]>.sec-body::after{content:"";position:absolute;left:0;top:0;height:2px;width:30%;background:var(--t-cyan);box-shadow:0 0 10px var(--t-cyan);animation:lnB 1s cubic-bezier(.5,0,.5,1) infinite;z-index:3}
 
 /* ------- Direction C : élégance minimale ------- */
 [data-dir=C] .card{background:var(--t-panel);border:1px solid var(--t-line)}
@@ -127,6 +135,9 @@ button{font:inherit;color:inherit;cursor:pointer}
 
 /* mouvement réduit ou pause : aucune animation, états conservés */
 @media (prefers-reduced-motion:reduce){
+  /* C : rendu fixe et minimal, pour les trois familles */
+  .sec[data-state=loading] .sk::before{background:var(--sk-base)!important;opacity:1!important;clip-path:none!important}
+  .sec[data-state=loading] .card::after{display:none}
   .sec *,.sec *::before,.sec *::after,.sec::after,.sec-body::after,.sig *{animation:none!important;transition:none!important}
 }
 [data-paused] .sec *,[data-paused] .sec *::before,[data-paused] .sec *::after,[data-paused] .sec-body::after,[data-paused] .sig *{animation-play-state:paused!important}
@@ -195,9 +206,13 @@ h2.ts{font-size:12px;font-weight:600;color:var(--t-mid);text-transform:uppercase
 .steps li.done{color:var(--t-text)}.steps li.done::before{border-color:var(--t-green);background:var(--t-green)}
 .steps li.bad{color:var(--t-red)}.steps li.bad::before{border-color:var(--t-red);background:var(--t-red)}
 [data-dir=A] .mark::before{content:"";position:absolute;inset:6px;border-radius:50%;border:1px solid rgba(var(--cyan-rgb),.35);background:linear-gradient(140deg,rgba(var(--cyan-rgb),.14),rgba(var(--panel-rgb),.4));backdrop-filter:blur(6px);box-shadow:inset 0 1px 0 rgba(255,255,255,.1)}
+[data-dir=R] .mark::before{content:"";position:absolute;inset:6px;border-radius:50%;border:1px solid rgba(var(--cyan-rgb),.35);background:linear-gradient(140deg,rgba(var(--cyan-rgb),.14),rgba(var(--panel-rgb),.4));backdrop-filter:blur(6px);box-shadow:inset 0 1px 0 rgba(255,255,255,.1)}
 [data-dir=A] .mark::after{content:"";position:absolute;inset:6px;border-radius:50%;background:linear-gradient(100deg,transparent 35%,rgba(255,255,255,.28) 50%,transparent 65%);background-size:260% 100%;animation:skA 2.6s linear infinite;mix-blend-mode:overlay;z-index:3}
+[data-dir=R] .mark::after{content:"";position:absolute;inset:6px;border-radius:50%;background:linear-gradient(100deg,transparent 35%,rgba(255,255,255,.28) 50%,transparent 65%);background-size:260% 100%;animation:skA 2.6s linear infinite;mix-blend-mode:overlay;z-index:3}
 [data-dir=A] .mark svg{animation:orbit 4s linear infinite}
+[data-dir=R] .mark svg{animation:orbit 4s linear infinite}
 [data-dir=A] .mark circle{stroke-dasharray:70 300;filter:drop-shadow(0 0 4px var(--t-cyan))}
+[data-dir=R] .mark circle{stroke-dasharray:70 300;filter:drop-shadow(0 0 4px var(--t-cyan))}
 @keyframes orbit{to{transform:rotate(360deg)}}
 [data-dir=B] .mark img.lg{animation:pulseB 1.4s ease-in-out infinite}
 @keyframes pulseB{0%,100%{transform:scale(1);opacity:.85}50%{transform:scale(1.06);opacity:1}}
@@ -210,12 +225,12 @@ h2.ts{font-size:12px;font-weight:600;color:var(--t-mid);text-transform:uppercase
 @keyframes fadeC{0%{opacity:.3}60%,100%{opacity:1}}
 </style>
 </head>
-<body data-dir="A">
+<body data-dir="R">
 
 <header class="bar" role="toolbar" aria-label="Réglages de la galerie">
   <h1>NEXUS Skeleton</h1>
   <div class="grp"><span>Direction</span><div class="seg" id="c-dir">
-    <button data-v="A" aria-pressed="true">A · Verre et lumière</button><button data-v="B" aria-pressed="false">B · Impulsion</button><button data-v="C" aria-pressed="false">C · Minimal</button></div></div>
+    <button data-v="R" aria-pressed="true">Retenue : Signature + A + B</button><button data-v="A" aria-pressed="false">A · Verre et lumière</button><button data-v="B" aria-pressed="false">B · Impulsion</button><button data-v="C" aria-pressed="false">C · Minimal</button></div></div>
   <div class="grp"><span>Thème</span><div class="seg" id="c-theme"><button data-v="sombre" aria-pressed="true">Nuit</button><button data-v="jour" aria-pressed="false">Jour</button></div></div>
   <div class="grp"><span>Écran</span><div class="seg" id="c-vp"><button data-v="desktop" aria-pressed="true">Bureau 1280</button><button data-v="mobile" aria-pressed="false">Mobile 375</button></div></div>
   <div class="grp"><span>Module</span><div class="seg" id="c-mod"></div></div>
@@ -227,19 +242,20 @@ h2.ts{font-size:12px;font-weight:600;color:var(--t-mid);text-transform:uppercase
 </header>
 
 <section class="legend" aria-label="Signature de chaque direction" id="legend">
+  <div data-d="R"><b>Retenue (26/11) : Signature + A + B, C en mouvement réduit</b>Signature : connexion et initialisation, logo animé et étapes réelles. A : squelettes de page. B : chargements localisés (filtre, période, rafraîchissement partiel). C : rendu automatique sous « réduire les animations », sans mouvement, pour les trois familles.</div>
   <div data-d="A"><b>A · Verre et lumière</b>Matière : verre teinté bleu pétrole, bord fin cyan. Lumière : reflet diagonal qui balaie chaque voile en 2,2 s. Rythme : continu, lent. Transition : le voile se dissout en flou net, les données montent de 5 px.</div>
   <div data-d="B"><b>B · Impulsion lumineuse</b>Matière : panneau plat, bord fin. Lumière : un filet cyan parcourt le haut de chaque carte, décalé de carte en carte. Rythme : battement 1,4 s. Transition : balayage gauche-droite qui découvre la donnée.</div>
   <div data-d="C"><b>C · Élégance minimale</b>Matière : fil de bord seul, barres à peine plus claires que le fond. Lumière : aucune. Rythme : respiration 3,2 s. Transition : fondu enchaîné, sans mouvement.</div>
 </section>
 <p class="journal" id="journal" aria-hidden="true"></p>
-<div class="vp" id="vp" data-vp="desktop"><div class="vp-in" id="vpin"><div class="fit" id="fit"><div class="stage" id="stage" data-dir="A"></div></div></div></div>
+<div class="vp" id="vp" data-vp="desktop"><div class="vp-in" id="vpin"><div class="fit" id="fit"><div class="stage" id="stage" data-dir="R"></div></div></div></div>
 <div class="vh" role="status" aria-live="polite" id="live"></div>
 
 <script>
 (function(){
 'use strict';
 var D='../../../assets/';
-var cfg={dir:'A',theme:'sombre',vp:'desktop',mod:'brief',net:'normal',force:'auto'};
+var cfg={dir:'R',theme:'sombre',vp:'desktop',mod:'brief',net:'normal',force:'auto'};
 var T={APPEAR:300,MIN:600,LONG:5000};
 var NET={fast:{ms:150},normal:{ms:1500},slow:{ms:8000},fail:{ms:2500}};
 var $=function(s,r){return (r||document).querySelector(s)};
@@ -247,16 +263,16 @@ var $$=function(s,r){return Array.prototype.slice.call((r||document).querySelect
 
 /* ---------- modèles de squelette : S(type, genre, contenu) ---------- */
 function S(tag,k,inner,cls,st){return '<'+tag+' class="sk '+(cls||'')+'" data-k="'+k+'"'+(st?' style="'+st+'"':'')+'>'+inner+'</'+tag+'>'}
-function ic(m){return '<span class="ico">'+S('span','ico','<img alt="" src="'+D+'icones/v2/mod-'+m+'/mod-'+m+'@2x.webp">','', 'display:block;width:34px;height:34px')+'</span>'}
+function ic(m){return '<span class="ico">'+S('span','ico','<img alt="" src="'+D+'icones/v2/mod-'+m+'/mod-'+m+'@2x.webp">','sec-ico', 'display:block;width:34px;height:34px')+'</span>'}
 function bars(a,c){var m=Math.max.apply(null,a);return '<div class="mini">'+a.map(function(v){return '<i style="height:'+Math.max(6,Math.round(v/m*100))+'%;--c:'+c+'"></i>'}).join('')+'</div>'}
 function sec(titre,body,idx){return '<section class="sec" data-state="wait" data-i="'+idx+'" aria-busy="true" aria-label="'+titre+'"><div class="sec-body">'+(titre?'<h2 class="ts">'+S('span','txt',titre)+'</h2>':'')+body+'</div><div class="sec-msg"></div></section>'}
 function card(inner,st){return '<div class="card" style="'+(st||'')+'">'+inner+'</div>'}
-function lecture(t,n,u,b,cl,sub){return card('<div class="q">'+S('span','txt',t)+'</div><div class="big">'+S('span','num',n)+'<small>'+u+'</small></div><div style="margin:6px 0"><span class="badge '+cl+'">'+b+'</span></div><div class="mid">'+S('span','txt',sub)+'</div>')}
-function sect(m,nom,etat,cl,n,u,b,c,delta){return card('<div class="row" style="border:0;padding:0 0 4px">'+ic(m)+'<div class="grow"><div class="q" style="margin:0">'+S('span','txt',nom)+'</div><span class="badge '+cl+'">'+etat+'</span></div></div><div class="big">'+S('span','num',n)+'<small>'+u+'</small></div>'+S('div','chart',bars(b,c))+'<div class="mid">'+S('span','txt',delta)+'</div>')}
+function lecture(t,n,u,b,cl,sub){return card('<div class="q">'+S('span','txt',t)+'</div><div class="big">'+S('span','num',n)+'<small>'+u+'</small></div><div style="margin:6px 0">'+S('span','txt','<span class="badge '+cl+'">'+b+'</span>')+'</div><div class="mid">'+S('span','txt',sub)+'</div>')}
+function sect(m,nom,etat,cl,n,u,b,c,delta){return card('<div class="row" style="border:0;padding:0 0 4px">'+ic(m)+'<div class="grow"><div class="q" style="margin:0">'+S('span','txt',nom)+'</div>'+S('span','txt','<span class="badge '+cl+'">'+etat+'</span>')+'</div></div><div class="big">'+S('span','num',n)+'<small>'+u+'</small></div>'+S('div','chart',bars(b,c))+'<div class="mid">'+S('span','txt',delta)+'</div>')}
 function curves(){return S('div','line','<div class="chart"><svg viewBox="0 0 400 150" preserveAspectRatio="none"><polyline fill="none" stroke="var(--piste)" stroke-width="2" points="0,90 66,80 133,95 200,70 266,75 333,60 400,55"/><polyline fill="none" stroke="var(--boutique)" stroke-width="2" points="0,100 66,98 133,92 200,96 266,85 333,88 400,80"/><polyline fill="none" stroke="var(--fdj)" stroke-width="2" points="0,110 66,115 133,105 200,108 266,100 333,104 400,96"/></svg></div>','','--r:8px')}
 function hist(a,c){var m=Math.max.apply(null,a);return S('div','chart','<div class="hist">'+a.map(function(v){return '<i style="height:'+Math.round(v/m*100)+'%;--c:'+c+'"></i>'}).join('')+'</div>')}
 function obj(t,p,v){return '<div class="row"><div class="grow"><div class="q" style="margin:0 0 5px">'+S('span','txt',t)+'</div>'+S('div','block','<div class="prog"><i style="width:'+p+'%"></i></div>','','--r:4px')+'</div><div class="n">'+S('span','num',v)+'</div></div>'}
-function persRow(i,nom,a,b,etat,cl){return '<div class="row">'+S('span','ico','<span class="av-i">'+i+'</span>')+'<div class="grow"><div class="q" style="margin:0">'+S('span','txt',nom)+'</div><div class="mid">'+S('span','txt',a)+'</div></div><div class="n">'+S('span','num',b)+'</div><span class="badge '+cl+'">'+etat+'</span></div>'}
+function persRow(i,nom,a,b,etat,cl){return '<div class="row">'+S('span','ico','<span class="av-i">'+i+'</span>')+'<div class="grow"><div class="q" style="margin:0">'+S('span','txt',nom)+'</div><div class="mid">'+S('span','txt',a)+'</div></div><div class="n">'+S('span','num',b)+'</div>'+S('span','txt','<span class="badge '+cl+'">'+etat+'</span>')+'</div>'}
 function prodRow(m,nom,fam,a,b,c){return '<div class="row">'+ic(m)+'<div class="grow"><div class="q" style="margin:0">'+S('span','txt',nom)+'</div><div class="mid">'+S('span','txt',fam)+'</div></div><div class="n">'+S('span','num',a)+'</div><div class="n">'+S('span','num',b)+'</div><div class="n">'+S('span','num',c)+'</div></div>'}
 function tuile(m,t,s){return card('<div class="row" style="border:0;padding:0">'+ic(m)+'<div class="grow"><div class="q" style="margin:0">'+S('span','txt',t)+'</div><div class="mid">'+S('span','txt',s)+'</div></div></div>')}
 function kpi(t,n,u,sub){return card('<div class="q">'+S('span','txt',t)+'</div><div class="big">'+S('span','num',n)+'<small>'+u+'</small></div><div class="mid" style="margin-top:6px">'+S('span','txt',sub)+'</div>')}
@@ -308,7 +324,7 @@ function mount(){
   $('#ll-retry').onclick=start;$('#ll-wait').onclick=function(){longEl.classList.remove('on')};
   longEl=$('#longload');fit();
 }
-function setState(el,st){el.setAttribute('data-state',st);el.setAttribute('aria-busy',st==='wait'||st==='loading'||st==='refresh'?'true':'false')}
+function setState(el,st){if(/error|empty|unavailable/.test(st)&&!el.style.minHeight)el.style.minHeight=el.offsetHeight+'px';if(/wait|loading|ready/.test(st))el.style.minHeight='';el.setAttribute('data-state',st);el.setAttribute('aria-busy',st==='wait'||st==='loading'||st==='refresh'?'true':'false')}
 function message(el,st){
   var t=el.getAttribute('aria-label'),m=$('.sec-msg',el);
   var o={error:['Impossible de charger « '+t+' »','La connexion a échoué. Rien n’a été modifié.','<button class="btn pri" data-retry>Réessayer</button>'],
