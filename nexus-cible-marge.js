@@ -1,7 +1,86 @@
-// Objectif de marge de la station, calculé (A4-1d). Jamais saisi : il découle des cibles validées par famille.
-// Module pur, sans accès réseau : le Brief, le Radar et l'App lisent le même résultat.
+// ============================================================
+// NEXUS A4-1 : cible de marge, lecture unique (module pur + un chargeur).
+// Aucune cible n'est écrite en dur : elle vient de tarif_seuils (vue v_tarif_seuils_actifs),
+// saisie par le gérant. Un seul résolveur (seuilDe, nexus-politique-tarifaire.js).
+// Trois états distincts :
+//   NON_LISIBLE : la table n'a pas pu être lue (RLS, erreur, rôle sans droit). Rien n'est dit de l'objectif.
+//   NON_DEFINI  : lecture réussie, aucune cible exploitable. Message réservé à manager et gérant.
+//   DEFINI      : une cible existe. `valide` la rend décisionnelle (elle note) ; `indicatif` s'affiche seulement.
+// Adaptateur futur du référentiel d'objectifs (#394, MAR-TAUX) : les lecteurs n'ont qu'à appeler resoudre().
+// ============================================================
 (function (global) {
   'use strict';
+  const ETATS = { NON_LISIBLE: 'non_lisible', NON_DEFINI: 'non_defini', DEFINI: 'defini' };
+  const ROLES_LECTEURS = ['manager', 'gerant', 'gérant'];
+  const MENTION_SANS_CIBLE = 'calculé sans la Marge, objectif non défini';
+
+  const dep = nom => {
+    const d = global[nom]; if (!d) throw new Error(nom + ' non chargé');
+    return d;
+  };
+
+  // Cible résolue pour un périmètre. `source` = {etat, lignes}. Pure, sans réseau.
+  function creer(source) {
+    const s = source || {};
+    const etat0 = s.etat === ETATS.NON_LISIBLE ? ETATS.NON_LISIBLE : ETATS.DEFINI;
+    let ctx = null;
+    if (etat0 === ETATS.DEFINI) {
+      ctx = dep('NexusPolitiqueTarifaireRegistres').contexteDepuisRegistres({ seuils: s.lignes || [] });
+    }
+    function resoudre(rayon, famille) {
+      if (etat0 === ETATS.NON_LISIBLE) return { etat: ETATS.NON_LISIBLE, cible: null, minimum: null, statut: null, niveau: null, notante: false };
+      const r = dep('NexusPolitiqueTarifaire').seuilDe(famille || null, rayon || null, ctx);
+      if (!r || (!r.cibleValide && !r.cibleIndicative)) {
+        return { etat: ETATS.NON_DEFINI, cible: null, minimum: null, statut: null, niveau: r ? r.niveau : null, notante: false };
+      }
+      return {
+        etat: ETATS.DEFINI, cible: r.cible, niveau: r.niveau,
+        statut: r.cibleValide ? 'valide' : 'indicatif',
+        minimum: (r.minimumValide || r.minimumIndicatif) ? r.minimum : null,
+        notante: !!r.cibleValide,
+      };
+    }
+    return { resoudre };
+  }
+
+  const pct = v => Math.round(v * 1000) / 10 + ' %';
+
+  // Texte d'objectif. Un employé ne lit pas tarif_seuils : rien n'est dit de l'objectif (null).
+  function libelle(res, role) {
+    if (!res || res.etat === ETATS.NON_LISIBLE) return null;
+    if (res.etat === ETATS.NON_DEFINI) return ROLES_LECTEURS.indexOf(role) >= 0 ? 'objectif non défini' : null;
+    return 'objectif ' + pct(res.cible) + (res.statut === 'valide' ? '' : ' (indicatif, non décisionnel)');
+  }
+  // Mention à afficher quand un score est calculé sans la Marge.
+  function mentionSansCible(res, role) {
+    if (res && res.etat === ETATS.NON_DEFINI && ROLES_LECTEURS.indexOf(role) >= 0) return MENTION_SANS_CIBLE;
+    return null;
+  }
+  // Seule une cible valide note. Sinon null : le lecteur sort la Marge de son calcul.
+  const cibleNotante = res => (res && res.etat === ETATS.DEFINI && res.notante) ? res.cible : null;
+
+  // Palier d'affichage du Conseiller : « correct » = cible, « faible » = minimum. Sans seuil, aucun palier.
+  function palier(res, margePct) {
+    if (!res || res.etat !== ETATS.DEFINI || margePct == null) return null;
+    if (margePct >= res.cible) return 'a_l_objectif';
+    if (res.minimum != null && margePct < res.minimum) return 'faible';
+    return 'correcte';
+  }
+
+  // Une seule lecture par chargement d'écran et par site (résultat partagé entre lecteurs).
+  const cache = new Map();
+  function charger(client, site, role) {
+    if (!site || ROLES_LECTEURS.indexOf(role) < 0) return Promise.resolve(creer({ etat: ETATS.NON_LISIBLE }));
+    if (!cache.has(site)) {
+      cache.set(site, Promise.resolve().then(() => client.from('v_tarif_seuils_actifs').select('*').eq('site', site))
+        .then(r => (r && !r.error && Array.isArray(r.data)) ? creer({ etat: ETATS.DEFINI, lignes: r.data }) : creer({ etat: ETATS.NON_LISIBLE }),
+          () => creer({ etat: ETATS.NON_LISIBLE })));
+    }
+    return cache.get(site);
+  }
+  function oublier() { cache.clear(); }
+
+  // ---- A4-1d : objectif de la station, calculé sur le périmètre comparable ----
   var SEUIL_COUVERTURE = 0.5;
   var num = function (v) { if (v === null || v === undefined || v === '') return null; var n = Number(v); return isFinite(n) ? n : null; };
 
@@ -48,6 +127,7 @@
     return res;
   }
 
-  var API = { normaliserRayon: normaliserRayon, objectifStation: objectifStation, SEUIL_COUVERTURE: SEUIL_COUVERTURE };
-  if (typeof module !== 'undefined' && module.exports) module.exports = API; else global.NexusCibleMarge = API;
+  const API = { normaliserRayon: normaliserRayon, objectifStation: objectifStation, SEUIL_COUVERTURE: SEUIL_COUVERTURE, ETATS, ROLES_LECTEURS, MENTION_SANS_CIBLE, creer, charger, oublier, libelle, mentionSansCible, cibleNotante, palier };
+  if (typeof module !== 'undefined' && module.exports) module.exports = API;
+  global.NexusCibleMarge = API;
 })(typeof window !== 'undefined' ? window : globalThis);

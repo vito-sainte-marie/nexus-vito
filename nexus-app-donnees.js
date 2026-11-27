@@ -42,14 +42,16 @@
   // mêmes lignes que Brief/Cockpit (NexusConseillerDonnees.chargerProduitsBrut),
   // puis facteurs (NexusIndice) et candidats (NexusConseiller) propres à
   // l'accueil.
-  async function calculerCandidatsHome(client, siteId) {
+  async function calculerCandidatsHome(client, siteId, role) {
     const rowsBrut = await global.NexusConseillerDonnees.chargerProduitsBrut(client, siteId);
-    if (!rowsBrut.length) { console.error('Chargement products (accueil) : aucune ligne exploitable.'); return { candidats: [], facteurs: null }; }
+    if (!rowsBrut.length) { console.error('Chargement products (accueil) : aucune ligne exploitable.'); return { candidats: [], facteurs: null, cibleRes: null }; }
     // Fuseau du site : fraîcheur de la paire mesurée dans le jour de la station.
     const fuseau = (typeof nexusFuseauSite === 'function') ? await nexusFuseauSite(siteId) : null;
-    const facteurs = global.NexusIndice.calculerFacteurs(rowsBrut, { fuseau });
+    // A4-1 : cible de marge du site (une seule lecture partagée), jamais écrite en dur.
+    const cibleRes = await global.NexusCibleMarge.charger(client, siteId, role).then(c => c.resoudre(null, null));
+    const facteurs = global.NexusIndice.calculerFacteurs(rowsBrut, { fuseau, cibleMarge: global.NexusCibleMarge.cibleNotante(cibleRes) });
     const candidats = global.NexusConseiller.calculerCandidatsProduits(rowsBrut, { fuseau }).map(global.NexusConseiller.normaliserProduit);
-    return { candidats, facteurs };
+    return { candidats, facteurs, cibleRes };
   }
 
   // Décisions déjà validées du site — juste les candidate_id (pas la ligne

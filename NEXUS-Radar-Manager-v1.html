@@ -85,7 +85,10 @@
 <script src="nexus-desktop.js?v=20261124-1500"></script>
 <script src="nexus-forfait.js?v=20260904-0104"></script>
 <script src="nexus-periodes.js?v=20260904-0104"></script>
-<script src="nexus-indice.js?v=20260904-0104"></script>
+<script src="nexus-politique-tarifaire.js?v=20261127-1400"></script>
+<script src="nexus-politique-tarifaire-registres.js?v=20261127-1400"></script>
+<script src="nexus-cible-marge.js?v=20261128-0900"></script>
+<script src="nexus-indice.js?v=20261128-0900"></script>
 </head>
 <body>
 <div class="phone">
@@ -165,8 +168,11 @@
       .order('article', { ascending: true }));
     if (error || !rowsBrut || !rowsBrut.length) { console.error('Chargement products (Indice Marge):', error); return null; }
     const fuseau = (typeof nexusFuseauSite === 'function') ? await nexusFuseauSite(SITE_ACTUEL) : null;
-    return NexusIndice.calculerFacteurs(rowsBrut, { fuseau });
+    // A4-1 : cible de marge lue dans tarif_seuils (valide seulement), une lecture partagée.
+    cibleResRadar = await NexusCibleMarge.charger(nexusClient, SITE_ACTUEL, session.role).then(c => c.resoudre(null, null));
+    return NexusIndice.calculerFacteurs(rowsBrut, { fuseau, cibleMarge: NexusCibleMarge.cibleNotante(cibleResRadar) });
   }
+  let cibleResRadar = null;
 
   // Equipe (Presence, via retards) : lit desormais Supabase (pointages),
   // partagee par tous les appareils — remplace localStorage('nexus_retards')

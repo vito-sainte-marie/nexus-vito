@@ -206,10 +206,8 @@
   // ET un relevé de stock de moins de DUREE_RELEVE_STOCK_JOURS jours avec une quantité > 0.
   const DUREE_DORMANT_PERIODES = 2;
   const DUREE_RELEVE_STOCK_JOURS = 30;
-  // Seuils d'affichage de la fiche produit (lot 2, cohérence) : valeurs INCHANGÉES, auparavant
-  // écrites en dur dans NEXUS-Produits-v1.html. Chaque palier est une borne basse (>=) pour la
-  // rentabilité, une borne haute (<) pour la rotation et le stock en jours.
-  const SEUILS_RENTABILITE = { tresRentable: 0.40, correcte: 0.25, faible: 0.10 };
+  // Seuils d'affichage de la fiche produit (lot 2, cohérence) : bornes hautes (<) pour la rotation
+  // et le stock en jours. La rentabilité n'a plus de seuil ici (A4-1, voir niveauRentabilite).
   const SEUILS_ROTATION_JOURS = { tresRapide: 7, rapide: 15, normale: 30, lente: 60 };
   const SEUILS_STOCK_JOURS = { risqueRupture: 3, tendu: 7, maitrise: 45 };
 
@@ -236,10 +234,11 @@
     joursReference: 30,               // impact ramené à 30 jours
   };
 
-  function niveauRentabilite(margePct) {
-    const s = SEUILS_RENTABILITE;
-    return margePct >= s.tresRentable ? 'tres_rentable' : margePct >= s.correcte ? 'correcte'
-      : margePct >= s.faible ? 'faible' : 'insuffisante';
+  // A4-1 : plus de palier chiffré dans le code. « correcte » = cible, « faible » = minimum, lus dans
+  // tarif_seuils (NexusCibleMarge). Au-dessus de la cible : « a_l_objectif ». Sans seuil : null (aucun jugement).
+  function niveauRentabilite(margePct, cibleRes) {
+    const p = global.NexusCibleMarge ? global.NexusCibleMarge.palier(cibleRes, margePct) : null;
+    return p === 'a_l_objectif' ? 'a_l_objectif' : p;
   }
   function niveauRotation(joursDeStock) {
     if (joursDeStock === null || joursDeStock === undefined) return null;
@@ -1215,7 +1214,7 @@
   global.NexusConseiller = {
     typeActionPourCategorie, LANGAGE_ACTION, calculerCandidatsProduits,
     SEUIL_CONTRIBUTION_FORTE, SEUIL_HAUSSE, SEUIL_BAISSE, SEUIL_VOLUME_CA_EUR,
-    DUREE_DORMANT_PERIODES, DUREE_RELEVE_STOCK_JOURS, SEUILS_PRODUITS_MESURE, SEUILS_SCANNER_TARIFAIRE, SEUILS_RENTABILITE, SEUILS_ROTATION_JOURS, SEUILS_STOCK_JOURS,
+    DUREE_DORMANT_PERIODES, DUREE_RELEVE_STOCK_JOURS, SEUILS_PRODUITS_MESURE, SEUILS_SCANNER_TARIFAIRE, SEUILS_ROTATION_JOURS, SEUILS_STOCK_JOURS,
     niveauRentabilite, niveauRotation, niveauStock, statutProduit,
     analyserProduitsStrategiques, analyserEvolutionsPaire,
     normaliserProduit, normaliserMarge, normaliserScannerTarifaire, normaliserTempo, normaliserAdvisor,

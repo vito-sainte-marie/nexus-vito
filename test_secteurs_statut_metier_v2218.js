@@ -128,20 +128,27 @@ function entree(id, label) { return { id, label, icone: '•', cible: null }; }
 // ------------------------------------------------------------
 {
   const avecEcarts = S.construireSecteurs([entree('marge', 'Marge')], {
-    facteurs: { margeReelle: 0.27 }, margePlusResultat: { nbEcarts: 4 },
+    facteurs: { margeReelle: 0.27, cibleMarge: 0.28 }, margePlusResultat: { nbEcarts: 4 },
     phrasesRisqueMarge: [], signauxRisqueMargeQualifies: [],
   })[0];
   assert.ok(avecEcarts.detail.includes('écart'), 'Le detail doit mentionner les écarts, pas seulement le taux');
-  assert.ok(avecEcarts.detail.includes('référence'), 'Le detail doit citer la référence (25 %), jamais un taux nu');
+  assert.ok(avecEcarts.detail.includes('référence'), 'Le detail doit citer la référence (objectif lu), jamais un taux nu');
   assert.strictEqual(avecEcarts.statut, 'À corriger');
   ok('Marge : écarts confirmés -> detail cite les écarts ET la référence, statut "À corriger"');
 
   const sansEcarts = S.construireSecteurs([entree('marge', 'Marge')], {
-    facteurs: { margeReelle: 0.08 }, margePlusResultat: { nbEcarts: 0 },
+    facteurs: { margeReelle: 0.08, cibleMarge: 0.28 }, margePlusResultat: { nbEcarts: 0 },
     phrasesRisqueMarge: [], signauxRisqueMargeQualifies: [],
   })[0];
-  assert.ok(sansEcarts.detail.includes('référence'), 'Même sans écart, le taux doit toujours être présenté avec sa référence');
+  assert.ok(sansEcarts.detail.includes('objectif 28 %'), 'Même sans écart, le taux doit toujours être présenté avec sa référence');
   assert.strictEqual(sansEcarts.statut, 'À relancer', `Marge basse sans écart confirmé -> "À relancer" (repli de performance, pas un problème de maîtrise), obtenu "${sansEcarts.statut}"`);
+  const sansCible = S.construireSecteurs([entree('marge', 'Marge')], {
+    facteurs: { margeReelle: 0.22, cibleMarge: null }, margePlusResultat: { nbEcarts: 0 },
+    phrasesRisqueMarge: [], signauxRisqueMargeQualifies: [],
+  })[0];
+  assert.strictEqual(sansCible.statut, 'Non évaluée');
+  assert.ok(sansCible.detail.includes('objectif non défini'));
+  ok('Marge : sans cible valide -> « Non évaluée », objectif non défini (A4-1)');
   ok('Marge : taux bas SANS écart confirmé -> "À relancer", jamais "À corriger" (même règle que FDJ)');
 }
 

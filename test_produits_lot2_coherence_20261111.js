@@ -100,10 +100,13 @@ t('seuils de statut inchangés (+20 %, −30 %, 15 %, 50 €)', () => {
   assert.strictEqual(C.SEUIL_CONTRIBUTION_FORTE, 0.15); assert.strictEqual(C.SEUIL_VOLUME_CA_EUR, 50);
   assert.strictEqual(require(__dirname + '/nexus-periodes.js') && global.NexusPeriodes.FRAICHEUR_MAX_JOURS, 21);
 });
-t('rentabilité 40/25/10 % inchangée', () => {
-  assert.deepStrictEqual(C.SEUILS_RENTABILITE, { tresRentable: 0.40, correcte: 0.25, faible: 0.10 });
-  const v = [[0.40, 'tres_rentable'], [0.3999, 'correcte'], [0.25, 'correcte'], [0.2499, 'faible'], [0.10, 'faible'], [0.0999, 'insuffisante']];
-  v.forEach(([m, e]) => assert.strictEqual(C.niveauRentabilite(m), e, 'marge ' + m));
+t('A4-1 : plus de palier de rentabilité en dur, palier lu dans tarif_seuils', () => {
+  assert.strictEqual(C.SEUILS_RENTABILITE, undefined);
+  require(__dirname + '/nexus-cible-marge.js');
+  const res = { etat: 'defini', cible: 0.28, minimum: 0.12, statut: 'valide', notante: true };
+  const v = [[0.50, 'a_l_objectif'], [0.28, 'a_l_objectif'], [0.2799, 'correcte'], [0.12, 'correcte'], [0.1199, 'faible']];
+  v.forEach(([m, e]) => assert.strictEqual(C.niveauRentabilite(m, res), e, 'marge ' + m));
+  assert.strictEqual(C.niveauRentabilite(0.2, null), null);
 });
 t('rotation 7/15/30/60 j inchangée', () => {
   assert.deepStrictEqual(C.SEUILS_ROTATION_JOURS, { tresRapide: 7, rapide: 15, normale: 30, lente: 60 });
@@ -126,7 +129,7 @@ t('la page ne recopie plus aucun seuil de rentabilité, rotation ni stock', () =
   assert.ok(!/>=\s*0\.40|>=\s*0\.25|>=\s*0\.10/.test(page), 'paliers de rentabilité en dur');
 });
 t('la source unique n’est pas dupliquée dans le moteur (un seul bloc de seuils)', () => {
-  assert.strictEqual((conseillerSrc.match(/const SEUILS_RENTABILITE\s*=/g) || []).length, 1);
+  assert.ok(!/SEUILS_RENTABILITE/.test(conseillerSrc));
   assert.strictEqual((conseillerSrc.match(/const DUREE_DORMANT_PERIODES\s*=/g) || []).length, 1);
   assert.strictEqual((conseillerSrc.match(/const DUREE_RELEVE_STOCK_JOURS\s*=/g) || []).length, 1);
 });

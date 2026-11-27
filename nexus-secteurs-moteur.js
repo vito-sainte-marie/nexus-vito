@@ -351,7 +351,15 @@
     const margeReelle = facteurs ? facteurs.margeReelle : null;
     const nbEcarts = margePlusResultat ? margePlusResultat.nbEcarts : null;
     if (margeReelle == null) return secteurVide(entree, "Marge non calculable sur les données actuelles.");
-    const contribPerformance = B.clampContribution((margeReelle - 0.25) * 100);
+    // A4-1 : la cible vient de tarif_seuils (facteurs.cibleMarge, null si absente ou non valide).
+    // Sans cible valide, la Marge ne note pas : contribution de performance neutre, dite dans le détail.
+    const cibleMarge = facteurs && facteurs.cibleMarge != null ? facteurs.cibleMarge : null;
+    if (cibleMarge == null) {
+      // Marge non évaluée : sortie de la moyenne (confiance INSUFFISANT), jamais comptée comme zéro.
+      return { ...secteurVide(entree, `Marge réelle ${(margeReelle * 100).toFixed(1)} % — non évaluée, objectif non défini.`), statut: 'Non évaluée' };
+    }
+    const refTexte = `objectif ${Math.round(cibleMarge * 1000) / 10} %`;
+    const contribPerformance = B.clampContribution((margeReelle - cibleMarge) * 100);
     const contribMaitrise = B.contributionMaitriseEcarts(nbEcarts);
     const valeur = B.assemblerScoreSecteur(contribPerformance, contribMaitrise);
     // Statut MÉTIER (22/08/2026) : plus de B.statutDepuisScore(valeur).
@@ -364,14 +372,14 @@
     // marge absolu sans référentiel") : AVANT ce correctif, `detail`
     // commençait par le pourcentage brut ("Marge réelle : X %"), sans jamais
     // dire par rapport à QUOI — un dirigeant ne peut pas juger "8 %" sans
-    // connaître la référence. Désormais la référence (25 %, la même valeur
+    // connaître la référence. Désormais la référence (la cible lue dans tarif_seuils, la même valeur
     // que celle déjà utilisée par le calcul de `contribPerformance` ci-dessus
     // — Article 11, jamais un 2e chiffre) est TOUJOURS explicite, et les
     // écarts confirmés (Maîtrise) passent en tête de phrase dès qu'il y en a
     // — c'est la cause, le taux de marge n'est plus que le contexte.
     const detail = nbEcarts
-      ? `${nbEcarts} écart${nbEcarts > 1 ? 's' : ''} de marge confirmé${nbEcarts > 1 ? 's' : ''} vs référence (marge réelle ${(margeReelle * 100).toFixed(1)} % pour une référence de 25 %).`
-      : `Marge réelle ${(margeReelle * 100).toFixed(1)} % vs référence de 25 % — aucun écart confirmé sur la période.`;
+      ? `${nbEcarts} écart${nbEcarts > 1 ? 's' : ''} de marge confirmé${nbEcarts > 1 ? 's' : ''} vs référence (marge réelle ${(margeReelle * 100).toFixed(1)} % pour un ${refTexte}).`
+      : `Marge réelle ${(margeReelle * 100).toFixed(1)} % vs ${refTexte} — aucun écart confirmé sur la période.`;
     const changement = nbEcarts > 0 ? `${nbEcarts} écart${nbEcarts > 1 ? 's' : ''} de marge actif${nbEcarts > 1 ? 's' : ''} détecté${nbEcarts > 1 ? 's' : ''} sur la période.` : null;
     const risques = phrasesRisqueMarge || [];
     const syntheseFrein = construireSyntheseFreinMarge(nbEcarts, signauxRisqueMargeQualifies);

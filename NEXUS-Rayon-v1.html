@@ -85,6 +85,7 @@
   .verdict-surveiller{background:var(--orange-dim); color:var(--orange);}
   .verdict-degradation{background:var(--red-dim); color:var(--red);}
   .verdict-trafic{background:var(--cyan-dim); color:var(--cyan);}
+  .verdict-neutre{background:var(--surface2,rgba(128,128,128,0.15)); color:var(--text-dim);}
 
   .subtabs{display:flex; gap:8px; padding:14px 20px 0;}
   .subtab{flex:1; text-align:center; padding:10px; border-radius:8px; font-family:var(--mono); font-size:10.5px; letter-spacing:0.03em; text-transform:uppercase; color:var(--text-dim); background:var(--panel-raised); border:1px solid var(--hairline); cursor:pointer;}
@@ -139,6 +140,9 @@
 <script src="nexus-auth.js?v=20261127-1000"></script>
 <script src="nexus-vocabulaire.js?v=20260904-0104"></script>
 <script src="nexus-periodes.js?v=20260904-0104"></script>
+<script src="nexus-politique-tarifaire.js?v=20261127-1400"></script>
+<script src="nexus-politique-tarifaire-registres.js?v=20261127-1400"></script>
+<script src="nexus-cible-marge.js?v=20261128-0900"></script>
 <script src="nexus-rayon-moteur.js?v=20260904-0104"></script>
 </head>
 <body>
@@ -227,6 +231,10 @@ nexusRequireAuth().then(async employee => {
   }
 
   SITE_ACTUEL = employee.site_id;
+  // A4-1 : une seule lecture de la cible de marge (tarif_seuils), partagée par tous les rayons.
+  const CIBLES = await NexusCibleMarge.charger(nexusClient, SITE_ACTUEL, employee.role_reel || employee.role);
+  const EMPLOYE_ROLE = employee.role_reel || employee.role;
+  const pctCible = c => Math.round(c * 1000) / 10 + ' %';
   const { rayons: RAYONS, magasin: MAGASIN } = await construireRayons();
   const raySelect = document.getElementById('raySelect');
   const titleEl = document.getElementById('rayonTitle');
@@ -277,8 +285,9 @@ nexusRequireAuth().then(async employee => {
   // correction du 23/07/2026, ce chiffre n'existe QUE lorsqu'une paire de
   // périodes comparables (durée proche, non chevauchantes) a été trouvée
   // par construireRayons() : plus besoin de re-vérifier la fiabilité ici.
-  function calculerVerdict(r) {
-    if (r.trafic && r.marge_pct_moyenne < 0.10) {
+  // A4-1 : cible et minimum viennent de tarif_seuils (cible valide seulement) ; sans cible, aucun jugement.
+  function calculerVerdict(r, cible, minimum) {
+    if (r.trafic && minimum != null && r.marge_pct_moyenne < minimum) {
       return { classe: 'verdict-trafic', label: '🔵 Rayon de trafic à faible marge' };
     }
     if (r.evolution_ca !== null && r.evolution_ca <= -0.30) {
@@ -287,7 +296,10 @@ nexusRequireAuth().then(async employee => {
     if (r.evolution_ca !== null && r.evolution_ca <= -0.15) {
       return { classe: 'verdict-surveiller', label: '🟠 Rayon à surveiller' };
     }
-    if (r.marge_pct_moyenne < 0.25) {
+    if (cible == null) {
+      return { classe: 'verdict-neutre', label: '⚪ Marge non jugée, objectif non défini' };
+    }
+    if (r.marge_pct_moyenne < cible) {
       return { classe: 'verdict-strategique', label: '🟡 Rayon stratégique à faible marge' };
     }
     return { classe: 'verdict-valeur', label: '🟢 Rayon créateur de valeur' };
@@ -301,7 +313,7 @@ nexusRequireAuth().then(async employee => {
   // principal, jamais un texte inventé pour l'occasion. Demande de Frédéric
   // le 23/07/2026.
   function construirePourquoi(r, ctx) {
-    const { rangCA, rangMarge, nbRayons, pctCaMagasin, pctMargeMagasin, libelleMarge } = ctx;
+    const { rangCA, rangMarge, nbRayons, pctCaMagasin, pctMargeMagasin, libelleMarge, cible } = ctx;
     const qa = [];
 
     qa.push({
@@ -318,19 +330,24 @@ nexusRequireAuth().then(async employee => {
         q: `Pourquoi ne pas simplement l'arrêter si la marge est aussi faible ?`,
         a: `Il pèse ${fmtPct(pctCaMagasin)} du chiffre d'affaires du magasin et fait venir des clients au comptoir. L'arrêter réduirait le passage en boutique, pas seulement le CA de ce rayon — un effet que NEXUS ne mesure pas encore (pas de donnée de vente croisée entre rayons).`,
       });
-    } else if (r.marge_pct_moyenne < 0.25) {
+    } else if (cible != null && r.marge_pct_moyenne < cible) {
       qa.push({
         q: `Ce rayon est ${rangCA}${rangCA===1?'er':'ᵉ'} en CA, pourquoi n'est-il pas traité comme votre meilleur rayon ?`,
         a: `Le chiffre d'affaires mesure ce qui passe en caisse, pas ce qui reste à la station. Sur ${nbRayons} rayons, celui-ci est ${rangCA}${rangCA===1?'er':'ᵉ'} en CA mais ${rangMarge}${rangMarge===1?'er':'ᵉ'} en ${libelleMarge} — ${fmtPct(pctCaMagasin)} du CA du magasin ne représentent que ${fmtPct(pctMargeMagasin)} de sa ${libelleMarge} totale.`,
       });
       qa.push({
         q: `Qu'est-ce qui ferait changer cette recommandation ?`,
-        a: `Une ${libelleMarge} moyenne au-dessus de 25 % (contre ${fmtPct(r.marge_pct_moyenne)} actuellement), ou une tendance positive confirmée sur une période comparable — les deux seraient nécessaires pour repasser en rayon "créateur de valeur".`,
+        a: `Une ${libelleMarge} moyenne au-dessus de ${pctCible(cible)} (contre ${fmtPct(r.marge_pct_moyenne)} actuellement), ou une tendance positive confirmée sur une période comparable — les deux seraient nécessaires pour repasser en rayon "créateur de valeur".`,
+      });
+    } else if (cible == null) {
+      qa.push({
+        q: `Pourquoi aucun jugement sur la ${libelleMarge} de ce rayon ?`,
+        a: `Aucun objectif de marge valide n'est saisi pour ce rayon dans la politique tarifaire : NEXUS ne juge pas ce taux (${fmtPct(r.marge_pct_moyenne)}) sur un chiffre supposé.`,
       });
     } else {
       qa.push({
         q: `Pourquoi recommander de pousser ce rayon plutôt qu'un autre ?`,
-        a: `Sa ${libelleMarge} moyenne (${fmtPct(r.marge_pct_moyenne)}) dépasse le seuil de 25 % considéré comme correct, et il est ${rangMarge}${rangMarge===1?'er':'ᵉ'} en ${libelleMarge} générée sur ${nbRayons} rayons — c'est un des rayons qui rapportent réellement à la station, pas seulement en volume.`,
+        a: `Sa ${libelleMarge} moyenne (${fmtPct(r.marge_pct_moyenne)}) atteint l'objectif de ${pctCible(cible)}, et il est ${rangMarge}${rangMarge===1?'er':'ᵉ'} en ${libelleMarge} générée sur ${nbRayons} rayons — c'est un des rayons qui rapportent réellement à la station, pas seulement en volume.`,
       });
     }
 
@@ -367,7 +384,11 @@ nexusRequireAuth().then(async employee => {
     const libelleMarge = r.trafic ? 'commission' : 'marge';
     const libelleMargeMaj = r.trafic ? 'Commission' : 'Marge';
 
-    const verdict = calculerVerdict(r);
+    // A4-1 : cible/minimum du rayon lus dans tarif_seuils ; seule une cible valide juge.
+    const resCible = CIBLES.resoudre(key);
+    const cibleRayon = NexusCibleMarge.cibleNotante(resCible);
+    const minimumRayon = resCible.notante ? resCible.minimum : null;
+    const verdict = calculerVerdict(r, cibleRayon, minimumRayon);
     verdictRow.innerHTML = `<span class="verdict-pill ${verdict.classe}">${verdict.label}</span>`;
 
     // ------------------------------------------------------------
@@ -379,21 +400,26 @@ nexusRequireAuth().then(async employee => {
     // l'autre et d'une page à l'autre de NEXUS.
     // ------------------------------------------------------------
     const margePct = r.marge_pct_moyenne;
-    const niveauRenta = margePct >= 0.40 ? 'tres_rentable' : margePct >= 0.25 ? 'correcte' : margePct >= 0.10 ? 'faible' : 'insuffisante';
+    const palierRenta = NexusCibleMarge.palier(resCible.notante ? resCible : null, margePct);
+    const niveauRenta = palierRenta === 'a_l_objectif' ? 'rentable' : palierRenta; // null : aucun jugement
+    const sousCible = cibleRayon != null && margePct < cibleRayon;
+    const mentionCible = NexusCibleMarge.mentionSansCible(resCible, EMPLOYE_ROLE);
 
     // --- Constat : le fait chiffré, sans jugement.
     let constat;
     if (r.trafic) {
       constat = `${r.nom} représente ${fmtPct(pctCaMagasin)} du CA du magasin (${fmtEur(r.ca_total)}), mais seulement ${fmtPct(pctMargeMagasin)} de la ${libelleMarge} totale (taux de ${fmtPct(margePct)}).`;
     } else {
-      constat = `${r.nom} est votre ${rangCA}${rangCA===1?'er':'ᵉ'} rayon en chiffre d'affaires (${fmtEur(r.ca_total)}), ${libelleMarge} ${margePct < 0.25 ? 'très faible' : margePct >= 0.40 ? 'solide' : 'correcte'} : ${fmtPct(margePct)}.`;
+      constat = `${r.nom} est votre ${rangCA}${rangCA===1?'er':'ᵉ'} rayon en chiffre d'affaires (${fmtEur(r.ca_total)}), ${libelleMarge} ${cibleRayon == null ? '' : (sousCible ? 'très faible' : 'correcte')} : ${fmtPct(margePct)}${cibleRayon == null ? '' : ' (objectif ' + pctCible(cibleRayon) + ')'}.`;
     }
 
     // --- Explication : pourquoi ce chiffre n'est pas anormal / ce qu'il révèle.
     let explication;
     if (r.trafic) {
-      explication = `${NexusVocab.rentabilite(niveauRenta, true, key) || ''} C'est normal pour un ${NexusVocab.SIGNATURE.PRODUIT_DE_TRAFIC.toLowerCase()} : sa fonction est d'attirer et retenir la clientèle, pas de générer de la ${libelleMarge} — ne le jugez pas avec les mêmes critères qu'un rayon de produits physiques.`;
-    } else if (margePct < 0.25) {
+      explication = `${(niveauRenta && NexusVocab.rentabilite(niveauRenta, true, key)) || ''} C'est normal pour un ${NexusVocab.SIGNATURE.PRODUIT_DE_TRAFIC.toLowerCase()} : sa fonction est d'attirer et retenir la clientèle, pas de générer de la ${libelleMarge} — ne le jugez pas avec les mêmes critères qu'un rayon de produits physiques.`;
+    } else if (cibleRayon == null) {
+      explication = `Aucun objectif de marge valide n'est saisi pour ce rayon : NEXUS ne le juge pas.${mentionCible ? ' (' + mentionCible + ')' : ''}`;
+    } else if (sousCible) {
       explication = `${NexusVocab.rentabilite(niveauRenta, false, key) || ''} Ne poussez pas ses ventes sans regarder d'abord les familles de produits et les conditions fournisseur.`;
     } else {
       explication = `${NexusVocab.creationValeur('contribue_fort', key) || 'Contribue fortement.'} C'est un vrai levier, pas seulement du volume — sécurisons ce qui marche déjà.`;
@@ -447,7 +473,7 @@ nexusRequireAuth().then(async employee => {
     // ------------------------------------------------------------
     const pourquoiToggle = document.getElementById('pourquoiToggle');
     const pourquoiBlock = document.getElementById('pourquoiBlock');
-    const listeQA = construirePourquoi(r, { rangCA, rangMarge, nbRayons, pctCaMagasin, pctMargeMagasin, libelleMarge });
+    const listeQA = construirePourquoi(r, { rangCA, rangMarge, nbRayons, pctCaMagasin, pctMargeMagasin, libelleMarge, cible: cibleRayon });
     pourquoiBlock.classList.remove('open');
     pourquoiBlock.innerHTML = listeQA.map((item, i) => `
       <div class="pourquoi-item" id="pourquoiItem-${i}">

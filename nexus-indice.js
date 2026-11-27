@@ -19,16 +19,18 @@
 
 (function (global) {
   // Pondération PROVISOIRE, non recalibrée (voir NEXUS-Cockpit-v2.html) :
-  //   - margeReelle : point neutre à 25 % de marge (score 50), ±1 point
+  //   - margeReelle : point neutre = cible de marge saisie (score 50), ±1 point
   //     d'Indice par ±1 point de marge autour de ce point neutre.
   //   - evolutionReelle : pondérée à moitié (±50 points pour ±100 %
   //     d'évolution du CA), car elle n'est pas toujours disponible
   //     (absence de paire de périodes comparables).
   // Retourne null si la marge réelle n'est pas mesurable — jamais un
   // chiffre inventé (Article 5 de la Constitution NEXUS).
+  // A4-1 : cible de marge lue dans tarif_seuils (facteurs.cibleMarge, valide seulement).
+  // Sans cible : null (mention « calculé sans la Marge, objectif non défini » côté écran).
   function calculerIndiceNexus(facteurs) {
-    if (!facteurs || facteurs.margeReelle == null) return null;
-    let score = 50 + (facteurs.margeReelle - 0.25) * 100;
+    if (!facteurs || facteurs.margeReelle == null || facteurs.cibleMarge == null) return null;
+    let score = 50 + (facteurs.margeReelle - facteurs.cibleMarge) * 100;
     if (facteurs.evolutionReelle != null) score += facteurs.evolutionReelle * 50;
     return Math.max(0, Math.min(100, Math.round(score)));
   }
@@ -53,6 +55,8 @@
 
     return {
       margeReelle: caTotalAffichage > 0 ? margeTotaleAffichage / caTotalAffichage : null,
+      // A4-1 : cible lue dans tarif_seuils (NexusCibleMarge), null = pas de cible valide.
+      cibleMarge: options && options.cibleMarge != null ? options.cibleMarge : null,
       // Ventes moyennes par jour (T1 et T2 n'ont pas la même durée) et paire
       // fraîche (21 j) — règle commune NexusPeriodes (lot 1 Produits, PR B).
       // Pas de plancher de volume ici : c'est un indice magasin.
