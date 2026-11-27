@@ -1826,6 +1826,16 @@
       },
       "trace": "#383, compte rendu de Guardian 7180877873 ; GO du gerant 25/11/2026 22:29 « Base en Production » ; fusion de #386 : GO distinct « Mise en ligne refonte »."
     },
+    "20261127120000": {
+      "etat": "atomique_ou_procedure_speciale",
+      "justification": "Ajout d'une fonction de lecture products_ventes_stock(p_site) : security invoker, search_path vide, aucune ecriture, anon et public revoques, execute pour authenticated seulement. Le code de la PR #412 appelle cette fonction et retombe automatiquement sur la lecture brute de products si elle est absente ou en erreur (journal sous ?diag=perf) : la migration peut donc passer avant ou apres le code. Non appliquee, ni sur Test ni en Production. Aucune mesure du catalogue n'a ete prise : Claude n'applique rien et n'a pas de lecture Production sans GO ; la mesure est a faire par Guardian apres application sur Test.",
+      "objets_crees": ["products_ventes_stock"],
+      "objets_constates": [],
+      "procedure": "docs/nexus/brief-perf-7-inventaire-products.md",
+      "valide_par": null,
+      "valide_le": null,
+      "trace": "#409, consigne 7217202873 (option c, products cote base, sur Test d'abord) ; Production : GO distinct du gerant."
+    },
     "20261126090000": {
       "etat": "atomique_ou_procedure_speciale",
       "justification": "Lot Connexion securite, lot 1 : migration d'un schema prive nexus_connexion (aucun acces anon ni authenticated, RLS sur toutes les tables). Appliquee sur Test seulement ; aucune application en Production sans GO distinct du gerant. Ordre reel Production et retours arriere dans la procedure. Objets : schema nexus_connexion, pgcrypto, sauvegarde_auth, secret, alias_de, nexus_connexion_email_de, nexus_identifiant_de_connexion.",
