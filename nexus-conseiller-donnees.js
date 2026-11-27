@@ -123,6 +123,36 @@
     return { raw: data || [], normalises: (data || []).map(global.NexusConseiller.normaliserCaissePersonne) };
   }
 
+  // Brief perf-8 : les relevés de stock viennent de stock_releves_derniers (les
+  // deux plus récents par article et catégorie, côté base). Si la fonction est
+  // absente ou refusée, REPLI automatique sur la lecture brute d'avant. Le
+  // filtre estProduitNonRayon reste dans le navigateur. Journal : ?diag=perf.
+  function diagReleves(message) {
+    try {
+      if (typeof location === 'undefined' || !/[?&]diag=perf\b/.test(location.search)) return;
+      console.info('[diag perf] relevés stock : ' + message);
+    } catch (e) { /* diagnostic seul */ }
+  }
+  async function lireRelevesStockBruts(client, siteId) {
+    return fetchAllRowsParallele(() => client
+      .from('stock_releves').select('article, categorie, quantite_theorique, releve_le').eq('site', siteId)
+      .order('releve_le', { ascending: true }).order('article', { ascending: true }));
+  }
+  async function chargerRelevesStock(client, siteId) {
+    try {
+      if (typeof client.rpc === 'function') {
+        const r = await fetchAllRowsParallele(() => client.rpc('stock_releves_derniers', { p_site: siteId }));
+        if (!r.error && r.data) { diagReleves('fonction base, ' + r.data.length + ' ligne(s)'); return r; }
+        diagReleves('repli lecture brute (' + ((r.error && (r.error.code || r.error.message)) || 'sans données') + ')');
+      } else {
+        diagReleves('repli lecture brute (rpc indisponible)');
+      }
+    } catch (e) {
+      diagReleves('repli lecture brute (' + ((e && e.message) || e) + ')');
+    }
+    return lireRelevesStockBruts(client, siteId);
+  }
+
   // Candidats Stock — même calcul par référence que
   // NEXUS-Scanner-Stock-v1.html (nexus-stock.js, source unique), agrégé
   // par rayon puis normalisé par NexusConseiller.normaliserStockRayon.
@@ -130,9 +160,7 @@
     // B0-perf-3 : les trois lectures sont indépendantes, on les lance ensemble
     // et chacune pagine en parallèle (même ordre, mêmes lignes qu'en séquentiel).
     const [{ data: releves, error: err1 }, { data: ventes }, { data: controles }] = await Promise.all([
-      fetchAllRowsParallele(() => client
-        .from('stock_releves').select('article, categorie, quantite_theorique, releve_le').eq('site', siteId)
-        .order('releve_le', { ascending: true }).order('article', { ascending: true })),
+      chargerRelevesStock(client, siteId),
       fetchAllRowsParallele(() => client.from('products')
         .select('article, quantite, prix_vente, periode_debut, periode_fin').eq('site', siteId).order('article', { ascending: true })),
       fetchAllRowsParallele(() => client.from('controles_stock')
