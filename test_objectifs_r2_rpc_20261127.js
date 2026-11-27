@@ -78,3 +78,20 @@ t('retour arrière : les cinq fonctions, R1 intact', () => {
   NOMS.forEach(n => assert.ok(new RegExp(`drop function if exists public\\.${n}\\(`).test(R), n));
   assert.ok(!/drop table/.test(R));
 });
+
+t('la clôture de période se lit au jour de la station, jamais à current_date (23 h Martinique)', () => {
+  const c = corps('proposer_objectif');
+  assert.ok(!/current_date/.test(c), 'current_date interdit');
+  assert.ok(/from public\.sites where site_id = p_site/.test(c));
+  assert.ok(/now\(\) at time zone v_tz\)::date/.test(c));
+  assert.ok(/objectif_fuseau_station_absent/.test(c));
+  // simulation : 23 h le 30/11 en Martinique (UTC-4) = 03 h le 01/12 UTC
+  const instant = new Date('2026-12-01T03:00:00Z');
+  const jourStation = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Martinique' }).format(instant);
+  const jourUtc = instant.toISOString().slice(0, 10);
+  assert.strictEqual(jourStation, '2026-11-30');
+  assert.notStrictEqual(jourStation, jourUtc);
+  // le mois de novembre (fin = 01/12) n'est pas clos à 23 h station : 01/12 <= 30/11 est faux
+  assert.ok(!('2026-12-01' <= jourStation));
+  assert.ok('2026-12-01' <= jourUtc);
+});

@@ -29,6 +29,8 @@ declare
   v_off   public.station_objectifs%rowtype;
   v_vers  integer;
   v_id    uuid;
+  v_tz    text;
+  v_jour  date;
 begin
   if auth.uid() is null then
     raise exception 'objectif_non_authentifie' using errcode = '42501';
@@ -69,7 +71,14 @@ begin
      or (p_horizon = 'annee' and extract(month from p_debut) <> 1) then
     raise exception 'objectif_periode_non_alignee' using errcode = '22023';
   end if;
-  if v_fin <= current_date and p_origine <> 'reprise_historique' then
+  -- Jour de la station (sites.timezone, lot A3) : la date du serveur est UTC et
+  -- décalerait la clôture de période de plusieurs heures. Fuseau absent : refus.
+  select timezone into v_tz from public.sites where site_id = p_site;
+  if v_tz is null then
+    raise exception 'objectif_fuseau_station_absent' using errcode = '22023';
+  end if;
+  v_jour := (now() at time zone v_tz)::date;
+  if v_fin <= v_jour and p_origine <> 'reprise_historique' then
     raise exception 'objectif_periode_close' using errcode = '22023';
   end if;
 
