@@ -16,6 +16,13 @@
 <title>Brief NEXUS — Vue dirigeant</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="nexus-etats-conseiller.js"></script>
+<script>
+  // B0-perf-2 : mode diagnostic (?diag=perf), sans effet sur l'affichage normal.
+  // Agrandit le tampon Resource Timing (250 entrées par défaut, saturé par le
+  // Brief) pour que la chaîne réseau complète reste mesurable.
+  try { if (/[?&]diag=perf\b/.test(location.search) && performance.setResourceTimingBufferSize) performance.setResourceTimingBufferSize(2000); } catch (e) { /* diagnostic seulement */ }
+</script>
 <script src="nexus-theme.js"></script>
 <style>
   :root{
@@ -336,16 +343,15 @@
 <script src="nexus-carburant-commande-donnees.js?v=20261124-1200"></script>
 <script src="nexus-secteurs-catalogue.js?v=20260904-0104"></script>
 <script src="nexus-moteurs-registre.js?v=20260904-0104"></script>
-<script src="nexus-secteurs-moteur.js?v=20261127-1000"></script>
+<script src="nexus-secteurs-moteur.js?v=20261127-1200"></script>
 <script src="nexus-verify-moteur.js?v=20261126-0100"></script>
 <script src="nexus-risques-moteur.js?v=20260904-0104"></script>
 <script src="nexus-conseiller.js?v=20261127-1000"></script>
-<script src="nexus-etats-conseiller.js"></script>
 <script src="nexus-badge-etat.js"></script>
 <script src="nexus-conseiller-donnees.js?v=20261127-1100"></script>
 <script src="nexus-risques-donnees.js?v=20261127-1000"></script>
 <script src="nexus-site-requis.js?v=20261127-0100"></script>
-<script src="nexus-brief-donnees.js?v=20261127-1100"></script>
+<script src="nexus-brief-donnees.js?v=20261127-1200"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 <script src="nexus-pdf-moteur.js?v=20261125-2300"></script>
 <script>
@@ -519,7 +525,41 @@
   // Assemblage complet du Brief — une seule fonction qui appelle tous les
   // moteurs, puis construit l'objet ExecutiveBrief rendu par renderBrief().
   // ------------------------------------------------------------
+  // B0-perf-2 : chronométrage par chargeur, actif seulement avec ?diag=perf.
+  // Enveloppe chaque fonction des modules de données (console.time + ordre de
+  // fin) sans toucher à leurs valeurs, puis nomme le chargeur le plus lent.
+  const DIAG_PERF = /[?&]diag=perf\b/.test(location.search);
+  const DIAG_FINS = [];
+  function diagInstrumenter(nom, mod) {
+    if (!DIAG_PERF || !mod || mod.__diagPerf) return;
+    Object.keys(mod).forEach(k => {
+      const f = mod[k];
+      if (typeof f !== 'function') return;
+      mod[k] = function () {
+        const id = nom + '.' + k;
+        const t0 = performance.now();
+        const fin = () => { DIAG_FINS.push({ id, debut: Math.round(t0), fin: Math.round(performance.now()), ms: Math.round(performance.now() - t0) }); };
+        const r = f.apply(this, arguments);
+        if (r && typeof r.then === 'function') r.then(fin, fin);
+        return r;
+      };
+    });
+    mod.__diagPerf = true;
+  }
+  function diagRapport(etape) {
+    if (!DIAG_PERF) return;
+    const tri = DIAG_FINS.slice().sort((x, y) => y.fin - x.fin);
+    console.log('[diag perf] ' + etape + ' : dernier chargeur terminé = ' + (tri[0] ? tri[0].id + ' (fin ' + tri[0].fin + ' ms)' : 'aucun'));
+    console.table(DIAG_FINS.slice().sort((x, y) => x.fin - y.fin));
+    const res = performance.getEntriesByType('resource').length;
+    console.log('[diag perf] entrées Resource Timing : ' + res);
+  }
   async function construireBrief() {
+    if (DIAG_PERF) {
+      DIAG_FINS.length = 0;
+      performance.mark('brief:debut');
+      ['NexusBriefDonnees', 'NexusRisquesDonnees', 'NexusCarburantDonnees', 'NexusConseillerDonnees'].forEach(n => diagInstrumenter(n, window[n]));
+    }
     // Garde ajoutée le 11/08/2026 (audit "philosophie/architecture", section
     // 6.4, demande explicite de Frédéric "durcissement du repli métier
     // silencieux") : avant tout chargement de données, on vérifie que ce
@@ -623,6 +663,7 @@
     ]);
     // Fin de l'interrogation réelle des moteurs — bascule sur la séquence de
     // pacing pour la phase de synthèse elle-même (voir demarrerAnimationChargement).
+    if (DIAG_PERF) { performance.mark('brief:dernieres-reponses'); diagRapport('Promise.all des chargeurs'); }
     if (ANIMATION_CHARGEMENT) ANIMATION_CHARGEMENT.demarrerSequenceFinale();
     const candidatsFdj = candidatsFdjObj.candidats;
     const fdjResume = candidatsFdjObj.resume;
@@ -1770,6 +1811,15 @@
     const [, brief] = await Promise.all([chargerSondeAlertes(), construireBrief()]);
     BRIEF = brief;
     renderBrief();
+    if (DIAG_PERF) {
+      performance.mark('brief:premier-rendu');
+      // Calcul JS entre la dernière réponse réseau et le premier rendu (hors attente réseau).
+      try {
+        const m = performance.measure('brief:calcul-js', 'brief:dernieres-reponses', 'brief:premier-rendu');
+        console.log('[diag perf] calcul JS entre les dernières réponses et le premier rendu : ' + Math.round(m.duration) + ' ms');
+      } catch (e) { /* repère absent : page sans chargement complet */ }
+      diagRapport('premier rendu');
+    }
     // La carte connexion se met à jour après coup, sauf si un rafraîchissement
     // plus récent a pris la main entre-temps (il fera son propre rendu).
     alerte.then(() => { if (rang === _rafraichirRang && BRIEF) renderBrief(); });

@@ -162,13 +162,24 @@
     const finPrecedente = nexusDecalerJour(aujourdhui, -7);
     const debutPrecedente = nexusDecalerJour(aujourdhui, -13);
 
-    const [controle, actuel, reference] = await Promise.all([
-      global.NexusCarburantDonnees.chargerControleJour(client, siteId, aujourdhui),
-      global.NexusCarburantDonnees.chargerVentesPeriode(client, siteId, debutActuelle, finActuelle),
-      global.NexusCarburantDonnees.chargerVentesPeriode(client, siteId, debutPrecedente, finPrecedente),
-    ]);
     const M = global.NexusCarburantMoteur;
     const D = global.NexusCarburantDonnees;
+    // B0-perf-2 : la chaîne cuves -> prix -> livraisons par carburant partait
+    // APRÈS la première salve (3 allers-retours en série de plus). Elle part
+    // maintenant en même temps ; mêmes requêtes, mêmes filtres, même limite (60),
+    // mêmes calculs, appliqués dans le même ordre de carburants.
+    const pCuves = D.chargerCuvesConfig(client, siteId);
+    const pPrix = D.chargerPrixCarburantsCourant(client, siteId);
+    const pLivraisons = pCuves.then(cfg => {
+      const cles = M.CLES_CARBURANT.filter(cle => !cfg.config || !cfg.config[cle] || cfg.config[cle].actif);
+      return Promise.all(cles.map(cle => D.chargerLivraisonsCouteesCarburant(client, siteId, cle, 60).then(l => [cle, l])));
+    });
+    const [controle, actuel, reference, cuvesConfig, prixVente, livraisonsParCle] = await Promise.all([
+      D.chargerControleJour(client, siteId, aujourdhui),
+      D.chargerVentesPeriode(client, siteId, debutActuelle, finActuelle),
+      D.chargerVentesPeriode(client, siteId, debutPrecedente, finPrecedente),
+      pCuves, pPrix, pLivraisons,
+    ]);
     const mix = M.calculerMixCarburant(actuel.ventes);
     const mixRef = M.calculerMixCarburant(reference.ventes);
     const evolution = mix && mixRef ? M.calculerEvolutionVolume(mix.total, mixRef.total) : null;
@@ -183,16 +194,12 @@
     // — jamais une deuxième mesure de stock. Réduit à UN SEUL carburant à
     // mettre en avant via resumerEffetPrixCarburants (une carte Brief n'a
     // la place que pour une ligne).
-    const cuvesConfig = await D.chargerCuvesConfig(client, siteId);
-    const clesActives = M.CLES_CARBURANT.filter(cle => !cuvesConfig.config || !cuvesConfig.config[cle] || cuvesConfig.config[cle].actif);
-    const prixVente = await D.chargerPrixCarburantsCourant(client, siteId);
     const effetsParCarburant = {};
-    await Promise.all(clesActives.map(async cle => {
-      const livraisons = await D.chargerLivraisonsCouteesCarburant(client, siteId, cle, 60);
+    livraisonsParCle.forEach(([cle, livraisons]) => {
       const cmpData = M.calculerCmpProgressif(livraisons);
       const stockActuelL = (controle && controle.parCarburant && controle.parCarburant[cle]) ? controle.parCarburant[cle].stockPhysiqueAffiche : null;
       effetsParCarburant[cle] = M.calculerEffetPrixStockHerite({ cmp: cmpData.cmp, coutRemplacementActuel: cmpData.coutRemplacementActuel, prixVenteDuMois: prixVente ? prixVente[cle] : null, stockPhysiqueActuelL: stockActuelL });
-    }));
+    });
     const effetPrixResume = M.resumerEffetPrixCarburants(effetsParCarburant);
 
     return { controle, volumeSemaine: mix ? mix.total : null, evolution, produitMoteur, effetPrixResume };
