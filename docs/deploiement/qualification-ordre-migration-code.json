@@ -2216,6 +2216,17 @@
       "valide_le": null,
       "mesure": null,
       "trace": "#409, consigne de Guardian 7222628858 (GO R1 et R2 sur Test) ; retour arriere : supabase/retours/20261127170000_retour_objectifs_r2_rpc.sql."
+    },
+    "20261127170500": {
+      "etat": "atomique_ou_procedure_speciale",
+      "justification": "Objectifs de station, garde G-4 : redefinition de accorder_droit_objectif (create or replace) pour refuser un compte dont le role n'est ni manager, ni gerant, ni createur (objectif_role_non_eligible). Depend de 20261127170000. Aucune ligne touchee. Non appliquee. Aucune mesure : a faire par Guardian apres application sur Test.",
+      "objets_crees": [],
+      "objets_constates": [],
+      "procedure": "supabase/retours/20261127170500_retour_objectifs_garde_role_eligible.sql",
+      "valide_par": null,
+      "valide_le": null,
+      "mesure": null,
+      "trace": "#409, consigne de Guardian 7223775602 (garde de role) ; retour arriere : supabase/retours/20261127170500_retour_objectifs_garde_role_eligible.sql."
     }
   },
   "prochaine_action": "Axe SS4 migration -> code : LEVE pour 20260919103000 (13/13 objets constates sur le catalogue le 01/10/2026) et pour 20261001160000 (ACL constatee fermee le 03/10/2026). Ces qualifications restent acquises tant que leur fichier de migration ne change pas : la garde compare mesure.blob_migration a l'empreinte du candidat, et une migration retouchee fait tomber sa qualification. Il n'y a plus d'echeance horaire (l'ancienne fraicheur de 72 h aurait fait retomber l'axe le 04/10/2026 sans que rien ne bouge). CE QUE LA GARDE NE VOIT PAS : une base modifiee sans que le depot bouge - c'est exactement ce que la relecture du 03/10 a trouve pour 20261001160000. Toute procedure d'application relit donc la base avant d'ecrire. CE QUE CELA N'AUTORISE PAS : aucune fusion ni aucun deploiement ; chacun reste un GO distinct de Frederic. RESTE A FAIRE, separement : (1) les 11 migrations du rail toujours non qualifiees ; (2) le cablage de garde-ordre-migration-code.js dans deploiement-production.yml. Lecture du verdict et table de decision : SS18.4 ; recit de la mesure : SS20. MISE A JOUR DU 04/10/2026 : les 13 migrations du candidat rebuild/fdj-62-20260922 sont qualifiees (12 atomiques en serie avant le code, 20261004120000 code d abord) ; ordre et gestes dans docs/deploiement/procedure-fdj-62-production.md."
