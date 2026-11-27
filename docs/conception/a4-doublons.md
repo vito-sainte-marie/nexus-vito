@@ -57,6 +57,22 @@ Lecteurs : `nexus-risques-donnees.js:72` (pose `urgence`), `NEXUS-Brief-v1.html:
 `nexus-risques-donnees.js` autrement que le Brief (Cockpit) — non relus ici. **Valeur affichée modifiée : aucune.**
 **Taille** : petite (un test).
 
+### A4-2 : constats à l'écriture (27/11)
+1. **`nexus-risques-donnees.js` (corrigé).** Il portait sa propre table `{risque_avere:3, exposition:2, signal_faible:1,
+   anomalie:0}`, identique terme à terme à `RANG_NIVEAU`. Il lit maintenant `NexusRisques.RANG_NIVEAU`. L'ordre affiché ne
+   change pas : épreuve de parité sur les quatre niveaux, ex aequo compris (jeu fictif de 8 lignes).
+2. **`nexus-rapport-direction-moteur.js:564` (laissé hors du lot, signalé).** `RANG_NIVEAU_LOCAL = {risque_avere:2,
+   exposition:1, signal_faible:0}` : `anomalie` y vaut 0, comme `signal_faible` (égalité). Avec `RANG_NIVEAU` elles
+   seraient séparées (0 contre 1). Les signaux de marge peuvent être `anomalie` (`qualifierMargeCategorie` sans
+   historique, l.348) : remplacer la table changerait l'ordre de lignes du rapport. Exemple fictif : deux lignes de marge,
+   « Boissons » `signal_faible` et « Confiserie » `anomalie` ; aujourd'hui elles sortent dans l'ordre d'arrivée, après le
+   remplacement « Boissons » passerait toujours devant. Décision du gérant, pas de A4. La garde garde ce fichier en
+   exception nommée.
+3. **Tri par urgence d'abord : hors lot** (décision du gérant, il change l'ordre affiché).
+4. Garde : `RANG_NIVEAU` n'est lu que par le moteur, le Brief, le rapport direction et `nexus-risques-donnees.js` ;
+   `nexus-secteurs-moteur.js` reste une exception nommée (choix de catégories, pas un ordre d'urgence). La garde échoue
+   si une exception disparaît ou si une nouvelle table locale apparaît.
+
 ## 3. Priorité : trois ordres dans le Conseiller
 
 Dans `nexus-conseiller.js` :
@@ -113,7 +129,7 @@ elle est **par station**, pas commune. Lecteurs avec `.eq('site', …)` : `nexus
 `test_isolation_station_lecteurs_20261127.js:88`). `NEXUS-FDJ-v1.html:675` et `NEXUS-FDJ-Manager-v1.html:827, 861` lisent
 par `.in('reference_id', ids)` où `ids` vient d'un parent déjà filtré par site : risque faible, mais pas de ceinture.
 **Verdict : réglé.** Proposition facultative (hors A4, sans effet affiché) : ajouter `.eq('site', …)` dans ces deux pages.
-À mesurer par Guardian : la RLS de la table filtre-t-elle sur `site` (lecture Production, hors de mon périmètre).
+**Politique RLS de lecture (migrations du dépôt)** : `select_fdj_stock_reference_lignes ... for select using (site = (select current_employee_site_id()))`, posée avec `enable row level security` dans `20260810011853_fdj_stock_references_inventaire_zero.sql` (l.43, 50-51) ; l'insertion est filtrée de même. Aucune migration postérieure ne la modifie (seule `20261005090000` lit la table). **Oui, la lecture est filtrée sur `site` côté base** : le `.eq('site', …)` manquant dans les deux pages FDJ n'ouvre donc pas de lecture croisée, c'est une ceinture. Ce que dit le dépôt, pas l'état de Production (non mesuré).
 
 ## Hors A4
 Score global et produits d'appel (lots B), potentiel compté deux fois (lot C1). Aucun libellé ni écran touché ici.
