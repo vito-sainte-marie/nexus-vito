@@ -69,6 +69,10 @@ async function comparer(nom, tables, candidats, attendu) {
     assert.strictEqual(r.index, refIndex, `${nom} : index`);
     assert.deepStrictEqual(JSON.parse(JSON.stringify(r.controle)), JSON.parse(JSON.stringify(refControle)), `${nom} : contrôle`);
     if (attendu !== undefined) assert.strictEqual(r.index, attendu, `${nom} : index attendu`);
+    // Jour courant replié dans la même plage : controles[0] = lecture directe de aujourd'hui, même incomplet.
+    const direct = await D.chargerControleJour(clientReseau(tables).client, SITE, candidats[0]);
+    assert.ok(Array.isArray(r.controles) && r.controles.length >= 1, `${nom} : controles fournis`);
+    assert.deepStrictEqual(JSON.parse(JSON.stringify(r.controles[0])), JSON.parse(JSON.stringify(direct)), `${nom} : jour courant identique à la lecture directe`);
     console.log(`ok  ${nom} : index ${r.index}, requêtes ${ancien.compte()} → ${plage.compte()}`);
     return { index: r.index, serie: ancien.compte(), plage: plage.compte() };
   } finally { libererHorloge(); }

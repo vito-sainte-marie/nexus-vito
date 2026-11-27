@@ -147,7 +147,7 @@
   // calcul (contrôle du jour + volumes 7 jours + effet prix) ancré sur une
   // date PASSÉE, avec les mêmes fonctions que pour "aujourd'hui" — jamais
   // une deuxième formule pour "le score d'un jour" (Article 11).
-  async function chargerCarburantsBrief(client, siteId, dateReference) {
+  async function chargerCarburantsBrief(client, siteId, dateReference, controlePrealable) {
     // Jour de la station (sites.timezone) : fuseau indéterminé => null, jamais la date UTC.
     const aujourdhui = dateReference || await nexusAujourdhuiStation(siteId);
     if (!aujourdhui) { console.error('Carburants (Brief) : fuseau de la station indéterminé, jour impossible à dater.'); return null; }
@@ -174,8 +174,14 @@
       const cles = M.CLES_CARBURANT.filter(cle => !cfg.config || !cfg.config[cle] || cfg.config[cle].actif);
       return Promise.all(cles.map(cle => D.chargerLivraisonsCouteesCarburant(client, siteId, cle, 60).then(l => [cle, l])));
     });
+    // B0-perf-5 : `controlePrealable` (promesse optionnelle) apporte le contrôle de
+    // ce même jour lu en une seule plage avec le repli ; vide ou en échec, on relit
+    // comme avant avec chargerControleJour (aucune autre formule).
+    const pControle = controlePrealable
+      ? Promise.resolve(controlePrealable).then(c => c || D.chargerControleJour(client, siteId, aujourdhui), () => D.chargerControleJour(client, siteId, aujourdhui))
+      : D.chargerControleJour(client, siteId, aujourdhui);
     const [controle, actuel, reference, cuvesConfig, prixVente, livraisonsParCle] = await Promise.all([
-      D.chargerControleJour(client, siteId, aujourdhui),
+      pControle,
       D.chargerVentesPeriode(client, siteId, debutActuelle, finActuelle),
       D.chargerVentesPeriode(client, siteId, debutPrecedente, finPrecedente),
       pCuves, pPrix, pLivraisons,
@@ -315,7 +321,39 @@
     const D = global.NexusCarburantDonnees;
     const aujourdhui = dateAujourdhui || await nexusAujourdhuiStation(siteId);
     if (!aujourdhui) { console.error('Carburants (Brief) : fuseau de la station indéterminé, jour impossible à dater.'); return null; }
-    const carburantsJour = await chargerCarburantsBrief(client, siteId, aujourdhui);
+    // B0-perf-5 : le jour courant et le repli partagent UNE lecture par plage.
+    // Les candidats de repli ne dépendent que de l'historique (sans réseau ensuite) :
+    // on lance l'historique tout de suite, on calcule les candidats, puis une seule
+    // lecture couvre [aujourd'hui, ...candidats]. Toute anomalie => ancien chemin.
+    const pHistorique = D.chargerHistoriqueReleves(client, siteId, 14, global.NexusPeriodes.ajouterJours(aujourdhui, -1));
+    pHistorique.catch(() => {});
+    const completDe = c => M.jourCarburantEstComplet(c.parCarburant, c.aucunReleve);
+    const calculerCandidats = historiqueJours => {
+      const candidats = [];
+      const datesExclues = [];
+      const parCandidat = [];
+      let fb = M.trouverJourFiableAnterieur(historiqueJours, aujourdhui);
+      let fr = M.fraicheurCarburant({ completAujourdhui: false, fallback: fb });
+      while (fr.mode === 'fallback') {
+        candidats.push(fr.dateReference);
+        parCandidat.push(fr);
+        datesExclues.push(fr.dateReference);
+        fb = M.trouverJourFiableAnterieur(historiqueJours, aujourdhui, datesExclues);
+        fr = M.fraicheurCarburant({ completAujourdhui: false, fallback: fb });
+      }
+      return { candidats, parCandidat, fraicheurFinale: fr };
+    };
+    const pPlage = (typeof D.chargerControlesRepliEnPlage === 'function')
+      ? pHistorique.then(async h => {
+        const cand = calculerCandidats(h);
+        const r = await D.chargerControlesRepliEnPlage(client, siteId, [aujourdhui, ...cand.candidats], aujourdhui, completDe);
+        return { cand, r };
+      }).then(x => x, e => {
+        console.warn('Brief carburants : lecture unique jour+repli abandonnée, ancien chemin.', e && e.code ? e.code : e);
+        return null;
+      })
+      : Promise.resolve(null);
+    const carburantsJour = await chargerCarburantsBrief(client, siteId, aujourdhui, pPlage.then(x => (x && x.r.controles[0]) || null));
     // Écriture best-effort du journal de traçabilité (v2.222) — jamais
     // attendue (pas de `await`), jamais bloquante : un incident d'écriture
     // ne doit avoir aucun effet sur ce que Brief affiche.
@@ -353,7 +391,7 @@
     // Historique jusqu'à J-1 inclus, jamais J lui-même (dateFin = veille) —
     // même chargeur que la section Historique de Carburants Pilotage
     // (Article 11), aucune nouvelle requête dédiée à ce fallback.
-    const historique = await D.chargerHistoriqueReleves(client, siteId, 14, global.NexusPeriodes.ajouterJours(aujourdhui, -1));
+    const historique = await pHistorique;
 
     // Vérifie que le jour de repli proposé est RÉELLEMENT complet une fois
     // rejoué avec la précision horodatée (chargerControleJour), pas
@@ -388,18 +426,8 @@
         console.info('[diag perf] repli carburant : ' + chemin + ', ' + candidats + ' candidat(s)');
       } catch (e) { /* diagnostic seul */ }
     };
-    const candidatsRepli = [];
-    const datesExclues = [];
-    let fallback = M.trouverJourFiableAnterieur(historique, aujourdhui);
-    let fraicheur = M.fraicheurCarburant({ completAujourdhui: false, fallback });
-    const fraicheurParCandidat = [];
-    while (fraicheur.mode === 'fallback') {
-      candidatsRepli.push(fraicheur.dateReference);
-      fraicheurParCandidat.push(fraicheur);
-      datesExclues.push(fraicheur.dateReference);
-      fallback = M.trouverJourFiableAnterieur(historique, aujourdhui, datesExclues);
-      fraicheur = M.fraicheurCarburant({ completAujourdhui: false, fallback });
-    }
+    const { candidats: candidatsRepli, parCandidat: fraicheurParCandidat, fraicheurFinale } = calculerCandidats(historique);
+    let fraicheur = fraicheurFinale;
     // `fraicheur` est ici l'état final si aucun candidat n'est complet
     // ('perime' ou 'jour_incomplet_sans_repli'), comme dans l'ancienne boucle.
     let carburantsFallback = null;
@@ -409,7 +437,18 @@
     // ordre, règle « premier complet dans l'ordre ». Toute anomalie (lecture hors
     // plage, erreur) retombe sur l'ancienne boucle série ci-dessous.
     let planB = false;
-    if (candidatsRepli.length > 0 && typeof D.chargerControlesRepliEnPlage === 'function') {
+    const plageUnique = await pPlage;
+    if (plageUnique) {
+      // Lecture unique : le jour courant est l'indice 0 (incomplet ici, sinon on
+      // serait déjà sorti) ; les candidats suivent aux indices 1..n.
+      const r = plageUnique.r;
+      if (r.index >= 1) {
+        carburantsFallback = { controle: r.controle };
+        fraicheur = fraicheurParCandidat[r.index - 1];
+      }
+      planB = true;
+      diagRepli('plage unique (jour + repli)', candidatsRepli.length);
+    } else if (candidatsRepli.length > 0 && typeof D.chargerControlesRepliEnPlage === 'function') {
       try {
         const r = await D.chargerControlesRepliEnPlage(client, siteId, candidatsRepli, aujourdhui, c => M.jourCarburantEstComplet(c.parCarburant, c.aucunReleve));
         if (r.index >= 0) {

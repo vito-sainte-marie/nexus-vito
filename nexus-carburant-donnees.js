@@ -1570,10 +1570,10 @@
     const basAudits = jourMoinsLocal(minDate < basMoyennes ? minDate : basMoyennes, 1);
 
     // Vague 2 : une lecture par table sur toute la plage.
-    let qReleves = client.from('carburant_releves').select('*').eq('site', siteId).lte('date', dMax);
+    let qReleves = client.from('carburant_releves').select('*').eq('site', siteId).lte('date', haut);
     if (releveAvant) qReleves = qReleves.gte('date', releveAvant.date);
     let qRefs = client.from('carburant_stock_references').select('*').eq('site', siteId)
-      .eq('type', 'initialisation').lte('date', dMax);
+      .eq('type', 'initialisation').lte('date', haut);
     if (pz0) qRefs = qRefs.gte('date', pz0.date);
     let qVisitesHeure = visitesBase('id,date_visite,heure_debut,heure_fin,statut').not('heure_fin', 'is', null);
     if (seuilVisites) qVisitesHeure = qVisitesHeure.gte('heure_fin', seuilVisites);
@@ -1628,13 +1628,17 @@
     // On relit la fonction à chaque appel pour que les enveloppes P0 posées
     // sur `chargerControleJour` s'appliquent comme dans la boucle réseau.
     const debutRejeu = diag ? now() : 0;
+    // `controles` : tous les jours évalués, dans l'ordre (le premier est le
+    // premier candidat, par exemple le jour courant pour le Brief).
+    const controles = [];
     try {
       for (let i = 0; i < candidats.length; i++) {
         const controle = await global.NexusCarburantDonnees.chargerControleJour(memoire.client, siteId, candidats[i]);
         if (memoire.etat.horsPlage) throw memoire.etat.horsPlage;
-        if (estComplet(controle)) return { index: i, controle };
+        controles.push(controle);
+        if (estComplet(controle)) return { index: i, controle, controles };
       }
-      return { index: -1, controle: null };
+      return { index: -1, controle: null, controles };
     } finally {
       if (diag) {
         diag.vagues.push({ vague: 'rejeu', debut: debutRejeu, fin: now(), ms: now() - debutRejeu });
