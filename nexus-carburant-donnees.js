@@ -1518,8 +1518,22 @@
   // sur des données lues UNE fois pour toute la plage, et retourne le PREMIER
   // candidat dont le contrôle satisfait `estComplet` : { index, controle },
   // ou { index: -1, controle: null } si aucun. Lève en cas de doute.
+  // B0-perf-4a : diagnostic du repli (actif seulement avec ?diag=perf, sans effet
+  // sur les valeurs). Vagues : début/fin en ms depuis le début de la page,
+  // nombre de candidats, lignes par table. Exposé dans window.__diagRepli.
+  function diagRepliActif() {
+    try { return typeof location !== 'undefined' && /[?&]diag=perf\b/.test(location.search) && typeof performance !== 'undefined'; } catch (e) { return false; }
+  }
   async function chargerControlesRepliEnPlage(client, siteId, candidats, aujourdhui, estComplet) {
     if (!candidats || !candidats.length) return { index: -1, controle: null };
+    const diag = diagRepliActif() ? { candidats: candidats.length, vagues: [], lignes: {} } : null;
+    const now = () => Math.round(performance.now());
+    const vague = async (nom, promesse) => {
+      if (!diag) return promesse;
+      const debut = now();
+      try { return await promesse; } finally { diag.vagues.push({ vague: nom, debut, fin: now(), ms: now() - debut }); }
+    };
+    if (diag) global.__diagRepli = diag;
     const dMin = candidats.reduce((a, b) => (b < a ? b : a));
     const dMax = candidats.reduce((a, b) => (b > a ? b : a));
     const haut = aujourdhui && aujourdhui > dMax ? aujourdhui : dMax;
@@ -1535,14 +1549,14 @@
     const tlow = `${jourMoinsLocal(dMin, 1)}T00:00:00.000Z`;
 
     // Vague 1 : ce qui précède la plage (ancres) et les bornes dérivées.
-    const [r0, pz0, conf, vieilles] = await Promise.all([
+    const [r0, pz0, conf, vieilles] = await vague('vague 1', Promise.all([
       client.from('carburant_releves').select('*').eq('site', siteId).lt('date', dMin)
         .order('date', { ascending: false }).limit(1).maybeSingle(),
       chargerDernierPointZero(client, siteId, dMin),
       client.from('station_config').select('horaires,fuseau_horaire').eq('site', siteId).maybeSingle(),
       visitesBase('id,heure_fin').not('heure_fin', 'is', null).lt('heure_fin', tlow)
         .order('heure_fin', { ascending: false }).limit(20),
-    ]);
+    ]));
     if (r0.error) throw new Error(`PLAGE_ERREUR releve: ${r0.error.message}`);
     if (conf.error) throw new Error(`PLAGE_ERREUR station_config: ${conf.error.message}`);
     const anciennes = lire(vieilles, 'visites anciennes');
@@ -1563,13 +1577,13 @@
     if (pz0) qRefs = qRefs.gte('date', pz0.date);
     let qVisitesHeure = visitesBase('id,date_visite,heure_debut,heure_fin,statut').not('heure_fin', 'is', null);
     if (seuilVisites) qVisitesHeure = qVisitesHeure.gte('heure_fin', seuilVisites);
-    const [rReleves, rRefs, rAudits, rVisHeure, rVisDate] = await Promise.all([
+    const [rReleves, rRefs, rAudits, rVisHeure, rVisDate] = await vague('vague 2', Promise.all([
       qReleves, qRefs,
       client.from('audits_caisse').select('date,quart,litrage_gazole,litrage_sp95,litrage_gnr')
         .eq('site', siteId).gte('date', basAudits).lte('date', haut),
       qVisitesHeure,
       visitesBase('id,date_visite,heure_debut,heure_fin,statut').gte('date_visite', minDate),
-    ]);
+    ]));
     const releves = lire(rReleves, 'releves');
     const refs = lire(rRefs, 'references');
     const audits = lire(rAudits, 'audits_caisse');
@@ -1580,12 +1594,20 @@
 
     // Vague 3 : détails rattachés par clé (références, visites).
     const vide = { data: [], error: null };
-    const [rLignesRef, rMesures, rLignesVisite] = await Promise.all([
+    const [rLignesRef, rMesures, rLignesVisite] = await vague('vague 3', Promise.all([
       refs.length ? client.from('carburant_stock_reference_lignes').select('reference_id,carburant,stock_reel').in('reference_id', refs.map(r => r.id)) : vide,
       idsVisites.length ? client.from('carburant_reception_mesures').select('*').in('visite_id', idsVisites) : vide,
       idsVisites.length ? client.from('carburant_reception_visite_lignes').select('*').in('visite_id', idsVisites) : vide,
-    ]);
+    ]));
 
+    if (diag) {
+      diag.lignes = {
+        carburant_releves: releves.length, carburant_stock_references: refs.length,
+        audits_caisse: audits.length, visites: visites.length,
+        lignes_reference: (rLignesRef.data || []).length, mesures_reception: (rMesures.data || []).length,
+        lignes_visite: (rLignesVisite.data || []).length,
+      };
+    }
     const memoire = creerClientMemoire({
       carburant_releves: releves,
       carburant_stock_references: refs,
@@ -1605,12 +1627,20 @@
     // Rejeu dans l'ordre : le premier complet gagne, comme l'ancienne boucle.
     // On relit la fonction à chaque appel pour que les enveloppes P0 posées
     // sur `chargerControleJour` s'appliquent comme dans la boucle réseau.
-    for (let i = 0; i < candidats.length; i++) {
-      const controle = await global.NexusCarburantDonnees.chargerControleJour(memoire.client, siteId, candidats[i]);
-      if (memoire.etat.horsPlage) throw memoire.etat.horsPlage;
-      if (estComplet(controle)) return { index: i, controle };
+    const debutRejeu = diag ? now() : 0;
+    try {
+      for (let i = 0; i < candidats.length; i++) {
+        const controle = await global.NexusCarburantDonnees.chargerControleJour(memoire.client, siteId, candidats[i]);
+        if (memoire.etat.horsPlage) throw memoire.etat.horsPlage;
+        if (estComplet(controle)) return { index: i, controle };
+      }
+      return { index: -1, controle: null };
+    } finally {
+      if (diag) {
+        diag.vagues.push({ vague: 'rejeu', debut: debutRejeu, fin: now(), ms: now() - debutRejeu });
+        try { console.info('[diag perf] repli en plage : ' + diag.candidats + ' candidat(s), lignes ' + JSON.stringify(diag.lignes) + ', ' + diag.vagues.map(v => v.vague + ' ' + v.debut + '→' + v.fin + ' ms (' + v.ms + ')').join(', ')); } catch (e) { /* diagnostic seul */ }
+      }
     }
-    return { index: -1, controle: null };
   }
 
   global.NexusCarburantDonnees = {
