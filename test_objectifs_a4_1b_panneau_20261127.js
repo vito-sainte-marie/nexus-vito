@@ -30,15 +30,34 @@ t('défini valide : pas de bouton valider', () => {
   assert.ok(h.includes('data-objectif-statut="valide"'));
   assert.ok(!h.includes('data-objectif-valider'));
 });
-t('indicatif : valider visible pour un autre compte', () => {
-  const h = E.htmlObjectifMarge(l, base({ objectifs: [ligne({ statut_cible: 'indicatif' })] }));
-  assert.ok(h.includes('data-objectif-statut="indicatif"'));
-  assert.ok(h.includes('data-objectif-valider="id1"'));
+const prop = (o) => Object.assign({ id: 'p1', niveau: 'famille', cible_niveau: 'EAUX', cible: 0.35, propose_par: 'u1', statut: 'ouverte' }, o || {});
+t('M8 : proposition ouverte, la cible validée reste affichée en place', () => {
+  const h = E.htmlObjectifMarge(l, base({ objectifs: [ligne()], propositions: [prop()] }));
+  assert.ok(h.includes('data-objectif-statut="valide"'));
+  assert.ok(h.includes('data-objectif-proposition="p1"'));
+  assert.ok(h.includes('en attente de validation'));
+  assert.ok(!h.includes('data-objectif-proposer'), 'une seule proposition ouverte par clé');
 });
-t('indicatif : valider caché pour le proposant', () => {
-  const h = E.htmlObjectifMarge(l, base({ userId: 'u1', objectifs: [ligne({ statut_cible: 'indicatif' })] }));
+t('proposition : valider visible pour un autre compte, avec l id de la proposition', () => {
+  const h = E.htmlObjectifMarge(l, base({ objectifs: [ligne()], propositions: [prop()] }));
+  assert.ok(h.includes('data-objectif-valider="p1"'));
+  assert.ok(h.includes('data-objectif-retirer="p1"'));
+  assert.ok(h.includes('data-objectif-motif'));
+});
+t('proposition : valider caché pour l auteur, retrait possible', () => {
+  const h = E.htmlObjectifMarge(l, base({ userId: 'u1', objectifs: [ligne()], propositions: [prop()] }));
   assert.ok(!h.includes('data-objectif-valider'));
   assert.ok(h.includes('Un autre compte doit valider'));
+  assert.ok(h.includes('data-objectif-retirer="p1"'));
+});
+t('proposition d un autre niveau ignorée', () => {
+  const h = E.htmlObjectifMarge(l, base({ objectifs: [ligne()], propositions: [prop({ cible_niveau: 'AUTRE' })] }));
+  assert.ok(!h.includes('data-objectif-proposition'));
+});
+t('sans droit : proposition visible, aucune action', () => {
+  const h = E.htmlObjectifMarge(l, base({ droitsObjectif: { proposer: false, valider: false }, objectifs: [ligne()], propositions: [prop()] }));
+  assert.ok(h.includes('data-objectif-proposition="p1"'));
+  assert.ok(!h.includes('data-objectif-valider') && !h.includes('data-objectif-retirer'));
 });
 t('sans droit : lecture seule', () => {
   const h = E.htmlObjectifMarge(l, base({ droitsObjectif: { proposer: false, valider: false } }));
@@ -47,6 +66,8 @@ t('sans droit : lecture seule', () => {
 t('messages d erreur', () => {
   assert.ok(E.messageErreurObjectif({ message: 'objectif_auto_validation_interdite' }).length > 10);
   assert.ok(E.messageErreurObjectif('marge_cible_invalide').length > 10);
+  assert.ok(E.messageErreurObjectif('marge_cible_proposition_existante').includes('proposition'));
+  assert.ok(E.messageErreurObjectif('marge_cible_motif_requis').includes('motif'));
   assert.ok(E.messageErreurObjectif({ message: 'inconnu' }).length > 10);
 });
 console.log(n + ' épreuves');

@@ -823,8 +823,9 @@
       li('Alertes', alertes.length ? alertes.join(', ') : 'aucune') + '</details>';
   }
   // ---------- Objectifs de marge (A4-1b) : proposer puis valider une cible, par deux comptes distincts ----------
-  // La cible vit dans tarif_seuils (registre versionné). L'écriture passe par deux fonctions SQL (proposer_marge_cible,
-  // valider_marge_cible) ; l'écran ne touche jamais la table. L'objectif n'entre dans aucune note d'équipe.
+  // La cible validée vit dans tarif_seuils (registre versionné) et reste active tant qu'une proposition de révision attend.
+  // La proposition vit dans marge_cible_propositions. L'écriture passe par trois fonctions SQL (proposer_marge_cible,
+  // valider_marge_cible, retirer_marge_cible) ; l'écran ne les écrit jamais en direct. L'objectif n'entre dans aucune note d'équipe.
   var LIB_STATUT_OBJECTIF = { valide: 'défini, valide', indicatif: 'indicatif, à valider', a_l_etude: 'à l\'étude', hypothese: 'hypothèse' };
   function niveauObjectif(l) {
     if (l && l.famille) return { niveau: 'famille', cible_niveau: l.famille, libelle: 'famille ' + l.famille };
@@ -835,7 +836,9 @@
     var n = niveauObjectif(l); if (!n) return { niveau: null, ligne: null };
     var rows = (etat && etat.objectifs) || [];
     var ligne = rows.filter(function (r) { return r.niveau === n.niveau && r.cible_niveau === n.cible_niveau && r.cible !== null && r.cible !== undefined; })[0] || null;
-    return { niveau: n, ligne: ligne };
+    var props = (etat && etat.propositions) || [];
+    var proposition = props.filter(function (r) { return r.statut === 'ouverte' && r.niveau === n.niveau && r.cible_niveau === n.cible_niveau; })[0] || null;
+    return { niveau: n, ligne: ligne, proposition: proposition };
   }
   function pourcentVersFraction(texte) {
     var t = String(texte === undefined || texte === null ? '' : texte).replace(',', '.').replace('%', '').trim();
@@ -849,8 +852,11 @@
     objectif_auto_validation_interdite: 'Vous ne pouvez pas valider votre propre proposition : un autre compte doit le faire.',
     marge_cible_sous_minimum: 'La cible proposée est inférieure au minimum déjà défini pour ce niveau.',
     marge_cible_invalide: 'La cible doit être un pourcentage compris entre 0 et moins de 100.',
-    marge_cible_version_inactive: 'Cette proposition a été remplacée entre-temps. Rechargez la fiche.',
-    marge_cible_statut_invalide: 'Seule une proposition indicative peut être validée.',
+    marge_cible_proposition_existante: 'Une proposition est déjà en attente sur ce niveau. Retirez-la ou faites-la valider avant d\'en proposer une autre.',
+    marge_cible_proposition_close: 'Cette proposition n\'est plus en attente. Rechargez la fiche.',
+    marge_cible_introuvable: 'Cette proposition n\'existe plus. Rechargez la fiche.',
+    marge_cible_motif_requis: 'Un retrait demande un motif.',
+    objectif_non_habilite_retirer: 'Vous n\'avez pas le droit de retirer cette proposition.',
     objectif_autre_station: 'Cet objectif concerne une autre station.',
     objectif_non_authentifie: 'Session expirée : reconnectez-vous.'
   };
@@ -867,30 +873,41 @@
     h += '<div class="pt-pol-l"><span class="sc-lib">Objectif (' + esc(o.niveau.libelle) + ')</span><span data-objectif-statut="' + (o.ligne ? esc(o.ligne.statut_cible) : 'non_defini') + '">' +
       (o.ligne ? esc(pct(num(o.ligne.cible))) + ' : ' : '') + esc(st) + '</span></div>';
     h += '<p class="sc-note">Cet objectif n\'entre dans aucune note d\'équipe.</p>';
-    if (o.ligne && o.ligne.statut_cible === 'indicatif' && d.valider && etat.userId && o.ligne.saisi_par !== etat.userId) {
-      h += '<button type="button" class="detail-btn" data-objectif-valider="' + esc(o.ligne.id) + '">Valider cet objectif</button>';
-    } else if (o.ligne && o.ligne.statut_cible === 'indicatif' && d.valider) {
-      h += '<p class="sc-note" data-objectif-attente="1">Un autre compte doit valider votre proposition.</p>';
+    var pr = o.proposition;
+    if (pr) {
+      h += '<div class="pt-pol-l"><span class="sc-lib">Proposition en attente</span><span data-objectif-proposition="' + esc(pr.id) + '">proposé ' + esc(pct(num(pr.cible))) + ', en attente de validation</span></div>';
+      if (o.ligne && o.ligne.statut_cible === 'valide') h += '<p class="sc-note">L\'objectif validé reste en vigueur jusqu\'à la validation de cette proposition.</p>';
+      var auteur = etat.userId && pr.propose_par === etat.userId;
+      if (d.valider && etat.userId && !auteur) {
+        h += '<button type="button" class="detail-btn" data-objectif-valider="' + esc(pr.id) + '">Valider cette proposition</button>';
+      } else if (d.valider && auteur) {
+        h += '<p class="sc-note" data-objectif-attente="1">Un autre compte doit valider votre proposition.</p>';
+      }
+      if ((d.valider || (d.proposer && auteur)) && etat.userId) {
+        h += '<div class="pt-obj-form"><label class="sc-lib" for="pt-obj-motif">Motif du retrait</label><input id="pt-obj-motif" type="text" maxlength="300" data-objectif-motif="1">' +
+          '<button type="button" class="detail-btn" data-objectif-retirer="' + esc(pr.id) + '">Retirer la proposition</button></div>';
+      }
     }
-    if (d.proposer) {
+    if (d.proposer && !pr) {
       h += '<div class="pt-obj-form"><label class="sc-lib" for="pt-obj-cible">Proposer une cible (en %)</label>' +
         '<input id="pt-obj-cible" type="text" inputmode="decimal" autocomplete="off" data-objectif-cible="1">' +
         '<label class="sc-lib" for="pt-obj-com">Commentaire (facultatif)</label><input id="pt-obj-com" type="text" maxlength="300" data-objectif-commentaire="1">' +
         '<button type="button" class="detail-btn" data-objectif-proposer="1" data-niveau="' + esc(o.niveau.niveau) + '" data-cible-niveau="' + esc(o.niveau.cible_niveau) + '">Proposer</button></div>';
-      if (o.ligne && o.ligne.statut_cible === 'valide') h += '<p class="sc-note">Une proposition remplace l\'objectif valide par une version indicative jusqu\'à sa validation par un autre compte.</p>';
-    } else if (!d.valider) {
+    } else if (!d.proposer && !d.valider) {
       h += '<p class="sc-note">Lecture seule : proposer ou valider un objectif demande une habilitation.</p>';
     }
     return h + '<p class="sc-msg sc-note pt-obj-msg" role="status" data-objectif-msg="1"></p></details>';
   }
   async function chargerObjectifs(client, site) {
     var lignes = [], droits = { proposer: false, valider: false };
+    var props = [];
     var r = await client.from('v_tarif_seuils_actifs').select('*').eq('site', site);
     if (!r.error && r.data) lignes = r.data;
+    try { var pq = await client.from('marge_cible_propositions').select('id, niveau, cible_niveau, cible, commentaire, propose_par, propose_le, statut').eq('site', site).eq('statut', 'ouverte'); if (!pq.error && pq.data) props = pq.data; } catch (e) { props = []; }
     for (var k in droits) {
       try { var q = await client.rpc('objectif_habilite', { p_site: site, p_droit: k }); droits[k] = !q.error && q.data === true; } catch (e) { droits[k] = false; }
     }
-    return { lignes: lignes, droits: droits };
+    return { lignes: lignes, propositions: props, droits: droits };
   }
   function htmlFiche(l, etat) {
     var droits = etat ? peutVerifier(etat.role, etat.estCreateur) : false;

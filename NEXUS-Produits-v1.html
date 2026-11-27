@@ -413,7 +413,7 @@ body.nexus-desktop #resultSection > *{margin-bottom:12px;}
 <script src="nexus-anomalies-tarifaires.js"></script>
 <script src="nexus-politique-tarifaire.js"></script>
 <script src="nexus-politique-tarifaire-registres.js"></script>
-<script src="nexus-politique-tarifaire-ecran.js?v=20261127-0001"></script>
+<script src="nexus-politique-tarifaire-ecran.js?v=20261127-0002"></script>
 <script src="nexus-produits-securite.js"></script>
 </head>
 <body>
@@ -1764,17 +1764,22 @@ nexusRequireAuth().then(async employee => {
       else if (rr.statut === 'ecrit') { try { etat.verifications = (await E.chargerVerifications(nexusClient, SITE_ACTUEL)).verifications; } catch (e) { /* relecture facultative */ } }
       else if (rr.statut === 'erreur') { console.warn('Réévaluations non enregistrées', rr.erreur); etat.messageReeval = "Les réévaluations n'ont pas pu être enregistrées. L'écran reste à jour, l'enregistrement sera retenté à la prochaine ouverture."; }
     }
-    // Objectifs de marge (A4-1b) : lecture du registre actif et des droits ; écriture par proposer_marge_cible / valider_marge_cible.
-    const rechargerObjectifs = async () => { try { const ob = await E.chargerObjectifs(nexusClient, SITE_ACTUEL); etat.objectifs = ob.lignes; etat.droitsObjectif = ob.droits; } catch (e) { etat.objectifs = etat.objectifs || []; etat.droitsObjectif = etat.droitsObjectif || {}; } };
+    // Objectifs de marge (A4-1b) : lecture du registre actif et des droits ; écriture par proposer_marge_cible / valider_marge_cible / retirer_marge_cible.
+    const rechargerObjectifs = async () => { try { const ob = await E.chargerObjectifs(nexusClient, SITE_ACTUEL); etat.objectifs = ob.lignes; etat.propositions = ob.propositions || []; etat.droitsObjectif = ob.droits; } catch (e) { etat.objectifs = etat.objectifs || []; etat.propositions = etat.propositions || []; etat.droitsObjectif = etat.droitsObjectif || {}; } };
     await rechargerObjectifs();
-    const ecrireObjectif = async (btn, valider) => {
+    const ecrireObjectif = async (btn, mode) => {
+      const valider = mode === 'valider', retirer = mode === 'retirer';
       const carte = btn.closest('[data-objectif-marge]'), msg = carte && carte.querySelector('[data-objectif-msg]');
       const dire = t => { if (msg) msg.textContent = t; };
       btn.disabled = true; dire('Enregistrement…');
       try {
         let r;
-        if (valider) r = await nexusClient.rpc('valider_marge_cible', { p_id: btn.dataset.objectifValider });
-        else {
+        if (valider) r = await nexusClient.rpc('valider_marge_cible', { p_proposition: btn.dataset.objectifValider });
+        else if (retirer) {
+          const motif = (carte.querySelector('[data-objectif-motif]').value || '').trim();
+          if (!motif) { btn.disabled = false; dire(E.messageErreurObjectif('marge_cible_motif_requis')); return; }
+          r = await nexusClient.rpc('retirer_marge_cible', { p_proposition: btn.dataset.objectifRetirer, p_motif: motif });
+        } else {
           const cible = E.pourcentVersFraction(carte.querySelector('[data-objectif-cible]').value);
           if (cible === null) { btn.disabled = false; dire(E.messageErreurObjectif('marge_cible_invalide')); return; }
           const com = (carte.querySelector('[data-objectif-commentaire]').value || '').trim() || null;
@@ -1782,7 +1787,7 @@ nexusRequireAuth().then(async employee => {
         }
         if (r.error) throw r.error;
         await rechargerObjectifs(); etat.objectifOuvert = true; rendre();
-        const m2 = corps.querySelector('[data-objectif-msg]'); if (m2) m2.textContent = valider ? 'Objectif validé.' : 'Proposition enregistrée : un autre compte doit la valider.';
+        const m2 = corps.querySelector('[data-objectif-msg]'); if (m2) m2.textContent = valider ? 'Objectif validé.' : retirer ? 'Proposition retirée.' : 'Proposition enregistrée : un autre compte doit la valider.';
       } catch (e) { console.error('Objectif de marge:', e); btn.disabled = false; dire(E.messageErreurObjectif(e)); }
     };
     const rendre = () => { etat.margePlus = blocMargePlus(); corps.innerHTML = E.htmlPage(etat); lier(); };
@@ -1815,8 +1820,9 @@ nexusRequireAuth().then(async employee => {
       const fi = corps.querySelector('[data-fiche-ouverte]'); if (fi && etat.ficheFraiche) { etat.ficheFraiche = false; fi.focus(); }
       corps.querySelectorAll('[data-info-marge]').forEach(b => b.addEventListener('click', () => { etat.ouverte = b.dataset.infoMarge; rendre(); const f = corps.querySelector('[data-marge-fiche]'); if (f && f.scrollIntoView) f.scrollIntoView({ block: 'start' }); }));
       corps.querySelectorAll('textarea.pt-verif-com').forEach(t => t.addEventListener('input', () => { const n = t.parentNode.querySelector('[data-com-compteur]'); if (n) n.textContent = String(t.value.trim().length) + ' / ' + E.LIMITE_COMMENTAIRE; }));
-      corps.querySelectorAll('[data-objectif-proposer]').forEach(b => b.addEventListener('click', () => ecrireObjectif(b, false)));
-      corps.querySelectorAll('[data-objectif-valider]').forEach(b => b.addEventListener('click', () => ecrireObjectif(b, true)));
+      corps.querySelectorAll('[data-objectif-proposer]').forEach(b => b.addEventListener('click', () => ecrireObjectif(b, 'proposer')));
+      corps.querySelectorAll('[data-objectif-valider]').forEach(b => b.addEventListener('click', () => ecrireObjectif(b, 'valider')));
+      corps.querySelectorAll('[data-objectif-retirer]').forEach(b => b.addEventListener('click', () => ecrireObjectif(b, 'retirer')));
       corps.querySelectorAll('[data-verifier]').forEach(b => b.addEventListener('click', () => marquerVerifie(b)));
       E.lierOuvertures(corps, etat, rendre);
       corps.querySelectorAll('select[data-filtre]').forEach(s => s.addEventListener('change', () => { etat.filtres[s.dataset.filtre] = s.value || undefined; etat.toutes = false; rendre(); }));
