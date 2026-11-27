@@ -310,6 +310,10 @@
     }
   }
 
+  function diagRepliActif() {
+    try { return typeof location !== 'undefined' && /[?&]diag=perf\b/.test(location.search); } catch (e) { return false; }
+  }
+
   async function chargerCarburantsBriefAvecFallback(client, siteId, dateAujourdhui) {
     const M = global.NexusCarburantMoteur;
     const D = global.NexusCarburantDonnees;
@@ -401,15 +405,26 @@
     // ordre, règle « premier complet dans l'ordre ». Toute anomalie (lecture hors
     // plage, erreur) retombe sur l'ancienne boucle série ci-dessous.
     let planB = false;
+    // Diagnostic (?diag=perf) seulement : trace du chemin pris et des vagues.
+    const diagRepli = diagRepliActif() ? [] : null;
+    const diagFin = (chemin, raison) => {
+      if (!diagRepli) return;
+      const msg = 'repli carburant : ' + chemin + (raison ? ' (' + raison + ')' : '');
+      console.log('[diag perf] ' + msg);
+      console.table(diagRepli);
+      try { (window.__diagRepli = window.__diagRepli || []).push({ chemin, raison: raison || null, evenements: diagRepli }); } catch (x) { /* diagnostic seulement */ }
+    };
     if (candidatsRepli.length > 0 && typeof D.chargerControlesRepliEnPlage === 'function') {
       try {
-        const r = await D.chargerControlesRepliEnPlage(client, siteId, candidatsRepli, aujourdhui, c => M.jourCarburantEstComplet(c.parCarburant, c.aucunReleve));
+        const r = await D.chargerControlesRepliEnPlage(client, siteId, candidatsRepli, aujourdhui, c => M.jourCarburantEstComplet(c.parCarburant, c.aucunReleve), diagRepli ? e => diagRepli.push(e) : undefined);
         if (r.index >= 0) {
           carburantsFallback = { controle: r.controle };
           fraicheur = fraicheurParCandidat[r.index];
         }
         planB = true;
+        diagFin('plage', r.index >= 0 ? 'jour ' + r.index + ' complet' : 'aucun jour complet');
       } catch (e) {
+        diagFin('série', e && e.message ? e.message : String(e));
         console.warn('Brief carburants : repli en plage abandonné, boucle série.', e && e.code ? e.code : e);
       }
     }
