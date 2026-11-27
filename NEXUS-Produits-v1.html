@@ -1768,16 +1768,16 @@ nexusRequireAuth().then(async employee => {
     const rechargerObjectifs = async () => { try { const ob = await E.chargerObjectifs(nexusClient, SITE_ACTUEL); etat.objectifs = ob.lignes; etat.droitsObjectif = ob.droits; } catch (e) { etat.objectifs = etat.objectifs || []; etat.droitsObjectif = etat.droitsObjectif || {}; } };
     await rechargerObjectifs();
     const ecrireObjectif = async (btn, valider) => {
-      const zone = btn.closest('[data-objectif-marge]'), msg = zone && zone.querySelector('[data-objectif-msg]');
+      const carte = btn.closest('[data-objectif-marge]'), msg = carte && carte.querySelector('[data-objectif-msg]');
       const dire = t => { if (msg) msg.textContent = t; };
       btn.disabled = true; dire('Enregistrement…');
       try {
         let r;
         if (valider) r = await nexusClient.rpc('valider_marge_cible', { p_id: btn.dataset.objectifValider });
         else {
-          const cible = E.pourcentVersFraction(zone.querySelector('[data-objectif-cible]').value);
+          const cible = E.pourcentVersFraction(carte.querySelector('[data-objectif-cible]').value);
           if (cible === null) { btn.disabled = false; dire(E.messageErreurObjectif('marge_cible_invalide')); return; }
-          const com = (zone.querySelector('[data-objectif-commentaire]').value || '').trim() || null;
+          const com = (carte.querySelector('[data-objectif-commentaire]').value || '').trim() || null;
           r = await nexusClient.rpc('proposer_marge_cible', { p_site: SITE_ACTUEL, p_niveau: btn.dataset.niveau, p_cible_niveau: btn.dataset.cibleNiveau, p_cible: cible, p_commentaire: com });
         }
         if (r.error) throw r.error;
