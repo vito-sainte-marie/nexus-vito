@@ -1,10 +1,11 @@
 // Test — Fil « Mon début de quart » : revue des comptages et retour d'en-tête
 // (retour terrain du 04/11/2026). Navigation seule : aucune écriture ajoutée.
 const fs = require('fs');
+const AVD = require('./aide_page_differee_pour_tests.js').avantDefer;
 const assert = require('assert');
 const vm = require('vm');
 
-const html = fs.readFileSync(__dirname + '/NEXUS-Inventaire-v1.html', 'utf8');
+const html = AVD(fs.readFileSync(__dirname + '/NEXUS-Inventaire-v1.html', 'utf8'));
 const nav = fs.readFileSync(__dirname + '/nexus-header-nav.js', 'utf8');
 const script = html.match(/<script>([\s\S]*)<\/script>/)[1];
 

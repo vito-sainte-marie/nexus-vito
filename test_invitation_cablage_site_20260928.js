@@ -16,10 +16,11 @@
 // ce que fait la carte : il teste qu'on l'a branchée.
 
 const fs = require('fs');
+const AVD = require('./aide_page_differee_pour_tests.js').avantDefer;
 const path = require('path');
 const assert = require('assert');
 
-const HTML = fs.readFileSync(path.join(__dirname, 'NEXUS-App-v1.html'), 'utf8');
+const HTML = AVD(fs.readFileSync(path.join(__dirname, 'NEXUS-App-v1.html'), 'utf8'));
 const SCRIPT = HTML.match(/<script>([\s\S]*)<\/script>/)[1];
 
 // Le corps du bloc qui reçoit l'employé, et le nom sous lequel il le reçoit.

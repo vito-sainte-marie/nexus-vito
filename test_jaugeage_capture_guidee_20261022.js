@@ -2,6 +2,7 @@
 // Capture guidée du jaugeage (lot JAUGEAGE-OCR-2-20261022, decision-4) : cadrage, recadrage, rejet qualité, non-régression.
 // Les sources peuvent être remplacées par des copies mutées (test_jaugeage_capture_guidee_mutations_20261022.js).
 const fs = require('fs');
+const AVD = require('./aide_page_differee_pour_tests.js').avantDefer;
 const path = require('path');
 const SRC_GUIDE = process.env.NEXUS_CAPTURE_GUIDEE_SOURCE || path.join(__dirname, 'nexus-capture-guidee.js');
 const SRC_CAMERA = process.env.NEXUS_CAMERA_SOURCE || path.join(__dirname, 'nexus-camera-page.js');
@@ -104,7 +105,7 @@ ok(G.GUIDE_JAUGEAGE.consigne === G.CONSIGNE, 'guide jaugeage porte la consigne')
   ok(/async function ouvrirCameraPointage|function ouvrirCameraPointage/.test(pointage) && /function redimensionnerPhotoPointage|redimensionnerPhotoPointage/.test(pointage), 'Pointage garde sa caméra propre');
   const missions = lire('NEXUS-Missions-v1.html');
   ok(!/NexusCaptureGuidee|nexus-capture-guidee|NexusCameraPage/.test(missions), 'Missions n\'emploie ni le module caméra ni le guide');
-  const rp = lire('NEXUS-Releves-Piste-v1.html');
+  const rp = AVD(lire('NEXUS-Releves-Piste-v1.html'));
   const appels = rp.match(/ouvrirCamera\(\{[^}]*\}\)/g) || [];
   ok(appels.length === 1 && /guide: window\.NexusCaptureGuidee/.test(appels[0]) && /inputId: 'jPhoto'/.test(appels[0]), 'Relevés Piste : un seul appel, celui du jaugeage, avec le guide');
   ok(/<script src="nexus-capture-guidee\.js\?v=[0-9a-f-]+"><\/script>\s*<script src="nexus-camera-page\.js\?v=/.test(rp), 'le guide est chargé avant le module caméra (jeton daté en source, empreinte après build)');

@@ -10,13 +10,14 @@
 // Chaque garde est suivie d'une mutation qui doit la faire rougir.
 'use strict';
 const fs = require('fs');
+const AVD = require('./aide_page_differee_pour_tests.js').avantDefer;
 const path = require('path');
 const assert = require('assert');
 
 const R = __dirname;
 const lire = f => fs.readFileSync(path.join(R, f), 'utf8');
 const MOD = lire('nexus-prise-de-poste.js');
-const APP = lire('NEXUS-App-v1.html');
+const APP = AVD(lire('NEXUS-App-v1.html'));
 const PAGE = lire('NEXUS-Prise-De-Poste-v1.html');
 
 function corps(src, debut) {

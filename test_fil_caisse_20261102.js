@@ -2,6 +2,7 @@
 // Exigences (decision-4) : refus par défaut ; pilote caissière seulement ; non-pilote et autre rôle inchangés (aucun fil, aucune adresse) ;
 // plan fait des seules étapes restantes ; changement de quart = un comptage de l'entrante. SRC_MUTE : source mutée pour la preuve de mutation.
 const fs = require('fs');
+const AVD = require('./aide_page_differee_pour_tests.js').avantDefer;
 const path = require('path');
 const assert = require('assert');
 const F = path.resolve(process.env.SRC_MUTE || path.join(__dirname, 'nexus-fil-caisse.js'));
@@ -79,7 +80,7 @@ cas('aucune nouvelle catégorie : la casse ne compte pas, une catégorie inconnu
 });
 
 // ── Câblage de la page (épreuve statique) ──
-const HTML = fs.readFileSync(path.join(__dirname, process.env.PAGE_MUTE || 'NEXUS-Inventaire-v1.html'), 'utf8');
+const HTML = AVD(fs.readFileSync(path.join(__dirname, process.env.PAGE_MUTE || 'NEXUS-Inventaire-v1.html'), 'utf8'));
 cas('page : le module est chargé et le fil n\'est activé que par etapeDe(pilote, rôle du jour)', () => {
   assert.ok(/<script src="nexus-fil-caisse\.js/.test(HTML));
   assert.ok(/NexusFilCaisse\.etapeDe\(location\.search, piloteCaisseCourant, roleDuJour\)/.test(HTML));
@@ -155,7 +156,7 @@ cas('page : validerCloture écrit la seule ligne de l\'employée, le quart est c
   assert.ok(!/statut: 'cloture'/.test(bloc));
 });
 cas('accueil : la clôture se juge aussi sur a_valide_cloture de l\'employé', () => {
-  const app = fs.readFileSync(path.join(__dirname, 'NEXUS-App-v1.html'), 'utf8');
+  const app = AVD(fs.readFileSync(path.join(__dirname, 'NEXUS-App-v1.html'), 'utf8'));
   assert.ok(/select\('responsable_comptage, a_valide_ouverture, a_valide_cloture, heure_depart, inventaire_quarts\(/.test(app));
   assert.ok(/r\.a_valide_cloture === true && \(r\.inventaire_quarts\.cloture_le \|\| r\.heure_depart\)/.test(app));
 });

@@ -1,6 +1,7 @@
 // Lot 3 des emojis, vague 1 (Guardian 6750743048) : composant partagé nexus-badge-etat.js, appliqué au Brief seul.
 const assert = require('assert');
 const fs = require('fs');
+const AVD = require('./aide_page_differee_pour_tests.js').avantDefer;
 const path = require('path');
 let n = 0;
 function t(nom, f) { f(); n++; console.log('OK ' + nom); }
@@ -13,7 +14,7 @@ function garde(nom, src, regle, litteral, remplacement) {
 }
 const lire = f => fs.readFileSync(path.join(__dirname, f), 'utf8');
 const SRC = lire('nexus-badge-etat.js');
-const BRIEF = lire('NEXUS-Brief-v1.html');
+const BRIEF = AVD(lire('NEXUS-Brief-v1.html'));
 const E = require('./nexus-etats-conseiller.js');
 const B = require('./nexus-badge-etat.js');
 const EMOJI = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u;

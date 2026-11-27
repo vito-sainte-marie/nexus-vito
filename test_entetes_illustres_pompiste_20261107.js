@@ -2,13 +2,14 @@
 // Un écran = une image : jaugeage, relevé d'index, inventaire. Même image en Jour et en Sombre.
 // Les pictogrammes du kit remplacent les emojis dans l'inventaire pompiste. Présentation seulement.
 const fs = require('fs');
+const AVD = require('./aide_page_differee_pour_tests.js').avantDefer;
 const path = require('path');
 const assert = require('assert');
 const lire = (f) => fs.readFileSync(path.join(__dirname, f), 'utf8');
 function t(nom, fn) { try { fn(); console.log(`OK — ${nom}`); } catch (e) { console.error(`FAIL — ${nom}\n  ${e.stack}`); process.exitCode = 1; } }
 
-const piste = lire('NEXUS-Releves-Piste-v1.html');
-const inv = lire('NEXUS-Inventaire-v1.html');
+const piste = AVD(lire('NEXUS-Releves-Piste-v1.html'));
+const inv = AVD(lire('NEXUS-Inventaire-v1.html'));
 
 t('les fichiers webp existent aux trois largeurs (jaugeage, relevé d\'index) et pour l\'inventaire', () => {
   for (const base of ['assets/pompiste/jaugeage', 'assets/pompiste/releve-index'])
@@ -59,7 +60,7 @@ t('aucune couleur hexadécimale brute ajoutée dans les styles de l\'en-tête', 
 // --- Pictogrammes Gaz (bleu) et Glaçons (cubes) : même tracé Manager / pompiste / kit ---
 (function () {
   const man = fs.readFileSync(path.join(__dirname, 'NEXUS-Inventaire-Manager-v1.html'), 'utf8');
-  const pomp = fs.readFileSync(path.join(__dirname, 'NEXUS-Inventaire-v1.html'), 'utf8');
+  const pomp = AVD(fs.readFileSync(path.join(__dirname, 'NEXUS-Inventaire-v1.html'), 'utf8'));
   const trace = (src, cle) => { const m = src.match(new RegExp("\\n\\s+" + cle + ": '([^']*)'")); return m && m[1]; };
   const svg = cle => fs.readFileSync(path.join(__dirname, `assets/inventaire/icones/${cle}.svg`), 'utf8');
   t('Gaz : bouteille bleue (#2F7DF6, ombre #1E5BC6), sans currentColor dans le tracé', () => {

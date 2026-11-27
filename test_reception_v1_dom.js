@@ -5,6 +5,7 @@
 // moteurs/glue (nexus-reception-moteur.js, nexus-reception-donnees.js)
 // chargés tels quels pour vérifier la logique réelle, pas une doublure.
 const fs = require('fs');
+const AVD = require('./aide_page_differee_pour_tests.js').avantDefer;
 const vm = require('vm');
 const assert = require('assert');
 
@@ -13,7 +14,7 @@ const OUT = __dirname;
 
 const moteurSrc = fs.readFileSync(`${OUT}/nexus-reception-moteur.js`, 'utf-8');
 const donneesSrc = fs.readFileSync(`${OUT}/nexus-reception-donnees.js`, 'utf-8');
-const html = fs.readFileSync(`${OUT}/NEXUS-Carburant-Reception-v1.html`, 'utf-8');
+const html = AVD(fs.readFileSync(`${OUT}/NEXUS-Carburant-Reception-v1.html`, 'utf-8'));
 const script = /<script>([\s\S]*?)<\/script>\s*<\/body>/.exec(html)[1];
 
 // --- DOM minimal : auto-crée un élément à la demande pour tout id demandé,

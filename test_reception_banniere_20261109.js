@@ -1,6 +1,7 @@
 // Bannière « Réception carburant » (Guardian 6740608738, 09/11/2026) : gabarit commun, photo reception-carburant, Sainte-Marie seulement.
 const assert = require('assert');
 const fs = require('fs');
+const AVD = require('./aide_page_differee_pour_tests.js').avantDefer;
 const path = require('path');
 const vm = require('vm');
 let n = 0;
@@ -13,7 +14,7 @@ function garde(nom, src, regle, litteral, remplacement) {
     assert.ok(!regle(src.replace(litteral, remplacement)), 'la garde doit rougir sur la source mutée');
   });
 }
-const HTML = lire('NEXUS-Carburant-Reception-v1.html');
+const HTML = AVD(lire('NEXUS-Carburant-Reception-v1.html'));
 const BAN = lire('nexus-banniere-station.js');
 function extraireInit(src) {
   const i = src.indexOf('(function initialiserBanniereReception() {');

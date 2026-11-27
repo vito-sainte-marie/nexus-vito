@@ -12,6 +12,7 @@
 // Chaque garde est suivie d'une mutation qui doit la faire rougir.
 'use strict';
 const fs = require('fs');
+const AVD = require('./aide_page_differee_pour_tests.js').avantDefer;
 const path = require('path');
 const assert = require('assert');
 
@@ -166,7 +167,7 @@ garde("la lecture FDJ n'est lancée que pour un service quitté au poste caissie
 
 const ORDRE_BADGE = /<script src="nexus-badge-etat\.js[^"]*"><\/script>\s*<script src="nexus-prise-de-poste\.js/;
 const mutantsSource = {
-  ["le composant de badge est chargé par l'Accueil et par la page de prise de poste"]: { src: lire('NEXUS-App-v1.html'), test: s => ORDRE_BADGE.test(s), mut: s => s.replace(/<script src="nexus-badge-etat\.js[^"]*"><\/script>/, '') },
+  ["le composant de badge est chargé par l'Accueil et par la page de prise de poste"]: { src: AVD(lire('NEXUS-App-v1.html')), test: s => ORDRE_BADGE.test(s), mut: s => s.replace(/<script src="nexus-badge-etat\.js[^"]*"><\/script>/, '') },
   [ACC_GARDE]: { src: ACC, test: s => /id="apMessageFdj"/.test(s) && /v\.messageFdj && v\.messageFdj\.texte/.test(s), mut: s => s.replace("v.messageFdj && v.messageFdj.texte", 'false') },
   [BUILD_GARDE]: { src: BUILD, test: s => /nexus-build-estampille';\s*s\.style\.cssText = 'display:none;/.test(s), mut: s => s.replace("s.style.cssText = 'display:none;", "s.style.cssText = 'display:block;") },
 };
@@ -239,7 +240,7 @@ for (const g of GARDES) {
   console.log('OK  — mutations « autre employé » et « sans effacement » détectées'); ok++;
 
   // La ligne apparaît sur l'accueil caisse/renfort seulement si le message existe.
-  assert.ok(/messageFdj/.test(lire('NEXUS-App-v1.html')) && /consommerMessageFdj\(typeof sessionStorage !== .undefined. \? sessionStorage : null, employee\.id, Date\.now\(\)\)/.test(lire('NEXUS-App-v1.html')), 'NEXUS-App câble le message');
+  assert.ok(/messageFdj/.test(AVD(lire('NEXUS-App-v1.html'))) && /consommerMessageFdj\(typeof sessionStorage !== .undefined. \? sessionStorage : null, employee\.id, Date\.now\(\)\)/.test(AVD(lire('NEXUS-App-v1.html'))), 'NEXUS-App câble le message');
   console.log('OK  — NEXUS-App-v1.html consomme le message FDJ'); ok++;
 }
 

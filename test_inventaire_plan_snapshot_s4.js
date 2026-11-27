@@ -13,6 +13,7 @@
 //   profil figé dans regleSnapshotParProduit.
 
 const fs = require('fs');
+const AVD = require('./aide_page_differee_pour_tests.js').avantDefer;
 const path = require('path');
 const assert = require('assert');
 const vm = require('vm');
@@ -97,7 +98,7 @@ async function partie1() {
 // PARTIE 2 — chargerProduitsZone : exemption des produits déjà figés
 // ------------------------------------------------------------
 async function partie2() {
-  const html = fs.readFileSync(path.join(PROJET, 'NEXUS-Inventaire-v1.html'), 'utf8');
+  const html = AVD(fs.readFileSync(path.join(PROJET, 'NEXUS-Inventaire-v1.html'), 'utf8'));
   const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1]);
   assert.strictEqual(scripts.length, 1, 'Attendu 1 <script> inline');
   const script = scripts[0];

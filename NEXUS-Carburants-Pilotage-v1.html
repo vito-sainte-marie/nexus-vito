@@ -16,45 +16,44 @@
 <title>NEXUS — Carburants Performance</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-theme.js"></script>
-<script src="nexus-banniere-station.js"></script>
-<script src="nexus-build.js"></script>
-<script src="nexus-auth.js?v=20261127-1000"></script>
-<script src="nexus-header-nav.js?v=20261124-1200"></script>
-<script src="nexus-icones.js?v=20261124-0001"></script>
-<script src="nexus-etats-conseiller.js"></script>
-<script src="nexus-badge-etat.js"></script>
-<script src="nexus-desktop.js?v=20261124-1500"></script>
-<script src="nexus-periodes.js?v=20260904-0104"></script>
-<script src="nexus-carburant-moteur.js?v=20260904-0104"></script>
-<script src="nexus-carburant-donnees.js?v=20261127-1700"></script>
+<script defer src="nexus-banniere-station.js"></script>
+<script defer src="nexus-build.js"></script>
+<script defer src="nexus-auth.js?v=20261127-1000"></script>
+<script defer src="nexus-header-nav.js?v=20261124-1200"></script>
+<script defer src="nexus-icones.js?v=20261124-0001"></script>
+<script defer src="nexus-etats-conseiller.js"></script>
+<script defer src="nexus-badge-etat.js"></script>
+<script defer src="nexus-desktop.js?v=20261124-1500"></script>
+<script defer src="nexus-periodes.js?v=20260904-0104"></script>
+<script defer src="nexus-carburant-moteur.js?v=20260904-0104"></script>
+<script defer src="nexus-carburant-donnees.js?v=20261127-1700"></script>
 <!-- Moteur Commande Carburant (24/08/2026) — après nexus-carburant-moteur.js/
      nexus-carburant-donnees.js (nexus-carburant-commande-donnees.js réutilise
      chargerCuvesConfig/chargerControleJour, Article 11), avant tout appel à
      evaluerCommandeCarburantSite(). -->
-<script src="nexus-carburant-commande-moteur.js?v=20260904-0104"></script>
+<script defer src="nexus-carburant-commande-moteur.js?v=20260904-0104"></script>
 <!-- 28/08/2026, point 245 — nexus-carburant-commande-donnees.js réutilise
      NexusVerifyMoteur.statutValidationQuart (v2.234, déjà défini pour NEXUS
      Verify/Historique, Article 11) pour le badge Verify PUREMENT
      INFORMATIF (jamais fusionné dans la fiabilité carburant) : doit donc
      être chargé avant nexus-carburant-commande-donnees.js. -->
-<script src="nexus-ecarts-moteur.js?v=20261126-0100"></script>
-<script src="nexus-verify-moteur.js?v=20261126-0100"></script>
-<script src="nexus-carburant-commande-donnees.js?v=20261124-1200"></script>
+<script defer src="nexus-ecarts-moteur.js?v=20261126-0100"></script>
+<script defer src="nexus-verify-moteur.js?v=20261126-0100"></script>
+<script defer src="nexus-carburant-commande-donnees.js?v=20261124-1200"></script>
 <!-- 10/11/2026 — marqueur calendrier de l'en-tête (affichage seul, lit inventaire_calendrier_site du site). -->
-<script src="nexus-carburant-marqueur-calendrier.js?v=20261110-2"></script>
+<script defer src="nexus-carburant-marqueur-calendrier.js?v=20261110-2"></script>
 <!-- Cadrage risques Phase 5 (18/08/2026, tâche #234) — 1er écran Carburants
      à qualifier et enregistrer un signal NexusRisques (autonomie de stock).
      Inclus après nexus-carburant-moteur.js/nexus-carburant-donnees.js
      (nexus-risques-donnees.js.chargerAutonomiesCarburantAvecHistorique en
      dépend), avant tout appel à qualifierRisquesCarburantEnArrierePlan(). -->
-<script src="nexus-risques-moteur.js?v=20260904-0104"></script>
-<script src="nexus-risques-donnees.js?v=20261127-1000"></script>
-<script src="nexus-reception-moteur.js?v=20260904-0104"></script>
-<script src="nexus-reception-donnees.js?v=20260904-0104"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
-<script src="nexus-pdf-moteur.js?v=20261125-2300"></script>
+<script defer src="nexus-risques-moteur.js?v=20260904-0104"></script>
+<script defer src="nexus-risques-donnees.js?v=20261127-1000"></script>
+<script defer src="nexus-reception-moteur.js?v=20260904-0104"></script>
+<script defer src="nexus-reception-donnees.js?v=20260904-0104"></script>
+<script defer src="nexus-charger-pdf.js?v=20261127-1800"></script>
 <style>
   :root{
     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
@@ -987,7 +986,7 @@
   <footer>NEXUS Carburants Performance v1 (refonte 13/08/2026, habillage accordéon 14/08/2026, renommage Performance 24/08/2026) · Vito Sainte-Marie Usine</footer>
 </div>
 
-<script>
+<script type="text/plain" id="nexus-script-principal">
   // ------------------------------------------------------------
   // NEXUS Carburants Pilotage v2 (13/08/2026) — refonte complète à partir
   // de l'audit "NEXUS_Audit_Carburants_Pilotage.pdf" transmis par Frédéric.
@@ -3690,6 +3689,7 @@ function htmlEtatCommande(cle, opts) {
   async function construireReleveControlePdf(date, controles, versionsParCarburant, cles) {
     const dateTxt = formaterDateFrCourt(date);
     const M = NexusCarburantMoteur;
+    await nexusChargerPdf(); // B0-perf-6 : chargé à la demande.
     const c = await NexusPdfMoteur.creerRapport({
       titre: `NEXUS Carburants — Relevé de contrôle — ${date}`,
       sujet: 'Relevé de contrôle carburant — chaîne de preuve',
@@ -3962,6 +3962,7 @@ function htmlEtatCommande(cle, opts) {
   async function construireReleveReceptionPdf(visite) {
     const M = NexusReceptionMoteur;
     const dateTxt = formaterDateFrCourt(visite.date_visite);
+    await nexusChargerPdf(); // B0-perf-6 : chargé à la demande.
     const c = await NexusPdfMoteur.creerRapport({
       titre: `NEXUS Carburants — Relevé de réception — ${visite.date_visite}`,
       sujet: 'Relevé de réception carburant — chaîne de preuve',
@@ -5142,6 +5143,7 @@ function htmlEtatCommande(cle, opts) {
     await Promise.all([chargerEtRendreLivraison(), chargerEtRendrePeriode(), chargerEtRendreRattrapage(), chargerEtRendreHistorique(), chargerEtRendreQualiteReceptions(), chargerEtRendreAnalyse(), chargerEtRendreEconomie()]);
   });
 </script>
+<script defer src="nexus-demarrer-principal.js?v=20261127-1800"></script>
 
 <!-- Sprint C6 "Pilotage" (17/08/2026, audit §10.1) — modale bottom-sheet
      "Relevé de contrôle" (par date, tous carburants) et "Relevé de

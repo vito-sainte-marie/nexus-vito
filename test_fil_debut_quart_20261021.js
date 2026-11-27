@@ -7,6 +7,7 @@
 // Le module est exécuté tel quel ; les écrans sont lus dans leurs vraies sources. Chaque épreuve est contrôlée par une mutation.
 
 const fs = require('fs');
+const AVD = require('./aide_page_differee_pour_tests.js').avantDefer;
 const path = require('path');
 const assert = require('assert');
 
@@ -14,10 +15,10 @@ const lire = (f) => fs.readFileSync(path.join(__dirname, f), 'utf8');
 const fichierModule = path.join(__dirname, 'nexus-fil-debut-quart.js');
 const SRC = {
   module: fs.existsSync(fichierModule) ? lire('nexus-fil-debut-quart.js') : '',
-  releves: lire('NEXUS-Releves-Piste-v1.html'),
+  releves: AVD(lire('NEXUS-Releves-Piste-v1.html')),
   pdp: lire('NEXUS-Prise-De-Poste-v1.html') + '\n' + lire('nexus-prise-de-poste.js'),
-  inv: lire('NEXUS-Inventaire-v1.html'),
-  app: lire('NEXUS-App-v1.html'),
+  inv: AVD(lire('NEXUS-Inventaire-v1.html')),
+  app: AVD(lire('NEXUS-App-v1.html')),
   jeu: lire('supabase/recette-jeux/20261021_jeu_recette_fil_debut_quart.sql'),
 };
 

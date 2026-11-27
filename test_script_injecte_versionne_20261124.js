@@ -13,7 +13,8 @@ function t(nom, f) { f(); n++; console.log('OK ' + nom); }
 // uniquement par des appels versionner (nexus-auth.js : tableaux de NexusBuild.versionner(...)).
 const TOLERES = [
   { fichier: 'NEXUS-Dates-Courtes-Releve-v1.html', motif: /s\.src\s*=\s*ZXING_URL/ },
-  { fichier: 'nexus-auth.js', motif: /s\.src\s*=\s*src\b/ }
+  { fichier: 'nexus-auth.js', motif: /s\.src\s*=\s*src\b/ },
+  { fichier: 'nexus-charger-pdf.js', motif: /s\.src\s*=\s*src\b/ }
 ];
 
 function fautes(fichier, source) {
