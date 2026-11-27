@@ -302,7 +302,14 @@
     const signaux = signauxRisqueMarge || [];
     const nbCategoriesQualifiees = signaux.length;
     if (!nbEcarts && !nbCategoriesQualifiees) return null;
-    const top = signaux.slice(0, 3).map(s => s.categorie).filter(Boolean);
+    // B0-perf-2 : ordre déterministe. Le rang de niveau reste la clé principale
+    // quand NexusRisques est chargé ; le nom de catégorie départage les égalités
+    // (sans lui, l'ordre d'arrivée des lignes en base décidait des trois cités).
+    const rangNiveau = (global.NexusRisques && global.NexusRisques.RANG_NIVEAU) || {};
+    const top = signaux.slice()
+      .sort((a, b) => ((rangNiveau[b.niveau] || 0) - (rangNiveau[a.niveau] || 0))
+        || String(a.categorie || '').localeCompare(String(b.categorie || ''), 'fr'))
+      .slice(0, 3).map(s => s.categorie).filter(Boolean);
     let corps;
     if (nbEcarts && nbCategoriesQualifiees) {
       corps = `${nbEcarts} écart${nbEcarts > 1 ? 's' : ''} actif${nbEcarts > 1 ? 's' : ''} détecté${nbEcarts > 1 ? 's' : ''}, dont ${nbCategoriesQualifiees} catégorie${nbCategoriesQualifiees > 1 ? 's' : ''} confirmée${nbCategoriesQualifiees > 1 ? 's' : ''} par NexusRisques`;
