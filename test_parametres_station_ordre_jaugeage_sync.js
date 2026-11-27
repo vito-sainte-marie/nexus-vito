@@ -14,13 +14,14 @@
 // aucun mock) pour vérifier le comportement bout en bout.
 
 const fs = require('fs');
+const AVD = require('./aide_page_differee_pour_tests.js').avantDefer;
 const assert = require('assert');
 const vm = require('vm');
 
 require(__dirname + '/nexus-reception-moteur.js');
 const NexusReceptionMoteur = global.NexusReceptionMoteur;
 
-const html = fs.readFileSync(__dirname + '/NEXUS-Parametres-Station-v1.html', 'utf8');
+const html = AVD(fs.readFileSync(__dirname + '/NEXUS-Parametres-Station-v1.html', 'utf8'));
 const script = html.match(/<script>([\s\S]*)<\/script>/)[1];
 
 function extraire(nomFonction) {

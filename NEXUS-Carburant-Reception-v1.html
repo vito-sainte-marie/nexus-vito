@@ -17,23 +17,23 @@
 <title>NEXUS — Réception carburant</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="nexus-build.js"></script>
-<script src="nexus-auth.js?v=20261127-1000"></script>
-<script src="nexus-header-nav.js?v=20261124-1200"></script>
-<script src="nexus-icones.js?v=20261124-0001"></script>
-<script src="nexus-desktop.js?v=20261124-1500"></script>
-<script src="nexus-banniere-station.js"></script>
-<script src="nexus-reception-moteur.js?v=20260904-0104"></script>
-<script src="nexus-reception-donnees.js?v=20260904-0104"></script>
-<script src="nexus-carburant-moteur.js?v=20260904-0104"></script>
-<script src="nexus-carburant-donnees.js?v=20261127-1700"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script defer src="nexus-build.js"></script>
+<script defer src="nexus-auth.js?v=20261127-1000"></script>
+<script defer src="nexus-header-nav.js?v=20261124-1200"></script>
+<script defer src="nexus-icones.js?v=20261124-0001"></script>
+<script defer src="nexus-desktop.js?v=20261124-1500"></script>
+<script defer src="nexus-banniere-station.js"></script>
+<script defer src="nexus-reception-moteur.js?v=20260904-0104"></script>
+<script defer src="nexus-reception-donnees.js?v=20260904-0104"></script>
+<script defer src="nexus-carburant-moteur.js?v=20260904-0104"></script>
+<script defer src="nexus-carburant-donnees.js?v=20261127-1700"></script>
 <!-- Moteur Commande Carburant (24/08/2026, §34 du cahier) — uniquement pour
      rapprocherCommandeReception()/chargerCommandeEnCoursParCarburant() une
      fois la visite terminée (voir soumettreVisite() ci-dessous) ; le
      moteur pur (nexus-carburant-commande-moteur.js) n'est pas nécessaire
      ici, cet écran ne recalcule aucune recommandation. -->
-<script src="nexus-carburant-commande-donnees.js?v=20261124-1200"></script>
+<script defer src="nexus-carburant-commande-donnees.js?v=20261124-1200"></script>
 <style>
   :root{
     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
@@ -295,7 +295,7 @@
   <footer>NEXUS Réception carburant v2 · Visite guidée, contrôlée, tracée · Vito Sainte-Marie Usine</footer>
 </div>
 
-<script>
+<script type="text/plain" id="nexus-script-principal">
   // ------------------------------------------------------------
   // NEXUS Réception carburant v2 (15/08/2026) — reconstruction complète à
   // partir de la demande détaillée de Frédéric ("Demande d'évolution —
@@ -1898,5 +1898,6 @@
     render();
   });
 </script>
+<script defer src="nexus-demarrer-principal.js?v=20261127-1800"></script>
 </body>
 </html>

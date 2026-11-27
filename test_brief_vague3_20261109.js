@@ -2,6 +2,7 @@
 // Secteurs (liste et radar) -> icônes du kit ; statuts -> axe gravité ; signaux et risques -> badges.
 const assert = require('assert');
 const fs = require('fs');
+const AVD = require('./aide_page_differee_pour_tests.js').avantDefer;
 const path = require('path');
 let n = 0;
 function t(nom, f) { f(); n++; console.log('OK ' + nom); }
@@ -13,7 +14,7 @@ function garde(nom, src, regle, litteral, remplacement) {
   });
 }
 const lire = f => fs.readFileSync(path.join(__dirname, f), 'utf8');
-const H = lire('NEXUS-Brief-v1.html');
+const H = AVD(lire('NEXUS-Brief-v1.html'));
 const MOTEUR = lire('nexus-boussole-moteur.js');
 const EMOJIS_SECTEUR = /[⛽🛒💰🎟⚙👥]/;
 

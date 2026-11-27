@@ -22,6 +22,7 @@
 //   main).
 
 const fs = require('fs');
+const AVD = require('./aide_page_differee_pour_tests.js').avantDefer;
 const path = require('path');
 const assert = require('assert');
 const vm = require('vm');
@@ -142,7 +143,7 @@ function mockClientPresence(quartExiste, presences) {
   // PARTIE 3 — NEXUS-Inventaire-v1.html
   // ------------------------------------------------------------
   {
-    const html = fs.readFileSync(path.join(PROJET, 'NEXUS-Inventaire-v1.html'), 'utf8');
+    const html = AVD(fs.readFileSync(path.join(PROJET, 'NEXUS-Inventaire-v1.html'), 'utf8'));
     const scriptMatches = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1]);
     const script = scriptMatches.reduce((a, b) => (b.length > a.length ? b : a), '');
     assert.ok(script.includes('renderBlocCouvertureQuart'), 'Bloc script applicatif introuvable');

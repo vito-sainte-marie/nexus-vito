@@ -22,9 +22,10 @@ function __brancherBadge(ctx) {
 // provisoires), et un carburant actif non inclus dans la recommandation.
 
 const fs = require('fs');
+const AVD = require('./aide_page_differee_pour_tests.js').avantDefer;
 const assert = require('assert');
 
-const html = fs.readFileSync(__dirname + '/NEXUS-Carburants-Pilotage-v1.html', 'utf8');
+const html = AVD(fs.readFileSync(__dirname + '/NEXUS-Carburants-Pilotage-v1.html', 'utf8'));
 const script = html.match(/<script>([\s\S]*)<\/script>/)[1];
 
 function extraire(nomFonction) {

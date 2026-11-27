@@ -35,6 +35,7 @@
  */
 'use strict';
 const fs = require('fs');
+const AVD = require('./aide_page_differee_pour_tests.js').avantDefer;
 const path = require('path');
 
 const Regles = require('./nexus-pointage-regles.js');
@@ -42,7 +43,7 @@ const Regles = require('./nexus-pointage-regles.js');
 const CHEMIN_APP = process.env.NEXUS_SOURCE_APP
   ? path.resolve(process.env.NEXUS_SOURCE_APP)
   : path.join(__dirname, 'NEXUS-App-v1.html');
-const APP = fs.readFileSync(CHEMIN_APP, 'utf8');
+const APP = AVD(fs.readFileSync(CHEMIN_APP, 'utf8'));
 const POINTAGE = fs.readFileSync(path.join(__dirname, 'NEXUS-Pointage-v1.html'), 'utf8');
 
 let reussites = 0, echecs = 0;

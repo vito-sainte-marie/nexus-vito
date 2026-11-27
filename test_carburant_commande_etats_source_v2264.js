@@ -32,12 +32,13 @@ function __brancherBadge(ctx) {
 // main) — mêmes conventions que les tests v2.262/v2.263.
 
 const fs = require('fs');
+const AVD = require('./aide_page_differee_pour_tests.js').avantDefer;
 const path = require('path');
 const vm = require('vm');
 const assert = require('assert');
 
 const DIR = __dirname;
-const html = fs.readFileSync(path.join(DIR, 'NEXUS-Carburants-Pilotage-v1.html'), 'utf8');
+const html = AVD(fs.readFileSync(path.join(DIR, 'NEXUS-Carburants-Pilotage-v1.html'), 'utf8'));
 const script = html.match(/<script>([\s\S]*)<\/script>/)[1];
 const moteurCommandeSrc = fs.readFileSync(path.join(DIR, 'nexus-carburant-commande-moteur.js'), 'utf8');
 

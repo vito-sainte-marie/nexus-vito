@@ -28,12 +28,13 @@
 'use strict';
 
 const fs = require('fs');
+const AVD = require('./aide_page_differee_pour_tests.js').avantDefer;
 const path = require('path');
 const vm = require('vm');
 const assert = require('assert');
 
 const DIR = __dirname;
-const html = fs.readFileSync(path.join(DIR, 'NEXUS-Parametres-Station-v1.html'), 'utf8');
+const html = AVD(fs.readFileSync(path.join(DIR, 'NEXUS-Parametres-Station-v1.html'), 'utf8'));
 const script = html.match(/<script(?![^>]*src=)[^>]*>([\s\S]*?)<\/script>/)[1];
 
 let n = 0;

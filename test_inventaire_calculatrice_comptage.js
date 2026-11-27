@@ -21,7 +21,7 @@ const path = require('path');
 const assert = require('assert');
 
 const cheminHtml = path.join(__dirname, 'NEXUS-Inventaire-v1.html');
-const html = fs.readFileSync(cheminHtml, 'utf8');
+const html = require('./aide_page_differee_pour_tests.js').avantDefer(fs.readFileSync(cheminHtml, 'utf8'));
 const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
 
 function extraireFonction(nom) {

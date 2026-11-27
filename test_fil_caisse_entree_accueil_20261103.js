@@ -3,6 +3,7 @@
 // non-pilote, autre rôle, hors service ou comptage fait → l'Accueil garde son lien. Lecture seule de parametres_inventaire, aucune écriture.
 // SRC_MUTE / PAGE_MUTE : sources mutées pour la preuve de mutation.
 const fs = require('fs');
+const AVD = require('./aide_page_differee_pour_tests.js').avantDefer;
 const path = require('path');
 const assert = require('assert');
 const F = path.resolve(process.env.SRC_MUTE || path.join(__dirname, 'nexus-fil-caisse.js'));
@@ -50,7 +51,7 @@ cas('faitsInventaire : jugés sur le quart du service, jamais une simulation', (
   assert.deepStrictEqual(C.faitsInventaire([row('matin', { date: '2026-11-02' })], '2026-11-03', 'matin'), { ouvertureFaite: false, clotureFaite: false });
 });
 
-const HTML = fs.readFileSync(path.join(__dirname, process.env.PAGE_MUTE || 'NEXUS-App-v1.html'), 'utf8');
+const HTML = AVD(fs.readFileSync(path.join(__dirname, process.env.PAGE_MUTE || 'NEXUS-App-v1.html'), 'utf8'));
 cas('Accueil : modules chargés, lecture seule du pilote, rôle caissière exigé avant la lecture', () => {
   assert.ok(/<script src="nexus-pilotes-inventaire\.js/.test(HTML));
   assert.ok(/<script src="nexus-fil-caisse\.js/.test(HTML));

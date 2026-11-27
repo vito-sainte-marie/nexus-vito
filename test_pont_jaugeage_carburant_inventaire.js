@@ -16,6 +16,7 @@
 //   inactif -> aucun bloc, jamais un bouton grisé".
 
 const fs = require('fs');
+const AVD = require('./aide_page_differee_pour_tests.js').avantDefer;
 const path = require('path');
 const assert = require('assert');
 const vm = require('vm');
@@ -241,7 +242,7 @@ function creerClientMock(reponses) {
   // PARTIE 2 — NEXUS-Inventaire-v1.html : renderBlocJaugeageCarburant +
   // libelleMotifImpossible, extraction par regex (jamais réécrites à la main).
   // ------------------------------------------------------------
-  const html = fs.readFileSync(path.join(PROJET, 'NEXUS-Inventaire-v1.html'), 'utf8');
+  const html = AVD(fs.readFileSync(path.join(PROJET, 'NEXUS-Inventaire-v1.html'), 'utf8'));
   const scriptMatches = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1]);
   const script = scriptMatches.reduce((a, b) => (b.length > a.length ? b : a), '');
   assert.ok(script.includes('renderBlocJaugeageCarburant'), 'Bloc script applicatif introuvable');

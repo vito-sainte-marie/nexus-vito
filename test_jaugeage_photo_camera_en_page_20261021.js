@@ -4,13 +4,14 @@
 // état sur l'appareil et réduit la photo à 2 000 px / JPEG 85 % avant envoi.
 const assert = require('assert');
 const fs = require('fs');
+const AVD = require('./aide_page_differee_pour_tests.js').avantDefer;
 const path = require('path');
 let n = 0;
 function t(nom, f) { f(); n++; console.log('OK ' + nom); }
 const lire = (f) => fs.readFileSync(path.join(__dirname, f), 'utf8');
 
-const inv = lire('NEXUS-Inventaire-v1.html');
-const rel = lire('NEXUS-Releves-Piste-v1.html');
+const inv = AVD(lire('NEXUS-Inventaire-v1.html'));
+const rel = AVD(lire('NEXUS-Releves-Piste-v1.html'));
 
 t('Inventaire : la carte jaugeage ne démarre plus la saisie manuelle seule', () => {
   assert.ok(!/carteJaugeage\.addEventListener\('click',\s*demarrerJaugeageOuverture\)/.test(inv));

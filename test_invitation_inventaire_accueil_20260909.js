@@ -17,6 +17,7 @@
 'use strict';
 const assert = require('assert');
 const fs = require('fs');
+const AVD = require('./aide_page_differee_pour_tests.js').avantDefer;
 const path = require('path');
 const vm = require('vm');
 
@@ -24,7 +25,7 @@ let passes = 0;
 const attentes = [];
 function t(nom, fn) { attentes.push({ nom, fn }); }
 
-const HTML = fs.readFileSync(path.join(__dirname, 'NEXUS-App-v1.html'), 'utf8');
+const HTML = AVD(fs.readFileSync(path.join(__dirname, 'NEXUS-App-v1.html'), 'utf8'));
 const SCRIPT = HTML.match(/<script>([\s\S]*)<\/script>/)[1];
 
 // Extraction par comptage d'accolades, comme les autres épreuves de ce module.

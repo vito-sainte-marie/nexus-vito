@@ -4,6 +4,7 @@
 
 const assert = require('assert');
 const fs = require('fs');
+const AVD = require('./aide_page_differee_pour_tests.js').avantDefer;
 const path = require('path');
 
 global.window = global;
@@ -46,7 +47,7 @@ global.NexusInventairePlanDonnees = {
   assert.deepStrictEqual(missions[0].zone_ids, ['zone-boutique']);
   assert.strictEqual(missions[0].produit_ids.length, 2, 'la mission ciblée respecte son quota tournant');
 
-  const html = fs.readFileSync(path.join(__dirname, 'NEXUS-Inventaire-v1.html'), 'utf8');
+  const html = AVD(fs.readFileSync(path.join(__dirname, 'NEXUS-Inventaire-v1.html'), 'utf8'));
   const authJs = fs.readFileSync(path.join(__dirname, 'nexus-auth.js'), 'utf8');
   const testJs = fs.readFileSync(path.join(__dirname, 'nexus-inventaire-mode-test.js'), 'utf8');
   const stockEntryJs = fs.readFileSync(path.join(__dirname, 'nexus-inventaire-stock-localise-entry.js'), 'utf8');
