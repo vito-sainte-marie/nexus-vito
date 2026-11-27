@@ -46,6 +46,35 @@
     return { data: toutes, error: null };
   }
 
+  // Même contrat que fetchAllRows (mêmes lignes, même ordre, même erreur),
+  // mais les pages suivantes sont demandées EN PARALLÈLE par lots.
+  //
+  // CAUSE DE LENTEUR (B0-perf) : `products` dépasse largement 1000 lignes ;
+  // fetchAllRows demande la page n+1 seulement quand la page n est revenue,
+  // car il ne sait pas à l'avance combien il y en a. Chaque page coûtant un
+  // aller-retour complet, la latence s'additionne, et tout le Brief attend
+  // ce chargement avant de commencer les secteurs. Ici : première page seule
+  // (un petit jeu de données s'arrête là, sans requête gaspillée), puis des
+  // lots de pages demandées ensemble jusqu'à une page courte. Les pages sont
+  // réassemblées dans l'ordre de leur rang (jamais d'arrivée), donc le
+  // résultat est strictement identique à la pagination séquentielle.
+  async function fetchAllRowsParallele(builderFactory, pageSize = 1000, lot = 4) {
+    let toutes = [];
+    let rang = 0;
+    let taille = 1;
+    while (true) {
+      const rangs = Array.from({ length: taille }, (_, i) => rang + i);
+      const pages = await Promise.all(rangs.map(r => builderFactory().range(r * pageSize, r * pageSize + pageSize - 1)));
+      for (const { data, error } of pages) {
+        if (error) return { data: null, error };
+        toutes = toutes.concat(data || []);
+        if (!data || data.length < pageSize) return { data: toutes, error: null };
+      }
+      rang += taille;
+      taille = lot;
+    }
+  }
+
   async function chargerProduitsAppel(client, siteId) {
     const { data, error } = await client.from('produits_appel').select('article').eq('site', siteId);
     if (error) { console.error('Chargement produits d’appel:', error); return new Set(); }
@@ -61,7 +90,7 @@
   // Promise.all + filtre.
   async function chargerProduitsBrut(client, siteId) {
     const [{ data, error }, produitsAppel] = await Promise.all([
-      fetchAllRows(() => client.from('products')
+      fetchAllRowsParallele(() => client.from('products')
         .select('categorie, article, ca, marge, quantite, periode_debut, periode_fin')
         .eq('site', siteId).order('periode_debut', { ascending: false }).order('article', { ascending: true })),
       chargerProduitsAppel(client, siteId),
