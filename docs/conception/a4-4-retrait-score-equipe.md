@@ -1,31 +1,23 @@
-# A4-4 : retirer le score de ponctualité de l'équipe (inventaire + avant/après, sans code)
+# A4-4 : retrait de tout score d'équipe tiré du pointage (décision du gérant du 27/11/2026)
 
-Base : branche `claude/a4-4-ponctualite` (1c31f7a7). Source du score : `NexusPonctualite.scoreEquipe(tauxAnomalies)` (nexus-ponctualite.js:68), 100 − taux×200, borné 0–100.
+Règle : aucun jugement sur une personne ou une équipe n'est tiré du pointage tant que les données ne sont pas fiabilisées. Les faits mesurés restent lisibles au niveau 3 ; le calcul reste dans le moteur.
 
-## 1. Inventaire (fichier:ligne, ce qui s'affiche ou se décide)
-| # | Où | Aujourd'hui |
-|---|----|-------------|
-| 1 | NEXUS-Radar-Manager-v1.html:177-182, 229, 234 | `calculerEquipe` → axe « Équipe » du radar à 8 axes, valeur 0–100 |
-| 2 | NEXUS-Radar-Manager-v1.html:243-253 | `couleurStatut` : Sain ≥70 / À surveiller ≥40 / À agir <40 ; compteurs « n sains », « n à agir » du verdict |
-| 3 | nexus-app-donnees.js:87-100 | `equipeScore` renvoyé à l'accueil |
-| 4 | nexus-boussole-moteur.js:49-53 + NEXUS-App-v1.html:1851, 1887 | `statutEquipe(equipeScore)` : Sous contrôle ≥90, À surveiller ≥70, À corriger. Carte « Équipe » de l'accueil |
-| 5 | nexus-brief-donnees.js:744-762 | `equipeScore` passé à `domaineEquipe` du Brief |
-| 6 | nexus-secteurs-moteur.js:581-623 (l. 596-597) | `contribMaitrise = equipeScore − 50` → `valeur` du secteur Équipe → entre dans l'Indice Boussole global |
-| 7 | nexus-rapport-direction-moteur.js:167, 790-805, 408-409 | chapitre Équipe : lit `tauxPonctualite` (un fait), pas le score. **Aucun score à retirer**, constat « ponctualité < 85 % » conservé |
-| 8 | NEXUS-Progression-v1.html:546, 583 ; nexus-progression.js:420-542 | `statutPonctualiteVal` : statut par collaborateur, pas le score d'équipe. Hors périmètre |
-| 9 | nexus-risques-donnees.js:547 | signal `ponctualite_recurrente` par collaborateur : fait, conservé |
+## 1. Écrans touchés (avant → après)
+| # | Écran / fichier | Après |
+|---|-----------------|-------|
+| 1 | Radar Manager, axe Équipe (NEXUS-Radar-Manager-v1.html) | non tracé ; « Équipe : non noté », sous-titre « données de pointage en cours de fiabilisation » ; hors compteurs du verdict ; « domaines pilotés » − 1 |
+| 2 | Accueil, carte Équipe (NEXUS-App-v1.html, nexus-boussole-moteur.js, nexus-app-donnees.js) | pastille neutre « Non noté » ; détail « Ponctualité mesurée sur N pointages… » ; plus de « employé(s) à surveiller » |
+| 3 | Secteur Équipe (nexus-secteurs-moteur.js) | `valeur` null, `contribMaitrise` null : sort de l'Indice Boussole global |
+| 4 | Brief (NEXUS-Brief-v1.html, nexus-brief-donnees.js) | carte factuelle sans note ; global « calculé sans l'Équipe, données de pointage en cours de fiabilisation » |
+| 5 | Progression / Apprentissage / Mon évolution (nexus-progression.js, point 8) | ponctualité « Non noté » ; détail factuel « n retard(s) sur N pointage(s) » ; plus de score, plus d'axe de progression ni de point fort « ponctualité » |
+| 6 | Signal `ponctualite_recurrente` + `collaborateursASurveiller` (nexus-risques-donnees.js, point 9) | plus émis ; lignes déjà stockées filtrées à la lecture ; donc ni carte, ni liste « à surveiller », ni Conseiller. Le calcul reste dans nexus-ponctualite.js |
+| 7 | Rapport direction (point 7) | inchangé (fait : taux de ponctualité) |
+| 8 | nexus-ponctualite.js | `scoreEquipe` supprimé avec son épreuve |
 
-Aucun autre écran (Résultats Équipe, Cockpit) n'affiche de note de ponctualité d'équipe.
+Aucun écran ne demande de refonte : tous se conforment par neutralisation. Les badges de Progression (calculerBadges) ne dépendent pas du score et sont inchangés.
 
-## 2. Avant / après
-- **Radar Manager** — avant : axe Équipe tracé avec une valeur et une couleur. Après : axe non tracé, étiquette « Équipe : non noté », sous-titre « données de pointage en cours de fiabilisation » ; le taux et le nombre de pointages restent lisibles au détail (niveau 3). Verdict : Équipe ne compte plus dans « sains » ni « à agir » ; le compteur « domaines pilotés » baisse d'un.
-- **Accueil, carte Équipe** — avant : pastille Sous contrôle / À surveiller / À corriger. Après : pastille neutre « Non noté » ; détail inchangé (« Ponctualité mesurée sur N pointages, … »).
-- **Secteur Équipe / Indice Boussole** — avant : le score pèse dans l'indice global. Après : `contribMaitrise = null`, le secteur sort du calcul du global ; le global affiche « calculé sans l'Équipe, données de pointage en cours de fiabilisation ». Même mécanique que « calculé sans la Marge, objectif non défini » (A4-1).
-- **Brief** — avant : carte secteur Équipe notée. Après : carte factuelle sans note (même règle).
-- **Conservés** : `tauxPonctualite`, taux d'anomalies, nombre de pointages, `collaborateursASurveiller`, signaux de risque, constat du rapport direction. Rien n'est supprimé en base ni dans le moteur de mesure ; `scoreEquipe` reste exporté mais n'est plus appelé (ou retiré avec son épreuve si Guardian le demande).
+## 2. Recette (Guardian)
+E1 axe Équipe non tracé, aucune couleur de jugement ; E2 verdict Radar sans Équipe ; E3 carte Équipe « Non noté » avec son détail ; E4 mention « calculé sans l'Équipe… » sur l'Indice Boussole ; E5 faits (taux, nombre de pointages) lisibles au niveau 3 ; E6 Rapport direction inchangé ; E7 aucun statut ni couleur de jugement sur un collaborateur dans Progression, Radar, accueil, Brief, Conseiller.
 
-## 3. Recette (Guardian)
-- E1 axe Équipe non tracé, aucune couleur de jugement ; E2 verdict Radar sans Équipe ; E3 carte Équipe de l'accueil « Non noté » avec son détail ; E4 Indice Boussole : mention « calculé sans l'Équipe … » visible, valeur globale = celle des autres secteurs ; E5 taux et collaborateurs à surveiller inchangés ; E6 Rapport direction inchangé.
-
-## 4. Question
-Livrer dans #417 (même branche, mêmes fichiers) ou dans une PR distincte ? Recommandation : dans #417, car le retrait fait partie de la condition de fusion posée par Guardian.
+## 3. Épreuves
+test_ponctualite_a4_4.js (aucun `scoreEquipe`, E7), test_retard_null_consommateurs_20260919.js, test_risques_batching_nexus_risk_signals.js, test_secteurs_statut_metier_v2218.js, test_versions_scripts_20261121.js.

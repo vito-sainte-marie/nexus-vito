@@ -174,12 +174,11 @@
   // (corrige le 15/07/2026, avec la migration Pointage vers Supabase).
   // Developpement (Progression, via points de missions) : lit Supabase
   // (mission_completions), la source reellement alimentee par l'ecran Missions.
+  // Décision du gérant (27/11/2026) : aucun jugement sur une équipe tiré du
+  // pointage. L'axe Équipe n'est plus noté tant que les données de pointage
+  // ne sont pas fiabilisées ; la ponctualité mesurée reste lisible en détail.
   function calculerEquipe(pointagesHisto) {
-    if (!pointagesHisto || pointagesHisto.length === 0) return null; // aucun pointage encore enregistre
-    // Lot A4-4 : règle unique nexus-ponctualite.js (arrivées mesurées, 30 jours
-    // glissants). NULL = non mesuré : ni retard, ni preuve de ponctualité.
-    const r = NexusPonctualite.tauxPonctualite(pointagesHisto, {});
-    return NexusPonctualite.scoreEquipe(r.tauxAnomalies);
+    return null;
   }
 
   // CORRECTIF 24/07/2026 (audit doublons de données) : ce calcul supposait un
@@ -231,7 +230,7 @@
 
   const DOMAINES = [
     { nom: "Résultats", icone: "💰", sous: "CA, Marge — même Indice Marge que l'accueil NEXUS", valeur: resultatsScore, mesure: resultatsScore !== null },
-    { nom: "Équipe", icone: "👥", sous: "Présence uniquement (Motivation, Formation, Cohésion non mesurées)", valeur: equipeScore, mesure: equipeScore !== null },
+    { nom: "Équipe", icone: "👥", sous: "Équipe : non noté — données de pointage en cours de fiabilisation", valeur: equipeScore, mesure: equipeScore !== null },
     { nom: "Exploitation", icone: "🏪", sous: "Propreté, Sécurité, Disponibilité", valeur: null, mesure: false },
     { nom: "Conformité", icone: "⚖️", sous: "Procédures, Audits, Tenues, Sécurité", valeur: null, mesure: false },
     { nom: "Développement", icone: "📈", sous: "Progression équipe uniquement", valeur: devScore, mesure: devScore !== null },

@@ -156,8 +156,8 @@ const p1 = [
   t('le score de ponctualité ignore les journées non calculables', () => {
     const sans = P.statutPonctualite(CINQ_MESUREES);
     const avec = P.statutPonctualite(CINQ_MESUREES.concat(NULLS));
-    assert.strictEqual(avec.score, sans.score,
-      'ajouter des journées non mesurées a bougé le score : NULL est relu comme un fait');
+    assert.strictEqual(avec.statut, sans.statut);
+    assert.strictEqual(avec.score, undefined, 'aucun score sur un collaborateur (décision du gérant du 27/11/2026)');
     assert.strictEqual(avec.total, 5,
       `total = ${avec.total} : les NULL comptent encore au dénominateur`);
     assert.strictEqual(avec.nbRetards, 1);
@@ -185,9 +185,10 @@ const p1 = [
       { date: '2026-09-05', retard_min: 0 },
       { date: '2026-09-06', retard_min: null },
     ]);
-    assert.strictEqual(r.score, 55);
-    assert.strictEqual(r.statut, 'À corriger',
-      'le retard a été dilué : un NULL ne doit jamais adoucir une mesure');
+    assert.strictEqual(r.score, undefined);
+    assert.strictEqual(r.statut, 'Non noté', 'aucun statut de jugement sur un collaborateur');
+    assert.strictEqual(r.nbRetards, 1, 'le retard mesuré reste un fait, NULL ou pas autour');
+    assert.strictEqual(r.total, 6 - 1, 'les NULL ne comptent pas au dénominateur');
   }),
   t('la série de ponctualité n\'est ni prolongée ni rompue par un NULL', () => {
     // Trois jours à l'heure, une journée non calculable, deux jours à
@@ -314,7 +315,7 @@ const p3 = [
     assert.strictEqual(r.nbRetards, 2);
     assert.strictEqual(r.tauxAnomalies, 0.5,
       `taux = ${r.tauxAnomalies} au lieu de 0,5 : l'absence de mesure améliore la note`);
-    assert.strictEqual(r.equipeScore, 0);
+    assert.strictEqual(r.equipeScore, null, 'aucune note d\'équipe tirée du pointage');
   }),
   t('brief (chargerDomaineEquipe) : les DEUX fenêtres comptent les mesurées', async () => {
     // A4-4 : fenêtre courante = 30 jours (21/08→19/09), précédente = les 30 jours d'avant (22/07→20/08).

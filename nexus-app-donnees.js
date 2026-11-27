@@ -93,8 +93,10 @@
       const r = P.tauxPonctualite(ptsRes.data, fen);
       nbRetards = r.nbRetards;
       tauxAnomalies = r.tauxAnomalies;
-      equipeScore = P.scoreEquipe(r.tauxAnomalies);
-      employesASurveiller = P.collaborateursASurveiller(r.retardsParEmploye);
+      // Décision du gérant (27/11/2026) : aucun score d'équipe ni liste de
+      // collaborateurs « à surveiller » tirés du pointage au premier niveau.
+      // equipeScore et employesASurveiller restent null ; les faits mesurés
+      // (taux, nombre de pointages) sont conservés.
       totalPointages = r.nbMesures;
     }
     return { devScore, equipeScore, nbRetards, employesASurveiller, tauxAnomalies, totalPointages };

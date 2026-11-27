@@ -1637,8 +1637,8 @@
 <script src="nexus-jours-feries.js?v=20261106-0100"></script>
 <script src="nexus-ecarts-moteur.js?v=20261126-0100"></script>
 <script src="nexus-tempo.js?v=20261127-1000"></script>
-<script src="nexus-boussole-moteur.js?v=20260904-0104"></script>
-<script src="nexus-boussole-moteur.js?v=20260904-0104"></script>
+<script src="nexus-boussole-moteur.js?v=20261127-1700"></script>
+<script src="nexus-boussole-moteur.js?v=20261127-1700"></script>
 <!-- Ajoutés le 09/09/2026 pour l'invitation à l'inventaire : le moteur rend les
      règles qui n'ont trouvé personne, la couche de règles lit le catalogue et
      les rôles présents. Aucun autre usage sur cet écran. -->
@@ -1827,6 +1827,7 @@
     // cible : 🟢 Sous contrôle / 🟠 À surveiller / 🔴 À corriger /
     // ⚪ Données insuffisantes.
     'Données insuffisantes': '⚪',
+    'Non noté': '⚪',
   };
 
   // Mini-fiches interactives par axe (11/08/2026, demande de Frédéric —
@@ -1885,7 +1886,7 @@
       {
         cle: 'equipe', nom: 'Équipe',
         statut: statutEquipeVal,
-        detail: domainesRadar.totalPointages != null && domainesRadar.totalPointages >= SEUIL_MIN_POINTAGES_EQUIPE ? `Ponctualité mesurée sur ${domainesRadar.totalPointages} pointages${domainesRadar.employesASurveiller ? ` · ${domainesRadar.employesASurveiller} employé${domainesRadar.employesASurveiller > 1 ? 's' : ''} à surveiller` : ''}.` : "Pas encore assez de pointages enregistrés.",
+        detail: domainesRadar.totalPointages != null && domainesRadar.totalPointages >= SEUIL_MIN_POINTAGES_EQUIPE ? `Ponctualité mesurée sur ${domainesRadar.totalPointages} pointages. Équipe non notée : données de pointage en cours de fiabilisation.` : "Pas encore assez de pointages enregistrés.",
         lien: 'NEXUS-Resultats-Equipe-v1.html', libelleLien: 'Voir le détail équipe →',
       },
     ];
@@ -1909,7 +1910,7 @@
 
   const COULEUR_FICHE_STATUT = {
     'Sous contrôle': 'var(--green)', 'À surveiller': 'var(--amber)',
-    'À corriger': 'var(--red)', 'Données insuffisantes': 'var(--text-dim)',
+    'À corriger': 'var(--red)', 'Données insuffisantes': 'var(--text-dim)', 'Non noté': 'var(--text-dim)',
     'Référence certifiée': 'var(--green)',
   };
 

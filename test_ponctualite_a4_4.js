@@ -19,20 +19,13 @@ t('NULL sort des deux côtés de la fraction', () => {
 t('rien de mesuré : null, jamais 100', () => {
   const r = P.tauxPonctualite([arr('a', '2026-11-01', null)], {});
   assert.strictEqual(r.tauxAnomalies, null); assert.strictEqual(r.tauxPonctualite, null);
-  assert.strictEqual(P.scoreEquipe(r.tauxAnomalies), null);
 });
 t('bornes incluses, sorties exclues, départs ignorés', () => {
   const r = P.tauxPonctualite([arr('a', '2026-11-01', 0), arr('a', '2026-11-30', 4), arr('a', '2026-10-31', 9), arr('a', '2026-12-01', 9), { employee_id: 'a', type: 'depart', date: '2026-11-10', retard_min: 9 }], { debut: '2026-11-01', fin: '2026-11-30' });
   assert.strictEqual(r.nbMesures, 2); assert.strictEqual(r.nbRetards, 1);
 });
-t('exemple fictif : 20 arrivées dont 5 en retard sur 30 jours = 50 / 40 dont 20 sur l\'année = 25', () => {
-  const mois = []; for (let i = 0; i < 20; i++) mois.push(arr('a', '2026-11-' + String(i + 1).padStart(2, '0'), i < 5 ? 7 : 0));
-  assert.strictEqual(P.scoreEquipe(P.tauxPonctualite(mois, {}).tauxAnomalies), 50);
-  const annee = []; for (let i = 0; i < 40; i++) annee.push(arr('a', '2026-0' + (1 + (i % 9)) + '-10', i < 20 ? 7 : 0));
-  assert.strictEqual(P.scoreEquipe(P.tauxPonctualite(annee, {}).tauxAnomalies), 0);
-});
-t('barème : 0 % → 100, 25 % → 50, ≥ 50 % → 0', () => {
-  assert.strictEqual(P.scoreEquipe(0), 100); assert.strictEqual(P.scoreEquipe(0.25), 50); assert.strictEqual(P.scoreEquipe(0.7), 0);
+t('aucun score d\'équipe : décision du gérant du 27/11/2026', () => {
+  assert.strictEqual(P.scoreEquipe, undefined);
 });
 t('à surveiller : au moins 3 retards dans la fenêtre', () => {
   const r = P.tauxPonctualite([1, 2, 3].map(i => arr('a', '2026-11-0' + i, 3)).concat([arr('b', '2026-11-04', 3)]), {});
@@ -64,7 +57,7 @@ t('charger : pagine par 1000 et borne la période', async () => {});
     'nexus-risques-donnees.js': ['NexusPonctualite', 'P.fenetre'],
     'nexus-rapport-direction-donnees.js': ['NexusPonctualite.tauxPonctualite'],
     'NEXUS-Centre-Intelligence-v1.html': ['NexusPonctualite.charger', 'NexusPonctualite.fenetre'],
-    'NEXUS-Radar-Manager-v1.html': ['NexusPonctualite.tauxPonctualite', 'NexusPonctualite.scoreEquipe', 'NexusPonctualite.fenetre'],
+    'NEXUS-Radar-Manager-v1.html': ['NexusPonctualite.fenetre'],
   };
   Object.keys(lecteurs).forEach(f => lecteurs[f].forEach(m => assert.ok(lit(f).includes(m), f + ' doit utiliser ' + m)));
   n++; console.log('OK chaque lecteur passe par le module');
@@ -96,3 +89,23 @@ t('charger : pagine par 1000 et borne la période', async () => {});
   n++; console.log('OK garde statique retard_min');
   console.log(n + ' épreuves OK');
 })().catch(e => { console.error(e); process.exit(1); });
+
+// E7 — aucun statut ni couleur de jugement sur un collaborateur tiré du pointage
+// (décision du gérant du 27/11/2026).
+t('E7 aucun jugement nominal tiré du pointage', () => {
+  const g = {};
+  new Function('window', fs.readFileSync(path.join(D, 'nexus-progression.js'), 'utf8'))(g);
+  const NP = g.NexusProgression;
+  const r = NP.statutPonctualite([
+    { date: '2026-11-20', retard_min: 20 }, { date: '2026-11-21', retard_min: 0 },
+    { date: '2026-11-22', retard_min: 0 }, { date: '2026-11-23', retard_min: 0 },
+    { date: '2026-11-24', retard_min: 0 }, { date: '2026-11-25', retard_min: 0 },
+  ]);
+  assert.strictEqual(r.statut, 'Non noté');
+  assert.strictEqual(r.score, undefined);
+  const q = NP.analyserQualites({ statutCaisseVal: { statut: 'Non noté' }, statutPonctualiteVal: r,
+    statutMissionsVal: { statut: 'Non noté' }, statutTenueVal: { statut: 'Non noté' }, statutRelationClientVal: { statut: 'Non noté' } });
+  assert.ok(!q.some(x => /ponctuel/i.test(x)), 'aucune qualité de ponctualité nominale');
+  const risques = fs.readFileSync(path.join(D, 'nexus-risques-donnees.js'), 'utf8');
+  assert.ok(!/ponctualite_recurrente'\s*,\s*(site|detail)/.test(risques) || /filter/.test(risques));
+});

@@ -63,12 +63,6 @@
     };
   }
 
-  // Score 0-100 de l'équipe (barème corrigé le 22/08/2026, pente ×200) :
-  // null si rien n'est mesuré — jamais un 100 inventé.
-  function scoreEquipe(tauxAnomalies) {
-    return tauxAnomalies == null ? null : Math.round(Math.max(0, 100 - tauxAnomalies * 200));
-  }
-
   // Collaborateurs ayant au moins `seuil` retards (défaut 3) dans la fenêtre.
   function collaborateursASurveiller(retardsParEmploye, seuil) {
     const s = seuil || 3;
@@ -102,6 +96,6 @@
     return { error: null, data: tout };
   }
 
-  global.NexusPonctualite = { FENETRE_JOURS, tauxPonctualite, scoreEquipe, collaborateursASurveiller, fenetre, charger };
+  global.NexusPonctualite = { FENETRE_JOURS, tauxPonctualite, collaborateursASurveiller, fenetre, charger };
   if (typeof module !== 'undefined' && module.exports) module.exports = global.NexusPonctualite;
 })(typeof window !== 'undefined' ? window : global);

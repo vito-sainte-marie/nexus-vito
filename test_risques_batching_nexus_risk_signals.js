@@ -266,8 +266,8 @@ function clientInterdit() {
 
   // Volume : 1 lecture groupée + 1 upsert groupé pour l'écriture, peu
   // importe que les 6 domaines totalisent 15(inventaire)+1(caisse)+1(marge)+1(carburant)+1(fdj)+1(equipe) = 20 candidats.
-  assert.strictEqual(client._appels().in, 1, "l'écriture des 20 candidats des 6 domaines tient en 1 seule lecture groupée");
-  assert.strictEqual(client._appels().upsert, 1, "l'écriture des 20 candidats des 6 domaines tient en 1 seul upsert groupé");
+  assert.strictEqual(client._appels().in, 1, "l'écriture des 19 candidats des 6 domaines tient en 1 seule lecture groupée");
+  assert.strictEqual(client._appels().upsert, 1, "l'écriture des 19 candidats des 6 domaines tient en 1 seul upsert groupé");
 
   const parCle = {}; signaux.forEach(s => { parCle[s.cle_signal] = s; });
   assert.ok(parCle['caisse:quart:1'], 'domaine caisse : signal du quart avec audits présent');
@@ -277,9 +277,11 @@ function clientInterdit() {
   assert.ok(!parCle['carburant:autonomie:sp95'], 'domaine carburant : sp95 sans donnée ignoré');
   assert.strictEqual(Object.keys(alertesInventaire).filter(k => parCle[`inventaire:produit:${alertesInventaire[k] ? alertesInventaire[k].designation : ''}`]).length, 15, 'domaine inventaire : les 15 produits exploitables sont bien enregistrés');
   assert.ok(parCle['fdj:quart:1'], 'domaine fdj : signal du quart présent');
-  assert.ok(parCle['equipe:collaborateur:Jean'], 'domaine équipe : collaborateur avec retard présent');
-  assert.ok(!parCle['equipe:collaborateur:Marie'], 'domaine équipe : collaborateur sans retard ignoré');
-  assert.strictEqual(signaux.length, 20, '20 signaux au total (1 caisse + 1 marge + 1 carburant + 15 inventaire + 1 fdj + 1 équipe)');
+  // Décision du gérant (27/11/2026) : aucun signal nominal tiré du pointage au premier niveau.
+  assert.ok(!parCle['equipe:collaborateur:Jean'], 'domaine équipe : aucun signal nominal sur un collaborateur');
+  assert.ok(!parCle['equipe:collaborateur:Marie'], 'domaine équipe : aucun signal nominal sur un collaborateur');
+  assert.ok(!signaux.some(s => s.type_signal === 'ponctualite_recurrente'), 'aucun signal ponctualite_recurrente émis');
+  assert.strictEqual(signaux.length, 19, '19 signaux au total (1 caisse + 1 marge + 1 carburant + 15 inventaire + 1 fdj, plus aucun équipe)');
   signaux.forEach(s => assert.strictEqual(s.statut, 'surveille'));
 
   ok('qualifierEtEnregistrerRisquesPilote — 6 domaines, 20 candidats -> 2 requêtes d’écriture (au lieu de 20), non-régression du filtrage par domaine');

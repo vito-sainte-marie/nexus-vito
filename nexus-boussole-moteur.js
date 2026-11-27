@@ -46,11 +46,11 @@
     if (margePlusResultat && margePlusResultat.nbEcarts > 0) return 'À surveiller';
     return 'Sous contrôle';
   }
+  // Décision du gérant (27/11/2026) : aucun jugement sur une équipe tiré du
+  // pointage. Le statut Équipe est toujours neutre ; les paramètres sont
+  // conservés pour ne pas casser les appelants.
   function statutEquipe(equipeScore, totalPointages) {
-    if (equipeScore == null || totalPointages == null || totalPointages < SEUIL_MIN_POINTAGES_EQUIPE) return 'Données insuffisantes';
-    if (equipeScore >= 90) return 'Sous contrôle';
-    if (equipeScore >= 70) return 'À surveiller';
-    return 'À corriger';
+    return 'Non noté';
   }
   function statutRisques(score) {
     if (score == null) return 'Données insuffisantes';
@@ -275,6 +275,7 @@
     'À corriger': { hex: '#F0575A', nom: 'À corriger' },
     'À actualiser': { hex: '#57626F', nom: 'À actualiser' },
     'Données insuffisantes': { hex: '#57626F', nom: 'Donnée insuffisante' },
+    'Non noté': { hex: '#57626F', nom: 'Non noté' },
   };
   function couleurAxe(statut) {
     return COULEUR_STATUT_METIER[statut] || { hex: '#57626F', nom: statut || 'Donnée insuffisante' };

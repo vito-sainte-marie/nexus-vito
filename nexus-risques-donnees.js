@@ -67,7 +67,9 @@
     const { data, error } = await requete;
     if (error) { console.error('Chargement signaux de risque du site:', error); return []; }
     const R = global.NexusRisques;
-    const avecUrgence = (data || []).map(row => ({
+    // Décision du gérant (27/11/2026) : les signaux nominaux de ponctualité
+    // déjà enregistrés ne sont pas remontés au premier niveau.
+    const avecUrgence = (data || []).filter(row => row.type_signal !== 'ponctualite_recurrente').map(row => ({
       ...row,
       urgence: R ? R.classifierUrgence({ niveau: row.niveau, ancienneteJours: joursDepuisISO(row.premiere_detection_le) }) : null,
     }));
@@ -539,16 +541,11 @@
     // un signal par collaborateur AYANT AU MOINS UN RETARD sur la fenêtre —
     // jamais un signal agrégé au niveau site (voir le commentaire de
     // `qualifierPonctualiteCollaborateur` dans nexus-risques-moteur.js).
-    Object.keys(ponctualiteCollaborateurs || {}).forEach(employeeId => {
-      const donnee = (ponctualiteCollaborateurs || {})[employeeId];
-      if (!donnee || !donnee.nbRetards) return;
-      const classif = R.qualifierPonctualiteCollaborateur(donnee);
-      candidats.push({
-        domaine: 'equipe', cleSignal: `equipe:collaborateur:${donnee.nom}`, typeSignal: 'ponctualite_recurrente',
-        secteur: 'Équipe', classification: classif,
-        actionRecommandee: `Échangez avec ${donnee.nom} sur les retards constatés — un entretien individuel, pas une mesure collective, tant qu'aucun autre collaborateur n'est concerné de façon récurrente.`,
-      });
-    });
+    // Décision du gérant (27/11/2026) : aucun signal nominal tiré du pointage
+    // au premier niveau (ni carte, ni liste « à surveiller », ni Conseiller).
+    // Le calcul (qualifierPonctualiteCollaborateur) reste dans le moteur ;
+    // les faits restent lisibles au niveau 3 (écran Équipe). Aucun candidat
+    // `ponctualite_recurrente` n'est donc émis ici.
 
     await enregistrerObservationsEnLot(client, siteId, candidats);
     return chargerSignauxSite(client, siteId, { statut: 'surveille' });

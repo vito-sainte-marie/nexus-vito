@@ -750,8 +750,8 @@
       totalPointages = r.nbMesures;
       totalAnomalies = r.nbRetards;
       tauxAnomalies = r.tauxAnomalies;
-      equipeScore = P.scoreEquipe(r.tauxAnomalies);
-      employesASurveiller = P.collaborateursASurveiller(r.retardsParEmploye);
+      // Décision du gérant (27/11/2026) : equipeScore et employesASurveiller
+      // restent null (pas de note d'équipe, pas de liste nominale).
       collaborateursConcernes = Object.keys(r.retardsParEmploye).length;
       totalPointagesPrec = rp.nbMesures;
       totalAnomaliesPrec = rp.nbRetards;
