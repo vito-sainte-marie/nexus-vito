@@ -396,7 +396,24 @@
     // ('perime' ou 'jour_incomplet_sans_repli'), comme dans l'ancienne boucle.
     let carburantsFallback = null;
     const estComplet = c => M.jourCarburantEstComplet(c.controle.parCarburant, c.controle.aucunReleve);
-    let rejoues = 0;
+    // B0-perf-4b : une seule vague de lectures par plage pour tous les candidats,
+    // puis évaluation jour par jour avec les MÊMES fonctions pures, dans le même
+    // ordre, règle « premier complet dans l'ordre ». Toute anomalie (lecture hors
+    // plage, erreur) retombe sur l'ancienne boucle série ci-dessous.
+    let planB = false;
+    if (candidatsRepli.length > 0 && typeof D.chargerControlesRepliEnPlage === 'function') {
+      try {
+        const r = await D.chargerControlesRepliEnPlage(client, siteId, candidatsRepli, aujourdhui, c => M.jourCarburantEstComplet(c.parCarburant, c.aucunReleve));
+        if (r.index >= 0) {
+          carburantsFallback = { controle: r.controle };
+          fraicheur = fraicheurParCandidat[r.index];
+        }
+        planB = true;
+      } catch (e) {
+        console.warn('Brief carburants : repli en plage abandonné, boucle série.', e && e.code ? e.code : e);
+      }
+    }
+    let rejoues = planB ? candidatsRepli.length : 0;
     // Premier candidat seul : cas courant, aucune requête gaspillée. Les
     // suivants ne sont lancés (en parallèle, par lots) que s'il échoue.
     let tailleLot = 1;
