@@ -306,8 +306,18 @@
     // quand NexusRisques est chargé ; le nom de catégorie départage les égalités
     // (sans lui, l'ordre d'arrivée des lignes en base décidait des trois cités).
     const rangNiveau = (global.NexusRisques && global.NexusRisques.RANG_NIVEAU) || {};
+    // B0-perf-3 : à niveau égal, l'importance départage (champs réels de
+    // nexus_risk_signals) : impact mesuré en euros d'abord, puis récurrence,
+    // puis ancienneté du signal (le plus ancien d'abord), la catégorie
+    // n'intervenant qu'en dernier. Un champ absent compte comme 0 (ou comme
+    // « le plus récent » pour la date).
+    const nb = v => (Number.isFinite(Number(v)) && v !== null && v !== '') ? Number(v) : 0;
+    const ts = v => { const t = Date.parse(v); return Number.isFinite(t) ? t : Infinity; };
     const top = signaux.slice()
       .sort((a, b) => ((rangNiveau[b.niveau] || 0) - (rangNiveau[a.niveau] || 0))
+        || (nb(b.impact_mesure_eur) - nb(a.impact_mesure_eur))
+        || (nb(b.recurrence_count) - nb(a.recurrence_count))
+        || (ts(a.premiere_detection_le) === ts(b.premiere_detection_le) ? 0 : (ts(a.premiere_detection_le) < ts(b.premiere_detection_le) ? -1 : 1))
         || String(a.categorie || '').localeCompare(String(b.categorie || ''), 'fr'))
       .slice(0, 3).map(s => s.categorie).filter(Boolean);
     let corps;

@@ -127,14 +127,18 @@
   // NEXUS-Scanner-Stock-v1.html (nexus-stock.js, source unique), agrégé
   // par rayon puis normalisé par NexusConseiller.normaliserStockRayon.
   async function chargerCandidatsStock(client, siteId) {
-    const { data: releves, error: err1 } = await fetchAllRows(() => client
-      .from('stock_releves').select('article, categorie, quantite_theorique, releve_le').eq('site', siteId)
-      .order('releve_le', { ascending: true }).order('article', { ascending: true }));
+    // B0-perf-3 : les trois lectures sont indépendantes, on les lance ensemble
+    // et chacune pagine en parallèle (même ordre, mêmes lignes qu'en séquentiel).
+    const [{ data: releves, error: err1 }, { data: ventes }, { data: controles }] = await Promise.all([
+      fetchAllRowsParallele(() => client
+        .from('stock_releves').select('article, categorie, quantite_theorique, releve_le').eq('site', siteId)
+        .order('releve_le', { ascending: true }).order('article', { ascending: true })),
+      fetchAllRowsParallele(() => client.from('products')
+        .select('article, quantite, prix_vente, periode_debut, periode_fin').eq('site', siteId).order('article', { ascending: true })),
+      fetchAllRowsParallele(() => client.from('controles_stock')
+        .select('article, ecart, controle_le').eq('site', siteId).order('controle_le', { ascending: false }).order('article', { ascending: true })),
+    ]);
     if (err1 || !releves || !releves.length) { if (err1) console.error('Chargement stock_releves:', err1); return []; }
-    const { data: ventes } = await fetchAllRows(() => client.from('products')
-      .select('article, quantite, prix_vente, periode_debut, periode_fin').eq('site', siteId).order('article', { ascending: true }));
-    const { data: controles } = await fetchAllRows(() => client.from('controles_stock')
-      .select('article, ecart, controle_le').eq('site', siteId).order('controle_le', { ascending: false }).order('article', { ascending: true }));
     const analyse = global.NexusStock.calculerAnalyseStock(releves, ventes, controles);
     const parRayon = global.NexusStock.calculerRisqueParRayon(analyse);
     return parRayon.map(global.NexusConseiller.normaliserStockRayon);
