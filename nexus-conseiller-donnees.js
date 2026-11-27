@@ -126,6 +126,36 @@
   // Candidats Stock — même calcul par référence que
   // NEXUS-Scanner-Stock-v1.html (nexus-stock.js, source unique), agrégé
   // par rayon puis normalisé par NexusConseiller.normaliserStockRayon.
+  // Brief perf-7 (option c) : les ventes `products` de chargerCandidatsStock sont
+  // pré-agrégées par la base (products_ventes_stock : même grain article/période,
+  // quantités sommées). Si la fonction est absente ou refusée, REPLI automatique
+  // sur l'ancienne lecture brute, mêmes lignes qu'avant. Le journal n'existe
+  // qu'avec ?diag=perf et n'a aucun effet sur les valeurs.
+  function diagVentes(message) {
+    try {
+      if (typeof location === 'undefined' || !/[?&]diag=perf\b/.test(location.search)) return;
+      console.info('[diag perf] ventes stock : ' + message);
+    } catch (e) { /* diagnostic seul */ }
+  }
+  async function lireVentesStockBrutes(client, siteId) {
+    return fetchAllRowsParallele(() => client.from('products')
+      .select('article, quantite, prix_vente, periode_debut, periode_fin').eq('site', siteId).order('article', { ascending: true }));
+  }
+  async function chargerVentesStock(client, siteId) {
+    try {
+      if (typeof client.rpc === 'function') {
+        const r = await fetchAllRowsParallele(() => client.rpc('products_ventes_stock', { p_site: siteId }));
+        if (!r.error && r.data) { diagVentes('fonction base, ' + r.data.length + ' ligne(s)'); return r; }
+        diagVentes('repli lecture brute (' + ((r.error && (r.error.code || r.error.message)) || 'sans données') + ')');
+      } else {
+        diagVentes('repli lecture brute (rpc indisponible)');
+      }
+    } catch (e) {
+      diagVentes('repli lecture brute (' + ((e && e.message) || e) + ')');
+    }
+    return lireVentesStockBrutes(client, siteId);
+  }
+
   async function chargerCandidatsStock(client, siteId) {
     // B0-perf-3 : les trois lectures sont indépendantes, on les lance ensemble
     // et chacune pagine en parallèle (même ordre, mêmes lignes qu'en séquentiel).
@@ -133,8 +163,7 @@
       fetchAllRowsParallele(() => client
         .from('stock_releves').select('article, categorie, quantite_theorique, releve_le').eq('site', siteId)
         .order('releve_le', { ascending: true }).order('article', { ascending: true })),
-      fetchAllRowsParallele(() => client.from('products')
-        .select('article, quantite, prix_vente, periode_debut, periode_fin').eq('site', siteId).order('article', { ascending: true })),
+      chargerVentesStock(client, siteId),
       fetchAllRowsParallele(() => client.from('controles_stock')
         .select('article, ecart, controle_le').eq('site', siteId).order('controle_le', { ascending: false }).order('article', { ascending: true })),
     ]);
@@ -260,7 +289,7 @@
     fetchAllRows,
     chargerProduitsAppel, chargerProduitsBrut,
     chargerJournalDecisions,
-    chargerCandidatsCaisse, chargerCandidatsStock, chargerCandidatsRappels,
+    chargerCandidatsCaisse, chargerCandidatsStock, chargerVentesStock, chargerCandidatsRappels,
     estProduitAppel, calculerStatutOperations, chargerConstatTempo,
     chargerMessagesAdvisor, chargerControlesVerifyRestants,
   };
