@@ -343,12 +343,12 @@
 <script src="nexus-carburant-commande-donnees.js?v=20261124-1200"></script>
 <script src="nexus-secteurs-catalogue.js?v=20260904-0104"></script>
 <script src="nexus-moteurs-registre.js?v=20260904-0104"></script>
-<script src="nexus-secteurs-moteur.js?v=20261127-1200"></script>
+<script src="nexus-secteurs-moteur.js?v=20261127-1300"></script>
 <script src="nexus-verify-moteur.js?v=20261126-0100"></script>
 <script src="nexus-risques-moteur.js?v=20260904-0104"></script>
 <script src="nexus-conseiller.js?v=20261127-1000"></script>
 <script src="nexus-badge-etat.js"></script>
-<script src="nexus-conseiller-donnees.js?v=20261127-1100"></script>
+<script src="nexus-conseiller-donnees.js?v=20261127-1300"></script>
 <script src="nexus-risques-donnees.js?v=20261127-1000"></script>
 <script src="nexus-site-requis.js?v=20261127-0100"></script>
 <script src="nexus-brief-donnees.js?v=20261127-1200"></script>
@@ -676,10 +676,23 @@
     // fois le niveau justifié — philosophie explicite de Frédéric. Vit
     // dans NexusRisquesDonnees (pas ici) pour rester appelable à
     // l'identique depuis Cockpit/Rapport/secteurs (Article 11).
-    const signauxRisqueBruts = await NexusRisquesDonnees.qualifierEtEnregistrerRisquesPilote(nexusClient, SITE_ACTUEL, {
+    // B0-perf-3 : la qualification ÉCRIT (upsert dans nexus_risk_signals,
+    // idempotent sur la clé site_id,cle_signal) : elle ne doit plus
+    // bloquer le premier rendu. Le Brief s'assemble d'abord à partir des
+    // signaux déjà enregistrés (une seule lecture), pendant que la
+    // qualification du jour s'exécute en parallèle ; si elle change
+    // quelque chose de visible, `brief.requalification` livre le Brief
+    // réassemblé (mêmes valeurs qu'avant ce lot, simplement un peu plus
+    // tard).
+    const qualificationPromise = NexusRisquesDonnees.qualifierEtEnregistrerRisquesPilote(nexusClient, SITE_ACTUEL, {
       rowsBrut, periodeAffichage, categoriesEnEcart: margePlusResultat ? margePlusResultat.categoriesEnEcart : [],
       agregationCaisseParQuart,
     });
+    qualificationPromise.catch(() => {});   // l'échec est traité plus bas, jamais en rejet non géré
+    const [signauxPersistes, jourStation] = await Promise.all([
+      NexusRisquesDonnees.chargerSignauxSite(nexusClient, SITE_ACTUEL, { statut: 'surveille' }),
+      nexusAujourdhuiStation(SITE_ACTUEL),
+    ]);
 
     // Domaine Équipe (Cadrage risques Phase 6, tâche #235, 18/08/2026) —
     // volontairement une 2e écriture SÉPARÉE, fire-and-forget (jamais
@@ -710,6 +723,7 @@
     // re-tri est local à Brief, pas une modification de la fonction
     // partagée (même discipline que P0.2 : Brief-only quand la granularité
     // d'affichage diffère d'un autre écran).
+    const assemblerBrief = (signauxRisqueBruts) => {
     const RANG_URG = NexusRisques.RANG_URGENCE;
     const RANG_NIV = NexusRisques.RANG_NIVEAU;
     const signauxRisque = signauxRisqueBruts
@@ -735,7 +749,8 @@
     // sous-ensemble montré dans cette section.
     const signauxRisqueMargeQualifies = signauxRisqueBruts
       .filter(s => s.domaine === 'marge' && s.niveau !== 'anomalie')
-      .map(s => ({ categorie: (s.cle_signal || '').replace('marge:categorie:', ''), niveau: s.niveau }));
+      .map(s => ({ categorie: (s.cle_signal || '').replace('marge:categorie:', ''), niveau: s.niveau,
+        impact_mesure_eur: s.impact_mesure_eur, recurrence_count: s.recurrence_count, premiere_detection_le: s.premiere_detection_le }));
     const signauxRisqueCaisseQualifies = signauxRisqueBruts
       .filter(s => s.domaine === 'caisse' && s.niveau !== 'anomalie')
       .map(s => ({ quart: (s.cle_signal || '').replace('caisse:quart:', ''), niveau: s.niveau }));
@@ -803,7 +818,6 @@
     // secteursCheck.statut === 'ok' est garanti ici (vérifié en tête de
     // fonction, avant tout chargement) — on réutilise le même résultat
     // plutôt que de rappeler secteursActifsSite() une seconde fois.
-    const jourStation = await nexusAujourdhuiStation(SITE_ACTUEL);
     const secteurs = NexusSecteursMoteur.construireSecteurs(secteursCheck.secteurs, {
       jourStation, carburants, facteurs, margePlusResultat, fdjResume, constatTempo, controlesVerifyRestants,
       nbCritiquesCaisse, alertesInvOuvertes, alertesInvCritiquesOuvertes, risqueStockTotal,
@@ -1105,6 +1119,17 @@
       missionsRestantes,
       carburants,
     };
+    };
+
+    const clesVisibles = (signaux) => JSON.stringify((signaux || [])
+      .map(s => [s.cle_signal, s.niveau, s.niveau_confiance, s.impact_mesure_eur, s.recurrence_count, s.action_recommandee])
+      .sort((a, b) => String(a[0]).localeCompare(String(b[0]))));
+    const brief = assemblerBrief(signauxPersistes);
+    brief.requalification = qualificationPromise.then(
+      qualifies => clesVisibles(qualifies) === clesVisibles(signauxPersistes) ? null : assemblerBrief(qualifies),
+      e => { console.error('Qualification des risques (le Brief reste affiché sur les signaux déjà enregistrés) :', e); return null; }
+    );
+    return brief;
   }
 
   // ------------------------------------------------------------
@@ -1811,6 +1836,12 @@
     const [, brief] = await Promise.all([chargerSondeAlertes(), construireBrief()]);
     BRIEF = brief;
     renderBrief();
+    // Qualification des risques terminée après le premier rendu : on
+    // ne réaffiche que si quelque chose de visible a changé, et jamais
+    // si un rafraîchissement plus récent a pris la main.
+    brief.requalification.then(plusTard => {
+      if (plusTard && rang === _rafraichirRang && BRIEF === brief) { BRIEF = plusTard; renderBrief(); }
+    });
     if (DIAG_PERF) {
       performance.mark('brief:premier-rendu');
       // Calcul JS entre la dernière réponse réseau et le premier rendu (hors attente réseau).
