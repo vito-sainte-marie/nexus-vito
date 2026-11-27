@@ -696,15 +696,18 @@
   // la série en ce moment, un badge gagné reste gagné). Paliers
   // progressifs choisis pour donner une première réussite tôt, comme
   // demandé par Frédéric ("inciter à utiliser NEXUS au maximum").
-  function calculerBadges({ seriesCaisse, seriePonctualite, nbMissionsCompletees }) {
+  function calculerBadges({ seriesCaisse, nbMissionsCompletees }) {
     const badges = [];
     const ajouter = (id, label, valeurActuelle, seuil) => {
       badges.push({ id, label, obtenu: valeurActuelle >= seuil, valeurActuelle, seuil });
     };
     ajouter('caisse-7', 'Une semaine sans écart de caisse (7 services)', seriesCaisse.record, 7);
     ajouter('caisse-30', 'Un mois sans écart de caisse (30 services)', seriesCaisse.record, 30);
-    ajouter('ponctualite-7', '7 jours sans retard', seriePonctualite.record, 7);
-    ajouter('ponctualite-30', '30 jours sans retard', seriePonctualite.record, 30);
+    // Séries « 7 jours sans retard » et « 30 jours sans retard » suspendues
+    // (27/11/2026, décision du gérant) : les données de pointage ne sont pas
+    // encore fiables. Rien n'est affiché ni attribué ; aucune donnée n'est
+    // supprimée. Aucun point ni aucune mission n'en dépendait (le registre
+    // de points ne crédite que les paliers Caisse et Inventaire).
     ajouter('missions-25', '25 missions réalisées', nbMissionsCompletees || 0, 25);
     ajouter('missions-100', '100 missions réalisées', nbMissionsCompletees || 0, 100);
     return badges;

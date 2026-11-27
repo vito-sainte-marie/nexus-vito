@@ -94,6 +94,7 @@
   }
   .brief-date{font-family:var(--mono); font-size:10.5px; letter-spacing:0.16em; text-transform:uppercase; color:var(--text-dim); margin-bottom:16px;}
   .brief-indice-value{font-family:var(--mono); font-size:74px; font-weight:700; line-height:1; text-shadow:0 0 30px currentColor;}
+  .brief-indice-note{font-size:12px; color:var(--text-dim); margin-top:6px; line-height:1.35;}
   .brief-indice-label{font-family:var(--mono); font-size:10.5px; letter-spacing:0.12em; text-transform:uppercase; color:var(--text-dim); margin-top:8px;}
   .brief-etat{margin-top:18px; display:inline-flex; align-items:center; gap:9px; font-size:13px; color:var(--text-mid); line-height:1.5; padding:10px 18px; border-radius:22px; background:var(--panel-raised); max-width:100%;}
   .brief-etat-dot{width:9px; height:9px; border-radius:50%; flex-shrink:0; box-shadow:0 0 10px currentColor;}
@@ -1178,6 +1179,7 @@
              porter le même nom générique — voir aussi NEXUS-App-v1.html,
              "Indice Marge"). -->
         <div class="brief-indice-label">Indice Boussole</div>
+        ${ex.sansEquipe ? '<div class="brief-indice-note">Calculé sans l\'Équipe, données de pointage en cours de fiabilisation.</div>' : ''}
         <div class="brief-etat"><span class="brief-etat-dot" style="color:${couleur};"></span>${statutTexte}</div>
         <div class="brief-synthese">${brief.synthese}</div>
         <div class="indice-explain-wrap" id="indiceExplainWrap">
