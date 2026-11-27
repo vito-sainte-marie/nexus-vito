@@ -95,7 +95,8 @@ t('aucune requête ni écriture ajoutée : un seul callback, mêmes filtres site
   assert.ok(/\.eq\('site', siteId\)/.test(D));
   // Valeurs figées (CI sans origin/production) : décomptes du fichier de données à la base de cette PR.
   const nb = re => (D.match(re) || []).length;
-  assert.strictEqual(nb(/\.from\(/g), 49);
+  // 49 + 9 lectures en plage du repli Brief (B0-perf-4b) : aucune écriture ajoutée (insert/update/upsert inchangés).
+  assert.strictEqual(nb(/\.from\(/g), 58);
   assert.strictEqual(nb(/\.insert\(/g), 6);
   assert.strictEqual(nb(/\.update\(/g), 3);
   assert.strictEqual(nb(/\.upsert\(/g), 4);

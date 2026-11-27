@@ -1390,7 +1390,231 @@
     return true;
   }
 
+  // ─────────────────────────────────────────────────────────────────────
+  // REPLI DU BRIEF EN UNE VAGUE (B0-perf-4b)
+  //
+  // Cause de lenteur mesurée (Guardian, après B0-perf-3) : le repli carburant
+  // rejouait `chargerControleJour` jour après jour, chacun coûtant plusieurs
+  // requêtes séquentielles (14 à 18 s). Ici on lit CHAQUE table UNE fois sur
+  // toute la plage des jours candidats, puis on rejoue exactement la même
+  // fonction `chargerControleJour` (celle du moment, enveloppes P0 comprises)
+  // sur un client en mémoire : aucune règle de calcul n'est dupliquée, seul
+  // le transport change. Si une requête sort de la plage préchargée, le
+  // client en mémoire lève HORS_PLAGE (jamais de résultat approximatif) et
+  // l'appelant retombe sur l'ancienne boucle réseau.
+  // ─────────────────────────────────────────────────────────────────────
+  const LIMITE_LIGNES_PLAGE = 1000; // plafond par défaut d'une réponse Supabase
+
+  function jourMoinsLocal(iso, n) {
+    const d = new Date(`${iso}T00:00:00`);
+    d.setDate(d.getDate() - n);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
+  function comparerValeursPlage(a, b) {
+    const horo = /^\d{4}-\d{2}-\d{2}T/;
+    if (typeof a === 'string' && typeof b === 'string' && horo.test(a) && horo.test(b)) {
+      const x = Date.parse(a); const y = Date.parse(b);
+      if (!Number.isNaN(x) && !Number.isNaN(y)) return x < y ? -1 : (x > y ? 1 : 0);
+    }
+    return a < b ? -1 : (a > b ? 1 : 0);
+  }
+
+  // `garde` : bornes de ce qui a été préchargé ; toute requête qui les
+  // dépasse (ou qui n'est pas bornée) lève HORS_PLAGE.
+  function creerClientMemoire(tables, garde) {
+    const g = garde || {};
+    const etat = { horsPlage: null };
+    const echec = msg => {
+      const e = new Error(`HORS_PLAGE: ${msg}`);
+      e.code = 'HORS_PLAGE';
+      if (!etat.horsPlage) etat.horsPlage = e;
+      return e;
+    };
+    const aUn = (filtres, op, col) => filtres.some(f => f.op === op && f.c === col);
+    function verifier(table, filtres) {
+      if (table === 'audits_caisse' && g.audits) {
+        if (!aUn(filtres, 'gte', 'date') && !aUn(filtres, 'eq', 'date')) throw echec('audits_caisse sans borne basse');
+        filtres.forEach(f => {
+          if (f.c !== 'date') return;
+          if ((f.op === 'gte' || f.op === 'gt' || f.op === 'eq') && f.v < g.audits.min) throw echec(`audits_caisse avant ${g.audits.min}`);
+          if ((f.op === 'lte' || f.op === 'lt' || f.op === 'eq') && f.v > g.audits.max) throw echec(`audits_caisse après ${g.audits.max}`);
+        });
+      }
+      if (table === 'carburant_reception_visites' && g.visites) {
+        if (!aUn(filtres, 'lt', 'heure_fin') && !aUn(filtres, 'gte', 'date_visite')) throw echec('visites sans borne');
+        filtres.forEach(f => {
+          if (f.op === 'lt' && f.c === 'heure_fin' && comparerValeursPlage(f.v, g.visites.heureFinMin) < 0) throw echec('visites.heure_fin avant la plage');
+          if (f.op === 'gte' && f.c === 'date_visite' && f.v < g.visites.dateVisiteMin) throw echec('visites.date_visite avant la plage');
+        });
+      }
+      if (table === 'carburant_releves' && g.relevesDepuis) {
+        filtres.forEach(f => { if (f.c === 'date' && ['eq', 'lt', 'lte'].includes(f.op) && f.v < g.relevesDepuis) throw echec('relevés avant la plage'); });
+      }
+      if (table === 'carburant_stock_references' && g.referencesDepuis) {
+        filtres.forEach(f => { if (f.c === 'date' && ['eq', 'lt', 'lte'].includes(f.op) && f.v < g.referencesDepuis) throw echec('références avant la plage'); });
+      }
+    }
+    function appliquer(r, f) {
+      const v = r[f.c];
+      if (f.op === 'not') return v != null; // seul `not(col,'is',null)` est utilisé
+      if (v == null) return false; // comparaison avec NULL : jamais vraie en SQL
+      switch (f.op) {
+        case 'eq': return comparerValeursPlage(v, f.v) === 0;
+        case 'neq': return comparerValeursPlage(v, f.v) !== 0;
+        case 'lt': return comparerValeursPlage(v, f.v) < 0;
+        case 'lte': return comparerValeursPlage(v, f.v) <= 0;
+        case 'gt': return comparerValeursPlage(v, f.v) > 0;
+        case 'gte': return comparerValeursPlage(v, f.v) >= 0;
+        case 'in': return f.v.some(x => comparerValeursPlage(v, x) === 0);
+        default: throw echec(`opérateur ${f.op} inconnu`);
+      }
+    }
+    function from(table) {
+      if (!Object.prototype.hasOwnProperty.call(tables, table)) throw echec(`table non préchargée : ${table}`);
+      const filtres = []; const tris = []; let limite = null; let mode = 'liste';
+      const ajouter = op => (c, v) => { filtres.push({ op, c, v }); return q; };
+      const exec = () => {
+        verifier(table, filtres);
+        let lignes = tables[table].filter(r => filtres.every(f => appliquer(r, f)));
+        if (tris.length) {
+          lignes = lignes.slice().sort((a, b) => {
+            for (const t of tris) {
+              const x = a[t.c]; const y = b[t.c];
+              if (x == null && y == null) continue;
+              // PostgreSQL : NULL en dernier en croissant, en premier en décroissant.
+              const c = x == null ? 1 : (y == null ? -1 : comparerValeursPlage(x, y));
+              if (c !== 0) return t.asc ? c : -c;
+            }
+            return 0;
+          });
+        }
+        if (limite != null) lignes = lignes.slice(0, limite);
+        if (mode === 'liste') return { data: lignes, error: null };
+        if (lignes.length > 1) return { data: null, error: { message: 'plusieurs lignes pour maybeSingle' } };
+        if (mode === 'single' && !lignes.length) return { data: null, error: { message: 'aucune ligne pour single' } };
+        return { data: lignes[0] || null, error: null };
+      };
+      const q = {
+        select() { return q; },
+        eq: ajouter('eq'), neq: ajouter('neq'), lt: ajouter('lt'), lte: ajouter('lte'),
+        gt: ajouter('gt'), gte: ajouter('gte'), in: ajouter('in'),
+        not(c, op, v) {
+          if (op !== 'is' || v !== null) throw echec('not() hors `is null`');
+          filtres.push({ op: 'not', c }); return q;
+        },
+        order(c, opt) { tris.push({ c, asc: !opt || opt.ascending !== false }); return q; },
+        limit(n) { limite = n; return q; },
+        maybeSingle() { mode = 'maybe'; return q; },
+        single() { mode = 'single'; return q; },
+        then(ok, ko) { return Promise.resolve().then(exec).then(ok, ko); },
+      };
+      return q;
+    }
+    return { client: { from }, etat };
+  }
+
+  // Évalue, dans l'ordre de `candidats` (dates ISO), `chargerControleJour`
+  // sur des données lues UNE fois pour toute la plage, et retourne le PREMIER
+  // candidat dont le contrôle satisfait `estComplet` : { index, controle },
+  // ou { index: -1, controle: null } si aucun. Lève en cas de doute.
+  async function chargerControlesRepliEnPlage(client, siteId, candidats, aujourdhui, estComplet) {
+    if (!candidats || !candidats.length) return { index: -1, controle: null };
+    const dMin = candidats.reduce((a, b) => (b < a ? b : a));
+    const dMax = candidats.reduce((a, b) => (b > a ? b : a));
+    const haut = aujourdhui && aujourdhui > dMax ? aujourdhui : dMax;
+    const lire = (r, nom) => {
+      if (r.error) throw new Error(`PLAGE_ERREUR ${nom}: ${r.error.message || r.error}`);
+      const data = r.data || [];
+      if (Array.isArray(data) && data.length >= LIMITE_LIGNES_PLAGE) throw new Error(`PLAGE_TROP_LARGE ${nom}`);
+      return data;
+    };
+    const avecSite = rows => rows.map(r => ({ ...r, site: siteId }));
+    const visitesBase = champs => client.from('carburant_reception_visites').select(champs)
+      .eq('site', siteId).neq('statut', 'en_cours').neq('statut', 'annulee_doublon');
+    const tlow = `${jourMoinsLocal(dMin, 1)}T00:00:00.000Z`;
+
+    // Vague 1 : ce qui précède la plage (ancres) et les bornes dérivées.
+    const [r0, pz0, conf, vieilles] = await Promise.all([
+      client.from('carburant_releves').select('*').eq('site', siteId).lt('date', dMin)
+        .order('date', { ascending: false }).limit(1).maybeSingle(),
+      chargerDernierPointZero(client, siteId, dMin),
+      client.from('station_config').select('horaires,fuseau_horaire').eq('site', siteId).maybeSingle(),
+      visitesBase('id,heure_fin').not('heure_fin', 'is', null).lt('heure_fin', tlow)
+        .order('heure_fin', { ascending: false }).limit(20),
+    ]);
+    if (r0.error) throw new Error(`PLAGE_ERREUR releve: ${r0.error.message}`);
+    if (conf.error) throw new Error(`PLAGE_ERREUR station_config: ${conf.error.message}`);
+    const anciennes = lire(vieilles, 'visites anciennes');
+    const releveAvant = r0.data || null;
+    const bornesBasses = [dMin];
+    if (releveAvant) bornesBasses.push(releveAvant.date);
+    if (pz0) bornesBasses.push(pz0.date);
+    const minDate = bornesBasses.reduce((a, b) => (b < a ? b : a));
+    const seuilVisites = anciennes.length >= 20 ? anciennes[anciennes.length - 1].heure_fin : null;
+    const basMoyennes = jourMoinsLocal(dMin, 14);
+    const basAudits = jourMoinsLocal(minDate < basMoyennes ? minDate : basMoyennes, 1);
+
+    // Vague 2 : une lecture par table sur toute la plage.
+    let qReleves = client.from('carburant_releves').select('*').eq('site', siteId).lte('date', dMax);
+    if (releveAvant) qReleves = qReleves.gte('date', releveAvant.date);
+    let qRefs = client.from('carburant_stock_references').select('*').eq('site', siteId)
+      .eq('type', 'initialisation').lte('date', dMax);
+    if (pz0) qRefs = qRefs.gte('date', pz0.date);
+    let qVisitesHeure = visitesBase('id,date_visite,heure_debut,heure_fin,statut').not('heure_fin', 'is', null);
+    if (seuilVisites) qVisitesHeure = qVisitesHeure.gte('heure_fin', seuilVisites);
+    const [rReleves, rRefs, rAudits, rVisHeure, rVisDate] = await Promise.all([
+      qReleves, qRefs,
+      client.from('audits_caisse').select('date,quart,litrage_gazole,litrage_sp95,litrage_gnr')
+        .eq('site', siteId).gte('date', basAudits).lte('date', haut),
+      qVisitesHeure,
+      visitesBase('id,date_visite,heure_debut,heure_fin,statut').gte('date_visite', minDate),
+    ]);
+    const releves = lire(rReleves, 'releves');
+    const refs = lire(rRefs, 'references');
+    const audits = lire(rAudits, 'audits_caisse');
+    const parId = {};
+    [...lire(rVisHeure, 'visites'), ...lire(rVisDate, 'visites par date')].forEach(v => { parId[v.id] = v; });
+    const visites = Object.values(parId);
+    const idsVisites = visites.map(v => v.id);
+
+    // Vague 3 : détails rattachés par clé (références, visites).
+    const vide = { data: [], error: null };
+    const [rLignesRef, rMesures, rLignesVisite] = await Promise.all([
+      refs.length ? client.from('carburant_stock_reference_lignes').select('reference_id,carburant,stock_reel').in('reference_id', refs.map(r => r.id)) : vide,
+      idsVisites.length ? client.from('carburant_reception_mesures').select('*').in('visite_id', idsVisites) : vide,
+      idsVisites.length ? client.from('carburant_reception_visite_lignes').select('*').in('visite_id', idsVisites) : vide,
+    ]);
+
+    const memoire = creerClientMemoire({
+      carburant_releves: releves,
+      carburant_stock_references: refs,
+      carburant_stock_reference_lignes: lire(rLignesRef, 'lignes de référence'),
+      station_config: conf.data ? avecSite([conf.data]) : [],
+      audits_caisse: avecSite(audits),
+      carburant_reception_visites: avecSite(visites),
+      carburant_reception_mesures: lire(rMesures, 'mesures de réception'),
+      carburant_reception_visite_lignes: lire(rLignesVisite, 'lignes de réception'),
+    }, {
+      audits: { min: basAudits, max: haut },
+      visites: { heureFinMin: tlow, dateVisiteMin: minDate },
+      relevesDepuis: releveAvant ? releveAvant.date : null,
+      referencesDepuis: pz0 ? pz0.date : null,
+    });
+
+    // Rejeu dans l'ordre : le premier complet gagne, comme l'ancienne boucle.
+    // On relit la fonction à chaque appel pour que les enveloppes P0 posées
+    // sur `chargerControleJour` s'appliquent comme dans la boucle réseau.
+    for (let i = 0; i < candidats.length; i++) {
+      const controle = await global.NexusCarburantDonnees.chargerControleJour(memoire.client, siteId, candidats[i]);
+      if (memoire.etat.horsPlage) throw memoire.etat.horsPlage;
+      if (estComplet(controle)) return { index: i, controle };
+    }
+    return { index: -1, controle: null };
+  }
+
   global.NexusCarburantDonnees = {
+    chargerControlesRepliEnPlage, creerClientMemoire,
     CARBURANTS_INFO, chargerVentesPeriode, alignerQuartsComparables, chargerControleJour,
     enregistrerContexteVentilation, chargerJoursSansReleve,
     chargerCuvesConfig, chargerConsommationJournaliereMoyenne, CUVES_PAR_DEFAUT,
