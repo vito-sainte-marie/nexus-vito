@@ -7,7 +7,7 @@ const RACINE = __dirname;
 global.window = global;
 require('./outils/fuseau-metier-pour-tests.js').installerAvecFuseau('America/Martinique');
 require(path.join(RACINE, 'nexus-site-requis.js'));
-for (const f of ['nexus-app-donnees.js','nexus-brief-donnees.js','nexus-coach-fdj-donnees.js','nexus-fdj-analyse-donnees.js']) require(path.join(RACINE, f));
+for (const f of ['nexus-ponctualite.js','nexus-app-donnees.js','nexus-brief-donnees.js','nexus-coach-fdj-donnees.js','nexus-fdj-analyse-donnees.js']) require(path.join(RACINE, f));
 
 let passes = 0, echecs = 0;
 async function t(nom, fn) {

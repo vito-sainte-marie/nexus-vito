@@ -67,19 +67,18 @@
   // filtre mission_completions.site_id et pointages.site.
   async function chargerDomainesRadarHome(client, siteId) {
     global.NexusSiteRequis.exiger(siteId, 'chargerDomainesRadarHome');
-    const [{ data: completions, error: e1 }, { data: pointagesRetard, error: e2 }, { count: totalPointages, error: e3 }] = await Promise.all([
+    // Lot A4-4 : la règle de ponctualité vit dans nexus-ponctualite.js
+    // (30 jours glissants depuis le jour de la station, dénominateur = arrivées
+    // mesurées). Plus de comptage maison ici.
+    const P = global.NexusPonctualite;
+    const jour = await global.nexusAujourdhuiStation(siteId);
+    const fen = P && jour ? P.fenetre(jour) : null;
+    const [{ data: completions, error: e1 }, ptsRes] = await Promise.all([
       client.from('mission_completions').select('points').eq('site_id', siteId),
-      client.from('pointages').select('employee_id, retard_min').eq('site', siteId).eq('type', 'arrivee').gt('retard_min', 0),
-      // `.not('retard_min', 'is', null)` : le dénominateur ne compte que
-      // les arrivées dont le retard a pu être calculé. Depuis le
-      // 19/09/2026 NULL = non calculable ; le numérateur les excluait déjà
-      // (`.gt` ignore les NULL), les garder ici aurait dilué le taux
-      // d'anomalies avec des journées qui ne prouvent rien.
-      client.from('pointages').select('id', { count: 'exact', head: true }).eq('site', siteId).eq('type', 'arrivee').not('retard_min', 'is', null),
+      fen ? P.charger(client, siteId, fen.debut, fen.fin) : Promise.resolve({ error: new Error('Jour de la station ou NexusPonctualite indisponible'), data: null }),
     ]);
     if (e1) console.error('Chargement mission_completions (accueil):', e1);
-    if (e2) console.error('Chargement pointages (accueil):', e2);
-    if (e3) console.error('Chargement total pointages (accueil):', e3);
+    if (ptsRes.error) console.error('Chargement pointages (accueil):', ptsRes.error);
     let devScore = null;
     if (completions && completions.length) {
       const points = completions.reduce((s, c) => s + (c.points || 0), 0);
@@ -89,24 +88,16 @@
     let nbRetards = 0;
     let employesASurveiller = null;
     let tauxAnomalies = null;
-    // Barème corrigé (22/08/2026, même correctif que chargerDomaineEquipe()
-    // dans nexus-brief-donnees.js — voir le commentaire détaillé là-bas,
-    // Article 11 : un même bug ne doit jamais être corrigé à un seul
-    // endroit) : `100 - totalRetard` sommait des minutes de retard sans
-    // rapport avec l'échelle 0-100 ; remplacé par le TAUX d'anomalies
-    // (nbRetards / totalPointages), même pente ×200 que Brief.
-    if (pointagesRetard) {
-      nbRetards = pointagesRetard.length;
-      tauxAnomalies = totalPointages ? nbRetards / totalPointages : (nbRetards > 0 ? 1 : null);
-      equipeScore = tauxAnomalies == null ? null : Math.round(Math.max(0, 100 - tauxAnomalies * 200));
-      const retardsParEmploye = {};
-      pointagesRetard.forEach(p => {
-        if (!p.employee_id) return;
-        retardsParEmploye[p.employee_id] = (retardsParEmploye[p.employee_id] || 0) + 1;
-      });
-      employesASurveiller = Object.values(retardsParEmploye).filter(n => n >= 3).length;
+    let totalPointages = null;
+    if (ptsRes.data) {
+      const r = P.tauxPonctualite(ptsRes.data, fen);
+      nbRetards = r.nbRetards;
+      tauxAnomalies = r.tauxAnomalies;
+      equipeScore = P.scoreEquipe(r.tauxAnomalies);
+      employesASurveiller = P.collaborateursASurveiller(r.retardsParEmploye);
+      totalPointages = r.nbMesures;
     }
-    return { devScore, equipeScore, nbRetards, employesASurveiller, tauxAnomalies, totalPointages: totalPointages != null ? totalPointages : null };
+    return { devScore, equipeScore, nbRetards, employesASurveiller, tauxAnomalies, totalPointages };
   }
 
   // Axe Carburants pour "Votre entreprise aujourd'hui".

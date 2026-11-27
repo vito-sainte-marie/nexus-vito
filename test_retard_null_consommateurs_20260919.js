@@ -63,6 +63,7 @@ new Function('window', fs.readFileSync(path.join(RACINE, 'nexus-progression.js')
 const P = g.NexusProgression;
 
 const gRd = {};
+new Function('window', fs.readFileSync(path.join(RACINE, 'nexus-ponctualite.js'), 'utf8'))(gRd);
 new Function('window', fs.readFileSync(path.join(RACINE, 'nexus-rapport-direction-donnees.js'), 'utf8'))(gRd);
 const RD = gRd.NexusRapportDirectionDonnees;
 
@@ -72,6 +73,7 @@ const RD = gRd.NexusRapportDirectionDonnees;
 global.window = global;
 require(path.join(RACINE, 'nexus-site-requis.js'));
 require('./outils/fuseau-metier-pour-tests.js').installerAvecFuseau('America/Martinique');
+require(path.join(RACINE, 'nexus-ponctualite.js'));
 require(path.join(RACINE, 'nexus-app-donnees.js'));
 require(path.join(RACINE, 'nexus-brief-donnees.js'));
 require(path.join(RACINE, 'nexus-risques-donnees.js'));
@@ -315,7 +317,7 @@ const p3 = [
     assert.strictEqual(r.equipeScore, 0);
   }),
   t('brief (chargerDomaineEquipe) : les DEUX fenêtres comptent les mesurées', async () => {
-    // Fenêtre courante 13→19/09, fenêtre précédente 06→12/09.
+    // A4-4 : fenêtre courante = 30 jours (21/08→19/09), précédente = les 30 jours d'avant (22/07→20/08).
     const lignes = [
       { site: 'site-a', id: 1, employee_id: 'e1', type: 'arrivee', date: '2026-09-15', retard_min: 30 },
       { site: 'site-a', id: 2, employee_id: 'e2', type: 'arrivee', date: '2026-09-16', retard_min: 15 },
@@ -324,10 +326,10 @@ const p3 = [
       { site: 'site-a', id: 5, employee_id: 'e1', type: 'arrivee', date: '2026-09-14', retard_min: null },
       { site: 'site-a', id: 6, employee_id: 'e2', type: 'arrivee', date: '2026-09-14', retard_min: null },
       { site: 'site-a', id: 7, employee_id: 'e1', type: 'arrivee', date: '2026-09-13', retard_min: null },
-      { site: 'site-a', id: 8, employee_id: 'e1', type: 'arrivee', date: '2026-09-09', retard_min: 40 },
-      { site: 'site-a', id: 9, employee_id: 'e2', type: 'arrivee', date: '2026-09-10', retard_min: 0 },
-      { site: 'site-a', id: 10, employee_id: 'e1', type: 'arrivee', date: '2026-09-11', retard_min: null },
-      { site: 'site-a', id: 11, employee_id: 'e2', type: 'arrivee', date: '2026-09-12', retard_min: null },
+      { site: 'site-a', id: 8, employee_id: 'e1', type: 'arrivee', date: '2026-08-09', retard_min: 40 },
+      { site: 'site-a', id: 9, employee_id: 'e2', type: 'arrivee', date: '2026-08-10', retard_min: 0 },
+      { site: 'site-a', id: 10, employee_id: 'e1', type: 'arrivee', date: '2026-08-11', retard_min: null },
+      { site: 'site-a', id: 11, employee_id: 'e2', type: 'arrivee', date: '2026-08-12', retard_min: null },
     ];
     const { client } = faireClient({ pointages: lignes });
     const r = await BD.chargerDomaineEquipe(client, 'site-a', '2026-09-19');

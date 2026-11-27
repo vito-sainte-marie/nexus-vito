@@ -732,54 +732,31 @@
     global.NexusSiteRequis.exiger(siteId, 'chargerDomaineEquipe');
     const jourRef = dateReference || await nexusAujourdhuiStation(siteId);
     if (!jourRef) { console.error('Équipe (Brief) : jour de la station indéterminé (fuseau manquant).'); return null; }
-    const iso = d => d;   // bornes déjà au format jour ISO
-    const finActuelle = jourRef;
-    const debutActuelle = nexusDecalerJour(jourRef, -6);
-    const finPrecedente = nexusDecalerJour(jourRef, -7);
-    const debutPrecedente = nexusDecalerJour(jourRef, -13);
-
-    const [
-      { data: pointagesRetard, error: e2 },
-      { count: totalPointages, error: e3 },
-      { count: totalPointagesPrec, error: e4 },
-      { count: totalAnomaliesPrec, error: e5 },
-      { data: pointagesRetardTous, error: e6 },
-    ] = await Promise.all([
-      client.from('pointages').select('employee_id, retard_min').eq('site', siteId).eq('type', 'arrivee').gt('retard_min', 0).gte('date', debutActuelle).lte('date', finActuelle),
-      // Les deux dénominateurs ne comptent que les arrivées MESURÉES
-      // (`retard_min` non NULL). Depuis le 19/09/2026 NULL = retard non
-      // calculable : les numérateurs les excluent déjà (`.gt` ignore les
-      // NULL), et les laisser au dénominateur ferait baisser le taux
-      // d'anomalies à chaque journée sans planning publié — Article 11,
-      // même correction que dans nexus-app-donnees.js.
-      client.from('pointages').select('id', { count: 'exact', head: true }).eq('site', siteId).eq('type', 'arrivee').not('retard_min', 'is', null).gte('date', debutActuelle).lte('date', finActuelle),
-      client.from('pointages').select('id', { count: 'exact', head: true }).eq('site', siteId).eq('type', 'arrivee').not('retard_min', 'is', null).gte('date', iso(debutPrecedente)).lte('date', iso(finPrecedente)),
-      client.from('pointages').select('id', { count: 'exact', head: true }).eq('site', siteId).eq('type', 'arrivee').gt('retard_min', 0).gte('date', iso(debutPrecedente)).lte('date', iso(finPrecedente)),
-      // Portée (collectif/individuel) et `employesASurveiller` restent
-      // mesurés sur l'historique complet, sans fenêtre — voir commentaire
-      // ci-dessus.
-      client.from('pointages').select('employee_id').eq('site', siteId).eq('type', 'arrivee').gt('retard_min', 0),
-    ]);
-    if (e2) console.error('Chargement pointages (Brief):', e2);
-    if (e3) console.error('Chargement total pointages (Brief):', e3);
-    if (e4) console.error('Chargement total pointages période précédente (Brief):', e4);
-    if (e5) console.error('Chargement anomalies période précédente (Brief):', e5);
-    if (e6) console.error('Chargement pointages retard historique complet (Brief):', e6);
+    // Lot A4-4 : règle unique nexus-ponctualite.js. Fenêtre courante = 30 jours
+    // glissants finissant au jour de référence ; période précédente = les 30
+    // jours d'avant. Une seule lecture (60 jours), deux calculs.
+    const P = global.NexusPonctualite;
+    const fenActuelle = P.fenetre(jourRef);
+    const fenPrecedente = P.fenetre(nexusDecalerJour(jourRef, -P.FENETRE_JOURS));
+    const ptsRes = await P.charger(client, siteId, fenPrecedente.debut, fenActuelle.fin);
+    if (ptsRes.error) console.error('Chargement pointages (Brief):', ptsRes.error);
 
     let equipeScore = null, employesASurveiller = null, tauxAnomalies = null;
-    let totalAnomalies = 0, collaborateursConcernes = 0;
-    if (pointagesRetard) {
-      totalAnomalies = pointagesRetard.length;
-      tauxAnomalies = totalPointages ? totalAnomalies / totalPointages : (totalAnomalies > 0 ? 1 : null);
-      equipeScore = tauxAnomalies == null ? null : Math.round(Math.max(0, 100 - tauxAnomalies * 200));
+    let totalAnomalies = 0, collaborateursConcernes = 0, totalPointages = null;
+    let totalPointagesPrec = null, totalAnomaliesPrec = null, tauxAnomaliesPeriodePrecedente = null;
+    if (ptsRes.data) {
+      const r = P.tauxPonctualite(ptsRes.data, fenActuelle);
+      const rp = P.tauxPonctualite(ptsRes.data, fenPrecedente);
+      totalPointages = r.nbMesures;
+      totalAnomalies = r.nbRetards;
+      tauxAnomalies = r.tauxAnomalies;
+      equipeScore = P.scoreEquipe(r.tauxAnomalies);
+      employesASurveiller = P.collaborateursASurveiller(r.retardsParEmploye);
+      collaborateursConcernes = Object.keys(r.retardsParEmploye).length;
+      totalPointagesPrec = rp.nbMesures;
+      totalAnomaliesPrec = rp.nbRetards;
+      tauxAnomaliesPeriodePrecedente = rp.tauxAnomalies;
     }
-    if (pointagesRetardTous) {
-      const retardsParEmploye = {};
-      pointagesRetardTous.forEach(p => { if (p.employee_id) retardsParEmploye[p.employee_id] = (retardsParEmploye[p.employee_id] || 0) + 1; });
-      employesASurveiller = Object.values(retardsParEmploye).filter(n => n >= 3).length;
-      collaborateursConcernes = Object.keys(retardsParEmploye).length;
-    }
-    const tauxAnomaliesPeriodePrecedente = totalPointagesPrec ? (totalAnomaliesPrec || 0) / totalPointagesPrec : null;
 
     return {
       equipeScore, employesASurveiller, totalPointages: totalPointages != null ? totalPointages : null,

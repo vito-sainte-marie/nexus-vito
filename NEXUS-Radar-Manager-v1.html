@@ -78,6 +78,7 @@
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
+<script src="nexus-ponctualite.js?v=20261127-1600"></script>
 <script src="nexus-auth.js?v=20261127-1000"></script>
 <script src="nexus-site-requis.js?v=20261127-0100"></script>
 <script src="nexus-icones.js?v=20261124-0001"></script>
@@ -175,16 +176,10 @@
   // (mission_completions), la source reellement alimentee par l'ecran Missions.
   function calculerEquipe(pointagesHisto) {
     if (!pointagesHisto || pointagesHisto.length === 0) return null; // aucun pointage encore enregistre
-    // `retard_min` est nullable depuis le 19/09/2026 : NULL = retard non
-    // calculable. La requête ci-dessous les écarte déjà (`.gt` ignore les
-    // NULL), mais on ne compte que les minutes RÉELLEMENT mesurées plutôt
-    // que de lire un NULL comme un zéro — un zéro de commodité finit
-    // toujours par sortir quelque part comme un « à l'heure » constaté.
-    const totalRetardMin = pointagesHisto
-      .filter(p => Number.isFinite(p.retard_min))
-      .reduce((s, p) => s + p.retard_min, 0);
-    const score = Math.max(0, 100 - totalRetardMin); // 1 point perdu par minute de retard cumulee
-    return Math.round(score);
+    // Lot A4-4 : règle unique nexus-ponctualite.js (arrivées mesurées, 30 jours
+    // glissants). NULL = non mesuré : ni retard, ni preuve de ponctualité.
+    const r = NexusPonctualite.tauxPonctualite(pointagesHisto, {});
+    return NexusPonctualite.scoreEquipe(r.tauxAnomalies);
   }
 
   // CORRECTIF 24/07/2026 (audit doublons de données) : ce calcul supposait un
@@ -220,7 +215,12 @@
   NexusSiteRequis.exiger(SITE_ACTUEL, 'Radar du Manager');
   const [{ data: completionsHisto, error: erreurCompletions }, { data: pointagesHisto, error: erreurPointages }, facteursIndice] = await Promise.all([
     nexusClient.from('mission_completions').select('points, mission_id').eq('site_id', SITE_ACTUEL),
-    nexusClient.from('pointages').select('retard_min').eq('site', SITE_ACTUEL).eq('type', 'arrivee').gt('retard_min', 0),
+    (async () => {
+      const jour = await nexusAujourdhuiStation(SITE_ACTUEL);
+      const fen = jour ? NexusPonctualite.fenetre(jour) : null;
+      if (!fen) return { data: [], error: { message: 'Jour de la station indéterminé' } };
+      return NexusPonctualite.charger(nexusClient, SITE_ACTUEL, fen.debut, fen.fin);
+    })(),
     calculerFacteursIndice(),
   ]);
   if (erreurCompletions) console.error('Chargement mission_completions:', erreurCompletions);

@@ -131,11 +131,13 @@
     // présence (collaborateurs actifs, disponibilité du bloc) mais sortent
     // des DEUX côtés de la fraction de ponctualité : au dénominateur,
     // elles feraient monter le taux à chaque journée non mesurée.
-    const mesures = pts.filter(p => Number.isFinite(p.retard_min));
+    // Lot A4-4 : même règle que les autres écrans (nexus-ponctualite.js) ; la
+    // période reste celle choisie par le gérant.
+    const r = global.NexusPonctualite.tauxPonctualite(pts, { debut: periode.debut, fin: periode.fin });
     const nbArrivees = pts.length;
-    const nbPointages = mesures.length;
-    const nbRetards = mesures.filter(p => p.retard_min > 0).length;
-    const tauxPonctualite = nbPointages > 0 ? 1 - (nbRetards / nbPointages) : null;
+    const nbPointages = r.nbMesures;
+    const nbRetards = r.nbRetards;
+    const tauxPonctualite = r.tauxPonctualite;
     const collaborateursActifs = new Set(pts.map(p => p.employee_id)).size;
 
     const mis = missions || [];
