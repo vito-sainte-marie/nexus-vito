@@ -2045,11 +2045,21 @@
     employeeCourantId = employee.id;
     ROLE_REEL_COURANT = employee.role_reel || employee.role || null;
     SITE_ACTUEL = employee.site_id;
-    if (!(await NexusForfait.nexusRequireBriefNexus(SITE_ACTUEL))) return;
+    // B0-perf-4a : forfait, fuseau, poste du jour et ligne `sites` ne dépendent
+    // que de l'employé. Ils partent ensemble ; AUCUN résultat n'est appliqué ni
+    // affiché avant le verdict du forfait. Un refus jette tout (les lectures
+    // sont en lecture seule, rien n'est écrit, rien n'est rendu).
+    const lectureForfait = NexusForfait.nexusRequireBriefNexus(SITE_ACTUEL);
+    const lectureFuseau = NexusStation.fuseauDeLaStation(SITE_ACTUEL);
+    const lecturePoste = lirePosteDuJour(employee);
+    const lectureSite = nexusClient.from('sites').select('nom_entreprise, logo_url, type_commerce, secteurs').eq('site_id', SITE_ACTUEL).maybeSingle();
+    // Évite un rejet non géré si la garde refuse avant qu'elles ne répondent.
+    [lectureFuseau, lecturePoste, lectureSite].forEach(pm => { Promise.resolve(pm).catch(() => {}); });
+    if (!(await lectureForfait)) return;
     // A3 / C1c-4a — Brief devient résolveur explicite : il lit le fuseau du
     // commerce UNE FOIS et le transmet aux couches de données. Aucune d'elles
     // ne va le chercher elle-même.
-    const fuseauBrief = await NexusStation.fuseauDeLaStation(SITE_ACTUEL);
+    const fuseauBrief = await lectureFuseau;
     FUSEAU_STATION = fuseauBrief.timezone || null;
     try { if (window.NexusTheme && FUSEAU_STATION) NexusTheme.definirFuseau(FUSEAU_STATION); } catch (e) {}
     STATION_CONFIG.manager_prenom = employee.nom;
@@ -2060,8 +2070,8 @@
     // l'Accueil et Missions disaient « pompiste ». Aucune permission ne
     // dépend de ce badge — les habilitations restent lues sur la fiche.
     // À défaut de service du jour, on n'invente rien : le badge reste vide.
-    STATION_CONFIG.manager_role = await lirePosteDuJour(employee) || '';
-    const { data: siteActuel } = await nexusClient.from('sites').select('nom_entreprise, logo_url, type_commerce, secteurs').eq('site_id', SITE_ACTUEL).maybeSingle();
+    STATION_CONFIG.manager_role = await lecturePoste || '';
+    const { data: siteActuel } = await lectureSite;
     if (siteActuel && siteActuel.nom_entreprise) STATION_CONFIG.station_nom = siteActuel.nom_entreprise;
     if (siteActuel && siteActuel.logo_url) STATION_CONFIG.logo_url = siteActuel.logo_url;
     if (siteActuel) SITE_SECTEURS_CONFIG = { type_commerce: siteActuel.type_commerce, secteurs: siteActuel.secteurs };
