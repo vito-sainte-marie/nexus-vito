@@ -13,6 +13,8 @@
   const ETATS = { NON_LISIBLE: 'non_lisible', NON_DEFINI: 'non_defini', DEFINI: 'defini' };
   const ROLES_LECTEURS = ['manager', 'gerant', 'gérant'];
   const MENTION_SANS_CIBLE = 'calculé sans la Marge, objectif non défini';
+  // Hors Produits, la marge n'est pas évaluée : une seule voix, le moteur officiel de Produits.
+  const MENTION_NON_EVALUE = 'Marge non évaluée ici : l\'objectif de marge se calcule dans Produits, à partir des cibles validées par famille.';
 
   const dep = nom => {
     const d = global[nom]; if (!d) throw new Error(nom + ' non chargé');
@@ -59,6 +61,7 @@
   }
   // Mention à afficher quand un score est calculé sans la Marge.
   function mentionSansCible(res, role) {
+    if (res && res.etat === 'non_evalue') return MENTION_NON_EVALUE;
     if (res && res.etat === ETATS.NON_DEFINI && ROLES_LECTEURS.indexOf(role) >= 0) return MENTION_SANS_CIBLE;
     return null;
   }
@@ -133,7 +136,7 @@
     return res;
   }
 
-  const API = { normaliserRayon: normaliserRayon, objectifStation: objectifStation, SEUIL_COUVERTURE: SEUIL_COUVERTURE, ETATS, ROLES_LECTEURS, MENTION_SANS_CIBLE, creer, charger, oublier, libelle, mentionSansCible, cibleNotante, palier, nonEvalue };
+  const API = { normaliserRayon: normaliserRayon, objectifStation: objectifStation, SEUIL_COUVERTURE: SEUIL_COUVERTURE, ETATS, ROLES_LECTEURS, MENTION_SANS_CIBLE, MENTION_NON_EVALUE, creer, charger, oublier, libelle, mentionSansCible, cibleNotante, palier, nonEvalue };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   global.NexusCibleMarge = API;
 })(typeof window !== 'undefined' ? window : globalThis);

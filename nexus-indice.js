@@ -27,7 +27,7 @@
   // Retourne null si la marge réelle n'est pas mesurable — jamais un
   // chiffre inventé (Article 5 de la Constitution NEXUS).
   // A4-1 : cible de marge lue dans tarif_seuils (facteurs.cibleMarge, valide seulement).
-  // Sans cible : null (mention « calculé sans la Marge, objectif non défini » côté écran).
+  // Sans cible (ou hors Produits, cible « non évaluée ») : null, jamais un chiffre inventé.
   function calculerIndiceNexus(facteurs) {
     if (!facteurs || facteurs.margeReelle == null || facteurs.cibleMarge == null) return null;
     let score = 50 + (facteurs.margeReelle - facteurs.cibleMarge) * 100;

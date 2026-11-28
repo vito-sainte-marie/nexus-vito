@@ -86,5 +86,21 @@ ok('vocabulaire du palier (Rayon) : faible < minimum, sous l\'objectif entre min
   assert.ok(!/très faible/.test(rayon), 'plus de « très faible » hors palier');
   assert.ok(/motPalier/.test(rayon) && /\$\{libelleMarge\}\$\{motPalier/.test(rayon), 'constat sans double espace');
 });
+ok('hors Produits : Indice marge null, texte « non évaluée ici », plus de « calculé sans la Marge »', () => {
+  const nv = M.nonEvalue();
+  assert.strictEqual(M.cibleNotante(nv), null);
+  assert.strictEqual(M.mentionSansCible(nv, 'gerant'), M.MENTION_NON_EVALUE);
+  assert.ok(/Marge non évaluée ici : l'objectif de marge se calcule dans Produits/.test(M.MENTION_NON_EVALUE));
+  assert.ok(!/\d\s?%/.test(M.MENTION_NON_EVALUE), 'aucun pourcentage de couverture hors Produits');
+  require('./nexus-indice.js'); const I = global.NexusIndice;
+  const f = { margeReelle: 0.2, cibleMarge: M.cibleNotante(nv), evolutionReelle: 0 };
+  assert.strictEqual(I.calculerIndiceNexus(f), null);
+  ['NEXUS-Brief-v1.html', 'NEXUS-Radar-Manager-v1.html', 'nexus-app-donnees.js'].forEach(f2 => {
+    const c = require('fs').readFileSync(__dirname + '/' + f2, 'utf8');
+    assert.ok(/NexusCibleMarge\.nonEvalue\(\)/.test(c), f2 + ' : branché sur nonEvalue');
+    assert.ok(!/resoudre\(null, null\)/.test(c), f2 + ' : plus de cible de station');
+  });
+  assert.ok(/MENTION_NON_EVALUE/.test(require('fs').readFileSync(__dirname + '/NEXUS-Radar-Manager-v1.html', 'utf8')));
+});
 // Les tests asynchrones sont enchaînés : le processus attend la fin.
 Promise.all(attente).then(() => console.log('test_cible_marge_a4_1 : ' + n + ' épreuves OK'), e => { console.error(e); process.exit(1); });
