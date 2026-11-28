@@ -2318,6 +2318,19 @@
       "procedure": "supabase/retours/20261128100000_retour_objectifs_a4_1d_perimetre_exclu.sql",
       "valide_par": null,
       "valide_le": null,
+      "mesure": {
+        "source": "catalogue",
+        "le": "2026-11-28T13:00:00Z",
+        "cible": "udljdqxerrbbbajxubfn",
+        "par": "Claude Code (lecture du catalogue de Test apres application de la migration sur Test)",
+        "outil": "psql en lecture seule vers Supabase Test ; aucune ecriture, aucune lecture de Production",
+        "identite_constatee": "Test, apres application de 20261128100000 ; Production n'a pas la table (non mesuree : pas de GO)",
+        "lecture_seule": true,
+        "moteur": "PostgreSQL (catalogue Test)",
+        "verdict": "Table tarif_perimetre_exclu presente (1). Fonctions Test (md5 12 car. de pg_get_functiondef, definer, anon execute) : declarer_perimetre_exclu e686d6aa7424 definer true false ; retirer_perimetre_exclu 0cd46be140ae definer true false ; tarif_seuils_rayon_exclu_garde 79fd26d123ca definer false false. Production : migration non appliquee ; le code additif ne la requiert pas avant application, la procedure de retour est fournie.",
+        "blob_migration": "1c94e30c3ec0aeee0931dae4c633d1c5b214b676",
+        "blob_provenance": "git hash-object supabase/migrations/20261128100000_objectifs_a4_1d_perimetre_exclu.sql (branche claude/a4-1d-perimetre-exclu)"
+      },
       "trace": "#409, consigne de Guardian 7234234996 (A4-1d) ; specification 7233580725."
     }
   },
