@@ -413,7 +413,7 @@ body.nexus-desktop #resultSection > *{margin-bottom:12px;}
 <script src="nexus-anomalies-tarifaires.js"></script>
 <script src="nexus-politique-tarifaire.js"></script>
 <script src="nexus-politique-tarifaire-registres.js"></script>
-<script src="nexus-politique-tarifaire-ecran.js?v=20261127-1200"></script>
+<script src="nexus-politique-tarifaire-ecran.js?v=20261127-1500"></script>
 <script src="nexus-produits-securite.js"></script>
 </head>
 <body>
@@ -1791,7 +1791,36 @@ nexusRequireAuth().then(async employee => {
         rendre();
       } catch (e) { console.error('Objectif de marge:', e); btn.disabled = false; dire(E.messageErreurObjectif(e)); }
     };
-    const rendre = () => { etat.margePlus = blocMargePlus(); corps.innerHTML = E.htmlPage(etat); lier(); };
+    // A4-1e : sélection, confirmation dans la page, envoi séquentiel (un appel par objectif, un échec n'arrête pas les autres).
+    const groupe = () => (etat.groupe = etat.groupe || { selValider: [], selProposer: [], recherche: '', confirmer: null, resultats: [], bilan: '', enCours: false });
+    const basculer = (liste, v, oui) => { const i = liste.indexOf(v); if (oui && i === -1) liste.push(v); if (!oui && i !== -1) liste.splice(i, 1); };
+    const envoyerSelection = async (mode) => {
+      const g = groupe(), lignes = E.lignesObjectifsFamilles(etat);
+      const items = mode === 'valider'
+        ? g.selValider.map(id => { const o = lignes.filter(x => x.proposition && x.proposition.id === id)[0]; return o ? { id, libelle: o.famille } : null; }).filter(Boolean)
+        : g.selProposer.map(f => { const o = lignes.filter(x => x.famille === f)[0]; return o && o.ligne ? { famille: f, cible: Number(o.ligne.cible), libelle: f } : null; }).filter(Boolean);
+      g.confirmer = null; g.enCours = true; g.resultats = []; g.bilan = ''; rendre();
+      const r = await E.envoyerGroupe(nexusClient, SITE_ACTUEL, mode, items);
+      g.enCours = false; g.resultats = r.resultats; g.bilan = r.bilan;
+      if (mode === 'valider') g.selValider = []; else g.selProposer = [];
+      await rechargerObjectifs(); rendre();
+    };
+    const lierGroupe = () => {
+      const g = groupe();
+      corps.querySelectorAll('[data-objf-valider]').forEach(c => c.addEventListener('change', () => { basculer(g.selValider, c.dataset.objfValider, c.checked); rendre(); }));
+      corps.querySelectorAll('[data-objf-proposer]').forEach(c => c.addEventListener('change', () => { basculer(g.selProposer, c.dataset.objfProposer, c.checked); rendre(); }));
+      corps.querySelectorAll('[data-objf-tout]').forEach(b => b.addEventListener('click', () => {
+        if (b.dataset.objfTout === 'valider') g.selValider = Array.from(corps.querySelectorAll('[data-objf-valider]')).map(c => c.dataset.objfValider);
+        else g.selProposer = Array.from(corps.querySelectorAll('[data-objf-proposer]')).map(c => c.dataset.objfProposer);
+        rendre();
+      }));
+      corps.querySelectorAll('[data-objf-envoyer]').forEach(b => b.addEventListener('click', () => { g.confirmer = { mode: b.dataset.objfEnvoyer }; rendre(); }));
+      corps.querySelectorAll('[data-objf-annuler]').forEach(b => b.addEventListener('click', () => { g.confirmer = null; rendre(); }));
+      corps.querySelectorAll('[data-objf-confirmer]').forEach(b => b.addEventListener('click', () => { b.disabled = true; envoyerSelection(g.confirmer.mode); }));
+      const rech = corps.querySelector('[data-objf-recherche]');
+      if (rech) rech.addEventListener('input', () => { g.recherche = rech.value; const pos = rech.selectionStart; rendre(); const n = corps.querySelector('[data-objf-recherche]'); if (n) { n.focus(); try { n.setSelectionRange(pos, pos); } catch (e) { /* type search */ } } });
+    };
+    const rendre = () => { etat.margePlus = blocMargePlus(); corps.innerHTML = E.htmlPage(etat); lier(); lierGroupe(); };
     // « Marquer comme vérifié » : écriture append-only par la fonction SQL ; le site n'est jamais envoyé ; message avec date et auteur (nom affiché).
     const marquerVerifie = async (btn) => {
       const E2 = E, art = btn.dataset.verArticle, code = btn.dataset.verifier;

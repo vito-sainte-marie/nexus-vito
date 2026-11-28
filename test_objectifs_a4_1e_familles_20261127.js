@@ -1,0 +1,70 @@
+'use strict';
+// A4-1e : carte « Objectifs de marge par famille », validation et proposition groupées.
+const assert = require('assert');
+const E = require('./nexus-politique-tarifaire-ecran.js');
+let n = 0;
+function t(nom, f) { const r = f(); const fin = () => { n++; console.log('OK ' + nom); }; return r && r.then ? r.then(fin) : fin(); }
+const lg = (famille, ca) => ({ famille, ca_ht: ca, article: famille + '1' });
+const base = (o) => Object.assign({ userId: 'u2', analyse: { lignes: [lg('Boissons', 500), lg('Epicerie', 900), lg('Hygiene', 100)] },
+  objectifs: [], propositions: [], droitsObjectif: { proposer: true, valider: true }, groupe: {} }, o || {});
+const cib = (f, c, s) => ({ niveau: 'famille', cible_niveau: f, cible: c, statut_cible: s || 'indicatif', id: 'o-' + f });
+const prop = (f, par) => ({ id: 'p-' + f, niveau: 'famille', cible_niveau: f, cible: 0.3, propose_par: par || 'u1', statut: 'ouverte' });
+
+t('tri par CA de la période, statut et cible affichés', () => {
+  const h = E.htmlObjectifsFamilles(base({ objectifs: [cib('Boissons', 0.25, 'valide'), cib('Epicerie', 0.3, 'hypothese')] }));
+  assert.ok(h.indexOf('Epicerie') < h.indexOf('Boissons') && h.indexOf('Boissons') < h.indexOf('Hygiene'));
+  assert.ok(h.includes('hypothèse') && h.includes('validée') && h.includes('non définie'));
+});
+t('plus de 10 familles : recherche et 10 lignes', () => {
+  const lignes = []; for (let i = 0; i < 12; i++) lignes.push(lg('F' + String(i).padStart(2, '0'), 100 - i));
+  const h = E.htmlObjectifsFamilles(base({ analyse: { lignes } }));
+  assert.strictEqual((h.match(/data-objf-famille=/g) || []).length, 10);
+  assert.ok(h.includes('data-objf-recherche'));
+  const h2 = E.htmlObjectifsFamilles(base({ analyse: { lignes }, groupe: { recherche: 'f11' } }));
+  assert.strictEqual((h2.match(/data-objf-famille=/g) || []).length, 1);
+});
+t('propositions : case par proposition, pas pour les siennes', () => {
+  const h = E.htmlObjectifsFamilles(base({ objectifs: [cib('Boissons', 0.25)], propositions: [prop('Boissons', 'u1'), prop('Epicerie', 'u2')] }));
+  assert.ok(h.includes('data-objf-valider="p-Boissons"'));
+  assert.ok(!h.includes('data-objf-valider="p-Epicerie"'));
+  assert.ok(h.includes('Un autre compte doit valider'));
+  assert.ok(h.includes('Valider la sélection (0)') && h.includes('Tout sélectionner'));
+});
+t('compteur du bouton selon la sélection', () => {
+  const h = E.htmlObjectifsFamilles(base({ propositions: [prop('Boissons'), prop('Epicerie')], groupe: { selValider: ['p-Boissons', 'p-Epicerie'] } }));
+  assert.ok(h.includes('Valider la sélection (2)'));
+});
+t('compte non habilité : aucune case, lecture seule', () => {
+  const h = E.htmlObjectifsFamilles(base({ droitsObjectif: {}, objectifs: [cib('Boissons', 0.25)], propositions: [prop('Epicerie')] }));
+  assert.ok(!h.includes('type="checkbox"') && !h.includes('data-objf-envoyer'));
+  assert.ok(h.includes('Lecture seule'));
+});
+t('proposition groupée : familles non validées sans proposition ouverte, jamais defaut', () => {
+  const h = E.htmlObjectifsFamilles(base({ objectifs: [cib('Boissons', 0.25, 'valide'), cib('Epicerie', 0.3, 'a_l_etude'), cib('Hygiene', 0.2, 'indicatif'), { niveau: 'defaut', cible_niveau: 'defaut', cible: 0.28, statut_cible: 'indicatif' }], propositions: [prop('Hygiene')] }));
+  assert.ok(h.includes('data-objf-proposer="Epicerie"'));
+  assert.ok(!h.includes('data-objf-proposer="Boissons"') && !h.includes('data-objf-proposer="Hygiene"') && !h.includes('data-objf-proposer="defaut"'));
+  assert.ok(!h.includes('data-objf-famille="defaut"'));
+  assert.ok(h.includes('Proposer ces cibles telles quelles (0)'));
+});
+t('confirmation dans la page, avec la liste', () => {
+  const h = E.htmlObjectifsFamilles(base({ propositions: [prop('Boissons'), prop('Epicerie')], groupe: { selValider: ['p-Boissons', 'p-Epicerie'], confirmer: { mode: 'valider' } } }));
+  assert.ok(h.includes('Valider 2 objectifs ?') && h.includes('data-objf-confirmer'));
+});
+t('envoi partiel : un échec n\'arrête pas les autres, bilan', async () => {
+  const appels = [];
+  const client = { rpc: async (nom, a) => { appels.push([nom, a]); return a.p_proposition === 'b' ? { error: { message: 'objectif_auto_validation_interdite' } } : { data: 1 }; } };
+  const r = await E.envoyerGroupe(client, 'S', 'valider', [{ id: 'a', libelle: 'A' }, { id: 'b', libelle: 'B' }, { id: 'c', libelle: 'C' }]);
+  assert.strictEqual(appels.length, 3);
+  assert.deepStrictEqual(r.resultats.map(x => x.ok), [true, false, true]);
+  assert.ok(/^2 validés, 1 refusé : B \(/.test(r.bilan));
+});
+t('proposition groupée : un appel par famille, niveau famille, cible reprise', async () => {
+  const appels = [];
+  const client = { rpc: async (nom, a) => { appels.push([nom, a]); return { data: 1 }; } };
+  const r = await E.envoyerGroupe(client, 'S', 'proposer', [{ famille: 'Epicerie', cible: 0.3, libelle: 'Epicerie' }]);
+  assert.strictEqual(appels[0][0], 'proposer_marge_cible');
+  assert.strictEqual(appels[0][1].p_niveau, 'famille'); assert.strictEqual(appels[0][1].p_cible_niveau, 'Epicerie'); assert.strictEqual(appels[0][1].p_cible, 0.3);
+  assert.strictEqual(r.bilan, '1 proposé.');
+});
+t('l\'ancienne carte station a disparu', () => assert.strictEqual(E.htmlObjectifStation, undefined));
+Promise.resolve().then(() => new Promise(r => setTimeout(r, 50))).then(() => console.log(n + ' tests'));
