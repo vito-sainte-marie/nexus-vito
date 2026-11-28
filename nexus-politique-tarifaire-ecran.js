@@ -1012,14 +1012,15 @@
       .map(function (o) { return o.famille; });
   }
   function indicateursFamilles(etat) {
-    var r = { total: 0, valides: 0, indicatives: 0, etude: 0, hypotheses: 0, aFaireValider: 0, attente: 0, sansCible: 0, sansCibleAvecAttente: 0 };
+    var r = { total: 0, valides: 0, indicatives: 0, etude: 0, hypotheses: 0, aProposer: 0, attente: 0, sansCible: 0, sansCibleAvecAttente: 0 };
     lignesObjectifsFamilles(etat).forEach(function (o) {
       r.total++;
       if (o.proposition) r.attente++;
       if (o.ligne === null) { r.sansCible++; if (o.proposition) r.sansCibleAvecAttente++; return; }
       if (o.statut === 'valide') r.valides++; else if (o.statut === 'indicatif') r.indicatives++; else if (o.statut === 'hypothese') r.hypotheses++; else r.etude++;
     });
-    r.aFaireValider = r.indicatives + r.etude + r.hypotheses;
+    // Cibles à proposer (indicatives, à l'étude, hypothèses). Ce qui attend une validation, c'est `attente`.
+    r.aProposer = r.indicatives + r.etude + r.hypotheses;
     return r;
   }
   // Retire de l'envoi ce qui a changé depuis la sélection : proposition plus ouverte, ou famille déjà proposée.
@@ -1145,7 +1146,8 @@
   }
   // Ligne de résumé de la carte repliée : lue sur indicateursFamilles, aucun calcul nouveau.
   function resumeFamilles(ind, nbSel) {
-    var t = ind.total + (ind.total > 1 ? ' familles' : ' famille') + ' · ' + ind.aFaireValider + ' à valider · ' + ind.valides + (ind.valides > 1 ? ' validées' : ' validée');
+    var t = ind.total + (ind.total > 1 ? ' familles' : ' famille') + ' · ' + ind.valides + (ind.valides > 1 ? ' validées' : ' validée') + ' · ' + ind.aProposer + ' à proposer';
+    if (ind.attente > 0) t += ' · ' + ind.attente + ' en attente de validation';
     if (nbSel) t += ' · ' + nbSel + (nbSel > 1 ? ' sélectionnées' : ' sélectionnée');
     return t;
   }

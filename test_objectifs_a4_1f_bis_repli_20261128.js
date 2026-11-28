@@ -32,13 +32,22 @@ t('préférence relue : ouvert persisté, replié si stockage absent ou illisibl
   const h = E.htmlObjectifsFamilles(base({ groupe: { ouvert: true } }));
   assert.ok(/^<details[^>]*\sopen[\s>]/.test(h));
 });
+t('libellé du résumé : validées, à proposer, en attente de validation, sélectionnées, dans cet ordre', () => {
+  const sans = E.resumeFamilles({ total: 15, valides: 2, aProposer: 10, attente: 0 }, 0);
+  assert.strictEqual(sans, '15 familles · 2 validées · 10 à proposer');
+  assert.ok(!/en attente/.test(sans) && !/à valider/.test(sans));
+  const av = E.resumeFamilles({ total: 15, valides: 2, aProposer: 10, attente: 3 }, 2);
+  assert.strictEqual(av, '15 familles · 2 validées · 10 à proposer · 3 en attente de validation · 2 sélectionnées');
+  assert.ok(!/à valider/.test(av));
+  assert.strictEqual(E.resumeFamilles({ total: 1, valides: 1, aProposer: 0, attente: 0 }, 1), '1 famille · 1 validée · 0 à proposer · 1 sélectionnée');
+});
 t('résumé replié = indicateursFamilles, sans calcul neuf ni couverture', () => {
   const e = base({ propositions: [{ id: 'p-H', niveau: 'famille', cible_niveau: 'Hygiene', cible: 0.3, propose_par: 'u1', statut: 'ouverte' }] });
   const ind = E.indicateursFamilles(e);
   const h = E.htmlObjectifsFamilles(e);
   const r = (h.match(/data-objf-resume="1">([^<]*)</) || [])[1];
   assert.strictEqual(r, E.resumeFamilles(ind, 0));
-  assert.ok(r.startsWith(ind.total + ' familles') && r.includes(ind.aFaireValider + ' à valider') && r.includes(ind.valides + ' validée'));
+  assert.ok(r.startsWith(ind.total + ' familles') && r.includes(ind.aProposer + ' à proposer') && r.includes(ind.valides + ' validée'));
   assert.ok(!/couverture/i.test(r) && !/sélectionnée/.test(r));
   assert.strictEqual(E.resumeFamilles(ind, 2).slice(-'2 sélectionnées'.length), '2 sélectionnées');
   assert.ok(E.resumeFamilles(ind, 1).endsWith('1 sélectionnée'));
