@@ -48,7 +48,7 @@
     // Fuseau du site : fraîcheur de la paire mesurée dans le jour de la station.
     const fuseau = (typeof nexusFuseauSite === 'function') ? await nexusFuseauSite(siteId) : null;
     // A4-1 : cible de marge du site (une seule lecture partagée), jamais écrite en dur.
-    const cibleRes = await global.NexusCibleMarge.charger(client, siteId, role).then(c => c.resoudre(null, null));
+    const cibleRes = await global.NexusCibleMarge.charger(client, siteId, role).then(() => global.NexusCibleMarge.nonEvalue());
     const facteurs = global.NexusIndice.calculerFacteurs(rowsBrut, { fuseau, cibleMarge: global.NexusCibleMarge.cibleNotante(cibleRes) });
     const candidats = global.NexusConseiller.calculerCandidatsProduits(rowsBrut, { fuseau }).map(global.NexusConseiller.normaliserProduit);
     return { candidats, facteurs, cibleRes };

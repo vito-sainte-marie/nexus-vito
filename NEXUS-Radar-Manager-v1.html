@@ -169,7 +169,7 @@
     if (error || !rowsBrut || !rowsBrut.length) { console.error('Chargement products (Indice Marge):', error); return null; }
     const fuseau = (typeof nexusFuseauSite === 'function') ? await nexusFuseauSite(SITE_ACTUEL) : null;
     // A4-1 : cible de marge lue dans tarif_seuils (valide seulement), une lecture partagée.
-    cibleResRadar = await NexusCibleMarge.charger(nexusClient, SITE_ACTUEL, session.role).then(c => c.resoudre(null, null));
+    cibleResRadar = await NexusCibleMarge.charger(nexusClient, SITE_ACTUEL, session.role).then(() => NexusCibleMarge.nonEvalue());
     return NexusIndice.calculerFacteurs(rowsBrut, { fuseau, cibleMarge: NexusCibleMarge.cibleNotante(cibleResRadar) });
   }
   let cibleResRadar = null;

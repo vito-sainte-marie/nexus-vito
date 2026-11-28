@@ -29,6 +29,8 @@
     }
     function resoudre(rayon, famille) {
       if (etat0 === ETATS.NON_LISIBLE) return { etat: ETATS.NON_LISIBLE, cible: null, minimum: null, statut: null, niveau: null, notante: false };
+      // Aucune cible « station » : sans rayon ni famille, il n'y a rien à résoudre (A4-1, Guardian 7240692918).
+      if (!rayon && !famille) throw new Error('resoudre(rayon, famille) exige un rayon ou une famille : pas de cible de station, voir objectifStation');
       const r = dep('NexusPolitiqueTarifaire').seuilDe(famille || null, rayon || null, ctx);
       if (!r || (!r.cibleValide && !r.cibleIndicative)) {
         return { etat: ETATS.NON_DEFINI, cible: null, minimum: null, statut: null, niveau: r ? r.niveau : null, notante: false };
@@ -42,6 +44,10 @@
     }
     return { resoudre };
   }
+
+  // Indice : la Marge n'est notée que si objectifStation rend « evalue ». Sans lignes tarifaires (rayon, famille, CA),
+  // le lecteur n'a rien à évaluer : état non_evalue, cibleNotante() rend null, l'Indice est non évalué.
+  const nonEvalue = () => ({ etat: 'non_evalue', cible: null, minimum: null, statut: null, niveau: null, notante: false });
 
   const pct = v => Math.round(v * 1000) / 10 + ' %';
 
@@ -127,7 +133,7 @@
     return res;
   }
 
-  const API = { normaliserRayon: normaliserRayon, objectifStation: objectifStation, SEUIL_COUVERTURE: SEUIL_COUVERTURE, ETATS, ROLES_LECTEURS, MENTION_SANS_CIBLE, creer, charger, oublier, libelle, mentionSansCible, cibleNotante, palier };
+  const API = { normaliserRayon: normaliserRayon, objectifStation: objectifStation, SEUIL_COUVERTURE: SEUIL_COUVERTURE, ETATS, ROLES_LECTEURS, MENTION_SANS_CIBLE, creer, charger, oublier, libelle, mentionSansCible, cibleNotante, palier, nonEvalue };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   global.NexusCibleMarge = API;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -591,7 +591,7 @@
     if (ANIMATION_CHARGEMENT) ANIMATION_CHARGEMENT.tickSecteur('commerce');
     const { periodeAffichage, paire, rowsPaireActuelle, rowsPairePrecedente } = NexusPeriodes.analyserPeriodes(rowsBrut, { appariement: 'dernieres', fuseau: FUSEAU_TENDANCE });
     // A4-1 : cible de marge lue dans tarif_seuils (une seule lecture, valide seulement).
-    const cibleRes = await NexusCibleMarge.charger(nexusClient, SITE_ACTUEL, ROLE_REEL_COURANT).then(c => c.resoudre(null, null));
+    const cibleRes = await NexusCibleMarge.charger(nexusClient, SITE_ACTUEL, ROLE_REEL_COURANT).then(() => NexusCibleMarge.nonEvalue());
     const facteurs = NexusIndice.calculerFacteurs(rowsBrut, { fuseau: FUSEAU_TENDANCE, cibleMarge: NexusCibleMarge.cibleNotante(cibleRes) });
     const periodeLabel = periodeAffichage
       ? `Période analysée : ${new Date(periodeAffichage.debut + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })} – ${new Date(periodeAffichage.fin + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}`
