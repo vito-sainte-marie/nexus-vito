@@ -67,11 +67,15 @@
     const { data, error } = await requete;
     if (error) { console.error('Chargement signaux de risque du site:', error); return []; }
     const R = global.NexusRisques;
-    const avecUrgence = (data || []).map(row => ({
+    // Décision du gérant (27/11/2026) : les signaux nominaux de ponctualité
+    // déjà enregistrés ne sont pas remontés au premier niveau.
+    const avecUrgence = (data || []).filter(row => row.type_signal !== 'ponctualite_recurrente').map(row => ({
       ...row,
       urgence: R ? R.classifierUrgence({ niveau: row.niveau, ancienneteJours: joursDepuisISO(row.premiere_detection_le) }) : null,
     }));
-    const rang = { risque_avere: 3, exposition: 2, signal_faible: 1, anomalie: 0 };
+    // Rang de niveau : source unique NexusRisques.RANG_NIVEAU (A4-2). Le moteur est
+    // toujours chargé avant ce fichier ; sans lui, le tri retombe sur la date.
+    const rang = (R && R.RANG_NIVEAU) || {};
     return avecUrgence.sort((a, b) => {
       const diff = (rang[b.niveau] || 0) - (rang[a.niveau] || 0);
       if (diff !== 0) return diff;
@@ -539,16 +543,11 @@
     // un signal par collaborateur AYANT AU MOINS UN RETARD sur la fenêtre —
     // jamais un signal agrégé au niveau site (voir le commentaire de
     // `qualifierPonctualiteCollaborateur` dans nexus-risques-moteur.js).
-    Object.keys(ponctualiteCollaborateurs || {}).forEach(employeeId => {
-      const donnee = (ponctualiteCollaborateurs || {})[employeeId];
-      if (!donnee || !donnee.nbRetards) return;
-      const classif = R.qualifierPonctualiteCollaborateur(donnee);
-      candidats.push({
-        domaine: 'equipe', cleSignal: `equipe:collaborateur:${donnee.nom}`, typeSignal: 'ponctualite_recurrente',
-        secteur: 'Équipe', classification: classif,
-        actionRecommandee: `Échangez avec ${donnee.nom} sur les retards constatés — un entretien individuel, pas une mesure collective, tant qu'aucun autre collaborateur n'est concerné de façon récurrente.`,
-      });
-    });
+    // Décision du gérant (27/11/2026) : aucun signal nominal tiré du pointage
+    // au premier niveau (ni carte, ni liste « à surveiller », ni Conseiller).
+    // Le calcul (qualifierPonctualiteCollaborateur) reste dans le moteur ;
+    // les faits restent lisibles au niveau 3 (écran Équipe). Aucun candidat
+    // `ponctualite_recurrente` n'est donc émis ici.
 
     await enregistrerObservationsEnLot(client, siteId, candidats);
     return chargerSignauxSite(client, siteId, { statut: 'surveille' });
@@ -711,26 +710,17 @@
   // Retourne une map { [employeeId]: { nom, nbRetards, totalPointages } }
   // — un collaborateur sans retard n'apparaît pas dans la map.
   async function chargerPonctualiteCollaborateursAQualifier(client, siteId, depuisNJours) {
-    const depuis = await depuisStation(siteId, depuisNJours || 14);;
-    if (!depuis) { console.error('Jour de la station indéterminé — fenêtre non calculée.'); return {}; }
-    const [{ data: retards, error: e1 }, { data: totaux, error: e2 }] = await Promise.all([
-      client.from('pointages').select('employee_id, retard_min, employees(nom)').eq('site', siteId).eq('type', 'arrivee').gt('retard_min', 0).gte('date', depuis),
-      // Dénominateur par collaborateur : seules les arrivées dont le retard
-      // a pu être calculé. NULL = non calculable depuis le 19/09/2026 ;
-      // les compter gonflerait `totalPointages`, donc la taille
-      // d'échantillon que `qualifierPonctualiteCollaborateur` utilise pour
-      // décider si un signal est statistiquement qualifiable.
-      client.from('pointages').select('employee_id').eq('site', siteId).eq('type', 'arrivee').not('retard_min', 'is', null).gte('date', depuis),
-    ]);
-    if (e1 || e2) { [e1, e2].forEach(e => { if (e) console.error('Chargement ponctualité (risque équipe):', e); }); return {}; }
-    const totalParEmploye = {};
-    (totaux || []).forEach(p => { if (p.employee_id) totalParEmploye[p.employee_id] = (totalParEmploye[p.employee_id] || 0) + 1; });
+    // Lot A4-4 : règle unique nexus-ponctualite.js, fenêtre commune de 30 jours
+    // (défaut ; un appelant peut encore passer `depuisNJours`).
+    const P = global.NexusPonctualite;
+    const jour = await jourStation(siteId);
+    const fen = jour ? P.fenetre(jour, depuisNJours || P.FENETRE_JOURS) : null;
+    if (!fen) { console.error('Jour de la station indéterminé — fenêtre non calculée.'); return {}; }
+    const { data, error } = await P.charger(client, siteId, fen.debut, fen.fin);
+    if (error) { console.error('Chargement ponctualité (risque équipe):', error); return {}; }
+    const par = P.tauxPonctualite(data, fen).parCollaborateur;
     const resultat = {};
-    (retards || []).forEach(p => {
-      if (!p.employee_id) return;
-      if (!resultat[p.employee_id]) resultat[p.employee_id] = { nom: p.employees ? p.employees.nom : p.employee_id, nbRetards: 0, totalPointages: totalParEmploye[p.employee_id] || 0 };
-      resultat[p.employee_id].nbRetards++;
-    });
+    Object.keys(par).forEach(id => { if (par[id].nbRetards > 0) resultat[id] = par[id]; });
     return resultat;
   }
 

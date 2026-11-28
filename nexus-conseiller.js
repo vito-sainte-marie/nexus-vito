@@ -1157,6 +1157,19 @@
     return copie;
   }
 
+  // Ordre unique des priorités (A4-3) : rang croissant (rang absent = 5),
+  // puis rotation du jour à rang égal (mélange à graine + rang). Une seule
+  // définition de l'ordre affiché ; comportement identique à l'ancien code
+  // inline de fusionnerEtSelectionner (vérifié par test_ordre_priorites_a4_3).
+  function ordonnerPriorites(candidats, graine) {
+    const parRang = {};
+    (candidats || []).forEach(c => { const r = c.rang != null ? c.rang : 5; (parRang[r] = parRang[r] || []).push(c); });
+    const rangsTries = Object.keys(parRang).map(Number).sort((x, y) => x - y);
+    const file = [];
+    rangsTries.forEach(r => { melangerAvecGraine(parRang[r], graine + r).forEach(c => file.push(c)); });
+    return file;
+  }
+
   // Fusionne des listes déjà normalisées (candidat.rang et candidat.moteur
   // requis) en garantissant la diversité entre moteurs — correctif du
   // 27/07/2026 (Frédéric : "le conseiller me donne encore 3 décisions sur
@@ -1185,14 +1198,7 @@
 
     // Une file par moteur, déjà triée par rang puis mélangée à rang égal
     // (même logique de rotation qu'avant, appliquée moteur par moteur).
-    const files = Object.keys(parMoteur).map(m => {
-      const parRang = {};
-      parMoteur[m].forEach(c => { const r = c.rang != null ? c.rang : 5; (parRang[r] = parRang[r] || []).push(c); });
-      const rangsTries = Object.keys(parRang).map(Number).sort((a, b) => a - b);
-      const file = [];
-      rangsTries.forEach(r => { melangerAvecGraine(parRang[r], graine + r).forEach(c => file.push(c)); });
-      return file;
-    });
+    const files = Object.keys(parMoteur).map(m => ordonnerPriorites(parMoteur[m], graine));
 
     const resultat = [];
     while (resultat.length < n && files.some(f => f.length)) {
@@ -1216,6 +1222,6 @@
     normaliserCaissePersonne, normaliserStockRayon, normaliserRappel,
     normaliserFdj, normaliserCoach, normaliserCommandeCarburant,
     filtrerBaisseDejaEnAction, repartirBaisseParSeverite, resumerGroupesStrategiques,
-    fusionnerEtSelectionner, genererGraineJour,
+    fusionnerEtSelectionner, ordonnerPriorites, genererGraineJour,
   };
 })(window);

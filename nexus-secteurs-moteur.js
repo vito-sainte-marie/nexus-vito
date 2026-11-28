@@ -32,6 +32,9 @@
 // ------------------------------------------------------------
 
 (function (global) {
+  // Fenêtre de mesure du pointage : celle de NexusPonctualite (A4-4, 30 jours
+  // glissants contre les 30 précédents). Le texte du secteur Équipe l'annonce.
+  function fenetrePointageJours() { return (global.NexusPonctualite && global.NexusPonctualite.FENETRE_JOURS) || 30; }
   function boussole() { return global.NexusBoussoleMoteur; }
   function carburantMoteur() { return global.NexusCarburantMoteur; }
 
@@ -593,47 +596,25 @@
     // non réalisé (situation 2) — NEXUS ne choisit pas de pénaliser une
     // maîtrise qu'il ne peut même pas mesurer.
     if (!mesureSuffisante) return secteurVide(entree, "Pas encore assez de pointages enregistrés.");
-    const contribMaitrise = B.clampContributionPleine(domaineEquipe.equipeScore - 50);
-    const valeur = B.assemblerScoreSecteur(null, contribMaitrise);
-    // Statut MÉTIER (22/08/2026) : Équipe, comme Opérations, n'a pas d'axe
-    // Performance distinct — seule la Maîtrise (fiabilité/ponctualité)
-    // qualifie l'action attendue.
-    const statut = B.statutMetier({ perfBucket: 'inconnue', maitriseBucket: B.maitriseBucket(contribMaitrise, B.BUDGET_DIMENSION_UNIQUE) });
-    const totalAnomalies = domaineEquipe.totalAnomalies || 0;
-    const collaborateursConcernes = domaineEquipe.collaborateursConcernes || 0;
-    const portee = classifierPorteeEquipe(collaborateursConcernes, domaineEquipe.employesASurveiller || 0);
-    // Ratio + comparaison historique (22/08/2026, retour de Frédéric : "le
-    // score doit exposer le ratio et la comparaison historique") —
-    // `chargerDomaineEquipe()` calcule désormais ce taux sur une fenêtre
-    // glissante 7 jours vs 7 jours précédents (même convention que
-    // Carburants/FDJ ci-dessus). Historique insuffisant (site trop récent,
-    // ou aucun pointage sur la période précédente) -> comparaison omise
-    // plutôt qu'inventée (Article 5).
+    // Décision du gérant (27/11/2026) : aucun jugement sur une équipe tiré du
+    // pointage. contribMaitrise = null : le secteur sort de l'Indice Boussole
+    // global (invariant confiance === 'RÉEL' ⟺ valeur !== null), statut
+    // neutre « Non noté », aucun frein ni force, aucune formulation sur un
+    // collaborateur. Seuls les faits mesurés sont exposés.
     const tauxTxt = domaineEquipe.tauxAnomalies != null ? `${Math.round(domaineEquipe.tauxAnomalies * 100)} %` : null;
     const tauxPrecTxt = domaineEquipe.tauxAnomaliesPeriodePrecedente != null ? `${Math.round(domaineEquipe.tauxAnomaliesPeriodePrecedente * 100)} %` : null;
     let comparaison = '';
     if (tauxTxt && tauxPrecTxt != null) {
       const sens = domaineEquipe.tauxAnomalies > domaineEquipe.tauxAnomaliesPeriodePrecedente ? 'en hausse' : (domaineEquipe.tauxAnomalies < domaineEquipe.tauxAnomaliesPeriodePrecedente ? 'en baisse' : 'stable');
-      comparaison = ` Taux d'anomalies ${tauxTxt}, ${sens} vs ${tauxPrecTxt} sur les 7 jours précédents.`;
+      comparaison = ` Taux d'anomalies de pointage ${tauxTxt}, ${sens} vs ${tauxPrecTxt} sur les ${fenetrePointageJours()} jours précédents.`;
     } else if (tauxTxt) {
-      comparaison = ` Taux d'anomalies ${tauxTxt} (historique insuffisant pour comparer à la période précédente).`;
+      comparaison = ` Taux d'anomalies de pointage ${tauxTxt}.`;
     }
-    const detail = totalAnomalies > 0
-      ? `Équipe — fiabilité à renforcer : ${totalAnomalies} anomalie${totalAnomalies > 1 ? 's' : ''} de ponctualité sur ${domaineEquipe.totalPointages} pointages sur 7 jours.${comparaison} Le phénomène concerne ${collaborateursConcernes} collaborateur${collaborateursConcernes > 1 ? 's' : ''} et ${libellePorteeEquipe(portee)}.`
-      : `Ponctualité sous contrôle sur ${domaineEquipe.totalPointages} pointages sur 7 jours.${comparaison}`;
-    const force = statut === 'Sous contrôle' ? { titre: "Ponctualité de l'équipe sous contrôle", detail, cible: entree.cible } : null;
-    // Titre du frein reflète désormais la portée réelle (12/08/2026) —
-    // jamais "à surveiller" générique quand NEXUS peut dire précisément si
-    // le sujet touche un collaborateur ou plusieurs, ce qui change l'action
-    // du dirigeant (entretien individuel vs revue d'équipe).
-    const freinTitre = portee === 'collectif' ? "Fiabilité d'équipe à surveiller (plusieurs collaborateurs)"
-      : (portee === 'recurrence_individuelle' || portee === 'incident_individuel') ? "Fiabilité à surveiller (un seul collaborateur)"
-      : "Fiabilité d'équipe à surveiller";
-    const frein = (statut === 'À confirmer' || statut === 'À corriger') ? { titre: freinTitre, detail, cible: entree.cible } : null;
+    const detail = `Ponctualité mesurée sur ${domaineEquipe.totalPointages} pointages sur ${fenetrePointageJours()} jours.${comparaison} Équipe non notée : données de pointage en cours de fiabilisation.`;
     return {
-      ...entree, type: 'reel', confiance: 'RÉEL',
-      statut, valeur, detail, moteurs: [], changement: null, force, frein, risques: [], coherence: null,
-      activite: null, maitrise: B.scoreDimension(contribMaitrise), couverture: 'complete',
+      ...entree, type: 'reel', confiance: 'INSUFFISANT',
+      statut: 'Non noté', valeur: null, detail, moteurs: [], changement: null, force: null, frein: null, risques: [], coherence: null,
+      activite: null, maitrise: null, couverture: null,
     };
   }
 

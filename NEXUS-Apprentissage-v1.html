@@ -21,7 +21,7 @@
 <script src="nexus-auth.js?v=20261127-1000"></script>
 <script src="nexus-icones.js?v=20261124-0001"></script>
 <script src="nexus-desktop.js?v=20261124-1500"></script>
-<script src="nexus-progression.js?v=20260904-0104"></script>
+<script src="nexus-progression.js?v=20261127-2100"></script>
 <!-- Projection sécurisée par poste (14/09/2026) : cet écran ne choisit plus
      lui-même entre les lignes brutes et la projection employé. -->
 <script src="nexus-caisse-source.js?v=20260904-0104"></script>
@@ -231,7 +231,7 @@
         .from('apprentissage_snapshots').select('*').eq('employee_id', cible.id).maybeSingle();
       if (eSnap) console.error('Chargement apprentissage_snapshots (apprentissage):', eSnap);
 
-      const detection = N.detecterNouveaute({ qualitesActuelles: qualites, habitudesActuelles: habitudes, niveauActuel: niveau, badgesActuels: N.calculerBadges({ seriesCaisse: N.meilleureSerieConforme(services), seriePonctualite: N.calculerSeriePonctualite(pointagesRows || []), nbMissionsCompletees: (completionsRows || []).length }), snapshot: snapshotExistant });
+      const detection = N.detecterNouveaute({ qualitesActuelles: qualites, habitudesActuelles: habitudes, niveauActuel: niveau, badgesActuels: N.calculerBadges({ seriesCaisse: N.meilleureSerieConforme(services), nbMissionsCompletees: (completionsRows || []).length }), snapshot: snapshotExistant });
       const enAttente = detection.nouveau || (snapshotExistant ? !!snapshotExistant.nouveaute_en_attente : false);
       if (enAttente) {
         nouveauteTexte = detection.nouveau ? detection.detail : (snapshotExistant ? snapshotExistant.nouveaute_detail : null);
