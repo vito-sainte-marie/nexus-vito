@@ -958,9 +958,18 @@
     ((etat && etat.objectifs) || []).forEach(function (r) { if (r.niveau === 'famille' && r.statut_cible === 'valide' && r.cible !== null && r.cible !== undefined) cibles[r.cible_niveau] = r.cible; });
     var o = NCM.objectifStation(((etat && etat.analyse) || {}).lignes || [], { exclus: (etat && etat.rayonsExclus) || [], cibles: cibles });
     var h = '<p class="sc-note" data-objectif-calcule="' + esc(o.etat) + '"><span class="sc-lib">Objectif calculé</span> ';
-    if (o.cible === null) return h + 'non évalué : aucune cible validée sur le périmètre.</p>';
-    h += pct(o.cible) + ' sur ' + o.familles + (o.familles > 1 ? ' familles' : ' famille') + ' (' + Math.round(o.couverture * 100) + ' % du chiffre d\'affaires pilotable). ';
-    h += o.marge === null ? 'Marge réelle non évaluée : couverture inférieure à 50 %.' : 'Marge réelle ' + pct(o.marge) + '.';
+    var cc = Math.round(o.couvertureCa * 100), cf = Math.round(o.couvertureFamilles * 100);
+    var sm = o.sansMarge || { lignes: 0, ca: 0 };
+    if (!o.famillesCiblees) return h + 'non évalué : aucune cible validée sur le périmètre.</p>';
+    if (o.etat !== 'evalue') {
+      h = h.replace('<span class="sc-lib">Objectif calculé</span> ', '');
+      h += 'Objectif de la station non évalué : les cibles validées couvrent ' + cc + ' % du CA pilotable (seuil ' + Math.round(NCM.SEUIL_COUVERTURE * 100) + ' %). ';
+      if (o.cibleMoyenne !== null) h += 'Cible moyenne des familles validées : ' + pct(o.cibleMoyenne) + '. ';
+    } else {
+      h += pct(o.cible) + ' sur ' + o.familles + (o.familles > 1 ? ' familles' : ' famille') + ' ; marge réelle ' + pct(o.marge) + ', sur le même périmètre. ';
+    }
+    h += 'Couverture : ' + cf + ' % des familles pilotables, ' + cc + ' % du chiffre d\'affaires pilotable. ';
+    if (sm.lignes) h += sm.lignes + (sm.lignes > 1 ? ' lignes' : ' ligne') + ' avec une cible mais sans marge connue (' + eur0(sm.ca) + ' de CA), hors calcul.';
     return h + '</p>';
   }
   function htmlObjectifsFamilles(etat) {
@@ -1044,7 +1053,10 @@
     }
     var libelles = {};
     try { var fq = await client.from('v_tarif_familles_actifs').select('famille_code, libelle').eq('site', site); if (!fq.error && fq.data) fq.data.forEach(function (f) { if (f.famille_code && f.libelle) libelles[f.famille_code] = f.libelle; }); } catch (e) { /* repli : le code */ }
-    return { lignes: lignes, propositions: props, droits: droits, libelles: libelles };
+    // Rayons exclus du périmètre pilotable : lignes actives du site (la RLS filtre déjà, le filtre de site reste explicite).
+    var exclus = [];
+    try { var eq = await client.from('tarif_perimetre_exclu').select('id, site, rayon_cle, motif').eq('site', site).is('annule_le', null); if (!eq.error && eq.data) exclus = eq.data; } catch (e) { exclus = []; }
+    return { lignes: lignes, propositions: props, droits: droits, libelles: libelles, rayonsExclus: exclus };
   }
   function htmlFiche(l, etat) {
     var droits = etat ? peutVerifier(etat.role, etat.estCreateur) : false;

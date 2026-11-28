@@ -56,11 +56,72 @@ t('objectif : un rayon exclu sort du dénominateur', () => {
   const o = M.objectifStation([L('A', 'f1', 100, 30), L('X', 'f9', 900, 0)], { cibles: { f1: 0.3 }, exclus: [{ rayon_cle: 'x' }] });
   assert.strictEqual(o.couverture, 1);
 });
-t('couverture < 50 % : marge non évaluée', () => {
+t('couverture < 50 % : objectif non évalué, cible moyenne des familles validées conservée', () => {
   const o = M.objectifStation([L('A', 'f1', 100, 30), L('B', 'f2', 400, 40)], { cibles: { f1: 0.3 } });
-  assert.strictEqual(o.marge, null); assert.strictEqual(o.etat, 'marge_non_evaluee'); assert.ok(o.cible > 0);
+  assert.strictEqual(o.etat, 'non_evalue'); assert.strictEqual(o.cible, null); assert.strictEqual(o.marge, null);
+  assert.ok(Math.abs(o.cibleMoyenne - 0.3) < 1e-9);
+  assert.ok(Math.abs(o.couvertureCa - 0.2) < 1e-9);
+});
+t('deux indicateurs de couverture : familles pilotables et CA pilotable', () => {
+  const o = M.objectifStation([L('A', 'f1', 100, 30), L('A', 'f2', 100, 10), L('B', 'f3', 800, 40)], { cibles: { f1: 0.3, f2: 0.2 } });
+  assert.ok(Math.abs(o.couvertureFamilles - 2 / 3) < 1e-9);
+  assert.ok(Math.abs(o.couvertureCa - 0.2) < 1e-9);
+  assert.strictEqual(o.famillesCiblees, 2); assert.strictEqual(o.famillesPilotables, 3);
+});
+t('ligne cible sans marge connue : hors cible et marge, comptée à part, couverture sur le même périmètre', () => {
+  const lignes = [L('A', 'f1', 100, 30), L('A', 'f2', 20, null), L('B', 'f3', 10, 5)];
+  const o = M.objectifStation(lignes, { cibles: { f1: 0.3, f2: 0.4 } });
+  assert.deepStrictEqual(o.sansMarge, { lignes: 1, ca: 20 });
+  assert.ok(Math.abs(o.cible - 0.3) < 1e-9, 'la cible ignore la ligne sans marge');
+  assert.ok(Math.abs(o.marge - 0.3) < 1e-9);
+  assert.ok(Math.abs(o.couvertureCa - 100 / 130) < 1e-9, 'couverture mesurée sur le périmètre comparable');
+  assert.strictEqual(o.etat, 'evalue');
 });
 t('aucune cible validée : non évalué', () => {
   const o = M.objectifStation([L('A', 'f1', 100, 30)], { cibles: {} });
   assert.strictEqual(o.etat, 'non_evalue'); assert.strictEqual(o.cible, null);
+});
+
+// Clé SQL tarif_rayon_cle (migration 20261128140000) contre normaliserRayon.
+const sql2 = fs.readFileSync('supabase/migrations/20261128140000_objectifs_a4_1d_cle_rayon_normalisee.sql', 'utf8').replace(/--.*$/gm, '');
+const R2 = fs.readFileSync('supabase/retours/20261128140000_retour_objectifs_a4_1d_cle_rayon_normalisee.sql', 'utf8');
+const cleSql = x => String(x).replace(/Ã\s+/g, 'à ').toLowerCase()
+  .replace(/[àáâãäåçèéêëìíîïñòóôõöùúûüýÿ]/g, c => 'aaaaaaceeeeiiiinooooouuuuyy'['àáâãäåçèéêëìíîïñòóôõöùúûüýÿ'.indexOf(c)])
+  .replace(/\s+/g, ' ').trim();
+t('clé SQL : mêmes cas que normaliserRayon, forme mojibake et forme accentuée', () => {
+  ['Tabac à rouler', 'Tabac Ã  rouler', 'Tabac Ã rouler', '  TABAC   a  rouler ', 'Boissons Alcoolisées', 'Épicerie salée'].forEach(c =>
+    assert.strictEqual(cleSql(c), M.normaliserRayon(c), c));
+  assert.strictEqual(cleSql('Tabac Ã  rouler'), cleSql('Tabac à rouler'));
+});
+t('migration 140000 : la clé unique sert aux deux gardes et aux clés déjà posées', () => {
+  assert.ok(/function public\.tarif_rayon_cle\(p_rayon text\)[\s\S]*immutable/.test(sql2));
+  assert.ok(/translate\(/.test(sql2) && /Ã\\s\+/.test(sql2));
+  const f = n => sql2.slice(sql2.indexOf('function public.' + n), sql2.indexOf('$$;', sql2.indexOf('function public.' + n)));
+  assert.ok(/public\.tarif_rayon_cle\(p_rayon_cle\)/.test(f('declarer_perimetre_exclu')));
+  assert.ok(/public\.tarif_rayon_cle\(t\.cible_niveau\)/.test(f('declarer_perimetre_exclu')));
+  assert.ok(/public\.tarif_rayon_cle\(new\.cible_niveau\)/.test(f('tarif_seuils_rayon_exclu_garde')));
+  assert.ok(/update public\.tarif_perimetre_exclu/.test(sql2));
+  assert.ok(/revoke all on function public\.declarer_perimetre_exclu\(text, text, text\) from public, anon;/.test(sql2));
+  assert.ok(/drop function if exists public\.tarif_rayon_cle/.test(R2));
+});
+
+// Câblage écran : exclusions lues, filtrées par site, cache-bust.
+const ecran = fs.readFileSync('nexus-politique-tarifaire-ecran.js', 'utf8');
+const page = fs.readFileSync('NEXUS-Produits-v1.html', 'utf8');
+t('chargerObjectifs lit tarif_perimetre_exclu filtré par site et non annulé', () => {
+  const i = ecran.indexOf("from('tarif_perimetre_exclu')");
+  assert.ok(i > 0, 'lecture absente');
+  const bloc = ecran.slice(i, i + 300);
+  assert.ok(/\.eq\('site', site\)/.test(bloc) && /\.is\('annule_le', null\)/.test(bloc));
+  assert.ok(/rayonsExclus: exclus/.test(ecran));
+});
+t('rechargerObjectifs alimente etat.rayonsExclus ; cache-bust de l\'écran levé', () => {
+  assert.ok(/etat\.rayonsExclus = ob\.rayonsExclus/.test(page));
+  assert.ok(/nexus-politique-tarifaire-ecran\.js\?v=20261128-1400/.test(page));
+});
+t('texte sous le seuil et ligne sans marge dans l\'écran', () => {
+  assert.ok(ecran.includes('Objectif de la station non évalué : les cibles validées couvrent'));
+  assert.ok(ecran.includes('du CA pilotable (seuil \' + Math.round(NCM.SEUIL_COUVERTURE * 100) + \' %). '));
+  assert.ok(ecran.includes('Cible moyenne des familles validées'));
+  assert.ok(/sansMarge/.test(ecran));
 });
