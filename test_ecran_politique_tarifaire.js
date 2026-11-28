@@ -150,7 +150,7 @@ ok('aucune écriture dans le module ni dans le montage', () => {
   const src = fs.readFileSync(require.resolve('./nexus-politique-tarifaire-ecran.js'), 'utf8');
   assert.ok(!/\.(insert|update|delete|upsert)\s*\(/.test(src));
   const rpcs = src.match(/\.rpc\s*\(\s*'[a-z_]+'/g) || [];
-  assert.deepStrictEqual(rpcs.map(x => x.replace(/.*'([a-z_]+)'/, '$1')), ['tarif_enregistrer_reevaluations', 'objectif_habilite']); // A4-1b : objectif_habilite est une lecture de droit ; les deux écritures (proposer/valider_marge_cible) vivent dans la page.
+  assert.deepStrictEqual(rpcs.map(x => x.replace(/.*'([a-z_]+)'/, '$1')), ['tarif_enregistrer_reevaluations', 'valider_marge_cible', 'proposer_marge_cible', 'objectif_habilite']); // A4-1e : valider/proposer_marge_cible sont appelées par envoyerGroupe (envoi séquentiel testable, jamais en direct depuis le rendu). A4-1b : objectif_habilite est une lecture de droit ; les deux écritures (proposer/valider_marge_cible) vivent dans la page.
   assert.ok(!/tarif_enregistrer_decisions|Appliquer|\.post\(|method\s*:\s*['"](POST|PUT|PATCH|DELETE)/i.test(src));
   assert.ok(!/[?&]site=/.test(src), 'aucun paramètre de site côté client');
 });

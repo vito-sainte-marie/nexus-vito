@@ -865,38 +865,159 @@
     for (var k in MESSAGES_OBJECTIF) { if (m.indexOf(k) !== -1) return MESSAGES_OBJECTIF[k]; }
     return 'L\'objectif n\'a pas pu être enregistré. Aucune modification n\'a été faite.';
   }
-  function htmlObjectifMarge(l, etat) {
-    var o = objectifDe(l, etat), d = (etat && etat.droitsObjectif) || {};
-    var h = '<details class="sc-carte pt-obj" data-objectif-marge="1"' + (etat && etat.objectifOuvert ? ' open' : '') + '><summary><span class="sc-nom">Objectifs de marge</span><span class="sc-chev"></span></summary>';
-    if (!o.niveau) return h + '<p class="sc-note">Aucune famille ni rayon : pas d\'objectif possible pour cette référence.</p></details>';
+  // Corps commun de la carte d'objectif : même circuit (proposer, valider par un autre compte, retirer) pour la fiche et pour la station.
+  // z.id distingue les deux zones (identifiants de champs, message de confirmation) ; z.note est la phrase d'usage de l'objectif.
+  function corpsObjectif(n, etat, z) {
+    var d = (etat && etat.droitsObjectif) || {}, id = z.id;
+    var rows = (etat && etat.objectifs) || [], props = (etat && etat.propositions) || [];
+    var o = { niveau: n,
+      ligne: rows.filter(function (r) { return r.niveau === n.niveau && r.cible_niveau === n.cible_niveau && r.cible !== null && r.cible !== undefined; })[0] || null,
+      proposition: props.filter(function (r) { return r.statut === 'ouverte' && r.niveau === n.niveau && r.cible_niveau === n.cible_niveau; })[0] || null };
     var st = o.ligne ? (LIB_STATUT_OBJECTIF[o.ligne.statut_cible] || o.ligne.statut_cible) : 'non défini';
-    h += '<div class="pt-pol-l"><span class="sc-lib">Objectif (' + esc(o.niveau.libelle) + ')</span><span data-objectif-statut="' + (o.ligne ? esc(o.ligne.statut_cible) : 'non_defini') + '">' +
+    var h = '<div class="pt-pol-l"><span class="sc-lib">Objectif (' + esc(n.libelle) + ')</span><span data-objectif-statut="' + (o.ligne ? esc(o.ligne.statut_cible) : 'non_defini') + '">' +
       (o.ligne ? esc(pct(num(o.ligne.cible))) + ' : ' : '') + esc(st) + '</span></div>';
-    h += '<p class="sc-note">Cet objectif n\'entre dans aucune note d\'équipe.</p>';
+    h += '<p class="sc-note">' + esc(z.note) + '</p>';
     var pr = o.proposition;
     if (pr) {
       h += '<div class="pt-pol-l"><span class="sc-lib">Proposition en attente</span><span data-objectif-proposition="' + esc(pr.id) + '">proposé ' + esc(pct(num(pr.cible))) + ', en attente de validation</span></div>';
       if (o.ligne && o.ligne.statut_cible === 'valide') h += '<p class="sc-note">L\'objectif validé reste en vigueur jusqu\'à la validation de cette proposition.</p>';
       var auteur = etat.userId && pr.propose_par === etat.userId;
       if (d.valider && etat.userId && !auteur) {
-        h += '<button type="button" class="detail-btn" data-objectif-valider="' + esc(pr.id) + '">Valider cette proposition</button>';
+        h += '<button type="button" class="detail-btn pt-obj-btn" data-objectif-valider="' + esc(pr.id) + '">Valider cette proposition</button>';
       } else if (d.valider && auteur) {
         h += '<p class="sc-note" data-objectif-attente="1">Un autre compte doit valider votre proposition.</p>';
       }
       if ((d.valider || (d.proposer && auteur)) && etat.userId) {
-        h += '<div class="pt-obj-form"><label class="sc-lib" for="pt-obj-motif">Motif du retrait</label><input id="pt-obj-motif" type="text" maxlength="300" data-objectif-motif="1">' +
-          '<button type="button" class="detail-btn" data-objectif-retirer="' + esc(pr.id) + '">Retirer la proposition</button></div>';
+        h += '<div class="pt-obj-form"><label class="sc-lib" for="pt-obj-motif-' + id + '">Motif du retrait</label><input id="pt-obj-motif-' + id + '" type="text" maxlength="300" data-objectif-motif="1">' +
+          '<button type="button" class="detail-btn pt-obj-btn" data-objectif-retirer="' + esc(pr.id) + '">Retirer la proposition</button></div>';
       }
     }
     if (d.proposer && !pr) {
-      h += '<div class="pt-obj-form"><label class="sc-lib" for="pt-obj-cible">Proposer une cible (en %)</label>' +
-        '<input id="pt-obj-cible" type="text" inputmode="decimal" autocomplete="off" data-objectif-cible="1">' +
-        '<label class="sc-lib" for="pt-obj-com">Commentaire (facultatif)</label><input id="pt-obj-com" type="text" maxlength="300" data-objectif-commentaire="1">' +
-        '<button type="button" class="detail-btn" data-objectif-proposer="1" data-niveau="' + esc(o.niveau.niveau) + '" data-cible-niveau="' + esc(o.niveau.cible_niveau) + '">Proposer</button></div>';
+      h += '<div class="pt-obj-form"><label class="sc-lib" for="pt-obj-cible-' + id + '">Proposer une cible</label>' +
+        '<span class="pt-obj-champ"><input id="pt-obj-cible-' + id + '" type="text" inputmode="decimal" autocomplete="off" placeholder="ex. 28" aria-describedby="pt-obj-pct-' + id + '" data-objectif-cible="1"><span class="pt-obj-pct" id="pt-obj-pct-' + id + '">%</span></span>' +
+        '<label class="sc-lib" for="pt-obj-com-' + id + '">Commentaire (facultatif)</label><input id="pt-obj-com-' + id + '" type="text" maxlength="300" data-objectif-commentaire="1">' +
+        '<button type="button" class="detail-btn pt-obj-btn" data-objectif-proposer="1" data-niveau="' + esc(n.niveau) + '" data-cible-niveau="' + esc(n.cible_niveau) + '">Proposer</button></div>';
     } else if (!d.proposer && !d.valider) {
       h += '<p class="sc-note">Lecture seule : proposer ou valider un objectif demande une habilitation.</p>';
     }
-    return h + '<p class="sc-msg sc-note pt-obj-msg" role="status" data-objectif-msg="1"></p></details>';
+    var m = etat && etat.objectifMsg && etat.objectifMsg.zone === id ? etat.objectifMsg.texte : '';
+    return h + '<p class="sc-msg sc-note pt-obj-msg" role="status" data-objectif-msg="1">' + esc(m) + '</p>';
+  }
+  function htmlObjectifMarge(l, etat) {
+    var h = '<details class="sc-carte pt-obj" data-objectif-marge="fiche"' + (etat && etat.objectifOuvert ? ' open' : '') + '><summary><span class="sc-nom">Objectifs de marge</span><span class="sc-chev"></span></summary>';
+    var n = niveauObjectif(l);
+    if (!n) return h + '<p class="sc-note">Aucune famille ni rayon : pas d\'objectif possible pour cette référence.</p></details>';
+    return h + corpsObjectif(n, etat, { id: 'fiche', note: 'Cet objectif n\'entre dans aucune note d\'équipe.' }) + '</details>';
+  }
+  // ---------- A4-1e : objectifs par famille, validation et proposition groupées ----------
+  // Une famille par ligne, triée par CA de la période. Aucune ligne « defaut » : l'objectif de la station est calculé, jamais saisi.
+  var LIB_STATUT_FAMILLE = { valide: 'validée', indicatif: 'indicative', a_l_etude: 'à l\'étude', hypothese: 'hypothèse' };
+  var MAX_LIGNES_FAMILLES = 10;
+  function lignesObjectifsFamilles(etat) {
+    var rows = (etat && etat.objectifs) || [], props = (etat && etat.propositions) || [];
+    var analyse = (etat && etat.analyse) || {}, par = {}, ordre = [];
+    (analyse.lignes || []).forEach(function (l) {
+      if (!l.famille) return;
+      if (!par[l.famille]) { par[l.famille] = { famille: l.famille, ca: 0 }; ordre.push(l.famille); }
+      var c = num(l.ca_ht); if (c !== null) par[l.famille].ca += c;
+    });
+    rows.forEach(function (r) { if (r.niveau === 'famille' && !par[r.cible_niveau]) { par[r.cible_niveau] = { famille: r.cible_niveau, ca: 0 }; ordre.push(r.cible_niveau); } });
+    props.forEach(function (r) { if (r.statut === 'ouverte' && r.niveau === 'famille' && !par[r.cible_niveau]) { par[r.cible_niveau] = { famille: r.cible_niveau, ca: 0 }; ordre.push(r.cible_niveau); } });
+    return ordre.map(function (f) {
+      var o = par[f];
+      o.ligne = rows.filter(function (r) { return r.niveau === 'famille' && r.cible_niveau === f && r.cible !== null && r.cible !== undefined; })[0] || null;
+      o.proposition = props.filter(function (r) { return r.statut === 'ouverte' && r.niveau === 'famille' && r.cible_niveau === f; })[0] || null;
+      o.statut = o.ligne ? o.ligne.statut_cible : 'non_defini';
+      return o;
+    }).sort(function (a, b) { return b.ca - a.ca || (a.famille < b.famille ? -1 : 1); });
+  }
+  // Libellé de tarif_familles (« Chips et petits salés »), le code en repli quand il manque.
+  function libelleFamille(etat, code) {
+    var m = (etat && etat.libellesFamilles) || {}, v = m[code];
+    return (typeof v === 'string' && v.trim()) ? v.trim() : code;
+  }
+  function filtreFamilles(etat) {
+    var g = (etat && etat.groupe) || {}, q = String(g.recherche || '').trim().toLowerCase();
+    var lignes = lignesObjectifsFamilles(etat);
+    return q ? lignes.filter(function (o) { return libelleFamille(etat, o.famille).toLowerCase().indexOf(q) !== -1 || o.famille.toLowerCase().indexOf(q) !== -1; }) : lignes;
+  }
+  function eligiblesGroupe(etat, mode) {
+    var d = (etat && etat.droitsObjectif) || {}, uid = etat && etat.userId; if (!uid) return [];
+    var out = [];
+    filtreFamilles(etat).forEach(function (o) {
+      if (mode === 'valider') { if (d.valider && o.proposition && o.proposition.propose_par !== uid) out.push(o.proposition.id); }
+      else if (d.proposer && !o.proposition && o.ligne && o.statut !== 'valide') out.push(o.famille);
+    });
+    return out;
+  }
+  function htmlObjectifsFamilles(etat) {
+    var d = (etat && etat.droitsObjectif) || {}, g = (etat && etat.groupe) || {};
+    var h = '<section class="sc-carte pt-obj pt-obj-familles" data-objectifs-familles="1" aria-label="Objectifs de marge par famille"><div class="sc-nom">Objectifs de marge par famille</div>';
+    var lignes = lignesObjectifsFamilles(etat);
+    if (!lignes.length) return h + '<p class="sc-note">Aucune famille rattachée pour le moment.</p></section>';
+    var q = String(g.recherche || '').trim().toLowerCase();
+    var vues = filtreFamilles(etat);
+    var tronque = !q && vues.length > MAX_LIGNES_FAMILLES; if (tronque) vues = vues.slice(0, MAX_LIGNES_FAMILLES);
+    if (lignes.length > MAX_LIGNES_FAMILLES) h += '<label class="sc-lib" for="pt-objf-rech">Chercher une famille</label><input id="pt-objf-rech" type="search" data-objf-recherche="1" value="' + esc(g.recherche || '') + '">';
+    var auteurDe = function (o) { return etat.userId && o.proposition && o.proposition.propose_par === etat.userId; };
+    var selV = g.selValider || [], selP = g.selProposer || [];
+    h += '<ul class="pt-objf-liste">';
+    vues.forEach(function (o) {
+      var st = o.ligne ? (LIB_STATUT_FAMILLE[o.statut] || o.statut) : 'non définie';
+      var cible = o.ligne ? pct(num(o.ligne.cible)) + ' : ' : '';
+      var action = '';
+      if (o.proposition) {
+        var pt = 'proposé ' + pct(num(o.proposition.cible)) + ', en attente de validation';
+        if (d.valider && etat.userId && !auteurDe(o)) action = '<label class="pt-objf-case"><input type="checkbox" data-objf-valider="' + esc(o.proposition.id) + '"' + (selV.indexOf(o.proposition.id) !== -1 ? ' checked' : '') + '> ' + esc(pt) + '</label>';
+        else if (auteurDe(o)) action = '<span class="sc-note" data-objf-attente="1">' + esc(pt) + '. Un autre compte doit valider.</span>';
+        else action = '<span class="sc-note">' + esc(pt) + '</span>';
+      } else if (d.proposer && etat.userId && o.ligne && o.statut !== 'valide') {
+        action = '<label class="pt-objf-case"><input type="checkbox" data-objf-proposer="' + esc(o.famille) + '"' + (selP.indexOf(o.famille) !== -1 ? ' checked' : '') + '> proposer telle quelle</label>';
+      }
+      h += '<li data-objf-famille="' + esc(o.famille) + '" data-objectif-statut="' + esc(o.statut) + '"><span class="sc-lib">' + esc(libelleFamille(etat, o.famille)) + '</span> <span>' + esc(cible + st) + '</span> ' + action + '</li>';
+    });
+    h += '</ul>';
+    if (tronque) h += '<p class="sc-note">' + (lignes.length - MAX_LIGNES_FAMILLES) + ' autres familles : utilisez la recherche.</p>';
+    var nbV = selV.length, nbP = selP.length;
+    var porteV = vues.some(function (o) { return o.proposition && d.valider && !auteurDe(o); });
+    var porteP = vues.some(function (o) { return !o.proposition && d.proposer && o.ligne && o.statut !== 'valide'; });
+    var occupe = !!g.enCours;
+    if (porteV) h += '<div class="pt-objf-actions"><button type="button" class="detail-btn" data-objf-tout="valider"' + (occupe ? ' disabled' : '') + '>Tout sélectionner (validations)</button> <button type="button" class="detail-btn pt-obj-btn" data-objf-envoyer="valider"' + (nbV && !occupe ? '' : ' disabled') + '>Valider la sélection (' + nbV + ')</button></div>';
+    if (porteP) h += '<div class="pt-objf-actions"><button type="button" class="detail-btn" data-objf-tout="proposer"' + (occupe ? ' disabled' : '') + '>Tout sélectionner (propositions)</button> <button type="button" class="detail-btn pt-obj-btn" data-objf-envoyer="proposer"' + (nbP && !occupe ? '' : ' disabled') + '>Proposer ces cibles telles quelles (' + nbP + ')</button></div>';
+    if (!d.valider && !d.proposer) h += '<p class="sc-note">Lecture seule : proposer ou valider un objectif demande une habilitation.</p>';
+    if (g.confirmer && !occupe) {
+      var libs = g.confirmer.mode === 'valider' ? selV.map(function (id) { var o = lignes.filter(function (x) { return x.proposition && x.proposition.id === id; })[0]; return o ? libelleFamille(etat, o.famille) + ' : ' + pct(num(o.proposition.cible)) : id; })
+        : selP.map(function (f) { var o = lignes.filter(function (x) { return x.famille === f; })[0]; return libelleFamille(etat, f) + (o && o.ligne ? ' : ' + pct(num(o.ligne.cible)) : ''); });
+      h += '<div class="pt-objf-confirm" role="alertdialog" aria-label="Confirmation" data-objf-confirm="' + esc(g.confirmer.mode) + '"><p class="sc-lib">' + (g.confirmer.mode === 'valider' ? 'Valider ' : 'Proposer ') + libs.length + (libs.length > 1 ? ' objectifs ?' : ' objectif ?') + '</p><ul>' +
+        libs.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul><button type="button" class="detail-btn pt-obj-btn" data-objf-confirmer="1">Confirmer</button> <button type="button" class="detail-btn" data-objf-annuler="1">Annuler</button></div>';
+    }
+    if (occupe) h += '<p class="sc-note" role="status">Envoi en cours…</p>';
+    if (g.resultats && g.resultats.length) {
+      h += '<ul class="pt-objf-resultats" data-objf-resultats="1">' + g.resultats.map(function (r) { return '<li data-ok="' + (r.ok ? '1' : '0') + '">' + esc(r.libelle + ' : ' + r.message) + '</li>'; }).join('') + '</ul>';
+    }
+    h += '<p class="sc-msg sc-note pt-obj-msg" role="status" data-objf-bilan="1">' + esc(g.bilan || '') + '</p>';
+    return h + '</section>';
+  }
+  // Un appel par élément, dans l'ordre ; un échec n'arrête pas les suivants. items : [{ libelle, id | famille, cible }].
+  async function envoyerGroupe(client, site, mode, items) {
+    var resultats = [];
+    for (var i = 0; i < items.length; i++) {
+      var it = items[i], r;
+      try {
+        r = mode === 'valider' ? await client.rpc('valider_marge_cible', { p_proposition: it.id })
+          : await client.rpc('proposer_marge_cible', { p_site: site, p_niveau: 'famille', p_cible_niveau: it.famille, p_cible: it.cible, p_commentaire: null });
+        if (r && r.error) throw r.error;
+        resultats.push({ libelle: it.libelle, ok: true, message: mode === 'valider' ? 'validée' : 'proposée' });
+      } catch (e) { resultats.push({ libelle: it.libelle, ok: false, message: messageErreurObjectif(e) }); }
+    }
+    return { resultats: resultats, bilan: bilanGroupe(mode, resultats) };
+  }
+  function bilanGroupe(mode, resultats) {
+    var ok = resultats.filter(function (r) { return r.ok; }).length, ko = resultats.filter(function (r) { return !r.ok; });
+    var fait = mode === 'valider' ? ['validé', 'validés'] : ['proposé', 'proposés'];
+    var t = ok + ' ' + (ok > 1 ? fait[1] : fait[0]);
+    if (ko.length) t += ', ' + ko.length + ' ' + (ko.length > 1 ? 'refusés' : 'refusé') + ' : ' + ko.map(function (r) { return r.libelle + ' (' + r.message + ')'; }).join(' ; ');
+    return t + '.';
   }
   async function chargerObjectifs(client, site) {
     var lignes = [], droits = { proposer: false, valider: false };
@@ -907,7 +1028,9 @@
     for (var k in droits) {
       try { var q = await client.rpc('objectif_habilite', { p_site: site, p_droit: k }); droits[k] = !q.error && q.data === true; } catch (e) { droits[k] = false; }
     }
-    return { lignes: lignes, propositions: props, droits: droits };
+    var libelles = {};
+    try { var fq = await client.from('v_tarif_familles_actifs').select('famille_code, libelle').eq('site', site); if (!fq.error && fq.data) fq.data.forEach(function (f) { if (f.famille_code && f.libelle) libelles[f.famille_code] = f.libelle; }); } catch (e) { /* repli : le code */ }
+    return { lignes: lignes, propositions: props, droits: droits, libelles: libelles };
   }
   function htmlFiche(l, etat) {
     var droits = etat ? peutVerifier(etat.role, etat.estCreateur) : false;
@@ -1282,7 +1405,7 @@
     if (etat.role !== 'manager' && etat.incoherences && etat.incoherences.length) pC += '<div class="pt-integrite sc-note" role="alert">Incohérence dans les registres tarifaires : ' + plur(etat.incoherences.length, 'ligne', 'lignes') + ' à corriger.</div>';
     pC += htmlFamille('pertes');
     // Panneau Analyser : comprendre les chiffres et les références.
-    var pA = '<div class="sc-inds pt-inds"><div class="sc-ind sc-info" data-carte="marge_estimee"><span class="sc-ind-val">' + esc(cm.valeur) + '</span><span class="sc-ind-lib">' + esc(cm.titre) + ' : ' + esc(cm.unite) + '</span><span class="sc-ind-sous">' + esc(cm.secondaire) + '</span></div><p class="sc-note">' + esc(cm.limite) + '</p></div>';
+    var pA = htmlObjectifsFamilles(etat) + '<div class="sc-inds pt-inds"><div class="sc-ind sc-info" data-carte="marge_estimee"><span class="sc-ind-val">' + esc(cm.valeur) + '</span><span class="sc-ind-lib">' + esc(cm.titre) + ' : ' + esc(cm.unite) + '</span><span class="sc-ind-sous">' + esc(cm.secondaire) + '</span></div><p class="sc-note">' + esc(cm.limite) + '</p></div>';
     pA += htmlFamille('fiabilite');
     pA += '<div class="vp-bloc sc-tout"><h3>Toutes les références</h3><div class="vp-filtres"><label class="pt-f pt-f-rech"><span class="sc-methode">Recherche</span><input type="search" id="ptRecherche" placeholder="Nom ou code-barres" value="' + esc(f.recherche || '') + '"></label>' +
       '<details class="pt-filtres" data-filtres-panneau="1"' + (etat.filtresOuverts ? ' open' : '') + '><summary><span class="sc-nom">Filtres (' + nbFiltres(f) + ')</span><span class="sc-chev"></span></summary><div class="pt-filtres-corps">' +
@@ -1322,7 +1445,8 @@
     return h;
   }
 
-  var CSS = '.vue-p1c .pt-axes{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:12px 0}.vue-p1c .pt-axe{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:2px;min-height:60px;padding:8px 10px;background:var(--t-panel);color:var(--t-text);border:1px solid var(--t-line);border-radius:14px;cursor:pointer;text-align:left;font:inherit}' +
+  var CSS = '.vue-p1c .pt-obj{margin:10px 0}.vue-p1c .pt-obj-form{display:flex;flex-direction:column;gap:6px;margin:8px 0}.vue-p1c .pt-obj-form input[type=text]{width:100%;box-sizing:border-box;min-height:44px;border-radius:8px;border:1px solid var(--t-line);background:var(--t-panel);color:var(--t-text);font:inherit;padding:0 10px}.vue-p1c .pt-obj-champ{position:relative;display:block}.vue-p1c .pt-obj-champ input{padding-right:32px}.vue-p1c .pt-obj-pct{position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--t-mid);pointer-events:none}.vue-p1c .pt-obj-btn{width:100%;min-height:44px;margin-top:4px}@media (min-width:900px){.vue-p1c .pt-obj-btn{width:auto;align-self:flex-start}}' +
+    '.vue-p1c .pt-axes{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:12px 0}.vue-p1c .pt-axe{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:2px;min-height:60px;padding:8px 10px;background:var(--t-panel);color:var(--t-text);border:1px solid var(--t-line);border-radius:14px;cursor:pointer;text-align:left;font:inherit}' +
     '.vue-p1c .pt-axe.on{border:1.5px solid var(--t-text);background:rgba(34,211,238,.12)}.vue-p1c .pt-axe:focus-visible{outline:2px solid var(--t-text);outline-offset:2px}.vue-p1c .pt-axe-nom{font-weight:600;font-size:14px}.vue-p1c .pt-axe-n{font-size:18px;font-weight:700}.vue-p1c .pt-axe-l{font-size:11px;color:var(--t-mid)}.vue-p1c .pt-axe-pan[hidden]{display:none}' +
     '@media (min-width:900px){.vue-p1c .pt-axes{grid-template-columns:repeat(4,1fr)}.vue-p1c .pt-axe{min-height:110px;padding:14px}}' +
     '.vue-p1c .pt-inds{grid-template-columns:repeat(2,1fr)}@media (min-width:900px){.vue-p1c .pt-inds{grid-template-columns:repeat(4,1fr)}}' +
@@ -1427,7 +1551,7 @@
       return { fourni: true, lignes: lignesStockDepuisLot(rows), lot: { id: lot.id, dateReleve: lot.date_releve ? String(lot.date_releve).slice(0, 10) : null, fichierHash: lot.fichier_hash || null } };
     } catch (e) { return { fourni: false, erreur: true }; }
   }
-  var API = { htmlObjectifMarge: htmlObjectifMarge, objectifDe: objectifDe, niveauObjectif: niveauObjectif, pourcentVersFraction: pourcentVersFraction, messageErreurObjectif: messageErreurObjectif, chargerObjectifs: chargerObjectifs, estDemarque: estDemarque, lignesControle: lignesControle, nombreReleve: nombreReleve, lotStockPublie: lotStockPublie, lignesStockDepuisLot: lignesStockDepuisLot, chargerStockPublie: chargerStockPublie, TVA_CONFIRMATIONS_PILOTE: TVA_CONFIRMATIONS_PILOTE, cartes: cartes, scenarios: scenarios, alertesCartes: alertesCartes, trier: trier, filtrer: filtrer, valeursFiltres: valeursFiltres,
+  var API = { htmlObjectifMarge: htmlObjectifMarge, htmlObjectifsFamilles: htmlObjectifsFamilles, libelleFamille: libelleFamille, eligiblesGroupe: eligiblesGroupe, lignesObjectifsFamilles: lignesObjectifsFamilles, envoyerGroupe: envoyerGroupe, bilanGroupe: bilanGroupe, objectifDe: objectifDe, niveauObjectif: niveauObjectif, pourcentVersFraction: pourcentVersFraction, messageErreurObjectif: messageErreurObjectif, chargerObjectifs: chargerObjectifs, estDemarque: estDemarque, lignesControle: lignesControle, nombreReleve: nombreReleve, lotStockPublie: lotStockPublie, lignesStockDepuisLot: lignesStockDepuisLot, chargerStockPublie: chargerStockPublie, TVA_CONFIRMATIONS_PILOTE: TVA_CONFIRMATIONS_PILOTE, cartes: cartes, scenarios: scenarios, alertesCartes: alertesCartes, trier: trier, filtrer: filtrer, valeursFiltres: valeursFiltres,
     preuves: preuves, conseiller: conseiller, lierOuvertures: lierOuvertures, effetVerificationEnregistree: effetVerificationEnregistree, commentaireDuControle: commentaireDuControle, annulerVerification: annulerVerification, peutAnnuler: peutAnnuler, motifAnnulationValide: motifAnnulationValide, messageErreurAnnulation: messageErreurAnnulation, fiche: fiche, etatAcces: etatAcces, peutVoirOnglet: peutVoirOnglet, filtrerSite: filtrerSite,
     regimeDe: regimeDe, contexteDeclaratif: contexteDeclaratif, construireContexteTarif: construireContexteTarif, stockParLibelle: stockParLibelle, controle: controle, familles: familles, avertissementRegime: avertissementRegime, infoRegime: infoRegime, badgeRegime: badgeRegime, badgeLigne: badgeLigne, blocFiche: blocFiche,
     chargerRegistres: chargerRegistres, chargerVerifications: chargerVerifications, historiqueLignes: historiqueLignes, htmlHistorique: htmlHistorique, chargerVentes: chargerVentes, lireCompte: lireCompte, libellePeriode: libellePeriode,
