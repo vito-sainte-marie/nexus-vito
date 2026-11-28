@@ -11,6 +11,7 @@
   var CP = global.NexusComposantsPilotage || (typeof require === 'function' ? (function () { try { return require('./nexus-composants-pilotage.js'); } catch (e) { return null; } })() : null);
   var RF = global.NexusRayonsFamilles || (typeof require === 'function' ? (function () { try { return require('./nexus-rayons-familles.js'); } catch (e) { return null; } })() : null);
   var NI = global.NexusIcones || (typeof require === 'function' ? (function () { try { return require('./nexus-icones.js'); } catch (e) { return null; } })() : null);
+  var NCM = global.NexusCibleMarge || (typeof require === 'function' ? require('./nexus-cible-marge.js') : null);
   var B = global.NexusBadgeEtat || (typeof require === 'function' ? require('./nexus-badge-etat.js') : null);
 
   var RANG_GRAVITE = { critique: 0, a_verifier: 1, information: 2 };
@@ -950,6 +951,18 @@
     });
     return out;
   }
+  // Objectif de la station : calculé à partir des cibles validées, hors rayons exclus. Lecture seule.
+  function htmlObjectifCalcule(etat) {
+    if (!NCM) return '';
+    var cibles = {};
+    ((etat && etat.objectifs) || []).forEach(function (r) { if (r.niveau === 'famille' && r.statut_cible === 'valide' && r.cible !== null && r.cible !== undefined) cibles[r.cible_niveau] = r.cible; });
+    var o = NCM.objectifStation(((etat && etat.analyse) || {}).lignes || [], { exclus: (etat && etat.rayonsExclus) || [], cibles: cibles });
+    var h = '<p class="sc-note" data-objectif-calcule="' + esc(o.etat) + '"><span class="sc-lib">Objectif calculé</span> ';
+    if (o.cible === null) return h + 'non évalué : aucune cible validée sur le périmètre.</p>';
+    h += pct(o.cible) + ' sur ' + o.familles + (o.familles > 1 ? ' familles' : ' famille') + ' (' + Math.round(o.couverture * 100) + ' % du chiffre d\'affaires pilotable). ';
+    h += o.marge === null ? 'Marge réelle non évaluée : couverture inférieure à 50 %.' : 'Marge réelle ' + pct(o.marge) + '.';
+    return h + '</p>';
+  }
   function htmlObjectifsFamilles(etat) {
     var d = (etat && etat.droitsObjectif) || {}, g = (etat && etat.groupe) || {};
     var h = '<section class="sc-carte pt-obj pt-obj-familles" data-objectifs-familles="1" aria-label="Objectifs de marge par famille"><div class="sc-nom">Objectifs de marge par famille</div>';
@@ -995,6 +1008,7 @@
     if (g.resultats && g.resultats.length) {
       h += '<ul class="pt-objf-resultats" data-objf-resultats="1">' + g.resultats.map(function (r) { return '<li data-ok="' + (r.ok ? '1' : '0') + '">' + esc(r.libelle + ' : ' + r.message) + '</li>'; }).join('') + '</ul>';
     }
+    h += htmlObjectifCalcule(etat);
     h += '<p class="sc-msg sc-note pt-obj-msg" role="status" data-objf-bilan="1">' + esc(g.bilan || '') + '</p>';
     return h + '</section>';
   }

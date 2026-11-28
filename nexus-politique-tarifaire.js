@@ -101,7 +101,8 @@
 
   // Correspondance d'une entrée de registre avec une ligne : code-barres si les deux en ont un, sinon libellé exact normalisé.
   // Catégorie lue comme T1 : « Ã  » (accent mal encodé) devient « à », espaces réduits.
-  const catNorm = c => String(c == null ? '' : c).replace(/Ã\s+/g, 'à ').replace(/\s+/g, ' ').trim();
+  const NCM = global.NexusCibleMarge || (typeof require === 'function' ? (function () { try { return require('./nexus-cible-marge.js'); } catch (e) { return null; } })() : null);
+  const catNorm = NCM ? NCM.normaliserRayon : (c => String(c == null ? '' : c).replace(/Ã\s+/g, 'à ').replace(/\s+/g, ' ').trim());
   function correspond(entree, row) {
     if (entree.code_barres && cb(row)) return String(entree.code_barres).trim() === cb(row);
     if (entree.article) return nom(entree.article) === nom(row.article);
