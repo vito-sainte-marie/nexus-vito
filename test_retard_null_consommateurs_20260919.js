@@ -131,7 +131,10 @@ function faireClient(tables) {
   return { journal, client: { from } };
 }
 
-const AUJOURDHUI = new Date().toISOString().slice(0, 10);
+// Le jour de la station, calculé par la même primitive et dans le même fuseau
+// que le lecteur (nexusAujourdhuiStation) : jamais la date UTC, qui devance le
+// jour de la station entre minuit UTC et minuit local.
+const AUJOURDHUI = global.nexusJourDansFuseau(new Date(), 'America/Martinique');
 
 // ── 1 · Ma Progression : un score qui ne se gagne pas par l'absence ───────
 
