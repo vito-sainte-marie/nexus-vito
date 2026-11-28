@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="fr" data-theme="sombre">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NEXUS Skeleton · galerie</title>
+<style>
+/* =====================================================================
+   JETONS : famille Tempo --t-* (référence du référentiel v1.0, section 5).
+   Aucune couleur en dur hors de ce bloc. --sk-* dérivent des jetons --t-*.
+   ===================================================================== */
+:root{
+  --t-bg:#07131E; --t-panel:#0D202E; --t-raised:#0F2433; --t-line:#254354;
+  --t-text:#EDF1F5; --t-mid:#9AA8B6; --t-cyan:#24D8E3; --t-green:#29C98A; --t-amber:#F5A12A; --t-red:#F0616D; --t-bar2:#5B7A8E;
+  --piste:#22C7B8; --boutique:#C47A55; --fdj:#A18BF2;
+  --cyan-rgb:36,215,227; --mid-rgb:154,168,182; --panel-rgb:13,32,46; --on-cyan:#04202a;
+  --t-mono:'IBM Plex Mono',ui-monospace,monospace; --t-sans:'IBM Plex Sans',system-ui,sans-serif;
+  --sk-base:rgba(var(--mid-rgb),.15); --sk-hi:rgba(var(--cyan-rgb),.30);
+}
+:root[data-theme="jour"]{
+  --t-bg:#F4F6F8; --t-panel:#FFFFFF; --t-raised:#EEF2F5; --t-line:#D5DCE3;
+  --t-text:#0F172A; --t-mid:#475569; --t-cyan:#0B7285; --t-green:#047857; --t-amber:#B45309; --t-red:#B91C1C; --t-bar2:#94A3B8;
+  --piste:#0F766E; --boutique:#7A4A3A; --fdj:#6246C9;
+  --cyan-rgb:11,114,133; --mid-rgb:71,85,105; --panel-rgb:255,255,255; --on-cyan:#fff;
+  --sk-base:rgba(var(--mid-rgb),.12); --sk-hi:rgba(var(--cyan-rgb),.24);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--t-bg);color:var(--t-text);font-family:var(--t-sans);min-height:100vh}
+button{font:inherit;color:inherit;cursor:pointer}
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+:focus-visible{outline:2px solid var(--t-cyan);outline-offset:2px;border-radius:4px}
+
+/* =====================================================================
+   GALERIE (outils de revue, ne fait pas partie du composant)
+   ===================================================================== */
+.bar{max-width:100vw;position:sticky;top:0;z-index:20;background:var(--t-bg);border-bottom:1px solid var(--t-line);padding:10px 16px;display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
+.bar h1{font-size:15px;font-weight:600;margin-right:6px}
+.grp{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.grp>span{font:11px var(--t-mono);color:var(--t-mid);text-transform:uppercase;letter-spacing:.06em}
+.seg{display:inline-flex;flex-wrap:wrap;max-width:100%;border:1px solid var(--t-line);border-radius:8px;overflow:hidden}
+.seg button{background:var(--t-panel);border:0;border-right:1px solid var(--t-line);padding:8px 12px;font-size:13px;min-height:36px}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed=true]{background:var(--t-cyan);color:var(--on-cyan);font-weight:600}
+.btn{background:var(--t-panel);border:1px solid var(--t-line);border-radius:8px;padding:8px 14px;min-height:36px;font-size:13px}
+.btn.pri{background:var(--t-cyan);color:var(--on-cyan);border-color:var(--t-cyan);font-weight:600}
+.btn[aria-pressed=true]{border-color:var(--t-cyan);color:var(--t-cyan)}
+.legend{max-width:1280px;margin:12px auto 0;padding:0 16px;display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.legend div{border:1px solid var(--t-line);border-radius:12px;background:var(--t-panel);padding:10px 12px;font-size:12.5px;line-height:1.45;color:var(--t-mid)}
+.legend b{display:block;color:var(--t-text);font-size:13px;margin-bottom:2px}
+.legend div.on{border-color:var(--t-cyan)}
+.journal{max-width:1280px;margin:10px auto 0;padding:0 16px;font:12px var(--t-mono);color:var(--t-mid);min-height:18px}
+.vp{max-width:1280px;margin:10px auto 40px;padding:0 16px}
+.vp-in{overflow:hidden}
+.vp[data-vp=mobile] .vp-in{width:375px;margin:0 auto;border:8px solid var(--t-line);border-radius:28px;overflow:hidden}
+.fit{transform-origin:top left}
+@media(max-width:820px){.legend{grid-template-columns:1fr}}
+
+/* =====================================================================
+   COMPOSANT NEXUS SKELETON  (à extraire en nexus-skeleton.css)
+   Marqueurs :  .sec[data-state]   section chargeable
+                .sk[data-k]        élément qui devient squelette
+   États       :  wait | loading | ready | refresh | error | empty | unavailable
+   Le contenu réel définit les dimensions : le squelette est un voile posé
+   sur lui. Aucune dimension propre, donc aucun saut de mise en page.
+   ===================================================================== */
+.stage{container:stage/inline-size;background:var(--t-bg);position:relative}
+.sec{position:relative}
+.sec-body{transition:opacity .35s}
+.sec[data-state=wait] .sec-body{opacity:0}
+.sec[data-state=refresh] .sec-body{opacity:.55}
+.sec[data-state=error] .sec-body,.sec[data-state=empty] .sec-body,.sec[data-state=unavailable] .sec-body{opacity:.0;pointer-events:none}
+.sec-msg{display:none;position:absolute;inset:0;min-height:0;align-items:center;justify-content:center;text-align:center;padding:12px}
+.sec[data-state=error] .sec-msg,.sec[data-state=empty] .sec-msg,.sec[data-state=unavailable] .sec-msg{display:flex}
+.msg{background:var(--t-panel);border:1px solid var(--t-line);border-radius:12px;padding:10px 14px;max-width:420px;max-height:100%;overflow:auto}
+.msg b{display:block;font-size:14px;margin-bottom:3px}
+.msg p{font-size:13px;color:var(--t-mid);line-height:1.45}
+.msg .btn{margin-top:10px}
+.sec[data-state=error] .msg{border-color:var(--t-red)}
+.sec[data-state=unavailable] .msg{border-color:var(--t-amber)}
+
+/* élément squelette : texte transparent, voile ::before */
+.sk{position:relative}
+.sk[data-k=txt],.sk[data-k=num]{display:inline-block;vertical-align:top}
+.sk[data-k=num],.sk[data-k=txt],.sk[data-k=para],.sk[data-k=chart],.sk[data-k=line],.sk[data-k=ico],.sk[data-k=block]{--r:6px}
+.sk[data-k=ico]{--r:50%}
+.sk::before{content:"";position:absolute;inset:1px 0;border-radius:var(--r,6px);background:var(--sk-base);pointer-events:none;opacity:0;z-index:2;transition:opacity .45s}
+.sk[data-k=para]::before{-webkit-mask-image:repeating-linear-gradient(#000 0 .62em,transparent .62em 1.45em);mask-image:repeating-linear-gradient(#000 0 .62em,transparent .62em 1.45em);inset:.25em 0}
+.sk[data-k=chart]::before{inset:28% 0 0 0;-webkit-mask-image:repeating-linear-gradient(90deg,#000 0 9%,transparent 9% 14.28%);mask-image:repeating-linear-gradient(90deg,#000 0 9%,transparent 9% 14.28%)}
+.sk[data-k=line]::before{-webkit-mask-image:repeating-linear-gradient(#000 0 2px,transparent 2px 25%);mask-image:repeating-linear-gradient(#000 0 2px,transparent 2px 25%)}
+.sk[data-k=img]::before,.sk[data-k=block]::before{inset:0}
+.sk>*{transition:opacity .45s,filter .45s}
+.sec[data-state=loading] .sk,.sec[data-state=wait] .sk{color:transparent!important;text-shadow:none!important;user-select:none;pointer-events:none}
+.sec[data-state=loading] .sk>*,.sec[data-state=wait] .sk>*{opacity:0}
+.sec[data-state=loading] .sk::before{opacity:1}
+.sec[data-state=loading] .sk img{visibility:hidden}
+/* icône de secteur : la vraie icône NEXUS, estompée, jamais un cercle */
+.sec[data-state=loading] .sk.sec-ico::before,.sec[data-state=wait] .sk.sec-ico::before{display:none}
+.sec[data-state=loading] .sk.sec-ico>img,.sec[data-state=wait] .sk.sec-ico>img{visibility:visible;opacity:.22!important;filter:grayscale(1)}
+
+/* ------- Direction A : verre et lumière ------- */
+[data-dir=A] .card{background:linear-gradient(140deg,rgba(var(--cyan-rgb),.07),rgba(var(--panel-rgb),.55) 55%);border:1px solid rgba(var(--cyan-rgb),.26);box-shadow:inset 0 1px 0 rgba(255,255,255,.07),0 8px 24px -16px rgba(var(--cyan-rgb),.4);backdrop-filter:blur(6px)}
+[data-dir=R] .card{background:linear-gradient(140deg,rgba(var(--cyan-rgb),.07),rgba(var(--panel-rgb),.55) 55%);border:1px solid rgba(var(--cyan-rgb),.26);box-shadow:inset 0 1px 0 rgba(255,255,255,.07),0 8px 24px -16px rgba(var(--cyan-rgb),.4);backdrop-filter:blur(6px)}
+[data-dir=A] .sec[data-state=loading] .sk::before{background:linear-gradient(100deg,var(--sk-base) 30%,var(--sk-hi) 50%,var(--sk-base) 70%);background-size:260% 100%;animation:skA 2.2s linear infinite}
+[data-dir=R] .sec[data-state=loading] .sk::before{background:linear-gradient(100deg,var(--sk-base) 30%,var(--sk-hi) 50%,var(--sk-base) 70%);background-size:260% 100%;animation:skA 2.2s linear infinite}
+@keyframes skA{from{background-position:130% 0}to{background-position:-130% 0}}
+[data-dir=A] .sec[data-state=ready] .sk::before{opacity:0;transition:opacity .6s ease var(--d,0ms)}
+[data-dir=R] .sec[data-state=ready] .sk::before{opacity:0;transition:opacity .6s ease var(--d,0ms)}
+[data-dir=A] .sec[data-state=ready] .sk>*,[data-dir=A] .sec[data-state=ready] .sk{animation:inA .65s cubic-bezier(.2,.7,.2,1) both;animation-delay:var(--d,0ms)}
+[data-dir=R] .sec[data-state=ready] .sk>*,[data-dir=R] .sec[data-state=ready] .sk{animation:inA .65s cubic-bezier(.2,.7,.2,1) both;animation-delay:var(--d,0ms)}
+@keyframes inA{from{opacity:.0;filter:blur(6px);transform:translateY(5px)}to{opacity:1;filter:none;transform:none}}
+[data-dir=A] .sec[data-state=refresh]>.sec-body::after{content:"";position:absolute;left:0;right:0;top:0;height:2px;background:linear-gradient(90deg,transparent,var(--t-cyan),transparent);background-size:40% 100%;background-repeat:no-repeat;animation:rfA 1.4s linear infinite;z-index:3}
+@keyframes rfA{from{background-position:-50% 0}to{background-position:150% 0}}
+
+/* ------- Direction B : impulsion lumineuse ------- */
+[data-dir=B] .card{background:var(--t-panel);border:1px solid var(--t-line);overflow:hidden;position:relative}
+[data-dir=B] .sec[data-state=loading] .card::after{content:"";position:absolute;left:0;top:0;height:2px;width:35%;background:linear-gradient(90deg,transparent,var(--t-cyan));box-shadow:0 0 10px var(--t-cyan);animation:lnB 1.4s cubic-bezier(.5,0,.5,1) infinite;animation-delay:calc(var(--n,0)*140ms);z-index:3}
+@keyframes lnB{from{transform:translateX(-100%)}to{transform:translateX(300%)}}
+[data-dir=B] .sec[data-state=loading] .sk::before{animation:brB 1.4s ease-in-out infinite;animation-delay:calc(var(--n,0)*70ms)}
+@keyframes brB{0%,100%{opacity:.45}50%{opacity:1}}
+[data-dir=B] .sec[data-state=ready] .sk::before{opacity:1;clip-path:inset(0 0 0 0);animation:wipeB .55s cubic-bezier(.6,0,.2,1) both;animation-delay:var(--d,0ms)}
+@keyframes wipeB{from{clip-path:inset(0 0 0 0);opacity:1}to{clip-path:inset(0 0 0 100%);opacity:1}}
+[data-dir=B] .sec[data-state=ready] .sk>*{animation:fadeB .3s ease both;animation-delay:calc(var(--d,0ms) + 160ms)}
+@keyframes fadeB{from{opacity:0}to{opacity:1}}
+[data-dir=B] .sec[data-state=refresh]>.sec-body::after{content:"";position:absolute;left:0;top:0;height:2px;width:30%;background:var(--t-cyan);box-shadow:0 0 10px var(--t-cyan);animation:lnB 1s cubic-bezier(.5,0,.5,1) infinite;z-index:3}
+[data-dir=R] .sec[data-state=refresh]>.sec-body::after{content:"";position:absolute;left:0;top:0;height:2px;width:30%;background:var(--t-cyan);box-shadow:0 0 10px var(--t-cyan);animation:lnB 1s cubic-bezier(.5,0,.5,1) infinite;z-index:3}
+
+/* ------- Direction C : élégance minimale ------- */
+[data-dir=C] .card{background:var(--t-panel);border:1px solid var(--t-line)}
+[data-dir=C] .sec[data-state=loading] .sk::before{background:var(--sk-base);animation:brC 3.2s ease-in-out infinite}
+@keyframes brC{0%,100%{opacity:.55}50%{opacity:.95}}
+[data-dir=C] .sec[data-state=ready] .sk::before{opacity:0;transition:opacity .4s linear}
+[data-dir=C] .sec[data-state=ready] .sk>*{animation:fadeB .4s linear both}
+[data-dir=C] .sec[data-state=refresh]>.sec-body::after{content:"";position:absolute;left:0;top:0;height:1px;width:100%;background:var(--t-cyan);transform-origin:left;animation:rfC 2.4s ease-in-out infinite;z-index:3}
+@keyframes rfC{0%{transform:scaleX(0)}70%{transform:scaleX(1);opacity:1}100%{transform:scaleX(1);opacity:0}}
+
+/* mouvement réduit ou pause : aucune animation, états conservés */
+@media (prefers-reduced-motion:reduce){
+  /* C : rendu fixe et minimal, pour les trois familles */
+  .sec[data-state=loading] .sk::before{background:var(--sk-base)!important;opacity:1!important;clip-path:none!important}
+  .sec[data-state=loading] .card::after{display:none}
+  .sec *,.sec *::before,.sec *::after,.sec::after,.sec-body::after,.sig *{animation:none!important;transition:none!important}
+}
+[data-paused] .sec *,[data-paused] .sec *::before,[data-paused] .sec *::after,[data-paused] .sec-body::after,[data-paused] .sig *{animation-play-state:paused!important}
+
+/* bandeau « plus long que prévu » et jeton de rafraîchissement */
+.longload{display:none;margin:0 0 12px;border:1px solid var(--t-amber);background:var(--t-panel);border-radius:12px;padding:10px 14px;font-size:13px;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.longload.on{display:flex}
+.chip-maj{font:11.5px var(--t-mono);color:var(--t-mid)}
+.chip-maj.warn{color:var(--t-amber)}
+
+/* =====================================================================
+   PAGE FICTIVE (gabarit commun des modules pilotes)
+   ===================================================================== */
+.page{padding:20px 24px 28px;font-size:14px}
+.fic{display:inline-block;font:11px var(--t-mono);border:1px dashed var(--t-mid);color:var(--t-mid);border-radius:8px;padding:2px 8px}
+.hd{display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:14px}
+.hd .fil{font:11px var(--t-mono);color:var(--t-mid)}
+.hd h1{font-size:24px;font-weight:600;line-height:1.2}
+.per{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.per .btn{padding:6px 12px;min-height:32px}
+.sec+.sec{margin-top:18px}
+h2.ts{font-size:12px;font-weight:600;color:var(--t-mid);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px}
+.card{border-radius:12px;padding:14px;position:relative}
+.g{display:grid;gap:12px}.g3{grid-template-columns:repeat(3,1fr)}.g5{grid-template-columns:repeat(5,1fr)}.g2{grid-template-columns:1fr 1fr}.g4{grid-template-columns:repeat(4,1fr)}.g6{grid-template-columns:repeat(6,1fr)}.g21{grid-template-columns:2fr 1fr}
+@container stage (max-width:900px){.g5,.g6{grid-template-columns:repeat(3,1fr)}.g4{grid-template-columns:repeat(2,1fr)}.g21{grid-template-columns:1fr}}
+@container stage (max-width:560px){.g3,.g5,.g2,.g4,.g6{grid-template-columns:1fr}.page{padding:14px 16px 22px}.hd h1{font-size:20px}}
+.q{font-size:13px;font-weight:600;margin-bottom:6px}
+.big{font:600 26px var(--t-mono);line-height:1.15}
+.big small{font:12px var(--t-mono);color:var(--t-mid);margin-left:5px;font-weight:400}
+.mid{color:var(--t-mid);font-size:12.5px;line-height:1.45}
+.badge{display:inline-block;font-size:11.5px;font-weight:600;border-radius:8px;padding:2px 8px;border:1px solid currentColor}
+.ok{color:var(--t-green)}.av{color:var(--t-amber)}.mal{color:var(--t-red)}
+.mini{display:flex;align-items:flex-end;gap:3px;height:34px;margin:8px 0}
+.mini i{flex:1;background:var(--c,var(--t-cyan));border-radius:2px 2px 0 0;opacity:.85}
+.prog{height:8px;border-radius:4px;background:var(--t-raised);overflow:hidden}.prog i{display:block;height:100%;background:var(--t-cyan)}
+.row{display:flex;align-items:center;gap:12px;padding:9px 0;border-top:1px solid var(--t-line)}
+.row:first-child{border-top:0}
+.row .grow{flex:1;min-width:0}
+.row .n{font:13px var(--t-mono);text-align:right;min-width:70px}
+.av-i{width:34px;height:34px;border-radius:50%;background:var(--t-raised);border:1px solid var(--t-line);display:inline-flex;align-items:center;justify-content:center;font:600 12px var(--t-mono);flex:none}
+.ico{width:34px;height:34px;flex:none}.ico img{width:100%;height:100%;object-fit:contain;display:block}
+.chart{height:150px;border-radius:8px;background:var(--t-raised);position:relative}
+.chart svg{width:100%;height:100%;display:block}
+.hist{display:flex;align-items:flex-end;gap:8px;height:150px;padding:8px}
+.hist i{flex:1;background:var(--c,var(--t-cyan));border-radius:3px 3px 0 0}
+.conseil{display:flex;gap:12px;align-items:flex-start}
+.conseil img{width:48px;height:48px;border-radius:50%;flex:none}
+.hero{height:170px;border-radius:12px;background:var(--t-raised) center/cover;display:flex;align-items:flex-end;padding:14px}
+.hero .titre{font-size:20px;font-weight:600;color:#fff;text-shadow:0 1px 8px rgba(0,0,0,.6)}
+.puces{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+
+/* =====================================================================
+   SIGNATURE (écran de connexion et d'initialisation)
+   ===================================================================== */
+.sig{position:relative;min-height:520px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;text-align:center;padding:30px 20px;background:var(--t-bg) center/cover}
+.sig::before{content:"";position:absolute;inset:0;background:rgba(var(--panel-rgb),.78)}
+.sig>*{position:relative}
+.mark{position:relative;width:132px;height:132px;display:flex;align-items:center;justify-content:center}
+.mark img.lg{width:84px;height:84px;object-fit:contain;position:relative;z-index:2}
+.mark svg{position:absolute;inset:0;width:100%;height:100%}
+.mark circle{fill:none;stroke:var(--t-cyan);stroke-width:1.6;stroke-linecap:round}
+.steps{list-style:none;display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--t-mid);min-width:220px;text-align:left}
+.steps li{display:flex;gap:8px;align-items:center}
+.steps li::before{content:"";width:9px;height:9px;border-radius:50%;border:1.5px solid var(--t-line);flex:none}
+.steps li.cur{color:var(--t-text)}.steps li.cur::before{border-color:var(--t-cyan);background:var(--t-cyan)}
+.steps li.done{color:var(--t-text)}.steps li.done::before{border-color:var(--t-green);background:var(--t-green)}
+.steps li.bad{color:var(--t-red)}.steps li.bad::before{border-color:var(--t-red);background:var(--t-red)}
+[data-dir=A] .mark::before{content:"";position:absolute;inset:6px;border-radius:50%;border:1px solid rgba(var(--cyan-rgb),.35);background:linear-gradient(140deg,rgba(var(--cyan-rgb),.14),rgba(var(--panel-rgb),.4));backdrop-filter:blur(6px);box-shadow:inset 0 1px 0 rgba(255,255,255,.1)}
+[data-dir=R] .mark::before{content:"";position:absolute;inset:6px;border-radius:50%;border:1px solid rgba(var(--cyan-rgb),.35);background:linear-gradient(140deg,rgba(var(--cyan-rgb),.14),rgba(var(--panel-rgb),.4));backdrop-filter:blur(6px);box-shadow:inset 0 1px 0 rgba(255,255,255,.1)}
+[data-dir=A] .mark::after{content:"";position:absolute;inset:6px;border-radius:50%;background:linear-gradient(100deg,transparent 35%,rgba(255,255,255,.28) 50%,transparent 65%);background-size:260% 100%;animation:skA 2.6s linear infinite;mix-blend-mode:overlay;z-index:3}
+[data-dir=R] .mark::after{content:"";position:absolute;inset:6px;border-radius:50%;background:linear-gradient(100deg,transparent 35%,rgba(255,255,255,.28) 50%,transparent 65%);background-size:260% 100%;animation:skA 2.6s linear infinite;mix-blend-mode:overlay;z-index:3}
+[data-dir=A] .mark svg{animation:orbit 4s linear infinite}
+[data-dir=R] .mark svg{animation:orbit 4s linear infinite}
+[data-dir=A] .mark circle{stroke-dasharray:70 300;filter:drop-shadow(0 0 4px var(--t-cyan))}
+[data-dir=R] .mark circle{stroke-dasharray:70 300;filter:drop-shadow(0 0 4px var(--t-cyan))}
+@keyframes orbit{to{transform:rotate(360deg)}}
+[data-dir=B] .mark img.lg{animation:pulseB 1.4s ease-in-out infinite}
+@keyframes pulseB{0%,100%{transform:scale(1);opacity:.85}50%{transform:scale(1.06);opacity:1}}
+[data-dir=B] .mark circle{stroke-dasharray:4 7;opacity:.7}
+[data-dir=B] .mark::after{content:"";position:absolute;left:-30%;right:-30%;height:2px;top:50%;background:linear-gradient(90deg,transparent,var(--t-cyan),transparent);box-shadow:0 0 12px var(--t-cyan);animation:scanB 1.8s ease-in-out infinite;z-index:3}
+@keyframes scanB{0%{top:8%;opacity:0}20%,80%{opacity:1}100%{top:92%;opacity:0}}
+[data-dir=C] .mark circle{stroke-width:1;stroke-dasharray:340;stroke-dashoffset:340;animation:drawC 2.8s ease-in-out infinite}
+@keyframes drawC{0%{stroke-dashoffset:340}60%,100%{stroke-dashoffset:0}}
+[data-dir=C] .mark img.lg{animation:fadeC 2.8s ease-in-out infinite}
+@keyframes fadeC{0%{opacity:.3}60%,100%{opacity:1}}
+</style>
+</head>
+<body data-dir="R">
+
+<header class="bar" role="toolbar" aria-label="Réglages de la galerie">
+  <h1>NEXUS Skeleton</h1>
+  <div class="grp"><span>Direction</span><div class="seg" id="c-dir">
+    <button data-v="R" aria-pressed="true">Retenue : Signature + A + B</button><button data-v="A" aria-pressed="false">A · Verre et lumière</button><button data-v="B" aria-pressed="false">B · Impulsion</button><button data-v="C" aria-pressed="false">C · Minimal</button></div></div>
+  <div class="grp"><span>Thème</span><div class="seg" id="c-theme"><button data-v="sombre" aria-pressed="true">Nuit</button><button data-v="jour" aria-pressed="false">Jour</button></div></div>
+  <div class="grp"><span>Écran</span><div class="seg" id="c-vp"><button data-v="desktop" aria-pressed="true">Bureau 1280</button><button data-v="mobile" aria-pressed="false">Mobile 375</button></div></div>
+  <div class="grp"><span>Module</span><div class="seg" id="c-mod"></div></div>
+  <div class="grp"><span>Réseau</span><div class="seg" id="c-net">
+    <button data-v="fast" aria-pressed="false">Rapide 0,15 s</button><button data-v="normal" aria-pressed="true">Normal 1,5 s</button><button data-v="slow" aria-pressed="false">Lent 8 s</button><button data-v="fail" aria-pressed="false">Panne</button></div></div>
+  <div class="grp"><span>État forcé</span><div class="seg" id="c-force">
+    <button data-v="auto" aria-pressed="true">Auto</button><button data-v="empty" aria-pressed="false">Aucune donnée</button><button data-v="unavailable" aria-pressed="false">Indisponible</button></div></div>
+  <div class="grp"><button class="btn pri" id="c-replay">Rejouer</button><button class="btn" id="c-pause" aria-pressed="false">Pause animation</button></div>
+</header>
+
+<section class="legend" aria-label="Signature de chaque direction" id="legend">
+  <div data-d="R"><b>Retenue (26/11) : Signature + A + B, C en mouvement réduit</b>Signature : connexion et initialisation, logo animé et étapes réelles. A : squelettes de page. B : chargements localisés (filtre, période, rafraîchissement partiel). C : rendu automatique sous « réduire les animations », sans mouvement, pour les trois familles.</div>
+  <div data-d="A"><b>A · Verre et lumière</b>Matière : verre teinté bleu pétrole, bord fin cyan. Lumière : reflet diagonal qui balaie chaque voile en 2,2 s. Rythme : continu, lent. Transition : le voile se dissout en flou net, les données montent de 5 px.</div>
+  <div data-d="B"><b>B · Impulsion lumineuse</b>Matière : panneau plat, bord fin. Lumière : un filet cyan parcourt le haut de chaque carte, décalé de carte en carte. Rythme : battement 1,4 s. Transition : balayage gauche-droite qui découvre la donnée.</div>
+  <div data-d="C"><b>C · Élégance minimale</b>Matière : fil de bord seul, barres à peine plus claires que le fond. Lumière : aucune. Rythme : respiration 3,2 s. Transition : fondu enchaîné, sans mouvement.</div>
+</section>
+<p class="journal" id="journal" aria-hidden="true"></p>
+<div class="vp" id="vp" data-vp="desktop"><div class="vp-in" id="vpin"><div class="fit" id="fit"><div class="stage" id="stage" data-dir="R"></div></div></div></div>
+<div class="vh" role="status" aria-live="polite" id="live"></div>
+
+<script>
+(function(){
+'use strict';
+var D='../../../assets/';
+var cfg={dir:'R',theme:'sombre',vp:'desktop',mod:'brief',net:'normal',force:'auto'};
+var T={APPEAR:300,MIN:600,LONG:5000};
+var NET={fast:{ms:150},normal:{ms:1500},slow:{ms:8000},fail:{ms:2500}};
+var $=function(s,r){return (r||document).querySelector(s)};
+var $$=function(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s))};
+
+/* ---------- modèles de squelette : S(type, genre, contenu) ---------- */
+function S(tag,k,inner,cls,st){return '<'+tag+' class="sk '+(cls||'')+'" data-k="'+k+'"'+(st?' style="'+st+'"':'')+'>'+inner+'</'+tag+'>'}
+function ic(m){return '<span class="ico">'+S('span','ico','<img alt="" src="'+D+'icones/v2/mod-'+m+'/mod-'+m+'@2x.webp">','sec-ico', 'display:block;width:34px;height:34px')+'</span>'}
+function bars(a,c){var m=Math.max.apply(null,a);return '<div class="mini">'+a.map(function(v){return '<i style="height:'+Math.max(6,Math.round(v/m*100))+'%;--c:'+c+'"></i>'}).join('')+'</div>'}
+function sec(titre,body,idx){return '<section class="sec" data-state="wait" data-i="'+idx+'" aria-busy="true" aria-label="'+titre+'"><div class="sec-body">'+(titre?'<h2 class="ts">'+S('span','txt',titre)+'</h2>':'')+body+'</div><div class="sec-msg"></div></section>'}
+function card(inner,st){return '<div class="card" style="'+(st||'')+'">'+inner+'</div>'}
+function lecture(t,n,u,b,cl,sub){return card('<div class="q">'+S('span','txt',t)+'</div><div class="big">'+S('span','num',n)+'<small>'+u+'</small></div><div style="margin:6px 0">'+S('span','txt','<span class="badge '+cl+'">'+b+'</span>')+'</div><div class="mid">'+S('span','txt',sub)+'</div>')}
+function sect(m,nom,etat,cl,n,u,b,c,delta){return card('<div class="row" style="border:0;padding:0 0 4px">'+ic(m)+'<div class="grow"><div class="q" style="margin:0">'+S('span','txt',nom)+'</div>'+S('span','txt','<span class="badge '+cl+'">'+etat+'</span>')+'</div></div><div class="big">'+S('span','num',n)+'<small>'+u+'</small></div>'+S('div','chart',bars(b,c))+'<div class="mid">'+S('span','txt',delta)+'</div>')}
+function curves(){return S('div','line','<div class="chart"><svg viewBox="0 0 400 150" preserveAspectRatio="none"><polyline fill="none" stroke="var(--piste)" stroke-width="2" points="0,90 66,80 133,95 200,70 266,75 333,60 400,55"/><polyline fill="none" stroke="var(--boutique)" stroke-width="2" points="0,100 66,98 133,92 200,96 266,85 333,88 400,80"/><polyline fill="none" stroke="var(--fdj)" stroke-width="2" points="0,110 66,115 133,105 200,108 266,100 333,104 400,96"/></svg></div>','','--r:8px')}
+function hist(a,c){var m=Math.max.apply(null,a);return S('div','chart','<div class="hist">'+a.map(function(v){return '<i style="height:'+Math.round(v/m*100)+'%;--c:'+c+'"></i>'}).join('')+'</div>')}
+function obj(t,p,v){return '<div class="row"><div class="grow"><div class="q" style="margin:0 0 5px">'+S('span','txt',t)+'</div>'+S('div','block','<div class="prog"><i style="width:'+p+'%"></i></div>','','--r:4px')+'</div><div class="n">'+S('span','num',v)+'</div></div>'}
+function persRow(i,nom,a,b,etat,cl){return '<div class="row">'+S('span','ico','<span class="av-i">'+i+'</span>')+'<div class="grow"><div class="q" style="margin:0">'+S('span','txt',nom)+'</div><div class="mid">'+S('span','txt',a)+'</div></div><div class="n">'+S('span','num',b)+'</div>'+S('span','txt','<span class="badge '+cl+'">'+etat+'</span>')+'</div>'}
+function prodRow(m,nom,fam,a,b,c){return '<div class="row">'+ic(m)+'<div class="grow"><div class="q" style="margin:0">'+S('span','txt',nom)+'</div><div class="mid">'+S('span','txt',fam)+'</div></div><div class="n">'+S('span','num',a)+'</div><div class="n">'+S('span','num',b)+'</div><div class="n">'+S('span','num',c)+'</div></div>'}
+function tuile(m,t,s){return card('<div class="row" style="border:0;padding:0">'+ic(m)+'<div class="grow"><div class="q" style="margin:0">'+S('span','txt',t)+'</div><div class="mid">'+S('span','txt',s)+'</div></div></div>')}
+function kpi(t,n,u,sub){return card('<div class="q">'+S('span','txt',t)+'</div><div class="big">'+S('span','num',n)+'<small>'+u+'</small></div><div class="mid" style="margin-top:6px">'+S('span','txt',sub)+'</div>')}
+function conseil(t){return card('<div class="conseil">'+S('span','ico','<img alt="" src="'+D+'avatar/nexus-avatar-96.png" style="width:48px;height:48px;border-radius:50%">','','display:block;width:48px;height:48px')+'<div class="grow">'+S('div','para',t,'mid','line-height:1.45')+'</div></div>')}
+
+var MODS={
+ brief:{nom:'Brief v4',ico:'brief',titre:'Brief',fil:'NEXUS / Pilotage',secs:[
+  ['À retenir','<div class="g g3">'+lecture('Performance économique','+1,8','% boutique','Contrasté','av','7 jours contre 7 jours')+lecture('Maîtrise opérationnelle','1','écart confirmé','À corriger','mal','Opérations, récurrent')+lecture('Fiabilité des données','4 / 5','secteurs à jour','Partielle','av','Marge : import du 14/11')+'</div>'],
+  ['Secteurs','<div class="g g5">'+sect('carburants','Carburant','Complet','ok','86 800','L · 7 j',[11,12,13,12,14,13,12],'var(--piste)','▼ 3,2 % sur 7 jours')+sect('produits','Commerce','Complet','ok','22 050','€ · 7 j',[30,33,31,34,32,31,29],'var(--boutique)','▲ 1,8 % sur 7 jours')+sect('fdj','FDJ','Complet','ok','1 180','€ CA · 7 j',[16,17,18,17,16,17,16],'var(--fdj)','▲ 0,4 % sur 7 jours')+sect('prise-de-poste','Opérations','Complet','ok','1','écart · 7 j',[0,0,2,0,0,0,0],'var(--t-red)','récurrent')+sect('capital','Marge','Partiel','av','24,1','% réel',[24,24,25,24,24,23,24],'var(--t-amber)','cible 25,5 %')+'</div>'],
+  ['Tendance des trois moteurs',card(S('div','txt','Indice base 100 · six périodes importées','q','display:block;margin-bottom:8px')+curves())],
+  ['Objectifs','<div class="g g21">'+card(S('div','txt','Histogramme du mois','q','display:block;margin-bottom:8px')+hist([40,55,48,62,58,70,66,74],'var(--t-cyan)'))+card(obj('Carburant',82,'82 %')+obj('Boutique',64,'64 %')+obj('FDJ',91,'91 %'))+'</div>']]},
+ paye:{nom:'Paye v1',ico:'paye',titre:'Paye',fil:'NEXUS / Gestion',secs:[
+  ['Synthèse du mois','<div class="g g3">'+kpi('Salariés inclus','12','salariés','dont 2 temps partiels')+kpi('Heures à payer','1 482','h','mois en cours')+kpi('Variables à valider','5','éléments','à justifier avant le 25')+'</div>'],
+  ['Salariés',card(persRow('CR','Camille R.','Temps plein · 151,67 h','162 h','Prêt','ok')+persRow('MD','Mathis D.','Temps partiel · 104 h','98 h','À vérifier','av')+persRow('LB','Léa B.','Temps plein · 151,67 h','151 h','Prêt','ok')+persRow('SK','Samir K.','Temps plein · 151,67 h','170 h','À vérifier','av')+persRow('NP','Nina P.','Temps partiel · 78 h','80 h','Prêt','ok')+persRow('TG','Tom G.','Temps plein · 151,67 h','12 j absence','À justifier','mal'))]]},
+ produits:{nom:'Produits',ico:'produits',titre:'Produits',fil:'NEXUS / Commerce',secs:[
+  ['Conseiller',conseil('Trois familles méritent votre attention cette semaine : leur marge baisse alors que les ventes tiennent. Commencez par les boissons.')],
+  ['Espaces','<div class="g g4">'+tuile('produits','Mes produits','1 240 références')+tuile('dates-courtes','Dates courtes','6 à traiter')+tuile('rayon','Rayons','9 rayons')+tuile('scanner','Scanner tarifaire','3 écarts')+'</div>'],
+  ['Mes produits',card(prodRow('produits','Eau plate 1,5 L','Eaux','42','0,62','31 %')+prodRow('produits','Café moulu 250 g','Épicerie','18','2,40','27 %')+prodRow('produits','Pain de mie','Pains','25','1,10','34 %')+prodRow('produits','Lave-glace 5 L','Auto','9','3,80','38 %')+prodRow('produits','Chips nature 150 g','Chips','31','1,35','29 %'))]]},
+ carb:{nom:'Carburants performance',ico:'carburants-performance',titre:'Carburants · Performance',fil:'NEXUS / Carburants',secs:[
+  ['Indicateurs','<div class="g g3">'+kpi('Litres vendus','86 800','L · 7 j','▼ 3,2 % contre 7 jours')+kpi('Marge brute','0,094','€ / L','hypothèse à vérifier')+kpi('Écart de stock','−120','L','dans la tolérance')+'</div>'],
+  ['Ventes par jour',card(S('div','txt','Litres par jour, 7 derniers jours','q','display:block;margin-bottom:8px')+hist([11,12,13,12,14,13,12],'var(--piste)'))],
+  ['Par produit',card(prodRow('carburants','Gazole','Pompes 1 à 4','52 400','0,091','60 %')+prodRow('carburants','SP95-E10','Pompes 5 à 8','24 800','0,098','29 %')+prodRow('carburants','SP98','Pompe 9','9 600','0,112','11 %'))]]},
+ accueil:{nom:'Accueil',ico:'accueil',titre:'Accueil',fil:'NEXUS',secs:[
+  ['À la une','<div class="g g21"><div class="hero" id="hero"><div class="titre">'+S('span','txt','Bonjour, bonne journée à la station')+'</div></div>'+conseil('Une livraison de carburant est attendue à 14 h. Vérifiez la jauge avant son arrivée.')+'</div>'],
+  ['Vos espaces','<div class="g g6">'+['brief:Brief','paye:Paye','produits:Produits','carburants:Carburants','fdj:FDJ','missions:Missions'].map(function(x){x=x.split(':');return tuile(x[0],x[1],'ouvrir')}).join('')+'</div>']]},
+ sig:{nom:'Signature',ico:'accueil',signature:true}
+};
+(function(){var h='';for(var k in MODS)h+='<button data-v="'+k+'" aria-pressed="'+(k===cfg.mod)+'">'+MODS[k].nom+'</button>';$('#c-mod').innerHTML=h})();
+
+/* ---------- rendu de la page ---------- */
+var stage=$('#stage'),run=0,timers=[],t0=0,jr=[],longEl=null,lastMaj='';
+function clr(){timers.forEach(clearTimeout);timers=[]}
+function at(ms,f){timers.push(setTimeout(f,ms))}
+function now(){return Math.round(performance.now()-t0)}
+function J(m){jr.push('t='+now()+' ms · '+m);$('#journal').textContent=jr.slice(-4).join('   |   ')}
+function say(m){$('#live').textContent=m}
+
+function mount(){
+  clr();var M=MODS[cfg.mod];stage.setAttribute('data-dir',cfg.dir);
+  if(M.signature){stage.innerHTML='<div class="fic" style="margin:10px">Données fictives</div>'+signHtml();startSig();fit();return}
+  var h='<div class="page"><div class="hd"><div><div class="fil">'+M.fil+' · <span class="fic">Données fictives</span></div><h1>'+M.titre+'</h1></div><div class="per" role="group" aria-label="Période">'
+   +['Jour','Semaine','Mois'].map(function(p,i){return '<button class="btn" data-per="'+p+'" aria-pressed="'+(i===1)+'">'+p+'</button>'}).join('')+'<span class="chip-maj" id="maj" aria-live="polite"></span></div></div>'
+   +'<div class="longload" id="longload" role="status"><span>Le chargement est plus long que prévu. Vos données arrivent peut-être encore.</span><span><button class="btn" id="ll-retry">Réessayer</button> <button class="btn" id="ll-wait">Continuer d’attendre</button></span></div>';
+  M.secs.forEach(function(s,i){h+=sec(s[0],s[1],i)});
+  stage.innerHTML=h+'</div>';
+  var hero=$('#hero');if(hero)hero.style.backgroundImage='url('+D+'accueil/accueil-station-vito'+(cfg.theme==='sombre'?'-nuit':'')+'-800.webp)';
+  $$('.sec',stage).forEach(function(s,i){s.style.setProperty('--n',i);$$('.card',s).forEach(function(c,j){c.style.setProperty('--n',i+j)})});
+  $$('.per .btn',stage).forEach(function(b){b.onclick=function(){$$('.per .btn',stage).forEach(function(x){x.setAttribute('aria-pressed',x===b)});pulse()}});
+  $('#ll-retry').onclick=start;$('#ll-wait').onclick=function(){longEl.classList.remove('on')};
+  longEl=$('#longload');fit();
+}
+function setState(el,st){if(/error|empty|unavailable/.test(st)&&!el.style.minHeight)el.style.minHeight=el.offsetHeight+'px';if(/wait|loading|ready/.test(st))el.style.minHeight='';el.setAttribute('data-state',st);el.setAttribute('aria-busy',st==='wait'||st==='loading'||st==='refresh'?'true':'false')}
+function message(el,st){
+  var t=el.getAttribute('aria-label'),m=$('.sec-msg',el);
+  var o={error:['Impossible de charger « '+t+' »','La connexion a échoué. Rien n’a été modifié.','<button class="btn pri" data-retry>Réessayer</button>'],
+   empty:['Aucune donnée sur cette période','Il n’y a rien à afficher pour « '+t+' ». Essayez une autre période.',''],
+   unavailable:['Donnée momentanément indisponible','L’import attendu n’est pas encore arrivé. NEXUS réessaiera seul ; le reste de la page reste fiable.','<button class="btn" data-retry>Vérifier à nouveau</button>']}[st];
+  m.innerHTML='<div class="msg" role="alert"><b>'+o[0]+'</b><p>'+o[1]+'</p>'+o[2]+'</div>';
+  var b=$('[data-retry]',m);if(b)b.onclick=function(){loadSec(el,+el.dataset.i,run,true)};
+}
+function reveal(el,st){
+  if(st==='ready'){$$('.sk',el).forEach(function(s,j){s.style.setProperty('--d',Math.min(j*45,420)+'ms')});setState(el,'ready')}
+  else{message(el,st);setState(el,st)}
+  say('« '+el.getAttribute('aria-label')+' » : '+(st==='ready'?'chargé':st==='empty'?'aucune donnée':st==='error'?'erreur':'indisponible'));
+  var left=$$('.sec',stage).filter(function(s){return /wait|loading/.test(s.dataset.state)}).length;
+  if(!left&&longEl)longEl.classList.remove('on');
+  if(!left)J('page complète');
+}
+function outcome(i){
+  if(cfg.force!=='auto')return cfg.force;
+  if(cfg.net==='fail')return i===0?'ready':(i%2?'error':'unavailable');
+  return 'ready';
+}
+function loadSec(el,i,r,retry){
+  var ms=retry?NET.normal.ms:NET[cfg.net].ms*(0.55+0.3*i),shown=null;
+  setState(el,'wait');
+  at(T.APPEAR,function(){if(r===run&&el.dataset.state==='wait'){setState(el,'loading');shown=now();J('squelette visible : '+el.getAttribute('aria-label'))}});
+  at(ms,function(){
+    if(r!==run)return;
+    var st=retry?'ready':outcome(i),go=function(){reveal(el,st)};
+    if(shown!==null&&now()-shown<T.MIN){J('durée minimale : '+el.getAttribute('aria-label'));at(T.MIN-(now()-shown),function(){if(r===run)go()})}else go();
+  });
+}
+function start(){
+  run++;clr();t0=performance.now();jr=[];mount();var M=MODS[cfg.mod];if(M.signature)return;
+  J('démarrage, réseau « '+cfg.net+' »');say('Chargement de '+M.titre);
+  $$('.sec',stage).forEach(function(el,i){loadSec(el,i,run)});
+  at(T.LONG,function(){if(longEl&&$$('.sec',stage).some(function(s){return /wait|loading/.test(s.dataset.state)})){longEl.classList.add('on');J('seuil long atteint : message et nouvel essai')}});
+}
+/* Pulse : rafraîchissement local, données précédentes conservées */
+function pulse(){
+  var secs=$$('.sec',stage).filter(function(s){return s.dataset.state==='ready'});if(!secs.length)return;
+  var r=++run,ms=Math.max(600,NET[cfg.net].ms*0.6),maj=$('#maj');
+  secs.forEach(function(s){setState(s,'refresh')});if(maj){maj.className='chip-maj';maj.textContent='Mise à jour…'}
+  say('Mise à jour de la période');J('pulse : données conservées pendant la mise à jour');
+  at(ms,function(){if(r!==run)return;
+    var fail=cfg.net==='fail';
+    secs.forEach(function(s){setState(s,'ready')});
+    var d=new Date(),hm=('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
+    if(fail){if(maj){maj.className='chip-maj warn';maj.textContent='Mise à jour impossible, données de '+(lastMaj||'tout à l’heure')+' conservées'}say('Mise à jour impossible, données précédentes conservées')}
+    else{lastMaj=hm;if(maj)maj.textContent='Mis à jour à '+hm;say('Données à jour')}
+  });
+}
+
+/* ---------- Signature : connexion et initialisation ---------- */
+function signHtml(){
+  var bg=D+'connexion-fond-'+(cfg.theme==='sombre'?'nuit':'jour')+'-800.webp';
+  return '<div class="sig" style="background-image:url('+bg+')" role="status" aria-live="polite"><div class="mark"><svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="46"/></svg><img class="lg" alt="NEXUS" src="'+D+'nexus-logo-cyan.png"></div><div><div style="font-size:18px;font-weight:600">NEXUS</div><div class="mid" id="sigmsg">Initialisation…</div></div><ul class="steps" id="steps"><li>Connexion sécurisée</li><li>Votre profil</li><li>Votre station</li><li>Vos données du jour</li></ul><button class="btn" id="sigretry" hidden>Réessayer</button></div>';
+}
+function startSig(){
+  var li=$$('#steps li'),r=run,i=0;var ms=NET[cfg.net].ms/li.length+120;
+  function next(){
+    if(r!==run)return;
+    if(i>0)li[i-1].className='done';
+    if(i===li.length){$('#sigmsg').textContent='Bienvenue';say('NEXUS est prêt');return}
+    if(cfg.net==='fail'&&i===2){li[i].className='bad';$('#sigmsg').textContent='La station ne répond pas. Rien n’est perdu.';var b=$('#sigretry');b.hidden=false;b.onclick=start;say('Échec de la connexion à la station');return}
+    li[i].className='cur';i++;at(ms,next);
+  }
+  next();
+  at(T.LONG+1500,function(){if(r===run&&i<li.length&&cfg.net!=='fail'){$('#sigmsg').textContent='Un peu plus long que d’habitude…'}});
+}
+
+/* ---------- adaptation d’échelle ---------- */
+function fit(){
+  var vp=$('#vp'),inn=$('#vpin'),f=$('#fit'),w=cfg.vp==='mobile'?359:1280,avail=vp.clientWidth-32;
+  var sc=cfg.vp==='mobile'?1:Math.min(1,avail/1280);
+  stage.style.width=w+'px';f.style.transform='scale('+sc+')';
+  inn.style.height=Math.round(stage.offsetHeight*sc)+(cfg.vp==='mobile'?16:0)+'px';
+  if(cfg.vp==='desktop')inn.style.width=Math.round(1280*sc)+'px';else inn.style.width='';
+}
+if(window.ResizeObserver)new ResizeObserver(fit).observe(stage);
+window.addEventListener('resize',fit);
+
+/* ---------- commandes ---------- */
+function seg(id,key,after){$$('#'+id+' button').forEach(function(b){b.onclick=function(){cfg[key]=b.dataset.v;$$('#'+id+' button').forEach(function(x){x.setAttribute('aria-pressed',x===b)});after&&after()}})}
+function paint(){document.documentElement.setAttribute('data-theme',cfg.theme);document.body.setAttribute('data-dir',cfg.dir);$$('#legend div').forEach(function(d){d.classList.toggle('on',d.dataset.d===cfg.dir)})}
+seg('c-dir','dir',function(){paint();start()});
+seg('c-theme','theme',function(){paint();start()});
+seg('c-vp','vp',function(){$('#vp').setAttribute('data-vp',cfg.vp);start()});
+seg('c-mod','mod',start);
+seg('c-net','net',start);
+seg('c-force','force',start);
+$('#c-replay').onclick=start;
+$('#c-pause').onclick=function(){var p=this.getAttribute('aria-pressed')!=='true';this.setAttribute('aria-pressed',p);document.body[p?'setAttribute':'removeAttribute']('data-paused','')};
+if(window.matchMedia&&matchMedia('(prefers-color-scheme: light)').matches){cfg.theme='jour';$$('#c-theme button').forEach(function(b){b.setAttribute('aria-pressed',b.dataset.v==='jour')})}
+paint();start();
+})();
+</script>
+</body>
+</html>
