@@ -1165,7 +1165,7 @@
     // S1 : pendant la lecture, la carte est une section NEXUS Skeleton (data-state) ; le résumé est un fantôme, sans chiffre inventé.
     var charge = !!(etat && etat.objectifsChargement);
     var h = '<details class="sc-carte pt-obj pt-obj-familles' + (charge ? ' nsk-sec' : '') + '" data-objectifs-familles="1" aria-label="Objectifs de marge par famille"' + (charge ? ' data-state="loading" aria-busy="true"' : '') + (ouvert ? ' open' : '') + '><summary class="pt-objf-resume">' + iconeEnTete() +
-      '<span class="pt-objf-tete-txt"><span class="sc-nom">Objectifs de marge par famille</span><span class="sc-note pt-objf-ligne' + (charge ? ' nsk' : '') + '"' + (charge ? ' data-k="txt"' : '') + ' data-objf-resume="1">' + esc(resume) + '</span></span><span class="sc-chev" aria-hidden="true"></span></summary>';
+      '<span class="pt-objf-tete-txt"><span class="sc-nom">Objectifs de marge par famille</span><span class="sc-note pt-objf-ligne' + (charge ? ' nsk' : '') + '"' + (charge ? ' data-k="txt" style="width:45%;max-width:100%"' : '') + ' data-objf-resume="1">' + esc(resume) + '</span></span><span class="sc-chev" aria-hidden="true"></span></summary>';
     if (!ouvert) return h + '</details>';
     h += '<div class="pt-objf-tete"><p class="sc-note pt-objf-tete-txt">Pour chaque famille : le plancher à ne pas franchir, la cible visée et l\'état de validation.</p>' +
       '<span class="pt-objf-source sc-note" data-objf-source="1">Source unique : registre tarifaire de la station</span></div>';

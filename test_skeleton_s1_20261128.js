@@ -32,11 +32,18 @@ t('idiomes propres de Produits retirés', () => {
 t('Produits charge le composant', () => assert(/nexus-skeleton\.css/.test(html) && /nexus-skeleton\.js/.test(html)));
 
 // Comportement : délais, sans DOM (stub minimal).
+const creees = [];
+function noeud(cls) { const n = { style: {}, className: cls || '', children: [], ecouteurs: {}, textContent: '', parentNode: null, isConnected: true,
+  setAttribute() {}, appendChild(c) { c.parentNode = n; n.children.push(c); }, insertBefore(c) { c.parentNode = n; n.children.push(c); },
+  addEventListener(k, f) { n.ecouteurs[k] = f; }, classList: { add() {}, remove() {} } }; creees.push(n); return n; }
+function trouver(n, f) { if (f(n)) return n; for (const c of n.children) { const r = trouver(c, f); if (r) return r; } return null; }
 function el() {
-  const a = {}; return { style: {}, offsetHeight: 10, _a: a, setAttribute(k, v) { a[k] = v; }, getAttribute(k) { return a[k] === undefined ? null : a[k]; },
-    querySelectorAll() { return []; }, querySelector() { return null; }, appendChild() {}, classList: { add() {}, remove() {} }, parentNode: null };
+  const a = {}; const zone = { v: null };
+  const e = { style: {}, offsetHeight: 10, isConnected: true, _a: a, children: [], setAttribute(k, v) { a[k] = v; }, getAttribute(k) { return a[k] === undefined ? null : a[k]; },
+    querySelectorAll() { return []; }, querySelector() { return zone.v; }, appendChild(c) { zone.v = c; e.children.push(c); c.parentNode = e; }, classList: { add() {}, remove() {} }, parentNode: { insertBefore(c) { c.parentNode = e.parentNode; } } };
+  return e;
 }
-global.document = { body: { appendChild() {} }, createElement() { return { style: {}, className: '', setAttribute() {}, appendChild() {}, addEventListener() {}, classList: { add() {}, remove() {} } }; } };
+global.document = { body: noeud(), createElement(t) { return noeud(t); } };
 const dormir = ms => new Promise(r => setTimeout(r, ms));
 (async () => {
   const e1 = el(); let t0 = Date.now(), fin = 0;
@@ -68,5 +75,49 @@ const dormir = ms => new Promise(r => setTimeout(r, ms));
   const e5 = el(); const st = [];
   await SK.pouls(e5, () => dormir(10)); st.push(e5.getAttribute('data-state')); await dormir(700); st.push(e5.getAttribute('data-state'));
   t('pouls : refresh puis ready', () => assert.deepStrictEqual(st, ['refresh', 'ready']));
+
+  // Corrections Guardian 7244113538 : points 3, 4, 5, 9.
+  const bouton = z => trouver(z, n => n.ecouteurs && n.ecouteurs.click);
+  const e6 = el(); let relances = 0;
+  await SK.charge(e6, () => Promise.reject(new Error('x')), { relancer: () => { relances++; } }).catch(() => {}); await dormir(50);
+  const b6 = bouton(e6.children[0]);
+  t('relance : options.relancer est appelée', () => { assert(b6); b6.ecouteurs.click(); assert.strictEqual(relances, 1); });
+
+  const e7 = el(); let lectures = 0;
+  await SK.charge(e7, () => { lectures++; return Promise.reject(new Error('x')); }).catch(() => {}); await dormir(50);
+  bouton(e7.children[0]).ecouteurs.click(); await dormir(50);
+  t('relance par défaut : la même lecture est refaite', () => assert.strictEqual(lectures, 2));
+
+  const e8 = el(); let l8 = 0, rej;
+  await SK.charge(e8, () => { l8++; return Promise.reject(new Error('x')); }).catch(() => {}); await dormir(50);
+  const b8 = bouton(e8.children[0]);
+  SK.charge(e8, () => new Promise(() => {})); // une lecture est en cours
+  t('relance : pas de doublon si une lecture est déjà en cours', () => { b8.ecouteurs.click(); assert.strictEqual(l8, 1); });
+  e8.isConnected = false;
+
+  t('messages neutres : aucune cause inventée', () => {
+    const m = trouver(e6.children[0], n => n.textContent && /impossible|indisponible/.test(n.textContent));
+    assert(m); assert(!/serveur|r[eé]seau|connexion|r[eé]essayez plus tard/i.test(JSON.stringify(creees.map(n => n.textContent))));
+  });
+  const e9 = el();
+  await SK.charge(e9, () => Promise.reject(new Error('x')), { messages: { error: { titre: 'Texte de la page', bouton: 'Recharger' } } }).catch(() => {}); await dormir(50);
+  t('messages : la page peut fournir les siens', () => assert(trouver(e9.children[0], n => n.textContent === 'Texte de la page') && trouver(e9.children[0], n => n.textContent === 'Recharger')));
+
+  // sortie longue : une section retirée de la page ne doit ni garder ni placer la bannière
+  SK.T.LONG = 60;
+  const nb = creees.length;
+  const eA = el(); SK.charge(eA, () => new Promise(() => {}));
+  eA.isConnected = false;
+  const eB = el(); await SK.charge(eB, () => dormir(5)); await dormir(150);
+  t('bannière : section retirée purgée, aucune bannière', () => assert(!creees.slice(nb).some(n => n.className === 'nsk-longload')));
+  const eC = el(); SK.charge(eC, () => new Promise(() => {})); await dormir(150);
+  t('bannière : placée avant la section en attente', () => { const b = creees.slice(nb).find(n => n.className === 'nsk-longload'); assert(b); assert.strictEqual(b.parentNode, eC.parentNode); });
+  SK.T.LONG = 5000; eC.isConnected = false;
+
+  const lu = f => require('fs').readFileSync(f, 'utf8');
+  t('première ligne des deux fichiers : pas de tiret cadratin', () => { assert(!lu('nexus-skeleton.js').split('\n')[0].includes('\u2014')); assert(!lu('nexus-skeleton.css').split('\n')[0].includes('\u2014')); });
+  t('CSS : aucun repli hexadécimal', () => assert(!/#[0-9a-fA-F]{3,8}\b/.test(lu('nexus-skeleton.css'))));
+  t('Produits : ?v= sur skeleton css, js et tarifaire', () => { const h = lu('NEXUS-Produits-v1.html');
+    assert(/nexus-skeleton\.css\?v=\d{8}-\d{4}/.test(h)); assert(/nexus-skeleton\.js\?v=\d{8}-\d{4}/.test(h)); assert(/nexus-politique-tarifaire-ecran\.js\?v=20261128-1800/.test(h)); });
   console.log(ok + ' vérifications'); process.exit(process.exitCode || 0);
 })();

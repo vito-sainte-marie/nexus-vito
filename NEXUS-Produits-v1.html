@@ -393,8 +393,8 @@ body.nexus-desktop #resultSection > *{margin-bottom:12px;}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
 <script src="nexus-theme.js"></script>
-<link rel="stylesheet" href="nexus-skeleton.css">
-<script src="nexus-skeleton.js"></script>
+<link rel="stylesheet" href="nexus-skeleton.css?v=20261128-1800">
+<script src="nexus-skeleton.js?v=20261128-1800"></script>
 <script src="nexus-auth.js?v=20261127-1000"></script>
 <script src="nexus-rayons-familles.js?v=20261121-0001"></script>
 <script src="nexus-icones.js?v=20261124-0001"></script>
@@ -416,7 +416,7 @@ body.nexus-desktop #resultSection > *{margin-bottom:12px;}
 <script src="nexus-cible-marge.js?v=20261128-1200"></script>
 <script src="nexus-politique-tarifaire.js?v=20261128-1200"></script>
 <script src="nexus-politique-tarifaire-registres.js"></script>
-<script src="nexus-politique-tarifaire-ecran.js?v=20261128-1700"></script>
+<script src="nexus-politique-tarifaire-ecran.js?v=20261128-1800"></script>
 <script src="nexus-produits-securite.js"></script>
 </head>
 <body>
@@ -920,7 +920,7 @@ nexusRequireAuth().then(async employee => {
   }
   };
   const SK_ACCUEIL = document.getElementById('syntheseAccueil');
-  if (window.NexusSkeleton && SK_ACCUEIL) { try { await window.NexusSkeleton.charge(SK_ACCUEIL, SK_CHARGE); } catch (e) { throw e; } } else { await SK_CHARGE(); }
+  if (window.NexusSkeleton && SK_ACCUEIL) { try { await window.NexusSkeleton.charge(SK_ACCUEIL, SK_CHARGE, { relancer: function () { location.reload(); } }); } catch (e) { throw e; } } else { await SK_CHARGE(); }
 
   // Pied de page : nom de la station (nexus-auth.js, lu en base) et période réelle des données.
   const piedPeriode = document.getElementById('piedPeriode');
@@ -1746,7 +1746,7 @@ nexusRequireAuth().then(async employee => {
     // S1 : squelette NEXUS (fantômes sans chiffre inventé), l'écran n'est jamais retardé.
     corps.innerHTML = '<section class="nsk-sec" data-state="wait" aria-busy="true" aria-label="Scanner tarifaire"><div class="nsk-body">' + '<span class="nsk" data-k="block" style="display:block;height:64px;margin:8px 0"></span>'.repeat(4) + '</div><div class="nsk-msg-zone"></div></section>';
     let analyse, incoherences = [], verifs = null, identite = null;
-    try { const r = await (window.NexusSkeleton ? window.NexusSkeleton.charge(corps.firstElementChild, () => calculerAnalyseTarif(true)) : calculerAnalyseTarif(true)); analyse = r.analyse; incoherences = r.incoherences; verifs = r.verifications; identite = r.identite; }
+    try { const r = await (window.NexusSkeleton ? window.NexusSkeleton.charge(corps.firstElementChild, () => calculerAnalyseTarif(true), { relancer: () => { ouvrirScanner(corps); } }) : calculerAnalyseTarif(true)); analyse = r.analyse; incoherences = r.incoherences; verifs = r.verifications; identite = r.identite; }
     catch (e) { console.error('Scanner tarifaire:', e); indispo('Impossible de lire les registres tarifaires.'); return; }
     if (!analyse.lignes.length) { indispo('Aucune donnée tarifaire pour ce site'); return; }
     const etat = { analyse, verifications: verifs || [], historiqueDispo: !!verifs, filtreHisto: 'verifiee', histoOuverte: null, role: employee.role, userId: employee.id, filtres: {}, incoherences, ouverte: null, toutes: false, site: ((document.querySelector('.nexus-nom-commerce') || {}).textContent || ''), icone, estCreateur: !!(employee.est_createur || employee.estCreateur) };

@@ -1,16 +1,16 @@
-/* NEXUS Skeleton — composant partagé (lot S1).
+/* NEXUS Skeleton, composant partagé (lot S1).
    Contrat : data-state sur la section (wait, loading, ready, refresh, error, empty, unavailable),
    data-k sur l'élément fantôme (txt, num, para, chart, line, ico, img, block).
    Décision du 26/11 : A (verre et lumière) pour les squelettes de page, B (pouls cyan) pour les
    chargements localisés, C (sobre, sans mouvement) automatique sous prefers-reduced-motion.
    Aucune couleur en dur : tout dérive des jetons --t-*. Animations sur opacity et transform seulement. */
 :root{
-  --sk-base:color-mix(in srgb,var(--t-mid,#9aa8b6) 15%,transparent);
-  --sk-hi:color-mix(in srgb,var(--t-cyan,#24d7e3) 30%,transparent);
+  --sk-base:color-mix(in srgb,var(--t-mid) 15%,transparent);
+  --sk-hi:color-mix(in srgb,var(--t-cyan) 30%,transparent);
 }
 :root[data-theme=jour]{
-  --sk-base:color-mix(in srgb,var(--t-mid,#475569) 12%,transparent);
-  --sk-hi:color-mix(in srgb,var(--t-cyan,#0b7285) 24%,transparent);
+  --sk-base:color-mix(in srgb,var(--t-mid) 12%,transparent);
+  --sk-hi:color-mix(in srgb,var(--t-cyan) 24%,transparent);
 }
 
 .nsk-sec{position:relative}
