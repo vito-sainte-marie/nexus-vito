@@ -1,7 +1,7 @@
 // A4-1d : périmètre exclu (migration 20261128100000), normalisation des rayons et objectif calculé de la station.
 const assert = require('assert');
 const fs = require('fs');
-function t(nom, f) { try { f(); } catch (e) { console.error('ECHEC', nom, e.message); process.exitCode = 1; } }
+function t(nom, f) { try { f(); } catch (e) { console.error('AssertionError: ' + nom + ' : ' + String(e.message).split('\n')[0]); process.exitCode = 1; } }
 const sql = fs.readFileSync('supabase/migrations/20261128100000_objectifs_a4_1d_perimetre_exclu.sql', 'utf8').replace(/--.*$/gm, '');
 const R = fs.readFileSync('supabase/retours/20261128100000_retour_objectifs_a4_1d_perimetre_exclu.sql', 'utf8');
 const corps = n => sql.slice(sql.indexOf('function public.' + n), sql.indexOf('$$;', sql.indexOf('function public.' + n)));
