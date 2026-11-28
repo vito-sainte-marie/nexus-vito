@@ -1012,14 +1012,15 @@
       .map(function (o) { return o.famille; });
   }
   function indicateursFamilles(etat) {
-    var r = { total: 0, valides: 0, indicatives: 0, etude: 0, hypotheses: 0, aFaireValider: 0, attente: 0, sansCible: 0, sansCibleAvecAttente: 0 };
+    var r = { total: 0, valides: 0, indicatives: 0, etude: 0, hypotheses: 0, aProposer: 0, attente: 0, sansCible: 0, sansCibleAvecAttente: 0 };
     lignesObjectifsFamilles(etat).forEach(function (o) {
       r.total++;
       if (o.proposition) r.attente++;
       if (o.ligne === null) { r.sansCible++; if (o.proposition) r.sansCibleAvecAttente++; return; }
       if (o.statut === 'valide') r.valides++; else if (o.statut === 'indicatif') r.indicatives++; else if (o.statut === 'hypothese') r.hypotheses++; else r.etude++;
     });
-    r.aFaireValider = r.indicatives + r.etude + r.hypotheses;
+    // Cibles à proposer (indicatives, à l'étude, hypothèses). Ce qui attend une validation, c'est `attente`.
+    r.aProposer = r.indicatives + r.etude + r.hypotheses;
     return r;
   }
   // Retire de l'envoi ce qui a changé depuis la sélection : proposition plus ouverte, ou famille déjà proposée.
@@ -1035,11 +1036,11 @@
   }
   function cleCachePrefs(site, uid) { return 'nexus.objf.' + String(site || '') + '.' + String(uid || ''); }
   function lirePrefsFamilles(storage, site, uid) {
-    try { var v = JSON.parse(storage.getItem(cleCachePrefs(site, uid)) || 'null'); if (v && typeof v === 'object') return { tout: v.tout === true, repli: typeof v.repli === 'boolean' ? v.repli : null }; } catch (e) { /* stockage absent : valeurs par défaut */ }
-    return { tout: false, repli: null };
+    try { var v = JSON.parse(storage.getItem(cleCachePrefs(site, uid)) || 'null'); if (v && typeof v === 'object') return { tout: v.tout === true, repli: typeof v.repli === 'boolean' ? v.repli : null, ouvert: v.ouvert === true }; } catch (e) { /* stockage absent : valeurs par défaut */ }
+    return { tout: false, repli: null, ouvert: false };
   }
   function ecrirePrefsFamilles(storage, site, uid, prefs) {
-    try { storage.setItem(cleCachePrefs(site, uid), JSON.stringify({ tout: !!prefs.tout, repli: prefs.repli === null || prefs.repli === undefined ? null : !!prefs.repli })); return true; } catch (e) { return false; }
+    try { storage.setItem(cleCachePrefs(site, uid), JSON.stringify({ tout: !!prefs.tout, repli: prefs.repli === null || prefs.repli === undefined ? null : !!prefs.repli, ouvert: prefs.ouvert === true })); return true; } catch (e) { return false; }
   }
   var STATUTS_FAMILLE = [['valide', 'Validée', 'Validées'], ['indicatif', 'Indicative', 'Indicatives'], ['etude', 'À l\'étude', 'À l\'étude'], ['hypothese', 'Hypothèse', 'Hypothèses'], ['non_defini', 'Non définie', 'Non définies']];
   var SVG_CADENAS = '<svg class="pt-objf-cadenas" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false"><rect x="3" y="7" width="10" height="7" rx="1.5" fill="currentColor"></rect><path d="M5 7V5a3 3 0 0 1 6 0v2" fill="none" stroke="currentColor" stroke-width="1.6"></path></svg>';
@@ -1143,17 +1144,35 @@
     var i = lib && lib.img ? lib.img('mod-produits', 28, { decoratif: true, ancien: '' }) : '';
     return i ? '<span class="pt-objf-icone" data-objf-icone="mod-produits">' + i + '</span>' : SVG_CIBLE;
   }
+  // Ligne de résumé de la carte repliée : lue sur indicateursFamilles, aucun calcul nouveau.
+  function resumeFamilles(ind, nbSel) {
+    var t = ind.total + (ind.total > 1 ? ' familles' : ' famille') + ' · ' + ind.valides + (ind.valides > 1 ? ' validées' : ' validée') + ' · ' + ind.aProposer + ' à proposer';
+    if (ind.attente > 0) t += ' · ' + ind.attente + ' en attente de validation';
+    if (nbSel) t += ' · ' + nbSel + (nbSel > 1 ? ' sélectionnées' : ' sélectionnée');
+    return t;
+  }
   function htmlObjectifsFamilles(etat) {
     var d = (etat && etat.droitsObjectif) || {}, g = (etat && etat.groupe) || {};
     var peut = !!(d.valider || d.proposer) && !!(etat && etat.userId);
-    var h = '<section class="sc-carte pt-obj pt-obj-familles" data-objectifs-familles="1" aria-label="Objectifs de marge par famille"><div class="pt-objf-tete">' + iconeEnTete() +
-      '<div class="pt-objf-tete-txt"><div class="sc-nom">Objectifs de marge par famille</div><p class="sc-note">Pour chaque famille : le plancher à ne pas franchir, la cible visée et l\'état de validation.</p></div>' +
+    // A4-1f-bis : carte repliable (details natif, repliée par défaut). Repliée, seul le résumé est émis : ni barre, ni confirmation.
+    var ouvert = g.ouvert === true, lignes = [], ind = null, resume;
+    if (etat && etat.objectifsChargement) resume = 'Chargement en cours';
+    else if (etat && etat.objectifsErreur) resume = 'Lecture impossible pour le moment';
+    else {
+      lignes = lignesObjectifsFamilles(etat);
+      resume = lignes.length ? resumeFamilles(indicateursFamilles(etat), (g.selValider || []).length + (g.selProposer || []).length) : 'Aucune famille sur la période';
+    }
+    // S1 : pendant la lecture, la carte est une section NEXUS Skeleton (data-state) ; le résumé est un fantôme, sans chiffre inventé.
+    var charge = !!(etat && etat.objectifsChargement);
+    var h = '<details class="sc-carte pt-obj pt-obj-familles' + (charge ? ' nsk-sec' : '') + '" data-objectifs-familles="1" aria-label="Objectifs de marge par famille"' + (charge ? ' data-state="loading" aria-busy="true"' : '') + (ouvert ? ' open' : '') + '><summary class="pt-objf-resume">' + iconeEnTete() +
+      '<span class="pt-objf-tete-txt"><span class="sc-nom">Objectifs de marge par famille</span><span class="sc-note pt-objf-ligne' + (charge ? ' nsk' : '') + '"' + (charge ? ' data-k="txt" style="width:45%;max-width:100%"' : '') + ' data-objf-resume="1">' + esc(resume) + '</span></span><span class="sc-chev" aria-hidden="true"></span></summary>';
+    if (!ouvert) return h + '</details>';
+    h += '<div class="pt-objf-tete"><p class="sc-note pt-objf-tete-txt">Pour chaque famille : le plancher à ne pas franchir, la cible visée et l\'état de validation.</p>' +
       '<span class="pt-objf-source sc-note" data-objf-source="1">Source unique : registre tarifaire de la station</span></div>';
-    if (etat && etat.objectifsChargement) return h + '<div class="pt-objf-squelette" data-objf-chargement="1" aria-busy="true"><span></span><span></span><span></span><span></span></div></section>';
-    if (etat && etat.objectifsErreur) return h + '<p class="sc-note" role="alert" data-objf-erreur="1">Lecture des objectifs impossible pour le moment. Votre sélection est conservée.</p><button type="button" class="detail-btn" data-objf-relire="1">Réessayer la lecture</button></section>';
-    var lignes = lignesObjectifsFamilles(etat);
-    if (!lignes.length) return h + '<p class="sc-note">Aucune famille sur la période.</p></section>';
-    var ind = indicateursFamilles(etat), repli = g.repli === true, cartes = enModeCartes(etat);
+    if (etat && etat.objectifsChargement) return h + '<div class="pt-objf-squelette" data-objf-chargement="1"><span class="nsk" data-k="block" style="display:block;height:64px;margin:8px 0"></span><span class="nsk" data-k="block" style="display:block;height:64px;margin:8px 0"></span><span class="nsk" data-k="block" style="display:block;height:64px;margin:8px 0"></span><span class="nsk" data-k="block" style="display:block;height:64px;margin:8px 0"></span></div></details>';
+    if (etat && etat.objectifsErreur) return h + '<p class="sc-note" role="alert" data-objf-erreur="1">Lecture des objectifs impossible pour le moment. Votre sélection est conservée.</p><button type="button" class="detail-btn" data-objf-relire="1">Réessayer la lecture</button></details>';
+    if (!lignes.length) return h + '<p class="sc-note">Aucune famille sur la période.</p></details>';
+    ind = indicateursFamilles(etat); var repli = g.repli === true, cartes = enModeCartes(etat);
     var filtrees = filtreFamilles(etat), vues = filtrees, totalVues = vues.length;
     var limite = !g.tout && totalVues > MAX_LIGNES_FAMILLES; if (limite) vues = vues.slice(0, MAX_LIGNES_FAMILLES);
     var selV = g.selValider || [], selP = g.selProposer || [], occupe = !!g.enCours;
@@ -1235,7 +1254,7 @@
     if (g.resultats && g.resultats.length) h += '<ul class="pt-objf-resultats" data-objf-resultats="1">' + g.resultats.map(function (r) { return '<li data-ok="' + (r.ok ? '1' : '0') + '">' + esc(r.libelle + ' : ' + r.message) + '</li>'; }).join('') + '</ul>';
     if (g.echecs && g.echecs.length && !occupe) h += '<button type="button" class="detail-btn" data-objf-reessayer="1">Réessayer les échecs (' + g.echecs.length + ')</button>';
     h += '<p class="sc-msg sc-note pt-obj-msg" role="status" data-objf-bilan="1">' + esc(g.bilan || '') + '</p>';
-    return h + '</section>';
+    return h + '</details>';
   }
   // Un appel par élément, dans l'ordre ; un échec n'arrête pas les suivants. items : [{ libelle, id | famille, cible }].
   async function envoyerGroupe(client, site, mode, items, onProgres) {
@@ -1806,10 +1825,13 @@
   CSS += '@media (max-width:899px){.vue-p1c .pt-objf-barre{top:auto;bottom:0;padding-bottom:calc(10px + env(safe-area-inset-bottom))}}';
   CSS += '@media (max-width:899px){.vue-p1c .pt-objf-barre{flex-wrap:wrap}.vue-p1c .pt-objf-barre-txt{flex:1 1 100%}.vue-p1c .pt-objf-barre .detail-btn{flex:1 1 0;min-width:0;padding-left:8px;padding-right:8px}}';
   CSS += '.vue-p1c .pt-objf-barre .detail-btn{flex:0 1 auto;min-height:48px}';
-  CSS += '.vue-p1c .pt-objf-squelette{display:flex;flex-direction:column;gap:8px;margin:10px 0}';
-  CSS += '.vue-p1c .pt-objf-squelette span{display:block;height:64px;border-radius:12px;background:var(--t-raised);animation:pt-objf-pulse 1.4s ease-in-out infinite}';
-  CSS += '@keyframes pt-objf-pulse{0%,100%{opacity:.5}50%{opacity:1}}';
-  CSS += '@media (prefers-reduced-motion:reduce){.vue-p1c .pt-objf-squelette span{animation:none}}';
+  // A4-1f-bis : carte repliable, même modèle que Produits (details.sc-carte, summary, .sc-chev, cible 44 px).
+  CSS += '.vue-p1c .pt-obj-familles>summary{display:flex;align-items:center;gap:12px;min-height:44px;cursor:pointer;list-style:none}';
+  CSS += '.vue-p1c .pt-obj-familles>summary::-webkit-details-marker{display:none}';
+  CSS += '.vue-p1c .pt-obj-familles>summary .pt-objf-tete-txt{display:flex;flex-direction:column;gap:2px;flex:1 1 auto}';
+  CSS += '.vue-p1c .pt-obj-familles>summary:focus-visible{outline:2px solid var(--t-cyan);outline-offset:2px}';
+  CSS += '.vue-p1c .pt-obj-familles[open]>summary .sc-chev{transform:rotate(45deg)}';
+  CSS += '.vue-p1c .pt-obj-familles[open]>summary{margin-bottom:8px}';
   // ---------- Montage : lecture seule, session de la personne connectée, clé publique, aucun paramètre de site ----------
   var VUES = { familles: 'v_tarif_familles_actifs', rattachements: 'v_tarif_rattachements_actifs', seuils: 'v_tarif_seuils_actifs', reglages: 'v_tarif_reglages_actifs',
     prixDecides: 'v_tarif_prix_decides_actifs', applications: 'v_tarif_prix_application_actifs', exceptions: 'v_tarif_exceptions_effectives',
@@ -1892,7 +1914,7 @@
       return { fourni: true, lignes: lignesStockDepuisLot(rows), lot: { id: lot.id, dateReleve: lot.date_releve ? String(lot.date_releve).slice(0, 10) : null, fichierHash: lot.fichier_hash || null } };
     } catch (e) { return { fourni: false, erreur: true }; }
   }
-  var API = { htmlObjectifMarge: htmlObjectifMarge, htmlObjectifsFamilles: htmlObjectifsFamilles, libelleFamille: libelleFamille, eligiblesGroupe: eligiblesGroupe, selectionRapide: selectionRapide, indicateursFamilles: indicateursFamilles, compteFiltres: compteFiltres, bornesEchelle: bornesEchelle, cleStatut: cleStatut, enModeCartes: enModeCartes, filtrerDoublons: filtrerDoublons, lirePrefsFamilles: lirePrefsFamilles, ecrirePrefsFamilles: ecrirePrefsFamilles, filtreFamilles: filtreFamilles, libelleItemRecap: libelleItemRecap, lignesObjectifsFamilles: lignesObjectifsFamilles, envoyerGroupe: envoyerGroupe, bilanGroupe: bilanGroupe, objectifDe: objectifDe, niveauObjectif: niveauObjectif, pourcentVersFraction: pourcentVersFraction, messageErreurObjectif: messageErreurObjectif, chargerObjectifs: chargerObjectifs, estDemarque: estDemarque, lignesControle: lignesControle, nombreReleve: nombreReleve, lotStockPublie: lotStockPublie, lignesStockDepuisLot: lignesStockDepuisLot, chargerStockPublie: chargerStockPublie, TVA_CONFIRMATIONS_PILOTE: TVA_CONFIRMATIONS_PILOTE, cartes: cartes, scenarios: scenarios, alertesCartes: alertesCartes, trier: trier, filtrer: filtrer, valeursFiltres: valeursFiltres,
+  var API = { htmlObjectifMarge: htmlObjectifMarge, htmlObjectifsFamilles: htmlObjectifsFamilles, libelleFamille: libelleFamille, eligiblesGroupe: eligiblesGroupe, selectionRapide: selectionRapide, indicateursFamilles: indicateursFamilles, resumeFamilles: resumeFamilles, compteFiltres: compteFiltres, bornesEchelle: bornesEchelle, cleStatut: cleStatut, enModeCartes: enModeCartes, filtrerDoublons: filtrerDoublons, lirePrefsFamilles: lirePrefsFamilles, ecrirePrefsFamilles: ecrirePrefsFamilles, filtreFamilles: filtreFamilles, libelleItemRecap: libelleItemRecap, lignesObjectifsFamilles: lignesObjectifsFamilles, envoyerGroupe: envoyerGroupe, bilanGroupe: bilanGroupe, objectifDe: objectifDe, niveauObjectif: niveauObjectif, pourcentVersFraction: pourcentVersFraction, messageErreurObjectif: messageErreurObjectif, chargerObjectifs: chargerObjectifs, estDemarque: estDemarque, lignesControle: lignesControle, nombreReleve: nombreReleve, lotStockPublie: lotStockPublie, lignesStockDepuisLot: lignesStockDepuisLot, chargerStockPublie: chargerStockPublie, TVA_CONFIRMATIONS_PILOTE: TVA_CONFIRMATIONS_PILOTE, cartes: cartes, scenarios: scenarios, alertesCartes: alertesCartes, trier: trier, filtrer: filtrer, valeursFiltres: valeursFiltres,
     preuves: preuves, conseiller: conseiller, lierOuvertures: lierOuvertures, effetVerificationEnregistree: effetVerificationEnregistree, commentaireDuControle: commentaireDuControle, annulerVerification: annulerVerification, peutAnnuler: peutAnnuler, motifAnnulationValide: motifAnnulationValide, messageErreurAnnulation: messageErreurAnnulation, fiche: fiche, etatAcces: etatAcces, peutVoirOnglet: peutVoirOnglet, filtrerSite: filtrerSite,
     regimeDe: regimeDe, contexteDeclaratif: contexteDeclaratif, construireContexteTarif: construireContexteTarif, stockParLibelle: stockParLibelle, controle: controle, familles: familles, avertissementRegime: avertissementRegime, infoRegime: infoRegime, badgeRegime: badgeRegime, badgeLigne: badgeLigne, blocFiche: blocFiche,
     chargerRegistres: chargerRegistres, chargerVerifications: chargerVerifications, historiqueLignes: historiqueLignes, htmlHistorique: htmlHistorique, chargerVentes: chargerVentes, lireCompte: lireCompte, libellePeriode: libellePeriode,

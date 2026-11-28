@@ -3,6 +3,9 @@
 // Présentation seulement : les arguments des RPC restent ceux d'A4-1e. Valeurs fictives.
 const assert = require('assert'); const fs = require('fs');
 const E = require('./nexus-politique-tarifaire-ecran.js');
+// A4-1f-bis : la carte est repliée par défaut ; ces épreuves portent sur son corps, donc déplié sauf indication contraire.
+const htmlReplie = E.htmlObjectifsFamilles;
+E.htmlObjectifsFamilles = (e) => htmlReplie(Object.assign({}, e, { groupe: Object.assign({ ouvert: true }, e && e.groupe) }));
 let n = 0;
 function t(nom, f) { Promise.resolve().then(f).then(() => { n++; console.log('OK ' + nom); }, e => { console.error('AssertionError: ' + nom + ' : ' + String(e.message).split('\n')[0]); process.exitCode = 1; }); }
 const lg = (famille, ca) => ({ famille, ca_ht: ca, article: famille + '1' });
@@ -63,9 +66,9 @@ t('états : squelette, vide, erreur de lecture, réseau, lecture seule', () => {
 t('préférences : clé site + compte, stockage absent toléré', () => {
   const m = {}; const st = { getItem: k => m[k] || null, setItem: (k, v) => { m[k] = v; } };
   assert.strictEqual(E.ecrirePrefsFamilles(st, 'S1', 'u1', { tout: true, repli: false }), true);
-  assert.deepStrictEqual(E.lirePrefsFamilles(st, 'S1', 'u1'), { tout: true, repli: false });
-  assert.deepStrictEqual(E.lirePrefsFamilles(st, 'S1', 'u2'), { tout: false, repli: null });
-  assert.deepStrictEqual(E.lirePrefsFamilles(null, 'S1', 'u1'), { tout: false, repli: null });
+  assert.deepStrictEqual(E.lirePrefsFamilles(st, 'S1', 'u1'), { tout: true, repli: false, ouvert: false });
+  assert.deepStrictEqual(E.lirePrefsFamilles(st, 'S1', 'u2'), { tout: false, repli: null, ouvert: false });
+  assert.deepStrictEqual(E.lirePrefsFamilles(null, 'S1', 'u1'), { tout: false, repli: null, ouvert: false });
   assert.strictEqual(E.ecrirePrefsFamilles(null, 'S1', 'u1', {}), false);
 });
 t('doublons : proposition plus ouverte ou famille déjà proposée écartée', () => {
