@@ -117,7 +117,8 @@ t('chargerObjectifs lit tarif_perimetre_exclu filtré par site et non annulé', 
 });
 t('rechargerObjectifs alimente etat.rayonsExclus ; cache-bust de l\'écran levé', () => {
   assert.ok(/etat\.rayonsExclus = ob\.rayonsExclus/.test(page));
-  assert.ok(/nexus-politique-tarifaire-ecran\.js\?v=20261128-1400/.test(page));
+  // build.sh épingle les ?v= avant la suite : on vérifie une épingle ; la valeur source est gardée par test_versions_scripts_20261121.js.
+  assert.ok(/nexus-politique-tarifaire-ecran\.js\?v=[0-9a-zA-Z-]+/.test(page));
 });
 t('texte sous le seuil et ligne sans marge dans l\'écran', () => {
   assert.ok(ecran.includes('Objectif de la station non évalué : les cibles validées couvrent'));
