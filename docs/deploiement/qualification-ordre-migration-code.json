@@ -2203,7 +2203,19 @@
       "procedure": "supabase/retours/20261127160000_retour_objectifs_r1_schema_habilitation.sql",
       "valide_par": null,
       "valide_le": null,
-      "mesure": null,
+      "mesure": {
+        "source": "catalogue",
+        "le": "2026-11-27T22:47:50Z",
+        "cible": "uzhjpqpctpvxytxpxoqz",
+        "par": "Guardian (compte rendu 7229628338 sur #409, apres application sur Production sur GO ecrit du gerant)",
+        "outil": "requetes de lecture du catalogue Production par Guardian ; rapportees sans modification",
+        "identite_constatee": "Production, apres application des cinq migrations objectifs",
+        "lecture_seule": true,
+        "moteur": "PostgreSQL (catalogue Production)",
+        "verdict": "Fonctions Production (md5 12 car. de pg_get_functiondef, mode, anon execute) : accorder_droit_objectif e9e6daa92743 definer false ; objectif_habilite 9dc963483947 definer false ; proposer_marge_cible b79d6f98e695 definer false ; proposer_objectif 8604b31826e9 definer false ; retirer_marge_cible cbe092b347d2 definer false ; retirer_objectif 41908842a42c definer false ; revoquer_droit_objectif 3e34864da89f definer false ; station_objectifs_immuable e6810b55c07a invoker false ; valider_marge_cible 13529d95a834 definer false ; valider_objectif 4f3bef45fe70 definer false. Tables objectif_catalogue, station_objectifs, objectif_habilitation, marge_cible_propositions : RLS activee, anon sans select, authenticated sans insert ; vue objectif_officiel en security_invoker=true. Catalogue 34 lignes. R2b : 5 lignes valider, accorde_par nul (gerant 1/1/1, manager 4/4/4 eligibles/habilites/posees).",
+        "blob_migration": "d2c1ad2eb0e15d2082b699704b32e6f99030d175",
+        "blob_provenance": "git hash-object supabase/migrations/20261127160000_objectifs_r1_schema_habilitation.sql (branche claude/objectifs-r2b-habilitation-production, tete 6e65ab35)"
+      },
       "trace": "#409, consigne de Guardian 7222628858 (GO R1 et R2 sur Test) ; retour arriere : supabase/retours/20261127160000_retour_objectifs_r1_schema_habilitation.sql."
     },
     "20261127170000": {
@@ -2214,7 +2226,19 @@
       "procedure": "supabase/retours/20261127170000_retour_objectifs_r2_rpc.sql",
       "valide_par": null,
       "valide_le": null,
-      "mesure": null,
+      "mesure": {
+        "source": "catalogue",
+        "le": "2026-11-27T22:47:50Z",
+        "cible": "uzhjpqpctpvxytxpxoqz",
+        "par": "Guardian (compte rendu 7229628338 sur #409, apres application sur Production sur GO ecrit du gerant)",
+        "outil": "requetes de lecture du catalogue Production par Guardian ; rapportees sans modification",
+        "identite_constatee": "Production, apres application des cinq migrations objectifs",
+        "lecture_seule": true,
+        "moteur": "PostgreSQL (catalogue Production)",
+        "verdict": "Fonctions Production (md5 12 car. de pg_get_functiondef, mode, anon execute) : accorder_droit_objectif e9e6daa92743 definer false ; objectif_habilite 9dc963483947 definer false ; proposer_marge_cible b79d6f98e695 definer false ; proposer_objectif 8604b31826e9 definer false ; retirer_marge_cible cbe092b347d2 definer false ; retirer_objectif 41908842a42c definer false ; revoquer_droit_objectif 3e34864da89f definer false ; station_objectifs_immuable e6810b55c07a invoker false ; valider_marge_cible 13529d95a834 definer false ; valider_objectif 4f3bef45fe70 definer false. Tables objectif_catalogue, station_objectifs, objectif_habilitation, marge_cible_propositions : RLS activee, anon sans select, authenticated sans insert ; vue objectif_officiel en security_invoker=true. Catalogue 34 lignes. R2b : 5 lignes valider, accorde_par nul (gerant 1/1/1, manager 4/4/4 eligibles/habilites/posees).",
+        "blob_migration": "8738e9ff57fc5e395d73c83fa4fbf3d43c0ff9ec",
+        "blob_provenance": "git hash-object supabase/migrations/20261127170000_objectifs_r2_rpc.sql (branche claude/objectifs-r2b-habilitation-production, tete 6e65ab35)"
+      },
       "trace": "#409, consigne de Guardian 7222628858 (GO R1 et R2 sur Test) ; retour arriere : supabase/retours/20261127170000_retour_objectifs_r2_rpc.sql."
     },
     "20261127170500": {
@@ -2225,7 +2249,19 @@
       "procedure": "supabase/retours/20261127170500_retour_objectifs_garde_role_eligible.sql",
       "valide_par": null,
       "valide_le": null,
-      "mesure": null,
+      "mesure": {
+        "source": "catalogue",
+        "le": "2026-11-27T22:47:50Z",
+        "cible": "uzhjpqpctpvxytxpxoqz",
+        "par": "Guardian (compte rendu 7229628338 sur #409, apres application sur Production sur GO ecrit du gerant)",
+        "outil": "requetes de lecture du catalogue Production par Guardian ; rapportees sans modification",
+        "identite_constatee": "Production, apres application des cinq migrations objectifs",
+        "lecture_seule": true,
+        "moteur": "PostgreSQL (catalogue Production)",
+        "verdict": "Fonctions Production (md5 12 car. de pg_get_functiondef, mode, anon execute) : accorder_droit_objectif e9e6daa92743 definer false ; objectif_habilite 9dc963483947 definer false ; proposer_marge_cible b79d6f98e695 definer false ; proposer_objectif 8604b31826e9 definer false ; retirer_marge_cible cbe092b347d2 definer false ; retirer_objectif 41908842a42c definer false ; revoquer_droit_objectif 3e34864da89f definer false ; station_objectifs_immuable e6810b55c07a invoker false ; valider_marge_cible 13529d95a834 definer false ; valider_objectif 4f3bef45fe70 definer false. Tables objectif_catalogue, station_objectifs, objectif_habilitation, marge_cible_propositions : RLS activee, anon sans select, authenticated sans insert ; vue objectif_officiel en security_invoker=true. Catalogue 34 lignes. R2b : 5 lignes valider, accorde_par nul (gerant 1/1/1, manager 4/4/4 eligibles/habilites/posees).",
+        "blob_migration": "6abb7771e515b26645503473e7ad0f42b1816d8f",
+        "blob_provenance": "git hash-object supabase/migrations/20261127170500_objectifs_garde_role_eligible.sql (branche claude/objectifs-r2b-habilitation-production, tete 6e65ab35)"
+      },
       "trace": "#409, consigne de Guardian 7223775602 (garde de role) ; retour arriere : supabase/retours/20261127170500_retour_objectifs_garde_role_eligible.sql."
     },
     "20261127171000": {
@@ -2236,7 +2272,19 @@
       "procedure": "supabase/retours/20261127171000_retour_objectifs_a4_1b_marge_cible.sql",
       "valide_par": null,
       "valide_le": null,
-      "mesure": null,
+      "mesure": {
+        "source": "catalogue",
+        "le": "2026-11-27T22:47:50Z",
+        "cible": "uzhjpqpctpvxytxpxoqz",
+        "par": "Guardian (compte rendu 7229628338 sur #409, apres application sur Production sur GO ecrit du gerant)",
+        "outil": "requetes de lecture du catalogue Production par Guardian ; rapportees sans modification",
+        "identite_constatee": "Production, apres application des cinq migrations objectifs",
+        "lecture_seule": true,
+        "moteur": "PostgreSQL (catalogue Production)",
+        "verdict": "Fonctions Production (md5 12 car. de pg_get_functiondef, mode, anon execute) : accorder_droit_objectif e9e6daa92743 definer false ; objectif_habilite 9dc963483947 definer false ; proposer_marge_cible b79d6f98e695 definer false ; proposer_objectif 8604b31826e9 definer false ; retirer_marge_cible cbe092b347d2 definer false ; retirer_objectif 41908842a42c definer false ; revoquer_droit_objectif 3e34864da89f definer false ; station_objectifs_immuable e6810b55c07a invoker false ; valider_marge_cible 13529d95a834 definer false ; valider_objectif 4f3bef45fe70 definer false. Tables objectif_catalogue, station_objectifs, objectif_habilitation, marge_cible_propositions : RLS activee, anon sans select, authenticated sans insert ; vue objectif_officiel en security_invoker=true. Catalogue 34 lignes. R2b : 5 lignes valider, accorde_par nul (gerant 1/1/1, manager 4/4/4 eligibles/habilites/posees).",
+        "blob_migration": "7e3a8269c81af5028673f770fab0b4c34c1cc42e",
+        "blob_provenance": "git hash-object supabase/migrations/20261127171000_objectifs_a4_1b_marge_cible.sql (branche claude/objectifs-r2b-habilitation-production, tete 6e65ab35)"
+      },
       "trace": "#409, consigne de Guardian (A4-1b) ; retour arriere : supabase/retours/20261127171000_retour_objectifs_a4_1b_marge_cible.sql."
     },
     "20261127172000": {
@@ -2247,7 +2295,19 @@
       "procedure": "supabase/retours/20261127172000_retour_objectifs_r2b_habilitation_production.sql",
       "valide_par": null,
       "valide_le": null,
-      "mesure": null,
+      "mesure": {
+        "source": "catalogue",
+        "le": "2026-11-27T22:47:50Z",
+        "cible": "uzhjpqpctpvxytxpxoqz",
+        "par": "Guardian (compte rendu 7229628338 sur #409, apres application sur Production sur GO ecrit du gerant)",
+        "outil": "requetes de lecture du catalogue Production par Guardian ; rapportees sans modification",
+        "identite_constatee": "Production, apres application des cinq migrations objectifs",
+        "lecture_seule": true,
+        "moteur": "PostgreSQL (catalogue Production)",
+        "verdict": "Fonctions Production (md5 12 car. de pg_get_functiondef, mode, anon execute) : accorder_droit_objectif e9e6daa92743 definer false ; objectif_habilite 9dc963483947 definer false ; proposer_marge_cible b79d6f98e695 definer false ; proposer_objectif 8604b31826e9 definer false ; retirer_marge_cible cbe092b347d2 definer false ; retirer_objectif 41908842a42c definer false ; revoquer_droit_objectif 3e34864da89f definer false ; station_objectifs_immuable e6810b55c07a invoker false ; valider_marge_cible 13529d95a834 definer false ; valider_objectif 4f3bef45fe70 definer false. Tables objectif_catalogue, station_objectifs, objectif_habilitation, marge_cible_propositions : RLS activee, anon sans select, authenticated sans insert ; vue objectif_officiel en security_invoker=true. Catalogue 34 lignes. R2b : 5 lignes valider, accorde_par nul (gerant 1/1/1, manager 4/4/4 eligibles/habilites/posees).",
+        "blob_migration": "30ff2813eee77ce9f2d699dbf657ec4b34fe574e",
+        "blob_provenance": "git hash-object supabase/migrations/20261127172000_objectifs_r2b_habilitation_production.sql (branche claude/objectifs-r2b-habilitation-production, tete 6e65ab35)"
+      },
       "trace": "#409, consigne de Guardian 7228375499 (R2b) ; controle : supabase/retours/20261127172000_controle_objectifs_r2b_habilitation_production.sql."
     }
   },
