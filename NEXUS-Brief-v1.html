@@ -325,7 +325,10 @@
 <script src="nexus-icones.js?v=20261124-0001"></script>
 <script src="nexus-desktop.js?v=20261124-1500"></script>
 <script src="nexus-periodes.js?v=20260904-0104"></script>
-<script src="nexus-indice.js?v=20260904-0104"></script>
+<script src="nexus-politique-tarifaire.js?v=20261127-1400"></script>
+<script src="nexus-politique-tarifaire-registres.js?v=20261127-1400"></script>
+<script src="nexus-cible-marge.js?v=20261128-0910"></script>
+<script src="nexus-indice.js?v=20261128-0900"></script>
 <script src="nexus-marge.js?v=20260904-0104"></script>
 <script src="nexus-jours-feries.js?v=20261106-0100"></script>
 <script src="nexus-ecarts-moteur.js?v=20261126-0100"></script>
@@ -334,7 +337,7 @@
 <script src="nexus-fdj-moteur.js?v=20260904-0104"></script>
 <script src="nexus-mesure.js?v=20260904-0104"></script>
 <script src="nexus-coach-fdj-moteur.js?v=20261127-1000"></script>
-<script src="nexus-boussole-moteur.js?v=20261127-1900"></script>
+<script src="nexus-boussole-moteur.js?v=20261128-0900"></script>
 <script src="nexus-carburant-moteur.js?v=20260904-0104"></script>
 <script src="nexus-carburant-donnees.js?v=20261127-1700"></script>
 <!-- Moteur Commande Carburant (24/08/2026, §24-25 du cahier) — notification
@@ -344,10 +347,10 @@
 <script src="nexus-carburant-commande-donnees.js?v=20261124-1200"></script>
 <script src="nexus-secteurs-catalogue.js?v=20260904-0104"></script>
 <script src="nexus-moteurs-registre.js?v=20260904-0104"></script>
-<script src="nexus-secteurs-moteur.js?v=20261127-1900"></script>
+<script src="nexus-secteurs-moteur.js?v=20261128-0900"></script>
 <script src="nexus-verify-moteur.js?v=20261126-0100"></script>
 <script src="nexus-risques-moteur.js?v=20260904-0104"></script>
-<script src="nexus-conseiller.js?v=20261127-1700"></script>
+<script src="nexus-conseiller.js?v=20261128-0900"></script>
 <script src="nexus-badge-etat.js"></script>
 <script src="nexus-conseiller-donnees.js?v=20261127-1530"></script>
 <script src="nexus-ponctualite.js?v=20261127-1600"></script>
@@ -430,7 +433,7 @@
     // nexus-secteurs-moteur.js, construireSecteurCommerce).
     'À confirmer': 'var(--amber)', 'À relancer': 'var(--amber)',
     'À surveiller': 'var(--amber)', 'En repli': 'var(--red)', 'À corriger': 'var(--red)',
-    'Données insuffisantes': 'var(--text-dim)',
+    'Données insuffisantes': 'var(--text-dim)', 'Non évaluée': 'var(--text-dim)',
     'Référence certifiée': 'var(--green)',
     // 'À actualiser' (22/08/2026, fallback temporel carburant, v2.214/
     // v2.215) : même couleur neutre que "Données insuffisantes" — un état
@@ -587,7 +590,9 @@
     // pas de sens ici).
     if (ANIMATION_CHARGEMENT) ANIMATION_CHARGEMENT.tickSecteur('commerce');
     const { periodeAffichage, paire, rowsPaireActuelle, rowsPairePrecedente } = NexusPeriodes.analyserPeriodes(rowsBrut, { appariement: 'dernieres', fuseau: FUSEAU_TENDANCE });
-    const facteurs = NexusIndice.calculerFacteurs(rowsBrut, { fuseau: FUSEAU_TENDANCE });
+    // A4-1 : cible de marge lue dans tarif_seuils (une seule lecture, valide seulement).
+    const cibleRes = await NexusCibleMarge.charger(nexusClient, SITE_ACTUEL, ROLE_REEL_COURANT).then(() => NexusCibleMarge.nonEvalue());
+    const facteurs = NexusIndice.calculerFacteurs(rowsBrut, { fuseau: FUSEAU_TENDANCE, cibleMarge: NexusCibleMarge.cibleNotante(cibleRes) });
     const periodeLabel = periodeAffichage
       ? `Période analysée : ${new Date(periodeAffichage.debut + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })} – ${new Date(periodeAffichage.fin + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}`
       : new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });

@@ -43,6 +43,8 @@
   }
   function statutValeur(facteurs, margePlusResultat) {
     if (!facteurs || facteurs.margeReelle == null) return 'Données insuffisantes';
+    // A4-1 : sans cible valide, la Marge n'est pas évaluée (ni bonne, ni mauvaise).
+    if (facteurs.cibleMarge == null) return 'Non évaluée';
     if (margePlusResultat && margePlusResultat.nbEcarts > 0) return 'À surveiller';
     return 'Sous contrôle';
   }
@@ -68,9 +70,10 @@
     if (evol == null) return null;
     return Math.max(0, Math.min(100, Math.round(50 + evol * 250)));
   }
-  function scoreDepuisMarge(margeReelle) {
-    if (margeReelle == null) return null;
-    return Math.max(0, Math.min(100, Math.round(50 + (margeReelle - 0.25) * 100)));
+  // A4-1 : la cible vient de tarif_seuils (NexusCibleMarge) ; sans cible valide, pas de score.
+  function scoreDepuisMarge(margeReelle, cible) {
+    if (margeReelle == null || cible == null) return null;
+    return Math.max(0, Math.min(100, Math.round(50 + (margeReelle - cible) * 100)));
   }
   function scoreOperations(detailOperations, totalJours) {
     if (!totalJours || detailOperations == null) return null;

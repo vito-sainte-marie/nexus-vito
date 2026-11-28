@@ -400,7 +400,7 @@ body.nexus-desktop #resultSection > *{margin-bottom:12px;}
 <script src="nexus-vocabulaire.js?v=20260904-0104"></script>
 <script src="nexus-vocabulaire-tarif.js?v=20261121-0002"></script>
 <script src="nexus-periodes.js?v=20260904-0104"></script>
-<script src="nexus-conseiller.js?v=20261127-1700"></script>
+<script src="nexus-conseiller.js?v=20261128-0900"></script>
 <script src="nexus-marge.js"></script>
 <script src="nexus-tva-regles-pilote.js?v=20261121-1"></script>
 <script src="nexus-produits-mesure.js?v=20261121-1"></script>
@@ -411,9 +411,10 @@ body.nexus-desktop #resultSection > *{margin-bottom:12px;}
 <script src="nexus-badge-etat.js"></script>
 <script src="nexus-composants-pilotage.js"></script>
 <script src="nexus-anomalies-tarifaires.js"></script>
-<script src="nexus-politique-tarifaire.js"></script>
+<script src="nexus-cible-marge.js?v=20261128-1200"></script>
+<script src="nexus-politique-tarifaire.js?v=20261128-1200"></script>
 <script src="nexus-politique-tarifaire-registres.js"></script>
-<script src="nexus-politique-tarifaire-ecran.js?v=20261128-0500"></script>
+<script src="nexus-politique-tarifaire-ecran.js?v=20261128-1400"></script>
 <script src="nexus-produits-securite.js"></script>
 </head>
 <body>
@@ -1765,7 +1766,7 @@ nexusRequireAuth().then(async employee => {
       else if (rr.statut === 'erreur') { console.warn('Réévaluations non enregistrées', rr.erreur); etat.messageReeval = "Les réévaluations n'ont pas pu être enregistrées. L'écran reste à jour, l'enregistrement sera retenté à la prochaine ouverture."; }
     }
     // Objectifs de marge (A4-1b) : lecture du registre actif et des droits ; écriture par proposer_marge_cible / valider_marge_cible / retirer_marge_cible.
-    const rechargerObjectifs = async () => { try { const ob = await E.chargerObjectifs(nexusClient, SITE_ACTUEL); etat.objectifs = ob.lignes; etat.propositions = ob.propositions || []; etat.droitsObjectif = ob.droits; etat.libellesFamilles = ob.libelles || {}; } catch (e) { etat.objectifs = etat.objectifs || []; etat.propositions = etat.propositions || []; etat.droitsObjectif = etat.droitsObjectif || {}; } };
+    const rechargerObjectifs = async () => { try { const ob = await E.chargerObjectifs(nexusClient, SITE_ACTUEL); etat.objectifs = ob.lignes; etat.propositions = ob.propositions || []; etat.droitsObjectif = ob.droits; etat.libellesFamilles = ob.libelles || {}; etat.rayonsExclus = ob.rayonsExclus || []; } catch (e) { etat.objectifs = etat.objectifs || []; etat.propositions = etat.propositions || []; etat.droitsObjectif = etat.droitsObjectif || {}; } };
     await rechargerObjectifs();
     const ecrireObjectif = async (btn, mode) => {
       const valider = mode === 'valider', retirer = mode === 'retirer';
