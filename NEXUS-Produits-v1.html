@@ -414,7 +414,7 @@ body.nexus-desktop #resultSection > *{margin-bottom:12px;}
 <script src="nexus-cible-marge.js?v=20261128-1200"></script>
 <script src="nexus-politique-tarifaire.js?v=20261128-1200"></script>
 <script src="nexus-politique-tarifaire-registres.js"></script>
-<script src="nexus-politique-tarifaire-ecran.js?v=20261128-1500"></script>
+<script src="nexus-politique-tarifaire-ecran.js?v=20261128-1700"></script>
 <script src="nexus-produits-securite.js"></script>
 </head>
 <body>
@@ -1796,12 +1796,12 @@ nexusRequireAuth().then(async employee => {
     const groupe = () => {
       if (!etat.groupe) {
         const pf = E.lirePrefsFamilles(window.localStorage, SITE_ACTUEL, employee.id);
-        etat.groupe = { selValider: [], selProposer: [], recherche: '', filtre: 'tous', tout: pf.tout, repli: pf.repli === null ? window.innerWidth < 900 : pf.repli, confirmer: null, risqueCoche: false, resultats: [], bilan: '', enCours: false, progres: { k: 0, n: 0 }, erreurReseau: false, echecs: [] };
+        etat.groupe = { selValider: [], selProposer: [], recherche: '', filtre: 'tous', tout: pf.tout, ouvert: pf.ouvert === true, repli: pf.repli === null ? window.innerWidth < 900 : pf.repli, confirmer: null, risqueCoche: false, resultats: [], bilan: '', enCours: false, progres: { k: 0, n: 0 }, erreurReseau: false, echecs: [] };
       }
       return etat.groupe;
     };
     const basculer = (liste, v, oui) => { const i = liste.indexOf(v); if (oui && i === -1) liste.push(v); if (!oui && i !== -1) liste.splice(i, 1); };
-    const sauverPrefs = () => { const g = groupe(); E.ecrirePrefsFamilles(window.localStorage, SITE_ACTUEL, employee.id, { tout: g.tout, repli: g.repli }); };
+    const sauverPrefs = () => { const g = groupe(); E.ecrirePrefsFamilles(window.localStorage, SITE_ACTUEL, employee.id, { tout: g.tout, repli: g.repli, ouvert: g.ouvert === true }); };
     const envoyerSelection = async (mode, reprise) => {
       const g = groupe();
       g.confirmer = null; g.enCours = true; g.resultats = []; g.bilan = ''; g.erreurReseau = false; g.progres = { k: 0, n: 0 }; rendre();
@@ -1832,6 +1832,8 @@ nexusRequireAuth().then(async employee => {
       const g = groupe(), tous = (sel, f) => corps.querySelectorAll(sel).forEach(f);
       tous('[data-objf-valider]', c => c.addEventListener('change', () => { basculer(g.selValider, c.dataset.objfValider, c.checked); rendre(); }));
       tous('[data-objf-proposer]', c => c.addEventListener('change', () => { basculer(g.selProposer, c.dataset.objfProposer, c.checked); rendre(); }));
+      // A4-1f-bis : ouverture/repli par le details natif ; l'état est mémorisé, puis la carte est redessinée avec ou sans son corps.
+      tous('details[data-objectifs-familles]', d => d.addEventListener('toggle', () => { if (d.open === (g.ouvert === true)) return; g.ouvert = d.open; sauverPrefs(); rendre(); }));
       tous('[data-objf-filtre]', b => b.addEventListener('click', () => { g.filtre = b.dataset.objfFiltre; rendre(); }));
       tous('[data-objf-rapide]', b => b.addEventListener('click', () => { E.selectionRapide(etat, b.dataset.objfRapide).forEach(f => basculer(g.selProposer, f, true)); rendre(); }));
       tous('[data-objf-entete]', c => c.addEventListener('change', () => {
