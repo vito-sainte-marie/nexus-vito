@@ -914,40 +914,73 @@
   // Une famille par ligne, triée par CA de la période. Aucune ligne « defaut » : l'objectif de la station est calculé, jamais saisi.
   var LIB_STATUT_FAMILLE = { valide: 'validée', indicatif: 'indicative', a_l_etude: 'à l\'étude', hypothese: 'hypothèse' };
   var MAX_LIGNES_FAMILLES = 10;
+  // A4-1f : carte « Objectifs de marge par famille ». Aucune règle de calcul ni de circuit ici : présentation seule.
   function lignesObjectifsFamilles(etat) {
     var rows = (etat && etat.objectifs) || [], props = (etat && etat.propositions) || [];
     var analyse = (etat && etat.analyse) || {}, par = {}, ordre = [];
+    function ajouter(f) { if (!par[f]) { par[f] = { famille: f, ca: 0, avecCa: false, rayon: '' }; ordre.push(f); } return par[f]; }
     (analyse.lignes || []).forEach(function (l) {
       if (!l.famille) return;
-      if (!par[l.famille]) { par[l.famille] = { famille: l.famille, ca: 0 }; ordre.push(l.famille); }
-      var c = num(l.ca_ht); if (c !== null) par[l.famille].ca += c;
+      var p = ajouter(l.famille);
+      if (!p.rayon && l.rayon) p.rayon = l.rayon;
+      var c = num(l.ca_ht); if (c !== null) { p.ca += c; if (c > 0) p.avecCa = true; }
     });
-    rows.forEach(function (r) { if (r.niveau === 'famille' && !par[r.cible_niveau]) { par[r.cible_niveau] = { famille: r.cible_niveau, ca: 0 }; ordre.push(r.cible_niveau); } });
-    props.forEach(function (r) { if (r.statut === 'ouverte' && r.niveau === 'famille' && !par[r.cible_niveau]) { par[r.cible_niveau] = { famille: r.cible_niveau, ca: 0 }; ordre.push(r.cible_niveau); } });
+    rows.forEach(function (r) { if (r.niveau === 'famille') ajouter(r.cible_niveau); });
+    props.forEach(function (r) { if (r.statut === 'ouverte' && r.niveau === 'famille') ajouter(r.cible_niveau); });
     return ordre.map(function (f) {
       var o = par[f];
       o.ligne = rows.filter(function (r) { return r.niveau === 'famille' && r.cible_niveau === f && r.cible !== null && r.cible !== undefined; })[0] || null;
+      o.ligneMin = rows.filter(function (r) { return r.niveau === 'famille' && r.cible_niveau === f && ((r.cible !== null && r.cible !== undefined) || (r.minimum !== null && r.minimum !== undefined)); })[0] || null;
       o.proposition = props.filter(function (r) { return r.statut === 'ouverte' && r.niveau === 'famille' && r.cible_niveau === f; })[0] || null;
       o.statut = o.ligne ? o.ligne.statut_cible : 'non_defini';
+      o.sansVente = !o.avecCa;
       return o;
-    }).sort(function (a, b) { return b.ca - a.ca || (a.famille < b.famille ? -1 : 1); });
+    }).sort(function (a, b) {
+      if (a.sansVente !== b.sansVente) return a.sansVente ? 1 : -1;
+      if (b.ca !== a.ca) return b.ca - a.ca;
+      var la = libelleFamille(etat, a.famille), lb = libelleFamille(etat, b.famille), c = la.localeCompare(lb, 'fr');
+      return c || (a.famille < b.famille ? -1 : a.famille > b.famille ? 1 : 0);
+    });
   }
   // Libellé de tarif_familles (« Chips et petits salés »), le code en repli quand il manque.
   function libelleFamille(etat, code) {
     var m = (etat && etat.libellesFamilles) || {}, v = m[code];
     return (typeof v === 'string' && v.trim()) ? v.trim() : code;
   }
+  var FILTRES_FAMILLE = [['tous', 'Toutes'], ['valide', 'Validées'], ['indicatif', 'Indicatives'], ['etude', 'À l\'étude'], ['hypothese', 'Hypothèses'], ['sans_cible', 'Sans cible'], ['attente', 'En attente']];
+  function correspondFiltre(o, f) {
+    if (!f || f === 'tous') return true;
+    if (f === 'valide') return !!o.ligne && o.statut === 'valide';
+    if (f === 'attente') return !!o.proposition;
+    if (f === 'indicatif') return !!o.ligne && o.statut === 'indicatif';
+    if (f === 'etude') return !!o.ligne && o.statut === 'a_l_etude';
+    if (f === 'hypothese') return !!o.ligne && o.statut === 'hypothese';
+    if (f === 'sans_cible') return o.ligne === null;
+    return true;
+  }
+  // Effectif de chaque filtre, toutes familles confondues (affiché dans la pastille).
+  function compteFiltres(etat) {
+    var lignes = lignesObjectifsFamilles(etat), r = {};
+    FILTRES_FAMILLE.forEach(function (f) { r[f[0]] = lignes.filter(function (o) { return correspondFiltre(o, f[0]); }).length; });
+    return r;
+  }
   function filtreFamilles(etat) {
     var g = (etat && etat.groupe) || {}, q = String(g.recherche || '').trim().toLowerCase();
-    var lignes = lignesObjectifsFamilles(etat);
-    return q ? lignes.filter(function (o) { return libelleFamille(etat, o.famille).toLowerCase().indexOf(q) !== -1 || o.famille.toLowerCase().indexOf(q) !== -1; }) : lignes;
+    return lignesObjectifsFamilles(etat).filter(function (o) {
+      if (!correspondFiltre(o, g.filtre)) return false;
+      return !q || libelleFamille(etat, o.famille).toLowerCase().indexOf(q) !== -1 || o.famille.toLowerCase().indexOf(q) !== -1;
+    });
   }
-  function eligiblesGroupe(etat, mode) {
+  // Une ligne est éligible à valider (proposition d'un autre compte) ou à proposer (cible active non validée, sans proposition ouverte).
+  function eligibleValider(o, d, uid) { return !!(d.valider && uid && o.proposition && o.proposition.propose_par !== uid); }
+  function eligibleProposer(o, d, uid) { return !!(d.proposer && uid && !o.proposition && o.ligne && o.statut !== 'valide'); }
+  // portee : 'visible' (défaut, lignes filtrées) ou 'toutes' (toutes les familles, filtres ignorés).
+  function eligiblesGroupe(etat, mode, portee) {
     var d = (etat && etat.droitsObjectif) || {}, uid = etat && etat.userId; if (!uid) return [];
-    var out = [];
-    filtreFamilles(etat).forEach(function (o) {
-      if (mode === 'valider') { if (d.valider && o.proposition && o.proposition.propose_par !== uid) out.push(o.proposition.id); }
-      else if (d.proposer && !o.proposition && o.ligne && o.statut !== 'valide') out.push(o.famille);
+    var src = portee === 'toutes' ? lignesObjectifsFamilles(etat) : filtreFamilles(etat), out = [];
+    src.forEach(function (o) {
+      if (mode === 'valider') { if (eligibleValider(o, d, uid)) out.push(o.proposition.id); }
+      else if (eligibleProposer(o, d, uid)) out.push(o.famille);
     });
     return out;
   }
@@ -972,67 +1005,252 @@
     if (sm.lignes) h += sm.lignes + (sm.lignes > 1 ? ' lignes' : ' ligne') + ' avec une cible mais sans marge connue (' + eur0(sm.ca) + ' de CA), hors calcul.';
     return h + '</p>';
   }
+  // Sélections rapides, toutes familles confondues : « Les indicatives » et « Toutes les cibles à proposer ».
+  function selectionRapide(etat, type) {
+    var d = (etat && etat.droitsObjectif) || {}, uid = etat && etat.userId; if (!uid) return [];
+    return lignesObjectifsFamilles(etat).filter(function (o) { return eligibleProposer(o, d, uid) && (type !== 'indicatives' || o.statut === 'indicatif'); })
+      .map(function (o) { return o.famille; });
+  }
+  function indicateursFamilles(etat) {
+    var r = { total: 0, valides: 0, indicatives: 0, etude: 0, hypotheses: 0, aFaireValider: 0, attente: 0, sansCible: 0, sansCibleAvecAttente: 0 };
+    lignesObjectifsFamilles(etat).forEach(function (o) {
+      r.total++;
+      if (o.proposition) r.attente++;
+      if (o.ligne === null) { r.sansCible++; if (o.proposition) r.sansCibleAvecAttente++; return; }
+      if (o.statut === 'valide') r.valides++; else if (o.statut === 'indicatif') r.indicatives++; else if (o.statut === 'hypothese') r.hypotheses++; else r.etude++;
+    });
+    r.aFaireValider = r.indicatives + r.etude + r.hypotheses;
+    return r;
+  }
+  // Retire de l'envoi ce qui a changé depuis la sélection : proposition plus ouverte, ou famille déjà proposée.
+  function filtrerDoublons(mode, items, propositions) {
+    var ouvertes = (propositions || []).filter(function (p) { return p.statut === 'ouverte'; });
+    var gardes = [], ecartes = [];
+    (items || []).forEach(function (it) {
+      var dejaId = mode === 'valider' ? !ouvertes.some(function (p) { return p.id === it.id; })
+        : ouvertes.some(function (p) { return p.niveau === 'famille' && p.cible_niveau === it.famille; });
+      (dejaId ? ecartes : gardes).push(it);
+    });
+    return { gardes: gardes, ecartes: ecartes };
+  }
+  function cleCachePrefs(site, uid) { return 'nexus.objf.' + String(site || '') + '.' + String(uid || ''); }
+  function lirePrefsFamilles(storage, site, uid) {
+    try { var v = JSON.parse(storage.getItem(cleCachePrefs(site, uid)) || 'null'); if (v && typeof v === 'object') return { tout: v.tout === true, repli: typeof v.repli === 'boolean' ? v.repli : null }; } catch (e) { /* stockage absent : valeurs par défaut */ }
+    return { tout: false, repli: null };
+  }
+  function ecrirePrefsFamilles(storage, site, uid, prefs) {
+    try { storage.setItem(cleCachePrefs(site, uid), JSON.stringify({ tout: !!prefs.tout, repli: prefs.repli === null || prefs.repli === undefined ? null : !!prefs.repli })); return true; } catch (e) { return false; }
+  }
+  var STATUTS_FAMILLE = [['valide', 'Validée', 'Validées'], ['indicatif', 'Indicative', 'Indicatives'], ['etude', 'À l\'étude', 'À l\'étude'], ['hypothese', 'Hypothèse', 'Hypothèses'], ['non_defini', 'Non définie', 'Non définies']];
+  var SVG_CADENAS = '<svg class="pt-objf-cadenas" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false"><rect x="3" y="7" width="10" height="7" rx="1.5" fill="currentColor"></rect><path d="M5 7V5a3 3 0 0 1 6 0v2" fill="none" stroke="currentColor" stroke-width="1.6"></path></svg>';
+  var SVG_CIBLE = '<svg class="pt-objf-icone" viewBox="0 0 24 24" width="28" height="28" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.8"></circle><circle cx="12" cy="12" r="5" fill="none" stroke="currentColor" stroke-width="1.8"></circle><circle cx="12" cy="12" r="1.6" fill="currentColor"></circle></svg>';
+  function cleStatut(o) {
+    if (!o.ligne) return 'non_defini';
+    if (o.statut === 'a_l_etude') return 'etude';
+    if (o.statut === 'valide' || o.statut === 'indicatif' || o.statut === 'hypothese') return o.statut;
+    return 'etude';
+  }
+  function libStatut(k, pluriel) {
+    var r = STATUTS_FAMILLE.filter(function (s) { return s[0] === k; })[0];
+    return r ? (pluriel ? r[2] : r[1]) : k;
+  }
+  // Statut d'une valeur (plancher ou cible) du registre, écrit en minuscules sous le chiffre.
+  function libValeur(st) { return st === 'a_l_etude' ? 'à l\'étude' : st === 'valide' ? 'validé' : st === 'hypothese' ? 'hypothèse' : st === 'indicatif' ? 'indicatif' : String(st); }
+  function badgeStatutFamille(o) {
+    var k = cleStatut(o);
+    return '<span class="pt-objf-badge pt-objf-st-' + k + '" data-objf-statut="' + k + '">' + esc(libStatut(k)) + '</span>';
+  }
+  // Bornes communes de l'échelle : toutes les familles ayant une cible, arrondies au multiple de 5 (points de marge).
+  function bornesEchelle(etat) {
+    var lo = null, hi = null;
+    lignesObjectifsFamilles(etat).forEach(function (o) {
+      if (!o.ligneMin) return;
+      [num(o.ligneMin.cible), num(o.ligneMin.minimum)].forEach(function (v) {
+        if (v === null) return;
+        v = v * 100;
+        if (lo === null || v < lo) lo = v;
+        if (hi === null || v > hi) hi = v;
+      });
+    });
+    if (lo === null) return { lo: 30, hi: 60 };
+    var a = Math.max(0, Math.floor((lo - 5) / 5) * 5), b = Math.ceil((hi + 5) / 5) * 5;
+    if (b <= a) b = a + 5;
+    return { lo: a, hi: b };
+  }
+  function echelleFamille(o, b, avecBornes) {
+    if (!o.ligneMin) return '<span class="sc-note">pas de cible</span>';
+    var k = cleStatut(o), c = num(o.ligneMin.cible), m = num(o.ligneMin.minimum);
+    var pos = function (v) { return Math.max(0, Math.min(100, (v * 100 - b.lo) / (b.hi - b.lo) * 100)).toFixed(1); };
+    var txt = 'Échelle ' + b.lo + ' à ' + b.hi + ' %' + (m !== null ? ' · plancher ' + pct(m) : '') + (c !== null ? ' · cible ' + pct(c) : '');
+    return '<span class="pt-objf-echelle pt-objf-st-' + k + '" role="img" aria-label="' + esc(txt) + '"><span class="pt-objf-rail">' +
+      (m !== null && c !== null ? '<span class="pt-objf-zone" style="left:' + pos(m) + '%;width:' + (pos(c) - pos(m)).toFixed(1) + '%"></span>' : '') +
+      (m !== null ? '<span class="pt-objf-rep pt-objf-plancher" style="left:' + pos(m) + '%"></span>' : '') +
+      (c !== null ? '<span class="pt-objf-rep pt-objf-cible" style="left:' + pos(c) + '%"></span>' : '') + '</span>' +
+      (avecBornes ? '<span class="pt-objf-bornes pt-num"><span>' + b.lo + ' %</span><span>' + b.hi + ' %</span></span>' : '') + '</span>';
+  }
+  function htmlSyntheseFamilles(ind) {
+    var cles = [['valide', ind.valides, 'valides', 'Validées'], ['indicatif', ind.indicatives, 'indicatives', 'Indicatives'], ['etude', ind.etude, 'etude', 'À l\'étude'], ['hypothese', ind.hypotheses, 'hypotheses', 'Hypothèses'], ['non_defini', ind.sansCible, 'sans-cible', 'Sans cible']];
+    var kpi = function (c) {
+      var sous = c[0] === 'non_defini' && ind.sansCibleAvecAttente ? 'dont ' + ind.sansCibleAvecAttente + ' avec une proposition en attente' : '';
+      return '<div class="pt-objf-kpi pt-objf-st-' + c[0] + '" data-objf-kpi="' + c[2] + '"><span class="pt-objf-kpi-n pt-num">' + c[1] + '</span><span class="pt-objf-kpi-l"><span class="pt-objf-pt" aria-hidden="true"></span>' + esc(c[3]) + '</span>' + (sous ? '<span class="pt-objf-kpi-s">' + esc(sous) + '</span>' : '') + '</div>';
+    };
+    var desc = cles.map(function (c) { return c[1] + ' ' + c[3].toLowerCase(); }).join(', ');
+    return '<div class="pt-objf-synthese" data-objf-synthese="1">' + cles.map(kpi).join('') +
+      '<div class="pt-objf-repart" role="img" aria-label="Répartition : ' + esc(desc) + '">' +
+      cles.map(function (c) { return c[1] ? '<span class="pt-objf-seg pt-objf-st-' + c[0] + '" style="flex:' + c[1] + '" title="' + esc(c[3] + ' : ' + c[1]) + '"></span>' : ''; }).join('') + '</div>' +
+      '<ul class="pt-objf-legende" data-objf-legende="1">' + cles.map(function (c) { return '<li class="pt-objf-st-' + c[0] + '"><span class="pt-objf-pt" aria-hidden="true"></span>' + esc(c[3]) + ' <b class="pt-num">' + c[1] + '</b></li>'; }).join('') + '</ul></div>';
+  }
+  function htmlAideFamilles(repli) {
+    return '<aside class="pt-objf-aide" data-objf-aide="' + (repli ? 'replie' : 'ouvert') + '"><button type="button" class="detail-btn" data-objf-repli="1" aria-expanded="' + (repli ? 'false' : 'true') + '">' + (repli ? 'Afficher l\'aide' : 'Masquer l\'aide') + '</button>' +
+      (repli ? '' : '<div class="pt-objf-aide-corps"><p class="sc-lib">Le circuit en 3 étapes</p><ol><li>Une cible est proposée pour la famille.</li><li>Un autre compte habilité la valide.</li><li>Elle devient la cible en vigueur de la station.</li></ol>' +
+        '<p class="sc-lib">Lire un statut</p><ul><li>Validée : cible en vigueur, verrouillée.</li><li>Indicative : valeur de travail du registre, pas encore validée.</li><li>À l\'étude : valeur en cours d\'analyse, à confirmer avant de la proposer.</li><li>Hypothèse : valeur provisoire, sans historique suffisant.</li><li>Non définie : aucune cible pour cette famille.</li></ul>' +
+        '<p class="sc-lib">Lire l\'échelle</p><ul><li>Le trait gris est le plancher, le trait coloré la cible.</li><li>Toutes les familles partagent les mêmes bornes.</li></ul></div>') + '</aside>';
+  }
+  function libelleItemRecap(etat, mode, cle) {
+    var o = lignesObjectifsFamilles(etat).filter(function (x) { return mode === 'valider' ? (x.proposition && x.proposition.id === cle) : x.famille === cle; })[0];
+    if (!o) return { texte: String(cle), risque: false, statut: 'non_defini', cle: cle };
+    var v = mode === 'valider' ? (o.proposition ? o.proposition.cible : null) : (o.ligne ? o.ligne.cible : null);
+    var pl = o.ligneMin ? num(o.ligneMin.minimum) : null;
+    return { plancher: pl, texte: libelleFamille(etat, o.famille) + ' : ' + pct(num(v)) + (pl !== null ? ' (plancher ' + pct(pl) + ')' : ''), risque: !!o.ligne && (o.statut === 'a_l_etude' || o.statut === 'hypothese'), famille: o.famille, statut: cleStatut(o), cle: cle };
+  }
+  function enModeCartes(etat) { return !!etat && typeof etat.largeur === 'number' && etat.largeur < 900; }
+  function phraseTri(etat) {
+    var a = etat && etat.analyse, p = a && ((a.synthese && a.synthese.periode) || a.periode);
+    if (p && p.debut && p.fin) return 'Tri : chiffre d\'affaires du ' + jourFr(p.debut).slice(0, 5) + ' au ' + jourFr(p.fin).slice(0, 5);
+    return 'Tri : chiffre d\'affaires de la période';
+  }
+  function piecesFamille(etat, o, c) {
+    var k = cleStatut(o), auteur = etat.userId && o.proposition && o.proposition.propose_par === etat.userId, case_ = '', prop = '';
+    if (o.proposition) {
+      prop = '<span class="pt-num">' + esc(pct(num(o.proposition.cible))) + '</span> ' + (B && B.traitement ? B.traitement('en-attente', { libelle: 'À valider' }) : 'à valider') + (auteur ? ' <span class="sc-note" data-objf-attente="1">Un autre compte doit valider.</span>' : '');
+      if (c.peut && eligibleValider(o, c.d, etat.userId)) case_ = '<input type="checkbox" data-objf-valider="' + esc(o.proposition.id) + '" aria-label="Valider la proposition ' + esc(libelleFamille(etat, o.famille)) + '"' + (c.selV.indexOf(o.proposition.id) !== -1 ? ' checked' : '') + (c.occupe ? ' disabled' : '') + '>';
+    } else if (c.peut && eligibleProposer(o, c.d, etat.userId)) {
+      case_ = '<input type="checkbox" data-objf-proposer="' + esc(o.famille) + '" aria-label="Proposer la cible ' + esc(libelleFamille(etat, o.famille)) + '"' + (c.selP.indexOf(o.famille) !== -1 ? ' checked' : '') + (c.occupe ? ' disabled' : '') + '>';
+    }
+    var verrou = k === 'valide' && !case_ ? '<span class="pt-objf-vigueur" data-objf-vigueur="1">' + SVG_CADENAS + '<span>En vigueur</span></span>' : '';
+    var m = o.ligneMin ? num(o.ligneMin.minimum) : null, ci = o.ligne ? num(o.ligne.cible) : null;
+    var sm = o.ligneMin ? o.ligneMin.statut_minimum : null, sc = o.ligne ? o.ligne.statut_cible : null;
+    var stPlancher = m !== null && sm && sm !== sc ? '<span class="pt-objf-plancher-st" data-objf-plancher-statut="' + esc(sm) + '">' + esc(libValeur(sm)) + '</span>' : '';
+    return {
+      k: k, case_: case_, verrou: verrou, prop: prop || '<span class="sc-note">aucune</span>',
+      fam: '<span class="pt-objf-fam">' + vignetteFamille({ rayon: o.rayon }) + '<span><span class="sc-lib">' + esc(libelleFamille(etat, o.famille)) + '</span>' + (o.sansVente ? '<span class="sc-note">sans vente sur la période</span>' : '<span class="sc-note pt-num">' + esc(eur0(o.ca)) + '</span>') + '</span></span>',
+      plancher: (m !== null ? esc(pct(m)) : '—') + stPlancher, cible: ci !== null ? esc(pct(ci)) : '—'
+    };
+  }
+  // Icône du module Produits (registre nexus-icones.js), la cible dessinée en repli si la bibliothèque manque.
+  function iconeEnTete() {
+    var lib = NI && NI.img ? NI : global.NexusIcones;
+    var i = lib && lib.img ? lib.img('mod-produits', 28, { decoratif: true, ancien: '' }) : '';
+    return i ? '<span class="pt-objf-icone" data-objf-icone="mod-produits">' + i + '</span>' : SVG_CIBLE;
+  }
   function htmlObjectifsFamilles(etat) {
     var d = (etat && etat.droitsObjectif) || {}, g = (etat && etat.groupe) || {};
-    var h = '<section class="sc-carte pt-obj pt-obj-familles" data-objectifs-familles="1" aria-label="Objectifs de marge par famille"><div class="sc-nom">Objectifs de marge par famille</div>';
+    var peut = !!(d.valider || d.proposer) && !!(etat && etat.userId);
+    var h = '<section class="sc-carte pt-obj pt-obj-familles" data-objectifs-familles="1" aria-label="Objectifs de marge par famille"><div class="pt-objf-tete">' + iconeEnTete() +
+      '<div class="pt-objf-tete-txt"><div class="sc-nom">Objectifs de marge par famille</div><p class="sc-note">Pour chaque famille : le plancher à ne pas franchir, la cible visée et l\'état de validation.</p></div>' +
+      '<span class="pt-objf-source sc-note" data-objf-source="1">Source unique : registre tarifaire de la station</span></div>';
+    if (etat && etat.objectifsChargement) return h + '<div class="pt-objf-squelette" data-objf-chargement="1" aria-busy="true"><span></span><span></span><span></span><span></span></div></section>';
+    if (etat && etat.objectifsErreur) return h + '<p class="sc-note" role="alert" data-objf-erreur="1">Lecture des objectifs impossible pour le moment. Votre sélection est conservée.</p><button type="button" class="detail-btn" data-objf-relire="1">Réessayer la lecture</button></section>';
     var lignes = lignesObjectifsFamilles(etat);
-    if (!lignes.length) return h + '<p class="sc-note">Aucune famille rattachée pour le moment.</p></section>';
-    var q = String(g.recherche || '').trim().toLowerCase();
-    var vues = filtreFamilles(etat);
-    var tronque = !q && vues.length > MAX_LIGNES_FAMILLES; if (tronque) vues = vues.slice(0, MAX_LIGNES_FAMILLES);
-    if (lignes.length > MAX_LIGNES_FAMILLES) h += '<label class="sc-lib" for="pt-objf-rech">Chercher une famille</label><input id="pt-objf-rech" type="search" data-objf-recherche="1" value="' + esc(g.recherche || '') + '">';
-    var auteurDe = function (o) { return etat.userId && o.proposition && o.proposition.propose_par === etat.userId; };
-    var selV = g.selValider || [], selP = g.selProposer || [];
-    h += '<ul class="pt-objf-liste">';
-    vues.forEach(function (o) {
-      var st = o.ligne ? (LIB_STATUT_FAMILLE[o.statut] || o.statut) : 'non définie';
-      var cible = o.ligne ? pct(num(o.ligne.cible)) + ' : ' : '';
-      var action = '';
-      if (o.proposition) {
-        var pt = 'proposé ' + pct(num(o.proposition.cible)) + ', en attente de validation';
-        if (d.valider && etat.userId && !auteurDe(o)) action = '<label class="pt-objf-case"><input type="checkbox" data-objf-valider="' + esc(o.proposition.id) + '"' + (selV.indexOf(o.proposition.id) !== -1 ? ' checked' : '') + '> ' + esc(pt) + '</label>';
-        else if (auteurDe(o)) action = '<span class="sc-note" data-objf-attente="1">' + esc(pt) + '. Un autre compte doit valider.</span>';
-        else action = '<span class="sc-note">' + esc(pt) + '</span>';
-      } else if (d.proposer && etat.userId && o.ligne && o.statut !== 'valide') {
-        action = '<label class="pt-objf-case"><input type="checkbox" data-objf-proposer="' + esc(o.famille) + '"' + (selP.indexOf(o.famille) !== -1 ? ' checked' : '') + '> proposer telle quelle</label>';
-      }
-      h += '<li data-objf-famille="' + esc(o.famille) + '" data-objectif-statut="' + esc(o.statut) + '"><span class="sc-lib">' + esc(libelleFamille(etat, o.famille)) + '</span> <span>' + esc(cible + st) + '</span> ' + action + '</li>';
-    });
-    h += '</ul>';
-    if (tronque) h += '<p class="sc-note">' + (lignes.length - MAX_LIGNES_FAMILLES) + ' autres familles : utilisez la recherche.</p>';
-    var nbV = selV.length, nbP = selP.length;
-    var porteV = vues.some(function (o) { return o.proposition && d.valider && !auteurDe(o); });
-    var porteP = vues.some(function (o) { return !o.proposition && d.proposer && o.ligne && o.statut !== 'valide'; });
-    var occupe = !!g.enCours;
-    if (porteV) h += '<div class="pt-objf-actions"><button type="button" class="detail-btn" data-objf-tout="valider"' + (occupe ? ' disabled' : '') + '>Tout sélectionner (validations)</button> <button type="button" class="detail-btn pt-obj-btn" data-objf-envoyer="valider"' + (nbV && !occupe ? '' : ' disabled') + '>Valider la sélection (' + nbV + ')</button></div>';
-    if (porteP) h += '<div class="pt-objf-actions"><button type="button" class="detail-btn" data-objf-tout="proposer"' + (occupe ? ' disabled' : '') + '>Tout sélectionner (propositions)</button> <button type="button" class="detail-btn pt-obj-btn" data-objf-envoyer="proposer"' + (nbP && !occupe ? '' : ' disabled') + '>Proposer ces cibles telles quelles (' + nbP + ')</button></div>';
-    if (!d.valider && !d.proposer) h += '<p class="sc-note">Lecture seule : proposer ou valider un objectif demande une habilitation.</p>';
+    if (!lignes.length) return h + '<p class="sc-note">Aucune famille sur la période.</p></section>';
+    var ind = indicateursFamilles(etat), repli = g.repli === true, cartes = enModeCartes(etat);
+    var filtrees = filtreFamilles(etat), vues = filtrees, totalVues = vues.length;
+    var limite = !g.tout && totalVues > MAX_LIGNES_FAMILLES; if (limite) vues = vues.slice(0, MAX_LIGNES_FAMILLES);
+    var selV = g.selValider || [], selP = g.selProposer || [], occupe = !!g.enCours;
+    var c = { peut: peut, d: d, selV: selV, selP: selP, occupe: occupe }, b = bornesEchelle(etat), cnt = compteFiltres(etat);
+    var pointFiltre = { valide: 'valide', indicatif: 'indicatif', etude: 'etude', hypothese: 'hypothese', sans_cible: 'non_defini' };
+    h += htmlSyntheseFamilles(ind) + htmlObjectifCalcule(etat);
+    var nbV = selV.length, nbP = selP.length, nbSel = nbV + nbP, barre = '';
+    if (peut && (nbSel || occupe)) {
+      var estSel = function (o) { return (o.proposition && selV.indexOf(o.proposition.id) !== -1) || selP.indexOf(o.famille) !== -1; };
+      var visibles = vues.filter(estSel).length;
+      var hors = Math.max(0, nbSel - visibles);
+      var parSt = {}; lignes.filter(estSel).forEach(function (o) { var k = cleStatut(o); parSt[k] = (parSt[k] || 0) + 1; });
+      var detailSt = STATUTS_FAMILLE.filter(function (x) { return parSt[x[0]]; }).map(function (x) { return parSt[x[0]] + ' ' + libStatut(x[0], parSt[x[0]] > 1).toLowerCase(); }).join(', ');
+      barre += '<div class="pt-objf-barre" data-objf-barre="1" role="region" aria-label="Sélection"><span class="pt-objf-barre-txt" data-objf-selection="1"><b class="pt-num">' + nbSel + '</b> ' + (nbSel > 1 ? 'familles sélectionnées' : 'famille sélectionnée') + (hors ? ' <span class="sc-note" data-objf-hors-vue="1">dont ' + hors + ' hors de la vue</span>' : '') + (detailSt ? '<span class="sc-note pt-objf-detail-st" data-objf-detail-statuts="1">' + esc(detailSt) + '</span>' : '') + '</span>' +
+        (nbV ? '<button type="button" class="detail-btn pt-obj-btn" data-objf-envoyer="valider"' + (occupe ? ' disabled' : '') + '>Valider ces ' + nbV + (nbV > 1 ? ' propositions' : ' proposition') + '</button>' : '') +
+        (nbP ? '<button type="button" class="detail-btn pt-obj-btn" data-objf-envoyer="proposer"' + (occupe ? ' disabled' : '') + '>Proposer ' + (nbP > 1 ? 'ces ' + nbP + ' cibles telles quelles' : 'cette cible telle quelle') + '</button>' : '') +
+        '<button type="button" class="detail-btn" data-objf-vider="1"' + (occupe ? ' disabled' : '') + '>Vider la sélection</button></div>';
+    }
+    // Bureau : barre collée en haut, avant la liste. Mobile : après la liste, collée en bas (un sticky bas ne colle que si sa place naturelle est sous l'écran).
+    if (!cartes) h += barre;
+    h += '<div class="pt-objf-outils"><label class="sc-lib" for="pt-objf-rech">Chercher une famille</label><input id="pt-objf-rech" type="search" data-objf-recherche="1" value="' + esc(g.recherche || '') + '">' +
+      '<p class="sc-note pt-objf-tri" data-objf-tri="1">' + esc(phraseTri(etat)) + '</p>' +
+      '<div class="pt-objf-pilules" role="group" aria-label="Filtrer par statut">' + FILTRES_FAMILLE.map(function (f) {
+        return '<button type="button" class="pt-objf-pilule" data-objf-filtre="' + f[0] + '" aria-pressed="' + ((g.filtre || 'tous') === f[0] ? 'true' : 'false') + '">' +
+          (pointFiltre[f[0]] ? '<span class="pt-objf-pt pt-objf-st-' + pointFiltre[f[0]] + '" aria-hidden="true"></span>' : '') + esc(f[1]) + ' <span class="pt-objf-n pt-num" data-objf-compte="' + f[0] + '">' + (cnt[f[0]] || 0) + '</span></button>';
+      }).join('') + '</div></div>';
+    if (peut) {
+      var nbInd = selectionRapide(etat, 'indicatives').length, nbTout = selectionRapide(etat, 'toutes').length;
+      h += '<div class="pt-objf-rapides"><button type="button" class="detail-btn" data-objf-rapide="indicatives"' + (occupe || !nbInd ? ' disabled' : '') + '>Les indicatives (' + nbInd + ')</button> ' +
+        '<button type="button" class="detail-btn" data-objf-rapide="toutes"' + (occupe || !nbTout ? ' disabled' : '') + '>Toutes les cibles à proposer (' + nbTout + ')</button></div>';
+    } else h += '<p class="sc-note">Lecture seule : proposer ou valider un objectif demande une habilitation.</p>';
+    var entete = '';
+    if (peut) {
+      var elig = vues.filter(function (o) { return eligibleValider(o, d, etat.userId) || eligibleProposer(o, d, etat.userId); });
+      var cochees = elig.filter(function (o) { return o.proposition && eligibleValider(o, d, etat.userId) ? selV.indexOf(o.proposition.id) !== -1 : selP.indexOf(o.famille) !== -1; }).length;
+      entete = '<input type="checkbox" data-objf-entete="1" aria-label="Sélectionner les familles visibles"' + (elig.length && cochees === elig.length ? ' checked' : '') + (!elig.length || occupe ? ' disabled' : '') + (cochees && cochees < elig.length ? ' data-mixte="1"' : '') + '>';
+    }
+    h += '<div class="pt-objf-corps">';
+    if (cartes) {
+      h += '<div class="pt-objf-liste" data-objf-cartes="1">' + (peut ? '<label class="pt-objf-case pt-objf-tout">' + entete + ' Sélectionner les familles visibles</label>' : '');
+      vues.forEach(function (o) {
+        var p = piecesFamille(etat, o, c);
+        h += '<article class="pt-objf-carte pt-objf-st-' + p.k + '" data-objf-famille="' + esc(o.famille) + '" data-objectif-statut="' + esc(o.statut) + '"><div class="pt-objf-carte-tete"><span class="pt-objf-carte-case">' + (p.case_ || p.verrou) + '</span>' + p.fam + badgeStatutFamille(o) + '</div>' +
+          '<div class="pt-objf-carte-chiffres"><span>Plancher <b class="pt-num">' + p.plancher + '</b></span><span>Cible <b class="pt-num">' + p.cible + '</b></span></div>' + echelleFamille(o, b, true) + (o.proposition ? '<div class="pt-objf-carte-prop">Proposition : ' + p.prop + '</div>' : '') + '</article>';
+      });
+      h += '</div>';
+    } else {
+      h += '<div class="pt-objf-tablewrap"><table class="pt-objf-table"><thead><tr>' + (peut ? '<th class="pt-objf-c-case">' + entete + '</th>' : '') +
+        '<th>Famille</th><th>Statut</th><th>Plancher</th><th>Cible</th><th>Échelle ' + b.lo + ' à ' + b.hi + ' %</th><th>Proposition</th></tr></thead><tbody>';
+      vues.forEach(function (o) {
+        var p = piecesFamille(etat, o, c);
+        h += '<tr data-objf-famille="' + esc(o.famille) + '" data-objectif-statut="' + esc(o.statut) + '">' + (peut ? '<td class="pt-objf-c-case">' + (p.case_ || p.verrou) + '</td>' : '') +
+          '<td class="pt-objf-c-fam">' + p.fam + '</td><td>' + badgeStatutFamille(o) + (!peut ? p.verrou : '') + '</td><td class="pt-num pt-objf-c-n">' + p.plancher + '</td><td class="pt-num pt-objf-c-n">' + p.cible + '</td><td>' + echelleFamille(o, b, false) + '</td><td>' + p.prop + '</td></tr>';
+      });
+      h += '</tbody></table></div>';
+    }
+    h += htmlAideFamilles(repli) + '</div>';
+    if (cartes) h += barre;
+    if (!vues.length) h += '<p class="sc-note">Aucune famille ne correspond à ce filtre.</p>';
+    if (totalVues > MAX_LIGNES_FAMILLES) h += '<button type="button" class="detail-btn" data-objf-afficher="1">' + (g.tout ? 'Afficher les ' + MAX_LIGNES_FAMILLES + ' premières' : 'Afficher les ' + totalVues + ' familles') + '</button>' + (limite ? '<span class="sc-note"> ' + (totalVues - MAX_LIGNES_FAMILLES) + ' autres familles masquées.</span>' : '');
     if (g.confirmer && !occupe) {
-      var libs = g.confirmer.mode === 'valider' ? selV.map(function (id) { var o = lignes.filter(function (x) { return x.proposition && x.proposition.id === id; })[0]; return o ? libelleFamille(etat, o.famille) + ' : ' + pct(num(o.proposition.cible)) : id; })
-        : selP.map(function (f) { var o = lignes.filter(function (x) { return x.famille === f; })[0]; return libelleFamille(etat, f) + (o && o.ligne ? ' : ' + pct(num(o.ligne.cible)) : ''); });
-      h += '<div class="pt-objf-confirm" role="alertdialog" aria-label="Confirmation" data-objf-confirm="' + esc(g.confirmer.mode) + '"><p class="sc-lib">' + (g.confirmer.mode === 'valider' ? 'Valider ' : 'Proposer ') + libs.length + (libs.length > 1 ? ' objectifs ?' : ' objectif ?') + '</p><ul>' +
-        libs.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul><button type="button" class="detail-btn pt-obj-btn" data-objf-confirmer="1">Confirmer</button> <button type="button" class="detail-btn" data-objf-annuler="1">Annuler</button></div>';
+      var mode = g.confirmer.mode, reprise = !!g.confirmer.reprise;
+      var cles = reprise ? (g.echecs || []) : (mode === 'valider' ? selV : selP), items = cles.map(function (x) { return libelleItemRecap(etat, mode, x); });
+      var risque = items.some(function (x) { return x.risque; });
+      var horsIndic = items.filter(function (x) { return x.statut !== 'indicatif' && x.statut !== 'non_defini'; });
+      var avis = horsIndic.length ? '<p class="sc-note" data-objf-avis-statuts="1">' + horsIndic.length + (horsIndic.length > 1 ? ' cibles ne sont pas indicatives : ' : ' cible n\'est pas indicative : ') + esc(horsIndic.map(function (x) { return libelleFamille(etat, x.famille) + ' (' + libStatut(x.statut).toLowerCase() + ')'; }).join(', ')) + '.</p>' : '';
+      var groupes = STATUTS_FAMILLE.map(function (s) {
+        var liste = items.filter(function (x) { return x.statut === s[0]; });
+        if (!liste.length) return '';
+        return '<div class="pt-objf-groupe pt-objf-st-' + s[0] + '" data-objf-groupe="' + s[0] + '"><p class="sc-lib"><span class="pt-objf-pt" aria-hidden="true"></span>' + esc(s[2]) + ' (' + liste.length + ')</p><ul>' +
+          liste.map(function (x) { return '<li>' + esc(x.texte) + ' <button type="button" class="detail-btn" data-objf-retirer="' + esc(mode + '|' + x.cle) + '">Retirer</button></li>'; }).join('') + '</ul></div>';
+      }).join('');
+      h += '<div class="pt-objf-confirm" role="alertdialog" aria-label="Confirmation" data-objf-confirm="' + esc(mode) + '"><p class="sc-lib">' + (reprise ? 'Réessayer ' : mode === 'valider' ? 'Valider ' : 'Proposer ') + items.length + (items.length > 1 ? ' objectifs ?' : ' objectif ?') + '</p>' + avis + groupes +
+        (risque ? '<label class="pt-objf-case"><input type="checkbox" data-objf-risque="1"' + (g.risqueCoche ? ' checked' : '') + '> Je confirme l\'envoi de cibles à l\'étude ou en hypothèse.</label> ' : '') +
+        '<button type="button" class="detail-btn pt-obj-btn" data-objf-confirmer="1"' + (items.length && (!risque || g.risqueCoche) ? '' : ' disabled') + '>Confirmer</button> <button type="button" class="detail-btn" data-objf-annuler="1">Annuler</button></div>';
     }
-    if (occupe) h += '<p class="sc-note" role="status">Envoi en cours…</p>';
-    if (g.resultats && g.resultats.length) {
-      h += '<ul class="pt-objf-resultats" data-objf-resultats="1">' + g.resultats.map(function (r) { return '<li data-ok="' + (r.ok ? '1' : '0') + '">' + esc(r.libelle + ' : ' + r.message) + '</li>'; }).join('') + '</ul>';
-    }
-    h += htmlObjectifCalcule(etat);
+    if (occupe) h += '<p class="sc-note" role="status" data-objf-progres="1">Envoi en cours (' + ((g.progres && g.progres.k) || 0) + ' / ' + ((g.progres && g.progres.n) || 0) + ')</p>';
+    if (g.erreurReseau) h += '<p class="sc-note" role="alert" data-objf-reseau="1">Connexion perdue pendant l\'envoi. Votre sélection est conservée.</p>';
+    if (g.resultats && g.resultats.length) h += '<ul class="pt-objf-resultats" data-objf-resultats="1">' + g.resultats.map(function (r) { return '<li data-ok="' + (r.ok ? '1' : '0') + '">' + esc(r.libelle + ' : ' + r.message) + '</li>'; }).join('') + '</ul>';
+    if (g.echecs && g.echecs.length && !occupe) h += '<button type="button" class="detail-btn" data-objf-reessayer="1">Réessayer les échecs (' + g.echecs.length + ')</button>';
     h += '<p class="sc-msg sc-note pt-obj-msg" role="status" data-objf-bilan="1">' + esc(g.bilan || '') + '</p>';
     return h + '</section>';
   }
   // Un appel par élément, dans l'ordre ; un échec n'arrête pas les suivants. items : [{ libelle, id | famille, cible }].
-  async function envoyerGroupe(client, site, mode, items) {
+  async function envoyerGroupe(client, site, mode, items, onProgres) {
     var resultats = [];
     for (var i = 0; i < items.length; i++) {
       var it = items[i], r;
+      if (typeof onProgres === 'function') { try { onProgres(i, items.length); } catch (e) { /* affichage seul */ } }
       try {
         r = mode === 'valider' ? await client.rpc('valider_marge_cible', { p_proposition: it.id })
           : await client.rpc('proposer_marge_cible', { p_site: site, p_niveau: 'famille', p_cible_niveau: it.famille, p_cible: it.cible, p_commentaire: null });
         if (r && r.error) throw r.error;
         resultats.push({ libelle: it.libelle, ok: true, message: mode === 'valider' ? 'validée' : 'proposée' });
-      } catch (e) { resultats.push({ libelle: it.libelle, ok: false, message: messageErreurObjectif(e) }); }
+      } catch (e) { resultats.push({ libelle: it.libelle, ok: false, message: messageErreurObjectif(e), cle: mode === 'valider' ? it.id : it.famille }); }
     }
+    if (typeof onProgres === 'function') { try { onProgres(items.length, items.length); } catch (e) { /* affichage seul */ } }
     return { resultats: resultats, bilan: bilanGroupe(mode, resultats) };
   }
   function bilanGroupe(mode, resultats) {
@@ -1045,8 +1263,9 @@
   async function chargerObjectifs(client, site) {
     var lignes = [], droits = { proposer: false, valider: false };
     var props = [];
-    var r = await client.from('v_tarif_seuils_actifs').select('*').eq('site', site);
-    if (!r.error && r.data) lignes = r.data;
+    var erreur = false, r;
+    try { r = await client.from('v_tarif_seuils_actifs').select('*').eq('site', site); } catch (e) { r = { error: e }; }
+    if (!r.error && r.data) lignes = r.data; else erreur = true;
     try { var pq = await client.from('marge_cible_propositions').select('id, niveau, cible_niveau, cible, commentaire, propose_par, propose_le, statut').eq('site', site).eq('statut', 'ouverte'); if (!pq.error && pq.data) props = pq.data; } catch (e) { props = []; }
     for (var k in droits) {
       try { var q = await client.rpc('objectif_habilite', { p_site: site, p_droit: k }); droits[k] = !q.error && q.data === true; } catch (e) { droits[k] = false; }
@@ -1056,7 +1275,7 @@
     // Rayons exclus du périmètre pilotable : lignes actives du site (la RLS filtre déjà, le filtre de site reste explicite).
     var exclus = [];
     try { var eq = await client.from('tarif_perimetre_exclu').select('id, site, rayon_cle, motif').eq('site', site).is('annule_le', null); if (!eq.error && eq.data) exclus = eq.data; } catch (e) { exclus = []; }
-    return { lignes: lignes, propositions: props, droits: droits, libelles: libelles, rayonsExclus: exclus };
+    return { lignes: lignes, propositions: props, droits: droits, libelles: libelles, rayonsExclus: exclus, erreur: erreur };
   }
   function htmlFiche(l, etat) {
     var droits = etat ? peutVerifier(etat.role, etat.estCreateur) : false;
@@ -1495,6 +1714,102 @@
     '.vue-p1c .pt-vign-neutre{display:inline-block;width:40px;height:40px;border:1px solid var(--t-line);border-radius:10px;background:var(--t-raised)}' +
     '.vue-p1c .pt-l-chiffre{white-space:nowrap}';
   CSS += '.vue-p1c .pt-ctl-tete{margin:0 0 8px}.vue-p1c .pt-ctl-titre{margin:4px 0;font-size:1.25em;overflow-wrap:anywhere}.vue-p1c .pt-ctl-pilule{display:inline-block;margin-left:6px}.vue-p1c .pt-ind2{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin:8px 0}.vue-p1c .pt-ind{display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--t-line);border-radius:12px;min-width:0}.vue-p1c .pt-ind-ico{flex:0 0 40px;display:inline-flex}.vue-p1c .pt-ind-txt{display:flex;flex-direction:column;gap:2px;min-width:0}.vue-p1c .pt-ind-val{font-size:1.5em;font-weight:700;overflow-wrap:anywhere}';
+  // A4-1f : carte « Objectifs de marge par famille » (classes .pt-objf-*, jetons --t-*).
+  CSS += '.vue-p1c .pt-objf-st-valide{--objf-c:var(--nbe-conforme,var(--t-green))}';
+  CSS += '.vue-p1c .pt-objf-st-indicatif{--objf-c:var(--nbe-info,var(--t-cyan))}';
+  CSS += '.vue-p1c .pt-objf-st-etude{--objf-c:var(--nbe-verifier,var(--t-amber))}';
+  CSS += '.vue-p1c .pt-objf-st-hypothese{--objf-c:var(--nbe-attente,var(--t-mid))}';
+  CSS += '.vue-p1c .pt-objf-st-non_defini{--objf-c:var(--t-line)}';
+  CSS += '.vue-p1c .pt-objf-tete{display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap}';
+  CSS += '.vue-p1c .pt-objf-icone{flex:0 0 auto;color:var(--t-cyan)}';
+  CSS += '.vue-p1c .pt-objf-tete-txt{flex:1 1 240px;min-width:0}';
+  CSS += '.vue-p1c .pt-objf-source{flex:0 1 auto;padding:4px 10px;border:1px solid var(--t-line);border-radius:999px}';
+  CSS += '.vue-p1c .pt-objf-synthese{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:10px 0}';
+  CSS += '.vue-p1c .pt-objf-kpi{display:flex;flex-direction:column;gap:2px;padding:10px 12px;border:1px solid var(--t-line);border-radius:12px;background:var(--t-panel);min-width:0}';
+  CSS += '.vue-p1c .pt-objf-kpi-n{font-family:var(--t-mono);font-size:22px;font-weight:700;color:var(--t-text)}';
+  CSS += '.vue-p1c .pt-objf-kpi-l{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--t-mid)}';
+  CSS += '.vue-p1c .pt-objf-kpi-s{font-size:11px;color:var(--t-mid);overflow-wrap:anywhere}';
+  CSS += '.vue-p1c .pt-objf-pt{display:inline-block;flex:0 0 auto;width:9px;height:9px;border-radius:50%;background:var(--objf-c);box-sizing:border-box}';
+  CSS += '.vue-p1c .pt-objf-st-hypothese .pt-objf-pt,.vue-p1c .pt-objf-st-non_defini .pt-objf-pt{background:transparent;border:2px dotted var(--objf-c)}';
+  CSS += '.vue-p1c .pt-objf-st-non_defini .pt-objf-pt{border-color:var(--t-mid)}';
+  CSS += '.vue-p1c .pt-objf-repart{grid-column:1 / -1;display:flex;height:8px;border-radius:999px;overflow:hidden;background:var(--t-raised);gap:2px}';
+  CSS += '.vue-p1c .pt-objf-seg{display:block;min-width:4px;background:var(--objf-c)}';
+  CSS += '.vue-p1c .pt-objf-seg.pt-objf-st-non_defini{background:var(--t-mid);opacity:.45}';
+  CSS += '.vue-p1c .pt-objf-legende{grid-column:1 / -1;display:flex;flex-wrap:wrap;gap:6px 16px;margin:0;padding:0;list-style:none;font-size:12px;color:var(--t-mid)}';
+  CSS += '.vue-p1c .pt-objf-legende li{display:flex;align-items:center;gap:6px}';
+  CSS += '.vue-p1c .pt-objf-legende b{color:var(--t-text)}';
+  CSS += '@media (min-width:900px){.vue-p1c .pt-objf-synthese{grid-template-columns:repeat(5,minmax(0,1fr))}}';
+  CSS += '.vue-p1c .pt-objf-badge{display:inline-flex;align-items:center;padding:2px 10px;border-radius:999px;border:1px solid var(--objf-c);background:color-mix(in srgb,var(--objf-c) 14%,transparent);color:var(--t-text);font-size:12px;font-weight:600;white-space:nowrap}';
+  CSS += '.vue-p1c .pt-objf-badge.pt-objf-st-hypothese,.vue-p1c .pt-objf-badge.pt-objf-st-non_defini{border-style:dotted;border-width:2px}';
+  CSS += '.vue-p1c .pt-objf-badge.pt-objf-st-non_defini{border-color:var(--t-mid);color:var(--t-mid)}';
+  CSS += '.vue-p1c .pt-objf-vigueur{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--t-mid)}';
+  CSS += '.vue-p1c .pt-objf-cadenas{color:var(--objf-c)}';
+  CSS += '.vue-p1c .pt-objf-outils{display:flex;flex-direction:column;gap:6px;margin:8px 0}';
+  CSS += '.vue-p1c .pt-objf-outils input[type=search]{width:100%;box-sizing:border-box;min-height:44px;border-radius:8px;border:1px solid var(--t-line);background:var(--t-panel);color:var(--t-text);font:inherit;padding:0 10px}';
+  CSS += '.vue-p1c .pt-objf-tri{margin:0}';
+  CSS += '.vue-p1c .pt-objf-pilules{display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px;scrollbar-width:thin}';
+  CSS += '.vue-p1c .pt-objf-pilule{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:4px 14px;border:1px solid var(--t-line);border-radius:999px;background:var(--t-panel);color:var(--t-text);font:inherit;cursor:pointer;white-space:nowrap}';
+  CSS += '.vue-p1c .pt-objf-pilule[aria-pressed=true]{border-color:var(--t-cyan);background:var(--t-raised);font-weight:600}';
+  CSS += '.vue-p1c .pt-objf-n{color:var(--t-mid);font-size:12px}';
+  CSS += '.vue-p1c .pt-objf-pilule:focus-visible,.vue-p1c .pt-obj-familles input:focus-visible{outline:2px solid var(--t-cyan);outline-offset:2px}';
+  CSS += '.vue-p1c .pt-objf-rapides{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}';
+  CSS += '.vue-p1c .pt-objf-rapides .detail-btn{min-height:44px}';
+  CSS += '.vue-p1c .pt-objf-corps{display:flex;flex-direction:column;gap:10px}';
+  CSS += '.vue-p1c .pt-objf-tablewrap{overflow:auto;max-height:70vh;border:1px solid var(--t-line);border-radius:12px;background:var(--t-panel)}';
+  CSS += '.vue-p1c .pt-objf-table{width:100%;border-collapse:separate;border-spacing:0;min-width:720px}';
+  CSS += '.vue-p1c .pt-objf-table thead th{position:sticky;top:0;z-index:2;background:var(--t-raised);color:var(--t-mid);font-size:12px;font-weight:600;text-align:left;padding:8px 10px;border-bottom:1px solid var(--t-line)}';
+  CSS += '.vue-p1c .pt-objf-table tbody td{height:64px;padding:6px 10px;border-bottom:1px solid var(--t-line);vertical-align:middle;color:var(--t-text)}';
+  CSS += '.vue-p1c .pt-objf-table tbody tr:last-child td{border-bottom:0}';
+  CSS += '.vue-p1c .pt-objf-c-case{width:48px;text-align:center}';
+  CSS += '.vue-p1c .pt-objf-c-n{white-space:nowrap}';
+  CSS += '.vue-p1c .pt-obj-familles input[type=checkbox]{-webkit-appearance:none;appearance:none;position:relative;width:24px;height:24px;margin:0;border:2px solid var(--t-mid);border-radius:6px;background:transparent;cursor:pointer;vertical-align:middle}';
+  CSS += '.vue-p1c .pt-obj-familles input[type=checkbox]:checked{background:var(--t-cyan);border-color:var(--t-cyan)}';
+  CSS += '.vue-p1c .pt-obj-familles input[type=checkbox]:checked::after{content:"";position:absolute;left:6px;top:2px;width:6px;height:12px;border:solid var(--t-bg);border-width:0 2px 2px 0;transform:rotate(45deg)}';
+  CSS += '.vue-p1c .pt-obj-familles input[type=checkbox][data-mixte]:not(:checked)::after{content:"";position:absolute;left:4px;top:9px;width:12px;height:2px;background:var(--t-cyan)}';
+  CSS += '.vue-p1c .pt-obj-familles input[type=checkbox]:disabled{opacity:.4;cursor:not-allowed}';
+  CSS += '.vue-p1c .pt-objf-fam{display:flex;align-items:center;gap:10px;min-width:0}';
+  CSS += '.vue-p1c .pt-objf-fam .sc-note{display:block}';
+  CSS += '.vue-p1c .pt-objf-fam .sc-lib{overflow-wrap:anywhere}';
+  CSS += '.vue-p1c .pt-objf-echelle{display:flex;flex-direction:column;gap:4px;min-width:150px}';
+  CSS += '.vue-p1c .pt-objf-rail{position:relative;display:block;height:8px;border-radius:999px;background:var(--t-raised)}';
+  CSS += '.vue-p1c .pt-objf-zone{position:absolute;top:0;bottom:0;border-radius:999px;background:var(--objf-c);opacity:.35}';
+  CSS += '.vue-p1c .pt-objf-rep{position:absolute;top:-3px;width:3px;height:14px;border-radius:2px;margin-left:-1px}';
+  CSS += '.vue-p1c .pt-objf-plancher{background:var(--t-mid)}';
+  CSS += '.vue-p1c .pt-objf-cible{background:var(--objf-c)}';
+  CSS += '.vue-p1c .pt-objf-st-non_defini .pt-objf-cible{background:var(--t-mid)}';
+  CSS += '.vue-p1c .pt-objf-bornes{display:flex;justify-content:space-between;font-size:11px;color:var(--t-mid)}';
+  CSS += '.vue-p1c .pt-objf-liste{display:flex;flex-direction:column;gap:10px}';
+  CSS += '.vue-p1c .pt-objf-carte{display:flex;flex-direction:column;gap:10px;padding:12px;border:1px solid var(--t-line);border-left:4px solid var(--objf-c);border-radius:12px;background:var(--t-panel)}';
+  CSS += '.vue-p1c .pt-objf-carte-tete{display:flex;align-items:center;gap:10px;flex-wrap:wrap}';
+  CSS += '.vue-p1c .pt-objf-carte-tete .pt-objf-fam{flex:1 1 160px}';
+  CSS += '.vue-p1c .pt-objf-carte-case{display:inline-flex;min-width:24px}';
+  CSS += '.vue-p1c .pt-objf-carte-chiffres{display:flex;gap:20px;font-size:13px;color:var(--t-mid)}';
+  CSS += '.vue-p1c .pt-objf-carte-chiffres b{color:var(--t-text)}';
+  CSS += '.vue-p1c .pt-objf-carte-prop{font-size:13px;color:var(--t-mid)}';
+  CSS += '.vue-p1c .pt-objf-aide{border:1px solid var(--t-line);border-radius:12px;background:var(--t-panel);padding:8px 12px}';
+  CSS += '.vue-p1c .pt-objf-aide .detail-btn{min-height:44px}';
+  CSS += '.vue-p1c .pt-objf-aide-corps{font-size:13px;color:var(--t-mid)}';
+  CSS += '.vue-p1c .pt-objf-aide-corps ol,.vue-p1c .pt-objf-aide-corps ul{margin:4px 0 10px;padding-left:18px}';
+  CSS += '@media (min-width:900px){.vue-p1c .pt-objf-corps{flex-direction:row;align-items:flex-start}.vue-p1c .pt-objf-tablewrap{flex:1 1 auto;min-width:0}.vue-p1c .pt-objf-aide{flex:0 0 260px}}';
+  CSS += '.vue-p1c .pt-objf-confirm{margin:10px 0;padding:12px;border:1px solid var(--t-cyan);border-radius:12px;background:var(--t-raised)}';
+  CSS += '.vue-p1c .pt-objf-confirm ul{margin:6px 0;padding-left:18px}';
+  CSS += '.vue-p1c .pt-objf-confirm li{margin:4px 0}';
+  CSS += '.vue-p1c .pt-objf-groupe .sc-lib{display:flex;align-items:center;gap:6px;margin:8px 0 0}';
+  CSS += '.vue-p1c .pt-objf-case{display:flex;gap:8px;align-items:center;min-height:44px}';
+  CSS += '.vue-p1c .pt-objf-resultats{list-style:none;margin:8px 0;padding:0;font-size:13px}';
+  CSS += '.vue-p1c .pt-objf-resultats li{padding:4px 0;border-bottom:1px solid var(--t-line)}';
+  CSS += '.vue-p1c .pt-objf-resultats li[data-ok="0"]{color:var(--nbe-critique,var(--t-amber))}';
+  CSS += '.vue-p1c .pt-objf-barre{position:sticky;top:0;z-index:3;display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 12px;margin:10px 0;border:1px solid var(--t-cyan);border-radius:12px;background:var(--t-raised)}';
+  CSS += '.vue-p1c .pt-objf-barre-txt{flex:1 1 200px}';
+  CSS += '.vue-p1c .pt-objf-detail-st{display:block}';
+  CSS += '.vue-p1c .pt-objf-plancher-st{display:block;font-size:11px;font-weight:400;color:var(--t-mid)}';
+  CSS += '@media (max-width:899px){.vue-p1c .pt-objf-barre{top:auto;bottom:0;padding-bottom:calc(10px + env(safe-area-inset-bottom))}}';
+  CSS += '@media (max-width:899px){.vue-p1c .pt-objf-barre{flex-wrap:wrap}.vue-p1c .pt-objf-barre-txt{flex:1 1 100%}.vue-p1c .pt-objf-barre .detail-btn{flex:1 1 0;min-width:0;padding-left:8px;padding-right:8px}}';
+  CSS += '.vue-p1c .pt-objf-barre .detail-btn{flex:0 1 auto;min-height:48px}';
+  CSS += '.vue-p1c .pt-objf-squelette{display:flex;flex-direction:column;gap:8px;margin:10px 0}';
+  CSS += '.vue-p1c .pt-objf-squelette span{display:block;height:64px;border-radius:12px;background:var(--t-raised);animation:pt-objf-pulse 1.4s ease-in-out infinite}';
+  CSS += '@keyframes pt-objf-pulse{0%,100%{opacity:.5}50%{opacity:1}}';
+  CSS += '@media (prefers-reduced-motion:reduce){.vue-p1c .pt-objf-squelette span{animation:none}}';
   // ---------- Montage : lecture seule, session de la personne connectée, clé publique, aucun paramètre de site ----------
   var VUES = { familles: 'v_tarif_familles_actifs', rattachements: 'v_tarif_rattachements_actifs', seuils: 'v_tarif_seuils_actifs', reglages: 'v_tarif_reglages_actifs',
     prixDecides: 'v_tarif_prix_decides_actifs', applications: 'v_tarif_prix_application_actifs', exceptions: 'v_tarif_exceptions_effectives',
@@ -1577,7 +1892,7 @@
       return { fourni: true, lignes: lignesStockDepuisLot(rows), lot: { id: lot.id, dateReleve: lot.date_releve ? String(lot.date_releve).slice(0, 10) : null, fichierHash: lot.fichier_hash || null } };
     } catch (e) { return { fourni: false, erreur: true }; }
   }
-  var API = { htmlObjectifMarge: htmlObjectifMarge, htmlObjectifsFamilles: htmlObjectifsFamilles, libelleFamille: libelleFamille, eligiblesGroupe: eligiblesGroupe, lignesObjectifsFamilles: lignesObjectifsFamilles, envoyerGroupe: envoyerGroupe, bilanGroupe: bilanGroupe, objectifDe: objectifDe, niveauObjectif: niveauObjectif, pourcentVersFraction: pourcentVersFraction, messageErreurObjectif: messageErreurObjectif, chargerObjectifs: chargerObjectifs, estDemarque: estDemarque, lignesControle: lignesControle, nombreReleve: nombreReleve, lotStockPublie: lotStockPublie, lignesStockDepuisLot: lignesStockDepuisLot, chargerStockPublie: chargerStockPublie, TVA_CONFIRMATIONS_PILOTE: TVA_CONFIRMATIONS_PILOTE, cartes: cartes, scenarios: scenarios, alertesCartes: alertesCartes, trier: trier, filtrer: filtrer, valeursFiltres: valeursFiltres,
+  var API = { htmlObjectifMarge: htmlObjectifMarge, htmlObjectifsFamilles: htmlObjectifsFamilles, libelleFamille: libelleFamille, eligiblesGroupe: eligiblesGroupe, selectionRapide: selectionRapide, indicateursFamilles: indicateursFamilles, compteFiltres: compteFiltres, bornesEchelle: bornesEchelle, cleStatut: cleStatut, enModeCartes: enModeCartes, filtrerDoublons: filtrerDoublons, lirePrefsFamilles: lirePrefsFamilles, ecrirePrefsFamilles: ecrirePrefsFamilles, filtreFamilles: filtreFamilles, libelleItemRecap: libelleItemRecap, lignesObjectifsFamilles: lignesObjectifsFamilles, envoyerGroupe: envoyerGroupe, bilanGroupe: bilanGroupe, objectifDe: objectifDe, niveauObjectif: niveauObjectif, pourcentVersFraction: pourcentVersFraction, messageErreurObjectif: messageErreurObjectif, chargerObjectifs: chargerObjectifs, estDemarque: estDemarque, lignesControle: lignesControle, nombreReleve: nombreReleve, lotStockPublie: lotStockPublie, lignesStockDepuisLot: lignesStockDepuisLot, chargerStockPublie: chargerStockPublie, TVA_CONFIRMATIONS_PILOTE: TVA_CONFIRMATIONS_PILOTE, cartes: cartes, scenarios: scenarios, alertesCartes: alertesCartes, trier: trier, filtrer: filtrer, valeursFiltres: valeursFiltres,
     preuves: preuves, conseiller: conseiller, lierOuvertures: lierOuvertures, effetVerificationEnregistree: effetVerificationEnregistree, commentaireDuControle: commentaireDuControle, annulerVerification: annulerVerification, peutAnnuler: peutAnnuler, motifAnnulationValide: motifAnnulationValide, messageErreurAnnulation: messageErreurAnnulation, fiche: fiche, etatAcces: etatAcces, peutVoirOnglet: peutVoirOnglet, filtrerSite: filtrerSite,
     regimeDe: regimeDe, contexteDeclaratif: contexteDeclaratif, construireContexteTarif: construireContexteTarif, stockParLibelle: stockParLibelle, controle: controle, familles: familles, avertissementRegime: avertissementRegime, infoRegime: infoRegime, badgeRegime: badgeRegime, badgeLigne: badgeLigne, blocFiche: blocFiche,
     chargerRegistres: chargerRegistres, chargerVerifications: chargerVerifications, historiqueLignes: historiqueLignes, htmlHistorique: htmlHistorique, chargerVentes: chargerVentes, lireCompte: lireCompte, libellePeriode: libellePeriode,

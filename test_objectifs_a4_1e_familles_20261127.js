@@ -1,5 +1,6 @@
 'use strict';
 // A4-1e : carte « Objectifs de marge par famille », validation et proposition groupées.
+// A4-1f : assertions de présentation adaptées à la refonte (libellé « Sans cible », case d'en-tête, barre de sélection, boutons rapides). Les arguments des RPC restent vérifiés ci-dessous, inchangés.
 const assert = require('assert');
 const E = require('./nexus-politique-tarifaire-ecran.js');
 let n = 0;
@@ -13,7 +14,7 @@ const prop = (f, par) => ({ id: 'p-' + f, niveau: 'famille', cible_niveau: f, ci
 t('tri par CA de la période, statut et cible affichés', () => {
   const h = E.htmlObjectifsFamilles(base({ objectifs: [cib('Boissons', 0.25, 'valide'), cib('Epicerie', 0.3, 'hypothese')] }));
   assert.ok(h.indexOf('Epicerie') < h.indexOf('Boissons') && h.indexOf('Boissons') < h.indexOf('Hygiene'));
-  assert.ok(h.includes('hypothèse') && h.includes('validée') && h.includes('non définie'));
+  assert.ok(h.includes('hypothèse') && h.includes('validée') && h.includes('Sans cible'));
 });
 t('plus de 10 familles : recherche et 10 lignes', () => {
   const lignes = []; for (let i = 0; i < 12; i++) lignes.push(lg('F' + String(i).padStart(2, '0'), 100 - i));
@@ -28,11 +29,11 @@ t('propositions : case par proposition, pas pour les siennes', () => {
   assert.ok(h.includes('data-objf-valider="p-Boissons"'));
   assert.ok(!h.includes('data-objf-valider="p-Epicerie"'));
   assert.ok(h.includes('Un autre compte doit valider'));
-  assert.ok(h.includes('Valider la sélection (0)') && h.includes('Tout sélectionner'));
+  assert.ok(h.includes('data-objf-entete') && !h.includes('Valider la sélection'));
 });
 t('compteur du bouton selon la sélection', () => {
   const h = E.htmlObjectifsFamilles(base({ propositions: [prop('Boissons'), prop('Epicerie')], groupe: { selValider: ['p-Boissons', 'p-Epicerie'] } }));
-  assert.ok(h.includes('Valider la sélection (2)'));
+  assert.ok(h.includes('Valider ces 2 propositions'));
 });
 t('compte non habilité : aucune case, lecture seule', () => {
   const h = E.htmlObjectifsFamilles(base({ droitsObjectif: {}, objectifs: [cib('Boissons', 0.25)], propositions: [prop('Epicerie')] }));
@@ -44,7 +45,7 @@ t('proposition groupée : familles non validées sans proposition ouverte, jamai
   assert.ok(h.includes('data-objf-proposer="Epicerie"'));
   assert.ok(!h.includes('data-objf-proposer="Boissons"') && !h.includes('data-objf-proposer="Hygiene"') && !h.includes('data-objf-proposer="defaut"'));
   assert.ok(!h.includes('data-objf-famille="defaut"'));
-  assert.ok(h.includes('Proposer ces cibles telles quelles (0)'));
+  assert.ok(h.includes('data-objf-rapide="toutes"'));
 });
 t('confirmation dans la page, avec la liste', () => {
   const h = E.htmlObjectifsFamilles(base({ propositions: [prop('Boissons'), prop('Epicerie')], groupe: { selValider: ['p-Boissons', 'p-Epicerie'], confirmer: { mode: 'valider' } } }));
@@ -87,7 +88,7 @@ t('Tout sélectionner : toutes les lignes éligibles, au-delà de 10, et seuleme
   const rech = Object.assign({}, e, { groupe: { recherche: 'zeta' } });
   assert.deepStrictEqual(E.eligiblesGroupe(rech, 'valider').sort(), ['p-f12', 'p-f13']);
   const h = E.htmlObjectifsFamilles(Object.assign({}, e, { groupe: { selValider: E.eligiblesGroupe(e, 'valider') } }));
-  assert.ok(h.includes('Valider la sélection (14)'));
+  assert.ok(h.includes('Valider ces 14 propositions'));
   const e2 = base({ analyse: { lignes }, objectifs: lignes.map(l => cib(l.famille, 0.2, 'indicatif')) });
   assert.strictEqual(E.eligiblesGroupe(e2, 'proposer').length, 14);
 });

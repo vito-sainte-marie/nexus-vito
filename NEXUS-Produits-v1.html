@@ -414,7 +414,7 @@ body.nexus-desktop #resultSection > *{margin-bottom:12px;}
 <script src="nexus-cible-marge.js?v=20261128-1200"></script>
 <script src="nexus-politique-tarifaire.js?v=20261128-1200"></script>
 <script src="nexus-politique-tarifaire-registres.js"></script>
-<script src="nexus-politique-tarifaire-ecran.js?v=20261128-1400"></script>
+<script src="nexus-politique-tarifaire-ecran.js?v=20261128-1500"></script>
 <script src="nexus-produits-securite.js"></script>
 </head>
 <body>
@@ -1766,7 +1766,7 @@ nexusRequireAuth().then(async employee => {
       else if (rr.statut === 'erreur') { console.warn('Réévaluations non enregistrées', rr.erreur); etat.messageReeval = "Les réévaluations n'ont pas pu être enregistrées. L'écran reste à jour, l'enregistrement sera retenté à la prochaine ouverture."; }
     }
     // Objectifs de marge (A4-1b) : lecture du registre actif et des droits ; écriture par proposer_marge_cible / valider_marge_cible / retirer_marge_cible.
-    const rechargerObjectifs = async () => { try { const ob = await E.chargerObjectifs(nexusClient, SITE_ACTUEL); etat.objectifs = ob.lignes; etat.propositions = ob.propositions || []; etat.droitsObjectif = ob.droits; etat.libellesFamilles = ob.libelles || {}; etat.rayonsExclus = ob.rayonsExclus || []; } catch (e) { etat.objectifs = etat.objectifs || []; etat.propositions = etat.propositions || []; etat.droitsObjectif = etat.droitsObjectif || {}; } };
+    const rechargerObjectifs = async () => { etat.objectifsChargement = !etat.objectifs; try { const ob = await E.chargerObjectifs(nexusClient, SITE_ACTUEL); etat.objectifs = ob.lignes; etat.propositions = ob.propositions || []; etat.droitsObjectif = ob.droits; etat.libellesFamilles = ob.libelles || {}; etat.rayonsExclus = ob.rayonsExclus || []; etat.objectifsErreur = !!ob.erreur; } catch (e) { etat.objectifs = etat.objectifs || []; etat.propositions = etat.propositions || []; etat.droitsObjectif = etat.droitsObjectif || {}; etat.objectifsErreur = true; } etat.objectifsChargement = false; };
     await rechargerObjectifs();
     const ecrireObjectif = async (btn, mode) => {
       const valider = mode === 'valider', retirer = mode === 'retirer';
@@ -1792,37 +1792,80 @@ nexusRequireAuth().then(async employee => {
         rendre();
       } catch (e) { console.error('Objectif de marge:', e); btn.disabled = false; dire(E.messageErreurObjectif(e)); }
     };
-    // A4-1e : sélection, confirmation dans la page, envoi séquentiel (un appel par objectif, un échec n'arrête pas les autres).
-    const groupe = () => (etat.groupe = etat.groupe || { selValider: [], selProposer: [], recherche: '', confirmer: null, resultats: [], bilan: '', enCours: false });
+    // A4-1e/A4-1f : sélection conservée d'une vue à l'autre, récapitulatif, envoi séquentiel (un appel par objectif, un échec n'arrête pas les autres).
+    const groupe = () => {
+      if (!etat.groupe) {
+        const pf = E.lirePrefsFamilles(window.localStorage, SITE_ACTUEL, employee.id);
+        etat.groupe = { selValider: [], selProposer: [], recherche: '', filtre: 'tous', tout: pf.tout, repli: pf.repli === null ? window.innerWidth < 900 : pf.repli, confirmer: null, risqueCoche: false, resultats: [], bilan: '', enCours: false, progres: { k: 0, n: 0 }, erreurReseau: false, echecs: [] };
+      }
+      return etat.groupe;
+    };
     const basculer = (liste, v, oui) => { const i = liste.indexOf(v); if (oui && i === -1) liste.push(v); if (!oui && i !== -1) liste.splice(i, 1); };
-    const envoyerSelection = async (mode) => {
-      const g = groupe(), lignes = E.lignesObjectifsFamilles(etat);
-      const items = mode === 'valider'
-        ? g.selValider.map(id => { const o = lignes.filter(x => x.proposition && x.proposition.id === id)[0]; return o ? { id, libelle: E.libelleFamille(etat, o.famille) } : null; }).filter(Boolean)
-        : g.selProposer.map(f => { const o = lignes.filter(x => x.famille === f)[0]; return o && o.ligne ? { famille: f, cible: Number(o.ligne.cible), libelle: E.libelleFamille(etat, f) } : null; }).filter(Boolean);
-      g.confirmer = null; g.enCours = true; g.resultats = []; g.bilan = ''; rendre();
-      const r = await E.envoyerGroupe(nexusClient, SITE_ACTUEL, mode, items);
-      g.enCours = false; g.resultats = r.resultats; g.bilan = r.bilan;
-      if (mode === 'valider') g.selValider = []; else g.selProposer = [];
-      await rechargerObjectifs(); rendre();
+    const sauverPrefs = () => { const g = groupe(); E.ecrirePrefsFamilles(window.localStorage, SITE_ACTUEL, employee.id, { tout: g.tout, repli: g.repli }); };
+    const envoyerSelection = async (mode, reprise) => {
+      const g = groupe();
+      g.confirmer = null; g.enCours = true; g.resultats = []; g.bilan = ''; g.erreurReseau = false; g.progres = { k: 0, n: 0 }; rendre();
+      let r;
+      try {
+        // Contrôle des doublons à l'envoi : relecture du registre, puis seulement ce qui est encore à faire.
+        const frais = await E.chargerObjectifs(nexusClient, SITE_ACTUEL);
+        if (frais.erreur) throw new Error('lecture');
+        etat.objectifs = frais.lignes; etat.propositions = frais.propositions || []; etat.droitsObjectif = frais.droits; etat.libellesFamilles = frais.libelles || {};
+        const lignes = E.lignesObjectifsFamilles(etat);
+        const cles = reprise ? g.echecs.slice() : (mode === 'valider' ? g.selValider : g.selProposer).slice();
+        const items = mode === 'valider'
+          ? cles.map(id => { const o = lignes.filter(x => x.proposition && x.proposition.id === id)[0]; return o ? { id, libelle: E.libelleFamille(etat, o.famille) } : null; }).filter(Boolean)
+          : cles.map(f => { const o = lignes.filter(x => x.famille === f)[0]; return o && o.ligne ? { famille: f, cible: Number(o.ligne.cible), libelle: E.libelleFamille(etat, f) } : null; }).filter(Boolean);
+        const tri = E.filtrerDoublons(mode, items, etat.propositions);
+        r = await E.envoyerGroupe(nexusClient, SITE_ACTUEL, mode, tri.gardes, (k, n) => { g.progres = { k, n }; rendre(); });
+        const echouees = r.resultats.filter(x => !x.ok).map(x => x.cle);
+        const reussies = cles.filter(c => echouees.indexOf(c) === -1);
+        if (mode === 'valider') g.selValider = g.selValider.filter(c => reussies.indexOf(c) === -1); else g.selProposer = g.selProposer.filter(c => reussies.indexOf(c) === -1);
+        g.echecs = echouees; g.mode = mode; g.resultats = r.resultats;
+        g.bilan = r.bilan + (tri.ecartes.length ? ' ' + tri.ecartes.length + ' déjà traité' + (tri.ecartes.length > 1 ? 's' : '') + ' par ailleurs, écarté' + (tri.ecartes.length > 1 ? 's' : '') + '.' : '');
+      } catch (e) { console.error('Envoi des objectifs:', e); g.erreurReseau = true; }
+      g.enCours = false;
+      if (!g.erreurReseau) await rechargerObjectifs();
+      rendre();
     };
     const lierGroupe = () => {
-      const g = groupe();
-      corps.querySelectorAll('[data-objf-valider]').forEach(c => c.addEventListener('change', () => { basculer(g.selValider, c.dataset.objfValider, c.checked); rendre(); }));
-      corps.querySelectorAll('[data-objf-proposer]').forEach(c => c.addEventListener('change', () => { basculer(g.selProposer, c.dataset.objfProposer, c.checked); rendre(); }));
-      corps.querySelectorAll('[data-objf-tout]').forEach(b => b.addEventListener('click', () => {
-        // Toutes les lignes éligibles (y compris celles masquées par la limite de 10) ; avec une recherche, seulement ses résultats.
-        if (b.dataset.objfTout === 'valider') g.selValider = E.eligiblesGroupe(etat, 'valider');
-        else g.selProposer = E.eligiblesGroupe(etat, 'proposer');
+      const g = groupe(), tous = (sel, f) => corps.querySelectorAll(sel).forEach(f);
+      tous('[data-objf-valider]', c => c.addEventListener('change', () => { basculer(g.selValider, c.dataset.objfValider, c.checked); rendre(); }));
+      tous('[data-objf-proposer]', c => c.addEventListener('change', () => { basculer(g.selProposer, c.dataset.objfProposer, c.checked); rendre(); }));
+      tous('[data-objf-filtre]', b => b.addEventListener('click', () => { g.filtre = b.dataset.objfFiltre; rendre(); }));
+      tous('[data-objf-rapide]', b => b.addEventListener('click', () => { E.selectionRapide(etat, b.dataset.objfRapide).forEach(f => basculer(g.selProposer, f, true)); rendre(); }));
+      tous('[data-objf-entete]', c => c.addEventListener('change', () => {
+        // Agit sur les lignes éligibles visibles ; la sélection des lignes hors vue est conservée.
+        E.eligiblesGroupe(etat, 'valider').forEach(id => basculer(g.selValider, id, c.checked));
+        E.eligiblesGroupe(etat, 'proposer').forEach(f => basculer(g.selProposer, f, c.checked));
         rendre();
       }));
-      corps.querySelectorAll('[data-objf-envoyer]').forEach(b => b.addEventListener('click', () => { g.confirmer = { mode: b.dataset.objfEnvoyer }; rendre(); }));
-      corps.querySelectorAll('[data-objf-annuler]').forEach(b => b.addEventListener('click', () => { g.confirmer = null; rendre(); }));
-      corps.querySelectorAll('[data-objf-confirmer]').forEach(b => b.addEventListener('click', () => { b.disabled = true; envoyerSelection(g.confirmer.mode); }));
+      tous('[data-objf-afficher]', b => b.addEventListener('click', () => { g.tout = !g.tout; sauverPrefs(); rendre(); }));
+      tous('[data-objf-repli]', b => b.addEventListener('click', () => { g.repli = !g.repli; sauverPrefs(); rendre(); }));
+      tous('[data-objf-relire]', b => b.addEventListener('click', async () => { await rechargerObjectifs(); rendre(); }));
+      tous('[data-objf-envoyer]', b => b.addEventListener('click', () => { g.confirmer = { mode: b.dataset.objfEnvoyer }; g.risqueCoche = false; rendre(); }));
+      tous('[data-objf-annuler]', b => b.addEventListener('click', () => { g.confirmer = null; rendre(); }));
+      tous('[data-objf-retirer]', b => b.addEventListener('click', () => {
+        const parts = b.dataset.objfRetirer.split('|'), m = parts[0], cle = parts.slice(1).join('|');
+        if (g.confirmer && g.confirmer.reprise) { basculer(g.echecs, cle, false); if (!g.echecs.length) g.confirmer = null; rendre(); return; }
+        const l = m === 'valider' ? g.selValider : g.selProposer; basculer(l, cle, false); if (!g.selValider.length && !g.selProposer.length) g.confirmer = null; rendre();
+      }));
+      tous('[data-objf-vider]', b => b.addEventListener('click', () => { g.selValider = []; g.selProposer = []; g.confirmer = null; rendre(); }));
+      tous('[data-objf-risque]', c => c.addEventListener('change', () => { g.risqueCoche = c.checked; rendre(); }));
+      tous('[data-objf-confirmer]', b => b.addEventListener('click', () => { b.disabled = true; envoyerSelection(g.confirmer.mode, !!g.confirmer.reprise); }));
+      tous('[data-objf-reessayer]', b => b.addEventListener('click', () => {
+        // Un nouvel essai sur une famille à l'étude ou en hypothèse repasse par la confirmation, comme un envoi ordinaire.
+        const mode = g.mode || 'proposer', lignes = E.lignesObjectifsFamilles(etat);
+        const fragile = mode === 'proposer' && lignes.some(o => g.echecs.indexOf(o.famille) !== -1 && o.ligne && (o.statut === 'a_l_etude' || o.statut === 'hypothese'));
+        if (fragile) { g.confirmer = { mode, reprise: true }; g.risqueCoche = false; rendre(); return; }
+        b.disabled = true; envoyerSelection(mode, true);
+      }));
       const rech = corps.querySelector('[data-objf-recherche]');
-      if (rech) rech.addEventListener('input', () => { g.recherche = rech.value; const pos = rech.selectionStart; rendre(); const n = corps.querySelector('[data-objf-recherche]'); if (n) { n.focus(); try { n.setSelectionRange(pos, pos); } catch (e) { /* type search */ } } });
+      if (rech) rech.addEventListener('input', () => { g.recherche = rech.value; const pos = rech.selectionStart; rendre(); const n = corps.querySelector('[data-objf-recherche]'); if (n) { n.focus(); try { n.setSelectionRange(pos, pos); } catch (e) { /* type sans sélection */ } } });
     };
-    const rendre = () => { etat.margePlus = blocMargePlus(); corps.innerHTML = E.htmlPage(etat); lier(); lierGroupe(); };
+    const rendre = () => { etat.largeur = window.innerWidth; etat.margePlus = blocMargePlus(); corps.innerHTML = E.htmlPage(etat); lier(); lierGroupe(); };
+    // Cartes sous 900 px : on ne redessine que lorsque le seuil est franchi.
+    if (!corps.__objfRedim) { corps.__objfRedim = true; let cartes = window.innerWidth < 900; window.addEventListener('resize', () => { const c = window.innerWidth < 900; if (c !== cartes) { cartes = c; rendre(); } }); }
     // « Marquer comme vérifié » : écriture append-only par la fonction SQL ; le site n'est jamais envoyé ; message avec date et auteur (nom affiché).
     const marquerVerifie = async (btn) => {
       const E2 = E, art = btn.dataset.verArticle, code = btn.dataset.verifier;
