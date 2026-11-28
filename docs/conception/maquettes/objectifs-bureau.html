@@ -1,0 +1,201 @@
+<!doctype html><html lang="fr" data-theme="nuit"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Objectifs de station : bureau de gestion</title><style>
+/* Jetons repris de NEXUS-Tempo-v2.html (--t-*, piste / boutique / FDJ). */
+:root{--t-bg:#07131E;--t-panel:#0D202E;--t-raised:#0F2433;--t-line:#254354;--t-text:#EDF1F5;--t-mid:#9AA8B6;--t-cyan:#24D8E3;--t-green:#29C98A;--t-amber:#F5A12A;--t-red:#F0786E;--t-bar2:#5B7A8E;--piste:#22C7B8;--boutique:#C47A55;--fdj:#A18BF2;--ombre:0 1px 2px rgba(0,0,0,.35),0 8px 24px rgba(0,0,0,.18);--t-mono:"IBM Plex Mono",ui-monospace,monospace;--t-sans:"IBM Plex Sans",system-ui,sans-serif}
+:root[data-theme="jour"]{--t-bg:#F4F6F8;--t-panel:#FFFFFF;--t-raised:#EEF2F5;--t-line:#D5DCE3;--t-text:#0F172A;--t-mid:#475569;--t-cyan:#0B7285;--t-green:#047857;--t-amber:#B45309;--t-red:#B42318;--t-bar2:#94A3B8;--piste:#0F766E;--boutique:#7A4A3A;--fdj:#6246C9;--ombre:0 1px 2px rgba(15,23,42,.05),0 8px 24px rgba(15,23,42,.06)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--t-bg);color:var(--t-text);font:14px/1.45 var(--t-sans);padding:24px}
+.hors{display:flex;gap:8px;align-items:center;margin:0 auto 16px;width:1280px;max-width:100%;color:var(--t-mid);font-size:12px}
+.hors button{min-height:36px;padding:0 14px;border-radius:8px;border:1px solid var(--t-line);background:var(--t-panel);color:var(--t-text);font:inherit;cursor:pointer}
+.hors button[aria-pressed=true]{border-color:var(--t-cyan);color:var(--t-cyan)}
+:focus-visible{outline:2px solid var(--t-cyan);outline-offset:2px;border-radius:6px}
+.page{width:1280px;max-width:100%;margin:0 auto;display:grid;gap:24px}
+.mono{font-family:var(--t-mono)}
+.unite{font:400 13px var(--t-mono);color:var(--t-mid);margin-left:4px}
+.lect h3 .ico{background:color-mix(in srgb,var(--t-text) 14%,transparent);border-radius:8px;padding:3px;box-sizing:content-box}
+.ico{width:24px;height:24px;flex:none;display:block}.ico.g{width:32px;height:32px}
+/* En-tête */
+.bandeau{position:relative;margin:0;border-radius:12px;overflow:hidden;background:#07131E;height:200px}.bandeau .titre{position:absolute;left:32px;top:50%;transform:translateY(-50%);display:flex;align-items:center;gap:20px;color:#fff}.bandeau .titre img{width:72px;height:72px;object-fit:contain;flex:none}.bandeau .titre h1{margin:0;font:600 44px/1 'IBM Plex Sans',system-ui,sans-serif;letter-spacing:-.01em;color:#fff}.bandeau .titre p{margin:6px 0 0;font:500 16px/1.2 'IBM Plex Sans',system-ui,sans-serif;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.45)}.bandeau img{display:block;width:100%;height:100%;object-fit:cover;object-position:left 30%}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.tete{display:flex;align-items:center;gap:16px}
+.tete h1{margin:0;font-size:22px;font-weight:600;letter-spacing:-.01em}
+.tete .sous{color:var(--t-mid);font-size:13px}
+.tete .fin{margin-left:auto;text-align:right;font:12px var(--t-mono);color:var(--t-mid)}
+/* Titre de section façon Tempo */
+.ts{display:flex;align-items:center;gap:12px;margin:0 0 12px;font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--t-mid)}
+.ts::after{content:"";flex:1;height:1px;background:var(--t-line)}
+.carte{background:var(--t-panel);border:1px solid var(--t-line);border-radius:12px;padding:20px;box-shadow:var(--ombre)}
+.carte h3{margin:0;font-size:13px;font-weight:600;display:flex;align-items:center;gap:10px}
+.grille{display:grid;gap:16px;align-items:stretch}
+.g3{grid-template-columns:repeat(3,1fr)}.g5{grid-template-columns:repeat(5,1fr)}.g2{grid-template-columns:1fr 1fr}.g4{grid-template-columns:repeat(4,1fr)}.g21{grid-template-columns:2fr 1fr}
+.pastille{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;border-radius:999px;padding:2px 10px;color:var(--c);background:color-mix(in srgb,var(--c) 13%,transparent);white-space:nowrap}
+.pastille::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--c)}
+.ok{--c:var(--t-green)}.av{--c:var(--t-amber)}.mal{--c:var(--t-red)}.nd{--c:var(--t-bar2)}
+.vert{color:var(--t-green)}.amb{color:var(--t-amber)}.rouge{color:var(--t-red)}
+/* Lectures : chiffre en grand */
+.lect{display:flex;flex-direction:column;gap:10px;min-height:196px}
+.lect .nb{font:600 40px/1 var(--t-mono);letter-spacing:-.02em;margin-top:4px}
+.lect .nb .unite{font-size:14px}
+.lect .ligne{margin-top:auto;display:flex;align-items:center;gap:8px;justify-content:space-between;color:var(--t-mid);font-size:12px}
+/* Fiche secteur */
+.sect{display:flex;flex-direction:column;gap:10px;min-height:292px}
+.sect .nom{display:flex;align-items:center;gap:10px;font-size:13px;font-weight:600}
+.sect .nom .pastille{margin-left:auto}
+.sect .nb{font:600 30px/1 var(--t-mono);letter-spacing:-.02em}
+.sect .nb .unite{font-size:12px}
+.sect .tend{font:13px var(--t-mono)}
+.sect .viz{height:44px;margin-top:2px;display:flex;align-items:flex-end}
+.sect .pied{margin-top:auto;font-size:12px;color:var(--t-mid)}
+details.det{border-top:1px solid var(--t-line);padding-top:8px;font-size:12px;color:var(--t-mid)}
+details.det summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;color:var(--t-cyan);font-weight:600;border-radius:6px}
+details.det summary::-webkit-details-marker{display:none}
+details.det summary::after{content:"▾";transition:transform .2s}
+details.det[open] summary::after{transform:rotate(180deg)}
+details.det p{margin:8px 0 0}
+/* Jauge */
+.jauge{--p:0;width:100%;height:10px;border-radius:5px;background:var(--t-raised);position:relative}
+.jauge i{display:block;height:100%;border-radius:5px;background:var(--c,var(--t-cyan));width:calc(var(--p)*1%);transition:width .3s ease-out}
+.jauge.avant i{width:0}.jm{position:relative;height:10px;border-radius:5px;background:var(--t-raised);margin:10px 7px 18px}.jm .zone{position:absolute;top:0;height:100%;background:color-mix(in srgb,var(--t-red) 28%,transparent)}.jm .cible{position:absolute;top:-5px;width:2px;height:20px;background:var(--t-text);border-radius:1px}.jm .pos{position:absolute;top:-2px;width:14px;height:14px;margin-left:-7px;border-radius:50%;background:var(--c,var(--t-amber));border:2px solid var(--t-card,var(--t-bg))}.jm .ech{position:absolute;top:14px;font-size:10px;color:var(--t-mid);white-space:nowrap}
+.jauge b{position:absolute;top:-4px;width:2px;height:18px;background:var(--t-text);border-radius:1px}
+.anneau{width:64px;height:64px;flex:none}
+.anneau circle{fill:none;stroke-width:7}.anneau .f{stroke:var(--t-raised)}.anneau .v{stroke:var(--c);stroke-linecap:round;transform:rotate(-90deg);transform-origin:50% 50%;transition:stroke-dashoffset .3s ease-out}
+/* Segments de couverture */
+.couv{display:flex;gap:4px}.couv i{flex:1;height:8px;border-radius:2px;background:var(--t-green)}.couv i.p{background:var(--t-amber)}.couv i.a{background:none;border:1px dashed var(--t-bar2)}
+/* Graphiques */
+.chart{width:100%;display:block}
+.chart text{font:10px var(--t-mono);fill:var(--t-mid)}
+.chart .grid{stroke:var(--t-line);stroke-width:1}
+.chart .ref{stroke:var(--t-mid);stroke-dasharray:3 4}
+.chart [data-tip]{cursor:pointer;transition:opacity .15s}
+.chart [data-tip]:hover,.chart [data-tip]:focus-visible{opacity:.78}
+.entete-graph{display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+.entete-graph .fin{margin-left:auto;display:flex;gap:8px;align-items:center}
+.seg{display:inline-flex;border:1px solid var(--t-line);border-radius:8px;overflow:hidden}
+.seg button{min-height:32px;padding:0 12px;border:0;background:none;color:var(--t-mid);font:600 12px var(--t-sans);cursor:pointer}
+.seg button[aria-pressed=true]{background:var(--t-raised);color:var(--t-text)}
+.seg button:disabled{opacity:.4;cursor:not-allowed}
+.puce{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 12px;border:1px solid var(--t-line);border-radius:999px;background:none;color:var(--t-text);font:12px var(--t-sans);cursor:pointer}
+.puce i{width:10px;height:10px;border-radius:3px;background:var(--c)}
+.puce[aria-pressed=false]{color:var(--t-mid)}.puce[aria-pressed=false] i{background:none;box-shadow:inset 0 0 0 1.5px var(--c)}
+.lien{background:none;border:0;color:var(--t-cyan);font:600 12px var(--t-sans);cursor:pointer;min-height:32px;padding:0 4px;border-radius:6px}
+table.val{width:100%;border-collapse:collapse;font:12px var(--t-mono);margin-top:12px}
+table.val th{font:600 11px var(--t-sans);color:var(--t-mid);text-align:right;padding:6px 8px;border-bottom:1px solid var(--t-line)}
+table.val td{text-align:right;padding:6px 8px;border-bottom:1px solid color-mix(in srgb,var(--t-line) 60%,transparent)}
+table.val th:first-child,table.val td:first-child{text-align:left}
+.note{font-size:12px;color:var(--t-mid);margin-top:10px}
+/* Objectifs */
+.obj{display:flex;flex-direction:column;gap:8px;min-height:156px}
+.obj .t{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--t-mid)}
+.obj .nb{font:600 28px/1 var(--t-mono)}
+.obj.vide{border-style:dashed;box-shadow:none;background:transparent;justify-content:center;align-items:flex-start}
+.obj .prop{font-size:12px;color:var(--t-amber)}
+.btn{min-height:36px;padding:0 14px;border-radius:8px;border:1px solid var(--t-line);background:var(--t-raised);color:var(--t-text);font:600 12px var(--t-sans);cursor:pointer;align-self:flex-start}
+.btn:hover{border-color:var(--t-cyan)}
+/* Listes */
+.lig{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--t-line)}.lig:last-child{border:0;padding-bottom:0}
+.lig .m{margin-left:auto;font:600 20px var(--t-mono);text-align:right}
+.lig small{display:block;color:var(--t-mid);font-size:12px}
+.lig .pastille{margin-left:auto}
+/* Info-bulle */
+#tip{position:fixed;z-index:9;pointer-events:none;background:var(--t-text);color:var(--t-bg);font:12px var(--t-mono);padding:6px 10px;border-radius:8px;opacity:0;transform:translateY(4px);transition:opacity .15s,transform .15s;max-width:260px}
+#tip.on{opacity:1;transform:none}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+.fic{display:inline-block;font-size:11px;font-weight:600;color:var(--t-amber);border:1px dashed var(--t-amber);border-radius:6px;padding:2px 8px}
+.progres{display:flex;flex-direction:column;gap:6px}
+table.val td.l,table.val th.l{text-align:left}
+.vers{font:11px var(--t-mono);color:var(--t-mid)}
+.bandeau-ficti{background:color-mix(in srgb,var(--t-amber) 12%,transparent);border:1px dashed var(--t-amber);border-radius:10px;padding:10px 14px;font-size:12px}
+
+.bandeau2{display:flex;align-items:center;gap:16px;background:#07131E;color:#fff;border-radius:12px;padding:20px 28px}.bandeau2 img{width:56px;height:56px;object-fit:contain}.bandeau2 h1{margin:0;font:600 30px/1 var(--t-sans)}.bandeau2 p{margin:4px 0 0;color:#9AA8B6}
+.aide{font-size:12px;color:var(--t-mid)}.aide summary{cursor:pointer;color:var(--t-cyan);font-weight:600;list-style:none}
+.an{display:grid;grid-template-columns:1.15fr 2fr;gap:24px}
+.champ{display:flex;flex-direction:column;gap:6px;margin-top:12px}.champ label{font-size:12px;color:var(--t-mid)}
+.champ input{min-height:44px;border-radius:8px;border:1px solid var(--t-line);background:var(--t-raised);color:var(--t-text);font:600 20px var(--t-mono);padding:0 12px;width:100%}
+.base{margin-top:14px;padding:12px;border-radius:8px;background:var(--t-raised);font-size:13px}.base b{font-family:var(--t-mono)}
+.limite{color:var(--t-amber)}
+.mois{display:grid;grid-template-columns:repeat(12,1fr);gap:8px;align-items:end;height:170px;margin-top:8px}
+.mois button{all:unset;cursor:pointer;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px;height:100%;border-radius:6px;font:11px var(--t-mono);color:var(--t-mid)}
+.mois button i{display:block;width:100%;border-radius:5px 5px 2px 2px;background:var(--piste);opacity:.7}
+.mois button[aria-pressed=true] i{opacity:1;outline:2px solid var(--t-cyan)}
+.mois button:focus-visible{outline:2px solid var(--t-cyan)}
+.trim{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}.trim div{background:var(--t-raised);border-radius:8px;padding:10px;font-size:12px;color:var(--t-mid)}.trim b{display:block;color:var(--t-text);font:600 16px var(--t-mono)}
+.ajust{display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap}
+.btn{min-height:44px;padding:0 18px;border-radius:8px;border:1px solid var(--t-line);background:var(--t-panel);color:var(--t-text);font:600 14px var(--t-sans);cursor:pointer}.btn.p{background:var(--t-cyan);color:#07131E;border-color:var(--t-cyan)}
+.btn.s{min-height:44px;min-width:44px;padding:0}
+.obj{display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr 1fr;gap:12px;align-items:center;padding:12px 0;border-top:1px solid var(--t-line);font-size:13px}
+.obj:first-of-type{border-top:0}
+.obj .l small{display:block;color:var(--t-mid);font-size:12px}
+.obj .v{font:600 15px var(--t-mono)}.obj .v small{display:block;font:11px var(--t-sans);color:var(--t-mid);font-weight:400}
+.obj .jauge{margin-top:6px}
+.entete{display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr 1fr;gap:12px;font-size:11px;color:var(--t-mid);text-transform:uppercase;letter-spacing:.06em;padding-bottom:6px}
+table.val{width:100%;border-collapse:collapse;font-size:12px}table.val th,table.val td{text-align:right;padding:6px 8px;border-top:1px solid var(--t-line)}table.val th:first-child,table.val td:first-child{text-align:left}
+.sec h3{margin-bottom:6px}
+.lien{background:none;border:0;color:var(--t-cyan);font:600 13px var(--t-sans);cursor:pointer;min-height:44px}
+.ext{color:var(--t-mid);font-size:12px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style></head><body>
+<div class="hors"><span>Maquette bureau 1280 · valeurs fictives, aucune donnée réelle.</span>
+ <button type="button" data-th="jour" aria-pressed="false">Jour</button><button type="button" data-th="nuit" aria-pressed="true">Nuit</button></div>
+<main class="page" id="p"></main>
+<script>
+const IC='../../../assets/icones/';
+const v2=id=>`<img class="ico" alt="" src="${IC}v2/${id}/${id}-24.svg">`;
+const fr=(n,d=0)=>n.toLocaleString('fr-FR',{minimumFractionDigits:d,maximumFractionDigits:d});
+/* Données fictives : litres de carburant, base des 4 mois d'historique */
+const BASE=[352000,336000,361000,371000]; /* 4 mois */
+const JOURS=[31,28,31,30,31,30,31,31,30,31,30,31]; /* 2027 : 365 jours */
+const SAIS=[.94,.93,.99,1,1.02,1.06,1.1,1.1,1.03,1,.97,.99]; /* exemple fictif de profil saisonnier : n'existe pas avec 4 mois d'historique */
+let mode='jours';
+let hyp=3, sel=null, ajust=Array(12).fill(0), valide=false;
+const moyBase=()=>BASE.reduce((a,b)=>a+b,0)/BASE.length;
+const annuel=()=>Math.round(moyBase()*12*(1+hyp/100)/1000)*1000;
+const prop=()=>{const a=annuel();if(mode==='jours')return JOURS.map(j=>Math.round(a*j/365/1000)*1000);const t=SAIS.reduce((x,y)=>x+y,0);return SAIS.map(q=>Math.round(a*q/t/1000)*1000)};
+const mois=()=>prop().map((v,i)=>v+ajust[i]*1000);
+const M=['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
+function annee(){const m=mois(),tot=m.reduce((a,b)=>a+b,0),mx=Math.max(...m);
+ const tr=[0,1,2,3].map(q=>m.slice(q*3,q*3+3).reduce((a,b)=>a+b,0));
+ return `<div class="carte an"><div>
+  <h3>${v2('mod-carburants')}Objectif de l’année 2027 · litres de carburant</h3>
+  <div class="champ"><label for="hy">Hausse visée sur la dernière année connue (%)</label><input id="hy" inputmode="decimal" value="${hyp}" aria-describedby="bs"></div>
+  <div class="base" id="bs">Base NEXUS : <b>${fr(moyBase()*12)} L</b> par an, calculée sur le rythme moyen des 4 mois d’historique.<br><span class="limite">Avec 4 mois d’historique, aucune saison n’est supposée.</span></div>
+  <div style="margin-top:14px;font-size:12px;color:var(--t-mid)">Objectif proposé pour l’année</div><div class="mono" style="font:600 32px var(--t-mono)">${fr(tot)} <span class="unite">L</span></div>
+  </div><div>
+  <div style="font-size:12px;color:var(--t-mid)">Répartition proposée sur 12 mois : touchez un mois pour l’ajuster</div>
+  <div class="aide" style="margin:4px 0 6px"><b>${mode==='jours'?'Répartition proportionnelle au nombre de jours de chaque mois.':'Profil saisonnier proposé.'}</b> ${mode==='jours'?'Janvier compte 31 jours, février 28 : chacun reçoit sa part.':'Source : exemple fictif, il faudrait au moins 12 mois d’historique réel pour l’établir.'} <button type="button" class="lien" id="mode">${mode==='jours'?'Voir le profil saisonnier':'Revenir au prorata des jours'}</button></div>
+  <div class="mois" role="group" aria-label="Litres visés par mois">${m.map((v,i)=>`<button type="button" data-i="${i}" aria-pressed="${sel===i}" aria-label="${M[i]} : ${fr(v)} litres"><span>${fr(v/1000)}</span><i style="height:${Math.round(v/mx*120)}px"></i>${M[i]}</button>`).join('')}</div>
+  <div class="trim">${tr.map((v,q)=>`<div>T${q+1}<b>${fr(v)} L</b>somme de ses trois mois</div>`).join('')}</div>
+  <div class="ajust">${sel!==null?`<span>${M[sel]} :</span><button class="btn s" data-d="-5" aria-label="Retirer 5 000 litres">−</button><button class="btn s" data-d="5" aria-label="Ajouter 5 000 litres">+</button><span class="mono">${fr(m[sel])} L</span>`:'<span class="aide">Aucun mois sélectionné.</span>'}
+   <button class="btn p" id="val" style="margin-left:auto">${valide?'Objectifs validés ✓':'Valider les 12 mois et l’année'}</button></div>
+  <div class="aide" style="margin-top:8px" role="status">${valide?'Validé par le gérant. Les mois, trimestres et l’année sont enregistrés ensemble.':'Rien n’est enregistré tant que vous n’avez pas validé.'}</div>
+ </div></div>`}
+const jmarque=(mn,mx,pos,obj,zone,c,lab)=>{const P=v=>((v-mn)/(mx-mn)*100).toFixed(1),z=zone==='haut'?`left:${P(obj)}%;width:${(100-P(obj)).toFixed(1)}%`:`left:0;width:${P(obj)}%`;return `<div class="jm" role="img" aria-label="${lab}" style="--c:var(--${c})"><i class="zone" style="${z}"></i><b class="cible" style="left:${P(obj)}%"></b><u class="pos" style="left:${P(pos)}%"></u></div>`};
+const ligne=(l,sub,val,cib,pa,att,ec,te,c)=>`<div class="obj"><div class="l"><b>${l}</b><small>${sub}</small></div><div class="v">${val}<small>valeur à ce jour</small></div><div class="v">${cib}<small>objectif</small>${typeof pa==='string'?pa:`<div class="jauge" style="--c:var(--${c||'t-cyan'})"><i style="--p:${pa}"></i></div>`}</div><div class="v">${att}<small>attendu à cette date</small></div><div class="v ${ec[1]}">${ec[0]}<small>écart</small></div><div class="v">${te}<small>tendance</small></div></div>`;
+const ent=`<div class="entete"><span>Objectif</span><span>Valeur</span><span>Objectif · avancement</span><span>Attendu</span><span>Écart</span><span>Tendance</span></div>`;
+function secteurs(){return `
+<section class="sec"><h2 class="ts">Par secteur · novembre</h2><div class="carte">${ent}
+<h3 style="margin:12px 0 0">${v2('mod-carburants')}Carburant</h3>
+${ligne('Litres vendus','par mois, litres du Tempo','322 000 L','400 000 L',81,'346 700 L',['24 700 L sous le repère','rouge'],'stable')}
+<h3 style="margin:12px 0 0">${v2('mod-produits')}Commerce</h3>
+${ligne('Ventes boutique','par mois','81 900 €','90 000 €',91,'78 000 €',['3 900 € au-dessus du repère','vert'],'en hausse')}
+<h3 style="margin:12px 0 0">${v2('mod-fdj')}FDJ</h3>
+${ligne('Chiffre d’affaires FDJ','par mois, sans marge','4 380 €','5 000 €',88,'4 330 €',['50 € au-dessus du repère','vert'],'stable')}
+<h3 style="margin:12px 0 0">${v2('mod-prise-de-poste')}Opérations</h3>
+${ligne('Écart de caisse moyen par quart','en valeur absolue, à réduire','22 €','15 €',jmarque(0,30,22,15,'haut','t-red','Écart moyen de 22 euros sur une échelle de 0 à 30, objectif 15, zone d’alerte au-delà'),'15 €',['+7 €','rouge'],'en baisse')}
+<h3 style="margin:12px 0 0">${v2('mod-capital')}Marge</h3>
+${ligne('Taux de marge boutique','fixé par le tarif de la station','24,1 %','25,5 %',jmarque(22,28,24.1,25.5,'bas','t-amber','Taux de 24,1 % sur une échelle de 22 à 28, objectif 25,5, zone d’alerte en dessous'),'25,5 %',['−1,4 pt','amb'],'stable')}
+<div class="ext">Le taux de marge n’est pas réglable ici : il vient de la grille tarifaire de la station.</div>
+<details class="aide" style="margin-top:12px"><summary>Comment lire ce tableau</summary><p>Le repère est une progression en ligne droite entre le début de la période et l’objectif. Il aide à situer la station, il ne remplace pas la saison.</p></details>
+</div></section>`}
+function niveau2(){const m=mois();return `<section><h2 class="ts">Détail du mois, du trimestre, de l’année</h2><div class="carte"><details><summary class="lien" style="display:block">Ouvrir le tableau mois par mois</summary>
+<table class="val"><thead><tr><th>Mois</th><th>Litres visés</th><th>Trimestre</th></tr></thead><tbody>${m.map((v,i)=>`<tr><td>${M[i]}</td><td>${fr(v)} L</td><td>T${Math.floor(i/3)+1}</td></tr>`).join('')}</tbody></table></details></div></section>`}
+function monter(){document.getElementById('p').innerHTML=`<header class="bandeau"><picture><source type="image/webp" srcset="../../../assets/brief/brief-entete-1280.webp 1280w, ../../../assets/brief/brief-entete-2172.webp 2172w" sizes="1240px"><img src="../../../assets/brief/brief-entete-2172.jpg" alt="" width="2172" height="724"></picture><div class="titre"><img src="../../../assets/nexus-logo-cyan.png" alt="NEXUS" width="72" height="72"><div><h1>Objectifs</h1><p>Station fictive · année 2027</p></div></div></header>
+<details class="aide"><summary>Comment ça marche</summary><p>Vous fixez l’objectif de l’année. NEXUS propose la répartition. Vous ajustez, puis vous validez.</p></details>
+<section><h2 class="ts">L’année d’abord</h2>${annee()}</section>${secteurs()}${niveau2()}`;
+ const hy=document.getElementById('hy');hy.addEventListener('change',()=>{const v=parseFloat(hy.value.replace(',','.'));if(!isNaN(v)){hyp=v;ajust=Array(12).fill(0);valide=false;monter()}});
+ document.querySelectorAll('.mois button').forEach(b=>b.onclick=()=>{sel=+b.dataset.i;monter()});
+ document.querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>{ajust[sel]+=+b.dataset.d;valide=false;monter()});
+ document.getElementById('mode').onclick=()=>{mode=mode==='jours'?'saison':'jours';ajust=Array(12).fill(0);valide=false;monter()};
+ document.getElementById('val').onclick=()=>{valide=true;monter()}}
+monter();
+document.querySelectorAll('[data-th]').forEach(b=>b.onclick=()=>{document.documentElement.dataset.theme=b.dataset.th;document.querySelectorAll('[data-th]').forEach(x=>x.setAttribute('aria-pressed',x===b))});
+</script></body></html>
