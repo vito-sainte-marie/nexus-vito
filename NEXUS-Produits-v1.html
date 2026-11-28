@@ -413,7 +413,7 @@ body.nexus-desktop #resultSection > *{margin-bottom:12px;}
 <script src="nexus-anomalies-tarifaires.js"></script>
 <script src="nexus-politique-tarifaire.js"></script>
 <script src="nexus-politique-tarifaire-registres.js"></script>
-<script src="nexus-politique-tarifaire-ecran.js?v=20261127-0002"></script>
+<script src="nexus-politique-tarifaire-ecran.js?v=20261127-1200"></script>
 <script src="nexus-produits-securite.js"></script>
 </head>
 <body>
@@ -1769,7 +1769,7 @@ nexusRequireAuth().then(async employee => {
     await rechargerObjectifs();
     const ecrireObjectif = async (btn, mode) => {
       const valider = mode === 'valider', retirer = mode === 'retirer';
-      const carte = btn.closest('[data-objectif-marge]'), msg = carte && carte.querySelector('[data-objectif-msg]');
+      const carte = btn.closest('[data-objectif-marge]'), zone = carte ? carte.dataset.objectifMarge : 'fiche', msg = carte && carte.querySelector('[data-objectif-msg]');
       const dire = t => { if (msg) msg.textContent = t; };
       btn.disabled = true; dire('Enregistrement…');
       try {
@@ -1786,8 +1786,9 @@ nexusRequireAuth().then(async employee => {
           r = await nexusClient.rpc('proposer_marge_cible', { p_site: SITE_ACTUEL, p_niveau: btn.dataset.niveau, p_cible_niveau: btn.dataset.cibleNiveau, p_cible: cible, p_commentaire: com });
         }
         if (r.error) throw r.error;
-        await rechargerObjectifs(); etat.objectifOuvert = true; rendre();
-        const m2 = corps.querySelector('[data-objectif-msg]'); if (m2) m2.textContent = valider ? 'Objectif validé.' : retirer ? 'Proposition retirée.' : 'Proposition enregistrée : un autre compte doit la valider.';
+        await rechargerObjectifs(); if (zone === 'fiche') etat.objectifOuvert = true;
+        etat.objectifMsg = { zone: zone, texte: valider ? 'Objectif validé.' : retirer ? 'Proposition retirée.' : 'Proposition enregistrée : un autre compte doit la valider.' };
+        rendre();
       } catch (e) { console.error('Objectif de marge:', e); btn.disabled = false; dire(E.messageErreurObjectif(e)); }
     };
     const rendre = () => { etat.margePlus = blocMargePlus(); corps.innerHTML = E.htmlPage(etat); lier(); };

@@ -865,38 +865,54 @@
     for (var k in MESSAGES_OBJECTIF) { if (m.indexOf(k) !== -1) return MESSAGES_OBJECTIF[k]; }
     return 'L\'objectif n\'a pas pu être enregistré. Aucune modification n\'a été faite.';
   }
-  function htmlObjectifMarge(l, etat) {
-    var o = objectifDe(l, etat), d = (etat && etat.droitsObjectif) || {};
-    var h = '<details class="sc-carte pt-obj" data-objectif-marge="1"' + (etat && etat.objectifOuvert ? ' open' : '') + '><summary><span class="sc-nom">Objectifs de marge</span><span class="sc-chev"></span></summary>';
-    if (!o.niveau) return h + '<p class="sc-note">Aucune famille ni rayon : pas d\'objectif possible pour cette référence.</p></details>';
+  // Corps commun de la carte d'objectif : même circuit (proposer, valider par un autre compte, retirer) pour la fiche et pour la station.
+  // z.id distingue les deux zones (identifiants de champs, message de confirmation) ; z.note est la phrase d'usage de l'objectif.
+  function corpsObjectif(n, etat, z) {
+    var d = (etat && etat.droitsObjectif) || {}, id = z.id;
+    var rows = (etat && etat.objectifs) || [], props = (etat && etat.propositions) || [];
+    var o = { niveau: n,
+      ligne: rows.filter(function (r) { return r.niveau === n.niveau && r.cible_niveau === n.cible_niveau && r.cible !== null && r.cible !== undefined; })[0] || null,
+      proposition: props.filter(function (r) { return r.statut === 'ouverte' && r.niveau === n.niveau && r.cible_niveau === n.cible_niveau; })[0] || null };
     var st = o.ligne ? (LIB_STATUT_OBJECTIF[o.ligne.statut_cible] || o.ligne.statut_cible) : 'non défini';
-    h += '<div class="pt-pol-l"><span class="sc-lib">Objectif (' + esc(o.niveau.libelle) + ')</span><span data-objectif-statut="' + (o.ligne ? esc(o.ligne.statut_cible) : 'non_defini') + '">' +
+    var h = '<div class="pt-pol-l"><span class="sc-lib">Objectif (' + esc(n.libelle) + ')</span><span data-objectif-statut="' + (o.ligne ? esc(o.ligne.statut_cible) : 'non_defini') + '">' +
       (o.ligne ? esc(pct(num(o.ligne.cible))) + ' : ' : '') + esc(st) + '</span></div>';
-    h += '<p class="sc-note">Cet objectif n\'entre dans aucune note d\'équipe.</p>';
+    h += '<p class="sc-note">' + esc(z.note) + '</p>';
     var pr = o.proposition;
     if (pr) {
       h += '<div class="pt-pol-l"><span class="sc-lib">Proposition en attente</span><span data-objectif-proposition="' + esc(pr.id) + '">proposé ' + esc(pct(num(pr.cible))) + ', en attente de validation</span></div>';
       if (o.ligne && o.ligne.statut_cible === 'valide') h += '<p class="sc-note">L\'objectif validé reste en vigueur jusqu\'à la validation de cette proposition.</p>';
       var auteur = etat.userId && pr.propose_par === etat.userId;
       if (d.valider && etat.userId && !auteur) {
-        h += '<button type="button" class="detail-btn" data-objectif-valider="' + esc(pr.id) + '">Valider cette proposition</button>';
+        h += '<button type="button" class="detail-btn pt-obj-btn" data-objectif-valider="' + esc(pr.id) + '">Valider cette proposition</button>';
       } else if (d.valider && auteur) {
         h += '<p class="sc-note" data-objectif-attente="1">Un autre compte doit valider votre proposition.</p>';
       }
       if ((d.valider || (d.proposer && auteur)) && etat.userId) {
-        h += '<div class="pt-obj-form"><label class="sc-lib" for="pt-obj-motif">Motif du retrait</label><input id="pt-obj-motif" type="text" maxlength="300" data-objectif-motif="1">' +
-          '<button type="button" class="detail-btn" data-objectif-retirer="' + esc(pr.id) + '">Retirer la proposition</button></div>';
+        h += '<div class="pt-obj-form"><label class="sc-lib" for="pt-obj-motif-' + id + '">Motif du retrait</label><input id="pt-obj-motif-' + id + '" type="text" maxlength="300" data-objectif-motif="1">' +
+          '<button type="button" class="detail-btn pt-obj-btn" data-objectif-retirer="' + esc(pr.id) + '">Retirer la proposition</button></div>';
       }
     }
     if (d.proposer && !pr) {
-      h += '<div class="pt-obj-form"><label class="sc-lib" for="pt-obj-cible">Proposer une cible (en %)</label>' +
-        '<input id="pt-obj-cible" type="text" inputmode="decimal" autocomplete="off" data-objectif-cible="1">' +
-        '<label class="sc-lib" for="pt-obj-com">Commentaire (facultatif)</label><input id="pt-obj-com" type="text" maxlength="300" data-objectif-commentaire="1">' +
-        '<button type="button" class="detail-btn" data-objectif-proposer="1" data-niveau="' + esc(o.niveau.niveau) + '" data-cible-niveau="' + esc(o.niveau.cible_niveau) + '">Proposer</button></div>';
+      h += '<div class="pt-obj-form"><label class="sc-lib" for="pt-obj-cible-' + id + '">Proposer une cible</label>' +
+        '<span class="pt-obj-champ"><input id="pt-obj-cible-' + id + '" type="text" inputmode="decimal" autocomplete="off" placeholder="ex. 28" aria-describedby="pt-obj-pct-' + id + '" data-objectif-cible="1"><span class="pt-obj-pct" id="pt-obj-pct-' + id + '">%</span></span>' +
+        '<label class="sc-lib" for="pt-obj-com-' + id + '">Commentaire (facultatif)</label><input id="pt-obj-com-' + id + '" type="text" maxlength="300" data-objectif-commentaire="1">' +
+        '<button type="button" class="detail-btn pt-obj-btn" data-objectif-proposer="1" data-niveau="' + esc(n.niveau) + '" data-cible-niveau="' + esc(n.cible_niveau) + '">Proposer</button></div>';
     } else if (!d.proposer && !d.valider) {
       h += '<p class="sc-note">Lecture seule : proposer ou valider un objectif demande une habilitation.</p>';
     }
-    return h + '<p class="sc-msg sc-note pt-obj-msg" role="status" data-objectif-msg="1"></p></details>';
+    var m = etat && etat.objectifMsg && etat.objectifMsg.zone === id ? etat.objectifMsg.texte : '';
+    return h + '<p class="sc-msg sc-note pt-obj-msg" role="status" data-objectif-msg="1">' + esc(m) + '</p>';
+  }
+  function htmlObjectifMarge(l, etat) {
+    var h = '<details class="sc-carte pt-obj" data-objectif-marge="fiche"' + (etat && etat.objectifOuvert ? ' open' : '') + '><summary><span class="sc-nom">Objectifs de marge</span><span class="sc-chev"></span></summary>';
+    var n = niveauObjectif(l);
+    if (!n) return h + '<p class="sc-note">Aucune famille ni rayon : pas d\'objectif possible pour cette référence.</p></details>';
+    return h + corpsObjectif(n, etat, { id: 'fiche', note: 'Cet objectif n\'entre dans aucune note d\'équipe.' }) + '</details>';
+  }
+  // Objectif de la station (niveau « defaut ») : celui que le Brief lit quand ni la famille ni le rayon n'ont de cible.
+  function htmlObjectifStation(etat) {
+    return '<section class="sc-carte pt-obj pt-obj-station" data-objectif-marge="station" aria-label="Objectif de marge de la station"><div class="sc-nom">Objectif de marge de la station</div>' +
+      corpsObjectif({ niveau: 'defaut', cible_niveau: 'defaut', libelle: 'station' }, etat, { id: 'station', note: 'Le Brief note la marge à partir de cet objectif.' }) + '</section>';
   }
   async function chargerObjectifs(client, site) {
     var lignes = [], droits = { proposer: false, valider: false };
@@ -1282,7 +1298,7 @@
     if (etat.role !== 'manager' && etat.incoherences && etat.incoherences.length) pC += '<div class="pt-integrite sc-note" role="alert">Incohérence dans les registres tarifaires : ' + plur(etat.incoherences.length, 'ligne', 'lignes') + ' à corriger.</div>';
     pC += htmlFamille('pertes');
     // Panneau Analyser : comprendre les chiffres et les références.
-    var pA = '<div class="sc-inds pt-inds"><div class="sc-ind sc-info" data-carte="marge_estimee"><span class="sc-ind-val">' + esc(cm.valeur) + '</span><span class="sc-ind-lib">' + esc(cm.titre) + ' : ' + esc(cm.unite) + '</span><span class="sc-ind-sous">' + esc(cm.secondaire) + '</span></div><p class="sc-note">' + esc(cm.limite) + '</p></div>';
+    var pA = htmlObjectifStation(etat) + '<div class="sc-inds pt-inds"><div class="sc-ind sc-info" data-carte="marge_estimee"><span class="sc-ind-val">' + esc(cm.valeur) + '</span><span class="sc-ind-lib">' + esc(cm.titre) + ' : ' + esc(cm.unite) + '</span><span class="sc-ind-sous">' + esc(cm.secondaire) + '</span></div><p class="sc-note">' + esc(cm.limite) + '</p></div>';
     pA += htmlFamille('fiabilite');
     pA += '<div class="vp-bloc sc-tout"><h3>Toutes les références</h3><div class="vp-filtres"><label class="pt-f pt-f-rech"><span class="sc-methode">Recherche</span><input type="search" id="ptRecherche" placeholder="Nom ou code-barres" value="' + esc(f.recherche || '') + '"></label>' +
       '<details class="pt-filtres" data-filtres-panneau="1"' + (etat.filtresOuverts ? ' open' : '') + '><summary><span class="sc-nom">Filtres (' + nbFiltres(f) + ')</span><span class="sc-chev"></span></summary><div class="pt-filtres-corps">' +
@@ -1322,7 +1338,8 @@
     return h;
   }
 
-  var CSS = '.vue-p1c .pt-axes{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:12px 0}.vue-p1c .pt-axe{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:2px;min-height:60px;padding:8px 10px;background:var(--t-panel);color:var(--t-text);border:1px solid var(--t-line);border-radius:14px;cursor:pointer;text-align:left;font:inherit}' +
+  var CSS = '.vue-p1c .pt-obj{margin:10px 0}.vue-p1c .pt-obj-form{display:flex;flex-direction:column;gap:6px;margin:8px 0}.vue-p1c .pt-obj-form input[type=text]{width:100%;box-sizing:border-box;min-height:44px;border-radius:8px;border:1px solid var(--t-line);background:var(--t-panel);color:var(--t-text);font:inherit;padding:0 10px}.vue-p1c .pt-obj-champ{position:relative;display:block}.vue-p1c .pt-obj-champ input{padding-right:32px}.vue-p1c .pt-obj-pct{position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--t-mid);pointer-events:none}.vue-p1c .pt-obj-btn{width:100%;min-height:44px;margin-top:4px}@media (min-width:900px){.vue-p1c .pt-obj-btn{width:auto;align-self:flex-start}}' +
+    '.vue-p1c .pt-axes{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:12px 0}.vue-p1c .pt-axe{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:2px;min-height:60px;padding:8px 10px;background:var(--t-panel);color:var(--t-text);border:1px solid var(--t-line);border-radius:14px;cursor:pointer;text-align:left;font:inherit}' +
     '.vue-p1c .pt-axe.on{border:1.5px solid var(--t-text);background:rgba(34,211,238,.12)}.vue-p1c .pt-axe:focus-visible{outline:2px solid var(--t-text);outline-offset:2px}.vue-p1c .pt-axe-nom{font-weight:600;font-size:14px}.vue-p1c .pt-axe-n{font-size:18px;font-weight:700}.vue-p1c .pt-axe-l{font-size:11px;color:var(--t-mid)}.vue-p1c .pt-axe-pan[hidden]{display:none}' +
     '@media (min-width:900px){.vue-p1c .pt-axes{grid-template-columns:repeat(4,1fr)}.vue-p1c .pt-axe{min-height:110px;padding:14px}}' +
     '.vue-p1c .pt-inds{grid-template-columns:repeat(2,1fr)}@media (min-width:900px){.vue-p1c .pt-inds{grid-template-columns:repeat(4,1fr)}}' +
@@ -1427,7 +1444,7 @@
       return { fourni: true, lignes: lignesStockDepuisLot(rows), lot: { id: lot.id, dateReleve: lot.date_releve ? String(lot.date_releve).slice(0, 10) : null, fichierHash: lot.fichier_hash || null } };
     } catch (e) { return { fourni: false, erreur: true }; }
   }
-  var API = { htmlObjectifMarge: htmlObjectifMarge, objectifDe: objectifDe, niveauObjectif: niveauObjectif, pourcentVersFraction: pourcentVersFraction, messageErreurObjectif: messageErreurObjectif, chargerObjectifs: chargerObjectifs, estDemarque: estDemarque, lignesControle: lignesControle, nombreReleve: nombreReleve, lotStockPublie: lotStockPublie, lignesStockDepuisLot: lignesStockDepuisLot, chargerStockPublie: chargerStockPublie, TVA_CONFIRMATIONS_PILOTE: TVA_CONFIRMATIONS_PILOTE, cartes: cartes, scenarios: scenarios, alertesCartes: alertesCartes, trier: trier, filtrer: filtrer, valeursFiltres: valeursFiltres,
+  var API = { htmlObjectifMarge: htmlObjectifMarge, htmlObjectifStation: htmlObjectifStation, objectifDe: objectifDe, niveauObjectif: niveauObjectif, pourcentVersFraction: pourcentVersFraction, messageErreurObjectif: messageErreurObjectif, chargerObjectifs: chargerObjectifs, estDemarque: estDemarque, lignesControle: lignesControle, nombreReleve: nombreReleve, lotStockPublie: lotStockPublie, lignesStockDepuisLot: lignesStockDepuisLot, chargerStockPublie: chargerStockPublie, TVA_CONFIRMATIONS_PILOTE: TVA_CONFIRMATIONS_PILOTE, cartes: cartes, scenarios: scenarios, alertesCartes: alertesCartes, trier: trier, filtrer: filtrer, valeursFiltres: valeursFiltres,
     preuves: preuves, conseiller: conseiller, lierOuvertures: lierOuvertures, effetVerificationEnregistree: effetVerificationEnregistree, commentaireDuControle: commentaireDuControle, annulerVerification: annulerVerification, peutAnnuler: peutAnnuler, motifAnnulationValide: motifAnnulationValide, messageErreurAnnulation: messageErreurAnnulation, fiche: fiche, etatAcces: etatAcces, peutVoirOnglet: peutVoirOnglet, filtrerSite: filtrerSite,
     regimeDe: regimeDe, contexteDeclaratif: contexteDeclaratif, construireContexteTarif: construireContexteTarif, stockParLibelle: stockParLibelle, controle: controle, familles: familles, avertissementRegime: avertissementRegime, infoRegime: infoRegime, badgeRegime: badgeRegime, badgeLigne: badgeLigne, blocFiche: blocFiche,
     chargerRegistres: chargerRegistres, chargerVerifications: chargerVerifications, historiqueLignes: historiqueLignes, htmlHistorique: htmlHistorique, chargerVentes: chargerVentes, lireCompte: lireCompte, libellePeriode: libellePeriode,
