@@ -931,13 +931,32 @@
       return o;
     }).sort(function (a, b) { return b.ca - a.ca || (a.famille < b.famille ? -1 : 1); });
   }
+  // Libellé de tarif_familles (« Chips et petits salés »), le code en repli quand il manque.
+  function libelleFamille(etat, code) {
+    var m = (etat && etat.libellesFamilles) || {}, v = m[code];
+    return (typeof v === 'string' && v.trim()) ? v.trim() : code;
+  }
+  function filtreFamilles(etat) {
+    var g = (etat && etat.groupe) || {}, q = String(g.recherche || '').trim().toLowerCase();
+    var lignes = lignesObjectifsFamilles(etat);
+    return q ? lignes.filter(function (o) { return libelleFamille(etat, o.famille).toLowerCase().indexOf(q) !== -1 || o.famille.toLowerCase().indexOf(q) !== -1; }) : lignes;
+  }
+  function eligiblesGroupe(etat, mode) {
+    var d = (etat && etat.droitsObjectif) || {}, uid = etat && etat.userId; if (!uid) return [];
+    var out = [];
+    filtreFamilles(etat).forEach(function (o) {
+      if (mode === 'valider') { if (d.valider && o.proposition && o.proposition.propose_par !== uid) out.push(o.proposition.id); }
+      else if (d.proposer && !o.proposition && o.ligne && o.statut !== 'valide') out.push(o.famille);
+    });
+    return out;
+  }
   function htmlObjectifsFamilles(etat) {
     var d = (etat && etat.droitsObjectif) || {}, g = (etat && etat.groupe) || {};
     var h = '<section class="sc-carte pt-obj pt-obj-familles" data-objectifs-familles="1" aria-label="Objectifs de marge par famille"><div class="sc-nom">Objectifs de marge par famille</div>';
     var lignes = lignesObjectifsFamilles(etat);
     if (!lignes.length) return h + '<p class="sc-note">Aucune famille rattachée pour le moment.</p></section>';
     var q = String(g.recherche || '').trim().toLowerCase();
-    var vues = q ? lignes.filter(function (o) { return o.famille.toLowerCase().indexOf(q) !== -1; }) : lignes;
+    var vues = filtreFamilles(etat);
     var tronque = !q && vues.length > MAX_LIGNES_FAMILLES; if (tronque) vues = vues.slice(0, MAX_LIGNES_FAMILLES);
     if (lignes.length > MAX_LIGNES_FAMILLES) h += '<label class="sc-lib" for="pt-objf-rech">Chercher une famille</label><input id="pt-objf-rech" type="search" data-objf-recherche="1" value="' + esc(g.recherche || '') + '">';
     var auteurDe = function (o) { return etat.userId && o.proposition && o.proposition.propose_par === etat.userId; };
@@ -955,7 +974,7 @@
       } else if (d.proposer && etat.userId && o.ligne && o.statut !== 'valide') {
         action = '<label class="pt-objf-case"><input type="checkbox" data-objf-proposer="' + esc(o.famille) + '"' + (selP.indexOf(o.famille) !== -1 ? ' checked' : '') + '> proposer telle quelle</label>';
       }
-      h += '<li data-objf-famille="' + esc(o.famille) + '" data-objectif-statut="' + esc(o.statut) + '"><span class="sc-lib">' + esc(o.famille) + '</span> <span>' + esc(cible + st) + '</span> ' + action + '</li>';
+      h += '<li data-objf-famille="' + esc(o.famille) + '" data-objectif-statut="' + esc(o.statut) + '"><span class="sc-lib">' + esc(libelleFamille(etat, o.famille)) + '</span> <span>' + esc(cible + st) + '</span> ' + action + '</li>';
     });
     h += '</ul>';
     if (tronque) h += '<p class="sc-note">' + (lignes.length - MAX_LIGNES_FAMILLES) + ' autres familles : utilisez la recherche.</p>';
@@ -967,8 +986,8 @@
     if (porteP) h += '<div class="pt-objf-actions"><button type="button" class="detail-btn" data-objf-tout="proposer"' + (occupe ? ' disabled' : '') + '>Tout sélectionner (propositions)</button> <button type="button" class="detail-btn pt-obj-btn" data-objf-envoyer="proposer"' + (nbP && !occupe ? '' : ' disabled') + '>Proposer ces cibles telles quelles (' + nbP + ')</button></div>';
     if (!d.valider && !d.proposer) h += '<p class="sc-note">Lecture seule : proposer ou valider un objectif demande une habilitation.</p>';
     if (g.confirmer && !occupe) {
-      var libs = g.confirmer.mode === 'valider' ? selV.map(function (id) { var o = lignes.filter(function (x) { return x.proposition && x.proposition.id === id; })[0]; return o ? o.famille + ' : ' + pct(num(o.proposition.cible)) : id; })
-        : selP.map(function (f) { var o = lignes.filter(function (x) { return x.famille === f; })[0]; return f + (o && o.ligne ? ' : ' + pct(num(o.ligne.cible)) : ''); });
+      var libs = g.confirmer.mode === 'valider' ? selV.map(function (id) { var o = lignes.filter(function (x) { return x.proposition && x.proposition.id === id; })[0]; return o ? libelleFamille(etat, o.famille) + ' : ' + pct(num(o.proposition.cible)) : id; })
+        : selP.map(function (f) { var o = lignes.filter(function (x) { return x.famille === f; })[0]; return libelleFamille(etat, f) + (o && o.ligne ? ' : ' + pct(num(o.ligne.cible)) : ''); });
       h += '<div class="pt-objf-confirm" role="alertdialog" aria-label="Confirmation" data-objf-confirm="' + esc(g.confirmer.mode) + '"><p class="sc-lib">' + (g.confirmer.mode === 'valider' ? 'Valider ' : 'Proposer ') + libs.length + (libs.length > 1 ? ' objectifs ?' : ' objectif ?') + '</p><ul>' +
         libs.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul><button type="button" class="detail-btn pt-obj-btn" data-objf-confirmer="1">Confirmer</button> <button type="button" class="detail-btn" data-objf-annuler="1">Annuler</button></div>';
     }
@@ -1009,7 +1028,9 @@
     for (var k in droits) {
       try { var q = await client.rpc('objectif_habilite', { p_site: site, p_droit: k }); droits[k] = !q.error && q.data === true; } catch (e) { droits[k] = false; }
     }
-    return { lignes: lignes, propositions: props, droits: droits };
+    var libelles = {};
+    try { var fq = await client.from('v_tarif_familles_actifs').select('famille_code, libelle').eq('site', site); if (!fq.error && fq.data) fq.data.forEach(function (f) { if (f.famille_code && f.libelle) libelles[f.famille_code] = f.libelle; }); } catch (e) { /* repli : le code */ }
+    return { lignes: lignes, propositions: props, droits: droits, libelles: libelles };
   }
   function htmlFiche(l, etat) {
     var droits = etat ? peutVerifier(etat.role, etat.estCreateur) : false;
@@ -1530,7 +1551,7 @@
       return { fourni: true, lignes: lignesStockDepuisLot(rows), lot: { id: lot.id, dateReleve: lot.date_releve ? String(lot.date_releve).slice(0, 10) : null, fichierHash: lot.fichier_hash || null } };
     } catch (e) { return { fourni: false, erreur: true }; }
   }
-  var API = { htmlObjectifMarge: htmlObjectifMarge, htmlObjectifsFamilles: htmlObjectifsFamilles, lignesObjectifsFamilles: lignesObjectifsFamilles, envoyerGroupe: envoyerGroupe, bilanGroupe: bilanGroupe, objectifDe: objectifDe, niveauObjectif: niveauObjectif, pourcentVersFraction: pourcentVersFraction, messageErreurObjectif: messageErreurObjectif, chargerObjectifs: chargerObjectifs, estDemarque: estDemarque, lignesControle: lignesControle, nombreReleve: nombreReleve, lotStockPublie: lotStockPublie, lignesStockDepuisLot: lignesStockDepuisLot, chargerStockPublie: chargerStockPublie, TVA_CONFIRMATIONS_PILOTE: TVA_CONFIRMATIONS_PILOTE, cartes: cartes, scenarios: scenarios, alertesCartes: alertesCartes, trier: trier, filtrer: filtrer, valeursFiltres: valeursFiltres,
+  var API = { htmlObjectifMarge: htmlObjectifMarge, htmlObjectifsFamilles: htmlObjectifsFamilles, libelleFamille: libelleFamille, eligiblesGroupe: eligiblesGroupe, lignesObjectifsFamilles: lignesObjectifsFamilles, envoyerGroupe: envoyerGroupe, bilanGroupe: bilanGroupe, objectifDe: objectifDe, niveauObjectif: niveauObjectif, pourcentVersFraction: pourcentVersFraction, messageErreurObjectif: messageErreurObjectif, chargerObjectifs: chargerObjectifs, estDemarque: estDemarque, lignesControle: lignesControle, nombreReleve: nombreReleve, lotStockPublie: lotStockPublie, lignesStockDepuisLot: lignesStockDepuisLot, chargerStockPublie: chargerStockPublie, TVA_CONFIRMATIONS_PILOTE: TVA_CONFIRMATIONS_PILOTE, cartes: cartes, scenarios: scenarios, alertesCartes: alertesCartes, trier: trier, filtrer: filtrer, valeursFiltres: valeursFiltres,
     preuves: preuves, conseiller: conseiller, lierOuvertures: lierOuvertures, effetVerificationEnregistree: effetVerificationEnregistree, commentaireDuControle: commentaireDuControle, annulerVerification: annulerVerification, peutAnnuler: peutAnnuler, motifAnnulationValide: motifAnnulationValide, messageErreurAnnulation: messageErreurAnnulation, fiche: fiche, etatAcces: etatAcces, peutVoirOnglet: peutVoirOnglet, filtrerSite: filtrerSite,
     regimeDe: regimeDe, contexteDeclaratif: contexteDeclaratif, construireContexteTarif: construireContexteTarif, stockParLibelle: stockParLibelle, controle: controle, familles: familles, avertissementRegime: avertissementRegime, infoRegime: infoRegime, badgeRegime: badgeRegime, badgeLigne: badgeLigne, blocFiche: blocFiche,
     chargerRegistres: chargerRegistres, chargerVerifications: chargerVerifications, historiqueLignes: historiqueLignes, htmlHistorique: htmlHistorique, chargerVentes: chargerVentes, lireCompte: lireCompte, libellePeriode: libellePeriode,

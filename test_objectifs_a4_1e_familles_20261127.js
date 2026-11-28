@@ -66,5 +66,30 @@ t('proposition groupée : un appel par famille, niveau famille, cible reprise', 
   assert.strictEqual(appels[0][1].p_niveau, 'famille'); assert.strictEqual(appels[0][1].p_cible_niveau, 'Epicerie'); assert.strictEqual(appels[0][1].p_cible, 0.3);
   assert.strictEqual(r.bilan, '1 proposé.');
 });
+const LIBS = { chips_et_petits_sales: 'Chips et petits salés', eaux_non_aromatisees: 'Eaux non aromatisées' };
+t('libellé de tarif_familles affiché, code en repli, recherche par libellé', () => {
+  const e = base({ analyse: { lignes: [lg('chips_et_petits_sales', 900), lg('eaux_non_aromatisees', 500), lg('sans_libelle', 100)] }, libellesFamilles: LIBS, propositions: [prop('chips_et_petits_sales')], groupe: { selValider: ['p-chips_et_petits_sales'], confirmer: { mode: 'valider' } } });
+  const h = E.htmlObjectifsFamilles(e);
+  assert.ok(h.includes('Chips et petits salés') && h.includes('Eaux non aromatisées'));
+  assert.ok(!h.includes('>chips_et_petits_sales<') && !h.includes('>eaux_non_aromatisees<'));
+  assert.ok(h.includes('>sans_libelle<'), 'repli sur le code');
+  assert.ok(/Chips et petits salés : /.test(h), 'confirmation avec le libellé');
+  assert.strictEqual(E.libelleFamille(e, 'chips_et_petits_sales'), 'Chips et petits salés');
+  assert.strictEqual(E.libelleFamille(e, 'inconnu'), 'inconnu');
+  const r = E.htmlObjectifsFamilles(Object.assign({}, e, { groupe: { recherche: 'petits salés' } }));
+  assert.strictEqual((r.match(/data-objf-famille=/g) || []).length, 1);
+});
+t('Tout sélectionner : toutes les lignes éligibles, au-delà de 10, et seulement la recherche', () => {
+  const lignes = []; const props = [];
+  for (let i = 0; i < 14; i++) { const f = 'f' + String(i).padStart(2, '0'); lignes.push(lg(f, 100 - i)); props.push(prop(f)); }
+  const e = base({ analyse: { lignes }, propositions: props, libellesFamilles: { f13: 'Zeta spécial', f12: 'Zeta autre' } });
+  assert.strictEqual(E.eligiblesGroupe(e, 'valider').length, 14);
+  const rech = Object.assign({}, e, { groupe: { recherche: 'zeta' } });
+  assert.deepStrictEqual(E.eligiblesGroupe(rech, 'valider').sort(), ['p-f12', 'p-f13']);
+  const h = E.htmlObjectifsFamilles(Object.assign({}, e, { groupe: { selValider: E.eligiblesGroupe(e, 'valider') } }));
+  assert.ok(h.includes('Valider la sélection (14)'));
+  const e2 = base({ analyse: { lignes }, objectifs: lignes.map(l => cib(l.famille, 0.2, 'indicatif')) });
+  assert.strictEqual(E.eligiblesGroupe(e2, 'proposer').length, 14);
+});
 t('l\'ancienne carte station a disparu', () => assert.strictEqual(E.htmlObjectifStation, undefined));
 Promise.resolve().then(() => new Promise(r => setTimeout(r, 50))).then(() => console.log(n + ' tests'));

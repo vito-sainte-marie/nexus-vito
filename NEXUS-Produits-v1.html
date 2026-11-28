@@ -413,7 +413,7 @@ body.nexus-desktop #resultSection > *{margin-bottom:12px;}
 <script src="nexus-anomalies-tarifaires.js"></script>
 <script src="nexus-politique-tarifaire.js"></script>
 <script src="nexus-politique-tarifaire-registres.js"></script>
-<script src="nexus-politique-tarifaire-ecran.js?v=20261127-1500"></script>
+<script src="nexus-politique-tarifaire-ecran.js?v=20261128-0500"></script>
 <script src="nexus-produits-securite.js"></script>
 </head>
 <body>
@@ -1765,7 +1765,7 @@ nexusRequireAuth().then(async employee => {
       else if (rr.statut === 'erreur') { console.warn('Réévaluations non enregistrées', rr.erreur); etat.messageReeval = "Les réévaluations n'ont pas pu être enregistrées. L'écran reste à jour, l'enregistrement sera retenté à la prochaine ouverture."; }
     }
     // Objectifs de marge (A4-1b) : lecture du registre actif et des droits ; écriture par proposer_marge_cible / valider_marge_cible / retirer_marge_cible.
-    const rechargerObjectifs = async () => { try { const ob = await E.chargerObjectifs(nexusClient, SITE_ACTUEL); etat.objectifs = ob.lignes; etat.propositions = ob.propositions || []; etat.droitsObjectif = ob.droits; } catch (e) { etat.objectifs = etat.objectifs || []; etat.propositions = etat.propositions || []; etat.droitsObjectif = etat.droitsObjectif || {}; } };
+    const rechargerObjectifs = async () => { try { const ob = await E.chargerObjectifs(nexusClient, SITE_ACTUEL); etat.objectifs = ob.lignes; etat.propositions = ob.propositions || []; etat.droitsObjectif = ob.droits; etat.libellesFamilles = ob.libelles || {}; } catch (e) { etat.objectifs = etat.objectifs || []; etat.propositions = etat.propositions || []; etat.droitsObjectif = etat.droitsObjectif || {}; } };
     await rechargerObjectifs();
     const ecrireObjectif = async (btn, mode) => {
       const valider = mode === 'valider', retirer = mode === 'retirer';
@@ -1797,8 +1797,8 @@ nexusRequireAuth().then(async employee => {
     const envoyerSelection = async (mode) => {
       const g = groupe(), lignes = E.lignesObjectifsFamilles(etat);
       const items = mode === 'valider'
-        ? g.selValider.map(id => { const o = lignes.filter(x => x.proposition && x.proposition.id === id)[0]; return o ? { id, libelle: o.famille } : null; }).filter(Boolean)
-        : g.selProposer.map(f => { const o = lignes.filter(x => x.famille === f)[0]; return o && o.ligne ? { famille: f, cible: Number(o.ligne.cible), libelle: f } : null; }).filter(Boolean);
+        ? g.selValider.map(id => { const o = lignes.filter(x => x.proposition && x.proposition.id === id)[0]; return o ? { id, libelle: E.libelleFamille(etat, o.famille) } : null; }).filter(Boolean)
+        : g.selProposer.map(f => { const o = lignes.filter(x => x.famille === f)[0]; return o && o.ligne ? { famille: f, cible: Number(o.ligne.cible), libelle: E.libelleFamille(etat, f) } : null; }).filter(Boolean);
       g.confirmer = null; g.enCours = true; g.resultats = []; g.bilan = ''; rendre();
       const r = await E.envoyerGroupe(nexusClient, SITE_ACTUEL, mode, items);
       g.enCours = false; g.resultats = r.resultats; g.bilan = r.bilan;
@@ -1810,8 +1810,9 @@ nexusRequireAuth().then(async employee => {
       corps.querySelectorAll('[data-objf-valider]').forEach(c => c.addEventListener('change', () => { basculer(g.selValider, c.dataset.objfValider, c.checked); rendre(); }));
       corps.querySelectorAll('[data-objf-proposer]').forEach(c => c.addEventListener('change', () => { basculer(g.selProposer, c.dataset.objfProposer, c.checked); rendre(); }));
       corps.querySelectorAll('[data-objf-tout]').forEach(b => b.addEventListener('click', () => {
-        if (b.dataset.objfTout === 'valider') g.selValider = Array.from(corps.querySelectorAll('[data-objf-valider]')).map(c => c.dataset.objfValider);
-        else g.selProposer = Array.from(corps.querySelectorAll('[data-objf-proposer]')).map(c => c.dataset.objfProposer);
+        // Toutes les lignes éligibles (y compris celles masquées par la limite de 10) ; avec une recherche, seulement ses résultats.
+        if (b.dataset.objfTout === 'valider') g.selValider = E.eligiblesGroupe(etat, 'valider');
+        else g.selProposer = E.eligiblesGroupe(etat, 'proposer');
         rendre();
       }));
       corps.querySelectorAll('[data-objf-envoyer]').forEach(b => b.addEventListener('click', () => { g.confirmer = { mode: b.dataset.objfEnvoyer }; rendre(); }));
