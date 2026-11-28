@@ -1,6 +1,6 @@
 // Écran 1 « Politique tarifaire » (T3) : lecture seule.
 // Toute la logique de calcul reste dans le moteur T2 (NexusPolitiqueTarifaire) ; cet écran ne recalcule rien,
-// il agrège, trie, filtre et affiche ce que le moteur rend. Aucune écriture, nulle part.
+// il agrège, trie, filtre et affiche ce que le moteur rend. Aucune écriture, sauf le panneau « Objectifs de marge » de la fiche (A4-1b), qui passe par deux fonctions SQL.
 (function (global) {
   'use strict';
 
@@ -822,11 +822,98 @@
       li('Prix décidé', pd ? eur(pd.prix_ttc) + ', état : ' + (pd.etat || 'n/d') : 'aucun') +
       li('Alertes', alertes.length ? alertes.join(', ') : 'aucune') + '</details>';
   }
+  // ---------- Objectifs de marge (A4-1b) : proposer puis valider une cible, par deux comptes distincts ----------
+  // La cible validée vit dans tarif_seuils (registre versionné) et reste active tant qu'une proposition de révision attend.
+  // La proposition vit dans marge_cible_propositions. L'écriture passe par trois fonctions SQL (proposer_marge_cible,
+  // valider_marge_cible, retirer_marge_cible) ; l'écran ne les écrit jamais en direct. L'objectif n'entre dans aucune note d'équipe.
+  var LIB_STATUT_OBJECTIF = { valide: 'défini, valide', indicatif: 'indicatif, à valider', a_l_etude: 'à l\'étude', hypothese: 'hypothèse' };
+  function niveauObjectif(l) {
+    if (l && l.famille) return { niveau: 'famille', cible_niveau: l.famille, libelle: 'famille ' + l.famille };
+    if (l && l.rayon) return { niveau: 'rayon', cible_niveau: l.rayon, libelle: 'rayon ' + l.rayon };
+    return null;
+  }
+  function objectifDe(l, etat) {
+    var n = niveauObjectif(l); if (!n) return { niveau: null, ligne: null };
+    var rows = (etat && etat.objectifs) || [];
+    var ligne = rows.filter(function (r) { return r.niveau === n.niveau && r.cible_niveau === n.cible_niveau && r.cible !== null && r.cible !== undefined; })[0] || null;
+    var props = (etat && etat.propositions) || [];
+    var proposition = props.filter(function (r) { return r.statut === 'ouverte' && r.niveau === n.niveau && r.cible_niveau === n.cible_niveau; })[0] || null;
+    return { niveau: n, ligne: ligne, proposition: proposition };
+  }
+  function pourcentVersFraction(texte) {
+    var t = String(texte === undefined || texte === null ? '' : texte).replace(',', '.').replace('%', '').trim();
+    if (t === '' || !/^\d+(\.\d+)?$/.test(t)) return null;
+    var v = parseFloat(t) / 100;
+    return v >= 0 && v < 1 ? Math.round(v * 10000) / 10000 : null;
+  }
+  var MESSAGES_OBJECTIF = {
+    objectif_non_habilite_proposer: 'Vous n\'avez pas le droit de proposer un objectif de marge sur ce site.',
+    objectif_non_habilite_valider: 'Vous n\'avez pas le droit de valider un objectif de marge sur ce site.',
+    objectif_auto_validation_interdite: 'Vous ne pouvez pas valider votre propre proposition : un autre compte doit le faire.',
+    marge_cible_sous_minimum: 'La cible proposée est inférieure au minimum déjà défini pour ce niveau.',
+    marge_cible_invalide: 'La cible doit être un pourcentage compris entre 0 et moins de 100.',
+    marge_cible_proposition_existante: 'Une proposition est déjà en attente sur ce niveau. Retirez-la ou faites-la valider avant d\'en proposer une autre.',
+    marge_cible_proposition_close: 'Cette proposition n\'est plus en attente. Rechargez la fiche.',
+    marge_cible_introuvable: 'Cette proposition n\'existe plus. Rechargez la fiche.',
+    marge_cible_motif_requis: 'Un retrait demande un motif.',
+    objectif_non_habilite_retirer: 'Vous n\'avez pas le droit de retirer cette proposition.',
+    objectif_autre_station: 'Cet objectif concerne une autre station.',
+    objectif_non_authentifie: 'Session expirée : reconnectez-vous.'
+  };
+  function messageErreurObjectif(e) {
+    var m = String((e && (e.message || e)) || '');
+    for (var k in MESSAGES_OBJECTIF) { if (m.indexOf(k) !== -1) return MESSAGES_OBJECTIF[k]; }
+    return 'L\'objectif n\'a pas pu être enregistré. Aucune modification n\'a été faite.';
+  }
+  function htmlObjectifMarge(l, etat) {
+    var o = objectifDe(l, etat), d = (etat && etat.droitsObjectif) || {};
+    var h = '<details class="sc-carte pt-obj" data-objectif-marge="1"' + (etat && etat.objectifOuvert ? ' open' : '') + '><summary><span class="sc-nom">Objectifs de marge</span><span class="sc-chev"></span></summary>';
+    if (!o.niveau) return h + '<p class="sc-note">Aucune famille ni rayon : pas d\'objectif possible pour cette référence.</p></details>';
+    var st = o.ligne ? (LIB_STATUT_OBJECTIF[o.ligne.statut_cible] || o.ligne.statut_cible) : 'non défini';
+    h += '<div class="pt-pol-l"><span class="sc-lib">Objectif (' + esc(o.niveau.libelle) + ')</span><span data-objectif-statut="' + (o.ligne ? esc(o.ligne.statut_cible) : 'non_defini') + '">' +
+      (o.ligne ? esc(pct(num(o.ligne.cible))) + ' : ' : '') + esc(st) + '</span></div>';
+    h += '<p class="sc-note">Cet objectif n\'entre dans aucune note d\'équipe.</p>';
+    var pr = o.proposition;
+    if (pr) {
+      h += '<div class="pt-pol-l"><span class="sc-lib">Proposition en attente</span><span data-objectif-proposition="' + esc(pr.id) + '">proposé ' + esc(pct(num(pr.cible))) + ', en attente de validation</span></div>';
+      if (o.ligne && o.ligne.statut_cible === 'valide') h += '<p class="sc-note">L\'objectif validé reste en vigueur jusqu\'à la validation de cette proposition.</p>';
+      var auteur = etat.userId && pr.propose_par === etat.userId;
+      if (d.valider && etat.userId && !auteur) {
+        h += '<button type="button" class="detail-btn" data-objectif-valider="' + esc(pr.id) + '">Valider cette proposition</button>';
+      } else if (d.valider && auteur) {
+        h += '<p class="sc-note" data-objectif-attente="1">Un autre compte doit valider votre proposition.</p>';
+      }
+      if ((d.valider || (d.proposer && auteur)) && etat.userId) {
+        h += '<div class="pt-obj-form"><label class="sc-lib" for="pt-obj-motif">Motif du retrait</label><input id="pt-obj-motif" type="text" maxlength="300" data-objectif-motif="1">' +
+          '<button type="button" class="detail-btn" data-objectif-retirer="' + esc(pr.id) + '">Retirer la proposition</button></div>';
+      }
+    }
+    if (d.proposer && !pr) {
+      h += '<div class="pt-obj-form"><label class="sc-lib" for="pt-obj-cible">Proposer une cible (en %)</label>' +
+        '<input id="pt-obj-cible" type="text" inputmode="decimal" autocomplete="off" data-objectif-cible="1">' +
+        '<label class="sc-lib" for="pt-obj-com">Commentaire (facultatif)</label><input id="pt-obj-com" type="text" maxlength="300" data-objectif-commentaire="1">' +
+        '<button type="button" class="detail-btn" data-objectif-proposer="1" data-niveau="' + esc(o.niveau.niveau) + '" data-cible-niveau="' + esc(o.niveau.cible_niveau) + '">Proposer</button></div>';
+    } else if (!d.proposer && !d.valider) {
+      h += '<p class="sc-note">Lecture seule : proposer ou valider un objectif demande une habilitation.</p>';
+    }
+    return h + '<p class="sc-msg sc-note pt-obj-msg" role="status" data-objectif-msg="1"></p></details>';
+  }
+  async function chargerObjectifs(client, site) {
+    var lignes = [], droits = { proposer: false, valider: false };
+    var props = [];
+    var r = await client.from('v_tarif_seuils_actifs').select('*').eq('site', site);
+    if (!r.error && r.data) lignes = r.data;
+    try { var pq = await client.from('marge_cible_propositions').select('id, niveau, cible_niveau, cible, commentaire, propose_par, propose_le, statut').eq('site', site).eq('statut', 'ouverte'); if (!pq.error && pq.data) props = pq.data; } catch (e) { props = []; }
+    for (var k in droits) {
+      try { var q = await client.rpc('objectif_habilite', { p_site: site, p_droit: k }); droits[k] = !q.error && q.data === true; } catch (e) { droits[k] = false; }
+    }
+    return { lignes: lignes, propositions: props, droits: droits };
+  }
   function htmlFiche(l, etat) {
     var droits = etat ? peutVerifier(etat.role, etat.estCreateur) : false;
     return '<div class="pt-fond" data-fermer="1"></div><aside class="sc-fiche pt-fiche" role="dialog" aria-modal="true" aria-label="Fiche de ' + esc(l.article) + '" tabindex="-1" data-fiche-ouverte="' + esc(l.article) + '">' +
       '<div class="pt-fiche-tete"><div class="sc-nom">' + esc(l.article) + '</div><button type="button" class="detail-btn pt-fermer" data-fermer="1" aria-label="Fermer la fiche">Fermer</button></div>' +
-      '<div class="pt-fiche-corps">' + ficheMarge(l) + htmlControlesAFaire(l, droits, etat) + blocFiche(l) + '</div></aside>';
+      '<div class="pt-fiche-corps">' + ficheMarge(l) + htmlControlesAFaire(l, droits, etat) + htmlObjectifMarge(l, etat) + blocFiche(l) + '</div></aside>';
   }
   function htmlControle(c, icone) {
     var badgeG = c.nombre ? B.gravite(graviteBadge(c.gravite)) : B.gravite('conforme');
@@ -1340,7 +1427,7 @@
       return { fourni: true, lignes: lignesStockDepuisLot(rows), lot: { id: lot.id, dateReleve: lot.date_releve ? String(lot.date_releve).slice(0, 10) : null, fichierHash: lot.fichier_hash || null } };
     } catch (e) { return { fourni: false, erreur: true }; }
   }
-  var API = { estDemarque: estDemarque, lignesControle: lignesControle, nombreReleve: nombreReleve, lotStockPublie: lotStockPublie, lignesStockDepuisLot: lignesStockDepuisLot, chargerStockPublie: chargerStockPublie, TVA_CONFIRMATIONS_PILOTE: TVA_CONFIRMATIONS_PILOTE, cartes: cartes, scenarios: scenarios, alertesCartes: alertesCartes, trier: trier, filtrer: filtrer, valeursFiltres: valeursFiltres,
+  var API = { htmlObjectifMarge: htmlObjectifMarge, objectifDe: objectifDe, niveauObjectif: niveauObjectif, pourcentVersFraction: pourcentVersFraction, messageErreurObjectif: messageErreurObjectif, chargerObjectifs: chargerObjectifs, estDemarque: estDemarque, lignesControle: lignesControle, nombreReleve: nombreReleve, lotStockPublie: lotStockPublie, lignesStockDepuisLot: lignesStockDepuisLot, chargerStockPublie: chargerStockPublie, TVA_CONFIRMATIONS_PILOTE: TVA_CONFIRMATIONS_PILOTE, cartes: cartes, scenarios: scenarios, alertesCartes: alertesCartes, trier: trier, filtrer: filtrer, valeursFiltres: valeursFiltres,
     preuves: preuves, conseiller: conseiller, lierOuvertures: lierOuvertures, effetVerificationEnregistree: effetVerificationEnregistree, commentaireDuControle: commentaireDuControle, annulerVerification: annulerVerification, peutAnnuler: peutAnnuler, motifAnnulationValide: motifAnnulationValide, messageErreurAnnulation: messageErreurAnnulation, fiche: fiche, etatAcces: etatAcces, peutVoirOnglet: peutVoirOnglet, filtrerSite: filtrerSite,
     regimeDe: regimeDe, contexteDeclaratif: contexteDeclaratif, construireContexteTarif: construireContexteTarif, stockParLibelle: stockParLibelle, controle: controle, familles: familles, avertissementRegime: avertissementRegime, infoRegime: infoRegime, badgeRegime: badgeRegime, badgeLigne: badgeLigne, blocFiche: blocFiche,
     chargerRegistres: chargerRegistres, chargerVerifications: chargerVerifications, historiqueLignes: historiqueLignes, htmlHistorique: htmlHistorique, chargerVentes: chargerVentes, lireCompte: lireCompte, libellePeriode: libellePeriode,
