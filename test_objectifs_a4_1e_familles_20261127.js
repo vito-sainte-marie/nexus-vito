@@ -3,6 +3,9 @@
 // A4-1f : assertions de présentation adaptées à la refonte (libellé « Sans cible », case d'en-tête, barre de sélection, boutons rapides). Les arguments des RPC restent vérifiés ci-dessous, inchangés.
 const assert = require('assert');
 const E = require('./nexus-politique-tarifaire-ecran.js');
+// A4-1f-bis : la carte est repliée par défaut ; ces épreuves portent sur son corps, donc déplié sauf indication contraire.
+const htmlReplie = E.htmlObjectifsFamilles;
+E.htmlObjectifsFamilles = (e) => htmlReplie(Object.assign({}, e, { groupe: Object.assign({ ouvert: true }, e && e.groupe) }));
 let n = 0;
 function t(nom, f) { const r = f(); const fin = () => { n++; console.log('OK ' + nom); }; return r && r.then ? r.then(fin) : fin(); }
 const lg = (famille, ca) => ({ famille, ca_ht: ca, article: famille + '1' });

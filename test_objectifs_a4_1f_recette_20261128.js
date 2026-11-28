@@ -3,6 +3,9 @@
 // aide, icône, récapitulatif, proposition vide. Présentation seulement. Valeurs fictives.
 const assert = require('assert');
 const E = require('./nexus-politique-tarifaire-ecran.js');
+// A4-1f-bis : la carte est repliée par défaut ; ces épreuves portent sur son corps, donc déplié sauf indication contraire.
+const htmlReplie = E.htmlObjectifsFamilles;
+E.htmlObjectifsFamilles = (e) => htmlReplie(Object.assign({}, e, { groupe: Object.assign({ ouvert: true }, e && e.groupe) }));
 function t(nom, f) { Promise.resolve().then(f).then(() => console.log('OK ' + nom), e => { console.error('AssertionError: ' + nom + ' : ' + String(e.message).split('\n')[0]); process.exitCode = 1; }); }
 const lg = (famille, ca) => ({ famille, ca_ht: ca, article: famille + '1' });
 const reg = (f, c, sc, m, sm) => ({ niveau: 'famille', cible_niveau: f, cible: c, minimum: m, statut_cible: sc, statut_minimum: sm, id: 'o-' + f });
