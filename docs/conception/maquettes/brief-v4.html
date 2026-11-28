@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="fr" data-theme="jour"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Maquette Brief v4 · bureau 1280</title>
+<style>
+/* Jetons repris de NEXUS-Tempo-v2.html (--t-*, piste / boutique / FDJ). */
+:root{--t-bg:#07131E;--t-panel:#0D202E;--t-raised:#0F2433;--t-line:#254354;--t-text:#EDF1F5;--t-mid:#9AA8B6;--t-cyan:#24D8E3;--t-green:#29C98A;--t-amber:#F5A12A;--t-red:#F0786E;--t-bar2:#5B7A8E;--piste:#22C7B8;--boutique:#C47A55;--fdj:#A18BF2;--ombre:0 1px 2px rgba(0,0,0,.35),0 8px 24px rgba(0,0,0,.18);--t-mono:"IBM Plex Mono",ui-monospace,monospace;--t-sans:"IBM Plex Sans",system-ui,sans-serif}
+:root[data-theme="jour"]{--t-bg:#F4F6F8;--t-panel:#FFFFFF;--t-raised:#EEF2F5;--t-line:#D5DCE3;--t-text:#0F172A;--t-mid:#475569;--t-cyan:#0B7285;--t-green:#047857;--t-amber:#B45309;--t-red:#B42318;--t-bar2:#94A3B8;--piste:#0F766E;--boutique:#7A4A3A;--fdj:#6246C9;--ombre:0 1px 2px rgba(15,23,42,.05),0 8px 24px rgba(15,23,42,.06)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--t-bg);color:var(--t-text);font:14px/1.45 var(--t-sans);padding:24px}
+.hors{display:flex;gap:8px;align-items:center;margin:0 auto 16px;width:1280px;max-width:100%;color:var(--t-mid);font-size:12px}
+.hors button{min-height:36px;padding:0 14px;border-radius:8px;border:1px solid var(--t-line);background:var(--t-panel);color:var(--t-text);font:inherit;cursor:pointer}
+.hors button[aria-pressed=true]{border-color:var(--t-cyan);color:var(--t-cyan)}
+:focus-visible{outline:2px solid var(--t-cyan);outline-offset:2px;border-radius:6px}
+.page{width:1280px;max-width:100%;margin:0 auto;display:grid;gap:24px}
+.mono{font-family:var(--t-mono)}
+.unite{font:400 13px var(--t-mono);color:var(--t-mid);margin-left:4px}
+.lect h3 .ico{background:color-mix(in srgb,var(--t-text) 14%,transparent);border-radius:8px;padding:3px;box-sizing:content-box}
+.ico{width:24px;height:24px;flex:none;display:block}.ico.g{width:32px;height:32px}
+/* En-tête */
+.bandeau{position:relative;margin:0;border-radius:12px;overflow:hidden;background:#07131E;height:200px}.bandeau .titre{position:absolute;left:32px;top:50%;transform:translateY(-50%);display:flex;align-items:center;gap:20px;color:#fff}.bandeau .titre img{width:72px;height:72px;object-fit:contain;flex:none}.bandeau .titre h1{margin:0;font:600 44px/1 'IBM Plex Sans',system-ui,sans-serif;letter-spacing:-.01em;color:#fff}.bandeau .titre p{margin:6px 0 0;font:500 16px/1.2 'IBM Plex Sans',system-ui,sans-serif;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.45)}.bandeau img{display:block;width:100%;height:100%;object-fit:cover;object-position:left 30%}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.tete{display:flex;align-items:center;gap:16px}
+.tete h1{margin:0;font-size:22px;font-weight:600;letter-spacing:-.01em}
+.tete .sous{color:var(--t-mid);font-size:13px}
+.tete .fin{margin-left:auto;text-align:right;font:12px var(--t-mono);color:var(--t-mid)}
+/* Titre de section façon Tempo */
+.ts{display:flex;align-items:center;gap:12px;margin:0 0 12px;font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--t-mid)}
+.ts::after{content:"";flex:1;height:1px;background:var(--t-line)}
+.carte{background:var(--t-panel);border:1px solid var(--t-line);border-radius:12px;padding:20px;box-shadow:var(--ombre)}
+.carte h3{margin:0;font-size:13px;font-weight:600;display:flex;align-items:center;gap:10px}
+.grille{display:grid;gap:16px;align-items:stretch}
+.g3{grid-template-columns:repeat(3,1fr)}.g5{grid-template-columns:repeat(5,1fr)}.g2{grid-template-columns:1fr 1fr}.g4{grid-template-columns:repeat(4,1fr)}.g21{grid-template-columns:2fr 1fr}
+.pastille{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;border-radius:999px;padding:2px 10px;color:var(--c);background:color-mix(in srgb,var(--c) 13%,transparent);white-space:nowrap}
+.pastille::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--c)}
+.ok{--c:var(--t-green)}.av{--c:var(--t-amber)}.mal{--c:var(--t-red)}.nd{--c:var(--t-bar2)}
+.vert{color:var(--t-green)}.amb{color:var(--t-amber)}.rouge{color:var(--t-red)}
+/* Lectures : chiffre en grand */
+.lect{display:flex;flex-direction:column;gap:10px;min-height:196px}
+.lect .nb{font:600 40px/1 var(--t-mono);letter-spacing:-.02em;margin-top:4px}
+.lect .nb .unite{font-size:14px}
+.lect .ligne{margin-top:auto;display:flex;align-items:center;gap:8px;justify-content:space-between;color:var(--t-mid);font-size:12px}
+/* Fiche secteur */
+.sect{display:flex;flex-direction:column;gap:10px;min-height:292px}
+.sect .nom{display:flex;align-items:center;gap:10px;font-size:13px;font-weight:600}
+.sect .nom .pastille{margin-left:auto}
+.sect .nb{font:600 30px/1 var(--t-mono);letter-spacing:-.02em}
+.sect .nb .unite{font-size:12px}
+.sect .tend{font:13px var(--t-mono)}
+.sect .viz{height:44px;margin-top:2px;display:flex;align-items:flex-end}
+.sect .pied{margin-top:auto;font-size:12px;color:var(--t-mid)}
+details.det{border-top:1px solid var(--t-line);padding-top:8px;font-size:12px;color:var(--t-mid)}
+details.det summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;color:var(--t-cyan);font-weight:600;border-radius:6px}
+details.det summary::-webkit-details-marker{display:none}
+details.det summary::after{content:"▾";transition:transform .2s}
+details.det[open] summary::after{transform:rotate(180deg)}
+details.det p{margin:8px 0 0}
+/* Jauge */
+.jauge{--p:0;width:100%;height:10px;border-radius:5px;background:var(--t-raised);position:relative}
+.jauge i{display:block;height:100%;border-radius:5px;background:var(--c,var(--t-cyan));width:calc(var(--p)*1%);transition:width .3s ease-out}
+.jauge.avant i{width:0}
+.jauge b{position:absolute;top:-4px;width:2px;height:18px;background:var(--t-text);border-radius:1px}
+.anneau{width:64px;height:64px;flex:none}
+.anneau circle{fill:none;stroke-width:7}.anneau .f{stroke:var(--t-raised)}.anneau .v{stroke:var(--c);stroke-linecap:round;transform:rotate(-90deg);transform-origin:50% 50%;transition:stroke-dashoffset .3s ease-out}
+/* Segments de couverture */
+.couv{display:flex;gap:4px}.couv i{flex:1;height:8px;border-radius:2px;background:var(--t-green)}.couv i.p{background:var(--t-amber)}.couv i.a{background:none;border:1px dashed var(--t-bar2)}
+/* Graphiques */
+.chart{width:100%;display:block}
+.chart text{font:10px var(--t-mono);fill:var(--t-mid)}
+.chart .grid{stroke:var(--t-line);stroke-width:1}
+.chart .ref{stroke:var(--t-mid);stroke-dasharray:3 4}
+.chart [data-tip]{cursor:pointer;transition:opacity .15s}
+.chart [data-tip]:hover,.chart [data-tip]:focus-visible{opacity:.78}
+.entete-graph{display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+.entete-graph .fin{margin-left:auto;display:flex;gap:8px;align-items:center}
+.seg{display:inline-flex;border:1px solid var(--t-line);border-radius:8px;overflow:hidden}
+.seg button{min-height:32px;padding:0 12px;border:0;background:none;color:var(--t-mid);font:600 12px var(--t-sans);cursor:pointer}
+.seg button[aria-pressed=true]{background:var(--t-raised);color:var(--t-text)}
+.seg button:disabled{opacity:.4;cursor:not-allowed}
+.puce{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 12px;border:1px solid var(--t-line);border-radius:999px;background:none;color:var(--t-text);font:12px var(--t-sans);cursor:pointer}
+.puce i{width:10px;height:10px;border-radius:3px;background:var(--c)}
+.puce[aria-pressed=false]{color:var(--t-mid)}.puce[aria-pressed=false] i{background:none;box-shadow:inset 0 0 0 1.5px var(--c)}
+.lien{background:none;border:0;color:var(--t-cyan);font:600 12px var(--t-sans);cursor:pointer;min-height:32px;padding:0 4px;border-radius:6px}
+table.val{width:100%;border-collapse:collapse;font:12px var(--t-mono);margin-top:12px}
+table.val th{font:600 11px var(--t-sans);color:var(--t-mid);text-align:right;padding:6px 8px;border-bottom:1px solid var(--t-line)}
+table.val td{text-align:right;padding:6px 8px;border-bottom:1px solid color-mix(in srgb,var(--t-line) 60%,transparent)}
+table.val th:first-child,table.val td:first-child{text-align:left}
+.note{font-size:12px;color:var(--t-mid);margin-top:10px}
+/* Objectifs */
+.obj{display:flex;flex-direction:column;gap:8px;min-height:156px}
+.obj .t{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--t-mid)}
+.obj .nb{font:600 28px/1 var(--t-mono)}
+.obj.vide{border-style:dashed;box-shadow:none;background:transparent;justify-content:center;align-items:flex-start}
+.obj .prop{font-size:12px;color:var(--t-amber)}
+.btn{min-height:36px;padding:0 14px;border-radius:8px;border:1px solid var(--t-line);background:var(--t-raised);color:var(--t-text);font:600 12px var(--t-sans);cursor:pointer;align-self:flex-start}
+.btn:hover{border-color:var(--t-cyan)}
+/* Listes */
+.lig{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--t-line)}.lig:last-child{border:0;padding-bottom:0}
+.lig .m{margin-left:auto;font:600 20px var(--t-mono);text-align:right}
+.lig small{display:block;color:var(--t-mid);font-size:12px}
+.lig .pastille{margin-left:auto}
+/* Info-bulle */
+#tip{position:fixed;z-index:9;pointer-events:none;background:var(--t-text);color:var(--t-bg);font:12px var(--t-mono);padding:6px 10px;border-radius:8px;opacity:0;transform:translateY(4px);transition:opacity .15s,transform .15s;max-width:260px}
+#tip.on{opacity:1;transform:none}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style></head><body>
+<div class="hors"><span>Maquette bureau 1280 · valeurs fictives, aucune donnée réelle.</span>
+ <button type="button" data-th="jour" aria-pressed="true">Jour</button><button type="button" data-th="nuit" aria-pressed="false">Nuit</button></div>
+<main class="page" id="p"></main>
+<div id="tip" role="status" aria-live="polite"></div>
+<script>
+const IC='../../../assets/icones/';
+const v2=(id,g)=>`<img class="ico${g?' g':''}" alt="" src="${IC}v2/${id}/${id}-24.svg">`;
+const tp=id=>`<img class="ico" alt="" src="${IC}tempo/simple/${id}.svg">`;
+const fr=(n,d=0)=>n.toLocaleString('fr-FR',{minimumFractionDigits:d,maximumFractionDigits:d});
+const reduit=matchMedia('(prefers-reduced-motion:reduce)').matches;
+
+/* Données fictives */
+const P=['P1','P2','P3','P4','P5','P6'],PJ=[31,28,31,30,31,45];
+const SER={marge:{n:'Marge produits boutique',u:'€/jour',c:'var(--boutique)',v:[218,null,231,226,209,203]},
+ fdj:{n:'CA FDJ',u:'€/jour',c:'var(--fdj)',v:[162,166,171,169,174,176]},
+ piste:{n:'Litres piste',u:'L/jour',c:'var(--piste)',v:[11900,12100,12400,12700,12300,12050]}};
+const jours40=(b,a,ph)=>Array.from({length:40},(_,i)=>Math.round(b+a*Math.sin(i/3+ph)+a*.4*Math.sin(i*1.7)));
+const C40={piste:jours40(11500,1600,0),marge:jours40(3100,500,1),fdj:jours40(1150,160,2)};
+const M6={piste:[352,336,361,371,365,358].map(x=>x*1000),marge:[6700,6350,7020,6890,6440,6150],fdj:[5020,4650,5300,5070,5390,5280]};
+
+/* Pièces */
+const lecture=(ic,t,nb,u,pa,det,pied)=>`<div class="carte lect"><h3>${ic}${t}</h3><div class="nb ${pa[1]}">${nb}<span class="unite">${u}</span></div><div>${pa[0]}</div><div class="ligne"><span>${det}</span>${pied||''}</div></div>`;
+const past=(t,c)=>`<span class="pastille ${c}">${t}</span>`;
+function bars(v,c){const m=Math.max(...v,1),w=100/v.length;return `<svg class="chart" viewBox="0 0 100 44" preserveAspectRatio="none" style="height:44px" role="img" aria-label="7 derniers jours">`+v.map((x,i)=>`<rect x="${i*w+1.5}" y="${44-Math.max(x/m*40,1)}" width="${w-3}" height="${Math.max(x/m*40,1)}" rx="1.5" fill="${c}" opacity="${i==v.length-1?1:.55}"/>`).join('')+'</svg>'}
+const sect=(ic,t,cov,nb,u,viz,tend,tc,pa,pied,det)=>`<div class="carte sect"><div class="nom">${ic}${t}${cov}</div><div class="nb">${nb}<span class="unite">${u}</span></div><div class="tend ${tc}">${tend}</div><div class="viz">${viz}</div><div>${pa}</div><div class="pied">${pied}</div><details class="det"><summary>Détail</summary><p>${det}</p></details></div>`;
+const jauge=(p,c,cible)=>`<div class="jauge avant" data-p="${p}" style="--c:${c}"><i style="--p:${p}"></i>${cible!=null?`<b style="left:${cible}%"></b>`:''}</div>`;
+const vide=(msg)=>`<div style="display:flex;align-items:center;justify-content:center;height:44px;width:100%;border:1px dashed var(--t-line);border-radius:8px;color:var(--t-mid);font-size:12px">${msg}</div>`;
+
+/* Histogramme indexé, séries activables */
+const actifs={marge:true,fdj:true,piste:true};
+function idx(){const W=820,H=250,L=44,R=12,T=14,B=30,mn=88,mx=112,Y=v=>T+(mx-v)/(mx-mn)*(H-T-B),gw=(W-L-R)/6,ks=Object.keys(SER).filter(k=>actifs[k]),bw=Math.min(22,(gw-20)/Math.max(ks.length,1));
+ let o=`<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Indice base 100 sur six périodes importées">`;
+ [90,100,110].forEach(g=>o+=`<line class="${g==100?'ref':'grid'}" x1="${L}" x2="${W-R}" y1="${Y(g)}" y2="${Y(g)}"/><text x="${L-8}" y="${Y(g)+3}" text-anchor="end">${g}</text>`);
+ P.forEach((p,i)=>{const cx=L+gw*i+gw/2;o+=`<text x="${cx}" y="${H-10}" text-anchor="middle">${p} · ${PJ[i]} j</text>`;
+  ks.forEach((k,j)=>{const s=SER[k],y=s.v[i];if(y==null)return;const base=s.v.find(x=>x!=null),ix=y/base*100,x=cx+(j-(ks.length-1)/2)*(bw+3)-bw/2,y0=Y(100),y1=Y(ix);
+   o+=`<rect data-tip="${s.n} · ${P[i]} : ${fr(y)} ${s.u} (indice ${fr(ix,1)})" tabindex="0" x="${x}" y="${Math.min(y0,y1)}" width="${bw}" height="${Math.max(Math.abs(y0-y1),1.5)}" rx="2.5" fill="${s.c}"/>`});
+  if(ks.includes('marge')&&SER.marge.v[i]==null){const j=ks.indexOf('marge'),xm=cx+(j-(ks.length-1)/2)*(bw+3);o+=`<text transform="translate(${xm} ${Y(100)-6}) rotate(-90)" text-anchor="start">pas d’import</text>`}
+  if(i==0)o+=`<text x="${cx}" y="${Y(100)-8}" text-anchor="middle">base 100</text>`});
+ return o+'</svg>'}
+function tableIdx(){return `<table class="val"><thead><tr><th>Période</th>${Object.values(SER).map(s=>`<th>${s.n} (${s.u})</th>`).join('')}</tr></thead><tbody>`+P.map((p,i)=>`<tr><td>${p} · ${PJ[i]} j</td>${Object.values(SER).map(s=>`<td>${s.v[i]==null?'—':fr(s.v[i])}</td>`).join('')}</tr>`).join('')+'</tbody></table>'}
+
+/* Courbes à période */
+let per='40';
+function courbe(k,c,u,lib){const d=per=='40'?C40[k]:M6[k],W=380,H=120,L=8,R=8,T=10,B=22,mn=Math.min(...d),mx=Math.max(...d),X=i=>L+i*(W-L-R)/(d.length-1),Y=v=>T+(mx-v)/((mx-mn)||1)*(H-T-B);
+ const pts=d.map((v,i)=>[X(i),Y(v)]),path=pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');
+ const lab=per=='40'?['17/10','06/11','26/11']:['juin','sept.','nov.'];
+ let o=`<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${lib}"><line class="grid" x1="${L}" x2="${W-R}" y1="${H-B}" y2="${H-B}"/>`;
+ o+=`<path d="${path} L${X(d.length-1)} ${H-B} L${L} ${H-B}Z" fill="${c}" opacity=".10"/><path d="${path}" fill="none" stroke="${c}" stroke-width="2" stroke-linejoin="round"/>`;
+ const pas=per=='40'?4:1;pts.forEach((p,i)=>{if(i%pas==0||i==d.length-1)o+=`<circle data-tip="${lab[0]&&per=='40'?'J−'+(39-i):'mois '+(i+1)} : ${fr(d[i])} ${u}" tabindex="0" cx="${p[0]}" cy="${p[1]}" r="${i==d.length-1?4.5:3.5}" fill="${i==d.length-1?c:'var(--t-panel)'}" stroke="${c}" stroke-width="2"/>`});
+ o+=`<text x="${L}" y="${H-6}">${lab[0]}</text><text x="${W/2}" y="${H-6}" text-anchor="middle">${lab[1]}</text><text x="${W-R}" y="${H-6}" text-anchor="end">${lab[2]}</text></svg>`;
+ return `<div><div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px"><span style="font-weight:600;font-size:13px">${lib}</span><span class="mono" style="font-size:12px;color:var(--t-mid)">${fr(mn)} à ${fr(mx)} ${u}</span></div>${o}</div>`}
+function courbes(){return `<div class="grille g3">${courbe('piste','var(--piste)','L','Volumes carburant')}${courbe('marge','var(--boutique)','€','Ventes boutique')}${courbe('fdj','var(--fdj)','€','Chiffre FDJ')}</div>`}
+
+function monter(){
+document.getElementById('p').innerHTML=`
+<header class="bandeau"><picture><source type="image/webp" srcset="../../../assets/brief/brief-entete-1280.webp 1280w, ../../../assets/brief/brief-entete-2172.webp 2172w" sizes="1240px"><img src="../../../assets/brief/brief-entete-2172.jpg" alt="" width="2172" height="724"></picture><div class="titre"><img src="../../../assets/nexus-logo-cyan.png" alt="NEXUS" width="72" height="72"><div><h1>Brief</h1><p>Tableau de direction</p></div></div></header>
+<div class="tete"><div class="sous">Jeudi 26 novembre · station fictive</div><div class="fin">Données les plus anciennes<br><b style="color:var(--t-text)">14/11</b></div></div>
+
+<section><h2 class="ts">À retenir</h2>
+<div class="grille g3">
+${lecture(v2('mod-resultats'),'Performance économique','+1,8','% boutique',[past('Contrasté : carburant −3,2 %','av'),'vert'],'7 jours contre 7 jours')}
+${lecture(v2('mod-verify'),'Maîtrise opérationnelle','1','écart confirmé',[past('À corriger','mal'),'rouge'],'Opérations · récurrent')}
+${lecture(tp('tempo-fiabilite-donnees'),'Fiabilité des données','4 / 5','secteurs à jour',[past('Partielle','av'),'amb'],'Marge : import du 14/11','<div class="couv" style="width:96px"><i></i><i></i><i></i><i></i><i class="p"></i></div>')}
+</div></section>
+
+<section><h2 class="ts">Secteurs</h2>
+<div class="grille g5">
+${sect(v2('mod-carburants'),'Carburant',past('Complet','ok'),'86 800','L · 7 j',bars([11,12,13,12,14,13,12],'var(--piste)'),'▼ 3,2 %','rouge',past('Sous contrôle','ok'),'Litres vendus par jour, 7 derniers jours','Volumes du jour comparés aux sept jours précédents. Source : caisse piste.')}
+${sect(v2('mod-produits'),'Commerce',past('Complet','ok'),'22 050','€ · 7 j',bars([3000,3300,3100,3400,3200,3150,2900],'var(--boutique)'),'▲ 1,8 %','vert',past('Stable','ok'),'Ventes boutique par jour, 7 derniers jours','Ventes quotidiennes : indépendantes de l’import.')}
+${sect(v2('mod-fdj'),'FDJ',past('Complet','ok'),'1 180','€ CA · 7 j',bars([160,170,180,175,165,170,160],'var(--fdj)'),'▲ 0,4 %','vert',past('À confirmer','av'),'Chiffre FDJ, sans marge','Aucune marge FDJ n’est calculée dans NEXUS.')}
+${sect(v2('mod-prise-de-poste'),'Opérations',past('Complet','ok'),'1','écart · 18 € · 7 j',bars([0,0,18,0,0,0,0],'var(--t-red)'),'récurrent','rouge',past('À corriger','mal'),'Maîtrise seule','Performance : non applicable.')}
+${sect(v2('mod-capital'),'Marge',past('Partiel','av'),'24,1','% réel',`<div style="width:100%;padding-bottom:6px">${jauge(94,'var(--t-amber)',96)}</div>`,'cible 25,5 %','amb',past('Sous la cible','av'),'Taux tarifaire validé','Import du 14/11. Performance attendue, non disponible.')}
+</div></section>
+
+<section><h2 class="ts">Tendance des trois moteurs</h2>
+<div class="carte">
+ <div class="entete-graph"><h3>${tp('tempo-comparaison-historique')}Indice base 100 · six périodes importées</h3>
+  <div class="fin" id="puces">${Object.entries(SER).map(([k,s])=>`<button type="button" class="puce" data-k="${k}" aria-pressed="${actifs[k]}" style="--c:${s.c}"><i></i>${s.n}</button>`).join('')}</div></div>
+ <div id="idx">${idx()}</div>
+ <div style="display:flex;align-items:center;gap:12px;margin-top:8px"><span class="note" style="margin:0">Départ à 100 sur la première période de chaque série. Une période sans import reste vide.</span><button type="button" class="lien" id="bt" aria-expanded="false" style="margin-left:auto">Afficher le tableau de valeurs</button></div>
+ <div id="tab" hidden>${tableIdx()}</div>
+</div></section>
+
+<section><h2 class="ts">Objectifs</h2>
+<div class="grille g3">
+ <div class="carte obj"><div class="t">Mois · volumes carburant</div><div class="nb">89<span class="unite">%</span></div>${jauge(89,'var(--t-cyan)',93)}<div class="mono" style="font-size:12px;color:var(--t-mid)">358 000 / 400 000 L</div><div class="prop" style="color:var(--t-green)">Objectif validé</div></div>
+ <div class="carte obj vide"><div class="t">Trimestre · ventes boutique</div><div style="font-size:15px;color:var(--t-mid)">Pas de progression affichée</div><div class="prop">Proposition à valider : 12 000 €</div><button type="button" class="btn">Valider l’objectif</button></div>
+ <div class="carte obj vide"><div class="t">Année · chiffre FDJ</div><div style="font-size:15px;color:var(--t-mid)">Non défini</div><div class="prop">Proposition : 36 000 €</div><button type="button" class="btn">Valider l’objectif</button></div>
+</div>
+</div></section>
+
+<section><h2 class="ts">À traiter</h2>
+<div class="grille g2">
+ <div class="carte"><h3>${v2('mod-evolution')}Potentiel financier</h3><div class="note" style="margin-top:0">Le premier est un fait constaté ; le dernier, une estimation.</div><div style="margin-top:8px">
+  <div class="lig"><div>Marge à récupérer<small>anomalies confirmées, chiffrées · 14/11</small></div><div class="m vert">640 €</div></div>
+  <div class="lig"><div>Pertes évitables<small>Opérations · 25/11</small></div><div class="m amb">210 €</div></div>
+  <div class="lig"><div>Potentiel de marge estimé<small>estimation sans anomalie confirmée, jamais additionnée</small></div><div class="m" style="color:var(--t-mid)">1 100 €</div></div></div></div>
+ <div class="carte"><h3>${v2('mod-assignations')}Décisions prioritaires</h3><div style="margin-top:8px">
+  <div class="lig"><div><b>Écart de caisse, quart de nuit</b><small class="mono">18 € · maîtrise</small></div>${past('À corriger','mal')}</div>
+  <div class="lig"><div><b>Stock de la cuve 2</b><small>2 jours restants · volumes du mois</small></div>${past('Aujourd’hui','av')}</div>
+  <div class="lig"><div><b>Relancer l’import des ventes</b><small>il y a 12 jours · marge du trimestre</small></div>${past('Cette semaine','av')}</div></div></div>
+</div></section>
+
+<section><h2 class="ts">Évolution</h2>
+<div class="carte"><div class="entete-graph"><h3>${v2('mod-tempo')}Un point par jour ou par mois</h3>
+ <div class="fin"><div class="seg" role="group" aria-label="Période"><button type="button" data-per="40" aria-pressed="true">40 jours</button><button type="button" data-per="6" aria-pressed="false">6 mois</button><button type="button" data-per="12" disabled title="Donnée indisponible : 9 mois d’historique">12 mois</button></div></div></div>
+ <div id="cb">${courbes()}</div><div class="note">12 mois : disponible dès que l’historique le permet (9 mois aujourd’hui).</div></div></section>
+
+<div><button type="button" class="btn" style="display:inline-flex;align-items:center;gap:8px">${v2('mod-rapport')}Ouvrir le rapport de gestion A4</button></div>`;
+/* Remplissage animé, une seule fois */
+requestAnimationFrame(()=>requestAnimationFrame(()=>document.querySelectorAll('.jauge.avant').forEach(j=>j.classList.remove('avant'))));
+}
+monter();
+
+/* Interactions (délégation) */
+const tip=document.getElementById('tip');
+function montrer(e){const t=e.target.closest('[data-tip]');if(!t)return;const r=t.getBoundingClientRect();tip.textContent=t.dataset.tip;tip.style.left=Math.max(8,Math.min(innerWidth-270,r.left+r.width/2-100))+'px';tip.style.top=Math.max(8,r.top-44)+'px';tip.classList.add('on')}
+document.addEventListener('mouseover',montrer);document.addEventListener('focusin',montrer);
+document.addEventListener('mouseout',e=>{if(e.target.closest('[data-tip]'))tip.classList.remove('on')});
+document.addEventListener('focusout',()=>tip.classList.remove('on'));
+document.addEventListener('keydown',e=>{if(e.key=='Escape')tip.classList.remove('on')});
+document.addEventListener('click',e=>{const t=e.target.closest('[data-tip]');if(t)montrer(e);
+ const b=e.target.closest('button');if(!b)return;
+ if(b.dataset.th){document.documentElement.dataset.theme=b.dataset.th;document.querySelectorAll('[data-th]').forEach(x=>x.setAttribute('aria-pressed',x==b))}
+ if(b.dataset.k){actifs[b.dataset.k]=!actifs[b.dataset.k];if(!Object.values(actifs).some(Boolean))actifs[b.dataset.k]=true;document.querySelectorAll('#puces .puce').forEach(x=>x.setAttribute('aria-pressed',actifs[x.dataset.k]));document.getElementById('idx').innerHTML=idx()}
+ if(b.id=='bt'){const h=document.getElementById('tab');h.hidden=!h.hidden;b.setAttribute('aria-expanded',!h.hidden);b.textContent=h.hidden?'Afficher le tableau de valeurs':'Masquer le tableau de valeurs'}
+ if(b.dataset.per&&!b.disabled){per=b.dataset.per;document.querySelectorAll('[data-per]').forEach(x=>x.setAttribute('aria-pressed',x==b));document.getElementById('cb').innerHTML=courbes()}});
+</script>
+</body></html>
