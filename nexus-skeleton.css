@@ -1,0 +1,75 @@
+/* NEXUS Skeleton — composant partagé (lot S1).
+   Contrat : data-state sur la section (wait, loading, ready, refresh, error, empty, unavailable),
+   data-k sur l'élément fantôme (txt, num, para, chart, line, ico, img, block).
+   Décision du 26/11 : A (verre et lumière) pour les squelettes de page, B (pouls cyan) pour les
+   chargements localisés, C (sobre, sans mouvement) automatique sous prefers-reduced-motion.
+   Aucune couleur en dur : tout dérive des jetons --t-*. Animations sur opacity et transform seulement. */
+:root{
+  --sk-base:color-mix(in srgb,var(--t-mid,#9aa8b6) 15%,transparent);
+  --sk-hi:color-mix(in srgb,var(--t-cyan,#24d7e3) 30%,transparent);
+}
+:root[data-theme=jour]{
+  --sk-base:color-mix(in srgb,var(--t-mid,#475569) 12%,transparent);
+  --sk-hi:color-mix(in srgb,var(--t-cyan,#0b7285) 24%,transparent);
+}
+
+.nsk-sec{position:relative}
+.nsk-sec>.nsk-body{transition:opacity .35s}
+.nsk-sec[data-state=wait]>.nsk-body{opacity:0}
+.nsk-sec[data-state=refresh]>.nsk-body{opacity:.55}
+.nsk-sec[data-state=error]>.nsk-body,
+.nsk-sec[data-state=empty]>.nsk-body,
+.nsk-sec[data-state=unavailable]>.nsk-body{opacity:0;pointer-events:none}
+.nsk-msg-zone{display:none;position:absolute;inset:0;align-items:center;justify-content:center;text-align:center;padding:12px}
+.nsk-sec[data-state=error]>.nsk-msg-zone,
+.nsk-sec[data-state=empty]>.nsk-msg-zone,
+.nsk-sec[data-state=unavailable]>.nsk-msg-zone{display:flex}
+.nsk-msg{max-width:420px;padding:10px 14px;border:1px solid var(--t-line);border-radius:12px;background:var(--t-panel);color:var(--t-text)}
+.nsk-msg b{display:block;margin-bottom:4px}
+.nsk-msg p{margin:0 0 8px;font-size:13px;color:var(--t-mid)}
+.nsk-msg button{min-height:44px;padding:0 16px;border:1px solid var(--t-line);border-radius:8px;background:var(--t-raised);color:var(--t-text);font:inherit;cursor:pointer}
+.nsk-sec[data-state=error] .nsk-msg{border-color:var(--nbe-critique,var(--t-red,var(--t-amber)))}
+.nsk-sec[data-state=unavailable] .nsk-msg{border-color:var(--t-amber)}
+
+/* élément fantôme */
+.nsk{position:relative;--r:6px}
+.nsk[data-k=txt],.nsk[data-k=num]{display:inline-block;vertical-align:top}
+.nsk[data-k=ico]{--r:50%}
+.nsk::before{content:"";position:absolute;inset:1px 0;border-radius:var(--r);background:var(--sk-base);pointer-events:none;opacity:0;z-index:2;transition:opacity .45s}
+.nsk[data-k=para]::before{inset:.25em 0;-webkit-mask-image:repeating-linear-gradient(currentcolor 0 .62em,transparent .62em 1.45em);mask-image:repeating-linear-gradient(currentcolor 0 .62em,transparent .62em 1.45em)}
+.nsk[data-k=chart]::before{inset:28% 0 0 0;-webkit-mask-image:linear-gradient(90deg,currentcolor 0 9%,transparent 9% 14.28%);mask-image:linear-gradient(90deg,currentcolor 0 9%,transparent 9% 14.28%);-webkit-mask-size:14.28% 100%;mask-size:14.28% 100%}
+.nsk[data-k=line]::before{-webkit-mask-image:repeating-linear-gradient(currentcolor 0 2px,transparent 2px 25%);mask-image:repeating-linear-gradient(currentcolor 0 2px,transparent 2px 25%)}
+.nsk[data-k=img]::before,.nsk[data-k=block]::before{inset:0}
+.nsk>*{transition:opacity .45s,filter .45s}
+.nsk-sec[data-state=wait] .nsk,.nsk-sec[data-state=loading] .nsk{color:transparent!important;text-shadow:none!important;-webkit-user-select:none;user-select:none;pointer-events:none}
+.nsk-sec[data-state=wait] .nsk>*,.nsk-sec[data-state=loading] .nsk>*{opacity:0}
+.nsk-sec[data-state=loading] .nsk::before{opacity:1}
+.nsk-sec[data-state=loading] .nsk img{visibility:hidden}
+
+/* A : squelette de page, lueur qui traverse, apparition en fondu net */
+.nsk-sec[data-state=loading] .nsk::before{background:linear-gradient(100deg,var(--sk-base) 30%,var(--sk-hi) 50%,var(--sk-base) 70%);background-size:260% 100%;animation:nsk-a 2.2s linear infinite}
+@keyframes nsk-a{from{background-position:130% 0}to{background-position:-130% 0}}
+.nsk-sec[data-state=ready] .nsk::before{opacity:0;transition:opacity .6s ease var(--d,0ms)}
+.nsk-sec[data-state=ready] .nsk,.nsk-sec[data-state=ready] .nsk>*{animation:nsk-in .65s cubic-bezier(.2,.7,.2,1) both;animation-delay:var(--d,0ms)}
+@keyframes nsk-in{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+
+/* B : pouls cyan, rafraîchissement localisé, les anciennes données restent */
+.nsk-sec[data-state=refresh]>.nsk-body::after{content:"";position:absolute;left:0;top:0;height:2px;width:30%;background:var(--t-cyan);box-shadow:0 0 10px var(--t-cyan);animation:nsk-b 1s cubic-bezier(.5,0,.5,1) infinite;z-index:3;pointer-events:none}
+.nsk-sec>.nsk-body{position:relative}
+.nsk-sec[data-state=refresh]:not(:has(>.nsk-body))::after{content:"";position:absolute;left:0;top:0;height:2px;width:30%;background:var(--t-cyan);box-shadow:0 0 10px var(--t-cyan);animation:nsk-b 1s cubic-bezier(.5,0,.5,1) infinite;z-index:3;pointer-events:none}
+@keyframes nsk-b{from{transform:translateX(-100%)}to{transform:translateX(300%)}}
+
+/* chargement long, pastille de mise à jour */
+.nsk-longload{display:none;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 0;padding:10px 12px;border:1px solid var(--t-amber);border-radius:12px;background:var(--t-panel);color:var(--t-text);font-size:13px}
+.nsk-longload.on{display:flex}
+.nsk-longload button{min-height:44px;padding:0 14px;border:1px solid var(--t-line);border-radius:8px;background:var(--t-raised);color:var(--t-text);font:inherit;cursor:pointer}
+.nsk-chip{font:11.5px var(--t-mono,monospace);color:var(--t-mid)}
+.nsk-chip.warn{color:var(--t-amber)}
+.nsk-live{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* C : sobre, sans mouvement */
+@media (prefers-reduced-motion:reduce){
+  .nsk-sec[data-state=loading] .nsk::before{background:var(--sk-base)!important;opacity:1!important}
+  .nsk-sec[data-state=refresh]>.nsk-body::after,.nsk-sec[data-state=refresh]:not(:has(>.nsk-body))::after{display:none}
+  .nsk-sec,.nsk-sec *,.nsk-sec *::before,.nsk-sec *::after{animation:none!important;transition:none!important}
+}

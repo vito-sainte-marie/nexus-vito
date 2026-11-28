@@ -1162,12 +1162,14 @@
       lignes = lignesObjectifsFamilles(etat);
       resume = lignes.length ? resumeFamilles(indicateursFamilles(etat), (g.selValider || []).length + (g.selProposer || []).length) : 'Aucune famille sur la période';
     }
-    var h = '<details class="sc-carte pt-obj pt-obj-familles" data-objectifs-familles="1" aria-label="Objectifs de marge par famille"' + (ouvert ? ' open' : '') + '><summary class="pt-objf-resume">' + iconeEnTete() +
-      '<span class="pt-objf-tete-txt"><span class="sc-nom">Objectifs de marge par famille</span><span class="sc-note pt-objf-ligne" data-objf-resume="1">' + esc(resume) + '</span></span><span class="sc-chev" aria-hidden="true"></span></summary>';
+    // S1 : pendant la lecture, la carte est une section NEXUS Skeleton (data-state) ; le résumé est un fantôme, sans chiffre inventé.
+    var charge = !!(etat && etat.objectifsChargement);
+    var h = '<details class="sc-carte pt-obj pt-obj-familles' + (charge ? ' nsk-sec' : '') + '" data-objectifs-familles="1" aria-label="Objectifs de marge par famille"' + (charge ? ' data-state="loading" aria-busy="true"' : '') + (ouvert ? ' open' : '') + '><summary class="pt-objf-resume">' + iconeEnTete() +
+      '<span class="pt-objf-tete-txt"><span class="sc-nom">Objectifs de marge par famille</span><span class="sc-note pt-objf-ligne' + (charge ? ' nsk' : '') + '"' + (charge ? ' data-k="txt"' : '') + ' data-objf-resume="1">' + esc(resume) + '</span></span><span class="sc-chev" aria-hidden="true"></span></summary>';
     if (!ouvert) return h + '</details>';
     h += '<div class="pt-objf-tete"><p class="sc-note pt-objf-tete-txt">Pour chaque famille : le plancher à ne pas franchir, la cible visée et l\'état de validation.</p>' +
       '<span class="pt-objf-source sc-note" data-objf-source="1">Source unique : registre tarifaire de la station</span></div>';
-    if (etat && etat.objectifsChargement) return h + '<div class="pt-objf-squelette" data-objf-chargement="1" aria-busy="true"><span></span><span></span><span></span><span></span></div></details>';
+    if (etat && etat.objectifsChargement) return h + '<div class="pt-objf-squelette" data-objf-chargement="1"><span class="nsk" data-k="block" style="display:block;height:64px;margin:8px 0"></span><span class="nsk" data-k="block" style="display:block;height:64px;margin:8px 0"></span><span class="nsk" data-k="block" style="display:block;height:64px;margin:8px 0"></span><span class="nsk" data-k="block" style="display:block;height:64px;margin:8px 0"></span></div></details>';
     if (etat && etat.objectifsErreur) return h + '<p class="sc-note" role="alert" data-objf-erreur="1">Lecture des objectifs impossible pour le moment. Votre sélection est conservée.</p><button type="button" class="detail-btn" data-objf-relire="1">Réessayer la lecture</button></details>';
     if (!lignes.length) return h + '<p class="sc-note">Aucune famille sur la période.</p></details>';
     ind = indicateursFamilles(etat); var repli = g.repli === true, cartes = enModeCartes(etat);
@@ -1823,10 +1825,6 @@
   CSS += '@media (max-width:899px){.vue-p1c .pt-objf-barre{top:auto;bottom:0;padding-bottom:calc(10px + env(safe-area-inset-bottom))}}';
   CSS += '@media (max-width:899px){.vue-p1c .pt-objf-barre{flex-wrap:wrap}.vue-p1c .pt-objf-barre-txt{flex:1 1 100%}.vue-p1c .pt-objf-barre .detail-btn{flex:1 1 0;min-width:0;padding-left:8px;padding-right:8px}}';
   CSS += '.vue-p1c .pt-objf-barre .detail-btn{flex:0 1 auto;min-height:48px}';
-  CSS += '.vue-p1c .pt-objf-squelette{display:flex;flex-direction:column;gap:8px;margin:10px 0}';
-  CSS += '.vue-p1c .pt-objf-squelette span{display:block;height:64px;border-radius:12px;background:var(--t-raised);animation:pt-objf-pulse 1.4s ease-in-out infinite}';
-  CSS += '@keyframes pt-objf-pulse{0%,100%{opacity:.5}50%{opacity:1}}';
-  CSS += '@media (prefers-reduced-motion:reduce){.vue-p1c .pt-objf-squelette span{animation:none}}';
   // A4-1f-bis : carte repliable, même modèle que Produits (details.sc-carte, summary, .sc-chev, cible 44 px).
   CSS += '.vue-p1c .pt-obj-familles>summary{display:flex;align-items:center;gap:12px;min-height:44px;cursor:pointer;list-style:none}';
   CSS += '.vue-p1c .pt-obj-familles>summary::-webkit-details-marker{display:none}';

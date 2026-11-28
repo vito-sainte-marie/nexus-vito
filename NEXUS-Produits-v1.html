@@ -133,7 +133,7 @@
   .photo-candidat.pc-match{border-color:var(--cyan);}
   .pc-badge{display:inline-block; margin-top:5px; padding:2px 6px; border-radius:4px; background:rgba(79,195,217,0.12); color:var(--cyan); font-family:var(--mono); font-size:8.5px; font-weight:600;}
   .photo-annuler{margin-top:10px; text-align:center; font-family:var(--mono); font-size:10.5px; color:var(--text-dim); cursor:pointer; text-decoration:underline;}
-  .photo-loading{font-size:12px; color:var(--text-dim); text-align:center; padding:16px 0;}
+  .photo-sk{padding:12px 0;}
 
   .emplacement-modifier{font-family:var(--mono); font-size:10.5px; color:var(--cyan); cursor:pointer; text-decoration:underline;}
   .emplacement-zones{display:flex; flex-wrap:wrap; gap:6px; margin-top:10px;}
@@ -393,6 +393,8 @@ body.nexus-desktop #resultSection > *{margin-bottom:12px;}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-build.js"></script>
 <script src="nexus-theme.js"></script>
+<link rel="stylesheet" href="nexus-skeleton.css">
+<script src="nexus-skeleton.js"></script>
 <script src="nexus-auth.js?v=20261127-1000"></script>
 <script src="nexus-rayons-familles.js?v=20261121-0001"></script>
 <script src="nexus-icones.js?v=20261124-0001"></script>
@@ -449,7 +451,7 @@ body.nexus-desktop #resultSection > *{margin-bottom:12px;}
   <!-- desktop-grid (02/08/2026) : mise en colonnes en vue bureau (voir
        nexus-desktop.js), neutralisée ici, la fiche a sa propre disposition. -->
   <div class="section desktop-grid" id="resultSection">
-    <div class="synthese-accueil" id="syntheseAccueil"></div>
+    <div class="synthese-accueil nsk-sec" id="syntheseAccueil" data-state="wait" aria-busy="true" aria-label="Accueil Produits"><div class="nsk-body"><span class="nsk" data-k="block" style="display:block;height:120px;margin:8px 0"></span><span class="nsk" data-k="block" style="display:block;height:84px;margin:8px 0"></span><span class="nsk" data-k="block" style="display:block;height:84px;margin:8px 0"></span></div></div>
   </div>
 
   <footer>NEXUS Produits v1 · <span class="nexus-nom-commerce"></span><span id="piedPeriode"></span></footer>
@@ -903,8 +905,11 @@ nexusRequireAuth().then(async employee => {
   let COMPTAGES_PRODUITS = new Map();
   let LIGNES_PRECEDENTES = [], SCANNER_CACHE = null, LECTURES_MARGE = null, SCANNER_CARTE_FORCEE = null;
   let SYNTHESE_PRODUITS = null, RESUME_PRODUITS = null, MESURES_PRODUITS = [], DECLARATIONS_PRODUITS = null, SYNTHESE_STOCK_DATE = null;
-  const ACCUEIL_HTML = document.getElementById('resultSection').innerHTML;
+  // S1 : le gabarit d'accueil restauré plus tard ne reprend pas le squelette de premier chargement.
+  const ACCUEIL_HTML = (() => { const t = document.createElement('div'); t.innerHTML = document.getElementById('resultSection').innerHTML; const z = t.querySelector('#syntheseAccueil'); if (z) { z.className = 'synthese-accueil'; z.removeAttribute('data-state'); z.removeAttribute('aria-busy'); z.removeAttribute('aria-label'); z.innerHTML = ''; } return t.innerHTML; })();
 
+  // S1 : squelette de l'accueil pendant le premier chargement ; la donnée n'est jamais retardée.
+  const SK_CHARGE = async () => {
   if (APERCU) {
     PRODUCTS = produitsApercu(await construireProduitsLive());
     PRODUCT_PHOTOS = {};
@@ -913,6 +918,9 @@ nexusRequireAuth().then(async employee => {
     PRODUCTS = await attacherMesures(await construireProduitsLive());
     PRODUCT_PHOTOS = await chargerPhotosProduits();
   }
+  };
+  const SK_ACCUEIL = document.getElementById('syntheseAccueil');
+  if (window.NexusSkeleton && SK_ACCUEIL) { try { await window.NexusSkeleton.charge(SK_ACCUEIL, SK_CHARGE); } catch (e) { throw e; } } else { await SK_CHARGE(); }
 
   // Pied de page : nom de la station (nexus-auth.js, lu en base) et période réelle des données.
   const piedPeriode = document.getElementById('piedPeriode');
@@ -1735,9 +1743,10 @@ nexusRequireAuth().then(async employee => {
       const i = cle === 'entete' ? 'produits-scanner-tarifaire' : ({ pertes: 'campagne-alerte-produit', fiabilite: 'campagne-rentabilite-non-mesurable', decisions: 'campagne-marge-commerciale', exceptions: 'campagne-a-retenir' }[cle] || 'campagne-alerte-produit');
       return `<img class="${cls || 'sc-photo sc-photo-ico'}" src="assets/icones/campagne/premium/${i}-96.webp" srcset="assets/icones/campagne/premium/${i}-48.webp 48w, assets/icones/campagne/premium/${i}-96.webp 96w, assets/icones/campagne/premium/${i}-144.webp 144w" sizes="48px" width="48" height="48" alt="" onerror="this.onerror=null;this.src='assets/icones/campagne/premium/campagne-alerte-produit-96.webp'">`;
     };
-    corps.innerHTML = '<div class="vp-ligne" role="status">Chargement du scanner tarifaire…</div>';
+    // S1 : squelette NEXUS (fantômes sans chiffre inventé), l'écran n'est jamais retardé.
+    corps.innerHTML = '<section class="nsk-sec" data-state="wait" aria-busy="true" aria-label="Scanner tarifaire"><div class="nsk-body">' + '<span class="nsk" data-k="block" style="display:block;height:64px;margin:8px 0"></span>'.repeat(4) + '</div><div class="nsk-msg-zone"></div></section>';
     let analyse, incoherences = [], verifs = null, identite = null;
-    try { const r = await calculerAnalyseTarif(true); analyse = r.analyse; incoherences = r.incoherences; verifs = r.verifications; identite = r.identite; }
+    try { const r = await (window.NexusSkeleton ? window.NexusSkeleton.charge(corps.firstElementChild, () => calculerAnalyseTarif(true)) : calculerAnalyseTarif(true)); analyse = r.analyse; incoherences = r.incoherences; verifs = r.verifications; identite = r.identite; }
     catch (e) { console.error('Scanner tarifaire:', e); indispo('Impossible de lire les registres tarifaires.'); return; }
     if (!analyse.lignes.length) { indispo('Aucune donnée tarifaire pour ce site'); return; }
     const etat = { analyse, verifications: verifs || [], historiqueDispo: !!verifs, filtreHisto: 'verifiee', histoOuverte: null, role: employee.role, userId: employee.id, filtres: {}, incoherences, ouverte: null, toutes: false, site: ((document.querySelector('.nexus-nom-commerce') || {}).textContent || ''), icone, estCreateur: !!(employee.est_createur || employee.estCreateur) };
@@ -1844,7 +1853,12 @@ nexusRequireAuth().then(async employee => {
       }));
       tous('[data-objf-afficher]', b => b.addEventListener('click', () => { g.tout = !g.tout; sauverPrefs(); rendre(); }));
       tous('[data-objf-repli]', b => b.addEventListener('click', () => { g.repli = !g.repli; sauverPrefs(); rendre(); }));
-      tous('[data-objf-relire]', b => b.addEventListener('click', async () => { await rechargerObjectifs(); rendre(); }));
+      tous('[data-objf-relire]', b => b.addEventListener('click', async () => {
+        const carte = b.closest('details.nsk-sec') || b.closest('details');
+        if (window.NexusSkeleton && carte) { carte.classList.add('nsk-sec'); try { await window.NexusSkeleton.pouls(carte, rechargerObjectifs); } catch (e) { /* l'erreur est déjà portée par etat.objectifsErreur */ } }
+        else await rechargerObjectifs();
+        rendre();
+      }));
       tous('[data-objf-envoyer]', b => b.addEventListener('click', () => { g.confirmer = { mode: b.dataset.objfEnvoyer }; g.risqueCoche = false; rendre(); }));
       tous('[data-objf-annuler]', b => b.addEventListener('click', () => { g.confirmer = null; rendre(); }));
       tous('[data-objf-retirer]', b => b.addEventListener('click', () => {
@@ -2548,7 +2562,7 @@ nexusRequireAuth().then(async employee => {
     }
 
     const zone = document.getElementById('photoCardZone');
-    if (zone) zone.innerHTML = `<div class="photo-loading">Recherche par code-barres (${esc(p.code_barres)})…</div>`;
+    if (zone) zone.innerHTML = `<div class="photo-sk nsk-sec" data-state="loading" aria-busy="true" role="status" aria-label="Recherche par code-barres (${esc(p.code_barres)})"><span class="nsk" data-k="block" style="display:block;height:56px"></span></div>`;
     try {
       const { data, error: erreurFn } = await nexusClient.functions.invoke('clever-endpoint', {
         body: { code: p.code_barres },
@@ -2620,7 +2634,7 @@ nexusRequireAuth().then(async employee => {
     const noteHtml = noteAvantRecherche
       ? `<div class="photo-empty" style="padding:0 0 10px; border-bottom:1px solid var(--hairline); margin-bottom:10px;">${esc(noteAvantRecherche)}</div>`
       : '';
-    zone.innerHTML = `${noteHtml}<div class="photo-loading">Recherche par nom sur Open Food Facts…</div>`;
+    zone.innerHTML = `${noteHtml}<div class="photo-sk nsk-sec" data-state="loading" aria-busy="true" role="status" aria-label="Recherche par nom sur Open Food Facts"><span class="nsk" data-k="block" style="display:block;height:56px"></span></div>`;
 
     let candidats = [];
     // Nettoie les mentions de conditionnement/lot ("- 8P", "50CL", "x6")
@@ -2741,7 +2755,7 @@ nexusRequireAuth().then(async employee => {
 
   async function confirmerPhotoProduit(p, candidat) {
     const zone = document.getElementById('photoCardZone');
-    if (zone) zone.innerHTML = `<div class="photo-loading">Enregistrement…</div>`;
+    if (zone) zone.innerHTML = `<div class="photo-sk nsk-sec" data-state="loading" aria-busy="true" role="status" aria-label="Enregistrement"><span class="nsk" data-k="block" style="display:block;height:56px"></span></div>`;
 
     const ligne = {
       site: SITE_ACTUEL, categorie: p.categorie, article: p.article,
